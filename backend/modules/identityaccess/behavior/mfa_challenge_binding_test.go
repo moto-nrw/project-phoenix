@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -76,7 +76,7 @@ func TestVerifyChallenge_RedeemsOnlyTheNamedChallenge(t *testing.T) {
 	newer := seedChallenge(t, nativeMFARecords(t, scenario.DB), accID, "222222", identityaccess.MFAChallengeTTL+time.Minute)
 	require.NotEqual(t, older.ID, newer.ID)
 
-	olderToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	olderToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID:   accID,
 		Scope:       identityaccess.MFAChallengeScopeTenant,
 		ChallengeID: older.ID,
@@ -111,7 +111,7 @@ func TestVerifyChallenge_TokenWithoutChallengeID_Refused(t *testing.T) {
 	seedChallenge(t, nativeMFARecords(t, scenario.DB), accID, "333333", identityaccess.MFAChallengeTTL)
 
 	tokenAuth := scenario.TokenAuth
-	legacyToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	legacyToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID: accID,
 		Scope:     identityaccess.MFAChallengeScopeTenant,
 	}, identityaccess.MFAChallengeTTL)
@@ -167,7 +167,7 @@ func TestVerifyChallengeForOwner_ForeignChallengeRefusedAndLeftRedeemable(t *tes
 	victimChallenge := seedChallenge(t, nativeMFARecords(t, scenario.DB), victimID, "424242", identityaccess.MFAChallengeTTL)
 
 	tokenAuth := scenario.TokenAuth
-	victimToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	victimToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID:   victimID,
 		Scope:       identityaccess.MFAChallengeScopeTenant,
 		ChallengeID: victimChallenge.ID,

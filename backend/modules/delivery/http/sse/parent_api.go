@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -19,8 +19,8 @@ func (rs *Resource) ParentRouter() chi.Router {
 	r := chi.NewRouter()
 
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.ParentMiddleware(tenant.ClaimScope{}))
+		r.Use(sessiontoken.Authenticator)
+		r.Use(sessiontoken.ParentMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.parentEventsHandler)
 	})
 
@@ -46,7 +46,7 @@ func (rs *Resource) parentEventsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(ctx).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 	if accountID <= 0 {
 		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return

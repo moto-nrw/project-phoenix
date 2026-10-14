@@ -14,7 +14,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -268,8 +268,8 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	db, factory := setupCaregiverFactory(t)
 	ctx := context.WithValue(
 		testpkg.Ctx(t),
-		jwtPkg.CtxClaims,
-		jwtPkg.AppClaims{ID: 91, Scope: "tenant", TenantID: testpkg.Tenant(t)},
+		sessiontoken.CtxClaims,
+		sessiontoken.AppClaims{ID: 91, Scope: "tenant", TenantID: testpkg.Tenant(t)},
 	)
 
 	account := testpkg.CreateTestAccount(t, db, "caregiver-enable")
@@ -345,8 +345,8 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 	db, factory := setupCaregiverFactory(t)
 	ctx := context.WithValue(
 		testpkg.Ctx(t),
-		jwtPkg.CtxClaims,
-		jwtPkg.AppClaims{ID: 92, Scope: "tenant", TenantID: testpkg.Tenant(t)},
+		sessiontoken.CtxClaims,
+		sessiontoken.AppClaims{ID: 92, Scope: "tenant", TenantID: testpkg.Tenant(t)},
 	)
 
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Disable", "Caregiver")

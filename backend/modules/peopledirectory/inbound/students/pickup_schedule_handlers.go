@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -22,7 +22,7 @@ import (
 
 // getStaffIDFromJWT extracts the staff ID from JWT claims by looking up the person and staff
 func (rs *Resource) getStaffIDFromJWT(r *http.Request) (int64, error) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		return 0, errors.New("no valid JWT claims found")
 	}
@@ -305,8 +305,8 @@ func (rs *Resource) bulkUpsertPickupSchedules(w http.ResponseWriter, r *http.Req
 		renderError(w, r, common.ErrorInternalServer(errors.New("pickup adjustment service not configured")))
 		return
 	}
-	permissions := jwt.PermissionsFromCtx(r.Context())
-	claims := jwt.ClaimsFromCtx(r.Context())
+	permissions := sessiontoken.PermissionsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	result, err := rs.PickupAdjustmentService.ApplyBulkExceptions(
 		r.Context(), careplan.PickupAdjustmentBulkInput{
 			StudentIDs: req.StudentIDs, Schedules: req.Schedules,

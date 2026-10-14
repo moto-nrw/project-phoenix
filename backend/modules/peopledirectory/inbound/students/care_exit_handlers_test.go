@@ -19,7 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -88,7 +88,7 @@ func upsertNaturalCompletion(
 	testpkg.CreateTestBookingExpiredCareWithdrawalOn(t, db, studentID, gap)
 }
 
-func listedCareStudentIDs(t *testing.T, tc *testContext, claims jwt.AppClaims, query string) map[int64]bool {
+func listedCareStudentIDs(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, query string) map[int64]bool {
 	t.Helper()
 	request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?page_size=500"+query, nil)
 	response := authExec(t, tc, request, claims, []string{"admin:*"})
@@ -537,7 +537,7 @@ func TestStudentList_MarksRecordedExitsOnly(t *testing.T) {
 
 // confirmCareExitVia ends a child's care through the real HTTP surface, so the
 // exit row is written exactly the way the product writes it.
-func confirmCareExitVia(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, lastCareDay timezone.Date) {
+func confirmCareExitVia(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, lastCareDay timezone.Date) {
 	t.Helper()
 	body := map[string]any{
 		"student_ids":   []string{fmt.Sprintf("%d", studentID)},

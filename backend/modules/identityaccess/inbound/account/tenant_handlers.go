@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -478,7 +478,7 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get account ID from JWT claims
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	if rs.Sessions == nil {
 		common.RenderError(w, r, common.ErrorServiceUnavailable(errors.New("tenant switch unavailable")))
@@ -523,7 +523,7 @@ func (rs *Resource) switchTenant(w http.ResponseWriter, r *http.Request) {
 
 // listAccountTenants handles GET /auth/account/tenants
 func (rs *Resource) listAccountTenants(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	schools, err := rs.SchoolService.ListActiveSchoolsByAccountID(r.Context(), int64(claims.ID))
 	if err != nil {

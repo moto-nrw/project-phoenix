@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -357,7 +357,7 @@ func parseDateTimeField(name, raw string) (time.Time, error) {
 // claims. Falls back to 0 when not present; UpdateRolloverReview
 // tolerates 0 for tests that bypass auth.
 func (rs *Resource) adminAccountID(r *http.Request) int64 {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	return int64(claims.ID)
 }
 

@@ -10,7 +10,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -222,7 +222,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, db, "Clara", "Confirm")
 
-	ctx := context.WithValue(testpkg.Ctx(t), jwt.CtxClaims, jwt.AppClaims{
+	ctx := context.WithValue(testpkg.Ctx(t), sessiontoken.CtxClaims, sessiontoken.AppClaims{
 		ID:        int(account.ID),
 		FirstName: "Clara",
 		LastName:  "Confirm",

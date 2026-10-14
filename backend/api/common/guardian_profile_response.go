@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // GuardianProfileResponse is the autofill payload for the parent enrollment
@@ -66,7 +66,7 @@ type GuardianProfileChildData struct {
 // BuildGuardianProfileResponse merges claims-derived defaults with the
 // (possibly nil) loaded profile. Nil loaded → defaults only with an empty
 // children list.
-func BuildGuardianProfileResponse(claims jwt.AppClaims, loaded *GuardianProfileData) GuardianProfileResponse {
+func BuildGuardianProfileResponse(claims sessiontoken.AppClaims, loaded *GuardianProfileData) GuardianProfileResponse {
 	resp := GuardianProfileResponse{
 		Guardian: GuardianProfileGuardian{
 			FirstName: claims.FirstName,

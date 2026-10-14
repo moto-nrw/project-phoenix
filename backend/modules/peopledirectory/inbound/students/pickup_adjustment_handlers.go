@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -203,8 +203,8 @@ func (rs *Resource) pickupAdjustmentApplyInput(
 	body pickupAdjustmentRequest,
 	staffID int64,
 ) careplan.PickupAdjustmentApplyInput {
-	claims := jwt.ClaimsFromCtx(r.Context())
-	permissions := jwt.PermissionsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
+	permissions := sessiontoken.PermissionsFromCtx(r.Context())
 	return careplan.PickupAdjustmentApplyInput{
 		PickupAdjustmentPreviewInput: input,
 		PreviewToken:                 body.PreviewToken, Resolution: body.Resolution, Reason: body.Reason,

@@ -10,7 +10,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -238,14 +238,14 @@ type TimeTrackingCleanupStats = workforceCompose.TimeTrackingCleanupStats
 // SignedIdentityTokensOf adapts a root's resolved signer to the native claim
 // codec. The signing primitive stays in the token adapter; Identity owns the
 // claim schema and validation.
-func SignedIdentityTokensOf(signer *authjwt.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
+func SignedIdentityTokensOf(signer *sessiontoken.TokenAuth) (identityaccessCompose.SignedIdentityTokens, error) {
 	return NewSessionTokens(signer.JwtAuth, signer.JwtExpiry, signer.JwtRefreshExpiry)
 }
 
 // ConfiguredTokenAuth resolves the signer of roots that receive no resolved
 // configuration: the cleanup CLI and the test compositions.
-func ConfiguredTokenAuth() (*authjwt.TokenAuth, error) {
-	return authjwt.NewTokenAuthWithDurations(
+func ConfiguredTokenAuth() (*sessiontoken.TokenAuth, error) {
+	return sessiontoken.NewTokenAuthWithDurations(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),

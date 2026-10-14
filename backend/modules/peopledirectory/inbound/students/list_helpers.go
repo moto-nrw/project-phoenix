@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -581,7 +581,7 @@ func careStatusFromRequest(r *http.Request) (string, render.Renderer) {
 	// The departed side of the list is the same set of children the archive
 	// view shows. The pending-withdrawal exception also restores children the
 	// operational list hides, so it needs the same permission.
-	canReadEnded := securityruntime.HasPermission(permissions.UsersDelete, jwt.PermissionsFromCtx(r.Context()))
+	canReadEnded := securityruntime.HasPermission(permissions.UsersDelete, sessiontoken.PermissionsFromCtx(r.Context()))
 	if r.URL.Query().Get("include_pending_withdrawals") == "true" && !canReadEnded {
 		return "", common.ErrorForbidden(ErrCareStatusForbidden)
 	}

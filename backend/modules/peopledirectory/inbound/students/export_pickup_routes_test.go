@@ -13,12 +13,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // Read the delivered workbook, not the export handler's filtering helpers.
-func pickupExportRows(t *testing.T, tc *testContext, claims jwt.AppClaims, filters map[string]string) [][]string {
+func pickupExportRows(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, filters map[string]string) [][]string {
 	t.Helper()
 	req := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/export", map[string]any{
 		"format": "xlsx", "preset": "pickup_list",

@@ -21,7 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 )
 
@@ -221,7 +221,7 @@ type accessBinding struct{ staff StaffReader }
 // Only the legitimate restrictive conditions (no staff profile) collapse to
 // "no"; operational failures propagate.
 func (b accessBinding) CanReadStudents(ctx context.Context) (bool, error) {
-	if authorize.HasPermission("admin:*", jwt.PermissionsFromCtx(ctx)) {
+	if authorize.HasPermission("admin:*", sessiontoken.PermissionsFromCtx(ctx)) {
 		return true, nil
 	}
 	if b.staff == nil {

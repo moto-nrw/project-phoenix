@@ -20,12 +20,12 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults before any test (and before setupRoomsRoute
-// constructs a Resource via jwt.MustNewTokenAuth). CI runs without a .env so
+// constructs a Resource via sessiontoken.MustNewTokenAuth). CI runs without a .env so
 // AUTH_JWT_SECRET is unset; without a secret jwx refuses HMAC signing.
 func init() {
 	testutil.SeedTestJWTConfig()
@@ -619,8 +619,8 @@ func TestGetRoomHistory_StaffScope(t *testing.T) {
 	// returns true and the staff lookup is skipped entirely.
 	staffPermissions := []string{"rooms:read"}
 
-	teacherClaims := func(accountID int64) jwt.AppClaims {
-		return jwt.AppClaims{
+	teacherClaims := func(accountID int64) sessiontoken.AppClaims {
+		return sessiontoken.AppClaims{
 			ID:          int(accountID),
 			Sub:         "teacher@example.com",
 			Username:    "teacher",

@@ -6,7 +6,7 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/jwtauth/v5"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // SentrySessionContext tags every Sentry event of a request with the session
@@ -30,11 +30,11 @@ func SentrySessionContext(next http.Handler) http.Handler {
 	})
 }
 
-func verifiedSession(r *http.Request) (jwt.AppClaims, bool) {
-	var claims jwt.AppClaims
+func verifiedSession(r *http.Request) (sessiontoken.AppClaims, bool) {
+	var claims sessiontoken.AppClaims
 	token, raw, err := jwtauth.FromContext(r.Context())
 	if err != nil || token == nil || claims.ParseClaims(raw) != nil || claims.ID == 0 {
-		return jwt.AppClaims{}, false
+		return sessiontoken.AppClaims{}, false
 	}
 	return claims, true
 }
@@ -47,7 +47,7 @@ func verifiedSession(r *http.Request) (jwt.AppClaims, bool) {
 // parent tokens carry none (a guardian can have children in several) and
 // operator tokens are platform-wide. There school_id is absent, never a
 // placeholder.
-func tagSentrySession(scope *sentry.Scope, claims jwt.AppClaims) {
+func tagSentrySession(scope *sentry.Scope, claims sessiontoken.AppClaims) {
 	var portal, role string
 	var schoolID int64
 	switch {
@@ -69,7 +69,7 @@ func tagSentrySession(scope *sentry.Scope, claims jwt.AppClaims) {
 	}
 }
 
-func tenantRole(claims jwt.AppClaims) string {
+func tenantRole(claims sessiontoken.AppClaims) string {
 	switch {
 	case claims.Scope == "org":
 		return "carrier"

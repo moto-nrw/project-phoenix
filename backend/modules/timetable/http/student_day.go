@@ -21,7 +21,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -188,7 +188,7 @@ func (rs *Resource) resolveStudentForRead(w http.ResponseWriter, r *http.Request
 
 	if !securityruntime.CanReadStudent(
 		ctx,
-		jwt.PermissionsFromCtx(ctx),
+		sessiontoken.PermissionsFromCtx(ctx),
 		readableStudent{},
 		rs.UserContextService,
 	) {

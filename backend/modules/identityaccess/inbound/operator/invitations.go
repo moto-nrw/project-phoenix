@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // InvitationsResource handles operator invitation endpoints. Depends on the
@@ -136,7 +136,7 @@ type OperatorListItem struct {
 
 // CreateInvitation handles creating a new operator invitation
 func (rs *InvitationsResource) CreateInvitation(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	req := &CreateInvitationRequest{}
@@ -212,7 +212,7 @@ func (rs *InvitationsResource) ListInvitations(w http.ResponseWriter, r *http.Re
 
 // ResendInvitation handles re-sending an invitation email
 func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	idStr := chi.URLParam(r, "id")
@@ -232,7 +232,7 @@ func (rs *InvitationsResource) ResendInvitation(w http.ResponseWriter, r *http.R
 
 // RevokeInvitation handles revoking an invitation
 func (rs *InvitationsResource) RevokeInvitation(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	operatorID := int64(claims.ID)
 
 	idStr := chi.URLParam(r, "id")

@@ -27,7 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -111,7 +111,7 @@ func (a access) Caller(ctx context.Context) (grouplive.Caller, error) {
 	if err != nil {
 		return grouplive.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
 	}
-	userPermissions := jwt.PermissionsFromCtx(ctx)
+	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
 	return grouplive.Caller{
 		CanReadGroups:            authorize.HasPermission(permissions.GroupsRead, userPermissions),
 		CanReviewExcusedRequests: authorize.CanReviewExcusedAbsenceRequests(userPermissions),

@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -53,11 +53,11 @@ func withDeliveringMailer(options []api.AuthTestOption) []api.AuthTestOption {
 // challengeTokenAuth is Identity's session token adapter over the signing
 // configuration the composed module mints and parses the challenge JWTs with,
 // so a test can read the claims it carries.
-func challengeTokenAuth(t *testing.T, module api.AuthTestModule) *authjwt.TokenAuth {
+func challengeTokenAuth(t *testing.T, module api.AuthTestModule) *sessiontoken.TokenAuth {
 	t.Helper()
 	signing := module.SessionSigning
 	require.NotEmpty(t, signing.Secret)
-	tokenAuth, err := authjwt.NewTokenAuthWithDurations(signing.Secret, signing.AccessExpiry, signing.RefreshExpiry)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(signing.Secret, signing.AccessExpiry, signing.RefreshExpiry)
 	require.NoError(t, err)
 	return tokenAuth
 }
@@ -68,7 +68,7 @@ func challengeTokenAuth(t *testing.T, module api.AuthTestModule) *authjwt.TokenA
 type mfaTestScenario struct {
 	MFA       identityaccess.AccountMFA
 	Repos     services.MembershipTestRepositories
-	TokenAuth *authjwt.TokenAuth
+	TokenAuth *sessiontoken.TokenAuth
 	DB        *bun.DB
 	AccountID int64
 }
@@ -106,7 +106,7 @@ func newGatedAuthService(t *testing.T, db *bun.DB, mfa identityaccess.AccountMFA
 // test in this package does.
 type gatedAuthService struct {
 	testAuthService
-	TokenAuth *authjwt.TokenAuth
+	TokenAuth *sessiontoken.TokenAuth
 }
 
 // failingMFARecords replaces exactly one statement of the composed record

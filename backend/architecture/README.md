@@ -555,7 +555,8 @@ existing points are granted by `serviceFactoryCutoverPermission`. 23 of the
 26 #2747 keys fell (109 -> 86), and the composition surface dropped from 260
 to 259. The production adapters no longer hold a database handle, tenant
 transaction or JWT read: those live in the owner compositions or arrive as
-built values from the root. The `bun`, `tenant` and `legacy/jwt` keys remain,
+built values from the root. The `bun`, `tenant` and `sessiontoken`
+(`legacy/jwt` before #3487) keys remain,
 because the builders that compose several owners over one database
 (`services/*_roots.go`, `command_roots.go`, `cleanup_composition.go`,
 `factory.go`) and the test hooks still need them. The Factory still exists.
@@ -1023,6 +1024,23 @@ were split into named steps. Routes, methods, status codes, error bodies and
 middleware chains are unchanged; the middleware golden only renames
 `requirePlatformScope`'s package.
 
+#3487 moves the session token adapter `modules/identityaccess/legacy/jwt` to
+`modules/identityaccess/sessiontoken` the same way (policy epoch 41 to 42,
+[ADR 0054](../../docs/adr/0054-the-session-token-adapter-leaves-legacy-now.md)),
+with the package clause `sessiontoken`. It keeps the `identity-access` owner,
+the `adapter` role and both test roles, and the 27 Go files keep their names.
+The three remaining baseline keys are renamed and keep their issues: `api` in
+production and internal test (#2750) and `services` (#2747). No key falls, no
+rule is added. The 254 importing files (150 production files in 35 packages)
+change only the import path and the qualifier; the 27 that aliased the
+package (`authjwt`, `jwtPkg`, `jwtpkg`, `projectJWT`) now use its name. The
+inactive declaration
+`auth/jwt -> modules/identityaccess/legacy/jwt` of #3226 is removed, because
+its target is no longer classified and every `to` must be. The move empties
+`modules/identityaccess/legacy`, so its legacy LOC budget entry is gone
+(1,358 LOC, total 4,408 to 3,050). The middleware golden only renames the
+authenticator and scope middleware package.
+
 The Workforce compatibility adapter (`modules/workforce/legacy`) and the
 Workforce HTTP composition (`modules/workforce/inbound`) are classified as
 `workforce`/`adapter`. Their imports of the retained `models/active`,
@@ -1244,15 +1262,18 @@ their fourteen cross-owner implementation edges are gone. The tenant runtime
 edge `tenant` went next: the suites open their tenant, admin and current-tenant
 transactions and name the savepoint failure through the tenant runtime helpers
 of `test`, which the `shared-fixtures.tenant-runtime-public` rule already lets
-reach `tenant`. The three edges the legacy factory still forces on an
-`e2e-test` root — the module's own public contract, its token adapter
-`modules/identityaccess/legacy/jwt` and the refresh rotation application
-`auth/rotation` — are exact `legacy.jsonl` debt under #3446. No rule lets
-`test` or a composition owner reach them either, so they go only with a
-decision on the suites' role or when the suites drive the module without the
-legacy factory. The school-portal router
-suites bind their runtimes through `modules/schoolportal/portaltest`
-(`inbound-school`/`test-support`), the owner's own test support, instead of
+reach `tenant`. ADR 0053 point 7 settled the suites' role: they are
+Identity's own suites, and #4001 lets them import the module's public contract
+and its token adapter `modules/identityaccess/sessiontoken`. The refresh
+rotation application `auth/rotation` stays forbidden to them. The recovery
+proof is therefore an input of the public refresh capability
+(`AccountAuthentication.RefreshTokenWithAudit`): the compose engine binds it
+for the rotation policy, the account refresh route passes its header on, and
+the suites pass the proof as an argument and pin the five-minute grace and the
+sha256 family fingerprint by value. No `legacy.jsonl` entry names #3446.
+The school-portal router suites bind their runtimes through
+`modules/schoolportal/portaltest` (`inbound-school`/`test-support`), the
+owner's own test support, instead of
 naming the legacy composition from the suite; its three rules are anchored to
 that new point for the same reason.
 
@@ -2127,7 +2148,7 @@ and template routes from the public Data Import contract with unchanged paths,
 status codes, error strings, multipart handling, file-size limit and
 permission checks. The `root-composition.to.import-http` mount replaces the
 `api -> api/import` debt entry that fell with the old package; it and the
-`inbound-import.compose.*` rules that bind `api/common`, `modules/identityaccess/legacy/jwt`, `tenant`
+`inbound-import.compose.*` rules that bind `api/common`, `modules/identityaccess/sessiontoken`, `tenant`
 and the ORM are compatibility permissions, not target dependencies. Convert
 them to exact debt with the rule above once the package exists at a base SHA.
 
@@ -2181,7 +2202,7 @@ serves them `database/repositories.CallerRows`, which resolves the reach
 through the caller context and loads only the retained rows a consumer still
 renders. The `inbound-usercontext` owner and its four `student-presence`
 rules are gone. The request identity memo slot lives in the session adapter
-(`legacy/jwt`), the one Identity & Access package `api/common` and the
+(`sessiontoken`), the one Identity & Access package `api/common` and the
 legacy composition already reach, so `api/common` keeps attaching it
 router-wide and group-wide as before and the root binds it as the caller
 context's memo; the memo's contents stay in the application.

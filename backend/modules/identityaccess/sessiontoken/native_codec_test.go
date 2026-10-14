@@ -1,4 +1,4 @@
-package jwt_test
+package sessiontoken_test
 
 import (
 	"testing"
@@ -7,13 +7,13 @@ import (
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/stretchr/testify/require"
 )
 
 func TestNativeInvitationOwnershipProof(t *testing.T) {
 	t.Parallel()
-	legacy, err := jwt.NewTokenAuthWithDurations("invitation-codec-test-key-not-for-deployment", time.Hour, 24*time.Hour)
+	legacy, err := sessiontoken.NewTokenAuthWithDurations("invitation-codec-test-key-not-for-deployment", time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -61,7 +61,7 @@ func TestNativeInvitationOwnershipProof(t *testing.T) {
 
 func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 	t.Parallel()
-	legacy, err := jwt.NewTokenAuthWithDurations("session-codec-test-key-not-for-deployment", time.Hour, 24*time.Hour)
+	legacy, err := sessiontoken.NewTokenAuthWithDurations("session-codec-test-key-not-for-deployment", time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -92,7 +92,7 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 			// Old callers do not know the display-only role origin claim.
 			decoded.RoleIsSystem = nil
 			require.Equal(t, decoded, decodedOld)
-			oldRefresh, err := legacy.CreateRefreshJWT(jwt.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: jwt.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
+			oldRefresh, err := legacy.CreateRefreshJWT(sessiontoken.RefreshClaims{ID: int(refresh.AccountID), Token: refresh.Token, TenantID: refresh.TenantID, Scope: scope, CommonClaims: sessiontoken.CommonClaims{ExpiresAt: refresh.ExpiresAt}})
 			require.NoError(t, err)
 			decodedRefresh, err = native.ParseRefreshToken(oldRefresh)
 			require.NoError(t, err)
@@ -103,7 +103,7 @@ func TestNativeSessionCodecPreservesTokenWire(t *testing.T) {
 
 func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 	t.Parallel()
-	legacy, err := jwt.NewTokenAuthWithDurations("session-codec-boundary-test-key-only", time.Hour, 24*time.Hour)
+	legacy, err := sessiontoken.NewTokenAuthWithDurations("session-codec-boundary-test-key-only", time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
@@ -134,7 +134,7 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 	require.True(t, preview.ReadOnly)
 	require.EqualValues(t, 9, preview.ActingAdminID)
 	require.Equal(t, "preview", preview.PreviewID)
-	other, err := jwt.NewTokenAuthWithDurations("different-session-codec-test-key-only", time.Hour, time.Hour)
+	other, err := sessiontoken.NewTokenAuthWithDurations("different-session-codec-test-key-only", time.Hour, time.Hour)
 	require.NoError(t, err)
 	_, forged, err := other.JwtAuth.Encode(map[string]any{"id": 42, "sub": "codec@test.local", "roles": []string{}})
 	require.NoError(t, err)
@@ -180,7 +180,7 @@ func TestNativeSessionCodecTokenBoundaries(t *testing.T) {
 func TestNativeSessionCodecRejectsOtherHMACAlgorithms(t *testing.T) {
 	t.Parallel()
 	const key = "session-codec-algorithm-test-key-only"
-	legacy, err := jwt.NewTokenAuthWithDurations(key, time.Hour, 24*time.Hour)
+	legacy, err := sessiontoken.NewTokenAuthWithDurations(key, time.Hour, 24*time.Hour)
 	require.NoError(t, err)
 	native, err := identityCompose.NewSessionTokenCodec(legacy.JwtAuth, time.Hour, 24*time.Hour)
 	require.NoError(t, err)

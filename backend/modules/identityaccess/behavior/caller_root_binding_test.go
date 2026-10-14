@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // overviewScopeSettings resolves the one school-wide access setting (#2380)
@@ -126,9 +126,9 @@ func TestCallerOverviewAsksForStaffOnlyUnderAllStaff(t *testing.T) {
 	assert.Zero(t, own.calls)
 }
 
-func claimsContext(claims authjwt.AppClaims, permissions ...string) context.Context {
-	ctx := context.WithValue(context.Background(), authjwt.CtxClaims, claims)
-	return context.WithValue(ctx, authjwt.CtxPermissions, permissions)
+func claimsContext(claims sessiontoken.AppClaims, permissions ...string) context.Context {
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
+	return context.WithValue(ctx, sessiontoken.CtxPermissions, permissions)
 }
 
 func TestCallerFromClaimsWithoutClaimsIsUnauthenticated(t *testing.T) {
@@ -140,7 +140,7 @@ func TestCallerFromClaimsWithoutClaimsIsUnauthenticated(t *testing.T) {
 func TestCallerFromClaimsMapsTheVerifiedPrincipal(t *testing.T) {
 	t.Parallel()
 
-	caller := api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant", IsAdmin: true}, "users:update"))
+	caller := api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10, Scope: "tenant", IsAdmin: true}, "users:update"))
 
 	assert.True(t, caller.Authenticated)
 	assert.Equal(t, int64(42), caller.AccountID)
@@ -156,8 +156,8 @@ func TestCallerFromClaimsMapsTheVerifiedPrincipal(t *testing.T) {
 func TestCallerFromClaimsMarksTheSchoolPortal(t *testing.T) {
 	t.Parallel()
 
-	assert.True(t, api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "school"})).SchoolScope)
-	assert.False(t, api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10, Scope: "tenant"})).SchoolScope)
+	assert.True(t, api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10, Scope: "school"})).SchoolScope)
+	assert.False(t, api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10, Scope: "tenant"})).SchoolScope)
 }
 
 // A system-wide admin permission counts as effective admin without the admin
@@ -167,10 +167,10 @@ func TestCallerFromClaimsDetectsTheAdminWildcard(t *testing.T) {
 
 	for _, permission := range []string{"admin:*", "*:*"} {
 		t.Run(permission, func(t *testing.T) {
-			caller := api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, permission))
+			caller := api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10}, permission))
 			assert.True(t, caller.AdminWildcard)
 			assert.False(t, caller.AdminRole)
 		})
 	}
-	assert.False(t, api.CallerFromClaims(claimsContext(authjwt.AppClaims{ID: 42, TenantID: 10}, "users:update")).AdminWildcard)
+	assert.False(t, api.CallerFromClaims(claimsContext(sessiontoken.AppClaims{ID: 42, TenantID: 10}, "users:update")).AdminWildcard)
 }

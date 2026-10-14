@@ -19,7 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
@@ -403,8 +403,8 @@ func aggRequest(t *testing.T, rawQuery string, perms []string) *http.Request {
 	if rawQuery != "" {
 		req.URL.RawQuery = rawQuery
 	}
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, perms)
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
 	return req.WithContext(ctx)
 }
 

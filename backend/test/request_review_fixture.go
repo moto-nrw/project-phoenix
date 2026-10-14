@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -64,7 +64,7 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
  (tenant_id,student_id,request_child_id,submitted_by,payload,effective_from,status)
  VALUES (?,?,?,?,?::jsonb,?::date,'pending') RETURNING id`, tenantID, student.ID, childID, account.ID, fmt.Sprintf(`{"offerings":[{"offering_id":%d}]}`, care.ID), timezone.TodayDate().AddDays(30).String()).Scan(ctx, &id))
 	result.Rows["enrollment.offering_change_requests"] = id
-	result.Context = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(account.ID)})
-	result.Context = context.WithValue(result.Context, jwt.CtxPermissions, []string{"admin:*", "users:read", "users:update", "users:absence"})
+	result.Context = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(account.ID)})
+	result.Context = context.WithValue(result.Context, sessiontoken.CtxPermissions, []string{"admin:*", "users:read", "users:update", "users:absence"})
 	return result
 }

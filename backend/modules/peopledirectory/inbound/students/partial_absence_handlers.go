@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -167,7 +167,7 @@ func (rs *Resource) requirePartialAbsenceWriteAccess(w http.ResponseWriter, r *h
 	if student == nil {
 		return nil
 	}
-	if ok, err := rs.canManageStudentStatus(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, "excused"); !ok {
+	if ok, err := rs.canManageStudentStatus(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, "excused"); !ok {
 		renderError(w, r, common.ErrorForbidden(err))
 		return nil
 	}

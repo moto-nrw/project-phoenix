@@ -19,7 +19,7 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -125,7 +125,7 @@ func (env *unreadEnv) submit(t *testing.T, children int) *enrollmentAPI.SubmitRe
 func (env *unreadEnv) reader(t *testing.T, tenantID int64, permissions ...string) string {
 	t.Helper()
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Lea", "Leser")
-	return testutil.MintTestJWT(t, jwt.AppClaims{
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, Username: "leser" + strconv.FormatInt(account.ID, 10),
 		Roles: []string{"admin"}, Permissions: permissions, TenantID: tenantID,
 	})
@@ -279,7 +279,7 @@ func TestUnreadEnrollments_ReadOnlyPreviewDoesNotRead(t *testing.T) {
 	env := setupUnreadTest(t)
 	submitted := env.submit(t, 1)
 	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Pia", "Preview")
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email, Username: "preview" + strconv.FormatInt(account.ID, 10),
 		Roles: []string{"admin"}, Permissions: managePermissions, TenantID: env.tenantID,
 	}

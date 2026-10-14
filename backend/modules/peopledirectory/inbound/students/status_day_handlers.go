@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -66,7 +66,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	authorized, authErr := rs.canManageStudentStatus(r.Context(), userPermissions, student, req.Status)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
@@ -110,7 +110,7 @@ func (rs *Resource) bulkCreateStudentStatusDays(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	if err := rs.StudentStatusDayService.BulkCreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), req.StudentIDs, req.Status, req.Reason, dates); err != nil {
 		rs.renderStatusDayCreateError(w, r, err, true, "failed to bulk create student status days")
 		return
@@ -137,7 +137,7 @@ func (rs *Resource) deleteStudentStatusDay(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	authorized, authErr := rs.canManageStudentAbsence(r.Context(), userPermissions, student)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
@@ -185,7 +185,7 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissions []string, status string, dates []timezone.Date) studentpresence.StatusDayWriteContext {
 	writeContext := rs.newStatusDayWriteContext(r, userPermissions)
 	tenantID := tenant.FromContext(r.Context())
-	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	actorAccountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	writeContext.AfterCreate = func(ctx context.Context, studentIDs []int64) error {
 		return rs.notifyAbsenceReported(ctx, tenantID, studentIDs, status, dates, false, actorAccountID)
 	}

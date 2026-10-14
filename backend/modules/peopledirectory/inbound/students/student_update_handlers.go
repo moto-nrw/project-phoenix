@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -478,7 +478,7 @@ func (rs *Resource) recordConsentTransition(ctx context.Context, effectiveConsen
 		before.consentSnapshot(),
 		after.consentSnapshot(),
 		consentSourceTenantPortal,
-		jwt.ActorAccountIDFromCtx(ctx),
+		sessiontoken.ActorAccountIDFromCtx(ctx),
 		changedAt,
 	)
 }
@@ -616,7 +616,7 @@ func (rs *Resource) updateStudent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	hasFullWriteAccess, personUpdated, renderer := rs.stageStudentUpdate(r.Context(), userPermissions, student, person, req)
 	if renderer != nil {
 		renderError(w, r, renderer)

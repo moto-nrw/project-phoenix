@@ -14,10 +14,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
-func executeReadOnlyPreview(t *testing.T, method, path string, claims jwt.AppClaims) *httptest.ResponseRecorder {
+func executeReadOnlyPreview(t *testing.T, method, path string, claims sessiontoken.AppClaims) *httptest.ResponseRecorder {
 	t.Helper()
 	handlerCalled := false
 	handler := ReadOnlyPreviewMiddleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -25,7 +25,7 @@ func executeReadOnlyPreview(t *testing.T, method, path string, claims jwt.AppCla
 		w.WriteHeader(http.StatusOK)
 	}))
 	req := httptest.NewRequest(method, path, nil)
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 	rec := httptest.NewRecorder()
 	handler.ServeHTTP(rec, req)
 	if rec.Code == http.StatusOK {
@@ -39,8 +39,8 @@ func executeReadOnlyPreview(t *testing.T, method, path string, claims jwt.AppCla
 func TestReadOnlyPreviewMiddleware(t *testing.T) {
 	t.Parallel()
 
-	preview := jwt.AppClaims{ID: 42, ReadOnly: true, ActingAdminID: 7}
-	regular := jwt.AppClaims{ID: 42}
+	preview := sessiontoken.AppClaims{ID: 42, ReadOnly: true, ActingAdminID: 7}
+	regular := sessiontoken.AppClaims{ID: 42}
 
 	t.Run("regular tokens pass every method untouched", func(t *testing.T) {
 		for _, method := range []string{http.MethodGet, http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete} {

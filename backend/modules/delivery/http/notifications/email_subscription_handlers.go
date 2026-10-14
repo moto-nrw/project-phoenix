@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // emailSubscriptionResponse is the caller's own decision for one opt-in
@@ -23,8 +23,8 @@ func (rs *Resource) getEmailSubscription(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	ctx := r.Context()
-	enabled, err := rs.PreferenceService.EmailSubscribed(ctx, int64(jwt.ClaimsFromCtx(ctx).ID),
-		jwt.PermissionsFromCtx(ctx), chi.URLParam(r, "type"))
+	enabled, err := rs.PreferenceService.EmailSubscribed(ctx, int64(sessiontoken.ClaimsFromCtx(ctx).ID),
+		sessiontoken.PermissionsFromCtx(ctx), chi.URLParam(r, "type"))
 	if err != nil {
 		renderEmailSubscriptionError(w, r, err)
 		return
@@ -44,8 +44,8 @@ func (rs *Resource) setEmailSubscription(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	ctx := r.Context()
-	if err := rs.PreferenceService.SetEmailSubscribed(ctx, int64(jwt.ClaimsFromCtx(ctx).ID),
-		jwt.PermissionsFromCtx(ctx), chi.URLParam(r, "type"), *req.Enabled); err != nil {
+	if err := rs.PreferenceService.SetEmailSubscribed(ctx, int64(sessiontoken.ClaimsFromCtx(ctx).ID),
+		sessiontoken.PermissionsFromCtx(ctx), chi.URLParam(r, "type"), *req.Enabled); err != nil {
 		renderEmailSubscriptionError(w, r, err)
 		return
 	}

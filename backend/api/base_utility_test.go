@@ -21,7 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -369,14 +369,14 @@ func checkOperatorInvitationMount(t *testing.T, graph *serveGraph) {
 // claims, not by a per-token hash. Re-logins and token refreshes therefore
 // share the account's budget instead of minting a fresh one.
 
-func rateLimitTestAuth(t *testing.T) *jwt.TokenAuth {
+func rateLimitTestAuth(t *testing.T) *sessiontoken.TokenAuth {
 	t.Helper()
-	tokenAuth, err := jwt.NewTokenAuthWithDurations("rate-limit-test-secret-32-chars!!", 15*time.Minute, 24*time.Hour)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations("rate-limit-test-secret-32-chars!!", 15*time.Minute, 24*time.Hour)
 	require.NoError(t, err)
 	return tokenAuth
 }
 
-func mintRateLimitJWT(t *testing.T, tokenAuth *jwt.TokenAuth, claims jwt.AppClaims) string {
+func mintRateLimitJWT(t *testing.T, tokenAuth *sessiontoken.TokenAuth, claims sessiontoken.AppClaims) string {
 	t.Helper()
 	if len(claims.Roles) == 0 {
 		claims.Roles = []string{"user"}
@@ -401,10 +401,10 @@ func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
 
 	// Two distinct tokens (differing payloads) for the same account/tenant —
 	// the re-login / second-browser-session scenario.
-	sessionA := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	sessionA := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", FirstName: "SessionA", TenantID: 7,
 	})
-	sessionB := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	sessionB := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", FirstName: "SessionB", TenantID: 7,
 	})
 	require.NotEqual(t, sessionA, sessionB,
@@ -419,10 +419,10 @@ func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
-	access := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	access := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", TenantID: 7,
 	})
-	refresh, err := tokenAuth.CreateRefreshJWT(jwt.RefreshClaims{
+	refresh, err := tokenAuth.CreateRefreshJWT(sessiontoken.RefreshClaims{
 		ID: 42, Token: "opaque-refresh-token", TenantID: 7,
 	})
 	require.NoError(t, err)
@@ -436,8 +436,8 @@ func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
-	tokenA := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user-a@example.com", TenantID: 7})
-	tokenB := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 43, Sub: "user-b@example.com", TenantID: 7})
+	tokenA := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "user-a@example.com", TenantID: 7})
+	tokenB := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 43, Sub: "user-b@example.com", TenantID: 7})
 
 	keyFunc := identityRateLimitKey(tokenAuth)
 	assert.NotEqual(t, keyFunc(rateLimitRequest(tokenA)), keyFunc(rateLimitRequest(tokenB)))
@@ -447,8 +447,8 @@ func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
-	tenant7 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
-	tenant8 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 8})
+	tenant7 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
+	tenant8 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 8})
 
 	keyFunc := identityRateLimitKey(tokenAuth)
 	assert.NotEqual(t, keyFunc(rateLimitRequest(tenant7)), keyFunc(rateLimitRequest(tenant8)),
@@ -461,9 +461,9 @@ func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
 
 	// Operator IDs and account IDs are different ID spaces — the same numeric
 	// ID with different scopes must never share a bucket.
-	tenantToken := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "staff@example.com", TenantID: 7})
-	operatorToken := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "op@example.com", Scope: "platform"})
-	parentToken := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{ID: 42, Sub: "parent@example.com", Scope: "parent"})
+	tenantToken := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "staff@example.com", TenantID: 7})
+	operatorToken := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "op@example.com", Scope: "platform"})
+	parentToken := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "parent@example.com", Scope: "parent"})
 
 	keyFunc := identityRateLimitKey(tokenAuth)
 	keys := map[string]bool{
@@ -478,7 +478,7 @@ func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
 
-	token := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	token := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "jane.doe@example.com", Username: "jane.doe@example.com",
 		FirstName: "Jane", LastName: "Doe", TenantID: 7,
 	})
@@ -532,10 +532,10 @@ func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
 func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
 	t.Parallel()
 	tokenAuth := rateLimitTestAuth(t)
-	otherAuth, err := jwt.NewTokenAuthWithDurations("a-completely-different-32char-key!!", 15*time.Minute, time.Hour)
+	otherAuth, err := sessiontoken.NewTokenAuthWithDurations("a-completely-different-32char-key!!", 15*time.Minute, time.Hour)
 	require.NoError(t, err)
 
-	forged := mintRateLimitJWT(t, otherAuth, jwt.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
+	forged := mintRateLimitJWT(t, otherAuth, sessiontoken.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
 
 	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(forged)),
 		"a token signed with the wrong secret must not produce an identity key")
@@ -577,14 +577,14 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	sessionA1 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	sessionA1 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", FirstName: "SessionA1", TenantID: 7,
 	})
-	sessionA2 := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	sessionA2 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 42, Sub: "user@example.com", FirstName: "SessionA2", TenantID: 7,
 	})
 	require.NotEqual(t, sessionA1, sessionA2)
-	otherAccount := mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+	otherAccount := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 		ID: 43, Sub: "other@example.com", TenantID: 7,
 	})
 
@@ -627,10 +627,10 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 	})
 
 	sessions := []string{
-		mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+		mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 			ID: 42, Sub: "user@example.com", FirstName: "SessionA", TenantID: 7,
 		}),
-		mintRateLimitJWT(t, tokenAuth, jwt.AppClaims{
+		mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
 			ID: 42, Sub: "user@example.com", FirstName: "SessionB", TenantID: 7,
 		}),
 	}
@@ -714,7 +714,7 @@ func TestOnValueSetCallback_FalseValueSkipsInfrastructure(t *testing.T) {
 
 // adminClaimsForCallback returns admin claims with config permissions
 // for testing the OnValueSet callback.
-func adminClaimsForCallback() jwt.AppClaims {
+func adminClaimsForCallback() sessiontoken.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.Permissions = append(claims.Permissions,
 		permissions.ConfigRead,

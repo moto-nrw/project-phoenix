@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +58,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 	manager := testutil.TenantUserTestClaims(73, testpkg.Tenant(t), permissions.ConfigManage)
 	teacher := testutil.TeacherTestClaims(74)
 
-	do := func(t *testing.T, router chi.Router, claims jwt.AppClaims, method, path string, body any) (int, string) {
+	do := func(t *testing.T, router chi.Router, claims sessiontoken.AppClaims, method, path string, body any) (int, string) {
 		t.Helper()
 		req := testutil.NewAuthenticatedRequest(t, method, path, body, testutil.WithJWTBearer(testutil.MintTestJWT(t, claims)))
 		rec := testutil.ExecuteRequest(router, req)

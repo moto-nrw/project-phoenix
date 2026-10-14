@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -152,7 +152,7 @@ type Invitations interface {
 
 func requirePlatformScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 		if !claims.IsPlatformScope() {
 			common.RenderError(w, r, common.AuthorizationForbidden())
 			return
@@ -226,7 +226,7 @@ func (rs *Resource) mountPublicRoutes(r chi.Router, authRateLimiter func(http.Ha
 func (rs *Resource) mountSessionRoutes(r chi.Router) {
 	// Protected routes that require refresh token
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.AuthenticateRefreshJWT)
+		r.Use(sessiontoken.AuthenticateRefreshJWT)
 		r.Post("/refresh", rs.refreshToken)
 		r.Post("/logout", rs.logout)
 	})
@@ -238,7 +238,7 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 	// authenticated handler. The full session is minted by
 	// mfaEnrollConfirm after successful enrollment.
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.MFAEnrollmentAuthenticator)
+		r.Use(sessiontoken.MFAEnrollmentAuthenticator)
 		r.Route("/mfa/enroll", func(r chi.Router) {
 			r.Post("/start", rs.mfaEnrollStart)
 			r.Post("/confirm", rs.mfaEnrollConfirm)
@@ -250,7 +250,7 @@ func (rs *Resource) mountSessionRoutes(r chi.Router) {
 // the caller's own account, tenant switch, staff-view preview, and the admin
 // routes behind the tenant transaction.
 func (rs *Resource) mountAuthenticatedRoutes(r chi.Router) {
-	r.Use(jwt.Authenticator)
+	r.Use(sessiontoken.Authenticator)
 	// Write block for admin staff-view preview tokens (#2893): a preview
 	// token must not switch tenants, change passwords, manage roles, or
 	// start another preview. Same placement as in ProtectedTenantGroup.

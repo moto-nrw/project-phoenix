@@ -48,14 +48,14 @@ func TestRefreshToken_SchoolScope_RoleRevoked_LeavesRefreshTokenUsable(t *testin
 		Exec(ctx)
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "")
+	_, _, err = service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "", "")
 	require.Error(t, err, "refresh must be rejected while the school-portal role is gone")
 
 	// Restore the role and replay the SAME refresh token. It still works only
 	// if the rejected attempt rolled its rotation back.
 	testpkg.AssignLehrkraftSystemRole(t, db, accountID, tenantID)
 
-	accessToken, refreshToken, err := service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "")
+	accessToken, refreshToken, err := service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "", "")
 	require.NoError(t, err,
 		"the refused refresh must not have consumed the token — authorization belongs inside the rotation transaction")
 	require.NotEmpty(t, refreshToken)
@@ -86,7 +86,7 @@ func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *tes
 	_, err = db.ExecContext(ctx, "UPDATE platform.schools SET active = false WHERE id = ?", tenantID)
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "")
+	_, _, err = service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "", "")
 	require.Error(t, err, "a deactivated school must not keep minting school sessions")
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -95,7 +95,7 @@ func TestRefreshToken_SchoolScope_InactiveSchool_LeavesRefreshTokenUsable(t *tes
 	_, err = db.ExecContext(ctx, "UPDATE platform.schools SET active = true WHERE id = ?", tenantID)
 	require.NoError(t, err)
 
-	_, refreshToken, err := service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "")
+	_, refreshToken, err := service.RefreshTokenWithAudit(ctx, login.RefreshToken, "", "", "")
 	require.NoError(t, err,
 		"the refusal must have left the refresh token intact — it is rejected before the rotation, not after")
 	require.NotEmpty(t, refreshToken)

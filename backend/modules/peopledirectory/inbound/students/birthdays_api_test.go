@@ -25,7 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -65,8 +65,8 @@ func setupBirthdaysRoute(t *testing.T, clocks ...func() time.Time) *birthdayTest
 	}
 }
 
-func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func claimsFor(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:        int(accountID),
 		Sub:       "birthday@example.com",
 		Username:  "birthday",
@@ -77,7 +77,7 @@ func claimsFor(tb testing.TB, accountID int64) jwt.AppClaims {
 	}
 }
 
-func birthdayAuthExec(t *testing.T, tc *birthdayTestContext, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
+func birthdayAuthExec(t *testing.T, tc *birthdayTestContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))

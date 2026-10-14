@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
@@ -22,7 +22,7 @@ func (rs *Resource) deleteStudent(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	authorized, authErr := canDeleteStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+	authorized, authErr := canDeleteStudent(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -85,7 +85,7 @@ func (rs *Resource) getStudentDeleteImpact(w http.ResponseWriter, r *http.Reques
 	if !ok {
 		return
 	}
-	authorized, authErr := canDeleteStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+	authorized, authErr := canDeleteStudent(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return
@@ -162,7 +162,7 @@ func (rs *Resource) purgeGraduatedStudent(w http.ResponseWriter, r *http.Request
 			"Nur Abgänger können endgültig gelöscht werden. Aktive Kinder werden unter „Alle Kinder“ gelöscht."))
 		return
 	}
-	authorized, authErr := canDeleteStudent(r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+	authorized, authErr := canDeleteStudent(r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
 		return

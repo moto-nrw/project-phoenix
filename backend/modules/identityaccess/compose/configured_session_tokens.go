@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // NewConfiguredSessionTokens builds the session token codec from
@@ -13,7 +13,7 @@ import (
 // adapter, so a root hands over values instead of building the signer
 // (ADR 0053 point 6).
 func NewConfiguredSessionTokens(secret string, accessExpiry, refreshExpiry time.Duration) (SignedIdentityTokens, error) {
-	signer, err := authjwt.NewTokenAuthWithDurations(secret, accessExpiry, refreshExpiry)
+	signer, err := sessiontoken.NewTokenAuthWithDurations(secret, accessExpiry, refreshExpiry)
 	if err != nil {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}

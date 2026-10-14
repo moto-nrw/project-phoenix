@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
@@ -237,7 +237,7 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, log
 // permittedDayLogGroups yields the unfiltered permitted set, or an empty set
 // when the caller is not staff at all. Errors here are dependency failures.
 func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
-	if securityruntime.HasAdminWildcard(jwt.PermissionsFromCtx(ctx)) {
+	if securityruntime.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx)) {
 		return rs.SchoolGroups.ListGroups(ctx)
 	}
 
@@ -649,7 +649,7 @@ func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups
 		return errors.New("audit log repository not configured")
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorRole := strings.Join(claims.Roles, ",")
 	if actorRole == "" {
 		actorRole = "unknown"

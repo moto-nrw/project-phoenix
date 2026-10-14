@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 func TestSecurityPrincipalMiddlewareResolvesPortalScopes(t *testing.T) {
@@ -14,14 +14,14 @@ func TestSecurityPrincipalMiddlewareResolvesPortalScopes(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		claims jwt.AppClaims
+		claims sessiontoken.AppClaims
 		scope  string
 	}{
-		{name: "tenant", claims: jwt.AppClaims{ID: 1, TenantID: 11}, scope: ""},
-		{name: "organization", claims: jwt.AppClaims{ID: 2, TenantID: 11, OrgID: 7, Scope: "org"}, scope: "org"},
-		{name: "platform", claims: jwt.AppClaims{ID: 3, Scope: "platform"}, scope: "platform"},
-		{name: "parent", claims: jwt.AppClaims{ID: 4, Scope: "parent"}, scope: "parent"},
-		{name: "school", claims: jwt.AppClaims{ID: 5, TenantID: 11, Scope: "school"}, scope: "school"},
+		{name: "tenant", claims: sessiontoken.AppClaims{ID: 1, TenantID: 11}, scope: ""},
+		{name: "organization", claims: sessiontoken.AppClaims{ID: 2, TenantID: 11, OrgID: 7, Scope: "org"}, scope: "org"},
+		{name: "platform", claims: sessiontoken.AppClaims{ID: 3, Scope: "platform"}, scope: "platform"},
+		{name: "parent", claims: sessiontoken.AppClaims{ID: 4, Scope: "parent"}, scope: "parent"},
+		{name: "school", claims: sessiontoken.AppClaims{ID: 5, TenantID: 11, Scope: "school"}, scope: "school"},
 	}
 
 	for _, tt := range tests {
@@ -41,7 +41,7 @@ func TestSecurityPrincipalMiddlewareResolvesPortalScopes(t *testing.T) {
 			}))
 
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, tt.claims))
+			req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, tt.claims))
 			recorder := httptest.NewRecorder()
 			handler.ServeHTTP(recorder, req)
 
@@ -57,11 +57,11 @@ func TestSecurityPrincipalMiddlewareRejectsMalformedClaims(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		claims *jwt.AppClaims
+		claims *sessiontoken.AppClaims
 	}{
 		{name: "missing claims"},
-		{name: "unknown scope", claims: &jwt.AppClaims{ID: 1, TenantID: 11, Scope: "unknown"}},
-		{name: "parent carrying tenant", claims: &jwt.AppClaims{ID: 1, TenantID: 11, Scope: "parent"}},
+		{name: "unknown scope", claims: &sessiontoken.AppClaims{ID: 1, TenantID: 11, Scope: "unknown"}},
+		{name: "parent carrying tenant", claims: &sessiontoken.AppClaims{ID: 1, TenantID: 11, Scope: "parent"}},
 	}
 
 	for _, tt := range tests {
@@ -72,7 +72,7 @@ func TestSecurityPrincipalMiddlewareRejectsMalformedClaims(t *testing.T) {
 			}))
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
 			if tt.claims != nil {
-				req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, *tt.claims))
+				req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, *tt.claims))
 			}
 			recorder := httptest.NewRecorder()
 			handler.ServeHTTP(recorder, req)
@@ -106,9 +106,9 @@ func TestPermissionMiddlewareFailsClosed(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			claims := jwt.AppClaims{ID: 1, TenantID: 11, Permissions: tt.permissions}
+			claims := sessiontoken.AppClaims{ID: 1, TenantID: 11, Permissions: tt.permissions}
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+			req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 			recorder := httptest.NewRecorder()
 			SecurityPrincipalMiddleware(RequiresPermission("users:read")(terminal)).ServeHTTP(recorder, req)
 			if recorder.Code != tt.want {
@@ -136,8 +136,8 @@ func TestPermissionMiddlewareAnyAndAllSemantics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			req := httptest.NewRequest(http.MethodGet, "/", nil)
-			claims := jwt.AppClaims{ID: 1, TenantID: 11, Permissions: []string{"users:read"}}
-			req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, claims))
+			claims := sessiontoken.AppClaims{ID: 1, TenantID: 11, Permissions: []string{"users:read"}}
+			req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 			recorder := httptest.NewRecorder()
 			SecurityPrincipalMiddleware(tt.gate(terminal)).ServeHTTP(recorder, req)
 			if recorder.Code != tt.want {
@@ -154,7 +154,7 @@ func TestAuthorizationObserverReceivesStableReason(t *testing.T) {
 		events = append(events, event)
 	})(SecurityPrincipalMiddleware(RequiresPermission("users:read")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))))
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 1, TenantID: 2}))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 1, TenantID: 2}))
 	handler.ServeHTTP(httptest.NewRecorder(), req)
 	if len(events) != 2 || events[0].Outcome != "resolved" || events[1].Reason != "permission_denied" {
 		t.Fatalf("authorization events = %+v", events)

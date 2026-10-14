@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	settingsContract "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -80,7 +80,7 @@ func TestOperationsRosterRoutesRedactPickupTimesWithoutStudentRead(t *testing.T)
 		t.Run(tc.path, func(t *testing.T) {
 			router := operationRouter(http.MethodGet, tc.route, tc.handler)
 			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
-			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(request)
 			testutil.WithPermissions(permissions.SchedulesRead)(request)
 			response := httptest.NewRecorder()
 
@@ -105,7 +105,7 @@ func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 	}}}
 	router := operationRouter(http.MethodGet, "/planned-now", NewResource(Dependencies{OperationsService: service}).operationsPlannedNow)
 	req := httptest.NewRequest(http.MethodGet, "/planned-now", nil)
-	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(req)
+	testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(req)
 	testutil.WithPermissions(permissions.SchedulesRead)(req)
 	response := httptest.NewRecorder()
 
@@ -115,7 +115,7 @@ func TestOperationsPlannedNowAllowsRosterFreeScheduleRead(t *testing.T) {
 	assert.False(t, service.lastPlannedOptions.IncludeRoster)
 
 	request := httptest.NewRequest(http.MethodGet, "/planned-now?include_roster=true", nil)
-	testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+	testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(request)
 	testutil.WithPermissions(permissions.SchedulesRead)(request)
 	response = httptest.NewRecorder()
 
@@ -160,7 +160,7 @@ func TestOperationsMutationResponsesRedactPickupTimesWithoutStudentRead(t *testi
 			if tc.body != nil {
 				request.Header.Set("Content-Type", "application/json")
 			}
-			testutil.WithClaims(t, jwt.AppClaims{ID: 120})(request)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120})(request)
 			testutil.WithPermissions(permissions.SchedulesRead)(request)
 			response := httptest.NewRecorder()
 
@@ -273,9 +273,9 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			service.lastIsAdmin = false
 			req := httptest.NewRequest(http.MethodPost, "/instances/231/reopen", nil)
-			testutil.WithClaims(t, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
-			attachTestPrincipal(t, req, jwt.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
+			attachTestPrincipal(t, req, sessiontoken.AppClaims{ID: 120, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			rr := httptest.NewRecorder()
 			router.ServeHTTP(rr, req)
 
@@ -286,7 +286,7 @@ func TestOperationsReopenEffectiveAdminScope(t *testing.T) {
 	}
 }
 
-func attachTestPrincipal(t *testing.T, req *http.Request, claims jwt.AppClaims, granted []string) {
+func attachTestPrincipal(t *testing.T, req *http.Request, claims sessiontoken.AppClaims, granted []string) {
 	t.Helper()
 	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
 		AccountID: int64(claims.ID), TenantID: claims.TenantID, Scope: claims.Scope,

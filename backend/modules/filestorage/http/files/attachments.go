@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Anhänge an Elternmitteilungen (#2890).
@@ -205,7 +205,7 @@ func (rs *Resource) deleteAnnouncementAttachment(w http.ResponseWriter, r *http.
 
 // parentAccountID reads the guardian account from the parent token.
 func parentAccountID(w http.ResponseWriter, r *http.Request) (int64, bool) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("invalid token: no account id")))
 		return 0, false

@@ -21,7 +21,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // understaffedAckRequest is the POST body shape. Note is trimmed to the same
@@ -89,7 +89,7 @@ func (rs *Resource) acknowledgeUnderstaffed(w http.ResponseWriter, r *http.Reque
 		}
 	}
 
-	instance, err := rs.InstanceService.AcknowledgeUnderstaffed(r.Context(), id, *req.Ack, req.Note, jwt.ActorAccountIDFromCtx(r.Context()))
+	instance, err := rs.InstanceService.AcknowledgeUnderstaffed(r.Context(), id, *req.Ack, req.Note, sessiontoken.ActorAccountIDFromCtx(r.Context()))
 	if err != nil {
 		renderDeviationError(w, r, err)
 		return

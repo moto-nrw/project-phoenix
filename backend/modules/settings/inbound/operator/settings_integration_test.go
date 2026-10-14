@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -26,8 +26,8 @@ import (
 // operatorTestClaims returns JWT claims for a platform-scoped operator.
 // Operators have empty permissions — access is gated by RequiresOperatorScope
 // middleware at the route level, not by per-setting permission checks.
-func operatorTestClaims() jwt.AppClaims {
-	return jwt.AppClaims{
+func operatorTestClaims() sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:          1,
 		Sub:         "operator@example.com",
 		Username:    "operator",

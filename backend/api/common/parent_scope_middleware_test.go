@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	jwtpkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 )
@@ -29,12 +29,12 @@ func TestParentMiddleware_AcceptsParentScope(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "parent@example.test",
 		Scope: tenant.ScopeParent,
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -76,13 +76,13 @@ func TestParentMiddleware_RejectsTenantScope(t *testing.T) {
 		t.Fatal("tenant-scope token must NOT reach the wrapped handler")
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:       42,
 		Sub:      "staff@example.test",
 		TenantID: 100,
 		Scope:    tenant.ScopeTenant,
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -100,13 +100,13 @@ func TestParentMiddleware_RejectsOrgScope(t *testing.T) {
 		t.Fatal("org-scope token must NOT reach the wrapped handler")
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "orgadmin@example.test",
 		OrgID: 7,
 		Scope: tenant.ScopeOrg,
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -126,12 +126,12 @@ func TestParentMiddleware_RejectsPlatformScope(t *testing.T) {
 		t.Fatal("platform-scope token must NOT reach the wrapped handler")
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "operator@example.test",
 		Scope: tenant.ScopePlatform,
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -151,12 +151,12 @@ func TestParentMiddleware_RejectsUnknownScope(t *testing.T) {
 		t.Fatal("unknown-scope token must NOT reach the wrapped handler")
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "future@example.test",
 		Scope: "future-scope-not-yet-defined",
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -175,11 +175,11 @@ func TestParentMiddleware_ZeroID_Unauthorized(t *testing.T) {
 		t.Fatal("ID=0 claims must NOT reach the wrapped handler")
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    0,
 		Scope: tenant.ScopeParent, // even with valid scope, ID=0 rejects
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 

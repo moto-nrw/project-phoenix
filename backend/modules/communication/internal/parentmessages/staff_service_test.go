@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -98,7 +98,7 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 // this test's tenant.
 func asAccount(t *testing.T, accountID int64) context.Context {
 	t.Helper()
-	return context.WithValue(testpkg.Ctx(t), jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
+	return context.WithValue(testpkg.Ctx(t), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
 }
 
 // twoColleagues creates two staff accounts that are active members of this

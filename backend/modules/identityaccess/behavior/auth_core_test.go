@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -28,6 +26,11 @@ const testPassword = "Test1234%" //nolint:gosec // pragma: allowlist secret
 
 // testNewPassword is an alternative test password for password change/reset tests.
 const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist secret
+
+// recoveryGrace is the refresh recovery window the frontend's old-token
+// deduplication relies on: a rotated predecessor stays recoverable, and a
+// retired family stays usable, for five minutes.
+const recoveryGrace = 5 * time.Minute
 
 // setupAuthService creates an Auth Service with real database connection
 func authTestFactoryConfig(rateLimitEnabled bool) services.FactoryConfig {
@@ -655,14 +658,14 @@ func TestAuthService_RefreshToken_InterruptedRotationRecovery(t *testing.T) {
 
 	_, predecessorJWT, err := serviceBeforeRestart.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
-	_, firstSuccessorJWT, err := serviceBeforeRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	const recoveryProof = "independent-recovery-secret"
+	_, firstSuccessorJWT, err := serviceBeforeRestart.RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.NoError(t, err)
 
 	// A new service instance has empty in-memory singleflight/cache state and
 	// models a frontend/backend process replacement during deployment.
 	serviceAfterRestart := setupAuthService(t, db)
-	accessToken, recoveredRefreshJWT, err := serviceAfterRestart.RefreshToken(recoveryCtx, predecessorJWT)
+	accessToken, recoveredRefreshJWT, err := serviceAfterRestart.RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, firstSuccessorJWT)
@@ -694,14 +697,13 @@ func TestAuthService_RefreshToken_InterruptedRotationRecoveryAcrossMultipleHando
 
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	firstProofCtx := rotation.WithRecoveryProof(ctx, "first-recovery-secret")
-	_, firstSuccessorJWT, err := service.RefreshToken(firstProofCtx, predecessorJWT)
+	const firstProof = "first-recovery-secret"
+	_, firstSuccessorJWT, err := service.RefreshTokenWithAudit(ctx, predecessorJWT, firstProof, "", "")
 	require.NoError(t, err)
-	secondProofCtx := rotation.WithRecoveryProof(ctx, "second-recovery-secret")
-	_, secondSuccessorJWT, err := service.RefreshToken(secondProofCtx, firstSuccessorJWT)
+	_, secondSuccessorJWT, err := service.RefreshTokenWithAudit(ctx, firstSuccessorJWT, "second-recovery-secret", "", "")
 	require.NoError(t, err)
 
-	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshToken(firstProofCtx, predecessorJWT)
+	accessToken, recoveredRefreshJWT, err := setupAuthService(t, db).RefreshTokenWithAudit(ctx, predecessorJWT, firstProof, "", "")
 	require.NoError(t, err)
 	assert.NotEmpty(t, accessToken)
 	assert.NotEmpty(t, secondSuccessorJWT)
@@ -742,13 +744,13 @@ func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *tes
 
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	recoveryCtx := rotation.WithRecoveryProof(ctx, "independent-recovery-secret")
-	_, successorJWT, err := service.RefreshToken(recoveryCtx, predecessorJWT)
+	const recoveryProof = "independent-recovery-secret"
+	_, successorJWT, err := service.RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.NoError(t, err)
 
 	_, err = db.NewUpdate().
 		Table("auth.tokens").
-		Set("rotated_at = ?", time.Now().Add(-rotation.RecoveryGrace-time.Minute)).
+		Set("rotated_at = ?", time.Now().Add(-recoveryGrace-time.Minute)).
 		Where("account_id = ?", account.ID).
 		Where("rotated_at IS NOT NULL").
 		Exec(ctx)
@@ -757,10 +759,10 @@ func TestAuthService_RefreshToken_ReplayAfterGraceCommitsFamilyRevocation(t *tes
 	// Rotate the successor after the predecessor leaves the recovery window.
 	// Cleanup must retain the predecessor until its JWT expiry so a later replay
 	// can still revoke the whole family.
-	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "successor-recovery-secret"), successorJWT)
+	_, _, err = service.RefreshTokenWithAudit(ctx, successorJWT, "successor-recovery-secret", "", "")
 	require.NoError(t, err)
 
-	_, _, err = setupAuthService(t, db).RefreshToken(recoveryCtx, predecessorJWT)
+	_, _, err = setupAuthService(t, db).RefreshTokenWithAudit(ctx, predecessorJWT, recoveryProof, "", "")
 	require.Error(t, err)
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -788,10 +790,10 @@ func TestAuthService_RefreshToken_WrongRecoveryProofRevokesFamily(t *testing.T) 
 
 	_, predecessorJWT, err := service.Login(ctx, email, testPassword)
 	require.NoError(t, err)
-	_, _, err = service.RefreshToken(rotation.WithRecoveryProof(ctx, "independent-recovery-secret"), predecessorJWT)
+	_, _, err = service.RefreshTokenWithAudit(ctx, predecessorJWT, "independent-recovery-secret", "", "")
 	require.NoError(t, err)
 
-	_, _, err = setupAuthService(t, db).RefreshToken(rotation.WithRecoveryProof(ctx, "attacker-does-not-have-the-recovery-secret"), predecessorJWT)
+	_, _, err = setupAuthService(t, db).RefreshTokenWithAudit(ctx, predecessorJWT, "attacker-does-not-have-the-recovery-secret", "", "")
 	require.Error(t, err)
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)

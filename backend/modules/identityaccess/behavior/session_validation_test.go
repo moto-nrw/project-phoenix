@@ -9,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +28,7 @@ func TestValidateSessionTokens(t *testing.T) {
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	service := identityaccess.AccountAuthentication(serviceFactory.Auth)
 	require.NotNil(t, service, "the composed module validates session hand-offs")
-	signer, err := jwt.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
+	signer, err := sessiontoken.NewTokenAuthWithDurations(config.JWTSecret, config.JWTExpiry, config.JWTRefreshExpiry)
 	require.NoError(t, err)
 	sessions, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
@@ -64,8 +64,8 @@ func TestValidateSessionTokens(t *testing.T) {
 				require.NoError(t, err)
 				tokenID = stored.ID
 			}
-			accessClaims := jwt.AppClaims{ID: int(accountID), Sub: account.Email, Roles: []string{"user"}, Scope: scope, TenantID: tenantID, FamilyID: family}
-			refreshClaims := jwt.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
+			accessClaims := sessiontoken.AppClaims{ID: int(accountID), Sub: account.Email, Roles: []string{"user"}, Scope: scope, TenantID: tenantID, FamilyID: family}
+			refreshClaims := sessiontoken.RefreshClaims{ID: int(accountID), Token: handle, Scope: scope, TenantID: tenantID}
 			access, refresh, err := signer.GenTokenPair(accessClaims, refreshClaims)
 			require.NoError(t, err)
 			verified, err := service.ValidateSessionTokens(ctx, access, refresh, portal)
@@ -85,14 +85,14 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.Error(t, err)
 			_, err = service.ValidateSessionTokens(ctx, access+"tampered", refresh, portal)
 			require.Error(t, err)
-			otherSigner, err := jwt.NewTokenAuthWithDurations("different-test-signing-key-32-characters", time.Minute, time.Hour)
+			otherSigner, err := sessiontoken.NewTokenAuthWithDurations("different-test-signing-key-32-characters", time.Minute, time.Hour)
 			require.NoError(t, err)
 			forged, _, err := otherSigner.GenTokenPair(accessClaims, refreshClaims)
 			require.NoError(t, err)
 			_, err = service.ValidateSessionTokens(ctx, forged, refresh, portal)
 			require.Error(t, err)
 			for _, flag := range []string{"mfa_pending", "mfa_enrollment_pending", "missing_expiry"} {
-				raw, err := jwt.ParseStructToMap(accessClaims)
+				raw, err := sessiontoken.ParseStructToMap(accessClaims)
 				require.NoError(t, err)
 				raw["exp"] = time.Now().Add(time.Minute).Unix()
 				if flag == "missing_expiry" {
@@ -112,7 +112,7 @@ func TestValidateSessionTokens(t *testing.T) {
 			require.Error(t, err)
 			accessClaims.FamilyID = family
 			accessClaims.ExpiresAt = time.Now().Add(-time.Minute).Unix()
-			rawClaims, err := jwt.ParseStructToMap(accessClaims)
+			rawClaims, err := sessiontoken.ParseStructToMap(accessClaims)
 			require.NoError(t, err)
 			_, expired, err := signer.JwtAuth.Encode(rawClaims)
 			require.NoError(t, err)

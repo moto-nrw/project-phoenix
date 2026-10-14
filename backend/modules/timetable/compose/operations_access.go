@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -147,10 +147,10 @@ func (s *operations) schoolWideScope(ctx context.Context, accountID int64, isAdm
 // isOGSActorToken accepts a tenant or organisation session of the caller's
 // own tenant with schedules:read.
 func isOGSActorToken(ctx context.Context, accountID int64) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	return (claims.Scope == "" || claims.Scope == "tenant" || claims.Scope == "org") &&
 		int64(claims.ID) == accountID && claims.TenantID > 0 && claims.TenantID == tenant.FromContext(ctx) &&
-		authorize.HasPermission("schedules:read", jwt.PermissionsFromCtx(ctx))
+		authorize.HasPermission("schedules:read", sessiontoken.PermissionsFromCtx(ctx))
 }
 
 // requireCanReportAbsence covers reporting a child sick or excused on the
@@ -206,8 +206,8 @@ func (s *operations) hasAdministrativeActionAccess(ctx context.Context, isAdmin 
 	if isAssignmentBoundPortal(ctx) {
 		return false
 	}
-	claims := jwt.ClaimsFromCtx(ctx)
-	return isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(jwt.PermissionsFromCtx(ctx))
+	claims := sessiontoken.ClaimsFromCtx(ctx)
+	return isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx))
 }
 
 func (s *operations) requireFixedGroupOperationAccess(ctx context.Context, staffID, instanceID int64) (int64, error) {
@@ -270,7 +270,7 @@ func (s *operations) operatesLoadedBlock(ctx context.Context, inst *scheduleMode
 }
 
 func isAssignmentBoundPortal(ctx context.Context) bool {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	return claims.IsSchoolScope()
 }
 

@@ -12,7 +12,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,10 +29,10 @@ func setupClassListEntriesRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	return db, newClassListEntriesResource(module.Membership, slog.Default()).Router()
 }
 
-func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) jwt.AppClaims {
+func classListEntryClaims(t *testing.T, db *testpkg.DB, prefix string) sessiontoken.AppClaims {
 	t.Helper()
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("%s-%d@test.local", prefix, time.Now().UnixNano()))
-	return jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
+	return sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: testpkg.Tenant(t)}
 }
 
 func TestClassListEntriesCompositionRunsTheCRUDAndAssignFlow(t *testing.T) {

@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
@@ -151,7 +151,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, nil)
 	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
 
-	schoolClaims := jwt.AppClaims{
+	schoolClaims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID,
 		Scope: tenant.ScopeSchool,
@@ -171,13 +171,13 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	// Every non-school scope on the school surface → 401, permission or not.
 	foreignScopes := []struct {
 		name   string
-		claims jwt.AppClaims
+		claims sessiontoken.AppClaims
 	}{
-		{"tenant scope", jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeTenant}},
-		{"org scope", jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: tenantID, OrgID: tenantID, Scope: tenant.ScopeOrg}},
-		{"platform scope", jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"operator"}, Scope: tenant.ScopePlatform}},
-		{"parent scope", jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"guardian"}, Scope: tenant.ScopeParent}},
-		{"school scope without tenant binding", jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, Scope: tenant.ScopeSchool}},
+		{"tenant scope", sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeTenant}},
+		{"org scope", sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: tenantID, OrgID: tenantID, Scope: tenant.ScopeOrg}},
+		{"platform scope", sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"operator"}, Scope: tenant.ScopePlatform}},
+		{"parent scope", sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"guardian"}, Scope: tenant.ScopeParent}},
+		{"school scope without tenant binding", sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, Scope: tenant.ScopeSchool}},
 	}
 	for _, tc := range foreignScopes {
 		t.Run(tc.name, func(t *testing.T) {
@@ -191,7 +191,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	// token cannot switch schools.
 	req = httptest.NewRequest(http.MethodPost, "/auth/switch-school", strings.NewReader(`{"tenant_slug":"t1"}`))
 	req.Header.Set("Content-Type", "application/json")
-	tenantClaims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeTenant}
+	tenantClaims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeTenant}
 	rec = testutil.ExecuteWithAuthPermissions(t, schoolRouter, req, tenantClaims, []string{"class_day:read"})
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 }
@@ -249,15 +249,15 @@ func TestSchoolMFAEndpoints_RejectForeignScopes(t *testing.T) {
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-foreign-scope")
 
 	tokenAuth := testutil.TestTokenAuth(t)
-	tenantChallenge, err := tokenAuth.CreateMFAChallengeJWT(jwt.MFAChallengeClaims{
+	tenantChallenge, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID: accountID,
-		Scope:     jwt.MFAChallengeScopeTenant,
+		Scope:     sessiontoken.MFAChallengeScopeTenant,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 	require.NoError(t, err)
-	tenantEnrollment, err := tokenAuth.CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+	tenantEnrollment, err := tokenAuth.CreateMFAEnrollmentJWT(sessiontoken.MFAEnrollmentClaims{
 		AccountID: accountID,
-		Scope:     jwt.MFAEnrollmentScopeTenant,
+		Scope:     sessiontoken.MFAEnrollmentScopeTenant,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 	require.NoError(t, err)
@@ -413,9 +413,9 @@ func TestSchoolMFAStatusUnavailable_Returns503(t *testing.T) {
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-mfa-unavailable")
 
-	enrollmentToken, err := testutil.TestTokenAuth(t).CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+	enrollmentToken, err := testutil.TestTokenAuth(t).CreateMFAEnrollmentJWT(sessiontoken.MFAEnrollmentClaims{
 		AccountID: accountID,
-		Scope:     jwt.MFAEnrollmentScopeSchool,
+		Scope:     sessiontoken.MFAEnrollmentScopeSchool,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 	require.NoError(t, err)
@@ -456,9 +456,9 @@ func TestSchoolMFAEnroll_BoundToItsOwnChallenge(t *testing.T) {
 
 	_, accountID := registerLehrkraft(t, db, resource, tenantID, "school-enroll")
 
-	enrollmentToken, err := testutil.TestTokenAuth(t).CreateMFAEnrollmentJWT(jwt.MFAEnrollmentClaims{
+	enrollmentToken, err := testutil.TestTokenAuth(t).CreateMFAEnrollmentJWT(sessiontoken.MFAEnrollmentClaims{
 		AccountID: accountID,
-		Scope:     jwt.MFAEnrollmentScopeSchool,
+		Scope:     sessiontoken.MFAEnrollmentScopeSchool,
 		TenantID:  tenantID,
 	}, 5*time.Minute)
 	require.NoError(t, err)

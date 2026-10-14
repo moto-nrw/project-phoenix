@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func checkEnrollmentSubmissionGolden(t *testing.T, api *serveGraph) {
 	parent := testpkg.CreateTestParentGuardianChain(t, db)
 	phase := testpkg.CreateTestEnrollmentPhase(t, db)
 	staffToken := testutil.MintTestJWT(t, testutil.AdminTestClaimsForTenant(int(staff.ID), testpkg.Tenant(t)))
-	parentToken := testutil.MintTestJWT(t, jwt.AppClaims{ID: int(parent.AccountID), Sub: parent.Email, Scope: "parent", Roles: []string{"guardian"}})
+	parentToken := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(parent.AccountID), Sub: parent.Email, Scope: "parent", Roles: []string{"guardian"}})
 	enabled := checkpointRequest(api, checkpointScenario{
 		Method: http.MethodPut, Path: "/api/settings/values/enrollment.enabled", Authenticated: true, Body: `{"value":true}`,
 	}, staffToken)

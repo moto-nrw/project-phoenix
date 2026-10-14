@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -74,7 +74,7 @@ func TestMFAService_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 
 	// ChallengeID mirrors what StartChallenge stamps: the verify path resolves
 	// the exact row the token names, so a hand-built token must name it too.
-	challengeJWT, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	challengeJWT, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID:   acc.ID,
 		Scope:       identityaccess.MFAChallengeScopeTenant,
 		ChallengeID: challenge.ID,

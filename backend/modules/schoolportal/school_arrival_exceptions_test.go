@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal/portaltest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -63,8 +63,8 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 		{http.MethodDelete, fmt.Sprintf("/class-day/arrival-exceptions/%s/%s", className, date), ""},
 	}
 
-	tenantClaims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: tenantID, IsAdmin: true, Scope: tenant.ScopeTenant}
-	schoolClaims := jwt.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool}
+	tenantClaims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"admin"}, TenantID: tenantID, IsAdmin: true, Scope: tenant.ScopeTenant}
+	schoolClaims := sessiontoken.AppClaims{ID: int(account.ID), Sub: account.Email, Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool}
 
 	for _, route := range routes {
 		t.Run(route.method+" "+route.path, func(t *testing.T) {

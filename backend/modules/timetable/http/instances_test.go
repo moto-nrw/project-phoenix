@@ -18,7 +18,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -452,9 +452,9 @@ func TestReopenInstance_EffectiveAdminScope(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			mock.lastReopenIsAdmin = false
 			req := httptest.NewRequest(http.MethodPost, "/instances/7/reopen", bytes.NewReader(nil))
-			testutil.WithClaims(t, jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
+			testutil.WithClaims(t, sessiontoken.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)})(req)
 			testutil.WithPermissions(tc.permissions...)(req)
-			attachTestPrincipal(t, req, jwt.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
+			attachTestPrincipal(t, req, sessiontoken.AppClaims{ID: 88, IsAdmin: tc.isAdmin, TenantID: testpkg.Tenant(t)}, tc.permissions)
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)
 
@@ -764,8 +764,8 @@ func TestResolveStartedByStaffID_PersonNotFound(t *testing.T) {
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, People: people, Logger: slog.Default()})
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 123}
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
 	staffID := rs.resolveStartedByStaffID(ctx)
 	assert.Equal(t, int64(0), staffID)
@@ -780,8 +780,8 @@ func TestResolveStartedByStaffID_PersonIsNil(t *testing.T) {
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, People: people, Logger: slog.Default()})
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 123}
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
 	staffID := rs.resolveStartedByStaffID(ctx)
 	assert.Equal(t, int64(0), staffID)
@@ -797,8 +797,8 @@ func TestResolveStartedByStaffID_StaffRepoNil(t *testing.T) {
 		// PersonStaffIDFn left nil — the person resolves to no staff member
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, People: people, Logger: slog.Default()})
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 123}
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
 	staffID := rs.resolveStartedByStaffID(ctx)
 	assert.Equal(t, int64(0), staffID)
@@ -816,8 +816,8 @@ func TestResolveStartedByStaffID_StaffNotFound(t *testing.T) {
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, People: people, Logger: slog.Default()})
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 123}
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
 	staffID := rs.resolveStartedByStaffID(ctx)
 	assert.Equal(t, int64(0), staffID)
@@ -835,8 +835,8 @@ func TestResolveStartedByStaffID_StaffIsNil(t *testing.T) {
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, People: people, Logger: slog.Default()})
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 123}
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
 	staffID := rs.resolveStartedByStaffID(ctx)
 	assert.Equal(t, int64(0), staffID)
@@ -856,8 +856,8 @@ func TestResolveStartedByStaffID_Success(t *testing.T) {
 		},
 	}
 	rs := NewResource(Dependencies{InstanceService: &mockInstanceService{}, People: people, Logger: slog.Default()})
-	claims := jwt.AppClaims{ID: 123}
-	ctx := context.WithValue(context.Background(), jwt.CtxClaims, claims)
+	claims := sessiontoken.AppClaims{ID: 123}
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 
 	staffID := rs.resolveStartedByStaffID(ctx)
 	assert.Equal(t, int64(777), staffID)
@@ -885,8 +885,8 @@ func TestStartInstance_PassesStartedByFromJWT(t *testing.T) {
 	// Inject JWT claims middleware before the handler.
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-			claims := jwt.AppClaims{ID: 123}
-			ctx := context.WithValue(req.Context(), jwt.CtxClaims, claims)
+			claims := sessiontoken.AppClaims{ID: 123}
+			ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, claims)
 			next.ServeHTTP(w, req.WithContext(ctx))
 		})
 	})

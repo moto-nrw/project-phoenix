@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
@@ -177,7 +177,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	// projection as for the decisions (#3804).
 	reviews := svc.UserContext.Caller().ParentRequestReviews
 	reviewScope := func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, jwt.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := reviews.ReviewScope(ctx, sessiontoken.PermissionsFromCtx(ctx))
 		return requestreviewcompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 	clock := firstClock(clocks)
@@ -332,7 +332,7 @@ func (c tenantScopedCaller) HasCurrentStaff(ctx context.Context) (bool, error) {
 // previewStudentDeletion reads the delete-impact preview the confirmed
 // deletion has to quote back (#2710): the permanent deletion is never
 // reachable without it.
-func previewStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64) map[string]any {
+func previewStudentDeletion(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64) map[string]any {
 	t.Helper()
 	request := testutil.NewAuthenticatedRequest(t, http.MethodGet, fmt.Sprintf("/%d/delete-impact", studentID), nil)
 	response := authExec(t, tc, request, claims, []string{"admin:*"})
@@ -345,7 +345,7 @@ func previewStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims,
 }
 
 // confirmStudentDeletion sends the confirmed DELETE for a preview.
-func confirmStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, preview map[string]any) *httptest.ResponseRecorder {
+func confirmStudentDeletion(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, preview map[string]any) *httptest.ResponseRecorder {
 	t.Helper()
 	request := testutil.NewAuthenticatedRequest(t, http.MethodDelete, fmt.Sprintf("/%d", studentID), map[string]any{
 		"expected_fingerprint": preview["fingerprint"],
@@ -358,7 +358,7 @@ func confirmStudentDeletion(t *testing.T, tc *testContext, claims jwt.AppClaims,
 
 // deleteStudentConfirmed previews and confirms in one step for tests whose
 // subject is the deletion's side effect, not the confirmation itself.
-func deleteStudentConfirmed(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64) *httptest.ResponseRecorder {
+func deleteStudentConfirmed(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64) *httptest.ResponseRecorder {
 	t.Helper()
 	return confirmStudentDeletion(t, tc, claims, studentID, previewStudentDeletion(t, tc, claims, studentID))
 }
@@ -382,7 +382,7 @@ func fixedCalendarClock() time.Time {
 // RequiresPermission → TenantTxMiddleware). It replaces the old
 // setupRouter+executeWithAuth context-injection pattern: paths must be the real
 // route paths and perms must be the permission the endpoint actually gates on.
-func authExec(t *testing.T, tc *testContext, req *http.Request, claims jwt.AppClaims, perms []string) *httptest.ResponseRecorder {
+func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))

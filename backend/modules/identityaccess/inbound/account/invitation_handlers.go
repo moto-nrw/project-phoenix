@@ -16,7 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -95,7 +95,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	invitationReq := rs.buildInvitationRequest(r, req, claims)
 
 	invitation, err := rs.runCreateInvitation(r.Context(), invitationReq)
@@ -113,7 +113,7 @@ func (rs *Resource) createInvitation(w http.ResponseWriter, r *http.Request) {
 // buildInvitationRequest maps the wire request into the module's invitation
 // request, resolving the tenant display name for the invitation email and
 // copying the optional name/position fields.
-func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims jwt.AppClaims) identityaccess.SchoolInvitationRequest {
+func (rs *Resource) buildInvitationRequest(r *http.Request, req *CreateInvitationRequest, claims sessiontoken.AppClaims) identityaccess.SchoolInvitationRequest {
 	invitationReq := identityaccess.SchoolInvitationRequest{
 		Email:            req.Email,
 		RoleID:           req.RoleID.Int64(),
@@ -450,7 +450,7 @@ func (rs *Resource) resendInvitationHandler(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	ctx := r.Context()
 	if rs.transactions != nil {
@@ -491,7 +491,7 @@ func (rs *Resource) revokeInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	ctx := r.Context()
 	var revokeErr error

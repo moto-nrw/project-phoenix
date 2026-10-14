@@ -29,7 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -147,8 +147,8 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 // approve).
 func (f *careFixture) staffCtx(accountID int64) context.Context {
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"admin:*"})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"admin:*"})
 	return ctx
 }
 
@@ -181,8 +181,8 @@ func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.
 // account passes, the guardian account does not.
 func (f *careFixture) nonAdminCtx(accountID int64) context.Context {
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), f.chain.TenantID)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: int(accountID)})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, []string{"users:update"})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(accountID)})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	return ctx
 }
 

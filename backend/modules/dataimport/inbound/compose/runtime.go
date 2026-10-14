@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
 	importapi "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,7 +34,7 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 	}
 	runtime := importapi.Runtime{
 		Middleware: []importapi.Middleware{
-			jwt.Authenticator,
+			sessiontoken.Authenticator,
 			common.ReadOnlyPreviewMiddleware, common.TenantScopeMiddleware,
 			common.SecurityPrincipalMiddleware, common.TenantOperationMiddleware,
 		},
@@ -45,7 +45,7 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 		},
 		TenantID:    tenant.FromContext,
 		AccountID:   accountID,
-		Permissions: func(ctx context.Context) []string { return jwt.ClaimsFromCtx(ctx).Permissions },
+		Permissions: func(ctx context.Context) []string { return sessiontoken.ClaimsFromCtx(ctx).Permissions },
 		StaffID: func(ctx context.Context) (int64, error) {
 			id, err := accountID(ctx)
 			if err != nil {
@@ -77,7 +77,7 @@ func HTTPRuntime(db *bun.DB, people peopledirectory.Capability, membership schoo
 var errChildQuotaReaderUnbound = errors.New("data import: child quota reader is not bound")
 
 func accountID(ctx context.Context) (int64, error) {
-	claims, ok := ctx.Value(jwt.CtxClaims).(jwt.AppClaims)
+	claims, ok := ctx.Value(sessiontoken.CtxClaims).(sessiontoken.AppClaims)
 	if !ok {
 		return 0, fmt.Errorf("no claims in context")
 	}
