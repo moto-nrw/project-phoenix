@@ -134,7 +134,7 @@ type Factory struct {
 	// account lifecycle, the role administration, the invitations and the
 	// operator flows the surfaces consume (#3364).
 	Auth  *identityaccess.Module
-	Audit auditModels.Command
+	Audit *auditCompose.Command
 	// MFA and Passkey are the Identity & Access second factor and the
 	// school-portal WebAuthn ceremonies (#3331).
 	MFA           identityaccess.AccountMFA
@@ -423,7 +423,7 @@ type ProductEventTracker interface {
 	Capture(distinctID, event string, props map[string]any)
 }
 
-func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (auditModels.Command, error) {
+func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (*auditCompose.Command, error) {
 	if store == nil || logger == nil || observe == nil {
 		return nil, errors.New("audit command store, logger, and observer are required")
 	}

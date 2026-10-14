@@ -92,6 +92,7 @@ var seedCoverageExemptions = map[string]string{
 	"meta.migration_metadata":                       "empty in prod too",
 	"meta.parent_student_consent_permission_grants": "one-time migration ledger; only upgrades with pre-existing guardian relationships can contain rows",
 
+	"platform.cleanup_runs":                 "the Worker writes it when a nightly cleanup succeeds at the school's configured minute (#3950); a seed run never reaches that minute",
 	"platform.operator_email_change_tokens": "empty in prod too",
 	"platform.operator_invitation_tokens":   "empty in prod too",
 	"platform.operator_mfa_trusted_devices": "cryptographically bound trusted-device state; never forge in demo data",

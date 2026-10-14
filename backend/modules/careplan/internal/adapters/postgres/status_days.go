@@ -520,3 +520,37 @@ func statusDaysToPublic(rows []studentStatusDayRow) []careplan.StudentStatusDay 
 	}
 	return result
 }
+
+// DeleteStudentStatusDaysBefore removes the tenant's status days dated before
+// cutoff (#3958). The meal plan's trigger copies every deleted sick day into
+// schedule.meal_sickness_status_history as "cleared now"; for a retention
+// purge that copy would be a new health record and would rewrite past meal
+// billing, so the purge marks its transaction and the trigger skips it.
+func (s *statusDayStore) DeleteStudentStatusDaysBefore(ctx context.Context, cutoff careplan.Date) (int64, carePlanCompose.RequestStoreStats, error) {
+	db, tenantID, err := s.databaseForWrite(ctx, "delete expired student status days")
+	if err != nil {
+		return 0, carePlanCompose.RequestStoreStats{}, err
+	}
+	started := time.Now()
+	if _, err := db.ExecContext(ctx, `SELECT set_config('app.retention_purge', 'on', true)`); err != nil {
+		return 0, requestStats(started, 0), requestDBError("mark status day retention purge", err)
+	}
+	result, err := db.NewDelete().
+		TableExpr("active.student_status_days").
+		Where("tenant_id = ?", tenantID).
+		Where("date < ?", calendarDate(cutoff)).
+		Exec(ctx)
+	if err != nil {
+		return 0, requestStats(started, 0), requestDBError("delete expired student status days", err)
+	}
+	if _, err := db.ExecContext(ctx, `SELECT set_config('app.retention_purge', 'off', true)`); err != nil {
+		return 0, requestStats(started, 0), requestDBError("unmark status day retention purge", err)
+	}
+	deleted, err := result.RowsAffected()
+	if err != nil {
+		return 0, requestStats(started, 0), requestDBError("count expired student status days", err)
+	}
+	stats := requestStats(started, deleted)
+	stats.Queries = 3
+	return deleted, stats, nil
+}

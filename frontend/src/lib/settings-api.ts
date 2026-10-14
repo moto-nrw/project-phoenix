@@ -24,7 +24,12 @@ export interface SchemaCategory {
   items: ResolvedSetting[];
 }
 
-type AccessPolicy = "shared" | "admin_only" | "operator_only";
+type AccessPolicy =
+  | "shared"
+  | "admin_only"
+  | "operator_only"
+  // Operator ändert, Schule liest (ADR 0048): die Löschfristen.
+  | "operator_managed";
 
 export interface ResolvedSetting {
   key: string;

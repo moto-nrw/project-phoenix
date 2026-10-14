@@ -34,7 +34,8 @@ func buildSchemaForOperator(
 
 // buildSchemaWithScope is the shared implementation. isOperator selects the
 // admin-vs-operator filters: operators see AccessShared + AccessOperatorOnly,
-// tenants see AccessShared + AccessAdminOnly.
+// tenants see AccessShared + AccessAdminOnly. Both see AccessOperatorManaged;
+// for tenants it is never writable.
 func buildSchemaWithScope(
 	ctx context.Context,
 	svc *settingsService,
@@ -99,10 +100,11 @@ func buildSchemaWithScope(
 		}
 
 		// Operators can always write (AccessPolicy gate already enforced at
-		// the route level; they bypass WritePermission in SetValue).
+		// the route level; they bypass WritePermission in SetValue). Tenants
+		// never write an operator-managed setting (ADR 0048).
 		writable := isOperator ||
-			def.WritePermission == "" ||
-			hasPermission(def.WritePermission, userPermissions)
+			(def.AccessPolicy != config.AccessOperatorManaged &&
+				(def.WritePermission == "" || hasPermission(def.WritePermission, userPermissions)))
 
 		resolved := &ResolvedSetting{
 			Key:          key,

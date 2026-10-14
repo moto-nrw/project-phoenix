@@ -15,6 +15,8 @@ const (
 	settingDataCleanupEnabled                    = "gdpr.data_cleanup_enabled"
 	settingDataCleanupTime                       = "gdpr.data_cleanup_time"
 	settingDataCleanupTimeoutMinutes             = "gdpr.data_cleanup_timeout_minutes"
+	settingStatusDayRetentionDays                = "gdpr.status_day_retention_days"
+	settingParentMessageRetentionDays            = "gdpr.parent_message_retention_days"
 	settingFeedbackDataRetentionDays             = "feedback.data_retention_days"
 	settingSessionEndEnabled                     = "operations.session_end_enabled"
 	settingSessionEndTime                        = "operations.session_end_time"

@@ -336,3 +336,25 @@ func TestNewStaffDataDeletion(t *testing.T) {
 		t.Fatalf("Validate() on staff-scoped deletion failed: %v", err)
 	}
 }
+
+func TestDataDeletion_Validate_DataKindRetentionNamesNoSubject(t *testing.T) {
+	t.Parallel()
+
+	row := NewRetentionDataDeletion(DeletionTypeParentMessageRetention, 4)
+	if err := row.Validate(); err != nil {
+		t.Fatalf("a data-kind retention row without subject must be valid: %v", err)
+	}
+	if row.DeletedBy != "system" || row.RecordsDeleted != 4 {
+		t.Fatalf("unexpected retention row %+v", row)
+	}
+
+	row.StudentID = int64Ptr(7)
+	if err := row.Validate(); err == nil {
+		t.Fatal("a data-kind retention row must not name a child")
+	}
+
+	manual := &DataDeletion{DeletionType: DeletionTypeManual, RecordsDeleted: 1, DeletedBy: "admin"}
+	if err := manual.Validate(); err == nil {
+		t.Fatal("a manual deletion still needs its subject")
+	}
+}

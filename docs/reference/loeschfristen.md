@@ -1,0 +1,68 @@
+# Löschfristen je Datenart
+
+**Stand:** 14.10.2026\
+**Quelle für:** Löschkonzept und TOM (Anlage zum AVV). Entscheidungen: [ADR 0048](../adr/0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md). Begründungen der Fristen: [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md). Umsetzung: Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
+
+Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
+
+## Wie gelöscht wird
+
+- **Nächtlicher Lauf je Schule.** Zur eingestellten Uhrzeit (`gdpr.data_cleanup_time`, Voreinstellung 02:00) löscht moto in einer Transaktion der Schule alles, was älter als die Frist ist. Wurde ein geplanter Lauf verpasst, weil der letzte erfolgreiche Lauf vor dem Tag des letzten geplanten Termins liegt, holt moto ihn beim nächsten Minutentakt nach; ein fehlgeschlagener Lauf zählt nicht und wird nachgeholt (#3950).
+- **Löschprotokoll.** Jede automatische Löschung schreibt einen Eintrag in `audit.data_deletions` mit Datenart und Anzahl, ohne die gelöschten Inhalte.
+- **Wer die Fristen einstellt.** Fachliche Fristen trägt das moto-Team je Schule im Operator-Dashboard ein, so wie sie im Vertrag stehen; ohne Eintrag gilt die Voreinstellung. Die Schule sieht ihre Fristen unter „Datenschutz“ und kann sie nicht ändern. Technische Daten und Protokolle haben feste Fristen für alle Schulen. Den nächtlichen Lauf hält nur das moto-Team als Notbremse an.
+
+## Fachliche Daten (je Schule, operator_managed)
+
+Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellungen sind begründete Praxis nach der [Recherche](../research/aufbewahrungsfristen-2026-10-12.md) (Abschnitte 1 bis 6) und vom Verantwortlichen im Vertrag zu bestätigen. Ausnahme: Zeiterfassung mindestens 2 Jahre nach § 16 Abs. 2 ArbZG.
+
+| Datenart | Einstellung | Voreinstellung | Rahmen | Startzeitpunkt | Owner | Stand |
+|---|---|---|---|---|---|---|
+| Raumbesuche ohne Einwilligung | `gdpr.privacy_consent_retention_days` | 30 Tage | 1 bis 31 Tage | Besuch | Student Presence | umgesetzt |
+| Betreuungsplan (Termine, Teilnahme, Änderungsprotokoll) | `gdpr.timetable_retention_days` | 365 Tage | 30 Tage bis 5 Jahre | Termin | Timetable | umgesetzt |
+| Krank-, Entschuldigt- und Klassenfahrt-Tage | `gdpr.status_day_retention_days` | 365 Tage | 30 Tage bis 3 Jahre | gemeldeter Tag | Care Plan | umgesetzt (#3958) |
+| Elternnachrichten | `gdpr.parent_message_retention_days` | 365 Tage | 30 Tage bis 2 Jahre | Versand | Communication | umgesetzt (#3959) |
+| Team-Chat | `gdpr.staff_message_retention_days` | 365 Tage | 30 Tage bis 2 Jahre | Versand | Communication | umgesetzt |
+| Änderungsprotokoll pro Kind | `gdpr.student_change_log_retention_days` | 90 Tage | 30 bis 365 Tage | Änderung | People Directory | umgesetzt |
+| App-Nutzung (Startbildschirm) | `gdpr.pwa_usage_retention_days` | 90 Tage | 30 bis 365 Tage | letzte Nutzung | Delivery | umgesetzt |
+| Rückmeldungen | `feedback.data_retention_days` | 90 Tage | 7 bis 365 Tage | Eingang | Feedback | umgesetzt |
+| Abgelehnte Anmeldungen | `enrollment.rejected_retention_days` | 90 Tage | 7 bis 730 Tage | Ablehnung | Enrollment | umgesetzt |
+| Zeiterfassung (Stempelzeiten, Pausen, Abwesenheiten) | `gdpr.time_tracking_retention_days` | 2 Jahre | 2 bis 8 Jahre | Arbeitstag | Workforce | umgesetzt |
+| Tagesanwesenheit | geplant | 365 Tage | 30 Tage bis 3 Jahre | Betreuungstag | Student Presence | offen (#3957) |
+| Erledigte Anmeldungen ohne Kind | geplant | 90 Tage | 30 bis 365 Tage | Erledigung | Enrollment | offen (#3960) |
+| Kinder nach Austritt (vollständig) | geplant | 365 Tage | 30 Tage bis 3 Jahre | letzter Betreuungstag | People Directory, Workflow Kinderlöschung | offen (#3962) |
+| AU-Bescheinigungen | geplant | 365 Tage | 90 Tage bis 3 Jahre | Hochladen | Workforce | offen (#3961) |
+| Ausgetretenes Personal | Zeiterfassungsfrist | wie Zeiterfassung | wie Zeiterfassung | Personalaustritt | Workforce, Workflow Personalaustritt | offen (#3963) |
+
+Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule selbst ein. Den Schalter `gdpr.data_cleanup_enabled` ändert nur das moto-Team (#3951).
+
+## Technische Daten und Protokolle (fest für alle Schulen)
+
+| Datenart | Frist | Startzeitpunkt | Owner | Begründung | Stand |
+|---|---|---|---|---|---|
+| Nicht registrierte Transponder-Scans | 90 Tage | Scan | Device Fleet | Prüfung durch das moto-Team, danach ohne Zweck | umgesetzt (#3950) |
+| Anmeldeereignisse | 90 Tage | Ereignis | Audit Platform | BSI-Mindeststandard „bspw. 90 Tage“ für Sicherheitsprotokolle | umgesetzt (#3956) |
+| Zugriffsprotokoll | Ende des Folgejahres | Zugriff | Audit Platform | Analogie § 76 Abs. 4 BDSG | umgesetzt (#3956) |
+| Löschprotokoll | 3 Jahre | Löschung | Audit Platform | BayLDA: Nachweis bis 3 Jahre | umgesetzt (#3956) |
+| Mail- und Push-Warteschlange, Zustellprotokolle | 30 Tage | Zustellung bzw. endgültiger Fehlschlag | Delivery | Inhalt ohne Zweck nach Zustellung | offen (#3955) |
+| Einladungen für Eltern | 30 Tage | Ablauf oder Einlösung | Identity Access | Link ohne Zweck nach Ablauf oder Einlösung | offen (#3954) |
+| MFA-Codes per E-Mail, Passkey-Sitzungen | 7 Tage | Ablauf | Identity Access | IP-Bezug höchstens 7 Tage | offen (#3954) |
+| Abgelaufene Refresh-Tokens, auch für Operatoren | 7 Tage | Ablauf | Identity Access | Sitzung ohne Zweck nach Ablauf | offen (#3954) |
+
+## Offene Lücken ohne Ticket
+
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 14.10.2026: 32 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+
+- **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`), Operator-Konten des moto-Teams.
+- **Weitere Protokolle:** Klassenlisten-Abgleich, Anmeldungs-Löschungen und -Wiederherstellungen, Exporte, Datei-Ereignisse, Änderungen an Finanz-, Personalnummer- und Personaldaten, Kinderlöschungen, Vertretungen, Zeiterfassungs-Löschungen, Einstellungsprotokoll, Operator-Protokoll mit IP-Adresse.
+- **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.
+- **Technische Reste:** erledigte Aufräum- und Austrittsaufträge mit Dateinamen oder Personal-ID, Anmelde-Ratenbegrenzung mit IP oder E-Mail (Löschcode vorhanden, aber nicht eingebunden), Demo-Besucher, Markierungen der Migration 1.15.428, abgeschlossene Betreuungsabmeldungen.
+
+Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRetentions`.
+
+## Grenzen und Sonderfälle
+
+- **Angenommene Anmeldungen** haben keine eigene Frist; sie gehen mit dem Kind (#3962).
+- **Andere Personaldokumente** haben keine laufende Frist; sie werden beim Personalaustritt entfernt.
+- **Offene Anfragen** in Elternnachrichten bleiben, solange die OGS sie nicht entschieden hat. Danach gilt die normale Frist ab Versand, eine entschiedene alte Anfrage geht also beim nächsten Lauf.
+- **Essens-Krankhistorie** (`schedule.meal_sickness_status_history`): Grundlage der Essensabrechnung. Sie speichert Krank-Tage ein zweites Mal und hat noch keine Frist. Die Fristlöschung der Krank-Tage schreibt bewusst keine neue Zeile hinein (#3958).
+- **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).

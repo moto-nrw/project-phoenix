@@ -9,6 +9,11 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 )
 
+// UnregisteredTagScanRetentionDays is the fixed retention of unregistered
+// RFID scans for every school (#2788, #3950): a scan stays reviewable for 90
+// days after it was scanned. It equals devicefleet.UnregisteredTagScanRetentionDays
+// and the window audit.delete_expired_unregistered_tag_scans enforces; the
+// retention list in docs/ names it.
 const UnregisteredTagScanRetentionDays = 90
 
 // UnregisteredTagScanService records unregistered RFID scans and expires
@@ -17,6 +22,9 @@ const UnregisteredTagScanRetentionDays = 90
 type UnregisteredTagScanService interface {
 	Record(ctx context.Context, tagUID string, deviceID *int64) error
 	DeleteOlderThan(ctx context.Context, days int) (int, error)
+	// DeleteExpired removes the school's scans older than the fixed
+	// retention and reports how many went and the window it applied.
+	DeleteExpired(ctx context.Context) (deleted, retentionDays int, err error)
 }
 
 type unregisteredTagScanService struct {
@@ -61,4 +69,15 @@ func (s *unregisteredTagScanService) DeleteOlderThan(ctx context.Context, days i
 		days = UnregisteredTagScanRetentionDays
 	}
 	return s.repo.DeleteOlderThan(ctx, time.Now().AddDate(0, 0, -days))
+}
+
+// retentionClockMargin keeps a retention cutoff inside the window the
+// database function accepts when the database clock runs slightly behind the
+// application's. A row is deleted at most one run later for it.
+const retentionClockMargin = time.Minute
+
+func (s *unregisteredTagScanService) DeleteExpired(ctx context.Context) (int, int, error) {
+	cutoff := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	deleted, err := s.repo.DeleteOlderThan(ctx, cutoff)
+	return deleted, UnregisteredTagScanRetentionDays, err
 }

@@ -139,3 +139,20 @@ func TestUnregisteredTagScanDeleteOlderThanUsesCustomDaysAndPropagatesError(t *t
 	require.False(t, repo.deleteCutoff.Before(before))
 	require.False(t, repo.deleteCutoff.After(after))
 }
+
+func TestUnregisteredTagScanDeleteExpiredStaysInsideTheDatabaseWindow(t *testing.T) {
+	t.Parallel()
+
+	repo := &fakeUnregisteredTagScanRepo{deleteResult: 2}
+	service := newUnregisteredTagScanService(t, repo)
+	before := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+
+	deleted, days, err := service.DeleteExpired(context.Background())
+
+	after := time.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	require.NoError(t, err)
+	require.Equal(t, 2, deleted)
+	require.Equal(t, 90, days, "unregistered tag scans keep the fixed 90-day retention")
+	require.False(t, repo.deleteCutoff.Before(before))
+	require.False(t, repo.deleteCutoff.After(after), "the cutoff keeps a margin below the database's 90-day window")
+}

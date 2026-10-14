@@ -10,14 +10,17 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyDataCleanupEnabled,
 		Label:           "Alte Daten automatisch löschen",
-		Description:     "Löscht jeden Tag Daten, deren Aufbewahrungsdauer abgelaufen ist. Wie lange was aufbewahrt wird, legen Sie darunter fest.",
+		Description:     "Notbremse: Hält die nächtliche Löschung dieser Schule an. Nur bei einem Vorfall ausschalten. Solange sie aus ist, hält moto die Löschfristen aus dem Vertrag nicht ein.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "datenbereinigung",
-		SortOrder:       1,
+		// ADR 0048: the school cannot switch the nightly deletion off; only
+		// the moto team halts it during an incident.
+		AccessPolicy: config.AccessOperatorOnly,
+		Tab:          "gdpr",
+		Category:     "datenbereinigung",
+		SortOrder:    1,
 	})
 
 	config.Register(config.Definition{
@@ -112,6 +115,7 @@ func init() {
 		Default:         730,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "zeiterfassung",
 		SortOrder:       40,
@@ -145,6 +149,7 @@ func init() {
 		Default:         30,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       14,
@@ -168,6 +173,7 @@ func init() {
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "schülerdaten",
 		SortOrder:       30,
@@ -177,6 +183,26 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+	})
+
+	// Sick, excused and class-trip days (#3958). Sickness is health data
+	// (Art. 9 DSGVO); no statute sets a period for OGS attendance, so a year
+	// covers the school year plus its follow-up questions. The frame of
+	// 30 days to 3 years is ADR 0048's.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStatusDayRetentionDays,
+		Label:           "Krank- und Entschuldigt-Tage aufbewahren (Tage)",
+		Description:     "So lange speichert moto, an welchen Tagen ein Kind krank, entschuldigt oder auf Klassenfahrt war. Danach löscht moto diese Tage.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       31,
+		Validation:      config.Range(30, 1095),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
 	minPWAUsageRetentionDays := float64(30)
@@ -189,6 +215,7 @@ func init() {
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       15,
@@ -215,6 +242,7 @@ func init() {
 		Default:         365,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       16,
@@ -224,5 +252,23 @@ func init() {
 			Condition: "eq",
 			Value:     true,
 		},
+	})
+
+	// Parent/OGS conversations (#3959). The frame of 30 days to 2 years
+	// matches the staff chat; open requests stay until they are decided.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRParentMessageRetentionDays,
+		Label:           "Elternnachrichten aufbewahren (Tage)",
+		Description:     "So lange speichert moto die Nachrichten zwischen Eltern und OGS. Danach löscht moto sie. Offene Anfragen bleiben, bis die OGS sie bearbeitet hat.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "bewegungsdaten",
+		SortOrder:       17,
+		Validation:      config.Range(30, 730),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 }

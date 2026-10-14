@@ -5321,6 +5321,8 @@ function settingsTopic(): HelpTopic {
     notes: [
       "Oben steht, wie viele Einstellungen von der Vorgabe abweichen.",
       "Jede Einstellung hat einen Satz darunter, der sagt, was sie bewirkt.",
+      "Unter `Datenschutz` sehen Sie die Löschfristen. Sie zeigen, wie lange moto Daten aufbewahrt.",
+      "moto legt die Löschfristen mit Ihrer Schule fest. Sie können sie nur lesen.",
       "Wer Blöcke starten oder beenden darf, legen Sie unter `Betrieb` fest: bei `Wer darf Blöcke starten?` und `Wer darf Blöcke beenden?`.",
       "`Das ganze Team` geht dort nur, wenn das Team alle Gruppen und Blöcke sieht.",
     ],
@@ -5328,7 +5330,8 @@ function settingsTopic(): HelpTopic {
       "Welche Bereiche Sie sehen, hängt von Ihren Rechten und den Funktionen Ihrer OGS ab.",
     ],
     troubleshootingDetails: [
-      "Eine Einstellung fehlt? Manche darf nur das moto-Team ändern. Sie erscheinen gar nicht erst.",
+      "Eine Einstellung ist gesperrt? moto legt sie mit Ihrer Schule fest. Sie können sie nur lesen.",
+      "Fehlt `Alte Daten automatisch löschen`? Das ist die Notbremse. Das moto-Team nutzt sie nur bei einem Vorfall.",
       "Der Wechsel des Anwesenheitsmodus wird abgelehnt? Das geht nicht, solange Kinder eingecheckt sind.",
     ],
     related: [

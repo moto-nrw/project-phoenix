@@ -33,7 +33,11 @@ type WorkerDependencies struct {
 	BreakAutoEnder            BreakAutoEnder
 	AutoCheckouter            AutoCheckouter
 	FeedbackCleaner           FeedbackCleaner
-	UnregisteredScanCleaner   UnregisteredTagScanCleaner
+	// Retention runs the owners' deletions of a school's nightly cleanup
+	// (#3950); NewRetentionRun builds it. CleanupRuns keeps each school's
+	// last successful nightly run.
+	Retention                 RetentionRun
+	CleanupRuns               CleanupRunLedger
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
@@ -99,6 +103,7 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 		{name: "email change cleanup", value: deps.EmailChangeCleanup},
 		{name: "operator invitation cleanup", value: deps.OperatorInvitationCleanup},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
+		{name: "cleanup run ledger", value: deps.CleanupRuns},
 	}
 	for _, dependency := range required {
 		if isNilDependency(dependency.value) {

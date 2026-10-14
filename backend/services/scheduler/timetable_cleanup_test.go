@@ -200,14 +200,16 @@ func TestCheckAndRunTimetableCleanup_Disabled(t *testing.T) {
 func TestCheckAndRunTimetableCleanup_WrongTime(t *testing.T) {
 	t.Parallel()
 
-	// Enabled, but the configured cleanup time doesn't match now. Use a string
-	// that is guaranteed to differ from the current wall clock minute.
-	future := time.Now().Add(2 * time.Hour).Format("15:04")
+	// Enabled, but the configured cleanup time doesn't match the Berlin
+	// calendar time used by the retention scheduler.
+	scheduleNow := berlin(14, 2, 0)
+	future := scheduleNow.Add(time.Hour).Format("15:04")
 
 	svc := &fakeTimetableCleanup{}
 	s := unitScheduler(&Scheduler{
 		logger:           slog.Default(),
 		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
@@ -228,23 +230,24 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 
 	// Enabled + matching time, but lastTimetableCleanup is already stamped for
 	// today → dedupe must prevent a second run.
-	now := time.Now().Format("15:04")
+	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{}
 	s := unitScheduler(&Scheduler{
 		logger:           slog.Default(),
 		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				settingDataCleanupTime: now,
+				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
 		}})
 
 	// Unit scheduler composition supplies one validated tenant.
-	s.lastTimetableCleanup.Store(schedulerUnitTenantID, time.Now())
+	s.lastTimetableCleanup.Store(schedulerUnitTenantID, scheduleNow)
 	task := &ScheduledTask{Name: "timetable-cleanup"}
 
 	s.checkAndRunTimetableCleanup(context.Background(), task)
@@ -254,7 +257,7 @@ func TestCheckAndRunTimetableCleanup_WasRunToday(t *testing.T) {
 func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().Format("15:04")
+	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{
 		result: &timetable.TimetableCleanupResult{
@@ -270,12 +273,13 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 	s := unitScheduler(&Scheduler{
 		logger:           slog.Default(),
 		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				settingDataCleanupTime: now,
+				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
 			intValues: map[string]int{
 				settingDataCleanupTimeoutMinutes: 30,
@@ -296,18 +300,19 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 func TestCheckAndRunTimetableCleanup_ServiceError_ClearsTodayStamp(t *testing.T) {
 	t.Parallel()
 
-	now := time.Now().Format("15:04")
+	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{err: errors.New("cleanup blew up")}
 	s := unitScheduler(&Scheduler{
 		logger:           slog.Default(),
 		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				settingDataCleanupTime: now,
+				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
 		}})
 
@@ -329,7 +334,7 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 
 	// When InstancesDeleted == 0 and ExceptionsDeleted == 0, the success Info
 	// log is suppressed — but the call still counts and the today-mark is set.
-	now := time.Now().Format("15:04")
+	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{
 		result: &timetable.TimetableCleanupResult{
@@ -341,12 +346,13 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 	s := unitScheduler(&Scheduler{
 		logger:           slog.Default(),
 		timetableCleanup: svc,
+		cleanupClock:     func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
 			boolValues: map[string]bool{
 				settingDataCleanupEnabled: true,
 			},
 			stringValues: map[string]string{
-				settingDataCleanupTime: now,
+				settingDataCleanupTime: scheduleNow.Format("15:04"),
 			},
 		}})
 
