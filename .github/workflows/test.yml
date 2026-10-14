@@ -74,11 +74,23 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR selection needs origin/<base_ref>. Full-suite data shards can
-          # omit historical blobs. Architecture clones this repo
-          # and reads old blobs, so its shard and affected PRs stay complete.
-          fetch-depth: 0
+          # Fetch only the checked-out revision here. The next step expands
+          # its history and comparison refs without downloading every branch
+          # and tag. Architecture and affected PRs still need historical blobs.
+          fetch-depth: 1
           filter: ${{ matrix.shard != 1 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') && 'blob:none' || '' }}
+
+      - name: Fetch backend comparison history
+        env:
+          BASE_REF: ${{ inputs.base_ref }}
+        run: |
+          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
+          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
+            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
+          fi
+          # Full ancestry keeps merge-base and the immutable architecture
+          # evidence anchor intact. Unrelated refs and tags are not test inputs.
+          git fetch --no-tags --unshallow origin "${refs[@]}"
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
