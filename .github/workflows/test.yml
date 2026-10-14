@@ -38,6 +38,12 @@ env:
 jobs:
   test-backend:
     if: ${{ inputs.run-backend }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Affected-package PRs keep one runner. Full suites split every package
+        # across two isolated databases, including packages without tests.
+        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && '[0]' || '[0,1]') }}
     # Change-scoped runs cover only affected packages; full suites need eight
     # vCPUs even when triggered by a pull request.
     runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
@@ -179,6 +185,7 @@ jobs:
           BASE_REF: ${{ inputs.base_ref }}
           FULL_SUITE: ${{ inputs.full-backend-suite }}
           CHANGED_SCOPE: ${{ inputs.changed-scope }}
+          SHARD_INDEX: ${{ matrix.shard }}
         run: |
           packages=(./...)
           if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
@@ -192,6 +199,19 @@ jobs:
               exit 0
             fi
             echo "Running ${#packages[@]} changed/affected Go packages"
+          else
+            # Assign every package exactly once. Capture go list before the
+            # pipe so a discovery failure cannot turn into an empty green run.
+            all_packages=$(go list ./...)
+            packages=()
+            while IFS= read -r package; do
+              [ -n "$package" ] && packages+=("$package")
+            done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '(NR - 1) % 2 == shard')
+            if [ "${#packages[@]}" -eq 0 ]; then
+              echo "Full-suite shard has no Go packages" >&2
+              exit 1
+            fi
+            echo "Running ${#packages[@]} Go packages in full-suite shard $SHARD_INDEX"
           fi
 
           test_args=(-parallel 8)
@@ -213,7 +233,7 @@ jobs:
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
-          check_name: Backend Test Results
+          check_name: Backend Test Results (${{ matrix.shard }})
           include_passed: false
           detailed_summary: true
 
