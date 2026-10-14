@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-var testScopeList = []string{"internal_test", "external_test"}
-
 // reachOwners is a small owner map with one owner of every kind the reaches
 // distinguish.
 var reachOwners = map[string]Owner{
@@ -54,7 +52,7 @@ func TestReviewedRootCompositionRuleShape(t *testing.T) {
 		{"a named inbound owner", Rule{SourceOwner: "root-composition", TargetOwner: "inbound-parent", TargetRole: "http", Scopes: []string{"production"}}, false},
 		{"the composition kind", Rule{SourceOwner: "root-composition", TargetOwnerKind: "composition", TargetRole: "compose", Scopes: everyScope}, false},
 		{"the legacy composition", Rule{SourceOwner: "root-composition", TargetOwner: "legacy-composition", TargetRole: "compose", Scopes: []string{"production"}}, false},
-		{"the shared fixtures", Rule{SourceOwner: "root-composition", TargetOwner: "test-support", TargetRole: "test-support", Scopes: testScopeList}, false},
+		{"the shared fixtures", Rule{SourceOwner: "root-composition", TargetOwner: "test-support", TargetRole: "test-support", Scopes: reachTestScopes}, false},
 		{"the migration kind", Rule{SourceOwner: "root-composition", TargetOwnerKind: "migration", TargetRole: "migration", Scopes: everyScope}, false},
 		{"another role of the migrations", Rule{SourceOwner: "root-composition", TargetOwner: "migrations", TargetRole: "test-support", Scopes: everyScope}, false},
 		{"an application role", Rule{SourceOwner: "root-composition", TargetOwnerKind: "domain", TargetRole: "application", Scopes: everyScope}, false},
@@ -75,10 +73,12 @@ func TestReviewedRootCompositionRuleShape(t *testing.T) {
 
 func TestReviewedOwnerCompositionRuleShape(t *testing.T) {
 	t.Parallel()
-	for _, role := range sortedAllowedRoles() {
-		rule := Rule{SourceRole: "compose", SameOwner: true, TargetRole: role, Scopes: []string{"production"}}
-		if !reviewedOwnerCompositionRule(rule) {
-			t.Errorf("rejected an owner composition's reach into its own %s role", role)
+	for _, kind := range []string{"domain", "platform", "workflow", "projection", "inbound"} {
+		for _, role := range sortedAllowedRoles() {
+			rule := Rule{SourceOwnerKind: kind, SourceRole: "compose", SameOwner: true, TargetRole: role, Scopes: []string{"production"}}
+			if !reviewedOwnerCompositionRule(rule, reachOwners) {
+				t.Errorf("rejected the composition of a %s owner reaching its own %s role", kind, role)
+			}
 		}
 	}
 	for _, scenario := range []struct {
@@ -88,18 +88,20 @@ func TestReviewedOwnerCompositionRuleShape(t *testing.T) {
 	}{
 		{"a named owner", Rule{SourceOwner: "workforce", SourceRole: "compose", SameOwner: true, TargetRole: "adapter", Scopes: []string{"production"}}, true},
 		{"its own owner named on both sides", Rule{SourceOwner: "workforce", SourceRole: "compose", TargetOwner: "workforce", TargetRole: "postgres", Scopes: []string{"production"}}, true},
-		{"an owner kind", Rule{SourceOwnerKind: "platform", SourceRole: "compose", SameOwner: true, TargetRole: "application", Scopes: []string{"production"}}, true},
+		{"no source selector", Rule{SourceRole: "compose", SameOwner: true, TargetRole: "adapter", Scopes: []string{"production"}}, false},
+		{"the composition kind", Rule{SourceOwnerKind: "composition", SourceRole: "compose", SameOwner: true, TargetRole: "domain", Scopes: []string{"production"}}, false},
+		{"the legacy composition", Rule{SourceOwner: "legacy-composition", SourceRole: "compose", SameOwner: true, TargetRole: "domain", Scopes: []string{"production"}}, false},
+		{"the root", Rule{SourceOwner: "root-composition", SourceRole: "compose", SameOwner: true, TargetRole: "compose", Scopes: []string{"production"}}, false},
 		{"another owner", Rule{SourceOwner: "workforce", SourceRole: "compose", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}, false},
-		{"an owner kind as target", Rule{SourceRole: "compose", TargetOwnerKind: "domain", TargetRole: "public", Scopes: []string{"production"}}, false},
-		{"another owner kind as target", Rule{SourceOwnerKind: "domain", SourceRole: "compose", TargetOwnerKind: "domain", TargetRole: "public", Scopes: []string{"production"}}, false},
-		{"another source role", Rule{SourceRole: "application", SameOwner: true, TargetRole: "postgres", Scopes: []string{"production"}}, false},
-		{"no source role", Rule{SameOwner: true, TargetRole: "postgres", Scopes: []string{"production"}}, false},
-		{"a test scope", Rule{SourceRole: "compose", SameOwner: true, TargetRole: "adapter", Scopes: []string{"production", "internal_test"}}, false},
-		{"test scopes only", Rule{SourceRole: "compose", SameOwner: true, TargetRole: "adapter", Scopes: testScopeList}, false},
-		{"an external class", Rule{SourceRole: "compose", TargetClass: "orm-sql", Scopes: []string{"production"}}, false},
-		{"no scope", Rule{SourceRole: "compose", SameOwner: true, TargetRole: "adapter"}, false},
+		{"an owner kind as target", Rule{SourceOwnerKind: "domain", SourceRole: "compose", TargetOwnerKind: "domain", TargetRole: "public", Scopes: []string{"production"}}, false},
+		{"another source role", Rule{SourceOwnerKind: "domain", SourceRole: "application", SameOwner: true, TargetRole: "postgres", Scopes: []string{"production"}}, false},
+		{"no source role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "postgres", Scopes: []string{"production"}}, false},
+		{"a test scope", Rule{SourceOwnerKind: "domain", SourceRole: "compose", SameOwner: true, TargetRole: "adapter", Scopes: []string{"production", "internal_test"}}, false},
+		{"test scopes only", Rule{SourceOwnerKind: "domain", SourceRole: "compose", SameOwner: true, TargetRole: "adapter", Scopes: reachTestScopes}, false},
+		{"an external class", Rule{SourceOwnerKind: "domain", SourceRole: "compose", TargetClass: "orm-sql", Scopes: []string{"production"}}, false},
+		{"no scope", Rule{SourceOwnerKind: "domain", SourceRole: "compose", SameOwner: true, TargetRole: "adapter"}, false},
 	} {
-		if got := reviewedOwnerCompositionRule(scenario.rule); got != scenario.want {
+		if got := reviewedOwnerCompositionRule(scenario.rule, reachOwners); got != scenario.want {
 			t.Errorf("%s: reviewedOwnerCompositionRule = %v, want %v", scenario.name, got, scenario.want)
 		}
 	}
@@ -109,7 +111,7 @@ func TestReviewedOwnTestRuleShape(t *testing.T) {
 	t.Parallel()
 	for _, kind := range []string{"domain", "platform", "workflow", "projection", "inbound", "migration", "test-support"} {
 		for _, role := range []string{"public", "contract", "compose", "port", "adapter", "test-support"} {
-			rule := Rule{SourceOwnerKind: kind, SameOwner: true, TargetRole: role, Scopes: testScopeList}
+			rule := Rule{SourceOwnerKind: kind, SameOwner: true, TargetRole: role, Scopes: reachTestScopes}
 			if !reviewedOwnTestRule(rule, reachOwners) {
 				t.Errorf("rejected the tests of a %s owner importing its own %s role", kind, role)
 			}
@@ -127,26 +129,26 @@ func TestReviewedOwnTestRuleShape(t *testing.T) {
 		want bool
 	}{
 		{"a source role", Rule{SourceOwnerKind: "domain", SourceRole: "module-behavior-test", SameOwner: true, TargetRole: "public", Scopes: []string{"external_test"}}, true},
-		{"a named owner", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", SameOwner: true, TargetRole: "adapter", Scopes: testScopeList}, true},
-		{"its own owner named on both sides", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", TargetOwner: "workforce", TargetRole: "public", Scopes: testScopeList}, true},
-		{"no source selector", Rule{SameOwner: true, TargetRole: "public", Scopes: testScopeList}, false},
-		{"the composition kind", Rule{SourceOwnerKind: "composition", SameOwner: true, TargetRole: "compose", Scopes: testScopeList}, false},
-		{"the root", Rule{SourceOwner: "root-composition", SameOwner: true, TargetRole: "compose", Scopes: testScopeList}, false},
-		{"the legacy composition", Rule{SourceOwner: "legacy-composition", SameOwner: true, TargetRole: "compose", Scopes: testScopeList}, false},
-		{"an unknown owner", Rule{SourceOwner: "nobody", SameOwner: true, TargetRole: "public", Scopes: testScopeList}, false},
-		{"another owner", Rule{SourceOwner: "workforce", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: testScopeList}, false},
-		{"an owner kind as target", Rule{SourceOwnerKind: "domain", TargetOwnerKind: "domain", TargetRole: "public", Scopes: testScopeList}, false},
-		{"an application role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "application", Scopes: testScopeList}, false},
-		{"a domain role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "domain", Scopes: testScopeList}, false},
-		{"a postgres role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "postgres", Scopes: testScopeList}, false},
-		{"an http role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "http", Scopes: testScopeList}, false},
+		{"a named owner", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", SameOwner: true, TargetRole: "adapter", Scopes: reachTestScopes}, true},
+		{"its own owner named on both sides", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", TargetOwner: "workforce", TargetRole: "public", Scopes: reachTestScopes}, true},
+		{"no source selector", Rule{SameOwner: true, TargetRole: "public", Scopes: reachTestScopes}, false},
+		{"the composition kind", Rule{SourceOwnerKind: "composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"the root", Rule{SourceOwner: "root-composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"the legacy composition", Rule{SourceOwner: "legacy-composition", SameOwner: true, TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"an unknown owner", Rule{SourceOwner: "nobody", SameOwner: true, TargetRole: "public", Scopes: reachTestScopes}, false},
+		{"another owner", Rule{SourceOwner: "workforce", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: reachTestScopes}, false},
+		{"an owner kind as target", Rule{SourceOwnerKind: "domain", TargetOwnerKind: "domain", TargetRole: "public", Scopes: reachTestScopes}, false},
+		{"an application role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "application", Scopes: reachTestScopes}, false},
+		{"a domain role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "domain", Scopes: reachTestScopes}, false},
+		{"a postgres role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "postgres", Scopes: reachTestScopes}, false},
+		{"an http role", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "http", Scopes: reachTestScopes}, false},
 		{"a test role in production", Rule{SourceOwnerKind: "domain", SourceRole: "e2e-test", SameOwner: true, TargetRole: "public", Scopes: []string{"production"}}, false},
 		{"no source role in production", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "public", Scopes: []string{"production"}}, false},
 		{"every scope", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "public", Scopes: everyScope}, false},
 		{"test support across scopes", Rule{SourceOwnerKind: "domain", SourceRole: "test-support", SameOwner: true, TargetRole: "public", Scopes: []string{"production", "internal_test"}}, false},
 		{"test support into its own test support", Rule{SourceOwnerKind: "domain", SourceRole: "test-support", SameOwner: true, TargetRole: "test-support", Scopes: []string{"production"}}, false},
 		{"test support into its application", Rule{SourceOwnerKind: "domain", SourceRole: "test-support", SameOwner: true, TargetRole: "application", Scopes: []string{"production"}}, false},
-		{"an external class", Rule{SourceOwnerKind: "domain", TargetClass: "orm-sql", Scopes: testScopeList}, false},
+		{"an external class", Rule{SourceOwnerKind: "domain", TargetClass: "orm-sql", Scopes: reachTestScopes}, false},
 		{"no scope", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetRole: "public"}, false},
 	} {
 		if got := reviewedOwnTestRule(scenario.rule, reachOwners); got != scenario.want {
@@ -162,20 +164,20 @@ func TestReviewedRootTestRuleShape(t *testing.T) {
 		rule Rule
 		want bool
 	}{
-		{"the tests of a domain owner", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, true},
-		{"the shared fixtures", Rule{SourceOwnerKind: "test-support", TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, true},
+		{"the tests of a domain owner", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, true},
+		{"the shared fixtures", Rule{SourceOwnerKind: "test-support", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, true},
 		{"one suite", Rule{SourceOwner: "workforce", SourceRole: "e2e-test", TargetOwner: "root-composition", TargetRole: "compose", Scopes: []string{"external_test"}}, true},
-		{"no source selector", Rule{TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, false},
-		{"the composition kind", Rule{SourceOwnerKind: "composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, false},
-		{"the legacy composition", Rule{SourceOwner: "legacy-composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, false},
-		{"the root's own tests", Rule{SourceOwner: "root-composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, false},
+		{"no source selector", Rule{TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"the composition kind", Rule{SourceOwnerKind: "composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"the legacy composition", Rule{SourceOwner: "legacy-composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"the root's own tests", Rule{SourceOwner: "root-composition", TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
 		{"production", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: []string{"production"}}, false},
 		{"every scope", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose", Scopes: everyScope}, false},
-		{"the commands root", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "cli", Scopes: testScopeList}, false},
-		{"the legacy composition as target", Rule{SourceOwnerKind: "domain", TargetOwner: "legacy-composition", TargetRole: "compose", Scopes: testScopeList}, false},
-		{"the composition kind as target", Rule{SourceOwnerKind: "domain", TargetOwnerKind: "composition", TargetRole: "compose", Scopes: testScopeList}, false},
-		{"same_owner", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetOwner: "root-composition", TargetRole: "compose", Scopes: testScopeList}, false},
-		{"an external class", Rule{SourceOwnerKind: "domain", TargetClass: "http-router", Scopes: testScopeList}, false},
+		{"the commands root", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "cli", Scopes: reachTestScopes}, false},
+		{"the legacy composition as target", Rule{SourceOwnerKind: "domain", TargetOwner: "legacy-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"the composition kind as target", Rule{SourceOwnerKind: "domain", TargetOwnerKind: "composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"same_owner", Rule{SourceOwnerKind: "domain", SameOwner: true, TargetOwner: "root-composition", TargetRole: "compose", Scopes: reachTestScopes}, false},
+		{"an external class", Rule{SourceOwnerKind: "domain", TargetClass: "http-router", Scopes: reachTestScopes}, false},
 		{"no scope", Rule{SourceOwnerKind: "domain", TargetOwner: "root-composition", TargetRole: "compose"}, false},
 	} {
 		if got := reviewedRootTestRule(scenario.rule, reachOwners); got != scenario.want {
@@ -215,7 +217,7 @@ func TestCompositionReachRulesPassOnlyInAReviewedEpoch(t *testing.T) {
 	if err == nil {
 		t.Fatal("the composition reaches passed without an epoch increase")
 	}
-	for _, id := range []string{"root-composition.reach.domain.compose", "owner-compose.adapter", "own-test.domain.compose", "own-test-support.domain.public", "root-test.domain.compose"} {
+	for _, id := range []string{"root-composition.reach.domain.compose", "owner-compose.domain.adapter", "own-test.domain.compose", "own-test-support.domain.public", "root-test.domain.compose"} {
 		if !strings.Contains(err.Error(), "rule "+id+" ") {
 			t.Errorf("rule %s passed without an epoch increase: %v", id, err)
 		}
@@ -242,6 +244,7 @@ func TestCompositionReachEpochGrantsNothingElse(t *testing.T) {
 		{ID: "root.legacy-composition", Description: "test", Scopes: []string{"production"}, SourceOwner: "root-composition", TargetOwner: "legacy-composition", TargetRole: "compose"},
 		{ID: "root.inbound-http", Description: "test", Scopes: []string{"production"}, SourceOwner: "root-composition", TargetOwnerKind: "inbound", TargetRole: "http"},
 		{ID: "compose.cross-owner", Description: "test", Scopes: []string{"production"}, SourceOwner: "workforce", SourceRole: "compose", TargetOwner: "care-plan", TargetRole: "public"},
+		{ID: "compose.legacy-composition", Description: "test", Scopes: []string{"production"}, SourceOwner: "legacy-composition", SourceRole: "compose", SameOwner: true, TargetRole: "domain"},
 		{ID: "compose.own-owner-in-tests", Description: "test", Scopes: []string{"internal_test"}, SourceOwner: "workforce", SourceRole: "compose", SameOwner: true, TargetRole: "postgres"},
 		{ID: "own-test.application", Description: "test", Scopes: []string{"external_test"}, SourceOwnerKind: "domain", SourceRole: "e2e-test", SameOwner: true, TargetRole: "application"},
 		{ID: "own-test.legacy-composition", Description: "test", Scopes: []string{"internal_test"}, SourceOwner: "legacy-composition", SourceRole: "module-internal-test", SameOwner: true, TargetRole: "compose"},
@@ -255,5 +258,41 @@ func TestCompositionReachEpochGrantsNothingElse(t *testing.T) {
 		if !strings.Contains(problems, "rule "+extra.ID+" ") {
 			t.Errorf("%s escaped the guard: %s", extra.ID, problems)
 		}
+	}
+}
+
+func TestFirstPartyImportsAllowedByTheCompositionReaches(t *testing.T) {
+	t.Parallel()
+	candidate := repositoryPolicy(t)
+	base := *candidate
+	base.PolicyEpoch--
+	packages := candidate.packageMap()
+	classified := func(path string) Package {
+		t.Helper()
+		pkg, ok := packages[candidate.absolutePackage(path)]
+		if !ok {
+			t.Fatalf("package %s is not classified", path)
+		}
+		return pkg
+	}
+	for _, scenario := range []struct {
+		name           string
+		scope          Scope
+		source, target string
+		want           bool
+	}{
+		{"the root composes an owner", ScopeProduction, "api", "modules/workforce/compose", true},
+		{"an owner's suite uses its own contract", ScopeExternalTest, "modules/identityaccess/behavior", "modules/identityaccess", true},
+		{"a root rule into an inbound owner", ScopeProduction, "api", "modules/communication/http/parentmessages", false},
+		{"an implementation role of another owner", ScopeProduction, "api", "modules/workforce/inbound", false},
+		{"the legacy composition's own domain", ScopeProduction, "services", "models", false},
+	} {
+		got := firstPartyAllowedByReviewedCompositionReach(&base, candidate, scenario.scope, classified(scenario.source), classified(scenario.target))
+		if got != scenario.want {
+			t.Errorf("%s: firstPartyAllowedByReviewedCompositionReach = %v, want %v", scenario.name, got, scenario.want)
+		}
+	}
+	if firstPartyAllowedByReviewedCompositionReach(candidate, candidate, ScopeProduction, classified("api"), classified("modules/workforce/compose")) {
+		t.Error("a root import passed without an epoch increase")
 	}
 }

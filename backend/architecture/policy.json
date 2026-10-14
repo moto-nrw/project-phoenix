@@ -20480,93 +20480,245 @@
       "target_role": "compose"
     },
     {
-      "id": "owner-compose.adapter",
-      "description": "ADR 0053 point 3: an owner's composition imports its own adapter role.",
+      "id": "owner-compose.domain.adapter",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own adapter role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "adapter",
       "same_owner": true
     },
     {
-      "id": "owner-compose.application",
-      "description": "ADR 0053 point 3: an owner's composition imports its own application role.",
+      "id": "owner-compose.domain.application",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own application role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "application",
       "same_owner": true
     },
     {
-      "id": "owner-compose.compose",
-      "description": "ADR 0053 point 3: an owner's composition imports its own compose role.",
+      "id": "owner-compose.domain.compose",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own compose role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "compose",
       "same_owner": true
     },
     {
-      "id": "owner-compose.contract",
-      "description": "ADR 0053 point 3: an owner's composition imports its own contract role.",
+      "id": "owner-compose.domain.contract",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own contract role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "contract",
       "same_owner": true
     },
     {
-      "id": "owner-compose.domain",
-      "description": "ADR 0053 point 3: an owner's composition imports its own domain role.",
+      "id": "owner-compose.domain.domain",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own domain role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "domain",
       "same_owner": true
     },
     {
-      "id": "owner-compose.http",
-      "description": "ADR 0053 point 3: an owner's composition imports its own http role.",
+      "id": "owner-compose.domain.port",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own port role.",
       "scopes": [
         "production"
       ],
-      "source_role": "compose",
-      "target_role": "http",
-      "same_owner": true
-    },
-    {
-      "id": "owner-compose.port",
-      "description": "ADR 0053 point 3: an owner's composition imports its own port role.",
-      "scopes": [
-        "production"
-      ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "port",
       "same_owner": true
     },
     {
-      "id": "owner-compose.postgres",
-      "description": "ADR 0053 point 3: an owner's composition imports its own postgres role.",
+      "id": "owner-compose.domain.postgres",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own postgres role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "postgres",
       "same_owner": true
     },
     {
-      "id": "owner-compose.public",
-      "description": "ADR 0053 point 3: an owner's composition imports its own public role.",
+      "id": "owner-compose.domain.public",
+      "description": "ADR 0053 point 3: the composition of a domain owner imports its own public role.",
       "scopes": [
         "production"
       ],
+      "source_owner_kind": "domain",
       "source_role": "compose",
       "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.adapter",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.application",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.contract",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own contract role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "contract",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.domain",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "domain",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.postgres",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.platform.public",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.application",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.port",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.postgres",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own postgres role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "postgres",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.projection.public",
+      "description": "ADR 0053 point 3: the composition of a projection owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "projection",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.application",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own application role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "application",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.port",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.workflow.public",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own public role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "owner-compose.inbound.http",
+      "description": "ADR 0053 point 3: the composition of an inbound owner imports its own http role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "inbound",
+      "source_role": "compose",
+      "target_role": "http",
       "same_owner": true
     },
     {
@@ -20615,7 +20767,7 @@
     },
     {
       "id": "own-test.inbound.compose",
-      "description": "ADR 0053 point 7.1: the tests of a inbound owner import its own compose role.",
+      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own compose role.",
       "scopes": [
         "internal_test",
         "external_test"
@@ -20659,7 +20811,7 @@
     },
     {
       "id": "own-test.inbound.contract",
-      "description": "ADR 0053 point 7.1: the tests of a inbound owner import its own contract role.",
+      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own contract role.",
       "scopes": [
         "internal_test",
         "external_test"
@@ -20714,7 +20866,7 @@
     },
     {
       "id": "own-test.inbound.test-support",
-      "description": "ADR 0053 point 7.1: the tests of a inbound owner import its own test-support role.",
+      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own test-support role.",
       "scopes": [
         "internal_test",
         "external_test"

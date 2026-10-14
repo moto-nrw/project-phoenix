@@ -25,8 +25,8 @@ var (
 	ownTestTargetRoles        = map[string]bool{"public": true, "contract": true, "compose": true, "port": true, "adapter": true, "test-support": true}
 	ownTestSupportTargetRoles = map[string]bool{"public": true, "contract": true, "compose": true, "port": true, "adapter": true}
 
-	productionScope = []string{string(ScopeProduction)}
-	testScopes      = []string{string(ScopeInternalTest), string(ScopeExternalTest)}
+	reachProductionScopes = []string{string(ScopeProduction)}
+	reachTestScopes       = []string{string(ScopeInternalTest), string(ScopeExternalTest)}
 )
 
 // reviewedRootCompositionRule reports whether a rule lies inside the standing
@@ -55,10 +55,12 @@ func reviewedRootCompositionRule(rule Rule, owners map[string]Owner) bool {
 // reviewedOwnerCompositionRule reports whether a rule lies inside the
 // standing reach of an owner's composition (ADR 0053 point 3): the compose
 // role importing any role of its own owner, in production only. It grants
-// nothing across owners.
-func reviewedOwnerCompositionRule(rule Rule) bool {
+// nothing across owners. A composition-kind source stays outside: the typed
+// roots reach their own packages through reviewedRootCompositionRule, and the
+// legacy composition gains no reach (ADR 0053 point 1).
+func reviewedOwnerCompositionRule(rule Rule, owners map[string]Owner) bool {
 	return rule.SourceRole == "compose" && targetsOwnOwner(rule) && rule.TargetClass == "" &&
-		len(rule.Scopes) > 0 && scopesContain(productionScope, rule.Scopes)
+		sourceExcludesComposition(rule, owners) && len(rule.Scopes) > 0 && scopesContain(reachProductionScopes, rule.Scopes)
 }
 
 // reviewedOwnTestRule reports whether a rule lies inside the own-owner test
@@ -72,10 +74,10 @@ func reviewedOwnTestRule(rule Rule, owners map[string]Owner) bool {
 	if !targetsOwnOwner(rule) || rule.TargetClass != "" || len(rule.Scopes) == 0 || !sourceExcludesComposition(rule, owners) {
 		return false
 	}
-	if rule.SourceRole == "test-support" && scopesContain(productionScope, rule.Scopes) {
+	if rule.SourceRole == "test-support" && scopesContain(reachProductionScopes, rule.Scopes) {
 		return ownTestSupportTargetRoles[rule.TargetRole]
 	}
-	return scopesContain(testScopes, rule.Scopes) && ownTestTargetRoles[rule.TargetRole]
+	return scopesContain(reachTestScopes, rule.Scopes) && ownTestTargetRoles[rule.TargetRole]
 }
 
 // reviewedRootTestRule reports whether a rule lies inside the reach of a test
@@ -85,13 +87,13 @@ func reviewedOwnTestRule(rule Rule, owners map[string]Owner) bool {
 func reviewedRootTestRule(rule Rule, owners map[string]Owner) bool {
 	return rule.TargetOwner == rootCompositionOwner && rule.TargetOwnerKind == "" && rule.TargetRole == "compose" &&
 		!rule.SameOwner && rule.TargetClass == "" && sourceExcludesComposition(rule, owners) &&
-		len(rule.Scopes) > 0 && scopesContain(testScopes, rule.Scopes)
+		len(rule.Scopes) > 0 && scopesContain(reachTestScopes, rule.Scopes)
 }
 
 // reviewedCompositionReachRule reports whether a rule lies inside one of the
 // four standing reaches of ADR 0053.
 func reviewedCompositionReachRule(rule Rule, owners map[string]Owner) bool {
-	return reviewedRootCompositionRule(rule, owners) || reviewedOwnerCompositionRule(rule) ||
+	return reviewedRootCompositionRule(rule, owners) || reviewedOwnerCompositionRule(rule, owners) ||
 		reviewedOwnTestRule(rule, owners) || reviewedRootTestRule(rule, owners)
 }
 

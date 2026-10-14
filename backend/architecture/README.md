@@ -1458,8 +1458,9 @@ adapters and adapter tests bind as well, and it has no replacement. The
 `root-composition.to.student-presence-http` mount stays a compatibility
 permission; convert it to exact debt with the rule above once the package
 exists at a base SHA. #4001 deleted it: the standing root reach of ADR 0053
-(`root-composition.reach.domain.http`) is the target permission for it. The calendar-date edges are gone: the adapter and its
-tests name `sharedkernel/calendar` directly under the shared-kernel rule
+(`root-composition.reach.domain.http`) is the target permission for it.
+The calendar-date edges are gone: the adapter and its tests name
+`sharedkernel/calendar` directly under the shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md)).
 The settings test edge is gone too: the tests name the setting keys through
 the public `modules/settings` contract, which now also exports the four
@@ -3273,7 +3274,7 @@ check accepts the imports such a rule implies. None of the rules carries an
 | Reach | Acceptance function | Selectors | Rules in epoch 41 |
 |---|---|---|---|
 | The typed roots (point 2) | `reviewedRootCompositionRule` | `root-composition`, any role and scope, to the `compose`, `public`, `contract`, `port` and `http` roles of every `domain`, `platform`, `workflow` and `projection` owner, to `migrations`/`migration`, and to the root's own packages | 19 `root-composition.reach.*` |
-| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose`, production, every role of its own owner | 9 `owner-compose.*` |
+| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose` of a non-composition owner, production, every role of its own owner | 22 `owner-compose.*` |
 | A test of one owner (point 7.1) | `reviewedOwnTestRule` | the test scopes of an owner to its own `public`, `contract`, `compose`, `port`, `adapter` and `test-support`; its `test-support` role in production to the same roles except `test-support` | 31 `own-test.*`, 5 `own-test-support.*` |
 | A test of several owners (point 7.2) | `reviewedRootTestRule` | the test scopes of every owner to `root-composition`/`compose` | 1 `root-test.domain.compose` |
 
@@ -3286,10 +3287,11 @@ Three constraints shape the rules:
    own owner's `public` and `contract`. The rules into `public` and
    `contract` therefore name a source role, both for the root's test scopes
    and for an owner's own tests; the rules into the other roles do not.
-2. Points 7.1 and 7.2 select no `composition`-kind source. The root's own
-   tests reach the root through point 2, and the legacy composition gains no
-   test reach. Their rules name a source owner kind, and the acceptance
-   functions reject a rule whose source selector includes a composition.
+2. Points 3, 7.1 and 7.2 select no `composition`-kind source. The roots
+   reach their own packages through point 2, and the legacy composition
+   gains no reach (ADR 0053 point 1). Their rules name a source owner kind,
+   and the acceptance functions reject a rule whose source selector includes
+   a composition.
 3. `rules.stale` keeps only live rules, so the rules cover the selectors that
    current imports use. The root has no `port` rule, for example. The first
    import that needs one adds it in a reviewed epoch under the same
@@ -3324,7 +3326,7 @@ Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `api -> realtime` and `api -> tenant`), two of #3446 (`behavior ->
 modules/identityaccess` and `behavior -> legacy/jwt`) and one of #2748
 (`test -> legacy/jwt`). With the four #4003 entries the baseline goes from
-60 to 52. The policy goes from 1,673 to 1,433 rules, and the composition
+60 to 52. The policy goes from 1,673 to 1,446 rules, and the composition
 surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.

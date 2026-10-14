@@ -364,7 +364,7 @@ func TestCheckCareScheduleCutoverRejectsIncompleteRetirement(t *testing.T) {
 			writeFile(t, filepath.Join(repo, "modules/careplan/internal/ports/value.go"), "package capability\nimport impl \"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application\"\nconst Value = impl.Value\n")
 		}, "architecture policy loosening"},
 		{"native implementation borrowed test scope", func(t *testing.T, repo string, p *Policy) {
-			p.Rules = append(p.Rules, Rule{ID: "care-plan.tests.application", Description: "Production composition does not authorize a new test permission.", Scopes: []string{"external_test"}, SourceOwner: "care-plan", SourceRole: "module-behavior-test", TargetOwner: "care-plan", TargetRole: "application"})
+			p.Rules = append(p.Rules, Rule{ID: "care-plan.tests.application", Description: "The cutover does not open the owner's implementation to its tests.", Scopes: []string{"external_test"}, SourceOwner: "care-plan", SourceRole: "module-behavior-test", TargetOwner: "care-plan", TargetRole: "application"})
 			writeFile(t, filepath.Join(repo, "modules/careplan/value_test.go"), "package capability_test\nimport impl \"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application\"\nvar Value = impl.Value\n")
 		}, "architecture policy loosening"},
 		{"native test support implementation", func(t *testing.T, repo string, p *Policy) {
