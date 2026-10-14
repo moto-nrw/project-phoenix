@@ -34,7 +34,7 @@ func (s *fixtureOwnedAuthService) LoginParent(ctx context.Context, email, passwo
 }
 
 func (s *fixtureOwnedAuthService) RefreshToken(ctx context.Context, refreshToken string) (string, string, error) {
-	return s.sessions().RefreshTokenWithAudit(ctx, refreshToken, "", "")
+	return s.sessions().RefreshTokenWithAudit(ctx, refreshToken, "", "", "")
 }
 
 func (s *fixtureOwnedAuthService) RevokeAllTokens(ctx context.Context, accountID int) error {

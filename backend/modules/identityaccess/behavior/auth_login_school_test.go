@@ -229,7 +229,7 @@ func TestRefreshToken_SchoolScope_Preserved(t *testing.T) {
 	login, err := service.LoginSchoolWithMFAGate(context.Background(), email, testPassword, "", "", "")
 	require.NoError(t, err)
 
-	accessToken, refreshToken, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	accessToken, refreshToken, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 	require.NoError(t, err, "school-scope refresh must succeed while the role exists")
 	require.NotEmpty(t, refreshToken)
 
@@ -268,7 +268,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	})
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "")
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), tenantlessRefresh, "", "", "")
 	require.Error(t, err, "a school token without a school must not refresh")
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -276,7 +276,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 
 	// The session itself is untouched: nothing rotated, so its own refresh
 	// token still works and still carries the school.
-	accessToken, _, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	accessToken, _, err := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 	require.NoError(t, err, "the rejected refresh must not have consumed the session's token")
 	scope, tokenTenantID := decodeTokenClaims(t, accessToken)
 	assert.Equal(t, schoolScope, scope)
@@ -304,7 +304,7 @@ func TestRefreshToken_SchoolScope_RoleRevoked_Rejected(t *testing.T) {
 		Exec(context.Background())
 	require.NoError(t, err)
 
-	_, _, err = service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 	require.Error(t, err, "refresh must be rejected once the school-portal role is gone")
 	var authErr *identityaccess.AuthenticationError
 	require.ErrorAs(t, err, &authErr)
@@ -754,7 +754,7 @@ func TestSchoolTokenMints_RevokedMembership_Refused(t *testing.T) {
 	})
 
 	t.Run("refresh", func(t *testing.T) {
-		_, _, refreshErr := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "")
+		_, _, refreshErr := service.RefreshTokenWithAudit(context.Background(), login.RefreshToken, "", "", "")
 
 		require.Error(t, refreshErr)
 		var authErr *identityaccess.AuthenticationError

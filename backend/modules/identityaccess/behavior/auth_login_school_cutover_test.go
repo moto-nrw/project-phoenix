@@ -157,7 +157,7 @@ func TestRefreshToken_SchoolPortalOnlyAccountIsRefused(t *testing.T) {
 	// that justified it.
 	removeSchoolSystemRole(t, db, accountID, tenantID, "user")
 
-	_, _, err = service.RefreshTokenWithAudit(context.Background(), refreshToken, "", "")
+	_, _, err = service.RefreshTokenWithAudit(context.Background(), refreshToken, "", "", "")
 
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMustUseSchoolPortal)

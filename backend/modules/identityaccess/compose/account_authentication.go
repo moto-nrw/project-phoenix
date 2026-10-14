@@ -396,10 +396,13 @@ func (e engine) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, ac
 	return access, refresh, authenticationError(err)
 }
 
-func (e engine) RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
+// RefreshTokenWithAudit binds the recovery proof to the request context,
+// where the rotation policy reads its hash.
+func (e engine) RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (string, string, error) {
 	if e.auth == nil {
 		return "", "", errAccountAuthenticationUnavailable
 	}
+	ctx = rotation.WithRecoveryProof(ctx, recoveryProof)
 	access, refresh, err := e.auth.RefreshTokenWithAudit(e.attach(ctx), refreshToken, ipAddress, userAgent)
 	return access, refresh, authenticationError(err)
 }
