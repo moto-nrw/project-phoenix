@@ -8,9 +8,12 @@ import (
 )
 
 var (
-	ErrTenantOperatorOnly   = errors.New("this setting is operator-only")
-	ErrDirectManagedSetting = errors.New("setting is managed by a dedicated endpoint")
-	ErrActiveLegalAGBPDF    = errors.New("AGB-PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden")
+	ErrTenantOperatorOnly = errors.New("this setting is operator-only")
+	// ErrTenantOperatorManaged rejects a school's write of a setting the moto
+	// team records for it (ADR 0048); the school reads it only.
+	ErrTenantOperatorManaged = errors.New("this setting is managed by the moto team")
+	ErrDirectManagedSetting  = errors.New("setting is managed by a dedicated endpoint")
+	ErrActiveLegalAGBPDF     = errors.New("AGB-PDF kann nicht entfernt werden, solange die AGB aktiv sind und als PDF angezeigt werden")
 )
 
 // TenantValueSetHook runs domain-owned side effects in the write transaction.
@@ -192,7 +195,7 @@ func (o *TenantOperations) withLegalDocumentWrite(ctx context.Context, tenantID,
 }
 
 func (*TenantOperations) ClassifyError(err error) string {
-	if errors.Is(err, ErrTenantOperatorOnly) || errors.Is(err, ErrDirectManagedSetting) || errors.Is(err, ErrPermissionDenied) {
+	if errors.Is(err, ErrTenantOperatorOnly) || errors.Is(err, ErrTenantOperatorManaged) || errors.Is(err, ErrDirectManagedSetting) || errors.Is(err, ErrPermissionDenied) {
 		return "forbidden"
 	}
 	if errors.Is(err, ErrDefinitionNotFound) {
@@ -222,6 +225,9 @@ func tenantWritableDefinition(settings SettingsService, key string) (*configMode
 	}
 	if key == configModel.KeyEnrollmentLegalAGBDocumentURL {
 		return nil, ErrDirectManagedSetting
+	}
+	if def.AccessPolicy == configModel.AccessOperatorManaged {
+		return nil, ErrTenantOperatorManaged
 	}
 	return def, nil
 }

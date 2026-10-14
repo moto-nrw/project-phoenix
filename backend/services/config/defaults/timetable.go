@@ -239,6 +239,7 @@ func init() {
 		Default:         365,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "stundenplan",
 		SortOrder:       30,

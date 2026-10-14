@@ -314,6 +314,7 @@ func registerEnrollmentSafety() {
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "enrollment",
 		Category:        "sicherheit",
 		SortOrder:       52,

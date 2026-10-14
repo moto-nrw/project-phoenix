@@ -26,6 +26,7 @@ func init() {
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "feedback",
 		SortOrder:       21,

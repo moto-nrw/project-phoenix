@@ -41,13 +41,19 @@ const (
 	// AccessOperatorOnly: only platform operators can read or write. Tenant
 	// admins do not see the setting in their schema and cannot write it.
 	AccessOperatorOnly AccessPolicy = "operator_only"
+	// AccessOperatorManaged: platform operators write the setting, tenant
+	// admins see it read-only (ADR 0048). The retention windows the moto
+	// team records per school use it: the school needs them for its privacy
+	// notices but may not change what the contract fixes.
+	AccessOperatorManaged AccessPolicy = "operator_managed"
 )
 
 // validAccessPolicies lists the accepted non-empty values for Definition.AccessPolicy.
 var validAccessPolicies = map[AccessPolicy]bool{
-	AccessShared:       true,
-	AccessAdminOnly:    true,
-	AccessOperatorOnly: true,
+	AccessShared:          true,
+	AccessAdminOnly:       true,
+	AccessOperatorOnly:    true,
+	AccessOperatorManaged: true,
 }
 
 // Definition describes a single setting: its type, default, permissions,

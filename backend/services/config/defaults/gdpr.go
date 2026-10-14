@@ -10,14 +10,17 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyDataCleanupEnabled,
 		Label:           "Alte Daten automatisch löschen",
-		Description:     "Löscht jeden Tag Daten, deren Aufbewahrungsdauer abgelaufen ist. Wie lange was aufbewahrt wird, legen Sie darunter fest.",
+		Description:     "Notbremse: Hält die nächtliche Löschung dieser Schule an. Nur bei einem Vorfall ausschalten. Solange sie aus ist, hält moto die Löschfristen aus dem Vertrag nicht ein.",
 		Type:            config.FieldBoolean,
 		Default:         true,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
-		Tab:             "gdpr",
-		Category:        "datenbereinigung",
-		SortOrder:       1,
+		// ADR 0048: the school cannot switch the nightly deletion off; only
+		// the moto team halts it during an incident.
+		AccessPolicy: config.AccessOperatorOnly,
+		Tab:          "gdpr",
+		Category:     "datenbereinigung",
+		SortOrder:    1,
 	})
 
 	config.Register(config.Definition{
@@ -112,6 +115,7 @@ func init() {
 		Default:         730,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "zeiterfassung",
 		SortOrder:       40,
@@ -145,6 +149,7 @@ func init() {
 		Default:         30,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       14,
@@ -168,6 +173,7 @@ func init() {
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "schülerdaten",
 		SortOrder:       30,
@@ -189,6 +195,7 @@ func init() {
 		Default:         90,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       15,
@@ -215,6 +222,7 @@ func init() {
 		Default:         365,
 		ReadPermission:  "config:read",
 		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
 		Tab:             "gdpr",
 		Category:        "bewegungsdaten",
 		SortOrder:       16,

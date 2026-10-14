@@ -38,6 +38,11 @@ import { TextField } from "./fields/text-field";
 import { TextareaField } from "./fields/textarea-field";
 import { PasswordField } from "./fields/password-field";
 import { SelectField } from "./fields/select-field";
+import {
+  isOperatorManaged,
+  retentionShorteningText,
+  shortenedRetentionDays,
+} from "./retention-shortening";
 
 /** Settings keys that require a confirmation dialog before enabling. */
 const CONFIRM_ON_ENABLE: Record<string, { title: string; body: string }> = {
@@ -304,6 +309,13 @@ export function SettingsField({
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  // A shorter retention window waits here for the operator's confirmation
+  // (ADR 0048): the next nightly run deletes everything older for good.
+  const [pendingShortening, setPendingShortening] = useState<{
+    readonly days: number;
+    readonly value: unknown;
+    readonly reset: boolean;
+  } | null>(null);
   const [showHighlight, setShowHighlight] = useState(false);
   const [legalActivationOpen, setLegalActivationOpen] = useState(false);
   const [legalActivationText, setLegalActivationText] = useState("");
@@ -450,6 +462,21 @@ export function SettingsField({
       return true;
     },
     [setting, categoryItems, onSave, reportFieldFailure, toastSuccess],
+  );
+
+  /** Saves, unless the save shortens a retention window: then it asks first. */
+  const saveOrConfirm = useCallback(
+    async (value: unknown): Promise<boolean> => {
+      // A value outside the range gets its hint first; only a valid shorter
+      // window is worth the question.
+      const days = validateLocally(setting, value, categoryItems)
+        ? null
+        : shortenedRetentionDays(setting, value, audience);
+      if (days === null) return doSave(value);
+      setPendingShortening({ days, value, reset: false });
+      return false;
+    },
+    [audience, categoryItems, doSave, setting],
   );
 
   /** A failed save inside an open dialog stays in that dialog. */
@@ -615,11 +642,11 @@ export function SettingsField({
         await onBookingAuthorityEnable();
         return;
       }
-      await doSave(value);
+      await saveOrConfirm(value);
     },
     [
       activationErrors,
-      doSave,
+      saveOrConfirm,
       categoryItems,
       enableConfig,
       disableConfig,
@@ -790,10 +817,10 @@ export function SettingsField({
       // Reset debounce timer
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
-        void doSave(value);
+        void saveOrConfirm(value);
       }, AUTO_SAVE_DELAY_MS);
     },
-    [doSave],
+    [saveOrConfirm],
   );
 
   // Save on blur — cancel debounce and save immediately
@@ -803,11 +830,11 @@ export function SettingsField({
       debounceRef.current = null;
     }
     if (isDirty) {
-      await doSave(localValue);
+      await saveOrConfirm(localValue);
     }
-  }, [isDirty, localValue, doSave]);
+  }, [isDirty, localValue, saveOrConfirm]);
 
-  const handleReset = useCallback(async () => {
+  const performReset = useCallback(async () => {
     if (isResettingRef.current) return;
     isResettingRef.current = true;
     try {
@@ -836,10 +863,45 @@ export function SettingsField({
     }
   }, [setting.key, setting.label, onReset, reportFieldFailure, toastSuccess]);
 
+  /** Resets, unless the default is a shorter retention window: then it asks. */
+  const handleReset = useCallback(async () => {
+    const days = shortenedRetentionDays(setting, setting.default, audience);
+    if (days !== null) {
+      if (debounceRef.current) {
+        clearTimeout(debounceRef.current);
+        debounceRef.current = null;
+      }
+      setPendingShortening({ days, value: setting.default, reset: true });
+      return;
+    }
+    await performReset();
+  }, [audience, performReset, setting]);
+
+  const handleShorteningConfirm = useCallback(async () => {
+    const pending = pendingShortening;
+    setPendingShortening(null);
+    if (!pending) return;
+    if (pending.reset) {
+      await performReset();
+      return;
+    }
+    await doSave(pending.value);
+  }, [doSave, pendingShortening, performReset]);
+
+  const handleShorteningCancel = useCallback(() => {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = null;
+    }
+    setPendingShortening(null);
+    setLocalValue(setting.value);
+    setIsDirty(false);
+  }, [setting.value]);
+
   // „Wiederholen“ sendet den Stand, der dann gilt.
   useLayoutEffect(() => {
     latestDoSaveRef.current = (value) => void doSave(value);
-    latestResetRef.current = () => void handleReset();
+    latestResetRef.current = () => void performReset();
     latestActivationRef.current = () => void handleLegalActivationConfirm();
     latestTextEditRef.current = () => void handleLegalTextEditConfirm();
     latestUploadRef.current = (file) => void handleLegalDocumentUpload(file);
@@ -898,6 +960,13 @@ export function SettingsField({
         {setting.access_policy === "shared" && audience === "operator" && (
           <p className="mt-0.5 text-xs text-gray-400 italic">
             Kann auch vom Schul-Admin geändert werden.
+          </p>
+        )}
+        {isOperatorManaged(setting) && (
+          <p className="mt-0.5 text-xs text-gray-500">
+            {audience === "operator"
+              ? "Löschfrist aus dem Vertrag. Die Schule sieht sie, kann sie aber nicht ändern."
+              : "Diese Frist legt moto mit Ihrer Schule fest. Für eine Änderung wenden Sie sich an moto."}
           </p>
         )}
         {legalTextWarning && (
@@ -970,6 +1039,24 @@ export function SettingsField({
           <p className="text-sm text-gray-600">{activeConfirmConfig.body}</p>
         </ConfirmationModal>
       )}
+
+      <ConfirmationModal
+        isOpen={pendingShortening !== null}
+        onClose={handleShorteningCancel}
+        onConfirm={() => {
+          void handleShorteningConfirm();
+        }}
+        title="Löschfrist verkürzen?"
+        confirmText="Frist verkürzen"
+        cancelText="Abbrechen"
+        confirmVariant="danger"
+      >
+        <p className="text-sm text-gray-600">
+          {pendingShortening
+            ? retentionShorteningText(pendingShortening.days)
+            : null}
+        </p>
+      </ConfirmationModal>
 
       <ConfirmationModal
         isOpen={legalActivationOpen}
