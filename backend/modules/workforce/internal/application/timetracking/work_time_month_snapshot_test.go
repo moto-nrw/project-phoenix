@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -28,7 +27,7 @@ type snapshotFixture struct {
 	tenantID  int64
 	staff     int64
 	admin     int64
-	session   *timerecords.WorkSession
+	session   *timetracking.WorkSession
 	schedule  *testpkg.StaffWorkScheduleFixture
 	repos     *services.RepositoryTestFactory
 	workforce workforce.Capability
@@ -102,7 +101,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 
 	checkIn := time.Date(snapshotYear, time.August, snapshotSessionDay, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &timerecords.WorkSession{
+	session := &timetracking.WorkSession{
 		StaffID:     staff.ID,
 		Date:        timezone.NewDate(snapshotYear, time.August, snapshotSessionDay),
 		Status:      workforce.WorkSessionStatusPresent,

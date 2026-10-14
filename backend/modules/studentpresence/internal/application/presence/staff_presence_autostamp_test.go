@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -18,17 +17,23 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// workSessionRow is the part of a work session row the auto-stamp asserts.
+type workSessionRow struct {
+	Status string
+	Source string
+}
+
 // todayWorkSession loads today's work session row for the staff member, or nil.
-func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *timerecords.WorkSession {
+func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *workSessionRow {
 	t.Helper()
-	session := new(timerecords.WorkSession)
+	session := new(workSessionRow)
 	err := db.NewSelect().
-		Model(session).
-		ModelTableExpr(`active.work_sessions AS "work_session"`).
+		TableExpr(`active.work_sessions AS "work_session"`).
+		ColumnExpr(`"work_session"."status", "work_session"."source"`).
 		Where(`"work_session"."staff_id" = ?`, staffID).
 		Where(`"work_session"."date" = ?`, timezone.TodayDate()).
 		Limit(1).
-		Scan(context.Background())
+		Scan(context.Background(), &session.Status, &session.Source)
 	if err != nil {
 		return nil
 	}

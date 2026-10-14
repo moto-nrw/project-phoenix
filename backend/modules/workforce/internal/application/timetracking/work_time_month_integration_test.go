@@ -7,7 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -56,7 +55,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	// One 480-minute session on Monday June 1, 2026.
 	checkIn := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(8 * time.Hour)
-	session := &timerecords.WorkSession{
+	session := &timetracking.WorkSession{
 		StaffID:     staff.ID,
 		Date:        timezone.NewDate(2026, time.June, 1),
 		Status:      workforce.WorkSessionStatusPresent,
@@ -68,7 +67,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	require.NoError(t, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions.Create(ctx, session))
 
 	// Reported sick day on Monday June 15, 2026 → credits 480.
-	absence := &timerecords.StaffAbsence{
+	absence := &timetracking.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeSick,
 		Status:      workforce.AbsenceStatusReported,
@@ -104,7 +103,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	// LIVE Übertrag: a late June correction immediately changes July's carry.
 	lateCheckIn := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
 	lateCheckOut := lateCheckIn.Add(4 * time.Hour)
-	lateSession := &timerecords.WorkSession{
+	lateSession := &timetracking.WorkSession{
 		StaffID: staff.ID, Date: timezone.NewDate(2026, time.June, 8),
 		Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 		CheckInTime: lateCheckIn, CheckOutTime: &lateCheckOut,
