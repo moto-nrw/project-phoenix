@@ -133,10 +133,11 @@ fi
     printf '%s/test\n' "$module"
   fi
   if [ -n "$production_changed" ]; then
-    {
-      go list -f "{{.ImportPath}}{{range .$deps_field}} {{.}}{{end}}" ./...
-      go list -test -f "{{if .ForTest}}{{.ForTest}}{{range .$deps_field}} {{.}}{{end}}{{end}}" ./...
-    } |
+    # -test includes the ordinary packages too, so load both graphs once.
+    # ForTest maps test variants to their owner; Match retains ordinary
+    # packages without tests and excludes generated test mains. Do not filter
+    # by a .test suffix: a real package may legitimately have that name.
+    go list -test -f "{{if .ForTest}}{{.ForTest}}{{range .$deps_field}} {{.}}{{end}}{{else if .Match}}{{.ImportPath}}{{range .$deps_field}} {{.}}{{end}}{{end}}" ./... |
       awk 'NR == FNR { changed[$0] = 1; next }
         {
           for (field = 2; field <= NF; field++) {

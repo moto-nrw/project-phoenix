@@ -74,9 +74,11 @@ func loadTypedPackages(project string, build Build) ([]*packages.Package, error)
 	if err != nil {
 		return nil, err
 	}
+	// Every first-party package is an initial ./... root with typed syntax.
+	// Dependencies need exported types, not their own syntax or type-info maps.
 	config := &packages.Config{
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedImports |
-			packages.NeedDeps | packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
+			packages.NeedSyntax | packages.NeedTypes | packages.NeedTypesInfo,
 		Dir:       project,
 		Env:       environment,
 		ParseFile: parseWithoutDependencyBodies(dependencyRoots),
@@ -227,26 +229,33 @@ func (a semanticAnalyzer) analyzePackage(pkg *packages.Package) ([]Violation, er
 }
 
 func (a semanticAnalyzer) analyzeFile(pkg *packages.Package, classification Package, file *ast.File) ([]Violation, error) {
-	parents := astParents(file)
 	var violations []Violation
+	var ancestors []ast.Node
 	for _, decl := range file.Decls {
 		declaration := declarationName(pkg.PkgPath, decl)
 		var locationErr error
 		ast.Inspect(decl, func(node ast.Node) bool {
+			if node == nil {
+				ancestors = ancestors[:len(ancestors)-1]
+				return false
+			}
 			if locationErr != nil {
 				return false
 			}
+			ancestors = append(ancestors, node)
 			call, ok := node.(*ast.CallExpr)
 			if !ok {
 				return true
 			}
-			callViolations := a.callViolations(pkg, classification, declaration, call, parents)
+			callViolations := a.callViolations(pkg, classification, declaration, call, ancestors[:len(ancestors)-1])
 			if len(callViolations) == 0 {
 				return true
 			}
 			location, err := a.nodeLocation(pkg, call.Pos(), declaration)
 			if err != nil {
 				locationErr = err
+				// Inspect emits no nil callback after a pruned node.
+				ancestors = ancestors[:len(ancestors)-1]
 				return false
 			}
 			violations = append(violations, attachLocation(callViolations, location)...)
@@ -318,24 +327,7 @@ func (a semanticAnalyzer) nodeLocation(pkg *packages.Package, position token.Pos
 	return sourceLocation(a.project, pkg.Fset.PositionFor(position, false), declaration)
 }
 
-func astParents(root ast.Node) map[ast.Node]ast.Node {
-	parents := make(map[ast.Node]ast.Node)
-	var stack []ast.Node
-	ast.Inspect(root, func(node ast.Node) bool {
-		if node == nil {
-			stack = stack[:len(stack)-1]
-			return false
-		}
-		if len(stack) > 0 {
-			parents[node] = stack[len(stack)-1]
-		}
-		stack = append(stack, node)
-		return true
-	})
-	return parents
-}
-
-func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification Package, functionName string, call *ast.CallExpr, parents map[ast.Node]ast.Node) []Violation {
+func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification Package, functionName string, call *ast.CallExpr, ancestors []ast.Node) []Violation {
 	selector, ok := call.Fun.(*ast.SelectorExpr)
 	if !ok {
 		return nil
@@ -352,7 +344,7 @@ func (a semanticAnalyzer) callViolations(pkg *packages.Package, classification P
 		return append(violations, a.tableMethodViolations(pkg, classification, functionName, method, operation, call.Args)...)
 	}
 	if method == "Model" {
-		return append(violations, a.modelMethodViolations(pkg, classification, functionName, receiver, call, parents)...)
+		return append(violations, a.modelMethodViolations(pkg, classification, functionName, receiver, call, ancestors)...)
 	}
 	if _, queryMethod := bunQueryOperation(receiver); queryMethod && sqlFragmentMethods[method] {
 		return append(violations, a.queryFragmentViolations(pkg, classification, functionName, method, call.Args)...)
@@ -400,7 +392,7 @@ func (a semanticAnalyzer) tableMethodViolations(pkg *packages.Package, classific
 	return violations
 }
 
-func (a semanticAnalyzer) modelMethodViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, call *ast.CallExpr, parents map[ast.Node]ast.Node) []Violation {
+func (a semanticAnalyzer) modelMethodViolations(pkg *packages.Package, classification Package, functionName string, receiver types.Type, call *ast.CallExpr, ancestors []ast.Node) []Violation {
 	operation, ok := bunQueryOperation(receiver)
 	if !ok {
 		return nil
@@ -410,7 +402,7 @@ func (a semanticAnalyzer) modelMethodViolations(pkg *packages.Package, classific
 	}
 	name, ok := bunModelDataObject(pkg.TypesInfo.TypeOf(call.Args[0]))
 	if !ok {
-		if queryChainHasExplicitTable(call, parents) {
+		if queryChainHasExplicitTable(call, ancestors) {
 			return nil
 		}
 		return []Violation{unresolvedTableViolation(pkg.PkgPath, functionName, "Model")}
@@ -422,18 +414,19 @@ func isRuntimeDataPackage(classification Package) bool {
 	return classification.Role != "migration" && classification.Role != "test-support"
 }
 
-func queryChainHasExplicitTable(call *ast.CallExpr, parents map[ast.Node]ast.Node) bool {
+func queryChainHasExplicitTable(call *ast.CallExpr, ancestors []ast.Node) bool {
 	if selector, ok := call.Fun.(*ast.SelectorExpr); ok && queryReceiverHasExplicitTable(selector.X) {
 		return true
 	}
-	for node := ast.Node(call); parents[node] != nil; node = parents[node] {
-		selector, ok := parents[node].(*ast.SelectorExpr)
-		if !ok || selector.X != node {
-			continue
+	node := ast.Node(call)
+	for index := len(ancestors) - 1; index >= 0; index-- {
+		parent := ancestors[index]
+		if selector, ok := parent.(*ast.SelectorExpr); ok && selector.X == node {
+			if selector.Sel.Name == "Table" || selector.Sel.Name == "TableExpr" || selector.Sel.Name == "ModelTableExpr" {
+				return true
+			}
 		}
-		if selector.Sel.Name == "Table" || selector.Sel.Name == "TableExpr" || selector.Sel.Name == "ModelTableExpr" {
-			return true
-		}
+		node = parent
 	}
 	return false
 }

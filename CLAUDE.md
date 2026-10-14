@@ -73,14 +73,18 @@ path-scoped rules automatically.
 
 ## Completion and commands
 
-Run the app with `scripts/dev-native.sh up` (infra in Compose, app native; `--profile full` for containers).
+Start app servers only when the task needs a running UI or API. Use the smallest
+native mode: `scripts/dev-native.sh up backend`, `up frontend`, or `up` for both.
+Tests initialize their own test database and need no app servers. Use the full
+container stack only for an explicit container task; commands and lifecycle:
+[operations](docs/agents/operations.md).
 Tools belong in Devbox; do not depend on unrecorded global installations.
 
 | Change | Required verification |
 |---|---|
 | Frontend | `cd frontend && pnpm run check` — zero warnings; relevant behavior tests |
 | Backend | Relevant tests via `scripts/run-go-toolchain.sh`; architecture migration checks in backend/CLAUDE.md |
-| Code before push | `scripts/test-changed.sh origin/development` without `--fast` |
+| Code before push | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` without `--fast` |
 | User-visible | Verständlichkeit checklist recorded in PR; UI screenshot and help-guide requirements from the matching rules |
 | Docs/hooks only | `node scripts/check-agent-context.mjs` and `node --test scripts/check-agent-context.test.mjs`; verify changed hook behavior |
 

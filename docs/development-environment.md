@@ -142,12 +142,55 @@ peak CPU by about 62% and CPU time by about 25%, at the cost of about
 every 250 ms, so short spikes can be missed. This does not measure the full
 test suite, hot-reload latency under load or a real 16 GiB machine.
 
-The remaining structural cost is repeated whole-program graph loading:
-the deadcode gate loads the backend with and without tests, and pure
-source ratchets in `backend/test` still link the shared fixture graph.
-Separating those scanners into a small package could shorten that loop,
-but must preserve every gate. Do not remove one deadcode mode or skip
-ratchets to make timings smaller.
+The deadcode gate still needs separate production and test-inclusive graphs:
+tests can make a production-unreachable function reachable. Neither mode is
+removed. The architecture and affected-package improvements below remove
+redundant work while retaining their existing checks.
+
+### Faster architecture and affected-package checks
+
+The architecture gate now avoids three repeated costs:
+
+1. All own `./...` packages retain typed syntax and function-body checking.
+   External dependencies supply compiler-exported types instead of source
+   syntax and type-info maps. Imported generics and promoted methods retain
+   their types.
+2. Semantic traversal keeps an ancestor stack instead of building a parent
+   map for every AST node. Receiver-chain and diagnostic-location behavior
+   stays unchanged.
+3. Policy strictness comparison reuses pure rule decisions for identical
+   scope/owner/role points within that invocation. Base and candidate policies
+   have separate maps. Reviewed path-specific exceptions still run for every
+   edge; rule-use and stale-rule checks are unchanged.
+
+Affected-package selection uses one `go list -test` invocation for ordinary
+packages and test variants instead of loading those graphs separately. It
+retains transitive and test-only importers, including real packages whose
+names end in `.test`.
+
+On 2026-10-14, a 64 GiB / 16-core Mac ran three before/after passes per
+command, sequentially in alternating order, with warm Go caches and the
+same `GOFLAGS=-p=4` / `GOMAXPROCS=4`. The full architecture check used
+base commit `ac58fb4562`, including policy strictness, legacy baseline and
+composition comparison. Other work remained active; these are medians.
+
+| Check | Wall time before / after | CPU time before / after | Sampled peak process-tree RSS before / after |
+| --- | --- | --- | --- |
+| Full architecture gate | 20.74 / 13.27 s | 31.21 / 21.70 s | 2405 / 1897 MiB |
+| Affected-package selection | 3.26 / 2.15 s | 4.32 / 2.80 s | Not sampled |
+
+The full gate used about 36% less wall time, 30% less CPU time and 21% less
+sampled peak RSS. All six runs produced byte-identical output: 55 legacy
+violations and 252 composition targets. A separate raw-check comparison
+also matched all 503 diagnostic lines, including physical source locations.
+Affected-package output was byte-identical in all six selection runs.
+
+The real `TestCompositionLegacyCallerInventory` semantic-load profile reduced
+cumulative allocations from about 3.52 GiB to 1.86 GiB (47%). That is total
+allocation volume, not peak resident memory. RSS sampling at 250 ms can miss
+short spikes. Compiler export data uses Go's normal build cache; a cold first
+run may need to compile missing exports. These measurements cover repeated
+feedback, not a clean install, the full test suite or actual 16 GiB hardware.
 
 ### Fresh Postgres volumes
 
