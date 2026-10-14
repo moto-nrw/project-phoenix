@@ -41,9 +41,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Affected-package PRs keep one runner. Full suites split every package
-        # across two isolated databases, including packages without tests.
-        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1]') }}
+        # Affected PRs keep one runner. Full suites isolate the two measured
+        # heavyweight packages: 0 application, 1 architecture, 2 migrations.
+        shard: ${{ fromJSON(inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && '[0]' || '[0,1,2]') }}
     # Change-scoped runs cover only affected packages; full suites need eight
     # vCPUs even when triggered by a pull request.
     runs-on: ${{ inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
@@ -74,11 +74,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR selection needs origin/<base_ref>. Only the full-suite data
-          # shard can omit historical blobs. Architecture clones this repo
+          # PR selection needs origin/<base_ref>. Full-suite data shards can
+          # omit historical blobs. Architecture clones this repo
           # and reads old blobs, so its shard and affected PRs stay complete.
           fetch-depth: 0
-          filter: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') && 'blob:none' || '' }}
+          filter: ${{ matrix.shard != 1 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') && 'blob:none' || '' }}
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -93,6 +93,7 @@ jobs:
           scripts/test-changed_test.sh
 
       - name: Restore migrated DB snapshot
+        if: ${{ matrix.shard != 1 }}
         id: db-snapshot
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
@@ -103,7 +104,7 @@ jobs:
           key: db-snapshot-pg17-${{ hashFiles('backend/database/migrations/*.go', 'backend/cmd/migrate.go') }}
 
       - name: Restore database from snapshot
-        if: steps.db-snapshot.outputs.cache-hit == 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit == 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
           PHOENIX_AUTH_PASSWORD: phoenix_auth_test
@@ -131,7 +132,7 @@ jobs:
             < backend/.db-snapshot/dump.sql
 
       - name: Run database migrations
-        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit != 'true'
         working-directory: backend
         env:
           DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -144,7 +145,7 @@ jobs:
         run: go run main.go migrate
 
       - name: Dump migrated database for snapshot cache
-        if: steps.db-snapshot.outputs.cache-hit != 'true'
+        if: matrix.shard != 1 && steps.db-snapshot.outputs.cache-hit != 'true'
         env:
           PG_CONTAINER: ${{ job.services.postgres.id }}
         run: |
@@ -157,6 +158,7 @@ jobs:
             > backend/.db-snapshot/dump.sql
 
       - name: Bootstrap test database template
+        if: ${{ matrix.shard != 1 }}
         working-directory: backend
         env:
           TEST_DB_DSN: postgres://postgres:postgres@localhost:5432/phoenix_test?sslmode=disable
@@ -200,24 +202,20 @@ jobs:
             fi
             echo "Running ${#packages[@]} changed/affected Go packages"
           else
-            # Assign every package exactly once. Keep the measured long-running
-            # architecture and migration suites apart, and start architecture
-            # first. Capture discovery failures before entering the pipe.
+            # Assign every package exactly once. The architecture suite runs
+            # without competing application builds or DB setup. Capture
+            # discovery failures before entering the pipe.
             all_packages=$(go list ./...)
             packages=()
             while IFS= read -r package; do
               [ -n "$package" ] && packages+=("$package")
             done < <(printf '%s\n' "$all_packages" | awk -v shard="$SHARD_INDEX" '
               {
-                target = (NR - 1) % 2
-                if ($0 ~ /\/internal\/architecture$/) {
-                  if (shard == 1) print
-                  next
-                }
-                if ($0 ~ /\/database\/migrations$/) target = 0
-                if (target == shard) remaining = remaining $0 ORS
+                target = 0
+                if ($0 ~ /\/internal\/architecture(\/|$)/) target = 1
+                if ($0 ~ /\/database\/migrations(\/|$)/) target = 2
+                if (target == shard) print
               }
-              END { printf "%s", remaining }
             ')
             if [ "${#packages[@]}" -eq 0 ]; then
               echo "Full-suite shard has no Go packages" >&2
@@ -257,7 +255,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        project: [node, dom]
+        # Changed-only PRs keep one DOM job. Full suites split its files with
+        # Vitest's built-in sharding, retaining four workers per DOM runner.
+        project: ${{ fromJSON((!inputs.changed-scope || inputs.full-frontend-suite || inputs.base_ref == '') && '["node","dom-1","dom-2"]' || '["node","dom"]') }}
     runs-on: ${{ matrix.project == 'node' && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     permissions:
       contents: read
@@ -328,6 +328,9 @@ jobs:
           if [ "$PROJECT" = node ]; then
             test_args=(--project api-node --project logic-node)
           fi
+          case "$PROJECT" in
+            dom-1|dom-2) test_args+=(--shard "${PROJECT#dom-}/2") ;;
+          esac
           if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
             test_args+=(--changed "origin/$BASE_REF")
           fi
@@ -345,10 +348,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [profiles, isolation]
+        scenario: [profiles, isolation, queue]
     # Each scenario owns its database and operator MFA mailbox. The isolation
     # scenario still seeds both schools sequentially into the SAME database;
-    # profiles retains the complete seed-coverage ratchet after all demo flows.
+    # profiles retains the complete coverage ratchet after the standing demo;
+    # queue separately verifies all three prospect schools and parent access.
     # Database reads repeatedly stalled on the cached runner, including while
     # Postgres reported an active query with no lock wait (run 38232330367).
     # Use a fresh hosted VM without changing smoke coverage or read timeouts.
@@ -603,7 +607,7 @@ jobs:
       # three workers and tick them once. A school that did not become ready
       # fails the job. The durations are what a visitor waits for.
       - name: Seed queued demo schools with the demo process
-        if: ${{ matrix.scenario == 'profiles' }}
+        if: ${{ matrix.scenario == 'queue' }}
         working-directory: backend
         run: |
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
