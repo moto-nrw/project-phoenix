@@ -3368,7 +3368,7 @@ surface stays at 252. `cycles --graph target` is unchanged at 58 owners, 335
 edges and one component of 32 members: the target projection omits
 composition owners and self-edges, so the reaches add no edge to it.
 
-#4003 removes the tuples by letting each owner's composition build what the
+#4003 removes the four tuples. Each owner's composition now builds what the
 root took from its implementation roles:
 
 - `modules/workforce/compose/httpadapter` serves `/absence-types` and
@@ -3382,12 +3382,19 @@ root took from its implementation roles:
   That import is the first use of a workflow composition's own `adapter`
   role. Policy epoch 42 → 43 adds `owner-compose.workflow.adapter` under
   `reviewedOwnerCompositionRule`, as constraint 3 above describes.
+- The new package `modules/schedulerruntime/compose`
+  (`scheduler-runtime`/`compose`) binds the job runtime and the Worker lease
+  store to the scheduler's ports (`NewTenantRuntime`, `NewWorkerLeaseStore`).
+  Its signatures take the `tenant.UnitOfWork` the root holds (ADR 0053
+  point 5), so the package has `scheduler-runtime.compose.tenant-runtime`,
+  like the 34 other owner compositions. PR mode accepts that rule because it
+  is anchored to the new package. It is the one new cross-owner reach of an
+  owner composition: the #4004 measurement goes from 206 to 207 rules, 83 of
+  them into `public`.
 
-The baseline goes from 46 to 44 and the policy from 1,438 to 1,439 rules. The
+The baseline goes from 46 to 42 and the policy from 1,438 to 1,440 rules. The
 composition surface stays at 252, and `cycles --graph target` is unchanged at
-58 owners, 335 edges and one component of 32 members. The two Scheduler
-Runtime tuples (`api -> modules/schedulerruntime/jobruntime` and
-`api -> modules/schedulerruntime/workerlease`) remain.
+58 owners, 335 edges and one component of 32 members.
 
 ## Changing the policy
 

@@ -2571,6 +2571,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schedulerruntime/compose",
+      "owner": "scheduler-runtime",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schedulerruntime/jobruntime",
       "owner": "scheduler-runtime",
       "role": "postgres",
@@ -18766,6 +18773,17 @@
       ],
       "source_owner": "scheduler-runtime",
       "source_role": "postgres",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "scheduler-runtime.compose.tenant-runtime",
+      "description": "Scheduler Runtime composition builds the Worker's job runtime and lease store over the unit of work the root hands it (#4003).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
     },

@@ -4,10 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -20,16 +18,6 @@ import (
 // repository or runtime type, and the root imports none of the retained
 // packages either: values flow through the composed graph and its named
 // string types are converted where they are known.
-
-// schedulerTenantRuntime runs the Worker's transactions in the root's tenant
-// runtime.
-func schedulerTenantRuntime(runtime apiCommon.TenantRuntime) (scheduler.TenantRuntime, error) {
-	bound, err := jobruntime.New(runtime)
-	if err != nil {
-		return nil, err
-	}
-	return bound, nil
-}
 
 // verifySchedulerSettingKeys refuses a Worker whose scheduler reads a key
 // the Settings Platform registry does not define, or preloads a secret.
