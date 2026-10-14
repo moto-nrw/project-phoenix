@@ -126,8 +126,8 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	// The Dienstplan rows belong to Workforce (#2689); suites that still
 	// speak the retained rows reach them through the legacy row adapters
 	// over the one facade (#3418).
-	result.StaffShift = services.NewWorkforceShiftRows(workTime)
-	result.ShiftType = services.NewWorkforceShiftTypeRows(workTime)
+	result.StaffShift = newWorkforceShiftRows(workTime)
+	result.ShiftType = newWorkforceShiftTypeRows(workTime)
 	return result, nil
 }
 

@@ -86,9 +86,6 @@ var (
 	// AccountExists is the People Directory's account-reference check over
 	// Identity & Access, as the root binds it.
 	AccountExists = identityaccessCompose.AccountExists
-	// NewWorkforceAdminCapabilities adapts the retained workforce services to
-	// the public Workforce contracts, as the root does.
-	NewWorkforceAdminCapabilities = services.NewWorkforceAdminCapabilities
 )
 
 // The legacy composition's values the Identity & Access behaviour suites

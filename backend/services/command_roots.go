@@ -16,8 +16,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -72,30 +70,6 @@ func NewSessionCleanupRepositories(db *bun.DB, timetableCapability timetable.Cap
 	return SessionCleanupRepositories{
 		Sessions: sessions, Device: device,
 		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db, timetableCapability, NewUnloggedStudentPresence(db)),
-	}
-}
-
-// TimeTrackingCleanupRepositories are the Workforce records the time-tracking
-// retention deletes; the deletion ledger comes from the Audit composition.
-type TimeTrackingCleanupRepositories struct {
-	Workforce workforce.Capability
-	Absence   workforceCompose.StaffAbsenceRepository
-}
-
-func NewTimeTrackingCleanupRepositories(db *bun.DB) TimeTrackingCleanupRepositories {
-	membership, err := NewSchoolMembership(db)
-	if err != nil {
-		panic(fmt.Sprintf("time tracking cleanup repositories: compose school membership: %v", err))
-	}
-	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
-		LockStaffAssignment: WorkforceStaffAssignmentLock(membership), DB: db,
-		LiveStaffIDs: WorkforceLiveStaffIDs(membership), Observe: func(workforceCompose.Observation) {},
-	})
-	if err != nil {
-		panic(fmt.Sprintf("time tracking cleanup repositories: compose workforce: %v", err))
-	}
-	return TimeTrackingCleanupRepositories{
-		Workforce: workTime, Absence: workforceCompose.NewStaffAbsenceRepository(workTime),
 	}
 }
 

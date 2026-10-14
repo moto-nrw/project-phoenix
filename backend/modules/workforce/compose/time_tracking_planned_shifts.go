@@ -1,67 +1,58 @@
-package services
+package compose
 
 import (
 	"context"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// timeTrackingShiftRow is the planned-window projection consumed by time tracking.
-// StartTime and EndTime are wall clocks anchored at 0001-01-01 UTC, the
-// normalized shape the retained repositories handed their callers.
-type timeTrackingShiftRow struct {
-	StaffID      int64
-	Date         string
-	StartTime    time.Time
-	EndTime      time.Time
-	BreakMinutes int
-	Cancelled    bool
+// TimeTrackingShifts serves the time-tracking planned-shift port from the
+// public Workforce shift query (#3418); it performs no persistence of its own.
+type TimeTrackingShifts struct {
+	shifts workforce.ShiftQuery
 }
 
-// timeTrackingShiftSource reads planned shifts for the time-tracking services
-// through the public Workforce capability (#3418); it performs no persistence
-// of its own.
-type timeTrackingShiftSource struct{ shifts workforce.ShiftQuery }
-
-func newTimeTrackingShiftSource(shifts workforce.ShiftQuery) *timeTrackingShiftSource {
+// NewTimeTrackingShifts binds the planned-shift port to the shift query.
+func NewTimeTrackingShifts(shifts workforce.ShiftQuery) *TimeTrackingShifts {
 	if shifts == nil {
 		panic("time tracking shifts: Workforce shift query is required")
 	}
-	return &timeTrackingShiftSource{shifts: shifts}
+	return &TimeTrackingShifts{shifts: shifts}
 }
 
-func (r *timeTrackingShiftSource) ForStaffOnDate(ctx context.Context, staffIDs []int64, date string) ([]*timeTrackingShiftRow, error) {
-	if len(staffIDs) == 0 {
+func (r *TimeTrackingShifts) FindByStaffIDsAndDate(ctx context.Context, ids []int64, date timezone.Date) ([]*TimeTrackingShift, error) {
+	if len(ids) == 0 {
 		return nil, nil
 	}
 	return r.list(ctx, workforce.StaffShiftFilter{
-		StaffIDs: staffIDs, Dates: []string{date},
+		StaffIDs: ids, Dates: []string{date.String()},
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *timeTrackingShiftSource) ForStaffInRange(ctx context.Context, staffID int64, from, to string) ([]*timeTrackingShiftRow, error) {
+func (r *TimeTrackingShifts) FindByStaffAndDateRange(ctx context.Context, id int64, from, to timezone.Date) ([]*TimeTrackingShift, error) {
 	return r.list(ctx, workforce.StaffShiftFilter{
-		StaffID: staffID, From: from, To: to,
+		StaffID: id, From: from.String(), To: to.String(),
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *timeTrackingShiftSource) InRange(ctx context.Context, from, to string) ([]*timeTrackingShiftRow, error) {
+func (r *TimeTrackingShifts) FindByDateRange(ctx context.Context, from, to timezone.Date) ([]*TimeTrackingShift, error) {
 	return r.list(ctx, workforce.StaffShiftFilter{
-		From: from, To: to,
+		From: from.String(), To: to.String(),
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *timeTrackingShiftSource) ByStaffInRange(ctx context.Context, staffIDs []int64, from, to string) (map[int64][]*timeTrackingShiftRow, error) {
-	result := make(map[int64][]*timeTrackingShiftRow, len(staffIDs))
-	if len(staffIDs) == 0 {
+func (r *TimeTrackingShifts) FindByStaffIDsAndDateRange(ctx context.Context, ids []int64, from, to timezone.Date) (map[int64][]*TimeTrackingShift, error) {
+	result := make(map[int64][]*TimeTrackingShift, len(ids))
+	if len(ids) == 0 {
 		return result, nil
 	}
 	rows, err := r.list(ctx, workforce.StaffShiftFilter{
-		StaffIDs: staffIDs, From: from, To: to,
+		StaffIDs: ids, From: from.String(), To: to.String(),
 		Order: timeTrackingShiftOrder(workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
 	})
 	if err != nil {
@@ -73,15 +64,15 @@ func (r *timeTrackingShiftSource) ByStaffInRange(ctx context.Context, staffIDs [
 	return result, nil
 }
 
-func (r *timeTrackingShiftSource) list(ctx context.Context, filter workforce.StaffShiftFilter) ([]*timeTrackingShiftRow, error) {
+func (r *TimeTrackingShifts) list(ctx context.Context, filter workforce.StaffShiftFilter) ([]*TimeTrackingShift, error) {
 	rows, err := r.shifts.ListStaffShifts(ctx, filter)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*timeTrackingShiftRow, 0, len(rows))
+	result := make([]*TimeTrackingShift, 0, len(rows))
 	for _, row := range rows {
-		result = append(result, &timeTrackingShiftRow{
-			StaffID: row.StaffID, Date: row.Date,
+		result = append(result, &TimeTrackingShift{
+			StaffID: row.StaffID, Date: timezone.Date(row.Date),
 			StartTime: timeTrackingWallClock(row.StartTime), EndTime: timeTrackingWallClock(row.EndTime),
 			BreakMinutes: row.BreakMinutes, Cancelled: row.Cancelled,
 		})

@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -157,13 +156,13 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// Delete staffB's adjustment through the real service path so the
 	// tombstone write is covered end to end.
 	adjustSvc := timetracking.NewStaffBalanceAdjustmentService(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Adjustments, nil, wtmIntSettings{accountStart: "2025-01-01"}, nil,
-		timetracking.WithAdjustmentDeletionAudit(services.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
+		timetracking.WithAdjustmentDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)))
 	require.NoError(t, adjustSvc.DeleteAdjustment(ctx, staffB.ID, doomed.ID, admin.ID))
 
 	return &auditLogFixture{
 		tenantID: tenantID, staffA: staffA.ID, staffB: staffB.ID, admin: admin.ID,
 		repos: repos, db: db, ctx: ctx,
-		svc: timetracking.NewTimeTrackingAuditLogService(services.NewTimeTrackingAuditReader(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), services.StaffDisplayNames(repos.Staff), nil),
+		svc: timetracking.NewTimeTrackingAuditLogService(api.NewTimeTrackingAuditReader(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingAuditLog), api.StaffDisplayNames(repos.Staff), nil),
 	}
 }
 

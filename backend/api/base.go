@@ -304,9 +304,9 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		return moduleServices{}, err
 	}
 	workTime, err := workforceCompose.New(workforceCompose.Dependencies{
-		LockStaffAssignment: services.WorkforceStaffAssignmentLock(membership),
+		LockStaffAssignment: workforceStaffAssignmentLock(membership),
 		DB:                  pool,
-		LiveStaffIDs:        services.WorkforceLiveStaffIDs(membership),
+		LiveStaffIDs:        workforceLiveStaffIDs(membership),
 		// A Sonderarbeitszeit never sets a target on a statutory holiday.
 		StatutoryHolidays: calendar.TenantHolidayDates,
 		Observe: func(observation workforceCompose.Observation) {
@@ -425,6 +425,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			observability.ObserveDeviceFleetOperation,
 			observability.ObserveIdentityAccessOperation,
 			workTime,
+			newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
 			observeDataImport,
 			productEvents,
 			fileStorageWiring,
@@ -1568,7 +1569,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Administration:   devicefleetCompose.NewAdministration(svc.IoT.Fleet()),
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
-		StaffClock:       svc.StaffClock,
+		StaffClock:       newStaffClockService(svc.Users, services.NewPeopleIdentityAccess(in.db.Pool(), observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
 		Configuration:    devicescanCompose.NewConfiguration(svc.Settings),
 		Rooms:            devicescanCompose.NewRoomAvailability(svc.Facilities),
 		Directory:        devicescanCompose.NewDirectory(svc.Users, svc.Activities, logger),
@@ -1604,11 +1605,11 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumen
 	})
 	absenceTypes := workforceHTTPAdapter.AbsenceTypesRoutes(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
 	tenant.Mount("/staff", staff.Router())
-	tenant.Mount("/work-time-models", workforceHTTPAdapter.NewResource(workforce, services.StaffTimeTrackingNotifier(svc.RealtimeHub)).Router())
+	tenant.Mount("/work-time-models", workforceHTTPAdapter.NewResource(workforce, staffTimeTrackingNotifier(svc.RealtimeHub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
 	tenant.Mount("/shift-types", workforceShiftPlanning.NewShiftTypesResource(svc.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)
-	tenant.Mount("/substitutions", workforceHTTPAdapter.SubstitutionsRoutes(services.SubstitutionCapability(svc.Substitution)))
+	tenant.Mount("/substitutions", workforceHTTPAdapter.SubstitutionsRoutes(SubstitutionCapability(svc.Substitution)))
 	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar, in.db).Router())
 	return staffAdmin, nil
 }

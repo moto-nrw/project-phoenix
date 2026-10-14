@@ -84,7 +84,7 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 		return nil, err
 	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, true, clocks...))
+	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, true, clocks...))
 	if err != nil {
 		return nil, err
 	}
@@ -161,6 +161,13 @@ func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabili
 		Membership: membership, Calendar: calendar, Timetable: timetableCapability, Appointments: appointmentCapability, Workforce: workTime,
 		bindCalendarAdministration: func(runtime schoolCalendarCompose.AdministrationRuntime) { calendarAdministration = runtime },
 	}, nil
+}
+
+// WorkforceWiring is the Workforce wiring the root hands the factory, over
+// the owners of this test graph.
+func (o OwnerCapabilities) WorkforceWiring(db transactionruntime.Database) services.WorkforceWiring {
+	staff := services.NewStaffRepository(db.Pool(), o.Membership, o.Rooms, o.Workforce, nil)
+	return newWorkforceWiring(db, o.Workforce, o.Membership, o.Persons, o.Organizations, staff)
 }
 
 // factory hands the finished factory's period administration to the

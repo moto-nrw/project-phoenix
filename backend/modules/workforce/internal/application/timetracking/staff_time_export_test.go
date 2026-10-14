@@ -30,11 +30,11 @@ func (f *overviewFixture) newExportService() timetracking.StaffTimeExportService
 	return timetracking.NewStaffTimeExportService(
 		f.svc,
 		f.newWorkSessionService(),
-		services.TimeExportStaff(f.repos.Staff),
+		api.TimeExportStaff(f.repos.Staff),
 		services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		nil,
 		nil,
-		services.RenderTimeTrackingWorkbook,
+		api.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -42,14 +42,14 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 	// nil settings: the F9 deviation checks are opt-in and irrelevant for
 	// reading export rows.
 	return timetracking.NewWorkSessionService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, services.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
-		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, services.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db))),
-		services.NewWorkSessionSchedules(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkSessionTimeModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).WorkSessionEdit),
+		f.repos.StaffAbsence, f.repos.GroupSupervisor, f.repos.ActiveGroup, api.WorkSessionStaff(f.repos.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(f.db))),
+		workforceCompose.NewWorkSessionSchedules(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkSessionTimeModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)),
 		nil,
 		nil,
 		f.db,
-		services.RenderTimeTrackingPDF,
-		services.RenderTimeTrackingWorkbook,
+		api.RenderTimeTrackingPDF,
+		api.RenderTimeTrackingWorkbook,
 	)
 }
 
@@ -163,13 +163,13 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
-		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, services.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
-		services.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), services.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), services.NewTimeTrackingShifts(f.workforce),
+		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
+		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
 		settings, nil,
 		timetracking.WithMonthAdjustments(workforceCompose.NewTimeTrackingTestRows(f.workforce).Adjustments),
 		timetracking.WithMonthSnapshots(workforceCompose.MonthSnapshotCapability(f.workforce)),
 	)
-	closeSvc := timetracking.NewStaffMonthCloseService(workforceCompose.MonthSnapshotCapability(f.workforce), monthSvc, services.MonthCloseStaff(f.repos.Staff), settings, nil)
+	closeSvc := timetracking.NewStaffMonthCloseService(workforceCompose.MonthSnapshotCapability(f.workforce), monthSvc, api.MonthCloseStaff(f.repos.Staff), settings, nil)
 	svc := f.newOverviewService(settings)
 
 	closeResult, err := closeSvc.CloseMonth(f.ctx, staffID, closedMonth.Year(), int(closedMonth.Month()), "Abschluss")
@@ -281,8 +281,8 @@ func TestStaffTimeExport_NoFileWithoutAudit(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	actorID := f.newActorAccount(t)
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, f.newWorkSessionService(), services.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{}, nil, nil,
-		services.RenderTimeTrackingWorkbook,
+		f.svc, f.newWorkSessionService(), api.TimeExportStaff(f.repos.Staff), failingAccessLogRepo{}, nil, nil,
+		api.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{
@@ -303,8 +303,8 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, sessionSvc, services.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
-		services.RenderTimeTrackingWorkbook,
+		f.svc, sessionSvc, api.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
+		api.RenderTimeTrackingWorkbook,
 	)
 
 	file, err := exportSvc.Export(f.ctx, timetracking.TimeExportRequest{

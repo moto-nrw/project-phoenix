@@ -41,10 +41,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
-	scans, err := auditCompose.NewUnregisteredTagScanService(
-		services.NewUnregisteredTagScanRepository(fleet),
-		auditCompose.UnregisteredTagScanRuntime{TenantID: tenant.FromContext},
-	)
+	scans, err := services.NewUnregisteredTagScans(fleet)
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}

@@ -16382,12 +16382,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 451,
+          "line": 452,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 715,
+          "line": 716,
           "declaration": "type serveGraph"
         },
         {
@@ -16397,7 +16397,7 @@
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 168,
+          "line": 175,
           "declaration": "OwnerCapabilities.factory"
         },
         {

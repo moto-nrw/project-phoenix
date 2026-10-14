@@ -3,11 +3,9 @@ package services
 import (
 	"context"
 	"errors"
-	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // visitorProjection composes open visits and home-school identity through
@@ -93,55 +91,4 @@ func attachSupervisionPersons(ctx context.Context, query peopledirectory.Query, 
 		}
 	}
 	return nil
-}
-
-type personStaffAbsenceRepository struct {
-	workforceCompose.StaffAbsenceRepository
-	persons peopledirectory.Query
-}
-
-func (r personStaffAbsenceRepository) ListRequests(ctx context.Context, filter workforceCompose.AbsenceRequestFilter) ([]*workforceCompose.AbsenceRequestRow, error) {
-	if search := strings.TrimSpace(filter.Search); search != "" && filter.SubjectPersonIDs == nil {
-		matches, err := r.persons.SearchPersons(ctx, peopledirectory.PersonFilter{FullNameContains: search})
-		if err != nil {
-			return nil, err
-		}
-		filter.SubjectPersonIDs = make([]int64, 0, len(matches))
-		for _, match := range matches {
-			filter.SubjectPersonIDs = append(filter.SubjectPersonIDs, match.ID)
-		}
-	}
-	rows, err := r.StaffAbsenceRepository.ListRequests(ctx, filter)
-	if err != nil || len(rows) == 0 {
-		return rows, err
-	}
-	ids := make([]int64, 0, 2*len(rows))
-	for _, row := range rows {
-		if row.SubjectPersonID != nil {
-			ids = append(ids, *row.SubjectPersonID)
-		}
-		if row.DeciderPersonID != nil {
-			ids = append(ids, *row.DeciderPersonID)
-		}
-	}
-	persons, err := personsByID(ctx, r.persons, ids)
-	if err != nil {
-		return nil, err
-	}
-	for _, row := range rows {
-		row.StaffName = fullNameOf(persons, row.SubjectPersonID)
-		row.DecidedByName = fullNameOf(persons, row.DeciderPersonID)
-	}
-	return rows, nil
-}
-
-func fullNameOf(persons map[int64]peopledirectory.Person, id *int64) string {
-	if id == nil {
-		return ""
-	}
-	person, found := persons[*id]
-	if !found {
-		return ""
-	}
-	return person.FullName()
 }
