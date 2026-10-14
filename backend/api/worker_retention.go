@@ -7,6 +7,7 @@ import (
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -31,6 +32,7 @@ const (
 	retentionAuthEvents           = "auth_event_retention"
 	retentionDataAccessLog        = "data_access_log_retention"
 	retentionDeletionLog          = "deletion_log_retention"
+	retentionDeliveries           = "delivery_retention"
 )
 
 var retentionSettingKeys = []string{
@@ -60,6 +62,9 @@ type retentionOwners struct {
 		DeleteExpiredDataAccessLog(ctx context.Context) (deleted, retentionDays int, err error)
 		DeleteExpiredDeletionLog(ctx context.Context) (deleted, retentionDays int, err error)
 	}
+	// deliveries deletes the delivered mail and push intents and the mail
+	// delivery logs after their fixed window (#3955).
+	deliveries deliveryModule.Retention
 }
 
 func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
@@ -117,6 +122,9 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 			fixedRetentionStep(retentionDataAccessLog, ledgers.DeleteExpiredDataAccessLog),
 			fixedRetentionStep(retentionDeletionLog, ledgers.DeleteExpiredDeletionLog),
 		)
+	}
+	if owners.deliveries != nil {
+		steps = append(steps, fixedRetentionStep(retentionDeliveries, owners.deliveries.DeleteExpiredDeliveries))
 	}
 	return steps
 }

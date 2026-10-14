@@ -43,3 +43,19 @@ type GuardianDirectory interface {
 }
 
 type Observer func(domain.Observation)
+
+// RetentionStore deletes the delivery data of one school whose retention
+// window ended before the instant (#3955). Every statement runs on the
+// school's tenant transaction.
+type RetentionStore interface {
+	// DeleteExpiredEmailDeliveryLogs removes the delivery logs of the
+	// expired mails and the logs without a mail written before the instant.
+	DeleteExpiredEmailDeliveryLogs(ctx context.Context, tenantID int64, before time.Time) (int, error)
+	// DeleteExpiredEmailIntents removes the expired mails except the
+	// key-only templates.
+	DeleteExpiredEmailIntents(ctx context.Context, tenantID int64, before time.Time, keyOnlyTemplates []string) (int, error)
+	// ClearExpiredKeyOnlyEmailIntents empties recipient, content and
+	// provider answer of the expired key-only mails not cleared yet.
+	ClearExpiredKeyOnlyEmailIntents(ctx context.Context, tenantID int64, before time.Time, keyOnlyTemplates []string) (int, error)
+	DeleteExpiredPushIntents(ctx context.Context, tenantID int64, before time.Time) (int, error)
+}

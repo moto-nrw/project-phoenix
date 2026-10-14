@@ -7,6 +7,7 @@ Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startze
 
 ## Wie gelöscht wird
 
+- **Stündlicher Token-Aufräumjob.** Einladungen für Eltern, MFA-Codes per E-Mail, Passkey-Sitzungen und abgelaufene Refresh-Tokens löscht der stündliche Aufräumjob für alle Schulen und Operatoren gemeinsam (#3954). Diese Läufe stehen nicht im Löschprotokoll, weil sie keiner Schule zugeordnet sind.
 - **Nächtlicher Lauf je Schule.** Zur eingestellten Uhrzeit (`gdpr.data_cleanup_time`, Voreinstellung 02:00) löscht moto in einer Transaktion der Schule alles, was älter als die Frist ist. Wurde ein geplanter Lauf verpasst, weil der letzte erfolgreiche Lauf vor dem Tag des letzten geplanten Termins liegt, holt moto ihn beim nächsten Minutentakt nach; ein fehlgeschlagener Lauf zählt nicht und wird nachgeholt (#3950).
 - **Löschprotokoll.** Jede automatische Löschung schreibt einen Eintrag in `audit.data_deletions` mit Datenart und Anzahl, ohne die gelöschten Inhalte.
 - **Wer die Fristen einstellt.** Fachliche Fristen trägt das moto-Team je Schule im Operator-Dashboard ein, so wie sie im Vertrag stehen; ohne Eintrag gilt die Voreinstellung. Die Schule sieht ihre Fristen unter „Datenschutz“ und kann sie nicht ändern. Technische Daten und Protokolle haben feste Fristen für alle Schulen. Den nächtlichen Lauf hält nur das moto-Team als Notbremse an.
@@ -43,10 +44,10 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 | Anmeldeereignisse | 90 Tage | Ereignis | Audit Platform | BSI-Mindeststandard „bspw. 90 Tage“ für Sicherheitsprotokolle | umgesetzt (#3956) |
 | Zugriffsprotokoll | Ende des Folgejahres | Zugriff | Audit Platform | Analogie § 76 Abs. 4 BDSG | umgesetzt (#3956) |
 | Löschprotokoll | 3 Jahre | Löschung | Audit Platform | BayLDA: Nachweis bis 3 Jahre | umgesetzt (#3956) |
-| Mail- und Push-Warteschlange, Zustellprotokolle | 30 Tage | Zustellung bzw. endgültiger Fehlschlag | Delivery | Inhalt ohne Zweck nach Zustellung | offen (#3955) |
-| Einladungen für Eltern | 30 Tage | Ablauf oder Einlösung | Identity Access | Link ohne Zweck nach Ablauf oder Einlösung | offen (#3954) |
-| MFA-Codes per E-Mail, Passkey-Sitzungen | 7 Tage | Ablauf | Identity Access | IP-Bezug höchstens 7 Tage | offen (#3954) |
-| Abgelaufene Refresh-Tokens, auch für Operatoren | 7 Tage | Ablauf | Identity Access | Sitzung ohne Zweck nach Ablauf | offen (#3954) |
+| Mail- und Push-Warteschlange, Zustellprotokolle | 30 Tage | Zustellung, endgültiger Fehlschlag oder Abbruch; Zustellprotokoll ohne Mail: Eintrag | Delivery | Inhalt ohne Zweck nach Zustellung | umgesetzt (#3955) |
+| Einladungen für Eltern | 30 Tage | Einlösung, sonst Ablauf | Identity Access | Link ohne Zweck nach Ablauf oder Einlösung | umgesetzt (#3954) |
+| MFA-Codes per E-Mail, Passkey-Sitzungen (Konten und Operatoren) | 7 Tage | Ablauf | Identity Access | IP-Bezug höchstens 7 Tage | umgesetzt (#3954) |
+| Abgelaufene Refresh-Tokens, auch für Operatoren | höchstens 7 Tage; gelöscht bei Ablauf | Ablauf | Identity Access | Sitzung ohne Zweck nach Ablauf | umgesetzt (#3954) |
 
 ## Offene Lücken ohne Ticket
 
@@ -64,5 +65,7 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 - **Angenommene Anmeldungen** haben keine eigene Frist; sie gehen mit dem Kind (#3962).
 - **Andere Personaldokumente** haben keine laufende Frist; sie werden beim Personalaustritt entfernt.
 - **Offene Anfragen** in Elternnachrichten bleiben, solange die OGS sie nicht entschieden hat. Danach gilt die normale Frist ab Versand, eine entschiedene alte Anfrage geht also beim nächsten Lauf.
+- **Willkommensmail für Eltern** (#3534): Sie geht je Schule nur einmal an einen Elternkontakt. Damit das nach der Löschfrist so bleibt, löscht der nächtliche Lauf diesen Eintrag der Mail-Warteschlange nicht, sondern leert Empfänger, Inhalt und Antwort des Mailservers. Übrig bleibt nur der Schlüssel `guardian_welcome:<ID des Elternkontakts>` mit Status und Zeitstempeln (#3955).
+- **Zustellprotokolle von Elternbriefen** verschwinden 30 Tage nach der Zustellung. Danach zeigt der Elternbrief nicht mehr, wer ihn per Mail erhalten hat oder nicht erreichbar war.
 - **Essens-Krankhistorie** (`schedule.meal_sickness_status_history`): Grundlage der Essensabrechnung. Sie speichert Krank-Tage ein zweites Mal und hat noch keine Frist. Die Fristlöschung der Krank-Tage schreibt bewusst keine neue Zeile hinein (#3958).
 - **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).
