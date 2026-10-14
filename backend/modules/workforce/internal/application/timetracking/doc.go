@@ -4,8 +4,10 @@
 // balances and their close, the overview, the exports and the retention
 // cleanup. It is part of the owner's application layer (New);
 // modules/workforce/compose binds it to the capability rows and serves the
-// public modules/workforce contracts from it. The services still speak the time-record vocabulary of
-// modules/workforce/adapters/timerecords, which goes with #3996.
+// public modules/workforce contracts from it. The services speak their own
+// time-record rows and repository contracts (*_record.go,
+// time_record_repositories.go), which the composition serves from the
+// capability (#3996).
 package timetracking
 
 import (

@@ -264,6 +264,10 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":         23,
 	"modules/timetable/internal/application/recurrence_events.go:(*Service).GenerateRecurrenceEvents":      21,
 
+	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
+	// the scores crossed the boundary unchanged.
+	"modules/workforce/compose/absence_rows.go:applyStaffAbsenceCondition":                                                                      28,
+	"modules/workforce/compose/absence_rows.go:staffAbsenceFilterFromOptions":                                                                   20,
 	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":            19,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                                         25,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                                        19,
@@ -275,8 +279,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/domain/absence_allowance.go:BuildAllowanceLedger":                                                               23,
 	"modules/workforce/internal/domain/shift.go:ValidateStaffShiftSeries":                                                                       20,
 	"modules/workforce/internal/domain/staffrecord.go:(StaffMasterData).Validate":                                                               16,
-	"modules/workforce/legacy/absence_repositories.go:applyStaffAbsenceCondition":                                                               28,
-	"modules/workforce/legacy/absence_repositories.go:staffAbsenceFilterFromOptions":                                                            20,
 	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).resolveWeeklyTargets":                       52,
 	"modules/workforce/internal/planning/staff_shift_move.go:(*staffShiftService).MoveShift":                                                    42,
 	"modules/workforce/internal/planning/staff_shift_series_service.go:(*staffShiftSeriesService).SplitSeries":                                  34,

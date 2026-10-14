@@ -22,11 +22,13 @@ import (
 
 const dayDepartureRequestToday = timezone.Date("2026-08-24")
 
-func buildDayDepartureRequestService(t *testing.T, departureModeRequestsEnabled bool) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
+// buildDayDepartureRequestService pins both clocks to dayDepartureRequestToday,
+// so the requested days stay care days whatever the wall clock says.
+func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *services.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t,
 		[]services.CareRequestOption{services.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},
-		withDepartureModeRequests(departureModeRequestsEnabled),
+		withDepartureModeRequests(departureModeRequests),
 		func(cfg *parentportalcompose.Dependencies) {
 			cfg.Now = func() time.Time { return dayDepartureRequestToday.BerlinMidnight().Add(12 * time.Hour) }
 		},

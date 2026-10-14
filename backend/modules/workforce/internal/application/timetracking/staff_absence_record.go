@@ -1,4 +1,4 @@
-package timerecords
+package timetracking
 
 import (
 	"errors"
@@ -127,8 +127,8 @@ func (sa *StaffAbsence) Validate() error {
 	return nil
 }
 
-// DurationDays returns the number of days this absence spans
-func (sa *StaffAbsence) DurationDays() int {
+// absenceDurationDays returns the number of days the absence spans.
+func absenceDurationDays(sa *StaffAbsence) int {
 	days := sa.DateStart.DaysUntil(sa.DateEnd) + minAbsenceDays
 	if days < minAbsenceDays {
 		return minAbsenceDays

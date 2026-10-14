@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -10,7 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
 // The row adapters in this file serve the time-tracking row contracts
@@ -22,16 +21,16 @@ import (
 
 type workSessionRepository struct{ workforce workforce.Capability }
 
-// newWorkSessionRows serves timerecords.WorkSessionRepository from
+// newWorkSessionRows serves timetracking.WorkSessionRepository from
 // the Workforce capability.
-func newWorkSessionRows(capability workforce.Capability) timerecords.WorkSessionRepository {
+func newWorkSessionRows(capability workforce.Capability) timetracking.WorkSessionRepository {
 	if capability == nil {
 		panic("work session repository adapter: Workforce capability is required")
 	}
 	return workSessionRepository{workforce: capability}
 }
 
-func (r workSessionRepository) Create(ctx context.Context, entity *timerecords.WorkSession) error {
+func (r workSessionRepository) Create(ctx context.Context, entity *timetracking.WorkSession) error {
 	if entity == nil {
 		return errors.New("WorkSession cannot be nil or zero value")
 	}
@@ -46,19 +45,19 @@ func (r workSessionRepository) Create(ctx context.Context, entity *timerecords.W
 	return nil
 }
 
-func (r workSessionRepository) FindByID(ctx context.Context, id any) (*timerecords.WorkSession, error) {
+func (r workSessionRepository) FindByID(ctx context.Context, id any) (*timetracking.WorkSession, error) {
 	sessionID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
 	}
 	value, err := r.workforce.FindWorkSession(ctx, sessionID)
 	if err != nil {
-		return nil, workSessionReadError("find by id", err, workforce.ErrWorkSessionNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) Update(ctx context.Context, entity *timerecords.WorkSession) error {
+func (r workSessionRepository) Update(ctx context.Context, entity *timetracking.WorkSession) error {
 	if entity == nil {
 		return errors.New("WorkSession cannot be nil or zero value")
 	}
@@ -87,7 +86,7 @@ func (r workSessionRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r workSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.WorkSession, error) {
+func (r workSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.WorkSession, error) {
 	filter, err := workSessionFilterFromOptions(options)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
@@ -102,7 +101,7 @@ func (r workSessionRepository) CountWithOptions(ctx context.Context, options *mo
 	}
 	count, err := r.workforce.CountWorkSessions(ctx, filter)
 	if err != nil {
-		return 0, workSessionReadError("count with options", err, nil)
+		return 0, rowReadError("count with options", err, nil)
 	}
 	return count, nil
 }
@@ -114,7 +113,7 @@ func (r workSessionRepository) OldestBefore(ctx context.Context, column string, 
 	}
 	oldest, err := r.workforce.OldestWorkSessionDate(ctx, column, before)
 	if err != nil {
-		return nil, workSessionReadError("oldest before", err, nil)
+		return nil, rowReadError("oldest before", err, nil)
 	}
 	if oldest == "" {
 		return nil, nil
@@ -138,62 +137,62 @@ func (r workSessionRepository) LockStaffBalanceWrites(ctx context.Context, staff
 	return r.workforce.LockStaffBalanceWrites(ctx, staffID)
 }
 
-func (r workSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*timerecords.WorkSession, error) {
+func (r workSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.TodayOpenWorkSession(ctx, staffID)
 	if err != nil {
-		return nil, workSessionReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*timerecords.WorkSession, error) {
+func (r workSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.LatestOpenWorkSession(ctx, staffID)
 	if err != nil {
-		return nil, workSessionReadError("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, rowReadError("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*timerecords.WorkSession, error) {
+func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.OpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
-		return nil, workSessionReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*timerecords.WorkSession, error) {
+func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.LockOpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
-		return nil, workSessionReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*timerecords.WorkSession, error) {
+func (r workSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.LockOpenWorkSession(ctx, id)
 	if err != nil {
-		return nil, workSessionReadError("lock open session by ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, rowReadError("lock open session by ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*timerecords.WorkSession, error) {
+func (r workSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*timetracking.WorkSession, error) {
 	values, err := r.workforce.ListOverlappingWorkSessions(ctx, []int64{staffID}, from, to)
 	if err != nil {
-		return nil, workSessionReadError("list overlapping by staff ID", err, nil)
+		return nil, rowReadError("list overlapping by staff ID", err, nil)
 	}
 	return workSessionsToLegacy(values), nil
 }
 
-func (r workSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*timerecords.WorkSession, error) {
-	result := make(map[int64][]*timerecords.WorkSession, len(staffIDs))
+func (r workSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*timetracking.WorkSession, error) {
+	result := make(map[int64][]*timetracking.WorkSession, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
 	values, err := r.workforce.ListOverlappingWorkSessions(ctx, staffIDs, from, to)
 	if err != nil {
-		return nil, workSessionReadError("list overlapping by staff IDs", err, nil)
+		return nil, rowReadError("list overlapping by staff IDs", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = append(result[value.StaffID], workSessionToLegacy(value))
@@ -201,15 +200,15 @@ func (r workSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, st
 	return result, nil
 }
 
-func (r workSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timerecords.WorkSession, error) {
+func (r workSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetracking.WorkSession, error) {
 	return r.list(ctx, "get history by staff ID", workforce.WorkSessionFilter{
 		StaffID: staffID, DateFrom: from.String(), DateTo: to.String(),
 		Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime),
 	})
 }
 
-func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timerecords.WorkSession, error) {
-	result := make(map[int64][]*timerecords.WorkSession, len(staffIDs))
+func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timetracking.WorkSession, error) {
+	result := make(map[int64][]*timetracking.WorkSession, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
@@ -226,7 +225,7 @@ func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffID
 	return result, nil
 }
 
-func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*timerecords.WorkSession, error) {
+func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*timetracking.WorkSession, error) {
 	open := true
 	return r.list(ctx, "get open sessions", workforce.WorkSessionFilter{DateBefore: beforeDate.String(), Open: &open})
 }
@@ -234,7 +233,7 @@ func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate t
 func (r workSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
 	presence, err := r.workforce.WorkPresenceMap(ctx)
 	if err != nil {
-		return nil, workSessionReadError("get today presence map", err, nil)
+		return nil, rowReadError("get today presence map", err, nil)
 	}
 	return presence, nil
 }
@@ -258,10 +257,10 @@ func (r workSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64,
 	return nil
 }
 
-func (r workSessionRepository) list(ctx context.Context, op string, filter workforce.WorkSessionFilter) ([]*timerecords.WorkSession, error) {
+func (r workSessionRepository) list(ctx context.Context, op string, filter workforce.WorkSessionFilter) ([]*timetracking.WorkSession, error) {
 	values, err := r.workforce.ListWorkSessions(ctx, filter)
 	if err != nil {
-		return nil, workSessionReadError(op, err, nil)
+		return nil, rowReadError(op, err, nil)
 	}
 	return workSessionsToLegacy(values), nil
 }
@@ -335,16 +334,16 @@ func workSessionFilterFromOptions(options *modelBase.QueryOptions) (workforce.Wo
 
 type workSessionBreakRepository struct{ workforce workforce.Capability }
 
-// newWorkSessionBreakRows serves timerecords.WorkSessionBreakRepository
+// newWorkSessionBreakRows serves timetracking.WorkSessionBreakRepository
 // from the Workforce capability.
-func newWorkSessionBreakRows(capability workforce.Capability) timerecords.WorkSessionBreakRepository {
+func newWorkSessionBreakRows(capability workforce.Capability) timetracking.WorkSessionBreakRepository {
 	if capability == nil {
 		panic("work session break repository adapter: Workforce capability is required")
 	}
 	return workSessionBreakRepository{workforce: capability}
 }
 
-func (r workSessionBreakRepository) Create(ctx context.Context, entity *timerecords.WorkSessionBreak) error {
+func (r workSessionBreakRepository) Create(ctx context.Context, entity *timetracking.WorkSessionBreak) error {
 	if entity == nil {
 		return errors.New("WorkSessionBreak cannot be nil or zero value")
 	}
@@ -359,19 +358,19 @@ func (r workSessionBreakRepository) Create(ctx context.Context, entity *timereco
 	return nil
 }
 
-func (r workSessionBreakRepository) FindByID(ctx context.Context, id any) (*timerecords.WorkSessionBreak, error) {
+func (r workSessionBreakRepository) FindByID(ctx context.Context, id any) (*timetracking.WorkSessionBreak, error) {
 	breakID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
 	}
 	value, err := r.workforce.FindWorkSessionBreak(ctx, breakID)
 	if err != nil {
-		return nil, workSessionReadError("find by id", err, workforce.ErrWorkSessionBreakNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrWorkSessionBreakNotFound)
 	}
 	return workSessionBreakToLegacy(value), nil
 }
 
-func (r workSessionBreakRepository) Update(ctx context.Context, entity *timerecords.WorkSessionBreak) error {
+func (r workSessionBreakRepository) Update(ctx context.Context, entity *timetracking.WorkSessionBreak) error {
 	if entity == nil {
 		return errors.New("WorkSessionBreak cannot be nil or zero value")
 	}
@@ -400,7 +399,7 @@ func (r workSessionBreakRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r workSessionBreakRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.WorkSessionBreak, error) {
+func (r workSessionBreakRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.WorkSessionBreak, error) {
 	filter := workforce.WorkSessionBreakFilter{}
 	if options != nil {
 		if options.Filter != nil {
@@ -430,27 +429,27 @@ func (r workSessionBreakRepository) List(ctx context.Context, options *modelBase
 	}
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, filter)
 	if err != nil {
-		return nil, workSessionReadError("list with options", err, nil)
+		return nil, rowReadError("list with options", err, nil)
 	}
 	return workSessionBreaksToLegacy(values), nil
 }
 
-func (r workSessionBreakRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*timerecords.WorkSessionBreak, error) {
+func (r workSessionBreakRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*timetracking.WorkSessionBreak, error) {
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: sessionID})
 	if err != nil {
-		return nil, workSessionReadError("get breaks by session ID", err, nil)
+		return nil, rowReadError("get breaks by session ID", err, nil)
 	}
 	return workSessionBreaksToLegacy(values), nil
 }
 
-func (r workSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*timerecords.WorkSessionBreak, error) {
-	result := make(map[int64][]*timerecords.WorkSessionBreak, len(sessionIDs))
+func (r workSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*timetracking.WorkSessionBreak, error) {
+	result := make(map[int64][]*timetracking.WorkSessionBreak, len(sessionIDs))
 	if len(sessionIDs) == 0 {
 		return result, nil
 	}
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
 	if err != nil {
-		return nil, workSessionReadError("get breaks by session IDs", err, nil)
+		return nil, rowReadError("get breaks by session IDs", err, nil)
 	}
 	for _, value := range values {
 		result[value.SessionID] = append(result[value.SessionID], workSessionBreakToLegacy(value))
@@ -458,11 +457,11 @@ func (r workSessionBreakRepository) GetBySessionIDs(ctx context.Context, session
 	return result, nil
 }
 
-func (r workSessionBreakRepository) GetActiveBySessionID(ctx context.Context, sessionID int64) (*timerecords.WorkSessionBreak, error) {
+func (r workSessionBreakRepository) GetActiveBySessionID(ctx context.Context, sessionID int64) (*timetracking.WorkSessionBreak, error) {
 	active := true
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: sessionID, Active: &active, Limit: 1})
 	if err != nil {
-		return nil, workSessionReadError("get active break by session ID", err, nil)
+		return nil, rowReadError("get active break by session ID", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -488,10 +487,10 @@ func (r workSessionBreakRepository) UpdateDuration(ctx context.Context, id int64
 	return nil
 }
 
-func (r workSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before time.Time) ([]*timerecords.WorkSessionBreak, error) {
+func (r workSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before time.Time) ([]*timetracking.WorkSessionBreak, error) {
 	values, err := r.workforce.ExpiredWorkSessionBreaks(ctx, before)
 	if err != nil {
-		return nil, workSessionReadError("get expired breaks", err, nil)
+		return nil, rowReadError("get expired breaks", err, nil)
 	}
 	return workSessionBreaksToLegacy(values), nil
 }
@@ -501,15 +500,15 @@ func (r workSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before
 type staffBalanceAdjustmentRepository struct{ workforce workforce.Capability }
 
 // newBalanceAdjustmentRows serves
-// timerecords.StaffBalanceAdjustmentRepository from the Workforce capability.
-func newBalanceAdjustmentRows(capability workforce.Capability) timerecords.StaffBalanceAdjustmentRepository {
+// timetracking.StaffBalanceAdjustmentRepository from the Workforce capability.
+func newBalanceAdjustmentRows(capability workforce.Capability) timetracking.StaffBalanceAdjustmentRepository {
 	if capability == nil {
 		panic("staff balance adjustment repository adapter: Workforce capability is required")
 	}
 	return staffBalanceAdjustmentRepository{workforce: capability}
 }
 
-func (r staffBalanceAdjustmentRepository) Create(ctx context.Context, entity *timerecords.StaffBalanceAdjustment) error {
+func (r staffBalanceAdjustmentRepository) Create(ctx context.Context, entity *timetracking.StaffBalanceAdjustment) error {
 	if entity == nil {
 		return errors.New("StaffBalanceAdjustment cannot be nil or zero value")
 	}
@@ -524,19 +523,19 @@ func (r staffBalanceAdjustmentRepository) Create(ctx context.Context, entity *ti
 	return nil
 }
 
-func (r staffBalanceAdjustmentRepository) FindByID(ctx context.Context, id any) (*timerecords.StaffBalanceAdjustment, error) {
+func (r staffBalanceAdjustmentRepository) FindByID(ctx context.Context, id any) (*timetracking.StaffBalanceAdjustment, error) {
 	adjustmentID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
 	}
 	value, err := r.workforce.FindStaffBalanceAdjustment(ctx, adjustmentID)
 	if err != nil {
-		return nil, workSessionReadError("find by id", err, workforce.ErrStaffBalanceAdjustmentNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrStaffBalanceAdjustmentNotFound)
 	}
 	return adjustmentToLegacy(value), nil
 }
 
-func (r staffBalanceAdjustmentRepository) Update(ctx context.Context, entity *timerecords.StaffBalanceAdjustment) error {
+func (r staffBalanceAdjustmentRepository) Update(ctx context.Context, entity *timetracking.StaffBalanceAdjustment) error {
 	if entity == nil {
 		return errors.New("StaffBalanceAdjustment cannot be nil or zero value")
 	}
@@ -565,7 +564,7 @@ func (r staffBalanceAdjustmentRepository) Delete(ctx context.Context, id any) er
 	return nil
 }
 
-func (r staffBalanceAdjustmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.StaffBalanceAdjustment, error) {
+func (r staffBalanceAdjustmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.StaffBalanceAdjustment, error) {
 	filter := workforce.StaffBalanceAdjustmentFilter{}
 	if options != nil {
 		if options.Filter != nil {
@@ -622,7 +621,7 @@ func (r staffBalanceAdjustmentRepository) List(ctx context.Context, options *mod
 	}
 	values, err := r.workforce.ListStaffBalanceAdjustments(ctx, filter)
 	if err != nil {
-		return nil, workSessionReadError("list with options", err, nil)
+		return nil, rowReadError("list with options", err, nil)
 	}
 	return adjustmentsToLegacy(values), nil
 }
@@ -631,18 +630,18 @@ func (r staffBalanceAdjustmentRepository) LockStaffBalanceWrites(ctx context.Con
 	return r.workforce.LockStaffBalanceWrites(ctx, staffID)
 }
 
-func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timerecords.StaffBalanceAdjustment, error) {
+func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetracking.StaffBalanceAdjustment, error) {
 	values, err := r.workforce.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String(),
 	})
 	if err != nil {
-		return nil, workSessionReadError("get balance adjustments by staff+range", err, nil)
+		return nil, rowReadError("get balance adjustments by staff+range", err, nil)
 	}
 	return adjustmentsToLegacy(values), nil
 }
 
-func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timerecords.StaffBalanceAdjustment, error) {
-	result := make(map[int64][]*timerecords.StaffBalanceAdjustment, len(staffIDs))
+func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timetracking.StaffBalanceAdjustment, error) {
+	result := make(map[int64][]*timetracking.StaffBalanceAdjustment, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
@@ -650,7 +649,7 @@ func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.
 		StaffIDs: staffIDs, EffectiveFrom: from.String(), EffectiveTo: to.String(),
 	})
 	if err != nil {
-		return nil, workSessionReadError("get balance adjustments by staff IDs+range", err, nil)
+		return nil, rowReadError("get balance adjustments by staff IDs+range", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = append(result[value.StaffID], adjustmentToLegacy(value))
@@ -663,15 +662,15 @@ func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.
 type staffVacationOpeningRepository struct{ workforce workforce.Capability }
 
 // newVacationOpeningRows serves
-// timerecords.StaffVacationOpeningRepository from the Workforce capability.
-func newVacationOpeningRows(capability workforce.Capability) timerecords.StaffVacationOpeningRepository {
+// timetracking.StaffVacationOpeningRepository from the Workforce capability.
+func newVacationOpeningRows(capability workforce.Capability) timetracking.StaffVacationOpeningRepository {
 	if capability == nil {
 		panic("staff vacation opening repository adapter: Workforce capability is required")
 	}
 	return staffVacationOpeningRepository{workforce: capability}
 }
 
-func (r staffVacationOpeningRepository) Create(ctx context.Context, entity *timerecords.StaffVacationOpening) error {
+func (r staffVacationOpeningRepository) Create(ctx context.Context, entity *timetracking.StaffVacationOpening) error {
 	if entity == nil {
 		return errors.New("StaffVacationOpening cannot be nil or zero value")
 	}
@@ -686,19 +685,19 @@ func (r staffVacationOpeningRepository) Create(ctx context.Context, entity *time
 	return nil
 }
 
-func (r staffVacationOpeningRepository) FindByID(ctx context.Context, id any) (*timerecords.StaffVacationOpening, error) {
+func (r staffVacationOpeningRepository) FindByID(ctx context.Context, id any) (*timetracking.StaffVacationOpening, error) {
 	openingID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
 	}
 	value, err := r.workforce.FindStaffVacationOpening(ctx, openingID)
 	if err != nil {
-		return nil, workSessionReadError("find by id", err, workforce.ErrStaffVacationOpeningNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrStaffVacationOpeningNotFound)
 	}
 	return openingToLegacy(value), nil
 }
 
-func (r staffVacationOpeningRepository) Update(ctx context.Context, entity *timerecords.StaffVacationOpening) error {
+func (r staffVacationOpeningRepository) Update(ctx context.Context, entity *timetracking.StaffVacationOpening) error {
 	if entity == nil {
 		return errors.New("StaffVacationOpening cannot be nil or zero value")
 	}
@@ -727,26 +726,26 @@ func (r staffVacationOpeningRepository) Delete(ctx context.Context, id any) erro
 	return nil
 }
 
-func (r staffVacationOpeningRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.StaffVacationOpening, error) {
+func (r staffVacationOpeningRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.StaffVacationOpening, error) {
 	filter, err := vacationFilterFromOptions(options)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
 	}
 	values, err := r.workforce.ListStaffVacationOpenings(ctx, filter)
 	if err != nil {
-		return nil, workSessionReadError("list with options", err, nil)
+		return nil, rowReadError("list with options", err, nil)
 	}
-	result := make([]*timerecords.StaffVacationOpening, 0, len(values))
+	result := make([]*timetracking.StaffVacationOpening, 0, len(values))
 	for _, value := range values {
 		result = append(result, openingToLegacy(value))
 	}
 	return result, nil
 }
 
-func (r staffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*timerecords.StaffVacationOpening, error) {
+func (r staffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*timetracking.StaffVacationOpening, error) {
 	values, err := r.workforce.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
 	if err != nil {
-		return nil, workSessionReadError("get vacation opening by staff+year", err, nil)
+		return nil, rowReadError("get vacation opening by staff+year", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -754,14 +753,14 @@ func (r staffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, s
 	return openingToLegacy(values[0]), nil
 }
 
-func (r staffVacationOpeningRepository) GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*timerecords.StaffVacationOpening, error) {
-	result := make(map[int64]*timerecords.StaffVacationOpening, len(staffIDs))
+func (r staffVacationOpeningRepository) GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*timetracking.StaffVacationOpening, error) {
+	result := make(map[int64]*timetracking.StaffVacationOpening, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
 	values, err := r.workforce.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: year})
 	if err != nil {
-		return nil, workSessionReadError("get vacation openings by staff IDs+year", err, nil)
+		return nil, rowReadError("get vacation openings by staff IDs+year", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = openingToLegacy(value)
@@ -774,15 +773,15 @@ func (r staffVacationOpeningRepository) GetByStaffIDsAndYear(ctx context.Context
 type staffVacationQuotaRepository struct{ workforce workforce.Capability }
 
 // newVacationQuotaRows serves
-// timerecords.StaffVacationQuotaRepository from the Workforce capability.
-func newVacationQuotaRows(capability workforce.Capability) timerecords.StaffVacationQuotaRepository {
+// timetracking.StaffVacationQuotaRepository from the Workforce capability.
+func newVacationQuotaRows(capability workforce.Capability) timetracking.StaffVacationQuotaRepository {
 	if capability == nil {
 		panic("staff vacation quota repository adapter: Workforce capability is required")
 	}
 	return staffVacationQuotaRepository{workforce: capability}
 }
 
-func (r staffVacationQuotaRepository) Create(ctx context.Context, entity *timerecords.StaffVacationQuota) error {
+func (r staffVacationQuotaRepository) Create(ctx context.Context, entity *timetracking.StaffVacationQuota) error {
 	if entity == nil {
 		return errors.New("StaffVacationQuota cannot be nil or zero value")
 	}
@@ -797,19 +796,19 @@ func (r staffVacationQuotaRepository) Create(ctx context.Context, entity *timere
 	return nil
 }
 
-func (r staffVacationQuotaRepository) FindByID(ctx context.Context, id any) (*timerecords.StaffVacationQuota, error) {
+func (r staffVacationQuotaRepository) FindByID(ctx context.Context, id any) (*timetracking.StaffVacationQuota, error) {
 	quotaID, err := legacyID(id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
 	}
 	value, err := r.workforce.FindStaffVacationQuota(ctx, quotaID)
 	if err != nil {
-		return nil, workSessionReadError("find by id", err, workforce.ErrStaffVacationQuotaNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrStaffVacationQuotaNotFound)
 	}
 	return quotaToLegacy(value), nil
 }
 
-func (r staffVacationQuotaRepository) Update(ctx context.Context, entity *timerecords.StaffVacationQuota) error {
+func (r staffVacationQuotaRepository) Update(ctx context.Context, entity *timetracking.StaffVacationQuota) error {
 	if entity == nil {
 		return errors.New("StaffVacationQuota cannot be nil or zero value")
 	}
@@ -840,29 +839,29 @@ func (r staffVacationQuotaRepository) Delete(ctx context.Context, id any) error 
 
 // List keeps the legacy contract of the quota repository: an empty match is a
 // nil slice, and the failure carries the "list vacation quotas" operation.
-func (r staffVacationQuotaRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timerecords.StaffVacationQuota, error) {
+func (r staffVacationQuotaRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.StaffVacationQuota, error) {
 	filter, err := vacationFilterFromOptions(options)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list vacation quotas", Err: err}
 	}
 	values, err := r.workforce.ListStaffVacationQuotas(ctx, filter)
 	if err != nil {
-		return nil, workSessionReadError("list vacation quotas", err, nil)
+		return nil, rowReadError("list vacation quotas", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
 	}
-	result := make([]*timerecords.StaffVacationQuota, 0, len(values))
+	result := make([]*timetracking.StaffVacationQuota, 0, len(values))
 	for _, value := range values {
 		result = append(result, quotaToLegacy(value))
 	}
 	return result, nil
 }
 
-func (r staffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*timerecords.StaffVacationQuota, error) {
+func (r staffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*timetracking.StaffVacationQuota, error) {
 	values, err := r.workforce.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
 	if err != nil {
-		return nil, workSessionReadError("get vacation quota by staff+year", err, nil)
+		return nil, rowReadError("get vacation quota by staff+year", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -870,14 +869,14 @@ func (r staffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, sta
 	return quotaToLegacy(values[0]), nil
 }
 
-func (r staffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*timerecords.StaffVacationQuota, error) {
-	result := make(map[int64]*timerecords.StaffVacationQuota, len(staffIDs))
+func (r staffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context, staffIDs []int64, year int) (map[int64]*timetracking.StaffVacationQuota, error) {
+	result := make(map[int64]*timetracking.StaffVacationQuota, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
 	}
 	values, err := r.workforce.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: year})
 	if err != nil {
-		return nil, workSessionReadError("get vacation quotas by staff IDs+year", err, nil)
+		return nil, rowReadError("get vacation quotas by staff IDs+year", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = quotaToLegacy(value)
@@ -885,7 +884,7 @@ func (r staffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context, 
 	return result, nil
 }
 
-func (r staffVacationQuotaRepository) Upsert(ctx context.Context, entity *timerecords.StaffVacationQuota) error {
+func (r staffVacationQuotaRepository) Upsert(ctx context.Context, entity *timetracking.StaffVacationQuota) error {
 	if entity == nil {
 		return fmt.Errorf("quota cannot be nil")
 	}
@@ -970,15 +969,6 @@ func workSessionOrder(fields ...workforce.WorkSessionOrderField) []workforce.Wor
 	return order
 }
 
-// workSessionReadError restores the legacy read error shape: a missing row is
-// the persistence-neutral not-found sentinel wrapped in a DatabaseError.
-func workSessionReadError(op string, err error, notFound error) error {
-	if notFound != nil && errors.Is(err, notFound) {
-		return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, sql.ErrNoRows)}
-	}
-	return &modelBase.DatabaseError{Op: op, Err: err}
-}
-
 // workSessionWriteError keeps the legacy write error shape: validation
 // failures surface bare, everything else is a DatabaseError whose chain still
 // reaches the driver error of a rejected duplicate.
@@ -991,13 +981,13 @@ func workSessionWriteError(op string, err error) error {
 
 // --- mapping ---
 
-func workSessionToLegacy(value workforce.WorkSession) *timerecords.WorkSession {
-	entity := &timerecords.WorkSession{}
+func workSessionToLegacy(value workforce.WorkSession) *timetracking.WorkSession {
+	entity := &timetracking.WorkSession{}
 	applyWorkSessionToLegacy(entity, value)
 	return entity
 }
 
-func applyWorkSessionToLegacy(entity *timerecords.WorkSession, value workforce.WorkSession) {
+func applyWorkSessionToLegacy(entity *timetracking.WorkSession, value workforce.WorkSession) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt
@@ -1016,22 +1006,22 @@ func applyWorkSessionToLegacy(entity *timerecords.WorkSession, value workforce.W
 	entity.UpdatedBy = value.UpdatedBy
 }
 
-func workSessionsToLegacy(values []workforce.WorkSession) []*timerecords.WorkSession {
+func workSessionsToLegacy(values []workforce.WorkSession) []*timetracking.WorkSession {
 	// Empty, not nil: callers serialize the result straight to JSON.
-	result := make([]*timerecords.WorkSession, 0, len(values))
+	result := make([]*timetracking.WorkSession, 0, len(values))
 	for _, value := range values {
 		result = append(result, workSessionToLegacy(value))
 	}
 	return result
 }
 
-func workSessionBreakToLegacy(value workforce.WorkSessionBreak) *timerecords.WorkSessionBreak {
-	entity := &timerecords.WorkSessionBreak{}
+func workSessionBreakToLegacy(value workforce.WorkSessionBreak) *timetracking.WorkSessionBreak {
+	entity := &timetracking.WorkSessionBreak{}
 	applyWorkSessionBreakToLegacy(entity, value)
 	return entity
 }
 
-func applyWorkSessionBreakToLegacy(entity *timerecords.WorkSessionBreak, value workforce.WorkSessionBreak) {
+func applyWorkSessionBreakToLegacy(entity *timetracking.WorkSessionBreak, value workforce.WorkSessionBreak) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt
@@ -1043,15 +1033,15 @@ func applyWorkSessionBreakToLegacy(entity *timerecords.WorkSessionBreak, value w
 	entity.PlannedEndTime = value.PlannedEndTime
 }
 
-func workSessionBreaksToLegacy(values []workforce.WorkSessionBreak) []*timerecords.WorkSessionBreak {
-	result := make([]*timerecords.WorkSessionBreak, 0, len(values))
+func workSessionBreaksToLegacy(values []workforce.WorkSessionBreak) []*timetracking.WorkSessionBreak {
+	result := make([]*timetracking.WorkSessionBreak, 0, len(values))
 	for _, value := range values {
 		result = append(result, workSessionBreakToLegacy(value))
 	}
 	return result
 }
 
-func adjustmentToCapability(entity *timerecords.StaffBalanceAdjustment) workforce.StaffBalanceAdjustment {
+func adjustmentToCapability(entity *timetracking.StaffBalanceAdjustment) workforce.StaffBalanceAdjustment {
 	return workforce.StaffBalanceAdjustment{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, Type: entity.Type, MinutesDelta: entity.MinutesDelta,
 		EffectiveDate: entity.EffectiveDate.String(), Note: entity.Note, DecidedBy: entity.DecidedBy, DecidedAt: entity.DecidedAt,
@@ -1059,13 +1049,13 @@ func adjustmentToCapability(entity *timerecords.StaffBalanceAdjustment) workforc
 	}
 }
 
-func adjustmentToLegacy(value workforce.StaffBalanceAdjustment) *timerecords.StaffBalanceAdjustment {
-	entity := &timerecords.StaffBalanceAdjustment{}
+func adjustmentToLegacy(value workforce.StaffBalanceAdjustment) *timetracking.StaffBalanceAdjustment {
+	entity := &timetracking.StaffBalanceAdjustment{}
 	applyAdjustmentToLegacy(entity, value)
 	return entity
 }
 
-func applyAdjustmentToLegacy(entity *timerecords.StaffBalanceAdjustment, value workforce.StaffBalanceAdjustment) {
+func applyAdjustmentToLegacy(entity *timetracking.StaffBalanceAdjustment, value workforce.StaffBalanceAdjustment) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt
@@ -1079,15 +1069,15 @@ func applyAdjustmentToLegacy(entity *timerecords.StaffBalanceAdjustment, value w
 	entity.DecidedAt = value.DecidedAt
 }
 
-func adjustmentsToLegacy(values []workforce.StaffBalanceAdjustment) []*timerecords.StaffBalanceAdjustment {
-	result := make([]*timerecords.StaffBalanceAdjustment, 0, len(values))
+func adjustmentsToLegacy(values []workforce.StaffBalanceAdjustment) []*timetracking.StaffBalanceAdjustment {
+	result := make([]*timetracking.StaffBalanceAdjustment, 0, len(values))
 	for _, value := range values {
 		result = append(result, adjustmentToLegacy(value))
 	}
 	return result
 }
 
-func openingToCapability(entity *timerecords.StaffVacationOpening) workforce.StaffVacationOpening {
+func openingToCapability(entity *timetracking.StaffVacationOpening) workforce.StaffVacationOpening {
 	return workforce.StaffVacationOpening{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, Year: entity.Year, EffectiveDate: entity.EffectiveDate.String(),
 		TakenBeforeDays: entity.TakenBeforeDays, EnteredRemainingDays: entity.EnteredRemainingDays, Note: entity.Note,
@@ -1095,13 +1085,13 @@ func openingToCapability(entity *timerecords.StaffVacationOpening) workforce.Sta
 	}
 }
 
-func openingToLegacy(value workforce.StaffVacationOpening) *timerecords.StaffVacationOpening {
-	entity := &timerecords.StaffVacationOpening{}
+func openingToLegacy(value workforce.StaffVacationOpening) *timetracking.StaffVacationOpening {
+	entity := &timetracking.StaffVacationOpening{}
 	applyOpeningToLegacy(entity, value)
 	return entity
 }
 
-func applyOpeningToLegacy(entity *timerecords.StaffVacationOpening, value workforce.StaffVacationOpening) {
+func applyOpeningToLegacy(entity *timetracking.StaffVacationOpening, value workforce.StaffVacationOpening) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt
@@ -1116,7 +1106,7 @@ func applyOpeningToLegacy(entity *timerecords.StaffVacationOpening, value workfo
 	entity.DecidedAt = value.DecidedAt
 }
 
-func quotaToCapability(entity *timerecords.StaffVacationQuota) workforce.StaffVacationQuota {
+func quotaToCapability(entity *timetracking.StaffVacationQuota) workforce.StaffVacationQuota {
 	return workforce.StaffVacationQuota{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, Year: entity.Year,
 		EntitledDays: entity.EntitledDays, CarryoverDays: entity.CarryoverDays, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt,
@@ -1124,13 +1114,13 @@ func quotaToCapability(entity *timerecords.StaffVacationQuota) workforce.StaffVa
 	}
 }
 
-func quotaToLegacy(value workforce.StaffVacationQuota) *timerecords.StaffVacationQuota {
-	entity := &timerecords.StaffVacationQuota{}
+func quotaToLegacy(value workforce.StaffVacationQuota) *timetracking.StaffVacationQuota {
+	entity := &timetracking.StaffVacationQuota{}
 	applyQuotaToLegacy(entity, value)
 	return entity
 }
 
-func applyQuotaToLegacy(entity *timerecords.StaffVacationQuota, value workforce.StaffVacationQuota) {
+func applyQuotaToLegacy(entity *timetracking.StaffVacationQuota, value workforce.StaffVacationQuota) {
 	entity.ID = value.ID
 	entity.CreatedAt = value.CreatedAt
 	entity.UpdatedAt = value.UpdatedAt

@@ -6,7 +6,6 @@ import (
 
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -40,7 +39,7 @@ func newTimeTrackingTestModule(db *bun.DB, repos WorkSessionTestRepositories, gr
 		return len(staff), withoutPersonnelNumber, nil
 	})
 	return newTimeTracking(TimeTrackingPortDependencies{
-		Workforce: repos.Workforce, StaffAbsences: repos.StaffAbsence, AbsenceAudits: workforceLegacy.NewStaffAbsenceAuditRepository(repos.Workforce),
+		Workforce: repos.Workforce, StaffAbsences: repos.StaffAbsence, AbsenceAudits: workforceCompose.NewStaffAbsenceAuditRepository(repos.Workforce),
 		Audits: graph.Audits, Supervisions: repos.GroupSupervisor, SessionRecords: repos.ActiveGroup,
 		Staff: repos.Staff, People: graph.People, StaffEmployment: workforceCompose.MustNewStaffEmployment(db),
 		WorkSchedules: repos.StaffWorkSchedule, WorkTimeModels: repos.WorkTimeModel, Holidays: graph.Holidays,

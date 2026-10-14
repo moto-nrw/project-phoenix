@@ -11,7 +11,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -304,10 +303,11 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	assert.Empty(t, vertrag.RetainUntil)
 
 	end := timezone.NewDate(2027, 7, 31)
-	require.NoError(t, workforceLegacy.NewStaffMasterDataRepository(s.workTime).Create(s.ctx, &userModels.StaffMasterData{
+	_, err := s.workTime.CreateStaffMasterData(s.ctx, workforce.StaffMasterData{
 		StaffID:         s.staffID,
-		ContractEndDate: &end,
-	}))
+		ContractEndDate: end.String(),
+	})
+	require.NoError(t, err)
 	t.Cleanup(func() {
 		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM users.staff_master_data WHERE staff_id = ?`, s.staffID)
 	})

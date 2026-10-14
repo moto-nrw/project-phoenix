@@ -1,4 +1,4 @@
-package timerecords
+package timetracking
 
 import (
 	"testing"
@@ -110,7 +110,7 @@ func TestStaffAbsence_Validate(t *testing.T) {
 	})
 }
 
-func TestStaffAbsence_DurationDays(t *testing.T) {
+func TestAbsenceDurationDays(t *testing.T) {
 	t.Parallel()
 
 	t.Run("single day", func(t *testing.T) {
@@ -118,7 +118,7 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 			DateStart: timezone.NewDate(2024, 3, 1),
 			DateEnd:   timezone.NewDate(2024, 3, 1),
 		}
-		assert.Equal(t, 1, a.DurationDays())
+		assert.Equal(t, 1, absenceDurationDays(a))
 	})
 
 	t.Run("three days", func(t *testing.T) {
@@ -126,7 +126,7 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 			DateStart: timezone.NewDate(2024, 3, 1),
 			DateEnd:   timezone.NewDate(2024, 3, 3),
 		}
-		assert.Equal(t, 3, a.DurationDays())
+		assert.Equal(t, 3, absenceDurationDays(a))
 	})
 
 	t.Run("week", func(t *testing.T) {
@@ -134,7 +134,7 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 			DateStart: timezone.NewDate(2024, 3, 4),
 			DateEnd:   timezone.NewDate(2024, 3, 10),
 		}
-		assert.Equal(t, 7, a.DurationDays())
+		assert.Equal(t, 7, absenceDurationDays(a))
 	})
 
 	t.Run("minimum is 1 day", func(t *testing.T) {
@@ -142,7 +142,7 @@ func TestStaffAbsence_DurationDays(t *testing.T) {
 			DateStart: timezone.NewDate(2024, 3, 1),
 			DateEnd:   timezone.NewDate(2024, 3, 1),
 		}
-		assert.GreaterOrEqual(t, a.DurationDays(), 1)
+		assert.GreaterOrEqual(t, absenceDurationDays(a), 1)
 	})
 }
 

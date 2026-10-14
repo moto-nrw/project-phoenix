@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/adapters/timerecords"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -101,7 +100,7 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 		{workforce.BalanceAdjustmentTypePayout, -600},
 		{workforce.BalanceAdjustmentTypeCompTime, -120},
 	} {
-		adjustment := &timerecords.StaffBalanceAdjustment{
+		adjustment := &timetracking.StaffBalanceAdjustment{
 			StaffID:       f.staff[0],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
