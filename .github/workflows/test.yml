@@ -74,11 +74,11 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          # PR test selection needs origin/<base_ref>. Keeping one checkout
-          # shape for both event types avoids an untested expression branch.
-          # No blobless clone here: internal/architecture tests fetch history
-          # from this checkout, and a partial clone cannot serve those objects.
+          # PR selection needs origin/<base_ref>. Only the full-suite data
+          # shard can omit historical blobs. Architecture clones this repo
+          # and reads old blobs, so its shard and affected PRs stay complete.
           fetch-depth: 0
+          filter: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') && 'blob:none' || '' }}
 
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
