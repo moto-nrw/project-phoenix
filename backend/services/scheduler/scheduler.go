@@ -912,7 +912,11 @@ func (s *Scheduler) checkAndRunDailyGDPRCleanup(ctx context.Context, task *Sched
 			s.noteCleanupFailure(task.Name, tenantID, now)
 			return err
 		}
-		return s.recordCleanupSuccess(tenantCtx, dayCache, task.Name, tenantID, now)
+		if err := s.recordCleanupSuccess(tenantCtx, dayCache, task.Name, tenantID, now); err != nil {
+			s.noteCleanupFailure(task.Name, tenantID, now)
+			return err
+		}
+		return nil
 	})
 }
 

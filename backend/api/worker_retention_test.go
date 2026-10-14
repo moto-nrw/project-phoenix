@@ -248,7 +248,7 @@ func TestNightlyRetentionDeletesParentMessagesAfterTheirWindow(t *testing.T) {
 		Scan(context.Background(), &preview))
 	assert.Equal(t, "Bitte Betreuung ändern", preview, "the preview shows the newest remaining message, never the deleted one")
 	assert.True(t, suite.exists(t, "users.parent_messages", otherExpired), "the run of one school never touches another")
-	assert.Equal(t, []int{3}, suite.loggedDeletions(t, school, retentionParentMessages))
+	assert.Equal(t, []int{4}, suite.loggedDeletions(t, school, retentionParentMessages), "three expired messages and their empty thread are logged")
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionParentMessages))
 }
 

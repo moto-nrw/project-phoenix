@@ -105,7 +105,7 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 			Kind: retentionParentMessages,
 			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
 				result, err := messages.CleanupExpiredParentMessages(ctx)
-				return scheduler.RetentionOutcome{Deleted: result.MessagesDeleted, RetentionDays: result.RetentionDays}, err
+				return scheduler.RetentionOutcome{Deleted: result.MessagesDeleted + result.ThreadsDeleted, RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}

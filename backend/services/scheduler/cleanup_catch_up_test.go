@@ -17,9 +17,10 @@ import (
 // fakeCleanupRuns is the ledger of last successful runs, shared between
 // scheduler instances to stand in for a process restart.
 type fakeCleanupRuns struct {
-	mu       sync.Mutex
-	runs     map[string]time.Time
-	recorded int
+	mu        sync.Mutex
+	runs      map[string]time.Time
+	recorded  int
+	recordErr error
 }
 
 func newFakeCleanupRuns() *fakeCleanupRuns {
@@ -36,6 +37,9 @@ func (f *fakeCleanupRuns) LastCleanupSucceeded(_ context.Context, jobID string) 
 func (f *fakeCleanupRuns) RecordCleanupSucceeded(_ context.Context, jobID string, at time.Time) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if f.recordErr != nil {
+		return f.recordErr
+	}
 	f.runs[jobID] = at
 	f.recorded++
 	return nil
@@ -195,6 +199,43 @@ func TestFailedFirstNightlyCleanupIsCaughtUp(t *testing.T) {
 	last, ok := runs.last("timetable-cleanup")
 	require.True(t, ok)
 	assert.Equal(t, berlin(14, 3, 0), last)
+}
+
+func TestFirstCleanupLedgerWriteFailureIsCaughtUp(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.recordErr = errors.New("ledger unavailable")
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{}
+	s := catchUpScheduler(runs, clock, cleanup)
+
+	runTimetableTick(s)
+	require.Equal(t, 1, cleanup.cleanupCalls)
+	_, ok := runs.last("timetable-cleanup")
+	assert.False(t, ok, "a failed ledger write must not count as succeeded")
+
+	clock.Set(berlin(14, 3, 0))
+	runTimetableTick(s)
+	assert.Equal(t, 2, cleanup.cleanupCalls, "a failed first ledger write is caught up after the retry interval")
+}
+
+func TestCleanupLedgerWriteFailureWaitsForRetryDelay(t *testing.T) {
+	t.Parallel()
+
+	runs := newFakeCleanupRuns()
+	runs.runs["timetable-cleanup"] = berlin(13, 2, 0)
+	runs.recordErr = errors.New("ledger unavailable")
+	clock := &cleanupClock{now: berlin(14, 2, 0)}
+	cleanup := &fakeTimetableCleanup{}
+	s := catchUpScheduler(runs, clock, cleanup)
+
+	runTimetableTick(s)
+	require.Equal(t, 1, cleanup.cleanupCalls)
+
+	clock.Set(berlin(14, 2, 1))
+	runTimetableTick(s)
+	assert.Equal(t, 1, cleanup.cleanupCalls, "a failed ledger write is not retried every minute")
 }
 
 func TestNightlyCleanupWithoutAStoredRunWaitsForItsMinute(t *testing.T) {
