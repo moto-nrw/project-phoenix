@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
@@ -12,5 +12,5 @@ import (
 // that are deliberately absent from the wall-sheet variant, such as absence
 // and cancellation reasons.
 func CanExportInternalPlan(ctx context.Context) bool {
-	return securityruntime.HasPermission(permissions.SchedulesManage, jwt.PermissionsFromCtx(ctx))
+	return securityruntime.HasPermission(permissions.SchedulesManage, sessiontoken.PermissionsFromCtx(ctx))
 }

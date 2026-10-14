@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -45,7 +45,7 @@ func (m *memoryCountPreferences) SetCountScope(_ context.Context, accountID int6
 type groupsByAccount map[int64][]int64
 
 func (g groupsByAccount) MyGroupIDs(ctx context.Context) ([]int64, error) {
-	return g[int64(jwt.ClaimsFromCtx(ctx).ID)], nil
+	return g[int64(sessiontoken.ClaimsFromCtx(ctx).ID)], nil
 }
 
 // newCountScopeFixture is newFixture with a count preference store and the

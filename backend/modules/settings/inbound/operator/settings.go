@@ -19,7 +19,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -180,7 +180,7 @@ func (rs *SettingsResource) SetSchoolSettingValue(w http.ResponseWriter, r *http
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 	// ?force=true lets operators bypass the presence-mode switch guard when
 	// doing maintenance recovery (e.g. stuck attendance rows blocking the
@@ -227,7 +227,7 @@ func (rs *SettingsResource) ResetSchoolSettingValue(w http.ResponseWriter, r *ht
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	changedBy := int64(claims.ID)
 
 	if err := rs.settings.ResetValue(r.Context(), schoolID, key, changedBy); err != nil {

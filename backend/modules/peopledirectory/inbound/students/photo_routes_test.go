@@ -44,13 +44,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
+// init seeds JWT viper defaults so sessiontoken.MustNewTokenAuth (called by
 // students.NewResource → Router) succeeds in CI environments without
 // a populated .env. Identical pattern to modules/identityaccess/inbound/usercontext/usercontext_test.go
 // and required because setupStudentsRoute constructs the resource which
@@ -132,8 +132,8 @@ func adminBearer(t *testing.T) string {
 // holds users:update + users:read but who is NOT an admin and is NOT
 // (by default) a group supervisor. Since #2329 the handler-level
 // canUpdateStudent gate admits this caller for every child of the tenant.
-func staffWithUsersUpdate(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func staffWithUsersUpdate(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:          int(accountID),
 		Sub:         "staff@example.com",
 		Username:    "staff",
@@ -806,7 +806,7 @@ func TestServeStudentPhoto_ForbiddenWithoutStaffRecord(t *testing.T) {
 
 	guest := testpkg.CreateTestAccount(t, tc.db, "photo-serve-guest@example.com")
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(guest.ID),
 		Sub:         "noread@example.com",
 		Username:    "noread",
@@ -839,7 +839,7 @@ func TestServeStudentPhoto_AllowedForStaffOutsideGroup(t *testing.T) {
 
 	_, account := testpkg.CreateTestStaffWithAccount(t, tc.db, "ServeNonSup", "Staff")
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(account.ID),
 		Sub:         "staffread@example.com",
 		Username:    "staffread",

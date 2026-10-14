@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -45,7 +45,7 @@ type AuthTestModule struct {
 	// Repos and TokenAuth let a behaviour test read the rows the flows
 	// wrote and mint the tokens they expect.
 	Repos     MembershipTestRepositories
-	TokenAuth *authjwt.TokenAuth
+	TokenAuth *sessiontoken.TokenAuth
 }
 
 type InvitationTestModule struct {
@@ -219,7 +219,7 @@ func NewAuthTestModule(db *bun.DB, unit tenant.UnitOfWork, options ...AuthTestOp
 	} else if inviteHours > 168 {
 		inviteHours = 168
 	}
-	tokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -380,7 +380,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db *bun.DB, logger *sl
 // module: the signer, the mail transport, the portal hosts and the audit
 // ledger. Every zero value composes the module without that seam.
 type IdentityAccessTestConfig struct {
-	TokenAuth           *authjwt.TokenAuth
+	TokenAuth           *sessiontoken.TokenAuth
 	TenantRuntime       tenant.UnitOfWork
 	Settings            settingsCompose.SettingsService
 	Audit               auditModels.Command
@@ -412,16 +412,16 @@ func mfaTestSecret() string { return currentFactoryConfig().JWTSecret }
 // The test compositions keep them here until the test hooks leave the legacy
 // composition (#2747).
 var testRequestTokens = TokenAdapter{
-	Permissions:           authjwt.PermissionsFromCtx,
+	Permissions:           sessiontoken.PermissionsFromCtx,
 	Claims:                testRequestClaims,
 	Memo:                  testRequestMemo,
-	NewCapabilityToken:    authjwt.NewOpaqueCapabilityToken,
-	CapabilityFingerprint: authjwt.OpaqueCapabilityFingerprint,
+	NewCapabilityToken:    sessiontoken.NewOpaqueCapabilityToken,
+	CapabilityFingerprint: sessiontoken.OpaqueCapabilityFingerprint,
 }
 
 // testTokensFor binds testRequestTokens to the session signer cfg names.
 func testTokensFor(cfg FactoryConfig) (TokenAdapter, error) {
-	signer, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	signer, err := sessiontoken.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	if err != nil {
 		return TokenAdapter{}, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
@@ -435,7 +435,7 @@ func testTokensFor(cfg FactoryConfig) (TokenAdapter, error) {
 }
 
 func testRequestClaims(ctx context.Context) (RequestClaims, bool) {
-	claims, ok := ctx.Value(authjwt.CtxClaims).(authjwt.AppClaims)
+	claims, ok := ctx.Value(sessiontoken.CtxClaims).(sessiontoken.AppClaims)
 	if !ok {
 		return RequestClaims{}, false
 	}
@@ -447,7 +447,7 @@ func testRequestClaims(ctx context.Context) (RequestClaims, bool) {
 }
 
 func testRequestMemo(ctx context.Context) RequestMemo {
-	if cache := authjwt.RequestIdentityCacheFrom(ctx); cache != nil {
+	if cache := sessiontoken.RequestIdentityCacheFrom(ctx); cache != nil {
 		return cache
 	}
 	return nil

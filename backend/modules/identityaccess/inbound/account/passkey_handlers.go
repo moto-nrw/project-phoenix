@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 const headerMotoFrontendOrigin = "X-Moto-Frontend-Origin"
@@ -49,18 +49,18 @@ func (rs *Resource) requirePasskey(w http.ResponseWriter, r *http.Request) bool 
 	return common.RequireDependency(w, r, rs.PasskeyService != nil, errPasskeyServiceUnavailable)
 }
 
-func requireTenantPasskeyClaims(w http.ResponseWriter, r *http.Request) (jwt.AppClaims, bool) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+func requireTenantPasskeyClaims(w http.ResponseWriter, r *http.Request) (sessiontoken.AppClaims, bool) {
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID <= 0 || claims.TenantID <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
-		return jwt.AppClaims{}, false
+		return sessiontoken.AppClaims{}, false
 	}
 	switch claims.Scope {
 	case claimScopeTenant, claimScopeTenantLegacy, claimScopeOrg:
 		return claims, true
 	default:
 		common.RenderError(w, r, common.ErrorUnauthorized(identityaccess.ErrTenantAccessDenied))
-		return jwt.AppClaims{}, false
+		return sessiontoken.AppClaims{}, false
 	}
 }
 

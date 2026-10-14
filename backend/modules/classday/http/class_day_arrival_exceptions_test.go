@@ -24,7 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -46,7 +46,7 @@ const (
 type arrivalExceptionFixture struct {
 	db        *testpkg.DB
 	router    chi.Router
-	claims    jwt.AppClaims
+	claims    sessiontoken.AppClaims
 	staffID   int64
 	class     string
 	openWrite func(t *testing.T)
@@ -91,7 +91,7 @@ func setupArrivalExceptionFixture(t *testing.T) *arrivalExceptionFixture {
 		router:  router,
 		staffID: staff.ID,
 		class:   className,
-		claims: jwt.AppClaims{
+		claims: sessiontoken.AppClaims{
 			ID: int(account.ID), Sub: account.Email,
 			Roles: []string{"lehrkraft"}, TenantID: tenantID,
 			Scope: tenant.ScopeSchool,

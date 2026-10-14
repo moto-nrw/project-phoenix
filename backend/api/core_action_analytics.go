@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/spf13/viper"
 )
@@ -47,7 +47,7 @@ func analyticsDeployment(appEnv, tenantDomain string) string {
 // response mints. The root mounts it after the session verifier. The school's
 // Analyse-Freigabe (#3603, settings compose NewAnalyseFreigabe) decides
 // whether an OGS account is a pseudonymous person.
-func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool) func(http.Handler) http.Handler {
+func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *sessiontoken.TokenAuth, analyseFreigabe func(ctx context.Context, schoolID int64) bool) func(http.Handler) http.Handler {
 	return analytics.CoreActionMiddleware(analytics.CoreActionConfig{
 		Tracker:         tracker,
 		AnalyseFreigabe: analyseFreigabe,
@@ -58,7 +58,7 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.Toke
 			if !ok {
 				return analytics.Actor{}, false
 			}
-			var claims projectJWT.AppClaims
+			var claims sessiontoken.AppClaims
 			if claims.ParseClaims(raw) != nil {
 				return analytics.Actor{}, false
 			}
@@ -80,7 +80,7 @@ func coreActionAnalytics(tracker analytics.Tracker, sessionAuth *projectJWT.Toke
 // OGS session names its account, for the pseudonymous ID under
 // Analyse-Freigabe; the read-only staff preview (#2893) is an admin looking
 // at someone else's view, so it names none.
-func analyticsActor(claims projectJWT.AppClaims) (analytics.Actor, bool) {
+func analyticsActor(claims sessiontoken.AppClaims) (analytics.Actor, bool) {
 	switch {
 	case claims.IsPlatformScope():
 		return analytics.Actor{}, false

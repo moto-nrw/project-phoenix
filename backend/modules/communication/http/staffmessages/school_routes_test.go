@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -60,11 +60,11 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	_, ogsAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Ben", fmt.Sprintf("Betreuung-%d", unique))
 	testpkg.EnsureAccountTenant(t, db, ogsAccount.ID, tenantID)
 
-	teacherClaims := jwt.AppClaims{
+	teacherClaims := sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}
-	ogsClaims := jwt.AppClaims{
+	ogsClaims := sessiontoken.AppClaims{
 		ID: int(ogsAccount.ID), Sub: ogsAccount.Email,
 		Roles: []string{"user"}, TenantID: tenantID, Scope: tenant.ScopeTenant,
 	}
@@ -134,7 +134,7 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	// 5. Scope isolation: the same account with a tenant token is refused on
 	//    the school mount, and the school token is refused on the tenant mount.
 	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)
-	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, jwt.AppClaims{
+	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email, TenantID: tenantID, Scope: tenant.ScopeTenant,
 	})
 	require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
@@ -155,7 +155,7 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, teacherAccount.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, teacherAccount.ID, tenantID)
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID: int(teacherAccount.ID), Sub: teacherAccount.Email,
 		Roles: []string{"lehrkraft"}, TenantID: tenantID, Scope: tenant.ScopeSchool,
 	}

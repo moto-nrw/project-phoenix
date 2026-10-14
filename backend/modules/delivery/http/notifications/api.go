@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -135,9 +135,9 @@ func (rs *Resource) sendTestNotification(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("missing tenant context")))
 		return
 	}
-	accountID := jwt.ActorAccountIDFromCtx(ctx)
+	accountID := sessiontoken.ActorAccountIDFromCtx(ctx)
 	if accountID == nil {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 

@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 type AdminEnrollmentDeletionCounts struct {
@@ -111,7 +111,7 @@ func (rs *Resource) executeEnrollmentDeletion(w http.ResponseWriter, r *http.Req
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	actorAccountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	actorAccountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	var impact *capability.DeletionImpact
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		var deleteErr error

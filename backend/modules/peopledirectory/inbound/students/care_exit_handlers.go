@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -189,7 +189,7 @@ func (rs *Resource) confirmCareExit(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	actorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	actorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	result, err := rs.CareLifecycleService.Confirm(r.Context(), body.Token, input, actorID)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
@@ -333,7 +333,7 @@ func (rs *Resource) confirmWithdrawalCareEnd(w http.ResponseWriter, r *http.Requ
 		return
 	}
 	result, err := rs.CareLifecycleService.ConfirmWithdrawalCareEnd(
-		r.Context(), id, body.Token, input, int64(jwt.ClaimsFromCtx(r.Context()).ID),
+		r.Context(), id, body.Token, input, int64(sessiontoken.ClaimsFromCtx(r.Context()).ID),
 	)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
@@ -421,7 +421,7 @@ func (rs *Resource) authorizeWithdrawalDeletion(
 		return careplan.WithdrawalCompletion{}, false
 	}
 	authorized, authErr := canDeleteStudent(
-		r.Context(), jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService,
+		r.Context(), sessiontoken.PermissionsFromCtx(r.Context()), student, rs.UserContextService,
 	)
 	if !authorized {
 		renderError(w, r, common.ErrorForbidden(authErr))
@@ -461,7 +461,7 @@ func (rs *Resource) cancelCareExit(w http.ResponseWriter, r *http.Request) {
 		}
 		ids = append(ids, id)
 	}
-	actorID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	actorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	cancelled, err := rs.CareLifecycleService.Cancel(r.Context(), ids, actorID)
 	if err != nil {
 		renderError(w, r, careExitErrorRenderer(err))
@@ -508,7 +508,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 	err := rs.CareLifecycleService.Resume(r.Context(), careplan.CareResumeInput{
 		StudentID:      studentID,
 		NewStart:       start,
-		ActorAccountID: int64(jwt.ClaimsFromCtx(r.Context()).ID),
+		ActorAccountID: int64(sessiontoken.ClaimsFromCtx(r.Context()).ID),
 		Checked:        body.Checked,
 	})
 	if err != nil {

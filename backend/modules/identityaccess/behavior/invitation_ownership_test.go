@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -69,9 +69,9 @@ func TestInvitationExistingOwnerProof(t *testing.T) {
 				FirstName: testpkg.StrPtr("Invited"), LastName: testpkg.StrPtr("Owner"),
 			})
 			require.NoError(t, err)
-			signer, err := authjwt.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, 24*time.Hour)
+			signer, err := sessiontoken.NewTokenAuthWithDurations(authTestFactoryConfig(false).JWTSecret, 15*time.Minute, 24*time.Hour)
 			require.NoError(t, err)
-			accessToken, err := signer.CreateJWT(authjwt.AppClaims{
+			accessToken, err := signer.CreateJWT(sessiontoken.AppClaims{
 				ID: int(owner.ID), Sub: owner.Email, Roles: []string{}, Scope: scope,
 				TenantID: testpkg.Tenant(t),
 			})
@@ -150,7 +150,7 @@ func TestInvitationRejectsInvalidOwnerProofWithoutWrites(t *testing.T) {
 				wantErr = identityaccess.ErrAccountInactive
 			case "forged":
 				var err error
-				signer, err = authjwt.NewTokenAuthWithDurations("different-test-signing-secret-not-authorized", 15*time.Minute, time.Hour)
+				signer, err = sessiontoken.NewTokenAuthWithDurations("different-test-signing-secret-not-authorized", 15*time.Minute, time.Hour)
 				require.NoError(t, err)
 			}
 			if strings.HasPrefix(name, "wrong-owner:") {
@@ -199,7 +199,7 @@ func TestInvitationLifecycleAndImportedSchoolIdentity(t *testing.T) {
 			if strings.Contains(name, "existing") {
 				owner = testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
 				var err error
-				proof, err = schoolTokenAuth(t).CreateJWT(authjwt.AppClaims{ID: int(owner.ID), Sub: owner.Email, Roles: []string{}, Scope: "school", TenantID: testpkg.Tenant(t)})
+				proof, err = schoolTokenAuth(t).CreateJWT(sessiontoken.AppClaims{ID: int(owner.ID), Sub: owner.Email, Roles: []string{}, Scope: "school", TenantID: testpkg.Tenant(t)})
 				require.NoError(t, err)
 			}
 			// The import creates a person before sending the invitation.
@@ -271,7 +271,7 @@ func TestInvitationConcurrentOwnerAcceptanceIsSingleUse(t *testing.T) {
 	}
 	invitation.TenantID = schoolA
 	testpkg.InsertTestInvitationToken(t, db, invitation)
-	proof, err := schoolTokenAuth(t).CreateJWT(authjwt.AppClaims{ID: int(owner.ID), Sub: owner.Email, Roles: []string{}, TenantID: testpkg.Tenant(t)})
+	proof, err := schoolTokenAuth(t).CreateJWT(sessiontoken.AppClaims{ID: int(owner.ID), Sub: owner.Email, Roles: []string{}, TenantID: testpkg.Tenant(t)})
 	require.NoError(t, err)
 	start := make(chan struct{})
 	results := make(chan error, 2)

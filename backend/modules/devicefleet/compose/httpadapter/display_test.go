@@ -26,7 +26,7 @@ import (
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,7 +34,7 @@ import (
 )
 
 // init seeds JWT viper defaults before any test constructs a Resource via
-// jwt.MustNewTokenAuth (CI runs without a .env, so AUTH_JWT_SECRET is unset).
+// sessiontoken.MustNewTokenAuth (CI runs without a .env, so AUTH_JWT_SECRET is unset).
 func init() {
 	testutil.SeedTestJWTConfig()
 }
@@ -121,7 +121,7 @@ func (d displaySchools) FindDisplaySchool(ctx context.Context, tenantID int64) (
 
 func displayTestJWT(t *testing.T, accountID, tenantID int64, permissions []string) string {
 	t.Helper()
-	return testutil.MintTestJWT(t, jwt.AppClaims{
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID:          int(accountID),
 		Sub:         fmt.Sprintf("%d", accountID),
 		Roles:       []string{"user"},

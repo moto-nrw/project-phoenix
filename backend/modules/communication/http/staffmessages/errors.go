@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // staffMessagingErrorRules maps service sentinels to HTTP responses
@@ -80,7 +80,7 @@ func renderStaffMessagingError(w http.ResponseWriter, r *http.Request, err error
 // currentAccountID returns the caller's account id, or 0 when absent. Used only
 // to decorate the inbox preview with "Sie: "; authorization never depends on it.
 func currentAccountID(r *http.Request) int64 {
-	if id := jwt.ActorAccountIDFromCtx(r.Context()); id != nil {
+	if id := sessiontoken.ActorAccountIDFromCtx(r.Context()); id != nil {
 		return *id
 	}
 	return 0

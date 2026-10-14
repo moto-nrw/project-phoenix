@@ -14,7 +14,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -58,7 +58,7 @@ func (req *spontaneousStartRequest) Bind(_ *http.Request) error {
 // gate already collapses to "own" for a school token — but it keeps the second
 // path (the explicit isAdmin argument) from ever becoming the way in.
 func operationActor(ctx context.Context) (accountID int64, isAdmin bool) {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	if common.IsAssignmentBoundPortal(ctx) {
 		return int64(claims.ID), false
 	}
@@ -202,7 +202,7 @@ func (rs *Resource) operationsStart(w http.ResponseWriter, r *http.Request) {
 
 func (rs *Resource) operationsReopen(w http.ResponseWriter, r *http.Request) {
 	rs.withOperationInstance(w, r, func(instanceID int64) (any, error) {
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 		result, err := rs.OperationsService.Reopen(r.Context(), int64(claims.ID), common.HasEffectiveAdminScope(r.Context()), instanceID)
 		if err != nil {
 			return nil, err
@@ -245,7 +245,7 @@ func (rs *Resource) operationsCreateAndStartSpontaneous(w http.ResponseWriter, r
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	result, err := rs.OperationsService.CreateAndStartSpontaneous(r.Context(), int64(claims.ID), claims.IsAdmin, timetable.SpontaneousStart{
 		Date:             window.date,
 		StartTime:        window.startTime,
@@ -566,7 +566,7 @@ func (rs *Resource) operationsPatchAttendance(w http.ResponseWriter, r *http.Req
 
 func canViewOperationPickupTimes(ctx context.Context) bool {
 	return common.IsAssignmentBoundPortal(ctx) ||
-		securityruntime.HasPermission(permissions.UsersRead, jwt.PermissionsFromCtx(ctx))
+		securityruntime.HasPermission(permissions.UsersRead, sessiontoken.PermissionsFromCtx(ctx))
 }
 
 func redactOperationRosterPickupTimes(roster *timetable.OperationRoster) {

@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // VerifyCodeForOperator is the JWT-less verify used by operator
@@ -87,9 +87,9 @@ func TestOperatorMFAService_ResendChallenge_WrongScope_ReturnsTokenInvalid(t *te
 	// Build a *tenant*-scoped challenge token and try to resend it on the
 	// operator surface — must be rejected so a tenant cookie can't be
 	// laundered into the operator flow.
-	tenantToken, err := tokenAuth.CreateMFAChallengeJWT(authjwt.MFAChallengeClaims{
+	tenantToken, err := tokenAuth.CreateMFAChallengeJWT(sessiontoken.MFAChallengeClaims{
 		AccountID: op.ID,
-		Scope:     authjwt.MFAChallengeScopeTenant,
+		Scope:     sessiontoken.MFAChallengeScopeTenant,
 	}, 5*time.Minute)
 	require.NoError(t, err)
 

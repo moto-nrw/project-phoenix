@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	jwtPkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -308,8 +308,8 @@ type fakeCaregiverFailureError struct {
 func (e fakeCaregiverFailureError) CaregiverFailure() error { return e.cause }
 
 func withOperatorClaims(req *http.Request, operatorID int) *http.Request {
-	claims := jwtPkg.AppClaims{ID: operatorID, Scope: "platform"}
-	return req.WithContext(context.WithValue(req.Context(), jwtPkg.CtxClaims, claims))
+	claims := sessiontoken.AppClaims{ID: operatorID, Scope: "platform"}
+	return req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
 }
 
 func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {

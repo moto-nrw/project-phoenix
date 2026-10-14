@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // changeRequestAccessResponse is the caller's parent-request capability. With
@@ -33,7 +33,7 @@ func (rs *Resource) changeRequestAccess(w http.ResponseWriter, r *http.Request) 
 		renderError(w, r, common.ErrorInternalServer(errors.New("parent request review policy is not configured")))
 		return
 	}
-	permissions := jwt.PermissionsFromCtx(r.Context())
+	permissions := sessiontoken.PermissionsFromCtx(r.Context())
 	access, err := rs.RequestReviewAccess.AccessLevel(r.Context(), permissions)
 	if err != nil {
 		renderError(w, r, parentRequestQueueErrorRenderer(err))

@@ -8,7 +8,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
@@ -68,7 +68,7 @@ func (rs *Resource) decideMasterDataChangeRequest(w http.ResponseWriter, r *http
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	item, err := rs.MasterDataReviewService.Decide(r.Context(), masterdatarequests.DecideInput{
 		RequestID:       requestID,
 		Approve:         *body.Approve,

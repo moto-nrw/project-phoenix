@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Avatar upload constants
@@ -102,7 +102,7 @@ func (res *Resource) updateCurrentProfile(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if jwt.ClaimsFromCtx(r.Context()).ID == 0 {
+	if sessiontoken.ClaimsFromCtx(r.Context()).ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errAuthenticationRequired))
 		return
 	}

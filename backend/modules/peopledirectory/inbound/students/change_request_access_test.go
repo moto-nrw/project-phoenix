@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -108,7 +108,7 @@ func TestChangeRequestAccessReportsStudentCoverage(t *testing.T) {
 
 	perms := []string{"users:read", "users:update"}
 	leaderClaims := testutil.TeacherTestClaims(int(leaderAccount.ID))
-	coverage := func(claims jwt.AppClaims, studentID int64) studentReviewCoverage {
+	coverage := func(claims sessiontoken.AppClaims, studentID int64) studentReviewCoverage {
 		t.Helper()
 		rr := authExec(t, tc, testutil.NewRequest("GET", fmt.Sprintf("/change-requests/access?student_id=%d", studentID), nil), claims, perms)
 		require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())

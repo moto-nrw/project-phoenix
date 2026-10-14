@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 const headerOperatorFrontendOrigin = "X-Moto-Frontend-Origin"
@@ -92,7 +92,7 @@ func (rs *PasskeyResource) PasskeyEnrollmentChallenge(w http.ResponseWriter, r *
 	if !rs.requirePasskey(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	result, err := rs.passkeyService.StartOperatorPasskeyEnrollment(r.Context(), int64(claims.ID), common.ParseClientIP(r))
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
@@ -115,7 +115,7 @@ func (rs *PasskeyResource) PasskeyRegisterOptions(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorInvalidRequest(ErrPasskeyOriginInvalid))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	options, err := rs.passkeyService.BeginOperatorPasskeyRegistration(r.Context(), OperatorPasskeyRegistrationStart{
 		OperatorID:     int64(claims.ID),
 		ExpectedOrigin: origin,
@@ -138,7 +138,7 @@ func (rs *PasskeyResource) PasskeyRegisterVerify(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	credential, err := rs.passkeyService.FinishOperatorPasskeyRegistration(r.Context(), OperatorPasskeyRegistrationFinish{
 		OperatorID:         int64(claims.ID),
 		SessionID:          req.SessionID,
@@ -156,7 +156,7 @@ func (rs *PasskeyResource) PasskeyList(w http.ResponseWriter, r *http.Request) {
 	if !rs.requirePasskey(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	credentials, err := rs.passkeyService.ListOperatorPasskeyCredentials(r.Context(), int64(claims.ID))
 	if err != nil {
 		mapOperatorPasskeyError(w, r, err)
@@ -175,7 +175,7 @@ func (rs *PasskeyResource) PasskeyRevoke(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid passkey id")))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if err := rs.passkeyService.RevokeOperatorPasskeyCredential(r.Context(), int64(claims.ID), id); err != nil {
 		mapOperatorPasskeyError(w, r, err)
 		return

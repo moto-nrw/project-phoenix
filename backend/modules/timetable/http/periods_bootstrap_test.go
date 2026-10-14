@@ -19,7 +19,7 @@ import (
 
 // newPeriodsTestServer wires the periods handlers against the real service +
 // repository on a fresh, unique tenant and returns a router that injects that
-// tenant into every request context (mirroring jwt.TenantMiddleware). A fresh
+// tenant into every request context (mirroring sessiontoken.TenantMiddleware). A fresh
 // tenant keeps the assertions exact — the shared tenant 1 accumulates
 // calendar periods from parallel test packages.
 func newPeriodsTestServer(t *testing.T) chi.Router {

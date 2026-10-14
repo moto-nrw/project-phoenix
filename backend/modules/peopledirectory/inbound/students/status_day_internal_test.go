@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,7 +47,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
 		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
-		ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: actorID})
+		ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: actorID})
 		req := httptest.NewRequest(http.MethodPost, "/status-days", nil).WithContext(ctx)
 
 		writeContext := resource.newStatusDayCreateWriteContext(
@@ -72,7 +72,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
 		resource := &Resource{ResourceConfig: ResourceConfig{AbsenceNotifier: notifier}}
 		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
-		baseCtx = context.WithValue(baseCtx, jwt.CtxClaims, jwt.AppClaims{ID: actorID})
+		baseCtx = context.WithValue(baseCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: actorID})
 		ctx, commit := tenant.WithAfterCommitHooksForTest(baseCtx)
 		excused := true
 
@@ -786,14 +786,14 @@ func statusDayTestRouter(resource *Resource) chi.Router {
 	return router
 }
 
-func executeStatusDayHandler(tb testing.TB, router chi.Router, req *http.Request, claims jwt.AppClaims, permissions []string) *httptest.ResponseRecorder {
+func executeStatusDayHandler(tb testing.TB, router chi.Router, req *http.Request, claims sessiontoken.AppClaims, permissions []string) *httptest.ResponseRecorder {
 	tb.Helper()
 	// Claims carrying the bootstrap tenant follow the test into its own
 	// tenant (#2419), mirroring testutil.WithClaims.
 	claims.TenantID = testpkg.RebaseTenantID(tb, claims.TenantID)
 	ctx := testpkg.WithPackageTenantRuntime(req.Context())
-	ctx = context.WithValue(ctx, jwt.CtxClaims, claims)
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, permissions)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, claims)
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, permissions)
 	ctx = tenant.WithTenantID(ctx, claims.TenantID)
 	req = req.WithContext(ctx)
 	rr := httptest.NewRecorder()

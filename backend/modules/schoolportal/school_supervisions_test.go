@@ -21,7 +21,7 @@ import (
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,7 +34,7 @@ type supervisionFixture struct {
 	resource *schoolportal.Resource
 	tenantID int64
 	router   chi.Router
-	claims   jwt.AppClaims
+	claims   sessiontoken.AppClaims
 	staffID  int64
 }
 
@@ -64,7 +64,7 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 		tenantID: tenantID,
 		router:   router,
 		staffID:  staff.ID,
-		claims: jwt.AppClaims{
+		claims: sessiontoken.AppClaims{
 			ID: int(account.ID), Sub: account.Email,
 			Roles: []string{"lehrkraft"}, TenantID: tenantID,
 			Scope: tenant.ScopeSchool,

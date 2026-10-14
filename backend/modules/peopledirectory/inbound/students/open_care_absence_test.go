@@ -10,7 +10,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -386,6 +386,6 @@ func TestAbsenceWithoutReadPermissionRefused(t *testing.T) {
 // adminTenantCtx builds the wildcard-admin, tenant-scoped context the fixture
 // setup needs to file the guardian's request the way the parents portal does.
 func adminTenantCtx(tenantID int64) context.Context {
-	ctx := context.WithValue(testpkg.TenantContext(tenantID), jwt.CtxPermissions, []string{"admin:*"})
+	ctx := context.WithValue(testpkg.TenantContext(tenantID), sessiontoken.CtxPermissions, []string{"admin:*"})
 	return ctx
 }

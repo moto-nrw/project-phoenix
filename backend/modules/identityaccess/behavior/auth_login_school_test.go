@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
-	authjwt "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +37,7 @@ func decodeTokenClaims(t *testing.T, token string) (scope string, tenantID int64
 // decodeTokenClaimsWith decodes with the signer that minted the token. The
 // composed module signs with the process configuration, the retained factory
 // with this file's test configuration, so a caller names which one applies.
-func decodeTokenClaimsWith(t *testing.T, tokenAuth *authjwt.TokenAuth, token string) (scope string, tenantID int64) {
+func decodeTokenClaimsWith(t *testing.T, tokenAuth *sessiontoken.TokenAuth, token string) (scope string, tenantID int64) {
 	t.Helper()
 	decoded, err := tokenAuth.JwtAuth.Decode(token)
 	require.NoError(t, err, "minted token must decode")
@@ -54,10 +54,10 @@ func decodeTokenClaimsWith(t *testing.T, tokenAuth *authjwt.TokenAuth, token str
 	return scope, tenantID
 }
 
-func schoolTokenAuth(t *testing.T) *authjwt.TokenAuth {
+func schoolTokenAuth(t *testing.T) *sessiontoken.TokenAuth {
 	t.Helper()
 	cfg := authTestFactoryConfig(false)
-	tokenAuth, err := authjwt.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 	require.NoError(t, err)
 	return tokenAuth
 }
@@ -261,7 +261,7 @@ func TestRefreshToken_SchoolScopeWithoutTenant_RejectedBeforeRotation(t *testing
 	require.NoError(t, err)
 	var sessionToken string
 	require.NoError(t, decoded.Get("token", &sessionToken))
-	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(authjwt.RefreshClaims{
+	tenantlessRefresh, err := tokenAuth.CreateRefreshJWT(sessiontoken.RefreshClaims{
 		ID:    int(accountID),
 		Token: sessionToken,
 		Scope: schoolScope,
@@ -379,7 +379,7 @@ func TestLoginSchool_MFARequiredEnrolled_StartsSchoolScopedChallenge(t *testing.
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)
 	assert.Equal(t, "school-challenge-token", result.ChallengeToken)
-	assert.Equal(t, authjwt.MFAChallengeScopeSchool, startedScope,
+	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope,
 		"school login must start the challenge with the school scope")
 	assert.Equal(t, tenantID, startedTenantID)
 }
@@ -698,7 +698,7 @@ func TestLoginSchool_MFAEnrollmentRequired_MintsSchoolScopedEnrollmentToken(t *t
 
 	claims, err := service.TokenAuth.ParseMFAEnrollmentJWT(result.AccessToken)
 	require.NoError(t, err)
-	assert.Equal(t, authjwt.MFAEnrollmentScopeSchool, claims.Scope,
+	assert.Equal(t, sessiontoken.MFAEnrollmentScopeSchool, claims.Scope,
 		"school login must mint a school-scope enrollment token")
 	assert.Equal(t, tenantID, claims.TenantID)
 }
@@ -892,7 +892,7 @@ func TestLoginSchool_MFARequirementAppearingMidLogin_ChallengesInsteadOfMinting(
 	require.Equal(t, identityaccess.LoginStatusMFARequired, result.Status,
 		"the guard must send the login back to the second factor instead of minting")
 	assert.Equal(t, "school-race-challenge", result.ChallengeToken)
-	assert.Equal(t, authjwt.MFAChallengeScopeSchool, startedScope)
+	assert.Equal(t, sessiontoken.MFAChallengeScopeSchool, startedScope)
 	assert.Empty(t, result.RefreshToken, "no session may be issued for a login that owes a second factor")
 
 	count, err := db.NewSelect().

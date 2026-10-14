@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -458,7 +458,7 @@ func (rs *Resource) bulkUpsertArrivalSchedules(w http.ResponseWriter, r *http.Re
 			GroupID:     req.GroupID,
 			StudentIDs:  req.StudentIDs,
 			Authorize: func(ctx context.Context, student careplan.ScheduleStudent) (bool, error) {
-				return securityruntime.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
+				return securityruntime.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(r.Context()), student, rs.UserContextService)
 			},
 		},
 		req.Schedules,

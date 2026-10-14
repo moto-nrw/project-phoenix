@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 41,
+  "policy_epoch": 42,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1080,7 +1080,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/identityaccess/legacy/jwt",
+      "path": "modules/identityaccess/sessiontoken",
       "owner": "identity-access",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -21061,14 +21061,14 @@
   ],
   "relocations": [
     {
-      "from": "auth/jwt",
-      "to": "modules/identityaccess/legacy/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "modules/identityaccess/legacy/jwt",
+      "to": "modules/identityaccess/sessiontoken",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
     },
     {
       "from": "services/education",

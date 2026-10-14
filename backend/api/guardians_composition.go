@@ -9,7 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -94,16 +94,16 @@ func newGuardiansResource(module peopleModule.Capability, runtime services.Guard
 		ObserveResponse: observability.ObserveGuardianDirectoryHTTPResponse,
 
 		ActorID: func(r *http.Request) int64 {
-			return int64(jwt.ClaimsFromCtx(r.Context()).ID)
+			return int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 		},
 		ActorRole: func(r *http.Request) string {
-			return strings.Join(jwt.ClaimsFromCtx(r.Context()).Roles, ",")
+			return strings.Join(sessiontoken.ClaimsFromCtx(r.Context()).Roles, ",")
 		},
 		HasPermission: func(r *http.Request, permission string) bool {
-			return apiCommon.HasPermission(permission, jwt.PermissionsFromCtx(r.Context()))
+			return apiCommon.HasPermission(permission, sessiontoken.PermissionsFromCtx(r.Context()))
 		},
 		IsAdmin: func(r *http.Request) bool {
-			return apiCommon.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context()))
+			return apiCommon.HasAdminWildcard(sessiontoken.PermissionsFromCtx(r.Context()))
 		},
 		IsVerifiedStaff: runtime.IsVerifiedStaff,
 		ExposeInvitationToken: func(r *http.Request) bool {

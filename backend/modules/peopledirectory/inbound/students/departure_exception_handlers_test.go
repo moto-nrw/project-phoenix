@@ -12,7 +12,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -106,7 +106,7 @@ func TestStudentDepartureExceptionRejectsNonCareWeekend(t *testing.T) {
 }
 
 // listedDepartureModes reads the Kinderkarte projection of one child on date.
-func listedDepartureModes(t *testing.T, tc *testContext, claims jwt.AppClaims, studentID int64, date timezone.Date, wantException bool) []string {
+func listedDepartureModes(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, date timezone.Date, wantException bool) []string {
 	t.Helper()
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?view=slim&date="+date.String(), nil)
 	rr := authExec(t, tc, req, claims, []string{"admin:*"})

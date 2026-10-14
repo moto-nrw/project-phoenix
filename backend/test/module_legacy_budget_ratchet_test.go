@@ -81,14 +81,17 @@ import (
 // application layer and moved the work-session repository shim (1,158 LOC)
 // into the Workforce composition. #3996 moved the staff absence adapters
 // into the Workforce composition and trimmed the helpers the substitution
-// adapter keeps (1,181 -> 763 LOC).
+// adapter keeps (1,181 -> 763 LOC). #3487 moved the session token adapter
+// (1,358 LOC) unchanged out of modules/identityaccess/legacy to
+// modules/identityaccess/sessiontoken (ADR 0054); the tree and its entry are
+// gone.
 // Re-measure the same way when a number needs to move — downwards.
 const moduleLegacyBudgetCheck = "legacy LOC budget"
 
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 4408
+const moduleLegacyBudgetTotal = 3050
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.
 // The comment on each entry names the ticket that is supposed to dissolve the
@@ -105,10 +108,6 @@ var moduleLegacyBudgets = map[string]int{
 	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
 	// replaced the user-context service with a local CallerContext port.
 	"modules/grouplive/legacy": 539,
-	// #3226 (auth/jwt + repositories move). The usercontext read side (#2725)
-	// dissolved into the Identity & Access caller context with #3501; its
-	// request memo slot stayed in the session adapter (legacy/jwt).
-	"modules/identityaccess/legacy": 1358,
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 701,
 	// No ticket today — and the largest tree of the twelve.

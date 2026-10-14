@@ -176,7 +176,7 @@ func isTransientDBErr(err error) bool {
 }
 
 // bindTenant makes the device's school the ambient tenant. Device routes do
-// not use jwt.TenantMiddleware, so an unusable tenant id is reported here.
+// not use sessiontoken.TenantMiddleware, so an unusable tenant id is reported here.
 func bindTenant(ctx context.Context, tenantID int64) (context.Context, error) {
 	id, err := tenant.NewTenantID(tenantID)
 	if err != nil {

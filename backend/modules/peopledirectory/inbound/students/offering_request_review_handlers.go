@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 )
@@ -197,7 +197,7 @@ func (rs *Resource) decideOfferingChangeRequest(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorRole := strings.Join(claims.Roles, ",")
 	if actorRole == "" {
 		actorRole = "unknown"

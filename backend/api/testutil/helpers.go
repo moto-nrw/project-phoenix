@@ -22,7 +22,7 @@
 //
 //	    req := testutil.NewAuthenticatedRequest("GET", "/auth/account", nil,
 //	        testutil.WithPermissions("users:read"),
-//	        testutil.WithClaims(jwt.AppClaims{ID: 1, Username: "test"}),
+//	        testutil.WithClaims(sessiontoken.AppClaims{ID: 1, Username: "test"}),
 //	    )
 //
 //	    rr := testutil.ExecuteRequest(router, req)

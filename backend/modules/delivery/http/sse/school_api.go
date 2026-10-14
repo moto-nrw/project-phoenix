@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -49,8 +49,8 @@ func (rs *Resource) SchoolRouter() chi.Router {
 	r := chi.NewRouter()
 
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
-		r.Use(jwt.SchoolMiddleware(tenant.ClaimScope{}))
+		r.Use(sessiontoken.Authenticator)
+		r.Use(sessiontoken.SchoolMiddleware(tenant.ClaimScope{}))
 		r.Get("/events", rs.schoolEventsHandler)
 	})
 
@@ -89,7 +89,7 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(ctx).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 	tenantID := tenant.FromContext(ctx)
 	if accountID <= 0 || tenantID <= 0 {
 		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")

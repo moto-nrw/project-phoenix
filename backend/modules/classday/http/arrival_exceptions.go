@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Class-wide arrival day exceptions through "moto schule" (#2970): the same
@@ -109,7 +109,7 @@ func mapArrivalException(entry classday.ArrivalException) ArrivalExceptionRespon
 // response carry: permission in the token AND the setting opened it up.
 // Without the write seam the verdict stays false.
 func (rs *Resource) canWriteArrivalException(r *http.Request) (bool, error) {
-	if !common.HasPermission(permissions.ClassDayArrivalExceptionWrite, jwt.PermissionsFromCtx(r.Context())) {
+	if !common.HasPermission(permissions.ClassDayArrivalExceptionWrite, sessiontoken.PermissionsFromCtx(r.Context())) {
 		return false, nil
 	}
 	allowed, err := rs.ClassDay.MayWriteArrivalExceptions(r.Context())
