@@ -23,6 +23,14 @@ defaults:
 env:
   GOTOOLCHAIN: local
 
+# Runners: standard GitHub runners are free for this public repository and run
+# every job here except frontend-build. The lint jobs run beside the test
+# suites, which set a pull request's wall-clock time. frontend-build stays on
+# Blacksmith: on a frontend-only pull request it runs about as long as
+# test-frontend, and its per-commit Next.js cache would churn the 10 GB GitHub
+# cache.
+# nightly.yml runs this workflow on development to keep the GitHub caches warm.
+
 jobs:
   error-code-registry:
     if: ${{ inputs.run-error-codes }}
@@ -43,7 +51,7 @@ jobs:
 
   backend-quality:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -62,13 +70,15 @@ jobs:
 
   backend-lint:
     if: ${{ inputs.run-backend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # Package selection reads file names only; no file contents needed.
+          filter: blob:none
       - name: Setup Go with cache
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -95,7 +105,7 @@ jobs:
 
   frontend-quality:
     if: ${{ inputs.run-frontend }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -124,7 +134,7 @@ jobs:
     # (fails on error severity, warnings are advisory). Push builds skip it —
     # there is no PR base to diff against.
     if: ${{ inputs.run-frontend && github.event_name == 'pull_request' }}
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:

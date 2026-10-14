@@ -14,6 +14,12 @@ import {
   type Portal,
 } from "./devices";
 import {
+  MAX_WAIT_MS,
+  trackNetworkActivity,
+  waitExpired,
+  type NetworkActivity,
+} from "./network-activity";
+import {
   BrokenShotError,
   findBrokenReasons,
   isIgnoredResponse,
@@ -35,12 +41,17 @@ export interface CaptureOptions {
   readonly access: StackAccess;
   readonly shots: readonly Shot[];
   readonly now?: Date;
-  /** Wie lange Ladeanzeigen abklingen dürfen, bevor der Shot als kaputt gilt. */
+  /**
+   * Wie lange Ladeanzeigen stehen dürfen, während die Seite nichts mehr lädt,
+   * bevor der Shot als kaputt gilt (network-activity.ts).
+   */
   readonly loadTimeoutMs?: number;
   readonly log?: (message: string) => void;
 }
 
 const LOAD_TIMEOUT_MS = 20_000;
+/** Dasselbe für `warten_auf`: so lange darf die Seite ohne Laden still stehen. */
+const STEP_IDLE_MS = 30_000;
 const SETTLE_MS = 600;
 
 /**
@@ -194,15 +205,42 @@ interface Settled {
   readonly unloadedImages: number;
 }
 
-async function waitForSettled(page: Page, timeoutMs: number): Promise<Settled> {
-  const deadline = Date.now() + timeoutMs;
-  while ((await countLoadingIndicators(page)) > 0 && Date.now() < deadline) {
+/**
+ * Prüft `done`, bis es zutrifft. Gibt auf, wenn die Seite `idleMs` lang keine
+ * Anfrage an den Stack offen hatte, spätestens nach MAX_WAIT_MS. Liefert, ob
+ * `done` eingetreten ist.
+ */
+async function waitWhileLoading(
+  page: Page,
+  network: NetworkActivity,
+  idleMs: number,
+  done: () => Promise<boolean>,
+): Promise<boolean> {
+  const startedAt = Date.now();
+  const limits = { idleMs, maxMs: MAX_WAIT_MS };
+  while (!(await done())) {
+    if (waitExpired(Date.now(), startedAt, network.state(), limits)) {
+      return false;
+    }
     await page.waitForTimeout(200);
   }
-  // Erst nach den Ladeanzeigen: vorher stehen die Bilder noch nicht im DOM.
-  while ((await countUnloadedImages(page)) > 0 && Date.now() < deadline) {
-    await page.waitForTimeout(200);
-  }
+  return true;
+}
+
+async function waitForSettled(
+  page: Page,
+  network: NetworkActivity,
+  idleMs: number,
+): Promise<Settled> {
+  await waitWhileLoading(
+    page,
+    network,
+    idleMs,
+    // Erst nach den Ladeanzeigen: vorher stehen die Bilder noch nicht im DOM.
+    async () =>
+      (await countLoadingIndicators(page)) === 0 &&
+      (await countUnloadedImages(page)) === 0,
+  );
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(SETTLE_MS);
   return {
@@ -211,16 +249,28 @@ async function waitForSettled(page: Page, timeoutMs: number): Promise<Settled> {
   };
 }
 
-async function runStep(page: Page, step: Step): Promise<void> {
+async function runStep(
+  page: Page,
+  network: NetworkActivity,
+  step: Step,
+): Promise<void> {
   if ("klicken" in step) {
     await page.locator(step.klicken).first().click({ timeout: 10_000 });
   } else if ("warten_auf" in step) {
-    await page
-      .locator(step.warten_auf)
-      .first()
-      // Großzügig: nach einem Klick auf eine andere Seite kompiliert der
-      // Dev-Server deren Route beim ersten Aufruf.
-      .waitFor({ state: "visible", timeout: 30_000 });
+    // Nach einem Klick auf eine andere Seite kompiliert der Dev-Server deren
+    // Route und Datenabfragen beim ersten Aufruf; solange die Seite lädt,
+    // wartet der Schritt weiter.
+    const target = page.locator(step.warten_auf).first();
+    const startedAt = Date.now();
+    const visible = await waitWhileLoading(page, network, STEP_IDLE_MS, () =>
+      target.isVisible(),
+    );
+    if (!visible) {
+      const seconds = Math.round((Date.now() - startedAt) / 1000);
+      throw new Error(
+        `${step.warten_auf} nach ${seconds} s nicht sichtbar (${network.state().inFlight} Anfragen offen)`,
+      );
+    }
   } else if (typeof step.scrollen === "number") {
     const offset = step.scrollen;
     await page.evaluate((top) => window.scrollTo(0, top), offset);
@@ -289,6 +339,7 @@ async function captureOne(
       const host = new URL(url).hostname;
       return host === "localhost" || host.endsWith(".localhost");
     };
+    const network = trackNetworkActivity(page, ownHost);
     const ignoredUrls = new Set<string>();
     page.on("response", (response) => {
       if (response.status() < 400 || !ownHost(response.url())) return;
@@ -315,14 +366,14 @@ async function captureOne(
     const opensDialog = (shot.vorbereitung ?? []).some(
       (step) => "klicken" in step,
     );
-    let settled = await waitForSettled(page, loadTimeoutMs);
+    let settled = await waitForSettled(page, network, loadTimeoutMs);
     // Die Umleitungsprüfung gilt der Seite, auf der der Shot landet. Ein Klick
     // der Vorbereitung darf danach weiterführen, etwa von der Kindersuche auf
     // ein Kind, dessen ID erst der Seed vergibt.
     const landedPath = new URL(page.url()).pathname;
     for (const step of shot.vorbereitung ?? []) {
       try {
-        await runStep(page, step);
+        await runStep(page, network, step);
       } catch (error) {
         // Mit dem Anfang des Call-Logs: er sagt, ob der Selektor nichts fand
         // oder ein Element, das sich nicht klicken ließ.
@@ -331,7 +382,7 @@ async function captureOne(
         );
         break;
       }
-      settled = await waitForSettled(page, loadTimeoutMs);
+      settled = await waitForSettled(page, network, loadTimeoutMs);
     }
 
     const reasons = [
