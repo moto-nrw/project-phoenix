@@ -17,7 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 func init() { testutil.SeedTestJWTConfig() }
@@ -39,7 +39,7 @@ func (*fakeMasterDataReviewService) Correct(context.Context, int64, bool, string
 
 func staffRequest(method, path, body string, requestID string) *http.Request {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
 	rctx := chi.NewRouteContext()
 	if requestID != "" {
 		rctx.URLParams.Add("requestId", requestID)

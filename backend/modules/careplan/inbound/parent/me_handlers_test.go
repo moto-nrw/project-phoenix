@@ -18,7 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -390,7 +390,7 @@ func (f *fakeParentService) DeclarationProof(context.Context, int64, int64, int6
 // JWT middleware does in production.
 func withClaims(r *http.Request, accountID int) *http.Request {
 	ctx := testpkg.WithPackageTenantRuntime(r.Context())
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: accountID})
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: accountID})
 	return r.WithContext(ctx)
 }
 

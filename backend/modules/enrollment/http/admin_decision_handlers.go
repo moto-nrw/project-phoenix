@@ -15,7 +15,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -258,7 +258,7 @@ func (rs *Resource) listAdminRequests(w http.ResponseWriter, r *http.Request) {
 		filters.ChildStatus = v
 	}
 
-	accountID := int64(jwt.ClaimsFromCtx(r.Context()).ID)
+	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	var summaries []*RequestSummary
 	unread := map[int64]bool{}
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
@@ -301,7 +301,7 @@ func (rs *Resource) getAdminRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var detail AdminRequestDetail
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		s, e := rs.DecisionService.Get(ctx, id)
@@ -497,7 +497,7 @@ func (rs *Resource) decideAdminChild(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	outcome, err := rs.decideChildWithRetry(r, DecideInput{
 		RequestID:  requestID,
 		ChildID:    childID,
@@ -535,7 +535,7 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var outcome *RestoreOutcome
 	err := rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, e := rs.DecisionService.RestoreWithdrawn(ctx, requestID, int64(claims.ID))

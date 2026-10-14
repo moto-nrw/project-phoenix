@@ -19,7 +19,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -71,7 +71,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 	svc, db := buildMasterDataService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	ctx := context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), jwt.CtxClaims, jwt.AppClaims{
+	ctx := context.WithValue(testpkg.WithPackageTenantRuntime(context.Background()), sessiontoken.CtxClaims, sessiontoken.AppClaims{
 		ID:        int(chain.AccountID),
 		FirstName: "Petra",
 		LastName:  "Parent",

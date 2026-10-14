@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -53,7 +53,7 @@ func (rs *Resource) createLateInvite(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	createdBy := int64(claims.ID)
 	if createdBy <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))
@@ -174,7 +174,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 // enrollment is created for; it answers the request itself when either is
 // missing.
 func manualEnrollmentActor(w http.ResponseWriter, r *http.Request) (actorID, tenantID int64, ok bool) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorID = int64(claims.ID)
 	if actorID <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(errors.New("no account ID in context")))

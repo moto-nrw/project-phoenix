@@ -19,12 +19,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func healthListClaims(tb testing.TB, accountID int64) jwt.AppClaims {
-	return jwt.AppClaims{
+func healthListClaims(tb testing.TB, accountID int64) sessiontoken.AppClaims {
+	return sessiontoken.AppClaims{
 		ID:        int(accountID),
 		Sub:       "health-list@example.com",
 		Username:  "health-list",

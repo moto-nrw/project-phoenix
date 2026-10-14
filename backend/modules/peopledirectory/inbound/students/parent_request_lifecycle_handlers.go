@@ -11,7 +11,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -85,7 +85,7 @@ func (rs *Resource) markParentRequestDone(w http.ResponseWriter, r *http.Request
 		renderError(w, r, parentRequestLifecycleErrorRenderer(parentrequests.ErrNotPast))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if err := service.MarkDone(
 		r.Context(), requestID, body.ExpectedVersion, body.Reason, int64(claims.ID),
 	); err != nil {
@@ -194,7 +194,7 @@ func (rs *Resource) correctParentRequestDecision(w http.ResponseWriter, r *http.
 		renderError(w, r, common.ErrorConflictMessageWithCode(message, common.CodeStudentsCorrectionUnsupported))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if err := service.Correct(
 		r.Context(), requestID, *body.Approve, body.ExpectedVersion, body.Reason, int64(claims.ID),
 	); err != nil {

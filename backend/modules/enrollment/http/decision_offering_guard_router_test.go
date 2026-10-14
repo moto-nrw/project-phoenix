@@ -24,7 +24,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -296,7 +296,7 @@ func assertDecisionErrorCode(t *testing.T, rec *httptest.ResponseRecorder, code 
 
 func mintOfferingGuardReviewerToken(t *testing.T, reviewerID int64, reviewerEmail string) string {
 	t.Helper()
-	return testutil.MintTestJWT(t, jwt.AppClaims{
+	return testutil.MintTestJWT(t, sessiontoken.AppClaims{
 		ID:          int(reviewerID),
 		Sub:         reviewerEmail,
 		Username:    reviewerEmail,

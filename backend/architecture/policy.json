@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 41,
+  "policy_epoch": 43,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1080,7 +1080,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/identityaccess/legacy/jwt",
+      "path": "modules/identityaccess/sessiontoken",
       "owner": "identity-access",
       "role": "adapter",
       "internal_test_role": "module-internal-test",
@@ -2567,6 +2567,13 @@
       "path": "services/scheduler",
       "owner": "scheduler-runtime",
       "role": "application",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/compose",
+      "owner": "scheduler-runtime",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -18770,6 +18777,17 @@
       "target_role": "public"
     },
     {
+      "id": "scheduler-runtime.compose.tenant-runtime",
+      "description": "Scheduler Runtime composition builds the Worker's job runtime and lease store over the unit of work the root hands it (#4003).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "scheduler-runtime",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
       "id": "timetable-planning-cutover.test-support.e2e-test.timetable-activities.public",
       "description": "The timetable end-to-end flows assert the Timetable owner's public retention cleanup and planner reads (timetable planning dissolution, ADR 0038).",
       "scopes": [
@@ -20587,6 +20605,17 @@
       "same_owner": true
     },
     {
+      "id": "owner-compose.workflow.adapter",
+      "description": "ADR 0053 point 3: the composition of a workflow owner imports its own adapter role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "workflow",
+      "source_role": "compose",
+      "target_role": "adapter",
+      "same_owner": true
+    },
+    {
       "id": "owner-compose.workflow.port",
       "description": "ADR 0053 point 3: the composition of a workflow owner imports its own port role.",
       "scopes": [
@@ -21043,14 +21072,14 @@
   ],
   "relocations": [
     {
-      "from": "auth/jwt",
-      "to": "modules/identityaccess/legacy/jwt",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3226"
-    },
-    {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "modules/identityaccess/legacy/jwt",
+      "to": "modules/identityaccess/sessiontoken",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
     },
     {
       "from": "services/education",

@@ -11,11 +11,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-func activityStaffClaims(account *testpkg.AccountFixture, accountPermissions ...string) jwt.AppClaims {
+func activityStaffClaims(account *testpkg.AccountFixture, accountPermissions ...string) sessiontoken.AppClaims {
 	claims := testutil.DefaultTestClaims()
 	claims.ID = int(account.ID)
 	claims.Sub = account.Email
@@ -208,7 +208,7 @@ func TestActivityWriteRoutesRejectNonOwner(t *testing.T) {
 	assert.NotContains(t, rr.Body.String(), "TargetSecret")
 }
 
-func assertActivityWritesAllowed(t *testing.T, ctx *testContext, activityID int64, claims jwt.AppClaims) {
+func assertActivityWritesAllowed(t *testing.T, ctx *testContext, activityID int64, claims sessiontoken.AppClaims) {
 	t.Helper()
 	targetStaff := testpkg.CreateTestStaff(t, ctx.db, "Allowed", "Supervisor")
 	student := testpkg.CreateTestStudent(t, ctx.db, "Allowed", "Student", "1a")

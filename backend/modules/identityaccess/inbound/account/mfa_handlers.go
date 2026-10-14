@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // trustedDeviceCookieName is the browser cookie that carries the HMAC-signed
@@ -148,8 +148,8 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
@@ -176,10 +176,10 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
 	// Same defense-in-depth as mfaEnrollStart — tenant endpoint rejects
 	// platform-scope enrollment tokens even when account_id matches.
-	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
+	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeTenant || claims.TenantID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
@@ -236,7 +236,7 @@ func (rs *Resource) mfaListTrustedDevices(w http.ResponseWriter, r *http.Request
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
@@ -270,7 +270,7 @@ func (rs *Resource) mfaRevokeTrustedDevice(w http.ResponseWriter, r *http.Reques
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return

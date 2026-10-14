@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // staffPWAUsage records a staff session that runs in standalone display mode.
@@ -28,9 +28,9 @@ func pwaUsageRouter(usage staffPWAUsage) chi.Router {
 // reportPWAUsage records that the caller's session runs in standalone display
 // mode. Repeated reports only advance last_seen_at.
 func reportPWAUsage(w http.ResponseWriter, r *http.Request, usage staffPWAUsage) {
-	claims := projectJWT.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		apiCommon.RenderError(w, r, apiCommon.ErrorUnauthorized(projectJWT.ErrTokenUnauthorized))
+		apiCommon.RenderError(w, r, apiCommon.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 	if err := usage.ReportStaff(r.Context(), int64(claims.ID)); err != nil {

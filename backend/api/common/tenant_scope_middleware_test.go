@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	jwtpkg "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,14 +28,14 @@ func TestTenantMiddleware_PopulatesContext(t *testing.T) {
 	}))
 
 	// Build a request with pre-set claims in context (simulating Authenticator middleware)
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:       42,
 		Sub:      "test@test.com",
 		TenantID: 100,
 		OrgID:    10,
 		Scope:    "tenant",
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 
@@ -70,12 +70,12 @@ func TestTenantMiddleware_ZeroTenantID_IsRejected(t *testing.T) {
 		t.Fatal("handler should not be called with a zero tenant ID")
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:  42,
 		Sub: "test@test.com",
 		// No TenantID set (defaults to 0)
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	ctx = tenant.WithRuntimeObserver(ctx, func(event tenant.RuntimeEvent) { observed = event })
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
@@ -97,12 +97,12 @@ func TestTenantMiddleware_PlatformScope(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	}))
 
-	claims := jwtpkg.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:    42,
 		Sub:   "operator@test.com",
 		Scope: "platform",
 	}
-	ctx := context.WithValue(context.Background(), jwtpkg.CtxClaims, claims)
+	ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, claims)
 	req := httptest.NewRequest(http.MethodGet, "/", nil).WithContext(ctx)
 	rec := httptest.NewRecorder()
 

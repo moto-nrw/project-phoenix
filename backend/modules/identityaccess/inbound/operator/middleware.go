@@ -7,7 +7,7 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // OperatorLookup reloads the current platform operator state for protected
@@ -20,7 +20,7 @@ type OperatorLookup interface {
 // This ensures only operator tokens (not tenant tokens) can access operator routes
 func RequiresOperatorScope(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		claims := jwt.ClaimsFromCtx(r.Context())
+		claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 		// Check if this is a platform scope token
 		if !claims.IsPlatformScope() {
@@ -40,7 +40,7 @@ func RequiresOperatorScope(next http.Handler) http.Handler {
 func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			claims := jwt.ClaimsFromCtx(r.Context())
+			claims := sessiontoken.ClaimsFromCtx(r.Context())
 			if claims.ID <= 0 {
 				common.RenderError(w, r, common.OperatorUnauthorized())
 				return

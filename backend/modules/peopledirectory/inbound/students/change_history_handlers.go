@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // changeHistoryEntry is the per-child change-history row returned to the
@@ -38,7 +38,7 @@ func (rs *Resource) recordStudentChanges(ctx context.Context, before, after *Stu
 		return nil
 	}
 
-	editedBy := int64(jwt.ClaimsFromCtx(ctx).ID)
+	editedBy := int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 	if err := rs.StudentAuditService.RecordStudentChanges(ctx, before.auditSnapshot(), after.auditSnapshot(), editedBy, auditActorName(ctx, editedBy)); err != nil {
 		if rs.Logger != nil {
 			rs.Logger.Warn("failed to record student change history",
@@ -56,7 +56,7 @@ func (rs *Resource) recordStudentChanges(ctx context.Context, before, after *Stu
 // whose account is not the editor is attributed to nobody rather than to the
 // wrong person; the owner stores its own stand-in for that.
 func auditActorName(ctx context.Context, editedBy int64) string {
-	claims := jwt.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	if int64(claims.ID) != editedBy {
 		return ""
 	}
@@ -117,7 +117,7 @@ func (rs *Resource) getStudentChangeHistory(w http.ResponseWriter, r *http.Reque
 	// Dokumente tab gates health and custody paperwork behind their own
 	// permissions, and a history that showed them anyway would simply be the
 	// way around that gate.
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 
 	entries := make([]changeHistoryEntry, 0, len(edits))
 	for _, e := range edits {

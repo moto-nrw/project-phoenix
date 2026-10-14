@@ -18,7 +18,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -224,8 +224,8 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 	// Another school's admin does not learn that the row exists.
 	foreignTenant, _ := testpkg.CreateTestTenant(t, f.db)
 	foreignCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), foreignTenant)
-	foreignCtx = context.WithValue(foreignCtx, jwt.CtxClaims, jwt.AppClaims{ID: int(f.staffAccount)})
-	foreignCtx = context.WithValue(foreignCtx, jwt.CtxPermissions, []string{"admin:*"})
+	foreignCtx = context.WithValue(foreignCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(f.staffAccount)})
+	foreignCtx = context.WithValue(foreignCtx, sessiontoken.CtxPermissions, []string{"admin:*"})
 	_, err = nativeCareReviews(t, f).GetForReview(foreignCtx, req.ID)
 	assert.ErrorIs(t, err, careplan.ErrCareScheduleRequestNotFound)
 }
@@ -236,7 +236,7 @@ func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReview
 		People: f.sf.PeopleDirectory,
 		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.
-			wide, _ := authorize.CanUpdateStudent(ctx, jwt.PermissionsFromCtx(ctx),
+			wide, _ := authorize.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
 				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.sf.UserContext)
 			return requestreviewcompose.ReviewScope{SchoolWide: wide}, nil
 		},

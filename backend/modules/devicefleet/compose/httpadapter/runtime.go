@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -50,7 +50,7 @@ func runtime(settings configService.SettingsService) displayHTTP.Runtime {
 // tenant-transaction middleware to the routes that need it.
 func protectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middleware)) {
 	r.Group(func(r chi.Router) {
-		r.Use(projectJWT.Authenticator)
+		r.Use(sessiontoken.Authenticator)
 		r.Use(apiCommon.ReadOnlyPreviewMiddleware)
 		r.Use(apiCommon.TenantScopeMiddleware)
 		r.Use(apiCommon.SecurityPrincipalMiddleware)

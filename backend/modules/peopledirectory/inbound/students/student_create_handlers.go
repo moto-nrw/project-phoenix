@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -194,7 +194,7 @@ func (rs *Resource) resolveScheduleStaffID(r *http.Request, req *StudentRequest)
 	if len(req.ArrivalSchedules) == 0 && len(req.PickupSchedules) == 0 {
 		return 0, nil
 	}
-	if !securityruntime.HasPermission(permissions.UsersUpdate, jwt.PermissionsFromCtx(r.Context())) {
+	if !securityruntime.HasPermission(permissions.UsersUpdate, sessiontoken.PermissionsFromCtx(r.Context())) {
 		return 0, errors.New("users:update permission required to create student schedules")
 	}
 	return rs.getStaffIDFromJWT(r)
@@ -274,7 +274,7 @@ func (rs *Resource) respondCreatedStudent(w http.ResponseWriter, r *http.Request
 	group := rs.fetchStudentGroup(r.Context(), student.GroupID)
 
 	// Admin users creating students can see full data including detailed location
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	hasFullAccess := securityruntime.HasAdminWildcard(userPermissions)
 
 	photosEnabled := resolveBoolSetting(r.Context(), rs.SettingsService, settingStudentPhotosEnabled, false, rs.Logger)

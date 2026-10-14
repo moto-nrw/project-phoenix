@@ -12,7 +12,7 @@ import (
 	"github.com/go-ozzo/ozzo-validation/is"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -302,8 +302,8 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
-	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeSchool || claims.TenantID == 0 {
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
+	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeSchool || claims.TenantID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
@@ -339,11 +339,11 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	if !rs.requireMFA(w, r) {
 		return
 	}
-	claims, ok := jwt.EnrollmentClaimsFromCtx(r.Context())
+	claims, ok := sessiontoken.EnrollmentClaimsFromCtx(r.Context())
 	// Same defense-in-depth as mfaEnrollStart — school endpoint rejects
 	// tenant- and platform-scope enrollment tokens even when account_id
 	// matches.
-	if !ok || claims.AccountID == 0 || claims.Scope != jwt.MFAEnrollmentScopeSchool || claims.TenantID == 0 {
+	if !ok || claims.AccountID == 0 || claims.Scope != sessiontoken.MFAEnrollmentScopeSchool || claims.TenantID == 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
@@ -399,7 +399,7 @@ func (rs *Resource) switchSchool(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 
 	accessToken, refreshToken, err := rs.AuthService.SwitchSchool(
 		r.Context(), int64(claims.ID), req.TenantSlug,

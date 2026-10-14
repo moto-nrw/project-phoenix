@@ -18,7 +18,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1569,10 +1569,10 @@ const TestJWTSecret = "test-jwt-secret-32-chars-minimum"
 
 // GetTestTokenAuth returns a TokenAuth instance for testing.
 // A fresh instance avoids shared mutable initialization between parallel tests.
-func GetTestTokenAuth(tb testing.TB) *jwt.TokenAuth {
+func GetTestTokenAuth(tb testing.TB) *sessiontoken.TokenAuth {
 	tb.Helper()
 
-	tokenAuth, err := jwt.NewTokenAuthWithDurations(TestJWTSecret, 15*time.Minute, time.Hour)
+	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(TestJWTSecret, 15*time.Minute, time.Hour)
 	require.NoError(tb, err, "Failed to create test TokenAuth")
 	return tokenAuth
 }
@@ -1584,7 +1584,7 @@ func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string 
 
 	tokenAuth := GetTestTokenAuth(tb)
 
-	claims := jwt.AppClaims{
+	claims := sessiontoken.AppClaims{
 		ID:          int(accountID),
 		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
 		Roles:       []string{"user"},

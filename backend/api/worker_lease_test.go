@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestWorkerLeaseBindsTheDatabaseLeaseToTheSchedulerPort(t *testing.T) {
+func TestWorkerLeaseGivesEveryProcessItsOwnHolderOverOneDatabaseLease(t *testing.T) {
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	authDB := testpkg.SetupServeTestDB(t)
@@ -26,26 +26,12 @@ func TestWorkerLeaseBindsTheDatabaseLeaseToTheSchedulerPort(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEqual(t, lease.Holder, other.Holder, "every process holds its own terms")
 
-	first, acquired, err := lease.Store.Acquire(ctx, lease.Name, lease.Holder, time.Minute)
+	// Both leases share the database lease; the port mapping itself is
+	// tested in modules/schedulerruntime/compose.
+	_, acquired, err := lease.Store.Acquire(ctx, lease.Name, lease.Holder, time.Minute)
 	require.NoError(t, err)
 	require.True(t, acquired)
 	_, acquired, err = other.Store.Acquire(ctx, other.Name, other.Holder, time.Minute)
 	require.NoError(t, err)
 	require.False(t, acquired, "the second process waits in standby")
-
-	require.NoError(t, lease.Store.Release(ctx, first))
-	second, acquired, err := other.Store.Acquire(ctx, other.Name, other.Holder, time.Minute)
-	require.NoError(t, err)
-	require.True(t, acquired)
-	assert.Greater(t, second.Token, first.Token)
-
-	err = testpkg.WithinTenantContext(t, ctx, authDB, testpkg.Tenant(t), func(txCtx context.Context) error {
-		return lease.Store.Assert(txCtx, first, lease.FenceMargin)
-	})
-	// The scheduler's sentinel is checked in services/scheduler; root tests
-	// may not import the scheduler application, so the text proves the mapping.
-	require.ErrorContains(t, err, "worker lease is not held", "a stale term cannot commit")
-	require.NoError(t, testpkg.WithinTenantContext(t, ctx, authDB, testpkg.Tenant(t), func(txCtx context.Context) error {
-		return other.Store.Assert(txCtx, second, other.FenceMargin)
-	}))
 }

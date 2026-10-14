@@ -11,7 +11,7 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // SchoolAccountMFAResource serves the operator MFA admin actions for school
@@ -201,7 +201,7 @@ func (rs *SchoolAccountMFAResource) SetSchoolAccountMFAOverride(w http.ResponseW
 // claims on the request. Returns 0 when the request is unauthenticated
 // — callers must reject in that case.
 func operatorIDFromClaims(r *http.Request) int64 {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
 		return 0
 	}

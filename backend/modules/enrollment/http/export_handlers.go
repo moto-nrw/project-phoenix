@@ -19,7 +19,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // phaseExportRequest is the (optional) JSON body:
@@ -63,7 +63,7 @@ func (rs *Resource) exportPhaseRegistrations(w http.ResponseWriter, r *http.Requ
 	// disclosure event: ExportPhase loads the data AND records it on the
 	// same tenant tx, and a failed audit write refuses the export (no
 	// trail, no disclosure).
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 
@@ -212,7 +212,7 @@ func (rs *Resource) exportStudentEnrollmentRequests(w http.ResponseWriter, r *ht
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 

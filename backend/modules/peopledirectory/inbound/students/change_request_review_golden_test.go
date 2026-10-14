@@ -22,7 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -261,7 +261,7 @@ func TestRequestReviewGolden(t *testing.T) {
 }
 
 type goldenCaller struct {
-	claims jwt.AppClaims
+	claims sessiontoken.AppClaims
 	perms  []string
 }
 

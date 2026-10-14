@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -79,19 +79,19 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		claims     jwt.AppClaims
+		claims     sessiontoken.AppClaims
 		editedBy   int64
 		wantEditor string
 	}{
 		{
 			name:       "full name",
-			claims:     jwt.AppClaims{ID: 23, FirstName: "Mara", LastName: "Muster"},
+			claims:     sessiontoken.AppClaims{ID: 23, FirstName: "Mara", LastName: "Muster"},
 			editedBy:   23,
 			wantEditor: "Mara Muster",
 		},
 		{
 			name:       "username fallback",
-			claims:     jwt.AppClaims{ID: 23, Username: "mara.muster"},
+			claims:     sessiontoken.AppClaims{ID: 23, Username: "mara.muster"},
 			editedBy:   23,
 			wantEditor: "mara.muster",
 		},
@@ -99,7 +99,7 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 			// The owner stores "Unbekannt" for an unnamed editor; the port
 			// deliberately hands it nothing rather than the wrong name.
 			name:       "mismatched actor",
-			claims:     jwt.AppClaims{ID: 99, FirstName: "Andere", LastName: "Person"},
+			claims:     sessiontoken.AppClaims{ID: 99, FirstName: "Andere", LastName: "Person"},
 			editedBy:   23,
 			wantEditor: "",
 		},
@@ -109,7 +109,7 @@ func TestStudentAuditCompositionResolvesActorName(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			capability := &stubStudentAuditCapability{}
 			service := services.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, services.NewStudentAuditFor(capability))
-			ctx := context.WithValue(context.Background(), jwt.CtxClaims, tc.claims)
+			ctx := context.WithValue(context.Background(), sessiontoken.CtxClaims, tc.claims)
 
 			err := service.RecordChangesForActor(
 				ctx,

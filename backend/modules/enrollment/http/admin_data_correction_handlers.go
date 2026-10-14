@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -47,7 +47,7 @@ func (rs *Resource) correctAdminChildData(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(capability.InvalidInput(common.CodeEnrollmentChildBirthDateInvalid, "date_of_birth", err)))
 		return
 	}
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	var corrected *ChangeRequestAggregate
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		var correctionErr error

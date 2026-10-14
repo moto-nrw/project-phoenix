@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -40,8 +40,8 @@ func (s *familyProtectionCapabilityStub) SetFamilyProtection(_ context.Context, 
 // withConfigManage puts the gate the route enforces into the request, so the
 // handler's own re-check passes.
 func withConfigManage(req *http.Request, accountID int) *http.Request {
-	ctx := context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: accountID})
-	return req.WithContext(context.WithValue(ctx, jwt.CtxPermissions, []string{permissions.ConfigManage}))
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: accountID})
+	return req.WithContext(context.WithValue(ctx, sessiontoken.CtxPermissions, []string{permissions.ConfigManage}))
 }
 
 func TestGetFamilyProtectionReturnsCurrentState(t *testing.T) {
@@ -96,7 +96,7 @@ func TestSetFamilyProtectionRequiresConfigManage(t *testing.T) {
 	svc := &familyProtectionCapabilityStub{}
 	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
 	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
-	req = req.WithContext(context.WithValue(req.Context(), jwt.CtxClaims, jwt.AppClaims{ID: 55}))
+	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "42")
 	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))

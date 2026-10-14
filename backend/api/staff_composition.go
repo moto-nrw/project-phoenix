@@ -11,7 +11,7 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
@@ -178,7 +178,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		WriteFailure:       renderStaffWriteFailure,
 		SchoolClassFailure: delegatedStaffFailure(services.ClassifyStaffSchoolClassFailure),
 
-		Permissions:      jwt.PermissionsFromCtx,
+		Permissions:      sessiontoken.PermissionsFromCtx,
 		HasPermission:    apiCommon.HasPermission,
 		CurrentAccountID: currentStaffAccountID,
 		CurrentUsername:  currentStaffUsername,
@@ -250,11 +250,11 @@ func delegatedStaffFailure(classify func(error) (services.StaffFailureKind, erro
 }
 
 func currentStaffAccountID(ctx context.Context) int64 {
-	return int64(jwt.ClaimsFromCtx(ctx).ID)
+	return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 }
 
 func currentStaffUsername(ctx context.Context) string {
-	return jwt.ClaimsFromCtx(ctx).Username
+	return sessiontoken.ClaimsFromCtx(ctx).Username
 }
 
 func staffPersonLookup(runtime services.StaffMembershipRuntime) func(context.Context, int64) (staffHTTP.Person, error) {

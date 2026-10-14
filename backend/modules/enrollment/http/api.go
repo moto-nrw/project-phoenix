@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // GuardianProfiles loads the guardian profile an account holds in one school,
@@ -112,7 +112,7 @@ func (rs *Resource) Router() chi.Router {
 
 	// Authenticated admin endpoints.
 	r.Group(func(r chi.Router) {
-		r.Use(jwt.Authenticator)
+		r.Use(sessiontoken.Authenticator)
 		r.Use(common.ReadOnlyPreviewMiddleware)
 		r.Use(common.TenantScopeMiddleware)
 		r.Use(common.SecurityPrincipalMiddleware)

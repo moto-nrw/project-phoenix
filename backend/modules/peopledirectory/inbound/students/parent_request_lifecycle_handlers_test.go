@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // lifecycleExcusedFake records the arguments the route forwards and returns a
@@ -65,8 +65,8 @@ func lifecycleRequest(t *testing.T, kind, requestID, body string) *http.Request 
 	routeCtx.URLParams.Add("kind", kind)
 	routeCtx.URLParams.Add("requestId", requestID)
 	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx)
-	ctx = context.WithValue(ctx, jwt.CtxClaims, jwt.AppClaims{ID: 55})
-	ctx = context.WithValue(ctx, jwt.CtxPermissions, aggUpdatePerms)
+	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
+	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, aggUpdatePerms)
 	return req.WithContext(ctx)
 }
 

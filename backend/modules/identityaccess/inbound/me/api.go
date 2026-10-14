@@ -13,7 +13,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Rows loads the retained records the read routes render, in the wire shape
@@ -39,7 +39,7 @@ type Resource struct {
 // Every route runs in the request's tenant transaction.
 func NewResource(caller identityaccess.CallerContext, rows Rows) *Resource {
 	res := &Resource{caller: caller, rows: rows, router: chi.NewRouter()}
-	res.router.Use(jwt.Authenticator)
+	res.router.Use(sessiontoken.Authenticator)
 	res.router.Use(common.ReadOnlyPreviewMiddleware)
 	res.router.Use(common.TenantScopeMiddleware)
 	res.router.Use(common.SecurityPrincipalMiddleware)

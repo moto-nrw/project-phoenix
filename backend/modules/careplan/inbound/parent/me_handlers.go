@@ -11,7 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -48,9 +48,9 @@ func profileResponse(profile *parentService.Profile) ParentProfileResponse {
 }
 
 func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 
@@ -64,9 +64,9 @@ func (rs *Resource) getMyProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 
@@ -145,13 +145,13 @@ func toChildResponse(c *parentService.ChildSummary) ChildResponse {
 
 // listMyChildren returns every student linked to the calling parent's
 // account, across every active tenant mapping. Auth: parent-scope JWT
-// (enforced by jwt.ParentMiddleware on the route group). The handler
+// (enforced by sessiontoken.ParentMiddleware on the route group). The handler
 // reads claims.ID for the account id — never trusts a query param or
 // body field for it.
 func (rs *Resource) listMyChildren(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 
@@ -197,9 +197,9 @@ type EnrollablePhaseResponse struct {
 // whether they already have a child at that school. Auth: parent
 // scope, claims.ID for account_id.
 func (rs *Resource) listEnrollableSchools(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 
@@ -265,9 +265,9 @@ type EnrollmentRequestResponse struct {
 // the calling parent's account, newest first. Cross-tenant — the
 // parent service runs the query under WithAdminTx.
 func (rs *Resource) listMyEnrollments(w http.ResponseWriter, r *http.Request) {
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	if claims.ID == 0 {
-		common.RenderError(w, r, common.ErrorUnauthorized(jwt.ErrTokenUnauthorized))
+		common.RenderError(w, r, common.ErrorUnauthorized(sessiontoken.ErrTokenUnauthorized))
 		return
 	}
 

@@ -15,7 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 type careUsageExportRequest struct {
@@ -204,7 +204,7 @@ func exportReport[F, R any](rs *Resource, w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	claims := jwt.ClaimsFromCtx(r.Context())
+	claims := sessiontoken.ClaimsFromCtx(r.Context())
 	actorAccountID := int64(claims.ID)
 	actorRole := strings.Join(claims.Roles, ",")
 

@@ -264,7 +264,12 @@ type AccountAuthentication interface {
 	LoginSchoolAtTenantWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie, tenantSlug string) (*LoginResult, error)
 	IssueTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, accountID, tenantID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
-	RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
+	// RefreshTokenWithAudit rotates the presented session. recoveryProof is
+	// the independent secret the caller sends with every refresh; it lets a
+	// retried predecessor recover the persisted successor within the grace.
+	// An empty proof binds nothing, so a retried predecessor without one
+	// counts as a replay.
+	RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (accessToken, newRefreshToken string, err error)
 	LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error
 	// SwitchTenant retires the presented family with a short grace because
 	// the browser replaces that session with the returned pair; an empty
@@ -346,8 +351,8 @@ func (m *Module) IssueSchoolTokensForAuthenticatedAccount(ctx context.Context, a
 	return m.engine.IssueSchoolTokensForAuthenticatedAccount(ctx, accountID, tenantID, ipAddress, userAgent)
 }
 
-func (m *Module) RefreshTokenWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) (string, string, error) {
-	return m.engine.RefreshTokenWithAudit(ctx, refreshToken, ipAddress, userAgent)
+func (m *Module) RefreshTokenWithAudit(ctx context.Context, refreshToken, recoveryProof, ipAddress, userAgent string) (string, string, error) {
+	return m.engine.RefreshTokenWithAudit(ctx, refreshToken, recoveryProof, ipAddress, userAgent)
 }
 
 func (m *Module) LogoutWithAudit(ctx context.Context, refreshToken, ipAddress, userAgent string) error {

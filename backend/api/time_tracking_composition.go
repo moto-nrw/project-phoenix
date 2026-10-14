@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	projectJWT "github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -22,7 +22,7 @@ import (
 
 // timeTrackingIdentity derives the caller from the request's session claims.
 func timeTrackingIdentity(ctx context.Context) timeTrackingHTTP.Identity {
-	claims := projectJWT.ClaimsFromCtx(ctx)
+	claims := sessiontoken.ClaimsFromCtx(ctx)
 	name := strings.TrimSpace(claims.FirstName + " " + claims.LastName)
 	if name == "" {
 		name = claims.Username
@@ -30,7 +30,7 @@ func timeTrackingIdentity(ctx context.Context) timeTrackingHTTP.Identity {
 	return timeTrackingHTTP.Identity{
 		AccountID:   int64(claims.ID),
 		Roles:       claims.Roles,
-		Permissions: projectJWT.PermissionsFromCtx(ctx),
+		Permissions: sessiontoken.PermissionsFromCtx(ctx),
 		DisplayName: name,
 	}
 }

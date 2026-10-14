@@ -14,7 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -103,7 +103,7 @@ func classArrivalExceptionOrigin(origin string) string {
 // administrators always may, every staff member holding users:update may once
 // the school opened it up.
 func (rs *Resource) canEditClassArrivalExceptions(r *http.Request) (bool, error) {
-	userPermissions := jwt.PermissionsFromCtx(r.Context())
+	userPermissions := sessiontoken.PermissionsFromCtx(r.Context())
 	if securityruntime.HasAdminWildcard(userPermissions) {
 		return true, nil
 	}
@@ -215,7 +215,7 @@ func (rs *Resource) putClassArrivalException(w http.ResponseWriter, r *http.Requ
 	staffID := int64(0)
 	if staff, err := rs.getStaffIDFromJWT(r); err == nil {
 		staffID = staff
-	} else if !securityruntime.HasAdminWildcard(jwt.PermissionsFromCtx(r.Context())) ||
+	} else if !securityruntime.HasAdminWildcard(sessiontoken.PermissionsFromCtx(r.Context())) ||
 		(!errors.Is(err, errPersonNotFoundForAccount) && !errors.Is(err, errUserNotStaff)) {
 		renderError(w, r, common.ErrorForbidden(err))
 		return

@@ -25,7 +25,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/legacy/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -124,12 +124,12 @@ func NewService(cfg Config) *Service {
 }
 
 func (s *Service) scope(ctx context.Context) bool {
-	perms := jwt.PermissionsFromCtx(ctx)
+	perms := sessiontoken.PermissionsFromCtx(ctx)
 	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext)
 }
 
 func accountIDFromCtx(ctx context.Context) int64 {
-	return int64(jwt.ClaimsFromCtx(ctx).ID)
+	return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 }
 
 func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.InboxThread, error) {
@@ -233,7 +233,7 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 	if student.IsAlumnus() {
 		return ErrForbidden
 	}
-	perms := jwt.PermissionsFromCtx(ctx)
+	perms := sessiontoken.PermissionsFromCtx(ctx)
 	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext) {
 		return ErrForbidden
 	}
