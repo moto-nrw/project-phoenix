@@ -234,6 +234,7 @@ func tableAccessBySource(violations []Violation) (map[[2]string]struct{}, map[st
 
 func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
+	problems = append(problems, epochLoosenings(base, candidate)...)
 	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
@@ -252,6 +253,15 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 		return nil
 	}
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
+}
+
+// epochLoosenings rejects a lower epoch: epoch-gated validation such as the
+// target-only rule check (ADR 0057) must not be switched off by stepping back.
+func epochLoosenings(base, candidate *Policy) []string {
+	if candidate.PolicyEpoch >= base.PolicyEpoch {
+		return nil
+	}
+	return []string{fmt.Sprintf("policy_epoch decreased from %d to %d", base.PolicyEpoch, candidate.PolicyEpoch)}
 }
 
 func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages map[string]struct{}) []string {
@@ -487,23 +497,23 @@ const sharedFixtureOwner = "test-support"
 
 // sharedFixtureTargets are the owner/role points the shared fixture owner may
 // reach in a reviewed epoch (ADR 0039, #2748): its own tooling, the tenant
-// runtime rows are created under, the calendar-date type DATE columns are
-// mandated to use, and the permission constants tokens carry. ADR 0047
+// runtime rows are created under and the permission constants tokens carry.
+// ADR 0057 removed the calendar-date wrapper: legacy-shared is another
+// owner's private role, so the fixtures' imports of it are keys (#4081). ADR 0047
 // (#3944) adds the security and settings contracts the guardian presets,
 // student access decisions and settings double are served through. ADR 0053
 // point 7.3 (#4001) adds Identity's session token adapter: it is the HTTP
 // session runtime (ADR 0031, ADR 0046), reached for the same reason as the
-// tenant runtime. No other implementation role of another owner is among
-// them; the Transaction Runtime bootstrap of sharedFixtureBootstrapTargets is
-// the one composition point.
+// tenant runtime, and carries Identity's http role (ADR 0057 point 3). No
+// implementation role of another owner is among them; the Transaction Runtime
+// bootstrap of sharedFixtureBootstrapTargets is the one composition point.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
-	{"legacy-shared", "domain"}:          true,
 	{"security-runtime", "contract"}:     true,
 	{"security-runtime", "public"}:       true,
 	{"settings-platform", "public"}:      true,
-	{"identity-access", "adapter"}:       true,
+	{"identity-access", "http"}:          true,
 }
 
 // sharedFixtureBootstrapTargets are the composition points the fixture package
@@ -549,16 +559,15 @@ func reviewedSharedFixtureRule(rule Rule) bool {
 	return sharedFixtureTargets[target] || rule.SourceRole == "test-support" && sharedFixtureBootstrapTargets[target]
 }
 
-// ownerSuiteRules are the three owner-suite reaches ADR 0047 (#3944) pins for
-// the tests that leave the shared fixture package: the settings suite decides
-// the overview scope through the security contract, and the Audit
-// integration suite composes Enrollment and Care Plan through their test
-// support. Each is exact: source owner and role, target owner and role, and
-// the one scope the suite runs in.
+// ownerSuiteRules are the owner-suite reaches ADR 0047 (#3944) pins for the
+// tests that leave the shared fixture package: the settings suite decides the
+// overview scope through the security contract. It is exact: source owner and
+// role, target owner and role, and the one scope the suite runs in. ADR 0047
+// also pinned the Audit integration suite's reach into Enrollment and Care
+// Plan test support; a platform importing a domain owner is not target (ADR
+// 0057), so those imports are keys (#4072).
 var ownerSuiteRules = []Rule{
 	{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{string(ScopeInternalTest)}},
-	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
-	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
 }
 
 // reviewedOwnerSuiteRule reports whether a rule is one of the pinned
@@ -751,15 +760,8 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
-		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!careLifecycleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!studentPresenceCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!timetablePlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!shiftPlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!enrollmentApplicationCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!repositoryFactoryCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!serviceFactoryCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!timeTrackingCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) &&
+			!reclassifiedRolePermission(base, candidate, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -816,14 +818,7 @@ func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPer
 		}
 		for _, scope := range allScopes() {
 			if candidatePermissions.allowsFirstParty(scope, source, target) && !basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
-				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) && !careLifecycleCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!studentPresenceCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!repositoryFactoryCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!serviceFactoryCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!timeTrackingCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!reclassifiedRolePermission(base, candidate, scope, baseSource, target) &&
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) &&

@@ -160,8 +160,9 @@ func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	if err != nil {
 		return err
 	}
-	policy, err := LoadPolicy(*policyPath)
-	if err != nil {
+	// The audit reads only baseline issues, but an invalid policy (for example
+	// a rule that still carries an issue, ADR 0057) fails it as well.
+	if _, err := LoadPolicy(*policyPath); err != nil {
 		return err
 	}
 	if dependencies.IssueClient == nil {
@@ -171,11 +172,11 @@ func runAuditIssues(args []string, dependencies CLIDependencies) error {
 	if getenv == nil {
 		getenv = os.Getenv
 	}
-	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest, policy)
+	result, err := AuditLegacyIssues(context.Background(), dependencies.IssueClient, *apiURL, getenv("GITHUB_TOKEN"), manifest)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s) and %d temporary rule(s)\n", result.Issues, result.Entries, result.Rules)
+	fmt.Printf("issue audit passed: %d open migration issue(s) cover %d legacy violation(s)\n", result.Issues, result.Entries)
 	return nil
 }
 

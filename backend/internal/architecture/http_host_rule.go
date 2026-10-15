@@ -10,17 +10,16 @@ type httpHostRule struct {
 }
 
 // httpHostRules are the reaches the root needs to host HTTP beyond ADR 0053
-// point 2: the router class, the shared HTTP runtime, the session token
-// adapter, the CLI class in every internal test of the typed roots, and the
-// dev tools the commands root starts. Each is pinned to one source role and
-// one scope.
+// point 2: the router class, the shared HTTP runtime and the CLI class in
+// every internal test of the typed roots. Each is pinned to one source role
+// and one scope. ADR 0057 removed two of ADR 0056's reaches: the session token
+// runtime is Identity's http role, which point 2 already covers, and the dev
+// tools' cli role is another owner's private role, so their two imports are
+// keys (#4096).
 var httpHostRules = []httpHostRule{
 	{sourceRole: "compose", class: "http-router", scope: "production"},
 	{sourceRole: "compose", target: "inbound-common/http", scope: "production"},
-	{sourceRole: "compose", target: "identity-access/adapter", scope: "production"},
-	{sourceRole: "module-internal-test", target: "identity-access/adapter", scope: "internal_test"},
 	{sourceRole: "module-internal-test", class: "cli-config", scope: "internal_test"},
-	{sourceRole: "cli", target: "dev-tools/cli", scope: "production"},
 }
 
 // reviewedHTTPHostRule reports whether a rule is one of the finite standing
