@@ -32,7 +32,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +44,7 @@ type attendanceSyncSetup struct {
 	syncer      studentpresence.AttendanceSyncer
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  *services.StudentStatusDayRepository
+	statusRepo  *api.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context

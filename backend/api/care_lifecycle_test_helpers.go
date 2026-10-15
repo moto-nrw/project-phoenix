@@ -13,7 +13,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -62,7 +61,7 @@ func NewStudentDocumentsTestModule(
 	userContext securityruntime.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
-	deps, err := services.StudentDocumentDependencies(records, students, userContext, edits, accessLog)
+	deps, err := StudentDocumentDependencies(records, students, userContext, edits, accessLog)
 	if err != nil {
 		return nil, err
 	}

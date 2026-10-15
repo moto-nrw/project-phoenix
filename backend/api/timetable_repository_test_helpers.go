@@ -48,7 +48,7 @@ type TimetableTestRepositories struct {
 	GroupSupervisor studentpresence.SupervisionRecords
 	// CareScheduleRepositories are the Care Plan schedule rows.
 	timetableCompose.CareScheduleRepositories
-	StudentStatusDay *services.StudentStatusDayRepository
+	StudentStatusDay *StudentStatusDayRepository
 	// CarePlan is the owner capability the schedule adapters above delegate to.
 	CarePlan careplan.Capability
 	Room     *facilitiesAdapter.Repository
@@ -121,7 +121,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		Person: members.Person, Student: members.Student, Group: members.Group,
 		ActiveGroup: sessions, GroupSupervisor: NewGroupSupervisionRecords(sessions, groups),
 		CareScheduleRepositories: NewCareScheduleRepositories(carePlan),
-		StudentStatusDay:         services.NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
+		StudentStatusDay:         NewStudentStatusDayRepository(carePlan), CarePlan: carePlan,
 		enrollment: enrollment, schoolCalendar: calendar, calendarPeriodUsage: usage,
 	}
 	result.Room = room

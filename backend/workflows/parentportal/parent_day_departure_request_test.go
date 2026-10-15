@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -29,7 +28,7 @@ const dayDepartureRequestToday = timezone.Date("2026-08-24")
 func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t,
-		[]services.CareRequestOption{services.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},
+		[]api.CareRequestOption{api.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},
 		withDepartureModeRequests(departureModeRequests),
 		func(cfg *parentportalcompose.Dependencies) {
 			cfg.Now = func() time.Time { return dayDepartureRequestToday.BerlinMidnight().Add(12 * time.Hour) }

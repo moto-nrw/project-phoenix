@@ -65,14 +65,25 @@ func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int
 	}
 }
 
+// signalingStudentService takes the staff write's student lock through the
+// People Directory and signals the attempt.
 type signalingStudentService struct {
-	api.PeopleDirectorySuiteStudentService
+	directory interface {
+		LockStudent(ctx context.Context, id int64) (*userModels.Student, error)
+	}
+	students interface {
+		Update(ctx context.Context, student *userModels.Student) error
+	}
 	attempted chan<- struct{}
 }
 
 func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
 	close(s.attempted)
-	return s.PeopleDirectorySuiteStudentService.GetByIDForUpdate(ctx, id)
+	return s.directory.LockStudent(ctx, id)
+}
+
+func (s *signalingStudentService) Update(ctx context.Context, student *userModels.Student) error {
+	return s.students.Update(ctx, student)
 }
 
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
@@ -443,9 +454,11 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	})
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
-	studentSvc := api.NewPeopleDirectorySuiteStudentService(api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))), api.MustNewPeopleDirectory(testpkg.MustDatabase(db)), repos.Student)
 	staffAttempted := make(chan struct{})
-	staffStudentSvc := &signalingStudentService{PeopleDirectorySuiteStudentService: studentSvc, attempted: staffAttempted}
+	staffStudentSvc := &signalingStudentService{
+		directory: api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
+		students:  repos.Student, attempted: staffAttempted,
+	}
 	date := timezone.NewDate(2026, 8, 24).AddDays(40)
 
 	ctx, cancel := context.WithTimeout(testpkg.WithPackageTenantRuntime(context.Background()), 5*time.Second)

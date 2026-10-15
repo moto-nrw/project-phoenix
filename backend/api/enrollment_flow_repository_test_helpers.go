@@ -48,7 +48,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 		StudentGuardian:           members.StudentGuardian,
 		GuardianProfile:           members.GuardianProfile,
 		GuardianPhoneNumber:       peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		CareWithdrawal:            services.NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 	}, nil
 }
 

@@ -9,7 +9,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -38,7 +37,7 @@ func NewTestExcusedAbsenceRequests(options ExcusedRequestTestOptions) (*carePlan
 	if scope == nil {
 		scope = schoolWideReviewScope
 	}
-	return services.NewExcusedAbsenceRequestService(services.ExcusedRequestServiceWiring{
+	return NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
 		CarePlan: options.CarePlan, Students: options.Students, Persons: options.Persons,
 		Scope: scope, Emitter: options.Emitter, Broadcaster: options.Broadcaster, Events: options.Events,
 		Logger: options.Logger, Today: options.Today,

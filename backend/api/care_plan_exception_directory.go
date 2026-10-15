@@ -11,8 +11,7 @@ import (
 
 // pickupExceptionDirectory serves the Care Plan pickup exceptions and status
 // days in Timetable's projection vocabulary, for the partial-absence preview
-// and Student Presence's attendance rules (#4010). Care Plan's retained
-// builders keep a private copy in services until #4011 moves them.
+// and Student Presence's attendance rules (#4010, #4011).
 type pickupExceptionDirectory struct {
 	query carePlanCompose.ExceptionQueries
 }

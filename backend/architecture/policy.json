@@ -8394,17 +8394,6 @@
       "target_role": "compose"
     },
     {
-      "id": "enrollment.http-integration-test.legacy-composition",
-      "description": "The enrollment route suites compose the retained repositories the owner's flows still read through (#2734).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
       "id": "enrollment.http-integration-test.domain",
       "description": "The enrollment route suites seed and read the owner's enrollment rows (#2734).",
       "scopes": [
@@ -13437,17 +13426,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "security-runtime",
       "target_role": "application"
-    },
-    {
-      "id": "parent-portal.decision-test.legacy-composition.compose",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.decision-test.legacy-shared.domain",

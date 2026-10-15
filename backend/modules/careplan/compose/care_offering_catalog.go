@@ -81,3 +81,22 @@ func NewCareOfferingCatalog(deps CareOfferingCatalogDependencies) (careplan.Care
 		Logger:                 deps.Logger,
 	})
 }
+
+// NewCareOfferings serves the catalog, the booking materialization it feeds,
+// the offering-change review and the pickup adjustments as one Care Plan
+// capability.
+func NewCareOfferings(
+	catalog careplan.CareOfferingCatalogCapability,
+	bookings careplan.BookingMaterializationCapability,
+	changes careplan.OfferingChangeCapability,
+	adjustments careplan.PickupAdjustments,
+) careplan.CareOfferingCapability {
+	return careOfferings{catalog, bookings, changes, adjustments}
+}
+
+type careOfferings struct {
+	careplan.CareOfferingCatalogCapability
+	careplan.BookingMaterializationCapability
+	careplan.OfferingChangeCapability
+	careplan.PickupAdjustments
+}

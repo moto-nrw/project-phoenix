@@ -9,7 +9,3 @@ import peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirector
 func WrapRetainedError(op string, err error) error {
 	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(op, err)
 }
-
-func retainedNotFound(op string) error {
-	return peopleCompose.RetainedRecordErrors{}.MissingRecordError(op)
-}
