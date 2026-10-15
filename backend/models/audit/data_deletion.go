@@ -49,6 +49,7 @@ const (
 	DeletionTypeAuthEventRetention           = "auth_event_retention"
 	DeletionTypeDataAccessLogRetention       = "data_access_log_retention"
 	DeletionTypeDeletionLogRetention         = "deletion_log_retention"
+	DeletionTypeDeliveryRetention            = "delivery_retention"
 )
 
 // IsDataKindRetention reports whether deletionType logs a whole data kind
@@ -60,7 +61,8 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeParentMessageRetention,
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
-		DeletionTypeDeletionLogRetention:
+		DeletionTypeDeletionLogRetention,
+		DeletionTypeDeliveryRetention:
 		return true
 	}
 	return false

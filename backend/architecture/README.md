@@ -596,9 +596,10 @@ wiring out of `services` without a key or a policy rule (see
 The root builds Student Presence, its session records, the retained room
 service and the class-day bindings (`api.NewPresenceWiring`) and hands them to
 `NewFactoryWithModules` as `services.PresenceWiring`. Facilities decides the
-room deletion behind its `RoomUsage` port. The Factory fields `Facilities`,
-`StudentStatusDays` and `UnregisteredTagScans` are gone, and the composition
-surface fell from 237 to 234.
+room deletion behind its `RoomUsage` port. The Factory fields `Facilities`
+and `StudentStatusDays` are gone, and the composition surface fell from 236 to
+234 (measured after #4049, which retired the unregistered tag scan adapter and
+its field).
 
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
@@ -3543,18 +3544,16 @@ where ADR 0053 point 8 puts it:
   over the Transaction Runtime value, the session record directories, the
   attendance reads, the session device directory, the yard's open groups, the
   dashboard's open rooms and sessions, the statistics inputs, the class day,
-  the class list binding, the kiosk mirror, the session rosters and the
-  unregistered tag scans, which the Worker now builds where it mounts the
-  retention sweep.
+  the class list binding, the kiosk mirror and the session rosters.
 - **The Factory** takes `services.PresenceWiring` as one new constructor
   parameter. It carries the values the root builds and five constructors the
   Factory calls with what only it builds: the Audit command
   (`BindClassListEntries`), the settings (`SessionDevices`), the person
   service (`AttendanceStaffNames`), the class-day sources (`ClassDay`) and
   the access log with the retention settings (`Statistics`). The fields
-  `Facilities`, `StudentStatusDays` and `UnregisteredTagScans` are gone; the
-  root mounts the values it built, and `api.TestFactory` keeps the first two
-  under their names for the suites.
+  `Facilities` and `StudentStatusDays` are gone; the root mounts the values
+  it built, and `api.TestFactory` keeps both under their names for the
+  suites. `unregistered_tag_scans.go` had already left with #4049.
 - **Tests** move with their code. The Student Presence, Care Plan and
   Workforce suites reach the other owners' compositions through the root's
   test hooks (`api/presence_suite_test_helpers.go`), because a test of one
@@ -3571,8 +3570,8 @@ where ADR 0053 point 8 puts it:
 
 The Device Fleet session device directory binds a Student Presence port, so it
 is root glue and its legacy tree keeps its budget. No key is added or removed
-(39 → 39), and the policy keeps its rules. `services` shrinks from 156 to 119
-production files and from 21,330 to 19,506 LOC.
+(39 → 39), and the policy keeps its rules. Measured after #4049, `services`
+shrinks from 155 to 119 production files and from 21,238 to 19,506 LOC.
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

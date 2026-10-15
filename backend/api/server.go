@@ -13,7 +13,6 @@ import (
 	"time"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -21,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -224,23 +224,14 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
-	// The unregistered tag scans of the retention sweep are the Device Fleet
-	// owner's, unobserved like the review the operator routes mount.
-	devices, err := services.NewDeviceFleet(graph.db.Pool())
-	if err != nil {
-		return nil, fmt.Errorf("compose worker device fleet: %w", err)
-	}
-	tagScans, err := NewUnregisteredTagScans(devices)
-	if err != nil {
-		return nil, fmt.Errorf("compose worker unregistered tag scans: %w", err)
-	}
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          graph.services.Audit,
 		settings:             graph.services.Settings,
-		unregisteredTagScans: tagScans,
+		unregisteredTagScans: graph.services.IoT.Fleet(),
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
+		deliveries:           deliveryCompose.NewRetention(),
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err
