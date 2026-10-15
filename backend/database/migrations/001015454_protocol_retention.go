@@ -18,7 +18,7 @@ func init() {
 		Version:     protocolRetentionVersion,
 		Description: protocolRetentionDescription,
 		DependsOn: []string{
-			settledEnrollmentRetentionVersion, // previous subject check of audit.data_deletions
+			staffSickNoteRetentionVersion,     // previous subject check of audit.data_deletions
 			auditRetentionCapabilitiesVersion, // audit.authorize_retention_tenant
 		},
 	})
@@ -66,10 +66,7 @@ var protocolRetentionKinds = []string{
 // role and keeps it; RLS keeps the run to its school. Its actor now goes
 // SET NULL with the account, like the enrollment deletion protocols, so a
 // setting change no longer blocks deleting the account that made it.
-//
-// staff_sick_note_retention is the kind 1.15.453 (#3961) adds to the subject
-// check. Both migrations replace the whole check; listing it here keeps it
-// when 1.15.453 runs first.
+
 const protocolRetentionUpSQL = `
 		CREATE OR REPLACE FUNCTION audit.delete_expired_protocol(
 			p_tenant_id BIGINT,
@@ -231,9 +228,8 @@ const protocolRetentionUpSQL = `
 			);
 `
 
-// protocolRetentionDownSQL restores the subject check of 1.15.452 (keeping
-// the kind of 1.15.453) and the actor key of 1.15.25, and drops the
-// functions.
+// protocolRetentionDownSQL restores the subject check of 1.15.453 and the
+// actor key of 1.15.25, and drops the functions.
 const protocolRetentionDownSQL = `
 		ALTER TABLE audit.data_deletions
 			DROP CONSTRAINT IF EXISTS chk_data_deletions_subject;

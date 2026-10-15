@@ -40,6 +40,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		statusDays:           owners.StatusDays,
 		parentMessages:       owners.ParentMessages,
 		settledEnrollments:   owners.SettledEnrollments,
+		staffSickNotes:       owners.StaffSickNotes,
 		auditLedgers:         owners.Audit,
 		deliveries:           owners.Deliveries,
 		fileCleanups:         owners.FileCleanups,
@@ -93,6 +94,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRStatusDayRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
+		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 	}, retentionSettingKeys)
 }
 

@@ -35,6 +35,7 @@ const (
 	retentionStatusDays           = "status_day_retention"
 	retentionParentMessages       = "parent_message_retention"
 	retentionSettledEnrollments   = "settled_enrollment_retention"
+	retentionStaffSickNotes       = "staff_sick_note_retention"
 	retentionAuthEvents           = "auth_event_retention"
 	retentionDataAccessLog        = "data_access_log_retention"
 	retentionDeletionLog          = "deletion_log_retention"
@@ -70,6 +71,7 @@ var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRStatusDayRetentionDays,
 	settingsModule.KeyGDPRParentMessageRetentionDays,
 	settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
+	settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 }
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup
@@ -88,6 +90,9 @@ type retentionOwners struct {
 	// settledEnrollments deletes the withdrawn and lapsed enrollments no
 	// child was created from (#3960).
 	settledEnrollments enrollmentModule.SettledEnrollmentRetention
+	// staffSickNotes deletes the sick notes (AU-Bescheinigungen) after the
+	// school's window and queues their files (#3961).
+	staffSickNotes workforceModule.SickNoteRetention
 	// auditLedgers deletes the expired rows of the append-only audit ledgers
 	// through their fixed database functions (#3956).
 	auditLedgers interface {
@@ -135,7 +140,7 @@ func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRete
 func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	var steps []scheduler.RetentionStep
 	if owners.unregisteredTagScans != nil {
-		steps = append(steps, fixedRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
+		steps = append(steps, ownerRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
 	}
 	if owners.statusDays != nil {
 		statusDays := owners.statusDays
@@ -172,16 +177,19 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 			},
 		})
 	}
+	if owners.staffSickNotes != nil {
+		steps = append(steps, ownerRetentionStep(retentionStaffSickNotes, owners.staffSickNotes.DeleteExpiredStaffSickNotes))
+	}
 	if owners.auditLedgers != nil {
 		ledgers := owners.auditLedgers
 		steps = append(steps,
-			fixedRetentionStep(retentionAuthEvents, ledgers.DeleteExpiredAuthEvents),
-			fixedRetentionStep(retentionDataAccessLog, ledgers.DeleteExpiredDataAccessLog),
-			fixedRetentionStep(retentionDeletionLog, ledgers.DeleteExpiredDeletionLog),
+			ownerRetentionStep(retentionAuthEvents, ledgers.DeleteExpiredAuthEvents),
+			ownerRetentionStep(retentionDataAccessLog, ledgers.DeleteExpiredDataAccessLog),
+			ownerRetentionStep(retentionDeletionLog, ledgers.DeleteExpiredDeletionLog),
 		)
 	}
 	if owners.deliveries != nil {
-		steps = append(steps, fixedRetentionStep(retentionDeliveries, owners.deliveries.DeleteExpiredDeliveries))
+		steps = append(steps, ownerRetentionStep(retentionDeliveries, owners.deliveries.DeleteExpiredDeliveries))
 	}
 	steps = append(steps, protocolRetentionSteps(owners)...)
 	return append(steps, cleanupJobRetentionSteps(owners)...)
@@ -194,16 +202,16 @@ func protocolRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	if owners.auditLedgers != nil {
 		ledgers := owners.auditLedgers
 		for _, kind := range auditProtocols {
-			steps = append(steps, fixedRetentionStep(kind, func(ctx context.Context) (int, int, error) {
+			steps = append(steps, ownerRetentionStep(kind, func(ctx context.Context) (int, int, error) {
 				return ledgers.DeleteExpiredProtocol(ctx, kind)
 			}))
 		}
 	}
 	if owners.settingAudit != nil {
-		steps = append(steps, fixedRetentionStep(retentionSettingAudit, owners.settingAudit.DeleteExpiredSettingChanges))
+		steps = append(steps, ownerRetentionStep(retentionSettingAudit, owners.settingAudit.DeleteExpiredSettingChanges))
 	}
 	if owners.exportTransfers != nil {
-		steps = append(steps, fixedRetentionStep(retentionExportTransfers, owners.exportTransfers.DeleteExpiredTransfers))
+		steps = append(steps, ownerRetentionStep(retentionExportTransfers, owners.exportTransfers.DeleteExpiredTransfers))
 	}
 	return steps
 }
@@ -213,26 +221,27 @@ func protocolRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 func cleanupJobRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	var steps []scheduler.RetentionStep
 	if owners.fileCleanups != nil {
-		steps = append(steps, fixedRetentionStep(retentionFileCleanups, owners.fileCleanups.DeleteFinishedCleanups))
+		steps = append(steps, ownerRetentionStep(retentionFileCleanups, owners.fileCleanups.DeleteFinishedCleanups))
 	}
 	if owners.staffCleanups != nil {
-		steps = append(steps, fixedRetentionStep(retentionStaffCleanups, owners.staffCleanups.DeleteFinishedStaffCleanups))
+		steps = append(steps, ownerRetentionStep(retentionStaffCleanups, owners.staffCleanups.DeleteFinishedStaffCleanups))
 	}
 	if owners.carePlanCleanups != nil {
 		steps = append(steps,
-			fixedRetentionStep(retentionStudentDocumentCleanup, owners.carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
-			fixedRetentionStep(retentionCareWithdrawals, owners.carePlanCleanups.DeleteFinishedWithdrawalCompletions),
+			ownerRetentionStep(retentionStudentDocumentCleanup, owners.carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
+			ownerRetentionStep(retentionCareWithdrawals, owners.carePlanCleanups.DeleteFinishedWithdrawalCompletions),
 		)
 	}
 	if owners.submissionLimits != nil {
-		steps = append(steps, fixedRetentionStep(retentionSubmissionRateLimits, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
+		steps = append(steps, ownerRetentionStep(retentionSubmissionRateLimits, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
 	}
 	return steps
 }
 
-// fixedRetentionStep runs an owner deletion whose window is the same for
-// every school.
-func fixedRetentionStep(kind string, deleteExpired func(context.Context) (int, int, error)) scheduler.RetentionStep {
+// ownerRetentionStep runs an owner deletion that reports its deleted rows and
+// the window it applied: the same for every school, or the school's window
+// the owner resolves itself.
+func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, int, error)) scheduler.RetentionStep {
 	return scheduler.RetentionStep{
 		Kind: kind,
 		Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {

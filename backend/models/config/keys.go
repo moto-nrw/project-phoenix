@@ -72,6 +72,10 @@ const (
 	// was created from (enrollment.requests, #3960), counted from settling.
 	// Rejected children keep enrollment.rejected_retention_days.
 	KeyGDPRWithdrawnEnrollmentRetentionDays = "gdpr.withdrawn_enrollment_retention_days"
+	// Retention window (days) for staff sick notes (AU-Bescheinigungen,
+	// users.staff_documents of category au_bescheinigung, #3961), counted
+	// from the upload.
+	KeyGDPRStaffSickNoteRetentionDays = "gdpr.staff_sick_note_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

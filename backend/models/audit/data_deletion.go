@@ -60,6 +60,8 @@ const (
 	// Withdrawn and lapsed enrollments no child was created from, with
 	// their invitations to enroll late (#3960).
 	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
+	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
+	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
 	// The protocols of #4044 and the setting protocol, each after its fixed
 	// window.
 	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
@@ -93,6 +95,7 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeCareWithdrawalRetention,
 		DeletionTypeSubmissionRateLimitRetention,
 		DeletionTypeSettledEnrollmentRetention,
+		DeletionTypeStaffSickNoteRetention,
 		DeletionTypeStudentDeletionLogRetention,
 		DeletionTypeEnrollmentDeletionLogRetention,
 		DeletionTypeEnrollmentRestorationLogRetention,

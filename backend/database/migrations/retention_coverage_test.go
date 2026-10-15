@@ -52,7 +52,7 @@ func undecided(what string) tableRetention { return tableRetention{class: openGa
 // openSpecTickets are the tickets of spec #3949 that still add a deletion
 // path. When a ticket lands, its tables move to own retention or with
 // parent and the ticket leaves this list.
-var openSpecTickets = []string{"#3957", "#3961", "#3962", "#3963"}
+var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
@@ -95,26 +95,26 @@ var tableRetentions = map[string]tableRetention{
 	"activities.supervisors":                                parent("users.staff_school_memberships"),
 	"audit.attendance_corrections":                          parent("users.student_profiles"),
 	"audit.auth_events":                                     own("nightly retention step auth_event_retention, DeleteExpiredAuthEvents -> SQL audit.delete_expired_auth_events"),
-	"audit.class_list_entry_changes":                        own("nightly retention step class_list_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_class_list_entry_changes (end of the following year)"),
+	"audit.class_list_entry_changes":                        own("nightly retention step class_list_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.data_access_log":                                 own("nightly retention step data_access_log_retention, DeleteExpiredDataAccessLog -> SQL audit.delete_expired_data_access_log"),
 	"audit.data_deletions":                                  own("nightly retention step deletion_log_retention, DeleteExpiredDeletionLog -> SQL audit.delete_expired_data_deletions"),
 	"audit.data_imports":                                    parent("auth.accounts"),
 	"audit.deviation_events":                                own("nightly timetable-cleanup, DeleteDeviationEventsBefore -> SQL audit.delete_expired_deviation_events"),
-	"audit.enrollment_deletions":                            own("nightly retention step enrollment_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_enrollment_deletions (3 years)"),
+	"audit.enrollment_deletions":                            own("nightly retention step enrollment_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.enrollment_offering_adjustments":                 parent("users.student_profiles"),
-	"audit.enrollment_restorations":                         own("nightly retention step enrollment_restoration_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_enrollment_restorations (3 years)"),
+	"audit.enrollment_restorations":                         own("nightly retention step enrollment_restoration_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.export_transfers":                                own("nightly retention step export_transfer_retention, JournalRetention.DeleteExpiredTransfers -> SQL audit.delete_expired_export_transfers (end of the following year)"),
-	"audit.file_events":                                     own("nightly retention step file_event_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_file_events (end of the following year)"),
+	"audit.file_events":                                     own("nightly retention step file_event_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.guardian_changes":                                parent("users.student_profiles"),
-	"audit.guardian_financial_changes":                      own("nightly retention step guardian_financial_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_guardian_financial_changes (3 years)"),
-	"audit.personnel_number_changes":                        own("nightly retention step personnel_number_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_personnel_number_changes (3 years)"),
+	"audit.guardian_financial_changes":                      own("nightly retention step guardian_financial_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
+	"audit.personnel_number_changes":                        own("nightly retention step personnel_number_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.room_color_migration_backup":                     notPersonal("one-off migration backup of room names"),
-	"audit.staff_master_data_changes":                       own("nightly retention step staff_master_data_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_staff_master_data_changes (3 years)"),
+	"audit.staff_master_data_changes":                       own("nightly retention step staff_master_data_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.student_consent_changes":                         parent("users.student_profiles"),
-	"audit.student_deletions":                               own("nightly retention step student_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_student_deletions (3 years, like the deletion log)"),
+	"audit.student_deletions":                               own("nightly retention step student_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years, like the deletion log)"),
 	"audit.student_field_edits":                             own("nightly student-change-log-cleanup, CleanupExpiredChangeLog -> DeleteOlderThan -> SQL audit.delete_expired_student_field_edits"),
-	"audit.substitution_changes":                            own("nightly retention step substitution_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_substitution_changes (end of the following year)"),
-	"audit.time_tracking_deletions":                         own("nightly retention step time_tracking_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_time_tracking_deletions (3 years)"),
+	"audit.substitution_changes":                            own("nightly retention step substitution_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
+	"audit.time_tracking_deletions":                         own("nightly retention step time_tracking_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.unregistered_tag_scans":                          own("nightly retention step unregistered_tag_scan_retention, unregisteredTagScanService.DeleteExpired -> SQL audit.delete_expired_unregistered_tag_scans"),
 	"audit.wc_alias_migration_backup":                       notPersonal("one-off migration backup of alias names"),
 	"audit.work_session_edits":                              parent("active.work_sessions"),
@@ -283,7 +283,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.profiles":                                        parent("auth.accounts"),
 	"users.rfid_cards":                                      notPersonal("RFID tag registry"),
 	"users.staff_document_file_cleanup":                     own("nightly retention step staff_cleanup_retention, DeleteFinishedStaffCleanups -> SQL users.delete_finished_staff_document_file_cleanups (30 days after cleaned_at)"),
-	"users.staff_documents":                                 gap("#3961"),
+	"users.staff_documents":                                 gap("#3963"), // AU-Bescheinigungen leave through staff_sick_note_retention; other categories remain until offboarding.
 	"users.staff_employment_profiles":                       parent("users.staff_school_memberships"),
 	"users.staff_financial_data":                            parent("users.staff_school_memberships"),
 	"users.staff_master_data":                               parent("users.staff_school_memberships"),
