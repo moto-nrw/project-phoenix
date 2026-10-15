@@ -118,6 +118,12 @@ func RestoreStaffStorageBeforeCutover(tb testing.TB, db *bun.DB) {
 					'users.staff_school_memberships st', 'users.staff st');
 			PERFORM set_config('search_path', previous_path, true);
 		END $$;
+		-- A world before the cutover is also a world before 1.15.449 (#3953),
+		-- which let deletion-log rows outlive their staff member. Until then
+		-- the log still referenced users.staff, and the cutover repoints it.
+		ALTER TABLE audit.data_deletions DROP CONSTRAINT IF EXISTS fk_data_deletions_staff;
+		ALTER TABLE audit.data_deletions ADD CONSTRAINT fk_data_deletions_staff
+			FOREIGN KEY (staff_id) REFERENCES users.staff(id) ON DELETE CASCADE NOT VALID;
 		TRUNCATE users.staff_employment_profiles, users.staff_school_memberships;
 		DELETE FROM platform.storage_backfill_checkpoints WHERE backfill = 'staff-owner';
 	`); err != nil {
