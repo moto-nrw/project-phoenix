@@ -18,6 +18,7 @@ import (
 func setupStudentStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	removeCleanupJobRetentionRelationshipConstraint(t, db)
 	testpkg.RestoreStudentStorageBeforeCutover(t, db)
 	return db
 }
@@ -26,8 +27,18 @@ func setupStudentStorageBeforeCutover(t *testing.T) *testpkg.DB {
 func setupIsolatedStudentStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
+	removeCleanupJobRetentionRelationshipConstraint(t, db)
 	testpkg.RestoreStudentStorageBeforeCutover(t, db)
 	return db
+}
+
+// The historical storage fixtures recreate a schema before migration 1.15.449,
+// when declaration markers did not yet reference guardian relationships.
+func removeCleanupJobRetentionRelationshipConstraint(t *testing.T, db *testpkg.DB) {
+	t.Helper()
+	_, err := db.ExecContext(t.Context(), `ALTER TABLE auth.parent_declaration_permission_grants
+		DROP CONSTRAINT fk_parent_declaration_permission_grant_relationship`)
+	require.NoError(t, err)
 }
 
 // studentOwnerCutoverFixture returns a backfilled tenant that is ready to be

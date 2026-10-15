@@ -19,6 +19,7 @@ import (
 func setupGuardianStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
+	removeCleanupJobRetentionRelationshipConstraint(t, db)
 	testpkg.RestoreGuardianStorageBeforeCutover(t, db)
 	return db
 }

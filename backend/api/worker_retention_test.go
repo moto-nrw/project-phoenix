@@ -6,6 +6,7 @@ import (
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -39,6 +40,10 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		parentMessages:       owners.ParentMessages,
 		auditLedgers:         owners.Audit,
 		deliveries:           owners.Deliveries,
+		fileCleanups:         owners.FileCleanups,
+		staffCleanups:        owners.StaffCleanups,
+		carePlanCleanups:     owners.CarePlanCleanups,
+		submissionLimits:     owners.SubmissionLimits,
 	}, nil)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
@@ -429,4 +434,180 @@ func TestNightlyRetentionDeletesDeliveriesThirtyDaysAfterTheirEnd(t *testing.T) 
 	assert.Equal(t, []int{7}, suite.loggedDeletions(t, school, retentionDeliveries),
 		"three mails, the cleared welcome, two delivery logs and one push, logged once")
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionDeliveries))
+}
+
+// cleanupIntent stores a cleanup intent of a stored file in table, finished
+// finishedDaysAgo days back; a negative value leaves it waiting for its bytes.
+func (s retentionSuite) cleanupIntent(t *testing.T, table string, tenantID int64, finishedDaysAgo int) int64 {
+	t.Helper()
+	owner := "owner_id"
+	if table == "users.staff_document_file_cleanup" {
+		owner = "staff_id"
+	}
+	return s.insertID(t, `INSERT INTO `+table+` (tenant_id, `+owner+`, filename_stored, retry_after, cleaned_at, created_at)
+		SELECT ?, 4046, gen_random_uuid()::text || '.pdf', at, CASE WHEN ? >= 0 THEN at END, at - INTERVAL '1 day'
+		FROM (SELECT CURRENT_TIMESTAMP - make_interval(days => abs(?)) AS at) AS intent
+		RETURNING id`, tenantID, finishedDaysAgo, finishedDaysAgo)
+}
+
+func TestNightlyRetentionDeletesFinishedCleanupIntentsThirtyDaysLater(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+
+	type intents struct{ finishedOld, finishedRecent, pendingOld, otherSchoolOld int64 }
+	tables := map[string]string{
+		"documents.file_cleanup":                    retentionFileCleanups,
+		"documents.announcement_attachment_cleanup": retentionFileCleanups,
+		"users.staff_document_file_cleanup":         retentionStaffCleanups,
+		"users.student_document_file_cleanup":       retentionStudentDocumentCleanup,
+	}
+	planted := map[string]intents{}
+	for table := range tables {
+		planted[table] = intents{
+			finishedOld:    suite.cleanupIntent(t, table, school, 31),
+			finishedRecent: suite.cleanupIntent(t, table, school, 29),
+			pendingOld:     suite.cleanupIntent(t, table, school, -60),
+			otherSchoolOld: suite.cleanupIntent(t, table, otherSchool, 31),
+		}
+	}
+
+	suite.run(t, school)
+	suite.run(t, school)
+
+	for table, ids := range planted {
+		assert.False(t, suite.exists(t, table, ids.finishedOld), "%s: an intent finished more than 30 days ago is deleted", table)
+		assert.True(t, suite.exists(t, table, ids.finishedRecent), "%s: an intent finished less than 30 days ago stays", table)
+		assert.True(t, suite.exists(t, table, ids.pendingOld), "%s: an intent still waiting for its bytes stays", table)
+		assert.True(t, suite.exists(t, table, ids.otherSchoolOld), "%s: the run of one school never touches another", table)
+	}
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionFileCleanups), "the file storage and the attachments, logged once")
+	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionStudentDocumentCleanup))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionFileCleanups))
+}
+
+func TestCleanupIntentRetentionRefusesAYoungCutoff(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	recent := suite.cleanupIntent(t, "documents.file_cleanup", school, 1)
+
+	inSchool := func(query string, args ...any) error {
+		return testpkg.WithinTenantContext(t, context.Background(), suite.serve, school, func(ctx context.Context) error {
+			transaction, _ := tenant.TransactionFromContext(ctx)
+			tx, ok := transaction.(bun.Tx)
+			require.True(t, ok, "the school's tenant transaction")
+			_, err := tx.ExecContext(ctx, query, args...)
+			return err
+		})
+	}
+	require.ErrorContains(t, inSchool(`SELECT documents.delete_finished_file_cleanups(?, CURRENT_TIMESTAMP)`, school),
+		"cleanup intent cutoff exceeds retention window")
+	require.ErrorContains(t, inSchool(`DELETE FROM documents.file_cleanup WHERE id = ?`, recent),
+		"permission denied for table file_cleanup", "the tenant role keeps no direct DELETE on the intents")
+	assert.True(t, suite.exists(t, "documents.file_cleanup", recent))
+}
+
+func (s retentionSuite) offboardingJob(t *testing.T, tenantID, staffID int64, completedDaysAgo int) {
+	t.Helper()
+	_, err := s.admin.NewRaw(`INSERT INTO users.staff_offboarding_cleanup (tenant_id, staff_id, completed_at, created_at)
+		SELECT ?, ?, CASE WHEN ? >= 0 THEN at END, at - INTERVAL '1 day'
+		FROM (SELECT CURRENT_TIMESTAMP - make_interval(days => abs(?)) AS at) AS job`,
+		tenantID, staffID, completedDaysAgo, completedDaysAgo).Exec(context.Background())
+	require.NoError(t, err)
+}
+
+func TestNightlyRetentionDeletesCompletedOffboardingJobsThirtyDaysLater(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	suite.offboardingJob(t, school, 1, 31)
+	suite.offboardingJob(t, school, 2, 29)
+	suite.offboardingJob(t, school, 3, -60)
+	suite.offboardingJob(t, otherSchool, 1, 31)
+	fileCleanup := suite.cleanupIntent(t, "users.staff_document_file_cleanup", school, 31)
+
+	suite.run(t, school)
+
+	staffIDs := func(tenantID int64) []int64 {
+		var ids []int64
+		require.NoError(t, suite.admin.NewRaw(`SELECT staff_id FROM users.staff_offboarding_cleanup WHERE tenant_id = ? ORDER BY staff_id`, tenantID).
+			Scan(context.Background(), &ids))
+		return ids
+	}
+	assert.Equal(t, []int64{2, 3}, staffIDs(school), "a completed job goes 30 days later; a recent or running job stays")
+	assert.Equal(t, []int64{1}, staffIDs(otherSchool), "the run of one school never touches another")
+	assert.False(t, suite.exists(t, "users.staff_document_file_cleanup", fileCleanup))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionStaffCleanups), "the offboarding job and the file cleanup, logged once")
+}
+
+// withdrawalCompletion stores a care-withdrawal completion of the child (0
+// for a deleted child) in state, finished finishedDaysAgo days back.
+func (s retentionSuite) withdrawalCompletion(t *testing.T, tenantID, studentID int64, state string, finishedDaysAgo int) int64 {
+	t.Helper()
+	var student any
+	if studentID > 0 {
+		student = studentID
+	}
+	return s.insertID(t, `INSERT INTO users.care_withdrawal_completions
+		(tenant_id, student_id, first_bookingless_day, trigger, withdrawal_confirmed_role, withdrawal_confirmed_at,
+		 state, outcome, obsolete_reason, resolved_at)
+		SELECT ?, ?, (at AT TIME ZONE 'Europe/Berlin')::date, 'direct_school', 'staff', at - INTERVAL '1 day', ?::text,
+		       CASE ?::text WHEN 'resolved' THEN 'deleted' END,
+		       CASE ?::text WHEN 'obsolete' THEN 'rebooked_without_gap' END,
+		       CASE WHEN ?::text <> 'pending' THEN at END
+		FROM (SELECT CURRENT_TIMESTAMP - make_interval(days => ?) AS at) AS completion
+		RETURNING id`, tenantID, student, state, state, state, state, finishedDaysAgo)
+}
+
+func TestNightlyRetentionDeletesFinishedWithdrawalCompletionsAfterAYear(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	child := testpkg.CreateTestStudent(t, suite.admin, "Abmeldung", "Kind", "3b")
+
+	resolvedOld := suite.withdrawalCompletion(t, school, 0, "resolved", 366)
+	obsoleteOld := suite.withdrawalCompletion(t, school, 0, "obsolete", 366)
+	resolvedRecent := suite.withdrawalCompletion(t, school, 0, "resolved", 364)
+	pendingOld := suite.withdrawalCompletion(t, school, child.ID, "pending", 400)
+	otherSchoolOld := suite.withdrawalCompletion(t, otherSchool, 0, "resolved", 366)
+	exit := suite.insertID(t, `INSERT INTO users.student_care_exits (tenant_id, student_id, reason, withdrawal_completion_id)
+		VALUES (?, ?, 'moved_away', ?) RETURNING id`, school, child.ID, obsoleteOld)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "users.care_withdrawal_completions", resolvedOld), "a completion resolved more than 365 days ago is deleted")
+	assert.False(t, suite.exists(t, "users.care_withdrawal_completions", obsoleteOld), "an obsolete completion goes after the same window")
+	assert.True(t, suite.exists(t, "users.care_withdrawal_completions", resolvedRecent), "the history of the last year stays")
+	assert.True(t, suite.exists(t, "users.care_withdrawal_completions", pendingOld), "a pending completion stays however old")
+	assert.True(t, suite.exists(t, "users.care_withdrawal_completions", otherSchoolOld), "the run of one school never touches another")
+	assert.True(t, suite.exists(t, "users.student_care_exits", exit), "the care exit stays and only loses its link")
+	assert.Zero(t, suite.count(t, `SELECT COUNT(*) FROM users.student_care_exits WHERE id = ? AND withdrawal_completion_id IS NOT NULL`, exit))
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionCareWithdrawals))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionCareWithdrawals))
+}
+
+func TestNightlyRetentionDeletesSubmissionRateLimitsAfterTheirWindow(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	const insertBucket = `INSERT INTO enrollment.submission_rate_limits (tenant_id, key_type, key_value, attempts, window_start)
+		VALUES (?, ?, ?, 1, CURRENT_TIMESTAMP - make_interval(hours => ?)) RETURNING id`
+	expiredMail := suite.insertID(t, insertBucket, school, "email", "eltern@example.com", 25)
+	expiredIP := suite.insertID(t, insertBucket, school, "ip", "203.0.113.7", 25)
+	runningMail := suite.insertID(t, insertBucket, school, "email", "noch@example.com", 23)
+	otherSchoolExpired := suite.insertID(t, insertBucket, otherSchool, "email", "eltern@example.com", 25)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "enrollment.submission_rate_limits", expiredMail), "an e-mail bucket goes once its 24-hour window is over")
+	assert.False(t, suite.exists(t, "enrollment.submission_rate_limits", expiredIP))
+	assert.True(t, suite.exists(t, "enrollment.submission_rate_limits", runningMail), "a running window keeps its count")
+	assert.True(t, suite.exists(t, "enrollment.submission_rate_limits", otherSchoolExpired), "the run of one school never touches another")
+	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionSubmissionRateLimits))
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionSubmissionRateLimits))
 }

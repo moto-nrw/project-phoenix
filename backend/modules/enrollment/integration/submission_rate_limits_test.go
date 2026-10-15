@@ -45,6 +45,15 @@ func runUnscoped(t *testing.T, db *bun.DB, fn func(ctx context.Context) error) e
 	})
 }
 
+// runInSchool runs a closure in the school's tenant transaction, the way the
+// nightly retention calls the cleanup (#4046).
+func runInSchool(t *testing.T, db *bun.DB, tenantID int64, fn func(ctx context.Context) error) error {
+	t.Helper()
+	return testpkg.WithTenantTx(t, testpkg.Ctx(t), db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+		return fn(ctx)
+	})
+}
+
 // wipeRateLimitsForKey best-effort removes the rows we created so the
 // next test starts clean.
 func wipeRateLimitsForKey(db *bun.DB, tenantID int64, keyValuePrefix string) {
@@ -103,7 +112,7 @@ func TestSubmissionRateLimitRequiresTransaction(t *testing.T) {
 	module := enrollmentCompose.New()
 	_, err := module.IncrementAttempts(context.Background(), testpkg.Tenant(t), enrollmentCapability.SubmissionRateLimitKeyTypeIP, "missing-transaction", time.Hour)
 	require.EqualError(t, err, "enrollment postgres: transaction is required")
-	_, err = module.CleanupExpired(context.Background())
+	_, _, err = module.DeleteExpiredSubmissionRateLimits(context.Background())
 	require.EqualError(t, err, "enrollment postgres: transaction is required")
 }
 
@@ -344,17 +353,36 @@ func TestSubmissionRateLimitRepository_CleanupExpired_RemovesAncientRows(t *test
 		require.NoError(t, err)
 	}
 
-	var n int
-	err := runUnscoped(t, db, func(ctx context.Context) error {
+	otherTenantID := testpkg.UniqueTestTenantID(t)
+	testpkg.EnsureTestTenant(t, db, otherTenantID)
+	defer wipeRateLimitsForKey(db, otherTenantID, ancientKey)
+	_, err := db.NewRaw(`
+		INSERT INTO enrollment.submission_rate_limits
+		  (tenant_id, key_type, key_value, attempts, window_start)
+		VALUES (?, ?, ?, 1, ?)
+	`, otherTenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, ancientKey, ancient).
+		Exec(context.Background())
+	require.NoError(t, err)
+
+	var n, days int
+	err = runInSchool(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
-		n, cErr = repo.CleanupExpired(ctx)
+		n, days, cErr = repo.DeleteExpiredSubmissionRateLimits(ctx)
 		return cErr
 	})
 	require.NoError(t, err)
-	assert.GreaterOrEqual(t, n, 1, "at least the ancient row must be deleted")
+	assert.Equal(t, 1, n, "only the school's ancient row is deleted")
+	assert.Equal(t, 1, days, "the window is the longest submission window, one day")
+
+	c, err := db.NewSelect().
+		Table("enrollment.submission_rate_limits").
+		Where("tenant_id = ? AND key_value = ?", otherTenantID, ancientKey).
+		Count(context.Background())
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, c, "the run of one school never touches another")
 
 	// Confirm the ancient row is gone, the fresh row remains.
-	c, err := db.NewSelect().
+	c, err = db.NewSelect().
 		Table("enrollment.submission_rate_limits").
 		Where("tenant_id = ? AND key_value = ?", tenantID, ancientKey).
 		Count(context.Background())
@@ -385,8 +413,8 @@ func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
 		Where("tenant_id = ? AND key_value = ?", tenantID, expiredKey).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	failure := errors.New("after rate-limit cleanup")
-	err = runUnscoped(t, db, func(ctx context.Context) error {
-		deleted, err := owner.CleanupExpired(ctx)
+	err = runInSchool(t, db, tenantID, func(ctx context.Context) error {
+		deleted, _, err := owner.DeleteExpiredSubmissionRateLimits(ctx)
 		if err != nil {
 			return err
 		}
@@ -398,8 +426,8 @@ func TestSubmissionRateLimitCleanupRollbackAndIdempotentRetry(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 2, int(count), "failed cleanup must restore the expired bucket")
 	for _, expected := range []int{1, 0} {
-		require.NoError(t, runUnscoped(t, db, func(ctx context.Context) error {
-			deleted, err := owner.CleanupExpired(ctx)
+		require.NoError(t, runInSchool(t, db, tenantID, func(ctx context.Context) error {
+			deleted, _, err := owner.DeleteExpiredSubmissionRateLimits(ctx)
 			require.Equal(t, expected, deleted, "committed cleanup retry must be idempotent")
 			return err
 		}))
@@ -416,11 +444,11 @@ func TestSubmissionRateLimitRepository_CleanupExpired_ZeroAffectedIsNoError(t *t
 	// Running CleanupExpired on an empty (or all-fresh) table must
 	// return (0, nil) — scheduler-callable, must not error out when
 	// there's nothing to clean.
-	db, repo, _ := setupRateLimitTest(t)
+	db, repo, tenantID := setupRateLimitTest(t)
 	var n int
-	err := runUnscoped(t, db, func(ctx context.Context) error {
+	err := runInSchool(t, db, tenantID, func(ctx context.Context) error {
 		var cErr error
-		n, cErr = repo.CleanupExpired(ctx)
+		n, _, cErr = repo.DeleteExpiredSubmissionRateLimits(ctx)
 		return cErr
 	})
 	require.NoError(t, err)
