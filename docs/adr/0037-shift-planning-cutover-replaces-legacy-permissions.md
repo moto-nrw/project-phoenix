@@ -4,6 +4,10 @@ status: accepted
 
 # Shift planning retirement may replace its legacy permissions
 
+> Amended on 2026-10-15 by [ADR 0057](0057-only-the-target-is-a-rule.md): the
+> replacement rules this decision allowed are not target. #4070 converts the
+> reach they still grant into exact debt under its carriers (#4076 and others).
+
 Accepted for #3418 in the implementing change, following the precedent of
 ADR 0030, ADR 0035 and ADR 0036. The pull request review is where it can
 still be rejected; the exception activates only in the policy epoch that
