@@ -29,10 +29,13 @@ type WorkerDependencies struct {
 	InvitationCleanup         InvitationCleaner
 	EmailChangeCleanup        EmailChangeTokenCleaner
 	OperatorInvitationCleanup OperatorInvitationCleaner
-	WorkSessionCleanup        WorkSessionCleaner
-	BreakAutoEnder            BreakAutoEnder
-	AutoCheckouter            AutoCheckouter
-	FeedbackCleaner           FeedbackCleaner
+	// OperatorRetention deletes the operator ledger and the deactivated
+	// operator accounts after their window (#4047).
+	OperatorRetention  OperatorRetention
+	WorkSessionCleanup WorkSessionCleaner
+	BreakAutoEnder     BreakAutoEnder
+	AutoCheckouter     AutoCheckouter
+	FeedbackCleaner    FeedbackCleaner
 	// Retention runs the owners' deletions of a school's nightly cleanup
 	// (#3950); NewRetentionRun builds it. CleanupRuns keeps each school's
 	// last successful nightly run.
@@ -102,6 +105,8 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 		{name: "invitation cleanup", value: deps.InvitationCleanup},
 		{name: "email change cleanup", value: deps.EmailChangeCleanup},
 		{name: "operator invitation cleanup", value: deps.OperatorInvitationCleanup},
+		{name: "operator ledger retention", value: deps.OperatorRetention.Ledger},
+		{name: "operator account retention", value: deps.OperatorRetention.Accounts},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
 		{name: "cleanup run ledger", value: deps.CleanupRuns},
 	}

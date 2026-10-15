@@ -128,6 +128,32 @@ type SignInDataCleaner interface {
 	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error)
 }
 
+// OperatorRetention deletes the moto team's own data after its fixed window
+// (#4047): the operator ledger entries before 1 January of last year, then
+// the operator accounts deactivated before that date. The ledger goes first,
+// because an entry still pointing at an account refuses its deletion.
+type OperatorRetention struct {
+	Ledger interface {
+		DeleteExpiredOperatorAuditLog(ctx context.Context) (int, error)
+	}
+	Accounts interface {
+		DeleteDeactivatedOperators(ctx context.Context) (int, error)
+	}
+}
+
+// jobs lists the hourly cleanup jobs in their required order. A missing
+// side leaves its job out.
+func (r OperatorRetention) jobs() []CleanupJob {
+	var jobs []CleanupJob
+	if r.Ledger != nil {
+		jobs = append(jobs, CleanupJob{Description: "Operator audit log retention", Run: r.Ledger.DeleteExpiredOperatorAuditLog})
+	}
+	if r.Accounts != nil {
+		jobs = append(jobs, CleanupJob{Description: "Deactivated operator cleanup", Run: r.Accounts.DeleteDeactivatedOperators})
+	}
+	return jobs
+}
+
 type CalendarFeedCleaner interface {
 	CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
 }
@@ -343,7 +369,8 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		pwaUsageCleanup:            deps.PWAUsageCleanup,
 		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
-		cleanupJobs:                buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
+		cleanupJobs: append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
+			deps.OperatorRetention.jobs()...),
 
 		activeService:          deps.Active,
 		breakAutoEnder:         deps.BreakAutoEnder,

@@ -33,6 +33,8 @@ type invitationMockService struct {
 	resendOperatorInvitationFn   func(ctx context.Context, invitationID int64, actorID int64, clientIP net.IP) error
 	listOperatorsFn              func(ctx context.Context) ([]*identityaccess.Operator, error)
 	cleanupExpiredInvitationsFn  func(ctx context.Context) (int, error)
+	deactivateOperatorFn         func(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error)
+	reactivateOperatorFn         func(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error)
 }
 
 func (m *invitationMockService) ListOperators(ctx context.Context) ([]identityaccess.Operator, error) {
@@ -134,6 +136,24 @@ func (m *invitationMockService) CleanupOperatorEmailChanges(ctx context.Context)
 	if m.cleanupExpiredInvitationsFn != nil {
 		return m.cleanupExpiredInvitationsFn(ctx)
 	}
+	return 0, nil
+}
+
+func (m *invitationMockService) DeactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+	if m.deactivateOperatorFn != nil {
+		return m.deactivateOperatorFn(ctx, change)
+	}
+	return identityaccess.Operator{}, nil
+}
+
+func (m *invitationMockService) ReactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+	if m.reactivateOperatorFn != nil {
+		return m.reactivateOperatorFn(ctx, change)
+	}
+	return identityaccess.Operator{}, nil
+}
+
+func (m *invitationMockService) DeleteDeactivatedOperators(context.Context) (int, error) {
 	return 0, nil
 }
 

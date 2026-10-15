@@ -66,12 +66,37 @@ func (c *Command) DeleteExpiredDataAccessLog(ctx context.Context) (int, int, err
 		return 0, 0, err
 	}
 	now := time.Now().In(calendar.Berlin)
-	// The year is read a margin earlier: right after New Year a database
-	// clock still in the old year would refuse the new cutoff.
-	year := now.Add(-retentionClockMargin).Year()
-	cutoff := time.Date(year-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
+	cutoff := endOfFollowingYearCutoff(now)
 	deleted, err := store.DeleteExpiredDataAccessLog(ctx, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
+}
+
+// endOfFollowingYearCutoff is 1 January of last year (Berlin): a row written
+// before it has outlived the end of the year after it was written.
+func endOfFollowingYearCutoff(now time.Time) time.Time {
+	// The year is read a margin earlier: right after New Year a database
+	// clock still in the old year would refuse the new cutoff.
+	year := now.In(calendar.Berlin).Add(-retentionClockMargin).Year()
+	return time.Date(year-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
+}
+
+// operatorLedgerRetentionStore is the Audit append store's access to the
+// platform-wide operator ledger.
+type operatorLedgerRetentionStore interface {
+	DeleteExpiredOperatorAuditLog(ctx context.Context, cutoff time.Time) (int64, error)
+}
+
+// DeleteExpiredOperatorAuditLog removes the operator-ledger entries once the
+// year after the entry has ended (#4047), the window of the access log. The
+// ledger belongs to moto, not to a school: the hourly cleanup runs it in an
+// administrative transaction and logs no school deletion.
+func (c *Command) DeleteExpiredOperatorAuditLog(ctx context.Context) (int, error) {
+	store, ok := c.store.(operatorLedgerRetentionStore)
+	if !ok {
+		return 0, fmt.Errorf("audit command: operator ledger retention store is required")
+	}
+	deleted, err := store.DeleteExpiredOperatorAuditLog(ctx, endOfFollowingYearCutoff(time.Now()))
+	return int(deleted), err
 }
 
 // DeleteExpiredDeletionLog removes the school's deletion-log rows older than

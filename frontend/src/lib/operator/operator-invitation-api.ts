@@ -63,6 +63,20 @@ export async function revokeOperatorInvitation(id: string): Promise<void> {
   );
 }
 
+export async function deactivateOperator(id: string): Promise<void> {
+  await operatorFetch<unknown>(
+    `/api/operator/operators/${encodeURIComponent(id)}/deactivate`,
+    { method: "POST" },
+  );
+}
+
+export async function reactivateOperator(id: string): Promise<void> {
+  await operatorFetch<unknown>(
+    `/api/operator/operators/${encodeURIComponent(id)}/reactivate`,
+    { method: "POST" },
+  );
+}
+
 // --- Public (unauthenticated) API functions ---
 
 export async function establishOperatorInvitationSession(

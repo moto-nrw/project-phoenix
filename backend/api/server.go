@@ -298,6 +298,7 @@ func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots)
 		InvitationCleanup:         identity,
 		EmailChangeCleanup:        identity,
 		OperatorInvitationCleanup: identity,
+		OperatorRetention:         scheduler.OperatorRetention{Ledger: services.Audit, Accounts: identity},
 		WorkSessionCleanup:        services.WorkSession.Jobs,
 		BreakAutoEnder:            services.WorkSession.Jobs,
 		AutoCheckouter:            services.WorkSession.Jobs,

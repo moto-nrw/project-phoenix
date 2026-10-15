@@ -1063,6 +1063,8 @@ export const ERROR_CATALOG = {
         "Die beiden Passwörter stimmen nicht überein. Bitte geben Sie sie erneut ein.",
       "identity.operator_invitation_invalid":
         "Dieser Einladungslink ist abgelaufen oder ungültig. Bitte lassen Sie sich neu einladen.",
+      "identity.operator_self_deactivation":
+        "Sie können Ihr eigenes Konto nicht deaktivieren. Bitten Sie eine andere Person aus dem Team darum.",
       "identity.invitation_rate_limited":
         "Es wurden zu viele Einladungen verschickt. Bitte versuchen Sie es in einer Stunde erneut.",
       "identity.email_change_rate_limited":

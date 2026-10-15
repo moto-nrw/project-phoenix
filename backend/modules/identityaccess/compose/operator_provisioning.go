@@ -204,6 +204,30 @@ func (e engine) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	return cleaned, operatorProvisioningError(err)
 }
 
+func (e engine) DeactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+	if e.operatorProvisioning == nil {
+		return identityaccess.Operator{}, errOperatorProvisioningUnavailable
+	}
+	operator, err := e.operatorProvisioning.DeactivateOperator(e.attach(ctx), domain.OperatorStatusChange(change))
+	return identityaccess.Operator(operator), operatorProvisioningError(err)
+}
+
+func (e engine) ReactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+	if e.operatorProvisioning == nil {
+		return identityaccess.Operator{}, errOperatorProvisioningUnavailable
+	}
+	operator, err := e.operatorProvisioning.ReactivateOperator(e.attach(ctx), domain.OperatorStatusChange(change))
+	return identityaccess.Operator(operator), operatorProvisioningError(err)
+}
+
+func (e engine) DeleteDeactivatedOperators(ctx context.Context) (int, error) {
+	if e.operatorProvisioning == nil {
+		return 0, errOperatorProvisioningUnavailable
+	}
+	deleted, err := e.operatorProvisioning.DeleteDeactivatedOperators(e.attach(ctx))
+	return deleted, operatorProvisioningError(err)
+}
+
 var operatorProvisioningSentinels = []struct {
 	internal error
 	public   error
@@ -213,6 +237,7 @@ var operatorProvisioningSentinels = []struct {
 	{domain.ErrOperatorEmailChangeRateLimited, identityaccess.ErrOperatorEmailChangeRateLimited},
 	{domain.ErrOperatorEmailChangeSameEmail, identityaccess.ErrOperatorEmailChangeSameEmail},
 	{domain.ErrOperatorEmailInUse, identityaccess.ErrOperatorEmailInUse},
+	{domain.ErrOperatorSelfDeactivation, identityaccess.ErrOperatorSelfDeactivation},
 	// The link sentinels: the operator mapping does not carry them, because
 	// the storage capability reports them through mapError instead.
 	{domain.ErrOperatorInvitationNotFound, identityaccess.ErrOperatorInvitationNotFound},

@@ -22,6 +22,8 @@ const {
   mockCreateInvitation,
   mockResendInvitation,
   mockRevokeInvitation,
+  mockDeactivateOperator,
+  mockReactivateOperator,
 } = vi.hoisted(() => ({
   mockUseSWR: vi.fn(),
   mockMutate: vi.fn(),
@@ -29,6 +31,8 @@ const {
   mockCreateInvitation: vi.fn(),
   mockResendInvitation: vi.fn(),
   mockRevokeInvitation: vi.fn(),
+  mockDeactivateOperator: vi.fn(),
+  mockReactivateOperator: vi.fn(),
 }));
 
 vi.mock("swr", () => ({
@@ -40,6 +44,8 @@ vi.mock("~/lib/operator/operator-invitation-api", () => ({
   createOperatorInvitation: mockCreateInvitation,
   resendOperatorInvitation: mockResendInvitation,
   revokeOperatorInvitation: mockRevokeInvitation,
+  deactivateOperator: mockDeactivateOperator,
+  reactivateOperator: mockReactivateOperator,
 }));
 
 vi.mock("~/lib/breadcrumb-context", () => ({
@@ -95,13 +101,26 @@ const sampleData: OperatorInvitationsData = {
       active: true,
       lastLogin: "2026-04-03T10:00:00Z",
       createdAt: "2026-01-01T00:00:00Z",
+      isSelf: true,
     },
     {
       id: "3",
       email: "inactive@example.com",
       displayName: "Inactive User",
       active: false,
+      deactivatedAt: "2026-03-01T10:00:00Z",
+      deletionDueAt: "2027-12-31T23:00:00Z",
       createdAt: "2026-01-01T00:00:00Z",
+      isSelf: false,
+    },
+    {
+      id: "4",
+      email: "colleague@example.com",
+      displayName: "Colleague User",
+      active: true,
+      lastLogin: "2026-04-02T10:00:00Z",
+      createdAt: "2026-01-01T00:00:00Z",
+      isSelf: false,
     },
   ],
 };
@@ -117,6 +136,12 @@ function setupSWR(
     isValidating: false,
     mutate: mockMutate,
   });
+}
+
+function openActions(displayName: string) {
+  fireEvent.click(
+    screen.getByRole("button", { name: `Aktionen für ${displayName}` }),
+  );
 }
 
 describe("OperatorOperatorsPage", () => {
@@ -157,7 +182,7 @@ describe("OperatorOperatorsPage", () => {
     setupSWR(sampleData);
     render(<OperatorOperatorsPage />);
 
-    expect(screen.getByText("Aktiv")).toBeInTheDocument();
+    expect(screen.getAllByText("Aktiv")).toHaveLength(2);
     expect(screen.getByText("Inaktiv")).toBeInTheDocument();
   });
 
@@ -372,6 +397,89 @@ describe("OperatorOperatorsPage", () => {
     setupSWR(sampleData);
     render(<OperatorOperatorsPage />);
 
-    expect(screen.getByText(/Letzter Login:/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Letzter Login:/)).toHaveLength(2);
+  });
+
+  it("offers deactivation for colleagues but not for the own account", () => {
+    setupSWR(sampleData);
+    render(<OperatorOperatorsPage />);
+
+    expect(
+      screen.getByRole("button", { name: "Aktionen für Colleague User" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Aktionen für Admin User" }),
+    ).not.toBeInTheDocument();
+    openActions("Colleague User");
+    expect(
+      screen.getByRole("menuitem", { name: "Deaktivieren" }),
+    ).toBeInTheDocument();
+  });
+
+  it("deactivates a colleague after the confirmation", async () => {
+    setupSWR(sampleData);
+    mockDeactivateOperator.mockResolvedValue(undefined);
+    render(<OperatorOperatorsPage />);
+
+    openActions("Colleague User");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Deaktivieren" }));
+    const modal = screen.getByTestId("confirmation-modal");
+    expect(modal.textContent).toContain("colleague@example.com");
+    expect(modal.textContent).toContain("nicht mehr anmelden");
+    expect(mockDeactivateOperator).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Confirm"));
+
+    await waitFor(() => {
+      expect(mockDeactivateOperator).toHaveBeenCalledWith("4");
+    });
+    expect(
+      await screen.findByText("Colleague User wurde deaktiviert."),
+    ).toBeInTheDocument();
+    expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("keeps a failed deactivation inside the confirmation", async () => {
+    setupSWR(sampleData);
+    mockDeactivateOperator.mockRejectedValue(
+      new ApiError("self", 409, {
+        code: "identity.operator_self_deactivation",
+      }),
+    );
+    render(<OperatorOperatorsPage />);
+
+    openActions("Colleague User");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Deaktivieren" }));
+    fireEvent.click(screen.getByText("Confirm"));
+
+    const modal = screen.getByTestId("confirmation-modal");
+    await waitFor(() =>
+      expect(modal.textContent).toContain(
+        catalogText(
+          "identity.operator_self_deactivation",
+          "das Deaktivieren des Kontos",
+        ),
+      ),
+    );
+  });
+
+  it("shows when a deactivated account is deleted and reactivates it", async () => {
+    setupSWR(sampleData);
+    mockReactivateOperator.mockResolvedValue(undefined);
+    render(<OperatorOperatorsPage />);
+
+    expect(screen.getByText("Deaktiviert am 01.03.2026")).toBeInTheDocument();
+    expect(screen.getByText("Wird ab 01.01.2028 gelöscht")).toBeInTheDocument();
+    openActions("Inactive User");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Wieder aktivieren" }),
+    );
+
+    await waitFor(() => {
+      expect(mockReactivateOperator).toHaveBeenCalledWith("3");
+    });
+    expect(
+      await screen.findByText("Inactive User kann sich wieder anmelden."),
+    ).toBeInTheDocument();
+    expect(mockMutate).toHaveBeenCalled();
   });
 });

@@ -15,6 +15,13 @@ func (*fakeOperatorInvitationCleaner) DeleteExpiredOperatorInvitations(context.C
 	return 0, nil
 }
 
+type fakeOperatorRetention struct{}
+
+func (fakeOperatorRetention) DeleteExpiredOperatorAuditLog(context.Context) (int, error) {
+	return 0, nil
+}
+func (fakeOperatorRetention) DeleteDeactivatedOperators(context.Context) (int, error) { return 0, nil }
+
 type fakeFeedbackCleaner struct{ err error }
 
 func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { return 0, f.err }
@@ -30,6 +37,7 @@ func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 		InvitationCleanup:         &fakeInvitationCleaner{},
 		EmailChangeCleanup:        &fakeEmailChangeCleaner{},
 		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
+		OperatorRetention:         OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
 		FeedbackCleaner:           &fakeFeedbackCleaner{},
 		CleanupRuns:               newFakeCleanupRuns(),
 		Lease: WorkerLease{

@@ -63,6 +63,26 @@ func (a *Appender) DeleteExpiredDataDeletions(ctx context.Context, cutoff time.T
 	return deleted, nil
 }
 
+// DeleteExpiredOperatorAuditLog removes the platform-wide operator-ledger
+// entries before cutoff (#4047). The ledger has no school, so the call needs
+// the administrative transaction of the hourly cleanup, not a tenant.
+func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context, cutoff time.Time) (int64, error) {
+	const operation = "delete expired operator audit log"
+	db, _, err := database(ctx, a.runtime)
+	if err != nil {
+		return 0, wrapDatabase(operation, err)
+	}
+	result, err := db.NewDelete().
+		TableExpr("platform.operator_audit_log").
+		Where("created_at < ?", cutoff).
+		Exec(ctx)
+	if err != nil {
+		return 0, wrapDatabase(operation, err)
+	}
+	deleted, err := result.RowsAffected()
+	return deleted, wrapDatabase(operation, err)
+}
+
 // retentionTenant resolves the transaction and the school a retention call
 // runs for; the database function refuses any other school.
 func (a *Appender) retentionTenant(ctx context.Context, operation string) (bun.IDB, int64, error) {

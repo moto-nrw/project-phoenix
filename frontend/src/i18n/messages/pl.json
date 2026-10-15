@@ -2350,6 +2350,7 @@
         "username_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "password_mismatch": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
         "operator_invitation_invalid": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+        "operator_self_deactivation": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
         "invitation_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_rate_limited": "{object} jest teraz niedostępne. Spróbuj ponownie.",
         "email_change_same_email": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

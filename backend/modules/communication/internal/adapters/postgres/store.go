@@ -31,9 +31,11 @@ type announcementRow struct {
 	TargetRoles     []string   `bun:"target_roles,array"`
 	TargetOrgIDs    []int64    `bun:"target_org_ids,array"`
 	TargetTenantIDs []int64    `bun:"target_tenant_ids,array"`
-	CreatedBy       int64      `bun:"created_by,notnull"`
-	CreatedAt       time.Time  `bun:"created_at"`
-	UpdatedAt       time.Time  `bun:"updated_at"`
+	// CreatedBy is zero once the author's operator account was deleted
+	// (#4047); nullzero writes it back as NULL.
+	CreatedBy int64     `bun:"created_by,nullzero"`
+	CreatedAt time.Time `bun:"created_at"`
+	UpdatedAt time.Time `bun:"updated_at"`
 }
 
 type viewRow struct {

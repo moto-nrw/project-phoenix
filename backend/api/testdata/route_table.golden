@@ -936,6 +936,8 @@ POST /operator/devices/{id}/set-api-key
 POST /operator/devices/{id}/transfer
 POST /operator/invitations/
 POST /operator/invitations/{id}/resend
+POST /operator/operators/{id}/deactivate
+POST /operator/operators/{id}/reactivate
 POST /operator/organizations/
 POST /operator/organizations/{id}/restore
 POST /operator/profile/email-change

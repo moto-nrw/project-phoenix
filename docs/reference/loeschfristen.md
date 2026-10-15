@@ -7,7 +7,7 @@ Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startze
 
 ## Wie gelöscht wird
 
-- **Stündlicher Token-Aufräumjob.** Einladungen für Eltern, MFA-Codes per E-Mail, Passkey-Sitzungen und abgelaufene Refresh-Tokens löscht der stündliche Aufräumjob für alle Schulen und Operatoren gemeinsam (#3954). Diese Läufe stehen nicht im Löschprotokoll, weil sie keiner Schule zugeordnet sind.
+- **Stündlicher Token-Aufräumjob.** Einladungen für Eltern, MFA-Codes per E-Mail, Passkey-Sitzungen und abgelaufene Refresh-Tokens löscht der stündliche Aufräumjob für alle Schulen und Operatoren gemeinsam (#3954). Derselbe Job löscht das Operator-Protokoll und deaktivierte Operator-Konten des moto-Teams (#4047). Diese Läufe stehen nicht im Löschprotokoll, weil sie keiner Schule zugeordnet sind.
 - **Nächtlicher Lauf je Schule.** Zur eingestellten Uhrzeit (`gdpr.data_cleanup_time`, Voreinstellung 02:00) löscht moto in einer Transaktion der Schule alles, was älter als die Frist ist. Wurde ein geplanter Lauf verpasst, weil der letzte erfolgreiche Lauf vor dem Tag des letzten geplanten Termins liegt, holt moto ihn beim nächsten Minutentakt nach; ein fehlgeschlagener Lauf zählt nicht und wird nachgeholt (#3950).
 - **Löschprotokoll.** Jede automatische Löschung des nächtlichen Laufs schreibt einen Eintrag in `audit.data_deletions` mit Datenart und Anzahl, ohne die gelöschten Inhalte.
 - **Wer die Fristen einstellt.** Fachliche Fristen trägt das moto-Team je Schule im Operator-Dashboard ein, so wie sie im Vertrag stehen; ohne Eintrag gilt die Voreinstellung. Die Schule sieht ihre Fristen unter „Datenschutz“ und kann sie nicht ändern. Technische Daten und Protokolle haben feste Fristen für alle Schulen. Den nächtlichen Lauf hält nur das moto-Team als Notbremse an.
@@ -52,13 +52,15 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 | Erledigte Austrittsaufträge für Personal | 30 Tage | Abschluss des Auftrags | Workforce | Der Auftrag behält nur die Personal-ID; wie oben | umgesetzt (#4046) |
 | Abgeschlossene Betreuungsabmeldungen | 365 Tage | Abschluss (erledigt oder hinfällig) | Care Plan | Die Abschluss-Historie zeigt das letzte Jahr; offene Abmeldungen bleiben, bis die Schule sie abschließt | umgesetzt (#4046) |
 | Anmelde-Ratenbegrenzung (IP-Adresse oder E-Mail) | 1 Tag | Beginn des Zählfensters | Enrollment | Das längste Zählfenster ist 24 Stunden; danach zählt der Eintrag nichts mehr | umgesetzt (#4046) |
+| Operator-Protokoll (Aktionen des moto-Teams mit IP-Adresse) | Ende des Folgejahres | Eintrag | Audit Platform | Wie das Zugriffsprotokoll (Analogie § 76 Abs. 4 BDSG): Es weist privilegierte Eingriffe in Schuldaten nach | umgesetzt (#4047) |
+| Operator-Konten ausgeschiedener Teammitglieder | Ende des Folgejahres | Deaktivierung | Identity Access | Bis dahin bleibt nachweisbar, wer im Protokoll gehandelt hat; danach verweist kein Eintrag mehr auf das Konto | umgesetzt (#4047) |
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 24 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 22 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
 
-- **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`), Operator-Konten des moto-Teams.
-- **Weitere Protokolle:** Klassenlisten-Abgleich, Anmeldungs-Löschungen und -Wiederherstellungen, Exporte, Datei-Ereignisse, Änderungen an Finanz-, Personalnummer- und Personaldaten, Kinderlöschungen, Vertretungen, Zeiterfassungs-Löschungen, Einstellungsprotokoll, Operator-Protokoll mit IP-Adresse.
+- **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`).
+- **Weitere Protokolle:** Klassenlisten-Abgleich, Anmeldungs-Löschungen und -Wiederherstellungen, Exporte, Datei-Ereignisse, Änderungen an Finanz-, Personalnummer- und Personaldaten, Kinderlöschungen, Vertretungen, Zeiterfassungs-Löschungen, Einstellungsprotokoll.
 - **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.
 - **Technische Reste:** Demo-Besucher.
 
@@ -77,4 +79,5 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 - **Essens-Krankhistorie** (`schedule.meal_sickness_status_history`): Grundlage der Essensabrechnung. Sie speichert Krank-Tage ein zweites Mal und hat noch keine Frist. Die Fristlöschung der Krank-Tage schreibt bewusst keine neue Zeile hinein (#3958).
 - **Markierungen der Migration 1.15.428** (`auth.parent_declaration_permission_grants`): Sie dienen nur deren Rücknahme und gehen seit 1.15.449 mit der Beziehung zwischen Kind und Elternteil. Markierungen ohne Beziehung hat die Migration entfernt (#4046).
 - **Betreuungsabmeldungen eines gelöschten Kindes** behalten bis zum Ablauf der Frist nur „Gelöschtes Kind“ und die Konten, die bestätigt und abgeschlossen haben (#2547).
+- **Operator-Konten** (#4047): Diese Daten gehören moto, nicht der Schule; die Frist steht deshalb hier und nicht im AVV. Ein anderes Teammitglied deaktiviert das Konto im Operator-Dashboard unter „Operatoren“. Ab dann ist die Anmeldung gesperrt, laufende Sitzungen enden sofort. Das eigene Konto lässt sich nicht deaktivieren. Eine Reaktivierung hebt die Deaktivierung auf; die Frist beginnt bei einer erneuten Deaktivierung von vorn. Konten, die vor dem 1. Januar des Vorjahres deaktiviert wurden, löscht der stündliche Job, nachdem er das Operator-Protokoll bis zum selben Stichtag geleert hat. Nach der Deaktivierung entstehen keine neuen Einträge des Kontos mehr; nur eine Anfrage, die die Prüfung kurz vor der Deaktivierung passiert hat, kann noch einen schreiben. Verweist ein Eintrag noch auf ein fälliges Konto, scheitert der Lauf für alle fälligen Konten und wird stündlich wiederholt, bis auch dieser Eintrag abgelaufen ist. Ankündigungen des Kontos bleiben ohne Autor. Konten, die vor dieser Änderung von Hand deaktiviert wurden, zählen ab ihrer letzten Änderung.
 - **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).

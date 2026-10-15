@@ -69,6 +69,8 @@ type (
 	}
 	// OperatorProvisioning is the invitation and e-mail change capability.
 	OperatorProvisioning = identityaccess.OperatorProvisioning
+	// OperatorStatus deactivates and reactivates operator accounts.
+	OperatorStatus = identityaccess.OperatorStatus
 	// OperatorMFA is the operator second factor.
 	OperatorMFA = identityaccess.OperatorMFAFlows
 	// OperatorPasskeys is the operator-portal ceremony capability.
@@ -80,11 +82,12 @@ type (
 
 // OperatorAccess is what the invitation, profile and second-factor routes
 // need: the operator directory, the token mint their second factors end in,
-// and the invitation and e-mail change flows.
+// the invitation and e-mail change flows, and the account deactivation.
 type OperatorAccess interface {
 	Operators
 	OperatorSessions
 	OperatorProvisioning
+	OperatorStatus
 }
 
 // The admin-override values the operator MFA screens hand to the capability.
@@ -114,6 +117,7 @@ var (
 	ErrOperatorEmailChangeNotFound    = identityaccess.ErrOperatorEmailChangeNotFound
 	ErrOperatorEmailChangeRateLimited = identityaccess.ErrOperatorEmailChangeRateLimited
 	ErrOperatorEmailChangeSameEmail   = identityaccess.ErrOperatorEmailChangeSameEmail
+	ErrOperatorSelfDeactivation       = identityaccess.ErrOperatorSelfDeactivation
 
 	ErrMFAChallengeTokenInvalid = identityaccess.ErrMFAChallengeTokenInvalid
 	ErrMFACodeInvalid           = identityaccess.ErrMFACodeInvalid

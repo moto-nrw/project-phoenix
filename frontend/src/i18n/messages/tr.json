@@ -2350,6 +2350,7 @@
         "username_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "password_mismatch": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
         "operator_invitation_invalid": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+        "operator_self_deactivation": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
         "invitation_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_rate_limited": "{object} şu anda kullanılamıyor. Yeniden deneyin.",
         "email_change_same_email": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

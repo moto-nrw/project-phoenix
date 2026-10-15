@@ -24,6 +24,7 @@ type operatorRow struct {
 	LastLogin      *time.Time `bun:"last_login"`
 	MFAAttempts    int        `bun:"mfa_attempts,default:0"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until"`
+	DeactivatedAt  *time.Time `bun:"deactivated_at"`
 	CreatedAt      time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt      time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
@@ -32,7 +33,7 @@ func (r operatorRow) toDomain() domain.Operator {
 	return domain.Operator{
 		ID: r.ID, Email: r.Email, DisplayName: r.DisplayName, PasswordHash: r.PasswordHash, Active: r.Active,
 		LastLogin: r.LastLogin, MFAAttempts: r.MFAAttempts, MFALockedUntil: r.MFALockedUntil,
-		CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		DeactivatedAt: r.DeactivatedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
 	}
 }
 
@@ -40,7 +41,7 @@ func operatorRowFromDomain(operator domain.Operator) operatorRow {
 	return operatorRow{
 		ID: operator.ID, Email: operator.Email, DisplayName: operator.DisplayName, PasswordHash: operator.PasswordHash, Active: operator.Active,
 		LastLogin: operator.LastLogin, MFAAttempts: operator.MFAAttempts, MFALockedUntil: operator.MFALockedUntil,
-		CreatedAt: operator.CreatedAt, UpdatedAt: operator.UpdatedAt,
+		DeactivatedAt: operator.DeactivatedAt, CreatedAt: operator.CreatedAt, UpdatedAt: operator.UpdatedAt,
 	}
 }
 
@@ -191,6 +192,27 @@ func (s *Store) DeleteOperator(ctx context.Context, id int64) (domain.OperationS
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats, nil
+}
+
+// DeleteDeactivatedOperators removes the accounts deactivated before cutoff.
+// The cascades take their credentials and sessions along; a ledger entry
+// still pointing at an account refuses the whole deletion.
+func (s *Store) DeleteDeactivatedOperators(ctx context.Context, cutoff time.Time) (int, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewDelete().Model((*operatorRow)(nil)).
+		Where(`NOT "operator".active`).
+		Where(`"operator".deactivated_at < ?`, cutoff).
+		Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return 0, stats, fmt.Errorf("identity access postgres: delete deactivated operators: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return int(stats.Rows), stats, nil
 }
 
 func (s *Store) RecordOperatorLogin(ctx context.Context, id int64, at time.Time) (domain.OperationStats, error) {
