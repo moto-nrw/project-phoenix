@@ -109,10 +109,23 @@ type EmailChangeTokenCleaner interface {
 	CleanupOperatorEmailChanges(ctx context.Context) (int, error)
 }
 
-// OperatorInvitationCleaner exposes the cleanup routine for operator
-// invitation links.
+// OperatorInvitationCleaner exposes the Identity & Access token maintenance
+// of the hourly cleanup: the operator invitation links and the fixed
+// retention of the short-lived sign-in data (#3954).
 type OperatorInvitationCleaner interface {
 	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
+	SignInDataCleaner
+}
+
+// SignInDataCleaner exposes the fixed retention of the short-lived sign-in
+// data Identity & Access owns (#3954): invitations for parents, e-mail codes
+// and passkey ceremonies of accounts and operators, and expired operator
+// sessions.
+type SignInDataCleaner interface {
+	DeleteExpiredGuardianInvitations(ctx context.Context) (int, error)
+	DeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error)
+	DeleteExpiredPasskeySessions(ctx context.Context) (int, error)
+	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error)
 }
 
 type CalendarFeedCleaner interface {
@@ -1308,8 +1321,24 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 			},
 		})
 	}
+	if operatorInvitationCleaner != nil {
+		jobs = append(jobs, signInDataCleanupJobs(operatorInvitationCleaner)...)
+	}
 
 	return jobs
+}
+
+// signInDataCleanupJobs deletes the short-lived sign-in data after its fixed
+// window. Operator sessions go at their expiry, as account sessions do.
+func signInDataCleanupJobs(cleaner SignInDataCleaner) []CleanupJob {
+	return []CleanupJob{
+		{Description: "Guardian invitation cleanup", Run: cleaner.DeleteExpiredGuardianInvitations},
+		{Description: "MFA email code cleanup", Run: cleaner.DeleteExpiredMFAEmailChallenges},
+		{Description: "Passkey session cleanup", Run: cleaner.DeleteExpiredPasskeySessions},
+		{Description: "Operator session cleanup", Run: func(ctx context.Context) (int, error) {
+			return cleaner.DeleteExpiredOperatorSessions(ctx, time.Now())
+		}},
+	}
 }
 
 // scheduleSessionEndTask schedules the daily session end task using minute-polling.
