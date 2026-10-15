@@ -7,9 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	"github.com/moto-nrw/project-phoenix/modules/delivery"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -17,13 +19,14 @@ import (
 // steps bind (#3950), composed over the test database for the root's
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
-// the Device Fleet owner, the Care Plan status days and the parent messages.
+// the Device Fleet owner, the Care Plan status days, the parent messages and the delivery data.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
-	UnregisteredTagScans auditCompose.UnregisteredTagScanService
+	UnregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	StatusDays           careplan.StudentStatusDayRetention
 	ParentMessages       communication.ParentMessageCleanup
+	Deliveries           delivery.Retention
 }
 
 // NewRetentionTestOwners composes the retention owners over db; unit is the
@@ -41,10 +44,6 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
-	scans, err := services.NewUnregisteredTagScans(fleet)
-	if err != nil {
-		return RetentionTestOwners{}, err
-	}
 	carePlan, err := NewUnobservedCarePlan(db, NewUnobservedTimetableDependencies(db))
 	if err != nil {
 		return RetentionTestOwners{}, err
@@ -54,7 +53,8 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 		return RetentionTestOwners{}, errors.New("care plan does not delete expired status days")
 	}
 	return RetentionTestOwners{
-		Audit: command, Settings: settings.Settings, UnregisteredTagScans: scans, StatusDays: statusDays,
+		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
 		ParentMessages: communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
+		Deliveries:     deliveryCompose.NewRetention(),
 	}, nil
 }

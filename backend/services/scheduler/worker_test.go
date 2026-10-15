@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type fakeOperatorInvitationCleaner struct{}
+type fakeOperatorInvitationCleaner struct{ fakeSignInDataCleaner }
 
 func (*fakeOperatorInvitationCleaner) DeleteExpiredOperatorInvitations(context.Context) (int, error) {
 	return 0, nil

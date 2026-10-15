@@ -229,7 +229,6 @@ type Factory struct {
 	SupervisionDashboard    supervisiondashboard.Query
 	TimetableData           arrivalTimetable.Planning
 	InstanceSeriesConverter timetable.InstanceSeriesConversion
-	UnregisteredTagScans    auditCompose.UnregisteredTagScanService
 
 	// Delivery owns the leased email and push outboxes; EmailOutboxWorker
 	// drains both transports.
@@ -2363,11 +2362,6 @@ func NewFactoryWithConfig(
 		PresenceSettings(settingsService),
 		today,
 	)
-	unregisteredTagScanService, err := NewUnregisteredTagScans(legacyDeviceFleet)
-	if err != nil {
-		return nil, err
-	}
-
 	// Enrollment acceptance grants parents portal access through the public
 	// Identity & Access capability instead of the account, mapping and role
 	// repositories (#2699); it is the same module instance the auth service
@@ -3438,7 +3432,6 @@ func NewFactoryWithConfig(
 		SupervisionDashboard:    supervisionDashboardService,
 		TimetableData:           timetablePlanning,
 		InstanceSeriesConverter: instanceSeriesConverter,
-		UnregisteredTagScans:    unregisteredTagScanService,
 
 		EmailOutboxWorker: emailOutboxWorker,
 		Delivery:          deliveryRuntime.Module,

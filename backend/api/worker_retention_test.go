@@ -38,6 +38,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		statusDays:           owners.StatusDays,
 		parentMessages:       owners.ParentMessages,
 		auditLedgers:         owners.Audit,
+		deliveries:           owners.Deliveries,
 	}, nil)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
@@ -315,4 +316,117 @@ func TestNightlyRetentionDeletesExpiredAuditLedgerRows(t *testing.T) {
 	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionDataAccessLog))
 	assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, retentionDeletionLog))
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionAuthEvents))
+}
+
+// deliveryFixture plants delivery rows of one school as the Delivery worker
+// leaves them: the end of an intent is its sending, final failure or
+// cancellation, daysAgo days back.
+type deliveryFixture struct {
+	suite    retentionSuite
+	tenantID int64
+}
+
+func (f deliveryFixture) email(t *testing.T, kind, status string, daysAgo int) int64 {
+	t.Helper()
+	return f.suite.insertID(t, `INSERT INTO platform.email_outbox
+		(tenant_id, kind, recipient, payload, status, attempts, created_at, updated_at, sent_at, dead_letter_at, cancelled_at,
+		 lease_token, lease_expires_at)
+		SELECT ?, ?::text, '{"address":"eltern@example.com","name":"Eltern"}'::jsonb, '{"body":"Inhalt"}'::jsonb, ?::text, 1,
+		       ended - INTERVAL '1 day', ended,
+		       CASE WHEN ?::text = 'sent' THEN ended END,
+		       CASE WHEN ?::text = 'dead_letter' THEN ended END,
+		       CASE WHEN ?::text = 'cancelled' THEN ended END,
+		       CASE WHEN ?::text = 'claimed' THEN 'lease' END,
+		       CASE WHEN ?::text = 'claimed' THEN CURRENT_TIMESTAMP + INTERVAL '5 minutes' END
+		FROM (SELECT CURRENT_TIMESTAMP - make_interval(days => ?) AS ended) AS intent
+		RETURNING id`, f.tenantID, kind, status, status, status, status, status, status, daysAgo)
+}
+
+func (f deliveryFixture) push(t *testing.T, status string, daysAgo int) int64 {
+	t.Helper()
+	return f.suite.insertID(t, `INSERT INTO platform.push_outbox
+		(tenant_id, kind, recipient, payload, status, created_at, updated_at, sent_at, dead_letter_at)
+		SELECT ?, 'notification', '{"endpoint":"https://push.example.com/1"}'::jsonb, '{"title":"Hinweis"}'::jsonb, ?::text,
+		       ended - INTERVAL '1 day', ended,
+		       CASE WHEN ?::text = 'sent' THEN ended END,
+		       CASE WHEN ?::text = 'dead_letter' THEN ended END
+		FROM (SELECT CURRENT_TIMESTAMP - make_interval(days => ?) AS ended) AS intent
+		RETURNING id`, f.tenantID, status, status, status, daysAgo)
+}
+
+// deliveryLog stores the delivery-log row of a parent letter for one
+// recipient; outboxID is 0 when no mail was queued.
+func (f deliveryFixture) deliveryLog(t *testing.T, outboxID int64, reachability string, daysAgo int) int64 {
+	t.Helper()
+	var outbox any
+	email := any(nil)
+	if outboxID > 0 {
+		outbox = outboxID
+	}
+	if reachability == "ok" {
+		email = "eltern@example.com"
+	}
+	return f.suite.insertID(t, `INSERT INTO platform.email_delivery
+		(tenant_id, related_entity_type, related_entity_id, outbox_id, recipient_email, reachability, created_at)
+		VALUES (?, 'parent_announcement', ?, ?, ?, ?, CURRENT_TIMESTAMP - make_interval(days => ?)) RETURNING id`,
+		f.tenantID, f.tenantID, outbox, email, reachability, daysAgo)
+}
+
+func TestNightlyRetentionDeletesDeliveriesThirtyDaysAfterTheirEnd(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	mails := deliveryFixture{suite: suite, tenantID: school}
+	others := deliveryFixture{suite: suite, tenantID: otherSchool}
+
+	sentOld := mails.email(t, "parent_announcement", "sent", 31)
+	sentRecent := mails.email(t, "parent_announcement", "sent", 29)
+	failedOld := mails.email(t, "parent_announcement", "dead_letter", 31)
+	cancelledOld := mails.email(t, "parent_announcement", "cancelled", 31)
+	pendingOld := mails.email(t, "parent_announcement", "pending", 60)
+	claimedOld := mails.email(t, "parent_announcement", "claimed", 60)
+	welcomeOld := mails.email(t, "guardian_welcome", "sent", 31)
+	otherSchoolSentOld := others.email(t, "parent_announcement", "sent", 31)
+
+	logOfSentOld := mails.deliveryLog(t, sentOld, "ok", 32)
+	logOfSentRecent := mails.deliveryLog(t, sentRecent, "ok", 30)
+	logOfPending := mails.deliveryLog(t, pendingOld, "ok", 60)
+	logWithoutMailOld := mails.deliveryLog(t, 0, "no_email", 31)
+	logWithoutMailRecent := mails.deliveryLog(t, 0, "no_email", 29)
+
+	pushSentOld := mails.push(t, "sent", 31)
+	pushFailedRecent := mails.push(t, "dead_letter", 29)
+	pushPendingOld := mails.push(t, "pending", 60)
+
+	suite.run(t, school)
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "platform.email_outbox", sentOld), "a mail sent more than 30 days ago is deleted")
+	assert.False(t, suite.exists(t, "platform.email_outbox", failedOld), "a mail that finally failed more than 30 days ago is deleted")
+	assert.False(t, suite.exists(t, "platform.email_outbox", cancelledOld), "a cancelled mail is deleted 30 days later")
+	assert.True(t, suite.exists(t, "platform.email_outbox", sentRecent), "a mail sent less than 30 days ago stays")
+	assert.True(t, suite.exists(t, "platform.email_outbox", pendingOld), "a mail still being tried stays")
+	assert.True(t, suite.exists(t, "platform.email_outbox", claimedOld), "a mail the worker holds stays")
+	assert.True(t, suite.exists(t, "platform.email_outbox", otherSchoolSentOld), "the run of one school never touches another")
+
+	var recipient, payload string
+	require.NoError(t, suite.admin.NewRaw(`SELECT recipient::text, payload::text FROM platform.email_outbox WHERE id = ?`, welcomeOld).
+		Scan(context.Background(), &recipient, &payload))
+	assert.Equal(t, "{}", recipient, "the welcome mail keeps no recipient")
+	assert.Equal(t, "{}", payload, "the welcome mail keeps no content, only its key so nobody is welcomed twice")
+
+	assert.False(t, suite.exists(t, "platform.email_delivery", logOfSentOld), "the delivery log of an old mail goes with it")
+	assert.False(t, suite.exists(t, "platform.email_delivery", logWithoutMailOld), "a delivery log without a mail goes 30 days after it was written")
+	assert.True(t, suite.exists(t, "platform.email_delivery", logOfSentRecent), "the window starts with the sending, not with the log row")
+	assert.True(t, suite.exists(t, "platform.email_delivery", logOfPending), "the log of a mail still being tried stays")
+	assert.True(t, suite.exists(t, "platform.email_delivery", logWithoutMailRecent))
+
+	assert.False(t, suite.exists(t, "platform.push_outbox", pushSentOld), "a push sent more than 30 days ago is deleted")
+	assert.True(t, suite.exists(t, "platform.push_outbox", pushFailedRecent))
+	assert.True(t, suite.exists(t, "platform.push_outbox", pushPendingOld), "a push still being tried stays")
+
+	assert.Equal(t, []int{7}, suite.loggedDeletions(t, school, retentionDeliveries),
+		"three mails, the cleared welcome, two delivery logs and one push, logged once")
+	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionDeliveries))
 }

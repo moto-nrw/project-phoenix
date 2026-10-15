@@ -22,6 +22,11 @@ var (
 // audit retention function refuses an earlier cutoff for tenant roles.
 const UnregisteredTagScanRetentionDays = 90
 
+// retentionClockMargin keeps the cutoff inside the database function's
+// permitted window when its clock runs slightly behind this owner's clock.
+// A borderline scan is then deleted in the next run rather than failing it.
+const retentionClockMargin = time.Minute
+
 // UnregisteredTagScan is one RFID tag UID a device scanned while no person
 // was assigned to it. DeviceIdentifier and DeviceName come from this owner's
 // device inventory and stay unset when the device is gone or belongs to
@@ -81,6 +86,12 @@ type UnregisteredTagScanCommand interface {
 	DeleteExpiredUnregisteredTagScans(context.Context, time.Time) (int64, error)
 }
 
+// UnregisteredTagScanRetention removes scans after the owner's fixed
+// retention window and reports that window with the deleted count.
+type UnregisteredTagScanRetention interface {
+	DeleteUnregisteredTagScansAfterRetention(context.Context) (deleted int, retentionDays int, err error)
+}
+
 // FindUnregisteredTagScan returns one scan visible to the caller with its
 // device identity, or ErrUnregisteredTagScanNotFound.
 func (m *Module) FindUnregisteredTagScan(ctx context.Context, id int64) (UnregisteredTagScan, error) {
@@ -126,4 +137,12 @@ func (m *Module) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff t
 		return 0, m.reject("delete_expired_unregistered_tag_scans", ErrInvalidUnregisteredTagScan)
 	}
 	return m.engine.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+}
+
+// DeleteUnregisteredTagScansAfterRetention removes the caller tenant's scans
+// after the fixed review window.
+func (m *Module) DeleteUnregisteredTagScansAfterRetention(ctx context.Context) (int, int, error) {
+	cutoff := m.engine.Now().AddDate(0, 0, -UnregisteredTagScanRetentionDays).Add(-retentionClockMargin)
+	deleted, err := m.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
+	return int(deleted), UnregisteredTagScanRetentionDays, err
 }
