@@ -1,4 +1,4 @@
-package api
+package middleware
 
 import (
 	"net/http"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,14 +16,14 @@ import (
 func TestNewSecurityLogger(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 	assert.NotNil(t, sl)
 }
 
 func TestSecurityLogger_LogEvent(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	req.Header.Set("User-Agent", "TestAgent/1.0")
@@ -42,7 +41,7 @@ func TestSecurityLogger_LogEvent(t *testing.T) {
 func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)
 
@@ -54,12 +53,12 @@ func TestSecurityLogger_LogEvent_EmptyDetails(t *testing.T) {
 func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 
 	events := []string{
 		"AUTH_FAILURE",
-		customMiddleware.EventRateLimitExceed,
+		EventRateLimitExceed,
 		"SUSPICIOUS_ACCESS",
 		"ACCOUNT_LOCKED",
 		"INVALID_TOKEN",
@@ -77,7 +76,7 @@ func TestSecurityLogger_LogEvent_AllEventTypes(t *testing.T) {
 func TestSecurityLogger_LogRateLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 
 	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	req.RemoteAddr = "10.0.0.1:12345"
@@ -88,16 +87,16 @@ func TestSecurityLogger_LogRateLimitExceeded(t *testing.T) {
 }
 
 // =============================================================================
-// customMiddleware.SecurityLoggingMiddleware Tests
+// SecurityLoggingMiddleware Tests
 // =============================================================================
 
 func TestSecurityLoggingMiddleware_NormalRequest(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 
 	r := chi.NewRouter()
-	r.Use(customMiddleware.SecurityLoggingMiddleware(sl))
+	r.Use(SecurityLoggingMiddleware(sl))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
@@ -113,10 +112,10 @@ func TestSecurityLoggingMiddleware_NormalRequest(t *testing.T) {
 func TestSecurityLoggingMiddleware_RateLimitExceeded(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 
 	r := chi.NewRouter()
-	r.Use(customMiddleware.SecurityLoggingMiddleware(sl))
+	r.Use(SecurityLoggingMiddleware(sl))
 	r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusTooManyRequests)
 	})
@@ -132,7 +131,7 @@ func TestSecurityLoggingMiddleware_RateLimitExceeded(t *testing.T) {
 func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
 	t.Parallel()
 
-	sl := customMiddleware.NewSecurityLogger()
+	sl := NewSecurityLogger()
 
 	statusCodes := []int{
 		http.StatusOK,
@@ -148,7 +147,7 @@ func TestSecurityLoggingMiddleware_VariousStatusCodes(t *testing.T) {
 	for _, code := range statusCodes {
 		t.Run(http.StatusText(code), func(t *testing.T) {
 			r := chi.NewRouter()
-			r.Use(customMiddleware.SecurityLoggingMiddleware(sl))
+			r.Use(SecurityLoggingMiddleware(sl))
 			r.Get("/test", func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(code)
 			})

@@ -2226,15 +2226,12 @@ func newMealPlanExportRenderer() SimpleListRenderer {
 	return NewSimpleListRenderer()
 }
 
-// newSessionTokenAuth resolves the signing configuration once for the API root.
+// newSessionTokenAuth hands the signing configuration to Identity's
+// composition, which builds the HTTP session runtime (ADR 0053 point 6).
 func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
-	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(
+	return identityaccessCompose.NewConfiguredSessionAuth(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
-	}
-	return tokenAuth, nil
 }
