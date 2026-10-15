@@ -9,7 +9,7 @@ import (
 // targetOnlyRulesEpoch is the policy epoch from which a rule may only state
 // the target (ADR 0057, #4070). Older epochs stay loadable as immutable PR
 // bases; every candidate from this epoch on is validated against the rule.
-const targetOnlyRulesEpoch = 46
+const targetOnlyRulesEpoch = 47
 
 // privateRoles are the roles no other owner may import (ADR 0057 point 1).
 // legacy-model is the role of the retained models/* ORM packages (point 4).

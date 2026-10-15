@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 46,
+  "policy_epoch": 47,
   "module_path": "example.test/target-only",
   "shared_kernel_types": [
     "CorrelationID",

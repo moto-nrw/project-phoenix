@@ -12,7 +12,10 @@ import (
 // own deviation from a policy that is target-only as committed.
 func targetOnlyFixture(t *testing.T, mutate func(map[string]any)) error {
 	t.Helper()
-	document := mutatePolicy(t, readFile(t, fixturePath(t, "target-only-rules.json")), mutate)
+	document := mutatePolicy(t, readFile(t, fixturePath(t, "target-only-rules.json")), func(document map[string]any) {
+		document["policy_epoch"] = targetOnlyRulesEpoch
+		mutate(document)
+	})
 	_, err := DecodePolicy(strings.NewReader(document))
 	return err
 }

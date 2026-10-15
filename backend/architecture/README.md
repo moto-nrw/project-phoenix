@@ -1035,7 +1035,7 @@ enforced by the base policy.
 
 A rule states the target
 ([ADR 0057](../../docs/adr/0057-only-the-target-is-a-rule.md), #4070). From
-policy epoch 46 the loader rejects every rule the end state of #2580 does not
+policy epoch 47 the loader rejects every rule the end state of #2580 does not
 keep (`internal/architecture/target_rule.go`):
 
 - a rule that lets one owner import another owner's `application`, `domain`,
@@ -1058,13 +1058,13 @@ with its open carrier issue, never a rule. Older epochs stay loadable as
 immutable PR bases: there an `issue` field still marks a temporary
 permission, and an explicit empty, null, malformed, query, fragment or
 pull-request URL stays invalid. Keep that read path while a supported base
-predates epoch 46. `audit-issues` reads only the baseline's issues, with one
+predates epoch 47. `audit-issues` reads only the baseline's issues, with one
 request per distinct URL; it still loads the policy, so an invalid policy
 fails it. Closed issues, pull requests and failed requests fail the audit.
 
 The retained `models` and `models/*` packages carry their own role,
 `legacy-model`, which only their owner may import (ADR 0057 point 4). From
-epoch 46 every non-test-support package under `models/` has that role and no
+epoch 47 every non-test-support package under `models/` has that role and no
 other package has it. The session token runtime
 `modules/identityaccess/sessiontoken` is classified as Identity & Access's
 `http` role (point 3): every HTTP adapter, composition and suite that
@@ -1080,7 +1080,7 @@ existing package inside its owner, with unchanged test roles: `adapter` to
 (`internal/architecture/role_reclassification.go`). The comparison then
 judges a rule into or out of the new role by what the base allowed into or out
 of the old role, or into or out of the new role of the same owner. A role the
-base gives no package (`legacy-model` at epoch 46) takes the old role's
+base gives no package (`legacy-model` at epoch 47) takes the old role's
 permissions for every owner, so `same_owner` rules selected by kind keep
 their reach. Every other role change, an owner change or a changed test role
 stays under the ordinary guards. The target-only validation keeps both new
@@ -1125,12 +1125,26 @@ The three conditions hold per tuple, so one change may delete any number of
 rules and record exactly the imports they allowed. A key without a deleted
 rule behind it describes an allowed import and is a stale entry.
 
-#4070 (ADR 0057, policy epoch 45 → 46) applied the target-only validation to
-the whole policy. It deleted <!-- 4070:deleted -->372<!-- /4070:deleted --> rules and recorded the imports they allowed as
-<!-- 4070:keys -->479<!-- /4070:keys --> exact keys, one carrier per family:
+#4070 (ADR 0057, policy epoch 46 → 47) applied the target-only validation to
+the whole policy. It deleted 373 rules and recorded the imports they allowed as
+481 exact keys, one carrier per family (6 → 487 keys, 1,351 → 1,008 rules):
 
-<!-- 4070:carriers -->
-<!-- /4070:carriers -->
+| Carrier | Family | Keys added | Keys now |
+|---|---|---:|---:|
+| #4076 | domains, workflows, platforms and test support in another owner's private role, `models/*` | 102 | 102 |
+| #4081 | `internal/timezone` wrapper | 87 | 87 |
+| #4004 | owner compositions in another owner's private role | 64 | 64 |
+| #4073 | Parent Portal and `inbound-parent` | 61 | 61 |
+| #4077 | projections, compatibility adapters | 49 | 49 |
+| #4074 | Communication parent compatibility | 44 | 44 |
+| #4072 | platform into a domain, projection or workflow owner | 34 | 34 |
+| #4075 | `delivery-cutover.*` | 16 | 16 |
+| #4078 | `inbound` owners | 12 | 12 |
+| #2729 | rules with `issue` (`models/users`) | 8 | 9 |
+| #2750 | rules with `issue` (root) | 2 | 4 |
+| #2751 | legacy composition | 0 | 3 |
+| #4096 | dev tools of the commands root (ADR 0056) | 2 | 2 |
+| | total | 481 | 487 |
 
 The audit's rule list per carrier decides the family of a deleted rule; a rule
 outside it follows the same order: imports of `internal/timezone` go to #4081,
@@ -1148,11 +1162,11 @@ The same epoch also:
   own rules into or out of them a `legacy-model` twin, or retargets a rule
   that only reached them;
 - classifies `modules/identityaccess/sessiontoken` as `identity-access`/`http`
-  and retargets the 53 rules into `identity-access`/`adapter` to that role.
+  and retargets the 55 rules into `identity-access`/`adapter` to that role.
   The settings platform's two session rules are platform rules into a domain
-  owner and became keys (#4072). The root's two `api -> sessiontoken` keys
-  (#2750) fall under `root-composition.reach.domain.http`. Identity's own
-  composition and suites reach the runtime through
+  owner and became keys (#4072). The root's two session rules of ADR 0056
+  are deleted: `root-composition.reach.domain.http` covers the root's
+  imports. Identity's own composition and suites reach the runtime through
   `identity-access.{compose,e2e-test,module-behavior-test}.session-runtime`;
 - splits the eight owner-agnostic test rules into a domain, projection or
   workflow role (`adapter-test.{domain,projection,workflow}.*`,
@@ -3546,6 +3560,9 @@ Three constraints shape the rules:
    own owner's `public` and `contract`. The rules into `public` and
    `contract` therefore name a source role, both for the root's test scopes
    and for an owner's own tests; the rules into the other roles do not.
+   #4070 split the rules into a domain, projection or workflow role by
+   source kind (`<kind>.adapter-test.domain.public` and so on), without
+   the platform kind (ADR 0057).
 2. The rules of points 3, 7.1 and 7.2 name a non-composition source owner
    kind, so they cannot overlap the root's rules: the roots reach their own
    packages through point 2. `reviewedOwnerCompositionRule` also rejects a
@@ -4145,7 +4162,7 @@ for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
 Policy candidates must use `schema_version: 3`. Schema 3 added the optional rule
-`issue`, which epoch 46 forbids again (ADR 0057); the JSON shape still
+`issue`, which epoch 47 forbids again (ADR 0057); the JSON shape still
 accepts it for older bases. Only `LoadBasePolicyAndManifest`, reading an immutable Git base,
 accepts schema 2 during the schema-3 rollout and normalizes it to 3 before full
 validation. Candidates never use that compatibility path. Schema 1, future
@@ -4179,7 +4196,7 @@ reaches every other HTTP point holds. Epoch 39 registers them as
 `inbound-parent.http.inbound-common`, `inbound-parent.http.identity-adapter`,
 `inbound-parent.http.tenant-runtime` and
 `inbound-parent.adapter-test.identity-adapter`. Other owners, roles, targets,
-external classes and scopes stay forbidden. Since epoch 46 the session runtime
+external classes and scopes stay forbidden. Since epoch 47 the session runtime
 is `identity-access`/`http` (ADR 0057 point 3); both acceptors, this one and
 the shared HTTP runtime's of ADR 0046, name that role instead of the adapter
 role.
@@ -4206,7 +4223,12 @@ imply. Epoch 46 registers them as `root-composition.compose.http-router`,
 `root-composition.cli.dev-tools`, and reclassifies `middleware` and
 `analytics` from `adapter` to their owners' `http` role, which
 `root-composition.reach.platform.http` (#4064) covers. Another source owner,
-role, target, class or scope stays forbidden.
+role, target, class or scope stays forbidden. Epoch 47 (ADR 0057, #4070)
+keeps three of the six: the session token runtime is
+`identity-access`/`http`, so `root-composition.reach.domain.http` covers the
+root's session imports and both session rules are deleted; `dev-tools`/`cli`
+is another owner's private role, so `root-composition.cli.dev-tools` is
+deleted and `cmd -> seed/api` and `cmd -> simulate` are keys (#4096).
 
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),
@@ -4349,7 +4371,7 @@ point 7.3 (#4001) adds `identity-access/adapter` to the standing targets in
 the same shape: the session token adapter is the HTTP session runtime (ADR
 0031, ADR 0046), and the fixtures reach it for the same reason they reach the
 tenant runtime. Epoch 41 registers `shared-fixtures.identity-access-adapter`,
-and `test -> modules/identityaccess/legacy/jwt` falls (#2748). Epoch 46 (ADR
+and `test -> modules/identityaccess/legacy/jwt` falls (#2748). Epoch 47 (ADR
 0057) names the runtime's new role, `identity-access`/`http`, among the
 targets and drops `legacy-shared`/`domain`: the wrapper is another owner's
 private role, so the fixtures' `internal/timezone` imports are keys (#4081).
