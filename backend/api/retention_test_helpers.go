@@ -13,8 +13,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -27,7 +30,8 @@ import (
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
 // the Device Fleet owner, the Care Plan status days, the parent messages, the
-// settled enrollments, the delivery data and the technical remains of #4046.
+// settled enrollments, the delivery data, the technical remains of #4046 and
+// the setting protocol and export journal of #4044.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
@@ -40,6 +44,8 @@ type RetentionTestOwners struct {
 	StaffCleanups        workforce.CleanupRetention
 	CarePlanCleanups     careplan.CleanupRetention
 	SubmissionLimits     enrollment.SubmissionRateLimitRetention
+	SettingAudit         settingsModule.AuditRetention
+	ExportTransfers      exporttransfer.JournalRetention
 }
 
 // NewRetentionTestOwners composes the retention owners over db; unit is the
@@ -78,6 +84,8 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 		StaffCleanups:      workforceCompose.NewCleanupRetention(),
 		CarePlanCleanups:   carePlanCompose.NewCleanupRetention(),
 		SubmissionLimits:   enrollmentCompose.New(),
+		SettingAudit:       settingsCompose.NewAuditRetention(),
+		ExportTransfers:    exportTransferCompose.NewJournalRetention(),
 	}, nil
 }
 

@@ -52,13 +52,18 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 | Erledigte Austrittsaufträge für Personal | 30 Tage | Abschluss des Auftrags | Workforce | Der Auftrag behält nur die Personal-ID; wie oben | umgesetzt (#4046) |
 | Abgeschlossene Betreuungsabmeldungen | 365 Tage | Abschluss (erledigt oder hinfällig) | Care Plan | Die Abschluss-Historie zeigt das letzte Jahr; offene Abmeldungen bleiben, bis die Schule sie abschließt | umgesetzt (#4046) |
 | Anmelde-Ratenbegrenzung (IP-Adresse oder E-Mail) | 1 Tag | Beginn des Zählfensters | Enrollment | Das längste Zählfenster ist 24 Stunden; danach zählt der Eintrag nichts mehr | umgesetzt (#4046) |
+| Nachweise über Löschungen: gelöschte Kinder, gelöschte und wiederhergestellte Anmeldungen, gelöschte Einträge der Zeiterfassung | 3 Jahre | Löschung bzw. Wiederherstellung | Audit Platform | Nachweis wie das Löschprotokoll (BayLDA: bis 3 Jahre) | umgesetzt (#4044) |
+| Änderungsprotokolle: Personaldaten, Personalnummern, Zahlungsdaten der Eltern | 3 Jahre | Änderung | Audit Platform | Regelverjährung (§ 195 BGB) für Streit um Lohn oder Lastschrift; Lohnkonto und Belege führt der Träger in seinem System (ADR 0048 Nr. 5) | umgesetzt (#4044) |
+| Einstellungsprotokoll | 3 Jahre | Änderung | Settings Platform | Weist nach, wer eine Löschfrist oder andere Einstellung eingetragen hat (ADR 0048, Folgen); so lange wie das Löschprotokoll | umgesetzt (#4044) |
+| Betriebsprotokolle: Klassenlisten-Abgleich, Vertretungen, Ereignisse der Dateiablage | Ende des Folgejahres | Ereignis | Audit Platform | Wer hat wann was zugeordnet oder hochgeladen; gleiche Regel wie das Zugriffsprotokoll | umgesetzt (#4044) |
+| Exportprotokoll (Übertragung per SFTP) | Ende des Folgejahres | Übertragung | Export Transfer | Eine Übertragung ist eine Übermittlung; gleiche Regel wie das Zugriffsprotokoll | umgesetzt (#4044) |
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 24 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 12 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
 
 - **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`), Operator-Konten des moto-Teams.
-- **Weitere Protokolle:** Klassenlisten-Abgleich, Anmeldungs-Löschungen und -Wiederherstellungen, Exporte, Datei-Ereignisse, Änderungen an Finanz-, Personalnummer- und Personaldaten, Kinderlöschungen, Vertretungen, Zeiterfassungs-Löschungen, Einstellungsprotokoll, Operator-Protokoll mit IP-Adresse.
+- **Weitere Protokolle:** Operator-Protokoll mit IP-Adresse.
 - **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.
 - **Technische Reste:** Demo-Besucher.
 
@@ -76,4 +81,6 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 - **Essens-Krankhistorie** (`schedule.meal_sickness_status_history`): Grundlage der Essensabrechnung. Sie speichert Krank-Tage ein zweites Mal und hat noch keine Frist. Die Fristlöschung der Krank-Tage schreibt bewusst keine neue Zeile hinein (#3958).
 - **Markierungen der Migration 1.15.428** (`auth.parent_declaration_permission_grants`): Sie dienen nur deren Rücknahme und gehen seit 1.15.449 mit der Beziehung zwischen Kind und Elternteil. Markierungen ohne Beziehung hat die Migration entfernt (#4046).
 - **Betreuungsabmeldungen eines gelöschten Kindes** behalten bis zum Ablauf der Frist nur „Gelöschtes Kind“ und die Konten, die bestätigt und abgeschlossen haben (#2547).
+- **Fachliche Protokolle** (#4044): Jedes Protokoll steht mit eigener Datenart im Löschprotokoll. Die Audit-Tabellen bleiben für die Schule unveränderbar; gelöscht wird nur über feste Funktionen in der Datenbank (Migration 1.15.454), die eine Grenze jünger als die Frist ablehnen. Das Einstellungsprotokoll löscht die Schule über ihre normale Datenbankrolle. Wird ein Konto gelöscht, bleibt seine Einstellungsänderung stehen und verliert nur, wer sie gemacht hat; vorher verhinderte der Eintrag das Löschen des Kontos.
+- **Gelöschte Einträge der Zeiterfassung** (`audit.time_tracking_deletions`) behalten den gelöschten Eintrag als Kopie. Sie gehen nach 3 Jahren, auch wenn die Schule ihre Zeiterfassung länger aufbewahrt.
 - **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).
