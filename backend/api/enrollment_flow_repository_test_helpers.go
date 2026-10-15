@@ -37,7 +37,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}

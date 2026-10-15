@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -25,7 +26,7 @@ import (
 // OwnerCapabilities bundles the migrated owner modules the legacy test graph
 // still composes explicitly.
 type OwnerCapabilities struct {
-	Organizations services.SchoolCapability
+	Organizations organizationtenancy.Capability
 	Persons       peopledirectory.Capability
 	Groups        schoolstructure.Capability
 	Rooms         facilitiesModule.Capability
@@ -88,8 +89,12 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 	if err != nil {
 		return nil, err
 	}
+	platform, err := owners.PlatformWiring(db, people, clocks...)
+	if err != nil {
+		return nil, err
+	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, true, clocks...))
+	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), nil, services.FileStorageWiring{}, wiring, people, platform, true, clocks...))
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +114,17 @@ func (owners OwnerCapabilities) PeopleWiring(db transactionruntime.Database, car
 		DB: db, Logger: logger, Persons: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
 		Membership: owners.Membership, Workforce: owners.Workforce, CarePlan: carePlan,
 		Organizations: owners.Organizations, Timetable: owners.Timetable,
+	})
+}
+
+// PlatformWiring builds the platform, Communication and Organisation &
+// Tenancy wiring over the test owners and the given People Directory wiring,
+// as the serving root does (#4013). The parent announcements read the
+// graph's clock.
+func (owners OwnerCapabilities) PlatformWiring(db transactionruntime.Database, people services.PeopleWiring, clocks ...func() time.Time) (services.PlatformWiring, error) {
+	return NewPlatformWiring(PlatformWiringOwners{
+		DB: db, Organizations: owners.Organizations, Persons: owners.Persons, Groups: owners.Groups,
+		Membership: owners.Membership, People: people, Now: services.OptionalClock(clocks),
 	})
 }
 
@@ -135,7 +151,7 @@ func caregiverProfilesForTests(db transactionruntime.Database) (CaregiverProfile
 // NewOwnerCapabilitiesForTests composes the owner modules the legacy test
 // graph binds into the factory, unobserved.
 func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabilities, error) {
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}
@@ -182,7 +198,7 @@ func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabili
 // WorkforceWiring is the Workforce wiring the root hands the factory, over
 // the owners of this test graph.
 func (o OwnerCapabilities) WorkforceWiring(db transactionruntime.Database) services.WorkforceWiring {
-	staff := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), NewPeopleIdentityAccess(db, nil), o.Membership, o.Rooms, o.Workforce).Staff
+	staff := NewMembershipRepositories(db, NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), o.Membership, o.Rooms, o.Workforce).Staff
 	return newWorkforceWiring(db, o.Workforce, o.Membership, o.Persons, o.Organizations, staff)
 }
 

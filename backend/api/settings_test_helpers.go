@@ -22,7 +22,7 @@ type SettingsTestModule struct {
 // NewSettingsTestModule retains the real settings storage, guards and tenant
 // runtime without composing attendance, auth, or other route services.
 func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (SettingsTestModule, error) {
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return SettingsTestModule{}, err
 	}
@@ -35,7 +35,7 @@ func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	homeLayouts := settingsCompose.NewHomeLayoutService(settingsCompose.NewHomeLayoutRepository(runtime), runtime, slog.Default())
 	settings := settingsCompose.NewSettingsServiceWithHomeLayouts(
 		repos.Values, repos.Audit,
-		services.NewSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,
+		NewSchoolSettingsStore(organizations), runtime, slog.Default(), homeLayouts,
 	)
 	guards := settings.(interface {
 		SetClassRestrictionGuard(func(context.Context) (bool, error))

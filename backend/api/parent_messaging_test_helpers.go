@@ -34,7 +34,7 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	persons := services.NewPersonRepository(db.Pool())
+	persons := NewPersonRepository(db)
 	return ParentMessagingTestRepositories{
 		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), NewMessageableGuardianRepository(db)),
 		Message: parentStore.NewParentMessageRepository(db.Pool()),

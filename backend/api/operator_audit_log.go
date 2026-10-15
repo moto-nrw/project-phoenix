@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -9,10 +9,16 @@ import (
 	platform "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 )
 
+// operatorLedgerEntries is the Audit owner's operator ledger.
+type operatorLedgerEntries interface {
+	Create(ctx context.Context, entry *auditModels.OperatorAuditEntry) error
+	FindByDateRange(ctx context.Context, start, end time.Time, limit int) ([]*auditModels.OperatorAuditEntry, error)
+}
+
 // NewOperatorAuditLogFromEntries serves the retained operator audit-log contract over
 // the Audit owner's platform ledger (#2720), which the Audit composition
 // builds (ADR 0049).
-func NewOperatorAuditLogFromEntries(entries auditModels.OperatorAuditLogRepository) platform.OperatorAuditLogRepository {
+func NewOperatorAuditLogFromEntries(entries operatorLedgerEntries) platform.OperatorAuditLogRepository {
 	if entries == nil {
 		panic("operator audit log repository: audit ledger is required")
 	}
@@ -22,7 +28,7 @@ func NewOperatorAuditLogFromEntries(entries auditModels.OperatorAuditLogReposito
 // operatorAuditLogRepository is the compatibility adapter behind
 // platform.OperatorAuditLogRepository over the Audit owner's ledger.
 type operatorAuditLogRepository struct {
-	entries auditModels.OperatorAuditLogRepository
+	entries operatorLedgerEntries
 }
 
 func (r operatorAuditLogRepository) Create(ctx context.Context, entry *platform.OperatorAuditLog) error {

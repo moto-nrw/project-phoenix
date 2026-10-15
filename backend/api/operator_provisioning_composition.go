@@ -1,54 +1,72 @@
-package services
+package api
 
 import (
 	"context"
 	"errors"
-	"log/slog"
+	"fmt"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
-// operatorProvisioningSources are the retained services and repositories the
-// Organisation & Tenancy provisioning seams are bound to (#3253).
-type operatorProvisioningSources struct {
-	accounts       OperatorAccountDirectory
-	organizations  organizationtenancy.Capability
-	adapters       OperatorProvisioningAdapters
-	sessions       identityaccess.AccountSessionMaintenance
-	invitations    identityaccess.SchoolInvitations
-	provisioning   identityaccess.AccountProvisioning
-	administration identityaccess.AccountAdministration
-	schoolIdentity identityaccess.SchoolIdentityProvisioning
-	roles          provisioningRoles
-	settings       settingsCompose.SettingsService
-	logger         *slog.Logger
+// operatorProvisioningOwners are the owners the root composed that operator
+// provisioning (#3253) binds alongside the values of the legacy graph.
+type operatorProvisioningOwners struct {
+	DB            transactionruntime.Database
+	Organizations organizationtenancy.Capability
+	Persons       peopledirectory.Query
+	Membership    schoolmembership.Query
+	PersonRows    provisioningPersonRows
+	StaffRows     provisioningStaffRows
+	AuditLog      operatorAuditEntries
 }
 
-func newOperatorProvisioning(sources operatorProvisioningSources) (organizationtenancy.Provisioning, error) {
+// compose binds Organisation & Tenancy's provisioning to the root's owners
+// and the legacy graph's values.
+func (owners operatorProvisioningOwners) compose(sources services.OperatorProvisioningSources) (organizationtenancy.Provisioning, error) {
+	adapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
+		PersonStudents: peopleCompose.NewLegacyRepositoryRuntime(owners.DB.Pool()),
+		Devices:        sources.Devices,
+		Persons:        owners.Persons,
+		Membership:     owners.Membership,
+		PersonRows:     owners.PersonRows,
+		StaffRows:      owners.StaffRows,
+		Accounts:       sources.Identity,
+		ActiveGroups:   sources.Sessions,
+		Supervisors:    sources.Supervisions,
+		Categories:     sources.Categories,
+		AuditLog:       owners.AuditLog,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
+	}
+	identity := sources.Identity
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
-		Organizations: sources.organizations,
+		Organizations: owners.Organizations,
 		Identity: provisioningIdentity{
-			sessions:    sources.sessions,
-			invitations: sources.invitations, provisioning: sources.provisioning,
-			administration: sources.administration, schoolIdentity: sources.schoolIdentity,
-			roles: sources.roles, accounts: sources.accounts,
+			sessions: identity, invitations: identity, provisioning: identity,
+			administration: identity, schoolIdentity: identity, roles: identity, accounts: sources.Accounts,
 		},
-		Devices:             sources.adapters.Devices,
-		People:              sources.adapters.People,
-		Presence:            sources.adapters.Presence,
-		Categories:          sources.adapters.Categories,
-		Settings:            provisioningSettings{settings: sources.settings},
-		Audit:               sources.adapters.Audit,
-		Logger:              sources.logger,
-		ActiveAccountCounts: sources.adapters.ActiveAccountCounts,
+		Devices:             adapters.Devices,
+		People:              adapters.People,
+		Presence:            adapters.Presence,
+		Categories:          adapters.Categories,
+		Settings:            provisioningSettings{settings: sources.Settings},
+		Audit:               adapters.Audit,
+		Logger:              sources.Logger,
+		ActiveAccountCounts: adapters.ActiveAccountCounts,
 	})
 }
 
@@ -60,7 +78,7 @@ type provisioningRoles interface {
 
 // provisioningIdentity binds provisioning to public identity capabilities.
 type provisioningIdentity struct {
-	accounts       OperatorAccountDirectory
+	accounts       services.OperatorAccountDirectory
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning
@@ -279,15 +297,15 @@ type pwaUsageCounts struct {
 	provisioning organizationtenancy.Provisioning
 }
 
-func (c pwaUsageCounts) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]pwa.UsageRow, error) {
+func (c pwaUsageCounts) PWAUsage(ctx context.Context, tenantID int64, window time.Duration) ([]deliveryCompose.PWAUsageRow, error) {
 	rows, err := c.provisioning.ListPWAUsage(ctx, window)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]pwa.UsageRow, 0, len(rows))
+	result := make([]deliveryCompose.PWAUsageRow, 0, len(rows))
 	for _, row := range rows {
 		if tenantID <= 0 || row.TenantID == tenantID {
-			result = append(result, pwa.UsageRow(row))
+			result = append(result, deliveryCompose.PWAUsageRow(row))
 		}
 	}
 	return result, nil
@@ -331,25 +349,3 @@ func provisioningIdentityError(err error) error {
 	}
 	return organizationtenancy.MarkIdentityStoreFailure(err)
 }
-
-// The operator provisioning routes classify Identity & Access outcomes on
-// the retained sentinels of Organisation & Tenancy (#3364).
-
-// retainedSentinel pairs a public outcome of Identity & Access with the
-// sentinel a consumer that may not name the owner classifies on.
-type retainedSentinel struct {
-	public   error
-	retained error
-}
-
-// retainedError keeps the public cause's text while exposing the retained
-// sentinel to errors.Is.
-type retainedError struct {
-	text     string
-	sentinel error
-	cause    error
-}
-
-func (e *retainedError) Error() string { return e.text }
-
-func (e *retainedError) Unwrap() []error { return []error{e.sentinel, e.cause} }

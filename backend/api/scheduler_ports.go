@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
@@ -151,6 +153,8 @@ type workerReads struct {
 	// the session, invitation and operator link maintenance and the reminder
 	// recipients' accounts.
 	identity *identityaccess.Module
+	// schools are the schools the Worker iterates its tenant jobs over.
+	schools organizationModule.Query
 }
 
 func newWorkerReads(modules moduleServices) workerReads {
@@ -165,6 +169,7 @@ func newWorkerReads(modules moduleServices) workerReads {
 		studentStatusDays:  modules.studentStatusDays,
 		statusDayRetention: statusDayRetention(modules.carePlan),
 		identity:           modules.identity,
+		schools:            modules.organizations,
 	}
 }
 

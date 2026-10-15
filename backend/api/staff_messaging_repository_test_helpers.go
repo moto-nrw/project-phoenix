@@ -25,6 +25,6 @@ func NewStaffMessagingTestRepositories(db transactionruntime.Database, members M
 		Message: staffStore.NewStaffMessageRepository(db.Pool()),
 		Read: staffStore.NewStaffMessageReadRepository(db.Pool(), peopleCompose.NewMessageableStaff(db.Pool(),
 			parentStore.CurrentTenantStaffAccounts(services.ParentStaffMembers{Membership: membership}.List, members.Person),
-			services.StaffMessageIdentity(NewPeopleIdentityAccess(db, nil)))),
+			StaffMessageIdentity(NewPeopleIdentityAccess(db, nil)))),
 	}, nil
 }

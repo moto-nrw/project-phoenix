@@ -486,23 +486,27 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 
 // factorySchools reads the seeded schools through an Organisation & Tenancy
 // capability, the owner the serving root binds.
-type factorySchools struct{ schools services.SchoolCapability }
+type factorySchools struct {
+	find func(context.Context, int64) (*enrollmentTest.School, error)
+}
 
 func newFactorySchools(t *testing.T, db *bun.DB) factorySchools {
 	t.Helper()
-	organizations, err := services.NewOrganizationTenancy(db)
+	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	return factorySchools{schools: organizations}
+	return factorySchools{find: func(ctx context.Context, id int64) (*enrollmentTest.School, error) {
+		school, err := organizations.FindSchool(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return &enrollmentTest.School{
+			Name: school.Name, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted(),
+		}, nil
+	}}
 }
 
 func (s factorySchools) FindSchool(ctx context.Context, id int64) (*enrollmentTest.School, error) {
-	school, err := s.schools.FindSchool(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return &enrollmentTest.School{
-		Name: school.Name, Subdomain: school.Subdomain, Settings: school.Settings, Deleted: school.IsDeleted(),
-	}, nil
+	return s.find(ctx, id)
 }
 
 // recordingMailOutbox records Enrollment's parent mails.

@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -6,18 +6,18 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
+// The adapters below record the access evidence of Student Presence and
+// Workforce in the Audit Platform's data access log (#4013).
+
 type dataAccessAudit struct {
-	writer interface {
-		Create(context.Context, *auditModels.DataAccessLog) error
-	}
+	writer services.DataAccessAppender
 }
 
 // NewDataAccessAudit connects attendance access evidence to the audit writer.
-func NewDataAccessAudit(writer interface {
-	Create(context.Context, *auditModels.DataAccessLog) error
-}) presenceservice.DataAccessAudit {
+func NewDataAccessAudit(writer services.DataAccessAppender) presenceservice.DataAccessAudit {
 	if writer == nil {
 		return nil
 	}
@@ -38,9 +38,7 @@ func (a dataAccessAudit) Create(ctx context.Context, event *presenceservice.Data
 
 // NewTimeTrackingDataAccessAudit connects the retained time export's access
 // evidence to the audit writer.
-func NewTimeTrackingDataAccessAudit(writer interface {
-	Create(context.Context, *auditModels.DataAccessLog) error
-}) workforceCompose.DataAccessAudit {
+func NewTimeTrackingDataAccessAudit(writer services.DataAccessAppender) workforceCompose.DataAccessAudit {
 	if writer == nil {
 		return nil
 	}
@@ -48,9 +46,7 @@ func NewTimeTrackingDataAccessAudit(writer interface {
 }
 
 type timeTrackingDataAccessAudit struct {
-	writer interface {
-		Create(context.Context, *auditModels.DataAccessLog) error
-	}
+	writer services.DataAccessAppender
 }
 
 func (a timeTrackingDataAccessAudit) Create(ctx context.Context, event *workforceCompose.DataAccessEvent) error {

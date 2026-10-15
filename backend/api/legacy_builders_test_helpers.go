@@ -1,14 +1,9 @@
 package api
 
 import (
-	"context"
-	"time"
-
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -20,20 +15,9 @@ import (
 // composition reach them here until the slices of #2747 move them into the
 // owners and the root (#4005).
 
-// NewOrganizationTenancy composes the Organization & Tenancy owner.
-func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy.Capability, error) {
-	return services.NewOrganizationTenancy(db.Pool())
-}
-
 // NewSchoolMembership composes the School Membership owner, unobserved.
 func NewSchoolMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
 	return services.NewSchoolMembership(db.Pool())
-}
-
-// NewDeviceFleet composes the Device Fleet owner, with the online windows the
-// suite pins.
-func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
-	return services.NewDeviceFleet(db.Pool(), onlineWindows...)
 }
 
 // NewSessionRecords composes the Student Presence session records over the

@@ -1,4 +1,4 @@
-package services
+package compose
 
 import (
 	"context"
@@ -7,34 +7,32 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/email"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
-	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
 
-type DeliveryProvider struct {
+// The transports behind the Delivery worker: the e-mail provider renders a
+// claimed intent through the template registry and sends it, the push
+// provider re-checks the subscription before it sends (#4013).
+
+// MailPushProvider sends the claimed e-mail and push intents.
+type MailPushProvider struct {
 	Registry       *emailoutbox.TemplateRegistry
 	Mailer         email.Mailer
 	MailIdentity   email.ReplyToResolver
 	Push           delivery.PushSender
 	Logger         *slog.Logger
-	Tenants        intentTenantTransactions
+	Tenants        IntentTenantTransactions
 	PushAuthorized func(context.Context, delivery.ClaimedIntent) (bool, error)
 }
 
-// intentTenantTransactions runs a provider step in the tenant transaction
-// of the claimed intent's school (deliveryCompose.TenantTransactions).
-type intentTenantTransactions interface {
+// IntentTenantTransactions runs a provider step in the tenant transaction
+// of the claimed intent's school (TenantTransactions).
+type IntentTenantTransactions interface {
 	WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error
-}
-
-type guardianDisplayQuery interface {
-	GuardianDisplays(context.Context, []int64) ([]peopleCompose.GuardianDisplay, error)
 }
 
 type pushSubscriptionCleaner interface {
@@ -49,7 +47,9 @@ type pushSubscriptionAuthorizer interface {
 	FindForSchoolAccounts(context.Context, []int64) ([]*deliveryModels.PushSubscription, error)
 }
 
-func NewPushAuthorizationChecker(tenants intentTenantTransactions, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
+// NewPushAuthorizationChecker answers whether the claimed push still goes to
+// a subscription its audience may receive.
+func NewPushAuthorizationChecker(tenants IntentTenantTransactions, subscriptions pushSubscriptionAuthorizer) func(context.Context, delivery.ClaimedIntent) (bool, error) {
 	return func(ctx context.Context, intent delivery.ClaimedIntent) (bool, error) {
 		var eligible []*deliveryModels.PushSubscription
 		err := tenants.WithinTenant(ctx, intent.TenantID, func(txCtx context.Context) error {
@@ -94,7 +94,9 @@ func containsPushSubscription(subscriptions []*deliveryModels.PushSubscription, 
 	return false
 }
 
-func NewExpiredPushSubscriptionCleaner(tenants intentTenantTransactions, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
+// NewExpiredPushSubscriptionCleaner removes the subscription a push service
+// reported gone, unless it changed since the intent was claimed.
+func NewExpiredPushSubscriptionCleaner(tenants IntentTenantTransactions, subscriptions pushSubscriptionCleaner) func(context.Context, delivery.ClaimedIntent) error {
 	return func(ctx context.Context, intent delivery.ClaimedIntent) error {
 		return tenants.WithinTenant(ctx, intent.TenantID, func(txCtx context.Context) error {
 			subscription := &deliveryModels.PushSubscription{
@@ -110,53 +112,19 @@ func NewExpiredPushSubscriptionCleaner(tenants intentTenantTransactions, subscri
 	}
 }
 
-type GuardianDisplayResolver struct{ Query guardianDisplayQuery }
+// DurableEmails serves the e-mail outbox's durable store over the Delivery
+// module.
+type DurableEmails struct{ module *delivery.Module }
 
-func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]delivery.GuardianDisplay, error) {
-	if len(ids) == 0 {
-		return []delivery.GuardianDisplay{}, nil
-	}
-	profiles, err := r.Query.GuardianDisplays(ctx, ids)
-	if err != nil {
-		return nil, fmt.Errorf("delivery: resolve guardian display data: %w", err)
-	}
-	result := make([]delivery.GuardianDisplay, 0, len(profiles))
-	for _, profile := range profiles {
-		result = append(result, delivery.GuardianDisplay{
-			GuardianProfileID: profile.GuardianProfileID, FirstName: profile.FirstName, LastName: profile.LastName,
-		})
-	}
-	return result, nil
+// NewDurableEmails binds the e-mail outbox's store to module.
+func NewDurableEmails(module *delivery.Module) DurableEmails {
+	return DurableEmails{module: module}
 }
 
-type announcementDeliveryAdapter struct{ module *delivery.Module }
-
-type DurableEmailAdapter struct{ Module *delivery.Module }
-
-type enrollmentDeliveryAdapter struct {
-	module   *delivery.Module
-	tenantID func(context.Context) (int64, error)
-}
-
-func (a enrollmentDeliveryAdapter) CountRelatedEmails(ctx context.Context, relatedType string, relatedID int64) (int, error) {
-	tenantID, err := a.tenantID(ctx)
-	if err != nil {
-		return 0, err
-	}
-	rows, err := a.module.Statuses(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
-	return len(rows), err
-}
-
-func (a enrollmentDeliveryAdapter) CancelRelatedEmails(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error) {
-	tenantID, err := a.tenantID(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return a.module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
-}
-
-func (a DurableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox.DurableEmail) (emailoutbox.DurableEmailResult, error) {
-	stored, err := a.Module.EnqueueEmail(ctx, delivery.EmailIntent{
+// EnqueueEmail stores an e-mail intent and reports whether it was a
+// duplicate.
+func (a DurableEmails) EnqueueEmail(ctx context.Context, input emailoutbox.DurableEmail) (emailoutbox.DurableEmailResult, error) {
+	stored, err := a.module.EnqueueEmail(ctx, delivery.EmailIntent{
 		TenantID: input.TenantID, Template: input.Template,
 		Recipient: delivery.EmailRecipient{Address: input.Recipient}, Payload: input.Payload,
 		IdempotencyKey: input.IdempotencyKey,
@@ -169,71 +137,14 @@ func (a DurableEmailAdapter) EnqueueEmail(ctx context.Context, input emailoutbox
 	return emailoutbox.DurableEmailResult{ID: stored.ID, Duplicate: stored.Duplicate}, nil
 }
 
-// OutboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
-// enrollment producers over the Delivery enqueue facade.
-type OutboxEnqueuer struct{ Outbox *emailoutbox.Service }
-
-func (o OutboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
-	_, err := o.EnqueueOutboxWithResult(ctx, req)
-	return err
+// CancelEmail cancels the pending e-mails of an entity.
+func (a DurableEmails) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
+	return a.module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
 }
 
-func (o OutboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
-	stored, err := o.Outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
-		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
-		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
-	})
-	if err != nil {
-		return platformModels.OutboxEnqueued{}, err
-	}
-	return platformModels.OutboxEnqueued{ID: stored.ID}, nil
-}
-
-func (a DurableEmailAdapter) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {
-	return a.Module.Cancel(ctx, tenantID, delivery.TransportEmail, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, reason)
-}
-
-func (a announcementDeliveryAdapter) ReplaceForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64, rows []announcement.ParentAnnouncementEmailDelivery) error {
-	values := make([]delivery.EmailDelivery, 0, len(rows))
-	for _, row := range rows {
-		values = append(values, delivery.EmailDelivery{
-			OutboxID: row.OutboxID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
-			RecipientEmail: row.RecipientEmail, Reachability: row.Reachability,
-		})
-	}
-	return a.module.ReplaceEmailDeliveries(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID}, values)
-}
-
-func (a announcementDeliveryAdapter) DeleteForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) (int64, error) {
-	return a.module.DeleteEmailDeliveries(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
-}
-
-func (a announcementDeliveryAdapter) ListForEntity(ctx context.Context, tenantID int64, relatedType string, relatedID int64) ([]announcement.ParentAnnouncementEmailDeliveryStatus, error) {
-	rows, err := a.module.EmailDeliveryStatuses(ctx, tenantID, delivery.RelatedEntity{Type: relatedType, ID: relatedID})
-	if err != nil {
-		return nil, err
-	}
-	result := make([]announcement.ParentAnnouncementEmailDeliveryStatus, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, announcement.ParentAnnouncementEmailDeliveryStatus{
-			DeliveryID: row.DeliveryID, GuardianProfileID: row.GuardianProfileID, AccountID: row.AccountID,
-			FirstName: row.FirstName, LastName: row.LastName, RecipientEmail: row.RecipientEmail,
-			Reachability: row.Reachability, EmailStatus: row.EmailStatus, LastError: row.LastError,
-			SentAt: row.SentAt, Attempts: row.Attempts,
-		})
-	}
-	return result, nil
-}
-
-func (a announcementDeliveryAdapter) AttachOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {
-	return a.module.AttachEmailOutbox(ctx, tenantID, deliveryID, outboxID)
-}
-
-func (a announcementDeliveryAdapter) ClaimFailedDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
-	return a.module.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
-}
-
-func (p *DeliveryProvider) SendEmail(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+// SendEmail renders the claimed e-mail in its school's tenant transaction and
+// hands it to the mailer.
+func (p *MailPushProvider) SendEmail(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
 	var payload map[string]any
 	if err := json.Unmarshal(intent.EmailPayload, &payload); err != nil {
 		return delivery.ProviderResult{}, fmt.Errorf("delivery provider: decode email payload: %w", err)
@@ -294,7 +205,7 @@ func sendRenderedEmail(ctx context.Context, mailer email.Mailer, recipient deliv
 	return mailer.Send(*message)
 }
 
-func (p *DeliveryProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
+func (p *MailPushProvider) applyReplyTo(ctx context.Context, intent delivery.ClaimedIntent, message *email.Message) {
 	if p.MailIdentity == nil || message == nil || message.ReplyTo.Address != "" {
 		return
 	}
@@ -311,7 +222,8 @@ func (p *DeliveryProvider) applyReplyTo(ctx context.Context, intent delivery.Cla
 	}
 }
 
-func (p *DeliveryProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
+// SendPush sends the claimed push when its subscription is still authorized.
+func (p *MailPushProvider) SendPush(ctx context.Context, intent delivery.ClaimedIntent) (delivery.ProviderResult, error) {
 	if p.PushAuthorized == nil {
 		return delivery.ProviderResult{}, errors.New("delivery provider: push authorization is not configured")
 	}

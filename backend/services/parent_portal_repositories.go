@@ -5,7 +5,6 @@ import (
 	"time"
 
 	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -154,12 +153,4 @@ func (d ParentStaffMembers) List(ctx context.Context, tenantIDs []int64) ([]pare
 		result = append(result, parentStore.StaffMember{TenantID: member.TenantID, PersonID: member.PersonID})
 	}
 	return result, nil
-}
-
-// parentGroupNames serves the parent inbox's group port from School
-// Structure.
-type parentGroupNames struct{ groups schoolstructure.Query }
-
-func (d parentGroupNames) list(ctx context.Context, ids []int64) (map[int64]string, error) {
-	return schoolStructureCompose.GroupNamesByID(ctx, d.groups, ids)
 }

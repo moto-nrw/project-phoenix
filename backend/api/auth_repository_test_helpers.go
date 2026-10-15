@@ -13,10 +13,10 @@ import (
 // are composed by services (#2743); the auth events and the operator ledger
 // come from the Audit composition.
 func NewAuthTestParentPortal(db transactionruntime.Database) (carePlanCompose.ParentPortalRepositories, error) {
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return carePlanCompose.ParentPortalRepositories{}, err
 	}
-	requests := carePlanCompose.NewParentEnrollmentRequestRepository(db.Pool(), enrollmentCompose.New(), services.IdentityAccountDirectory{Accounts: NewPeopleIdentityAccess(db, nil)})
+	requests := carePlanCompose.NewParentEnrollmentRequestRepository(db.Pool(), enrollmentCompose.New(), IdentityAccountDirectory{Accounts: NewPeopleIdentityAccess(db, nil)})
 	return carePlanCompose.ParentPortalRepositories{ParentEnrollmentRequest: requests}.WithSchools(services.ParentPortalSchools{Schools: organizations}), nil
 }

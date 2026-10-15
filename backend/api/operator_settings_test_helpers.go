@@ -40,7 +40,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
-	schools, err := services.NewOrganizationTenancy(db.Pool())
+	schools, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return OperatorSettingsTestModule{}, err
 	}
@@ -84,7 +84,7 @@ func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorScho
 		Settings:       m.Settings,
 		DB:             m.db.Pool(),
 		Notify:         opts.Notify,
-		OpenAttendance: services.OpenAttendanceChecker{Service: m.Active},
+		OpenAttendance: OpenAttendanceChecker{Service: m.Active},
 		CareLifecycle:  m.CareLifecycle,
 		OnValueSet:     opts.OnValueSet,
 	}

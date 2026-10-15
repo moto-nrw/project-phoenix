@@ -71,7 +71,7 @@ func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) pre
 
 // DataAccessAudit supplies the access-evidence writer from this module's audit command.
 func (m StudentTestModule) DataAccessAudit() presenceservice.DataAccessAudit {
-	return services.NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
+	return NewDataAccessAudit(studentAccessAuditWriter{m.Audit})
 }
 
 type studentAccessAuditWriter struct{ auditModels.Command }

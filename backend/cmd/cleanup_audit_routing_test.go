@@ -1,10 +1,11 @@
-package services
+package cmd
 
 import (
 	"context"
 	"reflect"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -39,7 +40,7 @@ func TestCleanupCommandRootsRouteAuditWritesThroughCommand(t *testing.T) {
 		// supplied command.
 		db := testpkg.SetupTestDB(t)
 		command := &recordingAuditCommand{}
-		requireCreateRoutesThroughCommand(t, cleanupAuditRepositories(db, command).AuthEvent, command)
+		requireCreateRoutesThroughCommand(t, newCleanupAudits(testpkg.NewDatabase(t, db), command).AuthEvent, command)
 	})
 
 	t.Run("data deletion", func(t *testing.T) {
@@ -49,7 +50,7 @@ func TestCleanupCommandRootsRouteAuditWritesThroughCommand(t *testing.T) {
 		// the zero-value audit event must still route to the supplied command.
 		db := testpkg.SetupTestDB(t)
 		command := &recordingAuditCommand{}
-		repos := NewRetentionCleanupRepositories(db, command)
+		repos := api.NewRetentionCleanupRepositories(testpkg.NewDatabase(t, db), command)
 		requireCreateRoutesThroughCommand(t, repos.Deletion, command)
 	})
 }

@@ -87,7 +87,7 @@ func timeTrackingPorts(deps timeTrackingPortDependencies) workforceCompose.TimeT
 	ports := deps.Bound
 	ports.EditAudit = NewWorkSessionAudit(deps.Audits.WorkSessionEdit)
 	ports.DeletionAudit = NewTimeTrackingDeletionAudit(deps.Audits.TimeTrackingDeletion)
-	ports.DataAccessAudit = services.NewTimeTrackingDataAccessAudit(deps.Audits.DataAccessLog)
+	ports.DataAccessAudit = NewTimeTrackingDataAccessAudit(deps.Audits.DataAccessLog)
 	ports.AuditReader = NewTimeTrackingAuditReader(deps.Audits.TimeTrackingAuditLog)
 	ports.Staff = WorkSessionStaff(deps.Staff, deps.StaffEmployment)
 	ports.StaffSchedules = workforceCompose.StaffScheduleAssignments(deps.StaffEmployment)

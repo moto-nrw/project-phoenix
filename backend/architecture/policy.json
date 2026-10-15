@@ -6179,17 +6179,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.compose.data-import.public",
-      "description": "Import composition wires the public row and result contract (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "public"
-    },
-    {
       "id": "legacy-composition.compose.security-runtime.fingerprint",
       "description": "The import composition supplies content fingerprinting through the Security Runtime capability (#2708).",
       "scopes": [
@@ -11722,17 +11711,6 @@
       "same_owner": true
     },
     {
-      "id": "communication.parent-compatibility.behavior-test-composition",
-      "description": "Parent-announcement compatibility tests compose the retained users.parent_* repositories until #2675.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
       "id": "communication.parent-compatibility.behavior-test-settings-domain",
       "description": "Parent-announcement compatibility fixtures name the retained settings keys until #2675.",
       "scopes": [
@@ -13929,18 +13907,6 @@
       "source_owner": "device-fleet",
       "source_role": "compose",
       "target_class": "http-router"
-    },
-    {
-      "id": "device-fleet.integration-test.legacy-composition",
-      "description": "Device Fleet integration tests supply the legacy repository graph at the composition boundary.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "device-fleet.integration-test.support",

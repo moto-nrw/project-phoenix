@@ -329,3 +329,15 @@ func legacyScheduleError(op string, err error) error {
 
 // noRowsError is the bare not-found sentinel pair without an operation.
 func noRowsError() error { return errors.Unwrap(retainedNotFound("")) }
+
+// The adapters here keep the retained People Directory repository error
+// shape their callers still classify on; the People Directory composition
+// builds it.
+
+func WrapRetainedError(op string, err error) error {
+	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(op, err)
+}
+
+func retainedNotFound(op string) error {
+	return peopleCompose.RetainedRecordErrors{}.MissingRecordError(op)
+}

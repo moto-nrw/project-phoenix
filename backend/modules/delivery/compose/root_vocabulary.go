@@ -4,6 +4,7 @@ import (
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 )
 
@@ -31,6 +32,10 @@ type (
 	MailIntent       = emailoutbox.Intent
 	MailRenderer     = emailoutbox.Renderer
 	MailRendererFunc = emailoutbox.RendererFunc
+	// PWAUsageCounts and PWAUsageRow are the operator dashboard's standalone
+	// usage the PWA usage report reads from Organisation & Tenancy.
+	PWAUsageCounts = pwa.UsageCounts
+	PWAUsageRow    = pwa.UsageRow
 )
 
 // The portals a push subscription is bound to.

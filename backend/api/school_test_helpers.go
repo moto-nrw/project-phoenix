@@ -55,7 +55,7 @@ func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 // owner the serving root binds. Every read runs under runtime, as the request
 // middleware provides it.
 func SchoolDeletionLookupForTests(db transactionruntime.Database, runtime tenant.UnitOfWork) (func(context.Context, int64) (found, deleted bool, err error), error) {
-	schools, err := services.NewOrganizationTenancy(db.Pool())
+	schools, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}

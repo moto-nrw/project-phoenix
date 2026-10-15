@@ -114,7 +114,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 	}
 	now := services.OptionalClock(clocks)
 	identity := NewPeopleIdentityAccess(db, nil)
-	members := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), identity, deps.Membership, deps.Rooms, deps.Workforce)
+	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
 	members.People = deps.Students
 	members.Student = NewStudentRepository(db, deps.Membership, deps.Groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
@@ -131,7 +131,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose school calendar: %v", err))
 	}
-	devices, err := services.NewDeviceFleet(db.Pool())
+	devices, err := NewDeviceFleet(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose device fleet: %v", err))
 	}
@@ -144,7 +144,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
-		ParentPortalRepositories: services.NewParentPortalRepositories(db.Pool(), services.ParentPortalOwners{
+		ParentPortalRepositories: NewParentPortalRepositories(db, services.ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
 			Identity: NewPeopleIdentityAccess(db, services.IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
@@ -190,8 +190,8 @@ func NewPeopleRepositorySuiteParentMessaging(db transactionruntime.Database) (Pa
 
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
-func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience services.AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
-	return parentStore.NewParentAnnouncementRepository(db.Pool(), services.ParentAnnouncementApplicants(audience), clocks...)
+func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+	return parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(audience), clocks...)
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding

@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
 	"github.com/stretchr/testify/assert"
@@ -61,7 +60,7 @@ func (f *overviewFixture) newDatevExportService(values settingstest.Values) time
 		f.svc,
 		f.newWorkSessionService(),
 		api.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
+		api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		api.PayrollExportSettings{Source: payrollStatus},
 		nil,
 		api.RenderTimeTrackingWorkbook,

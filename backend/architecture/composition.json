@@ -16372,32 +16372,32 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 164,
+          "line": 166,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 381,
+          "line": 391,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 483,
+          "line": 512,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 747,
+          "line": 784,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 48,
+          "line": 49,
           "declaration": "type TestFactory"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 191,
+          "line": 207,
           "declaration": "OwnerCapabilities.factory"
         },
         {
@@ -16409,11 +16409,6 @@
           "file": "api/guardian_directory_composition.go",
           "line": 215,
           "declaration": "pendingGuardianInvitations"
-        },
-        {
-          "file": "api/guardian_directory_composition.go",
-          "line": 274,
-          "declaration": "guardianPaymentExport"
         },
         {
           "file": "api/guardian_test_helpers.go",
@@ -16432,12 +16427,12 @@
         },
         {
           "file": "api/staff_composition.go",
-          "line": 115,
+          "line": 116,
           "declaration": "newStaffComposition"
         },
         {
           "file": "api/staff_composition.go",
-          "line": 131,
+          "line": 132,
           "declaration": "newExportTransferModule"
         },
         {

@@ -17,6 +17,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
@@ -131,7 +132,7 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 func newExportTransferModule(svc *services.Factory, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
-	resolvers, keys := svc.SFTPExportSettings()
+	resolvers, keys := settingsCompose.NewSFTPExportSettings(svc.Settings)
 	return exportTransferCompose.New(exportTransferCompose.Dependencies{
 		DB: db.Pool(),
 		Settings: exportTransferCompose.Settings{
