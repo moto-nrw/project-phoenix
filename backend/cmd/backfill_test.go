@@ -192,11 +192,21 @@ type backfillFailingWriter struct{ err error }
 
 func (w backfillFailingWriter) Write([]byte) (int, error) { return 0, w.err }
 
+// The historical storage fixtures recreate a schema before migration 1.15.449,
+// when declaration markers did not yet reference guardian relationships.
+func removeCleanupJobRetentionRelationshipConstraint(t *testing.T, db *testpkg.DB) {
+	t.Helper()
+	_, err := db.ExecContext(t.Context(), `ALTER TABLE auth.parent_declaration_permission_grants
+		DROP CONSTRAINT fk_parent_declaration_permission_grant_relationship`)
+	require.NoError(t, err)
+}
+
 // The backfill visits every school in the database, so the test owns an
 // isolated clone instead of the package's shared one.
 func TestBackfillStudentOwnerCommands(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	removeCleanupJobRetentionRelationshipConstraint(t, db)
 	testpkg.RestoreStudentStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)
@@ -269,6 +279,7 @@ func TestBackfillStudentOwnerCommands(t *testing.T) {
 func TestBackfillGuardianOwnerCommands(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	removeCleanupJobRetentionRelationshipConstraint(t, db)
 	testpkg.RestoreGuardianStorageBeforeCutover(t, db)
 	ctx := context.Background()
 	tenantID := testpkg.Tenant(t)

@@ -170,9 +170,28 @@ func (m *Module) IncrementAttempts(ctx context.Context, tenantID int64, keyType,
 	return m.engine.IncrementAttempts(ctx, tenantID, keyType, keyValue, window)
 }
 
-// CleanupExpired removes buckets older than the longest submission window.
-func (m *Module) CleanupExpired(ctx context.Context) (int, error) {
-	return m.engine.CleanupExpired(ctx)
+// SubmissionRateLimitRetention deletes the rate-limit buckets of the school
+// in context after the fixed window of the retention list (#4046): a bucket
+// keys an IP address or e-mail and goes one day after its window started,
+// once the longest submission window is over.
+type SubmissionRateLimitRetention interface {
+	// DeleteExpiredSubmissionRateLimits reports the buckets it deleted and
+	// the window in days.
+	DeleteExpiredSubmissionRateLimits(ctx context.Context) (deleted, retentionDays int, err error)
+}
+
+// submissionRateLimitRetentionDays is the window of a bucket: the longest
+// submission window, 24 hours.
+const submissionRateLimitRetentionDays = 1
+
+// DeleteExpiredSubmissionRateLimits removes the school's buckets older than
+// the longest submission window.
+func (m *Module) DeleteExpiredSubmissionRateLimits(ctx context.Context) (int, int, error) {
+	deleted, err := m.engine.CleanupExpired(ctx)
+	if err != nil {
+		return 0, 0, err
+	}
+	return deleted, submissionRateLimitRetentionDays, nil
 }
 
 // Schema returns the immutable version pinned to a submission or phase.

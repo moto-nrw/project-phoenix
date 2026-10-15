@@ -50,6 +50,13 @@ const (
 	DeletionTypeDataAccessLogRetention       = "data_access_log_retention"
 	DeletionTypeDeletionLogRetention         = "deletion_log_retention"
 	DeletionTypeDeliveryRetention            = "delivery_retention"
+	// The technical remains of #4046: finished cleanup and offboarding jobs,
+	// finished care-withdrawal completions and enrollment rate-limit buckets.
+	DeletionTypeFileCleanupRetention            = "file_cleanup_retention"
+	DeletionTypeStaffCleanupRetention           = "staff_cleanup_retention"
+	DeletionTypeStudentDocumentCleanupRetention = "student_document_cleanup_retention"
+	DeletionTypeCareWithdrawalRetention         = "care_withdrawal_retention"
+	DeletionTypeSubmissionRateLimitRetention    = "submission_rate_limit_retention"
 )
 
 // IsDataKindRetention reports whether deletionType logs a whole data kind
@@ -62,7 +69,12 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeAuthEventRetention,
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,
-		DeletionTypeDeliveryRetention:
+		DeletionTypeDeliveryRetention,
+		DeletionTypeFileCleanupRetention,
+		DeletionTypeStaffCleanupRetention,
+		DeletionTypeStudentDocumentCleanupRetention,
+		DeletionTypeCareWithdrawalRetention,
+		DeletionTypeSubmissionRateLimitRetention:
 		return true
 	}
 	return false

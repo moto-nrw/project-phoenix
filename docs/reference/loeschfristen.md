@@ -1,6 +1,6 @@
 # Löschfristen je Datenart
 
-**Stand:** 14.10.2026\
+**Stand:** 15.10.2026\
 **Quelle für:** Löschkonzept und TOM (Anlage zum AVV). Entscheidungen: [ADR 0048](../adr/0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md). Begründungen der Fristen: [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md). Umsetzung: Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
 
 Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
@@ -48,15 +48,19 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 | Einladungen für Eltern | 30 Tage | Einlösung, sonst Ablauf | Identity Access | Link ohne Zweck nach Ablauf oder Einlösung | umgesetzt (#3954) |
 | MFA-Codes per E-Mail, Passkey-Sitzungen (Konten und Operatoren) | 7 Tage | Ablauf | Identity Access | IP-Bezug höchstens 7 Tage | umgesetzt (#3954) |
 | Abgelaufene Refresh-Tokens, auch für Operatoren | höchstens 7 Tage; gelöscht bei Ablauf | Ablauf | Identity Access | Sitzung ohne Zweck nach Ablauf | umgesetzt (#3954) |
+| Erledigte Aufräumaufträge für Dateien (Dateiablage, Anhänge von Elternmitteilungen, Personal- und Kinderdokumente) | 30 Tage | Löschung der Datei | File Storage, Workforce, Care Plan | Der Auftrag behält nur den Dateinamen; 30 Tage reichen, um einen Fehlschlag nachzuvollziehen. Offene Aufträge bleiben, bis die Datei weg ist | umgesetzt (#4046) |
+| Erledigte Austrittsaufträge für Personal | 30 Tage | Abschluss des Auftrags | Workforce | Der Auftrag behält nur die Personal-ID; wie oben | umgesetzt (#4046) |
+| Abgeschlossene Betreuungsabmeldungen | 365 Tage | Abschluss (erledigt oder hinfällig) | Care Plan | Die Abschluss-Historie zeigt das letzte Jahr; offene Abmeldungen bleiben, bis die Schule sie abschließt | umgesetzt (#4046) |
+| Anmelde-Ratenbegrenzung (IP-Adresse oder E-Mail) | 1 Tag | Beginn des Zählfensters | Enrollment | Das längste Zählfenster ist 24 Stunden; danach zählt der Eintrag nichts mehr | umgesetzt (#4046) |
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 14.10.2026: 32 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 24 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
 
 - **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`), Operator-Konten des moto-Teams.
 - **Weitere Protokolle:** Klassenlisten-Abgleich, Anmeldungs-Löschungen und -Wiederherstellungen, Exporte, Datei-Ereignisse, Änderungen an Finanz-, Personalnummer- und Personaldaten, Kinderlöschungen, Vertretungen, Zeiterfassungs-Löschungen, Einstellungsprotokoll, Operator-Protokoll mit IP-Adresse.
 - **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.
-- **Technische Reste:** erledigte Aufräum- und Austrittsaufträge mit Dateinamen oder Personal-ID, Anmelde-Ratenbegrenzung mit IP oder E-Mail (Löschcode vorhanden, aber nicht eingebunden), Demo-Besucher, Markierungen der Migration 1.15.428, abgeschlossene Betreuungsabmeldungen.
+- **Technische Reste:** Demo-Besucher.
 
 Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRetentions`.
 
@@ -68,4 +72,6 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 - **Willkommensmail für Eltern** (#3534): Sie geht je Schule nur einmal an einen Elternkontakt. Damit das nach der Löschfrist so bleibt, löscht der nächtliche Lauf diesen Eintrag der Mail-Warteschlange nicht, sondern leert die Verbindung zum Elternkontakt, Empfänger, Inhalt und Antwort des Mailservers. Übrig bleibt nur der Schlüssel `guardian_welcome:<ID des Elternkontakts>` mit Status und Zeitstempeln (#3955).
 - **Zustellprotokolle von Elternbriefen** verschwinden 30 Tage nach der Zustellung. Danach zeigt der Elternbrief nicht mehr, wer ihn per Mail erhalten hat oder nicht erreichbar war.
 - **Essens-Krankhistorie** (`schedule.meal_sickness_status_history`): Grundlage der Essensabrechnung. Sie speichert Krank-Tage ein zweites Mal und hat noch keine Frist. Die Fristlöschung der Krank-Tage schreibt bewusst keine neue Zeile hinein (#3958).
+- **Markierungen der Migration 1.15.428** (`auth.parent_declaration_permission_grants`): Sie dienen nur deren Rücknahme und gehen seit 1.15.449 mit der Beziehung zwischen Kind und Elternteil. Markierungen ohne Beziehung hat die Migration entfernt (#4046).
+- **Betreuungsabmeldungen eines gelöschten Kindes** behalten bis zum Ablauf der Frist nur „Gelöschtes Kind“ und die Konten, die bestätigt und abgeschlossen haben (#2547).
 - **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).
