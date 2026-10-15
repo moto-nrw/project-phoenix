@@ -1,4 +1,4 @@
-package config_test
+package settingshttp_test
 
 import (
 	"context"
@@ -8,8 +8,8 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
-	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ import (
 // settingsTestContext holds dependencies for settings API integration tests.
 type settingsTestContext struct {
 	db       *testpkg.DB
-	resource *configAPI.SettingsResource
+	resource *settingsHTTP.SettingsResource
 	settings interface {
 		ResolveStringForTenant(context.Context, int64, string) (string, error)
 	}
@@ -27,9 +27,9 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 	t.Helper()
 
 	db, svc := composeSettingsModule(t)
-	runtime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
+	runtime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
 		Protected:   testutil.ProtectedTestTenantGroupFunc(db),
-		Permission:  func(configAPI.Access) configAPI.Middleware { return testutil.IdentityMiddleware },
+		Permission:  func(settingsHTTP.Access) settingsHTTP.Middleware { return testutil.IdentityMiddleware },
 		TenantGuard: testutil.IdentityMiddleware,
 		RequestActor: func(context.Context) (int64, int64, []string) {
 			return testpkg.Tenant(t), 1, []string{"config:read", "config:update", "config:manage"}
@@ -39,9 +39,9 @@ func setupSettingsModule(t *testing.T) *settingsTestContext {
 		NoContent: testutil.RespondNoContent,
 		Failure:   testutil.RespondError,
 	})
-	homeLayouts, ok := svc.Settings.(configAPI.HomeLayoutOperations)
+	homeLayouts, ok := svc.Settings.(settingsHTTP.HomeLayoutOperations)
 	require.True(t, ok)
-	resource := configAPI.NewSettingsResource(svc.TenantSettings, homeLayouts, runtime)
+	resource := settingsHTTP.NewSettingsResource(svc.TenantSettings, homeLayouts, runtime)
 
 	return &settingsTestContext{
 		db:       db,

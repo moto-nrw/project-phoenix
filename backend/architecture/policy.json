@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 44,
+  "policy_epoch": 45,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -167,10 +167,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-config",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-database",
       "kind": "inbound"
     },
@@ -236,18 +232,6 @@
     },
     {
       "id": "inbound-parent",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-platform",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-pwa",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-reminders",
       "kind": "inbound"
     },
     {
@@ -828,8 +812,8 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/config",
-      "owner": "inbound-config",
+      "path": "modules/settings/http",
+      "owner": "settings-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -954,22 +938,22 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/platform",
-      "owner": "inbound-platform",
+      "path": "modules/communication/http/platformannouncements",
+      "owner": "communication",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/pwa",
-      "owner": "inbound-pwa",
+      "path": "modules/delivery/http/pwa",
+      "owner": "delivery-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/reminders",
-      "owner": "inbound-reminders",
+      "path": "workflows/reminderdelivery/http",
+      "owner": "reminder-delivery",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7045,13 +7029,13 @@
     },
     {
       "id": "reminder-delivery.compose.http",
-      "description": "Reminder composition binds its inbound HTTP adapter.",
+      "description": "Reminder composition binds its own HTTP adapter (#4064).",
       "scopes": [
         "production"
       ],
       "source_owner": "reminder-delivery",
       "source_role": "compose",
-      "target_owner": "inbound-reminders",
+      "target_owner": "reminder-delivery",
       "target_role": "http"
     },
     {
@@ -7095,17 +7079,6 @@
       "source_owner": "reminder-delivery",
       "source_role": "compose",
       "target_class": "http-router"
-    },
-    {
-      "id": "reminder-delivery.adapter-test.http",
-      "description": "Reminder contract tests exercise the production HTTP adapter.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-reminders",
-      "target_role": "http"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",
@@ -8666,12 +8639,12 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-reminders.to.reminder-delivery",
-      "description": "inbound-reminders calls exactly one public capability.",
+      "id": "reminder-delivery.http.public",
+      "description": "The staff reminder route calls the public reminder query of its own workflow (#4064).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-reminders",
+      "source_owner": "reminder-delivery",
       "source_role": "http",
       "target_owner": "reminder-delivery",
       "target_role": "public"
@@ -11581,17 +11554,6 @@
         "production"
       ],
       "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-platform.to.communication",
-      "description": "Staff platform-announcement HTTP handlers call the Communication facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-platform",
       "source_role": "http",
       "target_owner": "communication",
       "target_role": "public"
@@ -16871,7 +16833,7 @@
     },
     {
       "id": "communication.http.public",
-      "description": "The operator announcement routes call the public Communication capability (#3232).",
+      "description": "The operator announcement routes (#3232) and the user-facing platform announcement routes (#4064) call the public Communication capability.",
       "scopes": [
         "production"
       ],
@@ -19166,6 +19128,18 @@
       "source_owner": "root-composition",
       "target_owner_kind": "platform",
       "target_role": "contract"
+    },
+    {
+      "id": "root-composition.reach.platform.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every platform owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "http"
     },
     {
       "id": "root-composition.reach.internal-test.platform.contract",

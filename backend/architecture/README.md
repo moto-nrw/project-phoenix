@@ -3982,6 +3982,45 @@ adapter. Five need a move into their owners
 The composition surface stays at 139. The evidence record is
 `root-implementation-roles-2750.json`.
 
+### Four inbound packages move into their owners (#4064)
+
+Four of the five inbound packages the root still mounted move file for file
+into the `http` role of the owner whose capability they call, as #2742, #2734
+and #2731 did. Their four `inbound-*` owners are deleted; routes, status
+codes, error bodies and the route and middleware goldens are unchanged.
+
+| Old package | New package | Owner |
+|---|---|---|
+| `api/config` | `modules/settings/http` | `settings-platform` |
+| `api/platform` | `modules/communication/http/platformannouncements` | `communication` |
+| `api/pwa` | `modules/delivery/http/pwa` | `delivery-platform` |
+| `api/reminders` | `workflows/reminderdelivery/http` | `reminder-delivery` |
+
+- The PWA usage package holds the route shape; the root binds its handler to
+  Delivery's usage service (`modules/delivery/application/pwa`), which owns
+  the capability. Observability only owns the table the service writes
+  through. The reminder route calls the workflow's own `CallerQuery`,
+  so it stays with `reminder-delivery`, not with School Calendar or Timetable.
+- `inbound-reminders.to.reminder-delivery` becomes
+  `reminder-delivery.http.public`; `reminder-delivery.compose.http` now targets
+  the workflow's own `http` role. `reminder-delivery.adapter-test.http` and
+  `inbound-platform.to.communication` are deleted: `adapter-test.http-subject`
+  and `communication.http.public` already allow those imports.
+- The root reaches Communication and the reminder workflow through
+  `root-composition.reach.domain.http` and `reach.workflow.http`. ADR 0053
+  point 2 also lists the `http` role of platform owners, but the policy had no
+  such rule; policy epoch 44 -> 45 adds `root-composition.reach.platform.http`
+  in all three scopes, which `reviewedRootCompositionRule` accepts. It adds no
+  `issue` field and no compatibility rule. Without it, the root's imports of
+  `modules/settings/http` and `modules/delivery/http/pwa` are new violations.
+
+`api -> api/config`, `api/platform`, `api/pwa` and `api/reminders` (#2750)
+leave `legacy.jsonl`, 25 -> 21. `api -> api/operator` stays: the operator
+router mounts the routes of five owners and needs the `http-router` decision
+of [#4063](https://github.com/moto-nrw/project-phoenix/issues/4063). The
+composition surface stays at 139. The evidence record is
+`relocate-inbound-packages-4064.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
