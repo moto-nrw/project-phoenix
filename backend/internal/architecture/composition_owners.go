@@ -216,6 +216,12 @@ func extractGitTree(root, sha, prefix, destination string) error {
 // module in directory, with their tests, and returns the field keys of every
 // counted carrier.
 func rootStructInventory(directory string, ownership *compositionOwnership) (map[string]string, error) {
+	return rootStructInventoryWith(directory, ownership, nil)
+}
+
+// rootStructInventoryWith loads with inherited added to the process
+// environment, so tests can pass variables such as GOWORK in parallel.
+func rootStructInventoryWith(directory string, ownership *compositionOwnership, inherited []string) (map[string]string, error) {
 	result := map[string]string{}
 	module, err := moduleName(directory)
 	if err != nil {
@@ -247,7 +253,7 @@ func rootStructInventory(directory string, ownership *compositionOwnership) (map
 		Dir: directory, Tests: true,
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo,
-		Env: standaloneModuleEnvironment(fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled})),
+		Env: standaloneModuleEnvironment(append(fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled}), inherited...)),
 	}, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("load root packages: %w", err)

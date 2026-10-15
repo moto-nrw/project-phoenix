@@ -291,25 +291,26 @@ func TestCompositionSurfaceCountsEveryResultOfACall(t *testing.T) {
 }
 
 // Review of #4095, round 3, S1: an inherited GOWORK neither empties the
-// base inventory nor reports unchanged fields as growth, and a load failure
-// is an error, never an empty inventory.
+// archived base inventory nor makes unchanged fields look like growth.
 func TestCompositionSurfaceIgnoresAnInheritedWorkspace(t *testing.T) {
+	t.Parallel()
 	repo := ownerFixtureRepository(t)
-	path := filepath.Join(repo, "api", "wiring.go")
-	writeFile(t, path, compositionOwnerImports+"type Wiring struct { A alpha.Port; B beta.Port }\n")
+	writeFile(t, filepath.Join(repo, "api", "wiring.go"), compositionOwnerImports+"type Wiring struct { A alpha.Port; B beta.Port }\n")
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "composition base")
 	base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	archived := t.TempDir()
+	if err := extractGitTree(repo, base, ".", archived); err != nil {
+		t.Fatal(err)
+	}
 	workspace := filepath.Join(t.TempDir(), "go.work")
 	writeFile(t, workspace, "go 1.25\n\nuse "+repo+"\n")
-	t.Setenv("GOWORK", workspace)
-	policy := ownerFixturePolicy(compositionOwnerClassification)
-	if err := CompareCompositionSurface(repo, base, policy); err != nil {
-		t.Fatalf("an inherited workspace changed the inventory: %v", err)
-	}
-	inventory, err := rootStructInventory(repo, newCompositionOwnership(policy))
-	if err != nil || inventory["production|field|api|Wiring.A"] == "" {
-		t.Fatalf("candidate inventory under GOWORK: %v %v", inventory, err)
+	ownership := newCompositionOwnership(ownerFixturePolicy(compositionOwnerClassification))
+	for _, directory := range []string{repo, archived} {
+		inventory, err := rootStructInventoryWith(directory, ownership, []string{"GOWORK=" + workspace})
+		if err != nil || inventory["production|field|api|Wiring.A"] == "" || inventory["production|field|api|Wiring.B"] == "" {
+			t.Fatalf("inventory of %s under GOWORK: %v %v", directory, inventory, err)
+		}
 	}
 }
 
