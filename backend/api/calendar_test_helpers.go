@@ -3,7 +3,10 @@ package api
 import (
 	"log/slog"
 
+	"github.com/go-chi/chi/v5"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -12,6 +15,13 @@ import (
 )
 
 type CalendarTestModule struct{ Calendar calendarCompose.Application }
+
+// ParentCalendarRouter mounts the guardian portal routes with only the
+// module's calendar wired, so the calendar end-to-end suite drives the
+// staff-to-parent flow without naming the portal adapter (#2748).
+func (m CalendarTestModule) ParentCalendarRouter() chi.Router {
+	return parentAPI.NewResource(parentAPI.ResourceConfig{Calendar: m.Calendar}).Router()
+}
 
 func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (CalendarTestModule, error) {
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
