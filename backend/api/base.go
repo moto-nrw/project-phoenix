@@ -165,7 +165,10 @@ type moduleServices struct {
 	reviewPolicy *ParentRequestReviewPolicy
 	// timetableRepositories are the retained Timetable adapters (#2743).
 	timetableRepositories timetableCompose.Repositories
-	services              *services.Factory
+	// planningTracks is the planning-track administration the timetable
+	// routes and the service graph share (#4009).
+	planningTracks timetableModule.PlanningTrackAdministration
+	services       *services.Factory
 	// identity is the Identity & Access module the root composed (#4006);
 	// userContext is its caller context with the rows the retained routes
 	// read.
@@ -213,23 +216,30 @@ func NewCleanupTimetable(db transactionruntime.Database) (timetableModule.Capabi
 	if err != nil {
 		return nil, err
 	}
-	return services.NewTimetable(db.Pool(), students, rooms)
+	return NewUnobservedTimetable(db, students, rooms)
 }
 
 func composeTimetable(db transactionruntime.Database, persons *peopleModule.Module, rooms *facilitiesModule.Module, membership *schoolMembershipModule.Module) (*timetableModule.Module, error) {
+	return newTimetable(db, persons, rooms, membership, func(observation timetableCompose.Observation) {
+		observability.ObserveTimetableActivitiesOperation(
+			observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
+			observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
+			timetableModule.ErrorCode(observation.Err), observation.Err,
+		)
+	})
+}
+
+// newTimetable composes the Timetable owner. A staff assignment locks the
+// School Membership row; the session facts come from Student Presence over
+// the same database (#2762).
+func newTimetable(db transactionruntime.Database, students peopleModule.StudentQuery, rooms facilitiesModule.Query, membership schoolMembershipModule.Capability, observe func(timetableCompose.Observation)) (*timetableModule.Module, error) {
 	return timetableCompose.New(timetableCompose.Dependencies{
 		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		DB: db.Pool(), Students: timetableStudents(persons), Rooms: timetableRooms(rooms), Sessions: services.NewPresenceFacts(db.Pool()),
-		Observe: func(observation timetableCompose.Observation) {
-			observability.ObserveTimetableActivitiesOperation(
-				observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows,
-				observation.Stats.DuplicatePreventionConflicts, observation.Stats.StatementDuration,
-				timetableModule.ErrorCode(observation.Err), observation.Err,
-			)
-		},
+		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: services.NewPresenceFacts(db.Pool()),
+		Observe: observe,
 	})
 }
 
@@ -307,14 +317,14 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	timetableDependencies := services.TimetableDependencies{
+	timetableDependencies := TimetableDependencies{
 		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 	}
 	// The retained activities and schedule repositories belong to Timetable
 	// (#2743); the Care Plan slots, the kiosk session mirror and the Worker
 	// read the same adapters.
-	timetableRepositories := services.NewTimetableRepositories(pool, timetableDependencies)
+	timetableRepositories := NewTimetableRepositories(db, timetableDependencies)
 	appointmentCapability, err := appointmentsCompose.New(appointmentsCompose.Dependencies{
 		DB: pool,
 		Observe: func(observation appointmentsCompose.Observation) {
@@ -354,11 +364,13 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	// legacy service graph (#4007). The meal plan's participants, the
 	// Worker's activation tick and its reminder recipients read the same
 	// student and staff repositories.
-	people, err := NewPeopleWiring(PeopleWiringOwners{
+	// The Timetable, School Calendar and reminder wiring binds the same owners
+	// and retained rows into the legacy service graph (#4009).
+	people, timetableWiring, err := newServiceGraphWiring(PeopleWiringOwners{
 		DB: db, Logger: logger, Persons: persons, Groups: groups, Rooms: rooms, Membership: membership,
 		Workforce: workTime, CarePlan: carePlan, Organizations: organizations, Timetable: timetableCapability,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
-	})
+	}, timetableRepositories, calendar)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -420,6 +432,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			fileStorageWiring,
 			identity,
 			people,
+			timetableWiring,
 			carePlanWiring,
 		)
 	})
@@ -431,15 +444,15 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	// me/profile reads; the birthday display (#1542) reads the same retained
 	// rows. The root builds both where it mounts them (#4007).
 	guardianProfiles := peopleCompose.NewGuardianProfileLoader(people.GuardianProfiles, pool, logger.With("service", "guardian-profile-loader"))
-	birthdays := services.NewBirthdays(services.BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
+	birthdays := NewBirthdays(BirthdayRepositories{Students: people.Students, Staff: people.Staff, Persons: people.Persons},
 		factory.Settings, logger.With("service", "birthdays"), nil)
-	calendarAdministration = factory.SchoolCalendarAdministration()
+	calendarAdministration = GuardedCalendarAdministration(factory.Settings, timetableWiring.RecurrenceLock, factory.EnrollmentCareOffering)
 	identityModule, userContext := identity()
 	studentStatusDays := NewStudentStatusDayRepository(carePlan)
 	// The parent request review policy of the request queues, for the review
 	// projection and the student routes (#4011).
 	reviewPolicy := NewParentRequestReviewPolicy(userContext.Caller().ParentRequestReviews)
-	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
 }
 
 // composeSchoolMembership composes the observed School Membership owner. A
@@ -1711,20 +1724,20 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 		InstanceService:         svc.Instance,
 		InstanceSeriesConverter: svc.InstanceSeriesConverter,
 		OperationsService:       svc.TimetableOperations,
-		People:                  services.NewTimetablePeople(svc.Users),
+		People:                  NewTimetablePeople(svc.Users),
 		Templates:               svc.TimetableData.Templates,
 		RecurrenceLock:          svc.TimetableData.RecurrenceLock,
 		AttendanceCorrections:   svc.TimetableData.AttendanceCorrections,
 		Deviations:              svc.TimetableData.Deviations,
 		TimetableData:           svc.TimetableData.Data,
 		ConflictDetection:       svc.TimetableData.ConflictDetection,
-		PlanningTracks:          svc.PlanningTracks,
+		PlanningTracks:          modules.planningTracks,
 		CareDayService:          svc.CareDay,
 		UserContextService:      modules.userContext,
 		SettingsService:         svc.Settings,
 		SlotListsService:        svc.SlotLists,
-		OfferingSourceOptions:   services.NewTimetableOfferingSources(svc.EnrollmentCareOffering),
-		SupervisionSheets:       services.NewTimetableSupervisionSheets(svc.ClassDayArrivalExceptions),
+		OfferingSourceOptions:   NewTimetableOfferingSources(svc.EnrollmentCareOffering),
+		SupervisionSheets:       NewTimetableSupervisionSheets(svc.ClassDayArrivalExceptions),
 		PlanExportService:       svc.PlanExport,
 		PickupExtensions:        pickupExtensions,
 		Staffing:                timetableStaffingAnnouncer(svc.Instance),
@@ -1754,7 +1767,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// Dateframes belong to the School Calendar, timeframes and recurrence
 	// rules to the Timetable owner; timeframe changes stay guarded by the
 	// recurrence gate and the Care Plan catalog's care-offering check.
-	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, services.TimeframeChangeGuard(
+	tenant.Mount("/schedules", timetableHTTPAdapter.NewSchedulesResource(modules.calendar, modules.timetable, TimeframeChangeGuard(
 		svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		svc.EnrollmentCareOffering.ValidateTimeframeChange,
 	), pool).Router())

@@ -398,5 +398,5 @@ func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOv
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
 func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
-	return services.NewHistorySlots(records)
+	return NewHistorySlots(records)
 }

@@ -1,11 +1,13 @@
 package services
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"time"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -36,7 +38,7 @@ func NewStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) (
 	if err != nil {
 		return nil, err
 	}
-	capability, err := NewTimetable(db, students, rooms)
+	capability, err := newPresenceTimetable(db, students, rooms)
 	if err != nil {
 		return nil, err
 	}
@@ -51,6 +53,44 @@ func NewStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) (
 	rules := NewPresenceRulesDependencies(capability, queries, locks)
 	return presenceCompose.New(presenceCompose.Dependencies{
 		DB: db, Observe: observe, Roster: rules.Roster, CarePlan: rules.CarePlan, CareDays: rules.CareDays,
+	})
+}
+
+// newPresenceTimetable composes the unobserved Timetable owner the
+// presence rules read the planned roster from. The session facts come from
+// Student Presence over the same database (#2762).
+func newPresenceTimetable(db *bun.DB, students peopledirectory.StudentQuery, rooms facilities.Query) (timetable.Capability, error) {
+	membership, err := NewSchoolMembership(db)
+	if err != nil {
+		return nil, err
+	}
+	return timetableCompose.New(timetableCompose.Dependencies{
+		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
+			_, err := membership.FindStaffForMutation(ctx, staffID)
+			return err
+		},
+		DB: db,
+		Students: timetableCompose.StudentDirectoryFunc(func(ctx context.Context) ([]timetableCompose.TargetStudent, error) {
+			values, err := students.ListEnrolledStudents(ctx)
+			result := make([]timetableCompose.TargetStudent, 0, len(values))
+			for _, value := range values {
+				result = append(result, timetableCompose.TargetStudent{
+					ID: value.ID, SchoolClass: value.SchoolClass, EducationGroupID: value.GroupID,
+					EnrolledUntil: value.EnrolledUntil,
+				})
+			}
+			return result, err
+		}),
+		Rooms: timetable.RoomDirectoryFunc(func(ctx context.Context, ids []int64) ([]timetable.RoomRef, error) {
+			values, err := rooms.LockRoomsByID(ctx, ids)
+			result := make([]timetable.RoomRef, 0, len(values))
+			for _, value := range values {
+				result = append(result, timetable.RoomRef{ID: value.ID, TenantID: value.TenantID})
+			}
+			return result, err
+		}),
+		Sessions: NewPresenceFacts(db),
+		Observe:  func(timetableCompose.Observation) {},
 	})
 }
 

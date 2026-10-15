@@ -94,7 +94,7 @@ func setupTestCleanupContextWithServices(t *testing.T) *cleanupContext {
 			},
 			updateRoomID: devices.UpdateRoomID,
 		},
-		TimetableBridgeCompleter: api.NewRetainedTimetableRepositories(testpkg.NewDatabase(t, db), owners).ActivityInstance,
+		TimetableBridgeCompleter: api.NewTimetableRepositories(testpkg.NewDatabase(t, db), owners).ActivityInstance,
 		DB:                       db,
 		Logger:                   slog.Default(),
 	}, presenceservice.WithPresenceSettings(detailedPresenceSettings{}))

@@ -2,6 +2,7 @@ package compose
 
 import (
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
@@ -36,6 +37,22 @@ type (
 	MailIntent       = emailoutbox.Intent
 	MailRenderer     = emailoutbox.Renderer
 	MailRendererFunc = emailoutbox.RendererFunc
+	// The appointment mail and notices of the calendar portal, which the
+	// root binds to Delivery (#4009).
+	MailEnqueueRequest             = emailoutbox.EnqueueRequest
+	NotificationService            = notifications.Service
+	SynchronousNotificationService = notifications.SynchronousService
+	NotificationEvent              = notifications.Event
+	NotificationAudience           = notifications.Audience
+	NotificationAudienceScope      = notifications.AudienceScope
+)
+
+// The kinds of the parent appointment notices.
+const (
+	ParentAppointmentPublished = notifications.ParentAppointmentPublished
+	ParentAppointmentUpdated   = notifications.ParentAppointmentUpdated
+	ParentAppointmentCancelled = notifications.ParentAppointmentCancelled
+	ParentAppointmentReminder  = notifications.ParentAppointmentReminder
 )
 
 // The portals a push subscription is bound to.
@@ -58,4 +75,16 @@ var (
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled
 	ErrRenderDeferred  = emailoutbox.ErrRenderDeferred
+	// ErrNoWebPushSubscribers, ErrNotificationsDisabled and
+	// ErrOutsideNotificationWindow are the answers of a notice nobody
+	// receives: no subscriber, notifications off, outside the tenant's window.
+	ErrNoWebPushSubscribers      = notifications.ErrNoWebPushSubscribers
+	ErrNotificationsDisabled     = notifications.ErrDisabled
+	ErrOutsideNotificationWindow = notifications.ErrOutsideActiveWindow
+	// ParentAppointmentCopy is the localized title and body of a parent
+	// appointment notice.
+	ParentAppointmentCopy = notifications.ParentAppointmentCopy
+	// MotoLogoURL and SchoolLogoURL brand the tenant mail.
+	MotoLogoURL   = emailbranding.MotoLogoURL
+	SchoolLogoURL = emailbranding.SchoolLogoURL
 )

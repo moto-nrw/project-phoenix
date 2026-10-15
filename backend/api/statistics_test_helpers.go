@@ -48,7 +48,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		return StatisticsTestModule{}, err
 	}
 	students := OverlappingRosterGroupNames{StudentRepository: r.Timetable.Student, Groups: groups}
-	calendarAdministration := services.SchoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
+	calendarAdministration := SchoolCalendarAdministration(settings.Settings, func(context.Context) error { return nil }, nil)
 	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return StatisticsTestModule{}, err
@@ -56,8 +56,8 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	service := services.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		DB:         db.Pool(),
 		StatusDays: services.StatisticsStatusDays{Query: r.CarePlan}, Courses: services.NewCourseStatistics(services.MustPresenceReads(db.Pool())),
-		Holidays:    services.TenantHolidays{Calendar: calendar},
-		ClosingDays: services.TenantClosingDays{Calendar: calendar}, Periods: services.StatisticsReportPeriods{Periods: calendar}, Students: services.StatisticsReportStudents{Students: students}, Rooms: services.StatisticsReportRooms{Rooms: rooms},
+		Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
+		ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar}, Periods: services.StatisticsReportPeriods{Periods: calendar}, Students: services.StatisticsReportStudents{Students: students}, Rooms: services.StatisticsReportRooms{Rooms: rooms},
 		AccessLog: services.StatisticsAuditLog{Log: r.AccessLog}, Retention: services.StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: services.OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {

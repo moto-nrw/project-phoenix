@@ -42,12 +42,6 @@ func NewSessionRecords(db transactionruntime.Database, owners services.SessionRe
 	return services.NewSessionRecords(db.Pool(), owners)
 }
 
-// NewRetainedTimetableRepositories builds the retained Timetable adapters over
-// the given dependencies.
-func NewRetainedTimetableRepositories(db transactionruntime.Database, deps services.TimetableDependencies) services.TimetableRepositories {
-	return services.NewTimetableRepositories(db.Pool(), deps)
-}
-
 // The enrollment flows and their sources, as the root composes them.
 type (
 	EnrollmentChangeRequestSources = services.EnrollmentChangeRequestSources
@@ -60,7 +54,6 @@ type (
 	EnrollmentIntakeSources        = services.EnrollmentIntakeSources
 	EnrollmentRolloverSources      = services.EnrollmentRolloverSources
 	SessionRecordOwners            = services.SessionRecordOwners
-	TimetableDependencies          = services.TimetableDependencies
 )
 
 var (

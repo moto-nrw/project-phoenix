@@ -21,10 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -341,7 +342,7 @@ func newSilentLogger() (*slog.Logger, *bytes.Buffer) {
 // Presence's syncer port the way the composition root does (#3424 slice S3).
 func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) studentpresence.AttendanceSyncer {
 	logger, _ := newSilentLogger()
-	syncer, err := services.NewTimetableAttendanceMirror(services.TimetableOwnerRows{Instances: instRepo, Participants: isRepo}, logger)
+	syncer, err := api.NewTimetableAttendanceMirror(api.TimetableOwnerRows{Instances: instRepo, Participants: isRepo}, logger)
 	if err != nil {
 		panic(err)
 	}
@@ -1082,7 +1083,7 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 
 	// When a nil logger is passed, the service must fall back to slog.Default()
 	// and still execute end-to-end without panicking.
-	svc, err := services.NewTimetableAttendanceMirror(services.TimetableOwnerRows{
+	svc, err := api.NewTimetableAttendanceMirror(api.TimetableOwnerRows{
 		Instances:    &fakeInstanceRepo{instance: nil},
 		Participants: &fakeInstanceStudentRepo{},
 	}, nil)

@@ -5,7 +5,6 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
@@ -13,8 +12,8 @@ import (
 
 // NewCalendarReminderCommand binds the existing notification adapters to the
 // reminder workflow without constructing a repository or service factory.
-func NewCalendarReminderCommand(db transactionruntime.Database, source services.CalendarReminderSource) reminder.Command {
-	return reminderCompose.NewCommand(db.Pool(), services.CalendarReminderDelivery(source))
+func NewCalendarReminderCommand(db transactionruntime.Database, source CalendarReminderSource) reminder.Command {
+	return reminderCompose.NewCommand(db.Pool(), CalendarReminderDelivery(source))
 }
 
 // NewFacilities composes the unobserved room owner for the test and CLI
