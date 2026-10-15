@@ -195,12 +195,12 @@ func TestDeleteRoomRunsGuardInsideWriteTransaction(t *testing.T) {
 	module, err := New(Dependencies{
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
-		DeletionGuard: func(guardCtx context.Context, _ int64) error {
+		Usage: roomUsageFunc(func(guardCtx context.Context) bool {
 			guardCalled = true
 			_, inTransaction := tenant.TransactionFromContext(guardCtx)
 			assert.True(t, inTransaction)
-			return facilities.ErrRoomInUse
-		},
+			return true
+		}),
 		Observe: func(Observation) {},
 	})
 	require.NoError(t, err)
@@ -213,6 +213,18 @@ func TestDeleteRoomRunsGuardInsideWriteTransaction(t *testing.T) {
 
 	_, err = module.FindRoom(ctx, created.ID)
 	require.NoError(t, err, "a rejected deletion must roll back without removing the room")
+}
+
+// roomUsageFunc reports a running session in every room it is asked about
+// when active answers true; no care offering needs a room.
+type roomUsageFunc func(context.Context) bool
+
+func (f roomUsageFunc) HasActiveSessions(ctx context.Context, _ int64) (bool, error) {
+	return f(ctx), nil
+}
+
+func (roomUsageFunc) RequiredByCareOffering(context.Context, int64) (bool, error) {
+	return false, nil
 }
 
 func TestRoomQuerySupportsLegacyLookupAndCapacityContracts(t *testing.T) {

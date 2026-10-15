@@ -98,8 +98,8 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	}
 	adapters := NewTimetableRepositoriesWithPresence(db, TimetableDependencies{
 		Capability: bookings, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
-	}, services.NewUnloggedStudentPresence(db.Pool()))
-	sessions := services.NewSessionRecords(db.Pool(), services.SessionRecordOwners{
+	}, NewUnloggedStudentPresence(db))
+	sessions := NewSessionRecords(db, SessionRecordOwners{
 		Now: now, Rooms: rooms, Timetable: bookings, Membership: membership, Persons: persons,
 	})
 	carePlan, err := NewCarePlan(db, persons, adapters.InstanceStudent)

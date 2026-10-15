@@ -66,7 +66,7 @@ type StudentTestModule struct {
 
 // ManualPartialAbsences binds the owner projection without constructing another service graph.
 func (m StudentTestModule) ManualPartialAbsences(source careplan.Capability) presenceservice.ManualPartialAbsenceReader {
-	return services.NewManualPartialAbsenceDates(source)
+	return NewManualPartialAbsenceDates(source)
 }
 
 // DataAccessAudit supplies the access-evidence writer from this module's audit command.
@@ -165,7 +165,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: services.NewLoggedStudentPresence(db.Pool(), logger), Preview: services.NewPickupExcusalTimetable(repos.Timetable, services.NewPartialAbsencePreview(db.Pool())),
+		DB: db.Pool(), Records: repos.CarePlan, Baselines: pickupBaselines, Blocks: NewLoggedStudentPresence(db, logger), Preview: services.NewPickupExcusalTimetable(repos.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return StudentTestModule{}, err
@@ -184,7 +184,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
-	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db.Pool(), repos.CarePlan, services.NewLoggedStudentPresence(db.Pool(), logger), pickupAutoExcusal)
+	partialAbsenceService, err := careplanCompose.NewPartialAbsences(db.Pool(), repos.CarePlan, NewLoggedStudentPresence(db, logger), pickupAutoExcusal)
 	if err != nil {
 		return StudentTestModule{}, err
 	}
@@ -283,7 +283,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		persons,
 		arrivalScheduleService,
 		pickupScheduleService,
-		services.NewLoggedStudentPresence(db.Pool(), logger),
+		NewLoggedStudentPresence(db, logger),
 		pickupAutoExcusal,
 		repos.CarePlan,
 		userContextService,
@@ -375,13 +375,13 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	})
 	studentStatusDayService := presenceservice.NewStatusDays(
 		repos.StudentStatusDay,
-		services.NewManualPartialAbsenceDates(repos.CarePlan),
+		NewManualPartialAbsenceDates(repos.CarePlan),
 		db.Pool(),
 		repos.CarePlan.LockExceptionDay,
 		now,
 	)
 	ogsGroupLiveService, err := groupliveCompose.New(groupliveCompose.Sources{
-		Presence:          services.NewLoggedStudentPresence(db.Pool(), logger),
+		Presence:          NewLoggedStudentPresence(db, logger),
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
 		Substitutions:     substitutionService,

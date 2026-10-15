@@ -101,38 +101,23 @@ func NewTimetableWiring(owners TimetableWiringOwners) (services.TimetableWiring,
 	}, nil
 }
 
-// newServiceGraphWiring builds the People Directory and the Timetable
-// wirings the root hands to the legacy service graph over the same owners
-// (#4007, #4009).
-func newServiceGraphWiring(owners PeopleWiringOwners, repositories TimetableRepositories, calendar schoolcalendar.Calendar) (services.PeopleWiring, services.TimetableWiring, error) {
-	people, err := NewPeopleWiring(owners)
-	if err != nil {
-		return services.PeopleWiring{}, services.TimetableWiring{}, err
-	}
-	timetable, err := NewTimetableWiring(TimetableWiringOwners{
-		DB: owners.DB, Logger: owners.Logger, Repositories: repositories, Timetable: owners.Timetable,
-		Calendar: calendar, Rooms: owners.Rooms, Membership: owners.Membership, Persons: owners.Persons, People: people,
-	})
-	return people, timetable, err
-}
-
 // newReminderQuery binds the reminder evaluation's readers to the owners the
 // root composed and to the values the service graph hands over.
 func newReminderQuery(owners TimetableWiringOwners) func(services.ReminderSources) reminder.Query {
-	pool := owners.DB.Pool()
+	presence := NewLoggedStudentPresence(owners.DB, owners.Logger)
 	return func(sources services.ReminderSources) reminder.Query {
 		return reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 			Clock:        ReminderClock(),
 			CurrentStaff: ReminderStaffIdentity(sources.CurrentStaff),
 			Settings:     ReminderSettings{sources.Settings},
-			Attendance:   services.NewLoggedStudentPresence(pool, owners.Logger),
+			Attendance:   presence,
 			Pickup:       ReminderPickupReader{Source: sources.Pickups},
 			Instance:     ReminderTimetableReader{Source: owners.Timetable},
 			Room:         ReminderRoomReader{Source: owners.Rooms},
 			Student:      ReminderStudentReader{Source: owners.People.Students},
 			Person:       ReminderPersonReader{Source: owners.People.Persons},
-			Supervision:  ReminderSupervisionReader{Source: sources.Sessions, Presence: services.NewLoggedStudentPresence(pool, owners.Logger)},
-			Visits:       ReminderVisitReader{Source: services.NewLoggedStudentPresence(pool, owners.Logger)},
+			Supervision:  ReminderSupervisionReader{Source: sources.Sessions, Presence: presence},
+			Visits:       ReminderVisitReader{Source: presence},
 			Logger:       sources.Logger,
 
 			// Bulk readers for ComputeBatch. They answer the three genuinely

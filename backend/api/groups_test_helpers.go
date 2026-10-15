@@ -4,6 +4,9 @@ import (
 	"context"
 	"log/slog"
 
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -15,7 +18,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -62,13 +64,13 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(tt.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: services.AttendancePrincipal,
-		YardRoomColor:   services.YardRoomColorQuery(rooms),
-		StaffNames:      services.NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: services.NewAttendanceStaffDirectory(tt.Staff), RoomRepo: services.NewAttendanceRooms(tt.Room),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(tt.Group, tt.Student),
-		ActivityGroupRepo:  services.NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
-		SchoolPresence: services.NewLoggedStudentPresence(db.Pool(), slog.Default()),
+		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		YardRoomColor:   facilitiesCompose.YardRoomColor(rooms),
+		StaffNames:      NewAttendanceStaffNames(tt.Staff, persons), GroupRepo: sessionGroups, SupervisorRepo: sessionSupervisors,
+		StudentRepo: PresenceStudents(db, tt.Student), StaffRepo: NewAttendanceStaffDirectory(tt.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(tt.Room),
+		EducationGroupRepo: NewAttendanceEducationGroups(tt.Group, tt.Student),
+		ActivityGroupRepo:  NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
+		SchoolPresence: NewLoggedStudentPresence(db, slog.Default()),
 	})
 
 	return GroupsTestModule{Education: groups, Active: presence, Users: persons, People: peopleCompose.NewGroupRoutePeople(persons), UserContext: identity.UserContext}, nil

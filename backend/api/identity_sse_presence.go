@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // ssePresence reads the room sessions a live-update client subscribes to.
@@ -14,7 +13,7 @@ type ssePresence struct {
 }
 
 func (s ssePresence) GetStaffActiveGroupIDs(ctx context.Context, staffID int64) ([]int64, error) {
-	return services.OpenRoomSessionPresence{Presence: s.groups}.GetStaffActiveGroupIDs(ctx, staffID)
+	return OpenRoomSessionPresence{Presence: s.groups}.GetStaffActiveGroupIDs(ctx, staffID)
 }
 
 func (s ssePresence) ListSSEGroups(ctx context.Context) ([]studentpresence.LiveGroup, error) {

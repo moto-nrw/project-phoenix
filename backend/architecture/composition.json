@@ -16372,32 +16372,32 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 167,
+          "line": 172,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 393,
+          "line": 401,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 496,
+          "line": 527,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 760,
+          "line": 769,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 48,
+          "line": 49,
           "declaration": "type TestFactory"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 209,
+          "line": 235,
           "declaration": "OwnerCapabilities.factory"
         },
         {

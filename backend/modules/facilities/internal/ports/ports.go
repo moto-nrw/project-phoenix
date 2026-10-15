@@ -25,7 +25,15 @@ type Transaction interface {
 	AcquireLock(context.Context, string) error
 }
 
-type DeletionGuard func(context.Context, int64) error
+// RoomUsage answers the two questions a room deletion asks other owners: is
+// a session running in the room, and does a care offering need it. Facilities
+// owns the port and the decision; the composition root binds the answers to
+// Student Presence and Care Plan.
+type RoomUsage interface {
+	HasActiveSessions(ctx context.Context, roomID int64) (bool, error)
+	RequiredByCareOffering(ctx context.Context, roomID int64) (bool, error)
+}
+
 type DeletionLock func(context.Context) error
 
 type Observation struct {

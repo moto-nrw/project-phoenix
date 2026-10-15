@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -20,7 +19,7 @@ func TestPresenceSupervisionQueryUsesCalendarDateAtBoundary(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 	now := time.Date(2026, time.August, 30, 12, 0, 0, 0, time.UTC)
-	repo := sessionSupervisors(services.NewPresenceSessionRecords(db, func() time.Time { return now }))
+	repo := sessionSupervisors(api.NewPresenceSessionRecords(testpkg.MustDatabase(db), func() time.Time { return now }))
 	ctx := testpkg.Ctx(t)
 	data := createSupervisorTestData(t, db)
 	today := timezone.NewDate(2026, 8, 30)

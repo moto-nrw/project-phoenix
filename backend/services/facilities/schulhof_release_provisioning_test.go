@@ -30,7 +30,6 @@ func newReleaseTestService(owner facilitiesModule.Capability) Service {
 		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
 			return nil, nil
 		},
-		ValidateDeletion: func(context.Context, int64) error { return nil },
 	})
 }
 

@@ -6465,17 +6465,6 @@
       "target_role": "domain"
     },
     {
-      "id": "legacy-composition.module-internal-test.student-presence-public",
-      "description": "Reminder composition tests preserve room grouping and failed-read behavior from public presence facts (#2691).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.compose.presence-cutover.presence-legacy-view.postgres",
       "description": "The Timetable compose serves the retained reads that join the plan with the Student Presence execution and attendance from the tenant-safe presence projection (#2762).",
       "scopes": [

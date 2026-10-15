@@ -32,7 +32,7 @@ func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
-	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{DB: db, DeletionLock: func(context.Context) error { return nil }, DeletionGuard: func(context.Context, int64) error { return nil }, Observe: func(facilitiesCompose.Observation) {}})
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
 	query, err := New(Sources{Presence: newPresenceModule(t, db), PresenceMode: fakeMode{mode: "detailed"},
 		Students: newOwnerStudentSource(t, db), Persons: people, Contacts: usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db)),

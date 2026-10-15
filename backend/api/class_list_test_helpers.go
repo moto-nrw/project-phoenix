@@ -28,7 +28,7 @@ func NewClassListTestModule(db transactionruntime.Database) (ClassListTestModule
 	if err != nil {
 		return ClassListTestModule{}, err
 	}
-	if err := services.BindClassListEntryAdministration(membership, persons, command); err != nil {
+	if err := BindClassListEntryAdministration(membership, persons, command); err != nil {
 		return ClassListTestModule{}, err
 	}
 	return ClassListTestModule{Membership: membership}, nil

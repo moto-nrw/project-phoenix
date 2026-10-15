@@ -12,13 +12,15 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
+
 	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -161,6 +163,9 @@ type moduleServices struct {
 	studentStatusDays scheduler.StudentStatusFlagArchiver
 	// timetableRepositories are the retained Timetable adapters (#2743).
 	timetableRepositories timetableCompose.Repositories
+	// presence is the Student Presence, Facilities, Device Fleet and
+	// class-day wiring the root built for the service graph (#4010).
+	presence services.PresenceWiring
 	// planningTracks is the planning-track administration the timetable
 	// routes and the service graph share (#4009).
 	planningTracks timetableModule.PlanningTrackAdministration
@@ -234,7 +239,7 @@ func newTimetable(db transactionruntime.Database, students peopleModule.StudentQ
 			_, err := membership.FindStaffForMutation(ctx, staffID)
 			return err
 		},
-		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: services.NewPresenceFacts(db.Pool()),
+		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: NewPresenceFacts(db),
 		Observe: observe,
 	})
 }
@@ -269,10 +274,11 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	var legacyFacilities interface {
-		ValidateRoomDeletion(context.Context, int64) error
-	}
-	rooms, err := composeFacilities(db, &legacyFacilities)
+	// The room deletion asks Student Presence and Care Plan through the
+	// Facilities room usage port; the root binds both once the service graph
+	// exists (#4010).
+	roomUsage := &RoomUsage{}
+	rooms, err := composeFacilities(db, roomUsage)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -357,16 +363,18 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	}
 	// The retained People Directory, School Membership and School Structure
 	// repositories and their adapters are built here and handed to the
-	// legacy service graph (#4007). The meal plan's participants, the
+	// legacy service graph (#4007), and so are Student Presence, its session
+	// records and the room service (#4010). The meal plan's participants, the
 	// Worker's activation tick and its reminder recipients read the same
 	// student and staff repositories.
-	// The Timetable, School Calendar and reminder wiring binds the same owners
-	// and retained rows into the legacy service graph (#4009).
-	people, timetableWiring, err := newServiceGraphWiring(PeopleWiringOwners{
+	people, presence, timetableWiring, err := newLegacyWiring(PeopleWiringOwners{
 		DB: db, Logger: logger, Persons: persons, Groups: groups, Rooms: rooms, Membership: membership,
 		Workforce: workTime, CarePlan: carePlan, Organizations: organizations, Timetable: timetableCapability,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
-	}, timetableRepositories, calendar)
+	}, PresenceWiringOwners{
+		DB: db, Logger: logger, Persons: persons, Rooms: rooms, Membership: membership, CarePlan: carePlan,
+		Calendar: calendar, Timetable: timetableCapability, TimetableRows: timetableRepositories,
+	})
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -424,13 +432,14 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			fileStorageWiring,
 			identity,
 			people,
+			presence,
 			timetableWiring,
 		)
 	})
 	if err != nil {
 		return moduleServices{}, err
 	}
-	legacyFacilities = factory.Facilities
+	roomUsage.Sessions, roomUsage.Offerings = presence.Presence, factory.EnrollmentCareOffering
 	// The guardian profile loader backs the public and parent enrollment
 	// me/profile reads; the birthday display (#1542) reads the same retained
 	// rows. The root builds both where it mounts them (#4007).
@@ -440,7 +449,29 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	calendarAdministration = GuardedCalendarAdministration(factory.Settings, timetableWiring.RecurrenceLock, factory.EnrollmentCareOffering)
 	identityModule, userContext := identity()
 	studentStatusDays := services.NewStudentStatusDayRepository(carePlan)
-	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, planningTracks: timetableWiring.PlanningTracks, timetableRepositories: timetableRepositories, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+}
+
+// newLegacyWiring builds what the root hands the legacy service graph in
+// place of building it there: the People Directory, School Membership and
+// School Structure wiring (#4007) and, over its retained rows, the Student
+// Presence, Facilities, Device Fleet and class-day wiring (#4010), together
+// with the Timetable, School Calendar and reminder wiring (#4009).
+func newLegacyWiring(people PeopleWiringOwners, presence PresenceWiringOwners) (services.PeopleWiring, services.PresenceWiring, services.TimetableWiring, error) {
+	peopleWiring, err := NewPeopleWiring(people)
+	if err != nil {
+		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, err
+	}
+	presence.People = peopleWiring
+	presenceWiring, err := NewPresenceWiring(presence)
+	if err != nil {
+		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, err
+	}
+	timetableWiring, err := NewTimetableWiring(TimetableWiringOwners{
+		DB: people.DB, Logger: people.Logger, Repositories: presence.TimetableRows, Timetable: people.Timetable,
+		Calendar: presence.Calendar, Rooms: people.Rooms, Membership: people.Membership, Persons: people.Persons, People: peopleWiring,
+	})
+	return peopleWiring, presenceWiring, timetableWiring, err
 }
 
 // composeSchoolMembership composes the observed School Membership owner. A
@@ -525,9 +556,7 @@ func observeDataImport(observation services.DataImportObservation) {
 	}
 }
 
-func composeFacilities(db transactionruntime.Database, legacyFacilities *interface {
-	ValidateRoomDeletion(context.Context, int64) error
-}) (*facilitiesModule.Module, error) {
+func composeFacilities(db transactionruntime.Database, usage facilitiesCompose.RoomUsage) (*facilitiesModule.Module, error) {
 	recurrenceLock, err := timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
 		DB: db.Pool(), GradeTransitionLockKey: schoolStructureModule.TransitionsLockKey,
 	})
@@ -537,12 +566,7 @@ func composeFacilities(db transactionruntime.Database, legacyFacilities *interfa
 	return facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db.Pool(),
 		DeletionLock: recurrenceLock.LockRecurrenceWrites,
-		DeletionGuard: func(ctx context.Context, roomID int64) error {
-			if *legacyFacilities == nil {
-				return facilitiesModule.ErrRoomDeletionGuardUnavailable
-			}
-			return mapRoomDeletionError((*legacyFacilities).ValidateRoomDeletion(ctx, roomID))
-		},
+		Usage:        usage,
 		Observe: func(observation facilitiesCompose.Observation) {
 			observability.ObserveFacilitiesOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, facilitiesModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -577,21 +601,6 @@ func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
 	})
-}
-
-func mapRoomDeletionError(err error) error {
-	var coded interface{ Code() string }
-	if !errors.As(err, &coded) {
-		return err
-	}
-	switch coded.Code() {
-	case "room_in_use":
-		return facilitiesModule.ErrRoomInUse
-	case "room_required_by_offering":
-		return facilitiesModule.ErrRoomRequiredByOffering
-	default:
-		return err
-	}
 }
 
 func mealPlanParticipantFinder(students StudentRootReads, now func() time.Time) mealplanCompose.ParticipantFinder {
@@ -1016,7 +1025,7 @@ func mountRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) (do
 // serves the students, attendance and kiosk routes (#3349).
 func mountRouteGroups(root, tenant chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
 	deviceAuth := newDeviceAuthentication(in.modules)
-	presence := newStudentPresence(in.db, in.logger)
+	presence := NewLoggedStudentPresence(in.db, in.logger)
 	student, err := mountStudentRoutes(tenant, in, deviceAuth, presence)
 	if err != nil {
 		return documentSweeps{}, err
@@ -1401,7 +1410,7 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
 		Today:  carePlanCompose.Today,
-		Blocks: services.NewPickupReviewBlocks(pool),
+		Blocks: NewPickupReviewBlocks(db),
 		ObserveCare: func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		},
@@ -1514,7 +1523,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		StudentNotes:                 svc.PeopleDirectory,
 		RequestReviewAccess:          svc.RequestReviewPolicy,
 		RequestReview:                requestReview,
-		StudentStatusDayService:      svc.StudentStatusDays,
+		StudentStatusDayService:      modules.presence.StatusDays,
 		AbsenceOverview:              svc.AbsenceOverview,
 		StudentHistoryService:        svc.StudentHistory,
 		OGSGroupLiveService:          svc.OGSGroupLive,
@@ -1546,7 +1555,11 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(services.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations")), activePeople{source: services.NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), services.NewSchulhofProjection(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	operations, err := presenceservice.NewPresenceOperations(svc.Active, svc.OGSGroupLive, logger.With("service", "presence-operations"))
+	if err != nil {
+		return err
+	}
+	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), supervisiondashboardCompose.NewYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	active.SupervisionDashboardService = svc.SupervisionDashboard
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {
@@ -1595,7 +1608,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Active:     svc.Active,
 		Users:      svc.Users,
 		Activities: svc.Activities,
-		Rosters:    services.SessionRosters{Sessions: presence, Roster: modules.timetable},
+		Rosters:    SessionRosters{Sessions: presence, Roster: modules.timetable},
 		Education:  svc.Education,
 		Pickups:    svc.PickupSchedule,
 		// A destination chosen at the kiosk runs the phone's open-room
@@ -1610,7 +1623,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		OpenRooms:        deviceScan,
 		StaffClock:       newStaffClockService(svc.Users, NewPeopleIdentityAccess(in.db, observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
 		Configuration:    devicescanCompose.NewConfiguration(svc.Settings),
-		Rooms:            devicescanCompose.NewRoomAvailability(svc.Facilities),
+		Rooms:            devicescanCompose.NewRoomAvailability(modules.presence.RoomService),
 		Directory:        devicescanCompose.NewDirectory(svc.Users, svc.Activities, logger),
 		TagAssignments:   devicescanCompose.NewTagAssignments(svc.Users, logger),
 		FeedbackStudents: devicescanCompose.NewFeedbackStudents(svc.Users),
@@ -1621,7 +1634,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(svc.Schools)),
 		ErrorReports:            errorReports,
 		SessionEnd:              sessionEnd,
-		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, services.KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
+		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
 		DeviceOnlyAuthenticator: deviceAuth.DeviceOnly(),
@@ -1732,7 +1745,7 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, pool, logger := in.modules.services, in.modules, in.db.Pool(), in.logger
 	tenant.Mount("/rooms", roomsHTTPAdapter.NewResource(modules.rooms, roomsHTTPAdapter.Dependencies{
-		Facilities: svc.Facilities, Settings: svc.Settings,
+		Facilities: modules.presence.RoomService, Settings: svc.Settings,
 		UserContext: modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: svc.ListExport,
@@ -2247,23 +2260,4 @@ func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
 		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
 	}
 	return tokenAuth, nil
-}
-
-// newStudentPresence composes the Student Presence owner for the serving
-// root with its attendance rules bound to the Timetable planned roster and
-// the Care Plan reads (#2762).
-func newStudentPresence(db transactionruntime.Database, logger *slog.Logger) *studentpresence.Module {
-	module, err := services.NewStudentPresence(db.Pool(), func(o presenceCompose.Observation) {
-		logger.Debug("student presence operation",
-			"operation", o.Operation,
-			"duration", o.Duration,
-			"queries", o.Queries,
-			"rows", o.Rows,
-			"error", o.Err,
-		)
-	})
-	if err != nil {
-		panic(err)
-	}
-	return module
 }
