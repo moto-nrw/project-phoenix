@@ -57,6 +57,7 @@ type engine interface {
 	LateInviteByUsedRequestID(context.Context, int64) (*LateInvite, error)
 	MarkLateInviteUsed(context.Context, int64, int64, time.Time) error
 	DeleteLateInvitesByUsedRequestID(context.Context, int64) (int64, error)
+	DeleteLateInvitesSettledBefore(context.Context, time.Time) (int64, error)
 	PhaseExpirySnapshots(context.Context, PhaseExpiryInput) ([]*PhaseExpirySnapshot, error)
 	InsertChild(ctx context.Context, child *RequestChild) error
 	ChildByID(ctx context.Context, id int64) (*RequestChild, error)
@@ -95,6 +96,7 @@ type engine interface {
 	CountPhaseRequests(context.Context, int64) (int, error)
 	DeletePhaseRequests(context.Context, int64) (int, error)
 	FullyRejectedRequestsBefore(context.Context, time.Time) ([]int64, error)
+	SettledRequestsBefore(ctx context.Context, withdrawnCutoff, rejectedCutoff time.Time) ([]int64, error)
 	DeleteRequest(context.Context, int64) error
 	CreateRequestGuardian(context.Context, *RequestGuardian) error
 	RequestGuardians(context.Context, []int64) ([]*RequestGuardian, error)

@@ -47,6 +47,7 @@ var schedulerPollingSettingKeys = []string{
 	settingDataCleanupTimeoutMinutes,
 	settingStatusDayRetentionDays,
 	settingParentMessageRetentionDays,
+	settingWithdrawnEnrollmentRetentionDays,
 	settingFeedbackDataRetentionDays,
 	settingSessionEndEnabled,
 	settingSessionEndTime,

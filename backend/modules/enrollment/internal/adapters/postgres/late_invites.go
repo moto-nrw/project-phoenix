@@ -143,6 +143,32 @@ func (r *Store) MarkLateInviteUsed(ctx context.Context, inviteID, requestID int6
 
 // DeleteByUsedRequestID removes late-invite PII linked to a request before the
 // request deletion can clear used_request_id through ON DELETE SET NULL.
+// DeleteLateInvitesSettledBefore deletes the invitations settled before
+// cutoff (#3960): an unused one settles when it expires, a used one whose
+// request is gone when it was used. An invitation of a living request goes
+// with that request.
+func (r *Store) DeleteLateInvitesSettledBefore(ctx context.Context, cutoff time.Time) (int64, error) {
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return 0, err
+	}
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return 0, err
+	}
+	res, err := db.NewDelete().
+		Model((*lateInviteRow)(nil)).
+		ModelTableExpr(lateInviteTableExpr).
+		Where("tenant_id = ?", tenantID).
+		Where(`"late_invite".used_request_id IS NULL`).
+		Where(`CASE WHEN "late_invite".used_at IS NULL THEN "late_invite".expires_at ELSE "late_invite".used_at END < ?`, cutoff).
+		Exec(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete settled enrollment late invites: %w", err)
+	}
+	return res.RowsAffected()
+}
+
 func (r *Store) DeleteLateInvitesByUsedRequestID(ctx context.Context, requestID int64) (int64, error) {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {

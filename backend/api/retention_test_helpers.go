@@ -27,13 +27,14 @@ import (
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
 // the Device Fleet owner, the Care Plan status days, the parent messages, the
-// delivery data and the technical remains of #4046.
+// settled enrollments, the delivery data and the technical remains of #4046.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
 	UnregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	StatusDays           careplan.StudentStatusDayRetention
 	ParentMessages       communication.ParentMessageCleanup
+	SettledEnrollments   enrollment.SettledEnrollmentRetention
 	Deliveries           delivery.Retention
 	FileCleanups         filestorage.CleanupRetention
 	StaffCleanups        workforce.CleanupRetention
@@ -64,13 +65,45 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if !ok {
 		return RetentionTestOwners{}, errors.New("care plan does not delete expired status days")
 	}
+	enrollments, err := newSettledEnrollmentTestRetention(db, settings.Settings)
+	if err != nil {
+		return RetentionTestOwners{}, err
+	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
-		ParentMessages:   communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
-		Deliveries:       deliveryCompose.NewRetention(),
-		FileCleanups:     filestorageCompose.NewCleanupRetention(),
-		StaffCleanups:    workforceCompose.NewCleanupRetention(),
-		CarePlanCleanups: carePlanCompose.NewCleanupRetention(),
-		SubmissionLimits: enrollmentCompose.New(),
+		ParentMessages:     communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
+		SettledEnrollments: enrollments,
+		Deliveries:         deliveryCompose.NewRetention(),
+		FileCleanups:       filestorageCompose.NewCleanupRetention(),
+		StaffCleanups:      workforceCompose.NewCleanupRetention(),
+		CarePlanCleanups:   carePlanCompose.NewCleanupRetention(),
+		SubmissionLimits:   enrollmentCompose.New(),
 	}, nil
+}
+
+// newSettledEnrollmentTestRetention composes the cleanup of settled
+// enrollments as the service graph does: the Enrollment deletion module over
+// the owner, the People Directory guardians, the audited adjustments and
+// deletions, Care Plan's bookings and the Delivery outbox.
+func newSettledEnrollmentTestRetention(db transactionruntime.Database, settings settingsCompose.BatchSettingsService) (enrollment.SettledEnrollmentRetention, error) {
+	repos, err := NewEnrollmentFlowTestRepositories(db)
+	if err != nil {
+		return nil, err
+	}
+	people, err := NewPeopleDirectory(db)
+	if err != nil {
+		return nil, err
+	}
+	deliveries, err := NewEnrollmentFlowDelivery(db)
+	if err != nil {
+		return nil, err
+	}
+	return NewEnrollmentDeletionModule(EnrollmentDeletionSources{
+		Owner: repos.Enrollment(), Guardians: enrollmentGuardianDirectory{guardians: people},
+		CountAuditAdjustments: repos.EnrollmentOfferingAdjustment.CountForDeletion,
+		CountBookings:         repos.CarePlan().CountCareOfferingBookings,
+		Audit:                 repos.EnrollmentDeletionAudit,
+		Delivery:              enrollmentDeliveryAdapter{module: deliveries},
+		Settings:              settings,
+	}).Cleanup, nil
 }

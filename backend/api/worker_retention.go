@@ -33,6 +33,7 @@ const (
 	retentionUnregisteredTagScans = "unregistered_tag_scan_retention"
 	retentionStatusDays           = "status_day_retention"
 	retentionParentMessages       = "parent_message_retention"
+	retentionSettledEnrollments   = "settled_enrollment_retention"
 	retentionAuthEvents           = "auth_event_retention"
 	retentionDataAccessLog        = "data_access_log_retention"
 	retentionDeletionLog          = "deletion_log_retention"
@@ -48,6 +49,7 @@ const (
 var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRStatusDayRetentionDays,
 	settingsModule.KeyGDPRParentMessageRetentionDays,
+	settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 }
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup
@@ -63,6 +65,9 @@ type retentionOwners struct {
 	unregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	statusDays           carePlanModule.StudentStatusDayRetention
 	parentMessages       communicationModule.ParentMessageCleanup
+	// settledEnrollments deletes the withdrawn and lapsed enrollments no
+	// child was created from (#3960).
+	settledEnrollments enrollmentModule.SettledEnrollmentRetention
 	// auditLedgers deletes the expired rows of the append-only audit ledgers
 	// through their fixed database functions (#3956).
 	auditLedgers interface {
@@ -126,6 +131,17 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
 				result, err := messages.CleanupExpiredParentMessages(ctx)
 				return scheduler.RetentionOutcome{Deleted: result.MessagesDeleted + result.ThreadsDeleted, RetentionDays: result.RetentionDays}, err
+			},
+		})
+	}
+	if owners.settledEnrollments != nil {
+		enrollments := owners.settledEnrollments
+		steps = append(steps, scheduler.RetentionStep{
+			Kind: retentionSettledEnrollments,
+			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+				result, err := enrollments.CleanupSettledEnrollments(ctx)
+				deleted := result.DeletedRequests + int(result.DeletedLateInvites)
+				return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}

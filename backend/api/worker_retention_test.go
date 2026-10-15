@@ -38,6 +38,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		unregisteredTagScans: owners.UnregisteredTagScans,
 		statusDays:           owners.StatusDays,
 		parentMessages:       owners.ParentMessages,
+		settledEnrollments:   owners.SettledEnrollments,
 		auditLedgers:         owners.Audit,
 		deliveries:           owners.Deliveries,
 		fileCleanups:         owners.FileCleanups,
@@ -88,6 +89,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 	assert.ElementsMatch(t, []string{
 		settingsModule.KeyGDPRStatusDayRetentionDays,
 		settingsModule.KeyGDPRParentMessageRetentionDays,
+		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 	}, retentionSettingKeys)
 }
 

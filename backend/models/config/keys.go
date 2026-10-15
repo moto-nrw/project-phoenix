@@ -68,6 +68,10 @@ const (
 	// Retention window (days) for the parent/OGS conversations
 	// (users.parent_messages, #3959), counted from sending.
 	KeyGDPRParentMessageRetentionDays = "gdpr.parent_message_retention_days"
+	// Retention window (days) for withdrawn and lapsed enrollments no child
+	// was created from (enrollment.requests, #3960), counted from settling.
+	// Rejected children keep enrollment.rejected_retention_days.
+	KeyGDPRWithdrawnEnrollmentRetentionDays = "gdpr.withdrawn_enrollment_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

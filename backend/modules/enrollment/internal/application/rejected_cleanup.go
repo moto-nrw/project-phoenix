@@ -15,6 +15,7 @@ import (
 type RejectedRequestCleaner interface {
 	DeleteRequestTree(context.Context, int64) error
 	FullyRejectedRequestsBefore(ctx context.Context, cutoff time.Time) ([]int64, error)
+	SettledRequestsBefore(ctx context.Context, withdrawnCutoff, rejectedCutoff time.Time) ([]int64, error)
 	RequestByID(context.Context, int64, bool) (*enrollment.Request, error)
 	DeleteRequest(ctx context.Context, requestID int64) error
 }
@@ -24,15 +25,18 @@ type RejectedChildren interface {
 	ChildrenForRequest(ctx context.Context, requestID int64, forUpdate bool) ([]*enrollment.RequestChild, error)
 }
 
-// UsedLateInviteCleaner deletes the late invites a request used.
+// UsedLateInviteCleaner deletes the late invites a request used, and the
+// invitations settled before a cutoff.
 type UsedLateInviteCleaner interface {
 	DeleteLateInvitesByUsedRequestID(ctx context.Context, requestID int64) (int64, error)
+	DeleteLateInvitesSettledBefore(ctx context.Context, cutoff time.Time) (int64, error)
 }
 
-// RetentionSettings resolves the tenant's retention of rejected
-// enrollments in days.
+// RetentionSettings resolves the tenant's retention of rejected and of
+// withdrawn enrollments in days.
 type RetentionSettings interface {
 	RejectedRetentionDays(ctx context.Context) (int, error)
+	WithdrawnRetentionDays(ctx context.Context) (int, error)
 }
 
 // RejectedCleanupDependencies bind the retention worker to its owners.
@@ -98,8 +102,11 @@ func (s *RejectedCleanup) CleanupRejectedEnrollments(ctx context.Context) (enrol
 		if listErr != nil {
 			return listErr
 		}
+		settled := func(children []*enrollment.RequestChild) bool {
+			return childrenRemainFullyRejectedBefore(children, cutoff)
+		}
 		for _, requestID := range requestIDs {
-			if err := s.cleanupRequest(txCtx, requestID, cutoff, &result); err != nil {
+			if err := s.cleanupRequest(txCtx, requestID, settled, &result); err != nil {
 				return err
 			}
 		}
@@ -115,11 +122,11 @@ func (s *RejectedCleanup) CleanupRejectedEnrollments(ctx context.Context) (enrol
 	return result, nil
 }
 
-// cleanupRequest deletes one fully rejected request. It matches every
-// request-mutation path's parent -> children lock order: locking children
-// first and then cascading the parent delete can deadlock with an edit that
-// already holds the request row.
-func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, cutoff time.Time, result *enrollment.RejectedEnrollmentCleanupResult) error {
+// cleanupRequest deletes one request whose locked children are still
+// settled. It matches every request-mutation path's parent -> children lock
+// order: locking children first and then cascading the parent delete can
+// deadlock with an edit that already holds the request row.
+func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, settled func([]*enrollment.RequestChild) bool, result *enrollment.RejectedEnrollmentCleanupResult) error {
 	d := s.deps
 	if _, err := d.Requests.RequestByID(ctx, requestID, true); err != nil {
 		return fmt.Errorf("lock rejected enrollment request: %w", err)
@@ -128,7 +135,7 @@ func (s *RejectedCleanup) cleanupRequest(ctx context.Context, requestID int64, c
 	if err != nil {
 		return fmt.Errorf("lock rejected enrollment request children: %w", err)
 	}
-	if !childrenRemainFullyRejectedBefore(children, cutoff) {
+	if !settled(children) {
 		return nil
 	}
 	emailCount, err := d.Delivery.CountRelatedEmails(ctx, enrollmentRequestDeliveryType, requestID)

@@ -46,6 +46,7 @@ const (
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
 	KeyGDPRParentMessageRetentionDays        = configModel.KeyGDPRParentMessageRetentionDays
+	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays
 	KeyGuardianParentCanRemove               = configModel.KeyGuardianParentCanRemove
 	KeyGuardianParentInviteMode              = configModel.KeyGuardianParentInviteMode
