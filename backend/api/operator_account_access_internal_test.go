@@ -1,4 +1,4 @@
-package operator
+package api
 
 import (
 	"bytes"
@@ -74,7 +74,7 @@ func decodeBody(t *testing.T, rr *httptest.ResponseRecorder) map[string]any {
 }
 
 func newAccountAccessResource(access *mockAccountAccess) *identityoperator.Resource {
-	return identityoperator.NewResource(access, IdentityResponses())
+	return identityoperator.NewResource(access, operatorIdentityResponses())
 }
 
 func accountTenantRequest(t *testing.T, method, body string, params map[string]string) *http.Request {

@@ -295,7 +295,7 @@ func setupCaregiverCompositionModule(t *testing.T, graph *serveGraph) *caregiver
 	require.NoError(t, err)
 	in := routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth}
 	auth := newAccountResource(in)
-	operator, err := newOperatorResource(in)
+	operator, err := newOperatorRouter(in, authRateLimiters{})
 	require.NoError(t, err)
 	return &caregiverComposition{
 		authWired:        auth != nil,
@@ -327,10 +327,10 @@ func setupOperatorInvitationRoute(t *testing.T, graph *serveGraph) chi.Router {
 	// enabled. The golden graph's router remains unchanged.
 	sessionAuth, err := newSessionTokenAuth()
 	require.NoError(t, err)
-	operator, err := newOperatorResource(routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth})
+	operator, err := newOperatorRouter(routeInputs{modules: moduleServices{services: graph.services}, db: graph.db, logger: slog.Default(), sessionAuth: sessionAuth}, buildAuthRateLimiters(nil, "5", demoLoopbackExempt()))
 	require.NoError(t, err)
 	router := chi.NewRouter()
-	router.Mount("/operator", operatorRouter(operator, buildAuthRateLimiters(nil, "5", demoLoopbackExempt())))
+	router.Mount("/operator", operator)
 	return router
 }
 

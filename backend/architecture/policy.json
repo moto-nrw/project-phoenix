@@ -227,10 +227,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-operator",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-parent",
       "kind": "inbound"
     },
@@ -920,13 +916,6 @@
     {
       "path": "modules/delivery/http/notifications",
       "owner": "inbound-notifications",
-      "role": "http",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "adapter-test"
-    },
-    {
-      "path": "api/operator",
-      "owner": "inbound-operator",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -8271,17 +8260,6 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-operator.to.organization-tenancy",
-      "description": "inbound-operator calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-parent.to.care-plan",
       "description": "inbound-parent calls exactly one public capability.",
       "scopes": [
@@ -10285,17 +10263,6 @@
       "source_owner": "communication",
       "source_role": "compose",
       "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-operator.to.communication",
-      "description": "Operator announcement HTTP handlers call the Communication facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "communication",
       "target_role": "public"
     },
     {
@@ -13340,39 +13307,6 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-operator.http.organization-tenancy-http",
-      "description": "The operator router mounts the Organisation & Tenancy provisioning routes behind its middleware chain and reuses their error mapping for the school access routes (#3232).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "organization-tenancy",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-operator.http.settings-platform-http",
-      "description": "The operator router mounts the Settings Platform school settings routes behind its middleware chain (#3232).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "settings-platform",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-operator.http.communication-http",
-      "description": "The operator router mounts the Communication announcement routes behind its middleware chain (#3232).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "http"
-    },
-    {
       "id": "organization-tenancy.http.public",
       "description": "The operator provisioning routes call the public Organisation & Tenancy provisioning capability (#3232).",
       "scopes": [
@@ -13494,29 +13428,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-operator.http.identity-access-http",
-      "description": "The operator router mounts the Identity & Access operator routes behind its middleware chain (#3252).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-operator.adapter-test.identity-access-http",
-      "description": "The operator router tests drive the mounted Identity & Access operator routes (#3252).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-operator",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "student-presence.e2e-test.care-plan-absence-records",
       "description": "The retained presence service and repository tests arrange and assert status days as Care Plan absence records (#3422).",
       "scopes": [
@@ -13632,17 +13543,6 @@
         "production"
       ],
       "source_owner": "identity-access",
-      "source_role": "http",
-      "target_owner": "settings-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-operator.http.settings-public",
-      "description": "The operator router hands the public Settings Platform capability to the school settings routes it mounts (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-operator",
       "source_role": "http",
       "target_owner": "settings-platform",
       "target_role": "public"

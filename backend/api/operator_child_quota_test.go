@@ -1,4 +1,4 @@
-package operator_test
+package api
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -43,11 +42,7 @@ func childQuotaRouter(t *testing.T, provisioning organizationtenancy.Provisionin
 			return op, nil
 		},
 	}
-	return operator.NewResource(operator.ResourceConfig{
-		AuthService:         authService,
-		ProvisioningService: provisioning,
-		Sessions:            operatorTestSessions(t, authService),
-	}).Router()
+	return testOperatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)}, provisioning)
 }
 
 // TestOperatorSetsTheKinderkontingentOnTheSchoolRoute pins that the existing
