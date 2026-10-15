@@ -5,7 +5,6 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -35,7 +34,7 @@ type membershipAdapters struct {
 func bindMembershipAdapters(persons staffPersonRows, identity staffIdentityQuery, membership schoolmembership.Capability, group *EducationGroupStore, employment workforce.StaffEmployments) membershipAdapters {
 	groupTeachers := newGroupTeacherRepository(membership, group)
 	deps := NewStaffMembershipDeps(persons, identity, employment)
-	deps.GroupTeachers = func() services.GroupTeacherRepository { return groupTeachers }
+	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return membershipAdapters{
 		Staff:        StaffMembershipRepository{Membership: membership, Deps: deps},
 		Teacher:      TeacherMembershipRepository{Membership: membership, Deps: deps},

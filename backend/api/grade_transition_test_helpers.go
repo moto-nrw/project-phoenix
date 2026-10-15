@@ -7,7 +7,6 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
@@ -40,14 +39,14 @@ func NewGradeTransitionTestModule(db transactionruntime.Database, resync Offerin
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err
 	}
 	if resync == nil {
 		resync = func(context.Context, timezone.Date) error { return nil }
 	}
-	clock := services.OptionalClock(clocks)
+	clock := OptionalClock(clocks)
 	recurrenceLock, err := newTimetableTestRecurrenceLock(db)
 	if err != nil {
 		return GradeTransitionTestModule{}, err

@@ -12,7 +12,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The time-tracking and staff administration resources live in the Workforce
@@ -75,7 +74,7 @@ func (p exportTransferPort) Transfer(ctx context.Context, request timeTrackingHT
 }
 
 // newTimeTrackingResource composes the MA-facing /api/time-tracking surface.
-func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Calendar, db transactionruntime.Database) *timeTrackingHTTP.Resource {
+func newTimeTrackingResource(svc *serviceGraph, calendar schoolcalendar.Calendar, db transactionruntime.Database) *timeTrackingHTTP.Resource {
 	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
 	return timeTrackingHTTP.NewResource(timeTrackingHTTP.Dependencies{
 		WorkSessions:     capabilities.WorkSessions,

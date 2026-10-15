@@ -9,7 +9,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // WorkforceTestRepositories is the Workforce suites' repository graph. The
@@ -39,7 +38,7 @@ func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	if err != nil {
 		return WorkforceTestRepositories{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return WorkforceTestRepositories{}, err
 	}

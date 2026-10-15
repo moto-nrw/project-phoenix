@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
 )
@@ -14,7 +13,7 @@ import (
 // facades the root already holds: Student Presence, Timetable & Activities,
 // People Directory, Facilities, the Timetable owner's bridged completion, the
 // realtime hub, and the guardian wake of parent messaging.
-func newSessionEnd(presence *studentpresence.Module, modules moduleServices, factory *services.Factory, logger *slog.Logger) (sessionend.Command, error) {
+func newSessionEnd(presence *studentpresence.Module, modules moduleServices, factory *serviceGraph, logger *slog.Logger) (sessionend.Command, error) {
 	log := logger.With("workflow", "session-end")
 	deps := sessionEndCompose.Dependencies{
 		Presence:    presence,

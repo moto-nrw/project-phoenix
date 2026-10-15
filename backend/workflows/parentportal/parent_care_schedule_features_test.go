@@ -30,7 +30,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)

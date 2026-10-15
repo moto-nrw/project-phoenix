@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -18,8 +16,8 @@ import (
 // instead of deleting without a trail or a verified retention period.
 func NewStudentChangeLogCleanup(
 	edits peopleCompose.StudentChangeLogStore,
-	deletions services.DataDeletionAppender,
-	settings services.RetentionSettings,
+	deletions DataDeletionAppender,
+	settings RetentionSettings,
 	logger *slog.Logger,
 ) peopleCompose.StudentChangeLogCleanupService {
 	var deletionLog peopleCompose.StudentChangeLogDeletionLog

@@ -5,7 +5,6 @@ import (
 
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewUnobservedTimetableDependencies composes the owner capabilities the
@@ -33,7 +32,7 @@ func NewUnobservedTimetableDependencies(db transactionruntime.Database) Timetabl
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable calendar: %v", err))
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable membership: %v", err))
 	}

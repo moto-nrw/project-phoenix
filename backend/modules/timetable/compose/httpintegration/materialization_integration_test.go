@@ -32,7 +32,7 @@ import (
 
 type scenarioSetup struct {
 	svc           timetable.MaterializationCapability
-	factory       *api.TestFactory
+	factory       *api.TestServiceGraph
 	db            *bun.DB
 	ctx           context.Context
 	tenantID      int64
@@ -69,7 +69,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 
 	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)

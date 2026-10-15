@@ -22,7 +22,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The staff surface under /api/staff is composed from two adapters (#2667):
@@ -113,7 +112,7 @@ func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse 
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *services.Factory, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *serviceGraph, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
 	exportTransfer, err := newExportTransferModule(svc, db, logger)
 	if err != nil {
 		return nil, nil, err
@@ -128,8 +127,8 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 // newExportTransferModule wires the Export Transfer capability (#3050) over
 // the tenant settings. It is composed HERE rather than alongside the other
 // modules because it needs the settings service, which only exists once the
-// service factory is built.
-func newExportTransferModule(svc *services.Factory, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
+// service graph is built.
+func newExportTransferModule(svc *serviceGraph, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
 	resolvers, keys := settingsCompose.NewSFTPExportSettings(svc.Settings)

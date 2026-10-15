@@ -5,7 +5,6 @@ import (
 
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -32,7 +31,7 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 	if err != nil {
 		return nil, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, err
 	}

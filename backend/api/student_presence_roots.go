@@ -19,8 +19,7 @@ import (
 // joined Timetable presence reads from the database (#4010). Most bind
 // several owners' compositions over the same database (Student Presence,
 // Timetable, Care Plan, People Directory, Facilities), so the root builds
-// them where it mounts them. The retained cleanup builders of #4013 keep
-// private copies in services until they move.
+// them where it mounts them.
 
 // NewStudentPresence composes the Student Presence owner with its attendance
 // rules bound to an unobserved Timetable owner over the same database. Every

@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The cleanup command's roots its suites build too (#4013): the fail-closed
@@ -52,7 +51,7 @@ type RetentionCleanupRepositories struct {
 // RetentionDeletions is the deletion ledger the retention cleanup records
 // into, with the read its suites check the rollback through.
 type RetentionDeletions interface {
-	services.DataDeletionAppender
+	DataDeletionAppender
 	FindByStudentID(ctx context.Context, studentID int64) ([]*auditModels.DataDeletion, error)
 }
 

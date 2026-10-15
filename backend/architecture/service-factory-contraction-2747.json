@@ -4,13 +4,33 @@
   "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
   "prerequisites": [
     "#2743",
-    "#3970"
+    "#3970",
+    "#4001",
+    "#4002",
+    "#4005",
+    "#4006",
+    "#4007",
+    "#4008",
+    "#4009",
+    "#4010",
+    "#4011",
+    "#4012",
+    "#4013"
   ],
-  "owner_and_capability": "The legacy composition (legacy-composition: services) stops importing owner application, domain and platform packages: it names the retained services of Activities, Facilities, Device Fleet, Staff Clock, Data Import, Audit Platform, Settings Platform, Communication, Document Rendering and Transaction Runtime through their compositions or contracts, and the records and keys of models/{config,platform,audit,users} through the vocabulary packages of Settings Platform, Organization & Tenancy, Audit Platform and People Directory. Mail and live events come through Delivery (modules/delivery/compose/{email,realtime}), calendar dates through sharedkernel/calendar, the missing-row sentinel through modules/transactionruntime; the root (root-composition: api) builds the analytics tracker. Policy epoch 38 per ADR 0050.",
+  "owner_and_capability": "The service Factory and the top-level services package are deleted (#2747, ADR 0053 point 8). The root (root-composition: api) composes the retained services itself: newServiceGraph (backend/api/service_graph_compose*.go) binds them in stages over the owners the root composed and the wiring it built for them (People, Presence, Timetable, Platform, Care Plan, Enrollment and Workforce wiring), newServeServiceGraph serves it and NewServiceGraphForTests builds the test graphs. Each stage takes the build so far and returns it extended; a value a later stage binds is read at call time. The root reaches Delivery's notification, outbox and PWA usage services, the live-group, supervision and emergency projections, the Observability PWA usage store and the Workforce group substitution row through their compositions (modules/delivery/compose, modules/grouplive/compose, modules/supervisiondashboard/compose, modules/workforce/compose and the new modules/emergencysnapshot/compose and observability/compose). The Timetable composition takes consumer-owned ports for the lifecycle staff, the deviation staff and the correction actor (LifecycleStaff, DeviationStaff, CorrectionPeople); the People Directory composition names the retained row stores the root hands the graph (Repositories). History: the partial cut of ADR 0050 (policy epoch 37 -> 38) removed the first 23 keys listed here.",
   "affected_packages": [
     "services",
     "api",
     "cmd",
+    "test",
+    "modules/delivery/compose",
+    "modules/emergencysnapshot/compose",
+    "observability/compose",
+    "modules/grouplive/compose",
+    "modules/supervisiondashboard/compose",
+    "modules/workforce/compose",
+    "modules/timetable/compose",
+    "modules/peopledirectory/compose",
     "modules/settings/compose/vocabulary",
     "modules/organizationtenancy/compose/vocabulary",
     "modules/auditlog/compose/vocabulary",
@@ -27,6 +47,9 @@
   "exact_ratchet_keys": [
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/config/sideeffects",
+    "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services.Factory",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/cmd|github.com/moto-nrw/project-phoenix/services",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|database/sql",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/analytics",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/email",
@@ -47,24 +70,27 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/iot",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/iot/staffclock",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/listexport",
-    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/parentmessaging"
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/services/parentmessaging",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/moto-nrw/project-phoenix/tenant",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/services|github.com/uptrace/bun"
   ],
-  "atomic_cutover": "One reviewed epoch (37 -> 38, ADR 0050). serviceFactoryCutoverPermission (internal/architecture/service_factory_cutover.go), anchored on the base classifying services as legacy-composition/compose, grants exactly five production pairs between points that exist at the base: legacy-composition/compose -> document-rendering/contract and -> transaction-runtime/public, data-import/compose -> data-import/application, audit-platform/compose -> audit-platform/application and -> audit-platform/domain; the matching rules carry issue #2747. The new vocabulary and compose subpackages inherit their parent compose points. The production adapters in services no longer hold database, tenant-transaction or JWT logic; it lives in the owner compositions or is injected by the root as built values. The legacy composition's external suites run as internal tests. 23 of the 26 #2747 keys fall (109 -> 86 after merging development), composition surface 260 -> 259. The bun, tenant and legacy/jwt keys of services remain with the multi-owner database builders and the test hooks; services.Factory and NewFactoryWithModules stay. No route, status code, error string, table or write owner changes.",
+  "atomic_cutover": "One change, no policy epoch: the services production code moves into the root, which composes the retained services in newServiceGraph, and the package is deleted together with its policy package entry, its legacy_composition entry (services.Factory), the 69 rules that only it used (rules.stale) and the five baseline entries listed last. The two new compose packages are classified as created packages of their owners. Factory, NewFactoryWithModules, NewFactoryWithConfig and Factory.SetTenantRuntime are deleted; the serving root binds the unit of work through the graph's bindTenantRuntime and the test graphs through TestServiceGraph.SetTenantRuntime. The photo lifecycle is composed in the graph from the root's photo slot and file unlinker instead of the post-construction setter EnableStudentPhotos. Legacy violations 39 -> 34; composition surface 219 -> 127, because services.Factory leaves the guarded central aggregates. Routes, status codes, error texts, tables and write owners are unchanged. Partial cut before it: epoch 37 -> 38 (ADR 0050), 23 keys, serviceFactoryCutoverPermission.",
   "tests": [
-    "services: tenant runtime binding regression tests (bind through an owner interface field, reject a mistyped SetTenantRuntime, skip a field without one); the binding test failed before the reflection fix.",
-    "internal/architecture: service_factory_cutover_test.go grants the five pairs in production only and refuses the test scopes, other sources and targets, and a failed anchor (same epoch, services missing or reclassified at the base, foreign module path).",
-    "The moved owner composition suites and the legacy composition suites pass with unchanged assertions.",
-    "scripts/backend-architecture.sh check --base-ref origin/development: 86 legacy violations, composition surface 260 -> 259.",
-    "scripts/test-changed.sh origin/development without --fast; golangci-lint run; scripts/check-deadcode.sh; go vet ./..."
+    "api: the service graph suites moved from services (service_graph_test.go, service_graph_care_plan_audit_test.go, service_graph_student_consent_test.go, service_graph_lifecycle_policy_test.go, service_graph_tenant_runtime_test.go, service_graph_operator_*_test.go and the retained repository suites) pass with unchanged assertions.",
+    "test: TestAPITestsUseNarrowRouteBuilders treats newServiceGraph and newServeServiceGraph as broad composition like services.NewFactory* before; TestRouteSizedBuilderAnalyzerLimitsServiceGraphException proves only the graph's own tests (api/service_graph*_test.go) may build it.",
+    "test: TestHandlerLayerRatchet, TestHandlerComplexityRatchet and the composition inventory pass without allowlist changes: no repository-typed declaration and no function over gocognit 15 under api/.",
+    "backend/architecture/callers/service-factory-2747.json (scripts/backend-service-factory-callers): no Go file and no importer of the services package, no declaration or reference of the retired symbols; at the merge base the same generator reports 29 Go files and 109 imports of services.",
+    "scripts/backend-architecture.sh check: 34 legacy violations, composition surface 219 -> 127, no new violation, no stale entry, no policy loosening.",
+    "go test ./internal/architecture ./test -run 'Ratchet|TestModule|TestPolicyTemporaryRules|Architecture' -count=1; scripts/test-changed.sh origin/development without --fast; golangci-lint run; go vet ./..."
   ],
   "runtime_evidence": {
-    "source": "Local runs on the PR branch. The change moves composition code between packages without changing what is built, so the evidence is the unchanged suites, the binding regression test and the architecture check, not a benchmark rerun.",
+    "source": "Local runs on the PR branch. The change moves the composition of the retained services from services into the root without changing what is built, so the evidence is the unchanged suites, the generated caller inventory and the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/services/tenant_runtime.go",
-      "backend/services/tenant_runtime_binding_test.go",
-      "backend/internal/architecture/service_factory_cutover.go",
-      "backend/internal/architecture/service_factory_cutover_test.go",
-      "docs/adr/0050-legacy-composition-names-retained-services-through-owner-compositions.md"
+      "backend/api/service_graph_compose.go",
+      "backend/api/service_graph_test.go",
+      "backend/architecture/callers/service-factory-2747.json",
+      "scripts/backend-service-factory-callers/main.go",
+      "docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength, and the architecture check reports no new violation, no stale baseline entry and no policy loosening outside the five granted pairs.",
@@ -74,31 +100,31 @@
     },
     "query_count": {
       "state": "not_applicable",
-      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+      "reason": "Behaviour is unchanged: the root composes the same services over the same owners, repositories and database that services.Factory composed; no query, route or worker changes."
     },
     "latency_p50": {
       "state": "not_applicable",
-      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+      "reason": "Behaviour is unchanged: the root composes the same services over the same owners, repositories and database that services.Factory composed; no query, route or worker changes."
     },
     "latency_p95": {
       "state": "not_applicable",
-      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+      "reason": "Behaviour is unchanged: the root composes the same services over the same owners, repositories and database that services.Factory composed; no query, route or worker changes."
     },
     "errors": {
       "state": "measured",
-      "result": "scripts/test-changed.sh origin/development without --fast on the final merged state: 97 packages passed; modules/careplan/contracttest and modules/careplan/inbound/parent failed with an i/o timeout acquiring the local test database lifecycle lock and passed when rerun on their own. golangci-lint reported 0 issues; scripts/check-deadcode.sh reported no unexpected dead code."
+      "result": "scripts/test-changed.sh origin/development without --fast: 97 affected packages, every package with tests passed except internal/architecture, whose legacy caller inventory, one reach fixture naming services and this record were regenerated afterwards; go test ./internal/architecture -count=1 then passed. golangci-lint run reported 0 issues and scripts/check-deadcode.sh no unexpected dead code."
     },
     "pool_wait": {
       "state": "not_applicable",
-      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+      "reason": "Behaviour is unchanged: the root composes the same services over the same owners, repositories and database that services.Factory composed; no query, route or worker changes."
     },
     "lock_wait": {
       "state": "not_applicable",
-      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+      "reason": "Behaviour is unchanged: the root composes the same services over the same owners, repositories and database that services.Factory composed; no query, route or worker changes."
     },
     "deadlocks": {
       "state": "not_applicable",
-      "reason": "Behaviour is unchanged: the moved code builds the same owners, repositories and adapters over the same database in the owner compositions instead of in services, and the root hands the legacy composition built values; no query, route or worker changes."
+      "reason": "Behaviour is unchanged: the root composes the same services over the same owners, repositories and database that services.Factory composed; no query, route or worker changes."
     },
     "job_duration": {
       "state": "not_applicable",
@@ -114,7 +140,7 @@
     },
     "failure": {
       "state": "measured",
-      "result": "A SetTenantRuntime with the wrong signature now fails Factory.SetTenantRuntime and therefore startup, instead of leaving the service without a runtime (tenant runtime binding regression test)."
+      "result": "A missing owner, observer or wiring still refuses the serving graph at startup (validateServe), and a configuration without FRONTEND_URL, NEXT_PUBLIC_API_URL, PARENTS_URL or SCHOOL_URL or with a partial VAPID key set still fails composition (service graph suites)."
     },
     "rollback": {
       "state": "not_applicable",
@@ -122,9 +148,9 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "scripts/backend-architecture.sh check passed locally with the 23 keys absent: 109 -> 86 legacy violations, composition surface 260 -> 259."
+      "result": "Local serving root (scripts/dev-native.sh up backend, localhost only): /health answered 200, the embedded Worker took its lease and scheduled its jobs, the seeder drove its API flows across every mounted owner to completion, simulate full-day --profile vollbetrieb finished, and cleanup preview, cleanup stats, cleanup timetable preview, cleanup time-tracking preview and settings overrides exited 0. The server log showed only the pre-existing invitation delivery status update denied on auth.invitation_tokens (api/identity_invitation.go, unchanged here) and one response write failure of a 204."
     }
   },
-  "rollback_and_cleanup": "Revert the commits; the cutover permission, the five rules, the epoch, the vocabulary and compose subpackages and the 23 baseline entries return together. No data cleanup.",
-  "exit_criterion": "The 23 keys are absent from legacy.jsonl, only the five granted pairs loosen the policy, scripts/backend-architecture.sh check passes, and runtime behaviour, tables, routes and error texts are unchanged. #2747 itself stays open for the bun, tenant and legacy/jwt keys and the deletion of services.Factory."
+  "rollback_and_cleanup": "Revert the commit; the services package, its policy package and legacy_composition entries, the 69 rules and the five baseline entries return together. No data cleanup.",
+  "exit_criterion": "The package github.com/moto-nrw/project-phoenix/services does not exist (caller inventory: no Go file, no importer), legacy_composition lists no services symbol, no baseline entry names #2747, and scripts/backend-architecture.sh check passes in PR mode."
 }

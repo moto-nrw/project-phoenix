@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -23,7 +21,7 @@ import (
 // the People Directory rows and change history, the realtime hub, the parent
 // chat and the identity-owned review scope; they decide nothing.
 
-func NewMasterDataDecisions(wiring services.MasterDataDecisionWiring) (*carePlanCompose.MasterDataDecisions, error) {
+func NewMasterDataDecisions(wiring MasterDataDecisionWiring) (*carePlanCompose.MasterDataDecisions, error) {
 	if wiring.Students == nil || wiring.Persons == nil || wiring.Fields == nil {
 		return nil, errors.New("master data decisions: student and person repositories and the field review are required")
 	}
@@ -47,7 +45,7 @@ func NewMasterDataDecisions(wiring services.MasterDataDecisionWiring) (*carePlan
 	return carePlanCompose.NewMasterDataDecisions(deps)
 }
 
-func NewParentRequestCoordinator(wiring services.ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error) {
+func NewParentRequestCoordinator(wiring ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error) {
 	care, ok := wiring.Care.(carePlanCompose.ParentRequestConflicts)
 	if !ok {
 		return nil, errors.New("parent request coordinator: the care request service is not a conflict port")

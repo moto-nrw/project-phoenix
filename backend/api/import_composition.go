@@ -133,7 +133,7 @@ func NewImports(wiring ImportWiring) imports {
 	), runtime)
 
 	// The opening-balance config is request-scoped (Stichtag, Begründung and
-	// acting staff member come from the upload form), so the factory closes
+	// acting staff member come from the upload form), so the service graph closes
 	// over the request-independent dependencies and builds one service per
 	// request.
 	openingBalance := importService.OpeningBalanceImportFactory(

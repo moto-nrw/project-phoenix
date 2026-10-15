@@ -15,12 +15,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // PlatformWiringOwners are the owners the root has composed when it builds
 // the platform, Communication and Organisation & Tenancy wiring of the
-// legacy service graph (#4013).
+// service graph (#4013).
 type PlatformWiringOwners struct {
 	DB            transactionruntime.Database
 	Organizations organizationtenancy.Capability
@@ -29,23 +28,23 @@ type PlatformWiringOwners struct {
 	Membership    schoolmembership.Capability
 	// People is the People Directory wiring the root hands the graph; the
 	// parent portal and the operator provisioning read the same rows.
-	People services.PeopleWiring
+	People PeopleWiring
 	// Now fixes the parent announcement clock; nil is the Berlin clock.
 	Now func() time.Time
 }
 
 // NewPlatformWiring builds the values over the owners and the adapters the
-// legacy service graph binds the platform owners, Communication and
+// service graph binds the platform owners, Communication and
 // Organisation & Tenancy through. The graph takes the result in place of
 // building it itself (ADR 0053 point 8).
-func NewPlatformWiring(owners PlatformWiringOwners) (services.PlatformWiring, error) {
+func NewPlatformWiring(owners PlatformWiringOwners) (PlatformWiring, error) {
 	if owners.Organizations == nil || owners.Persons == nil || owners.Groups == nil || owners.Membership == nil ||
 		owners.People.Identity == nil || owners.People.Persons == nil || owners.People.Staff == nil {
-		return services.PlatformWiring{}, errors.New("platform wiring: the Organisation & Tenancy, People Directory, School Structure, School Membership and Identity & Access owners and the person and staff rows are required")
+		return PlatformWiring{}, errors.New("platform wiring: the Organisation & Tenancy, People Directory, School Structure, School Membership and Identity & Access owners and the person and staff rows are required")
 	}
 	fleet, err := NewDeviceFleet(owners.DB)
 	if err != nil {
-		return services.PlatformWiring{}, fmt.Errorf("platform wiring: compose device fleet: %w", err)
+		return PlatformWiring{}, fmt.Errorf("platform wiring: compose device fleet: %w", err)
 	}
 	auditLog := NewOperatorAuditLog(owners.DB)
 	provisioning := operatorProvisioningOwners{
@@ -56,10 +55,10 @@ func NewPlatformWiring(owners PlatformWiringOwners) (services.PlatformWiring, er
 		People: owners.Persons, Groups: owners.Groups, Membership: owners.Membership,
 		Identity: owners.People.Identity, Enrollment: enrollmentCompose.New(), Now: owners.Now,
 	}).WithSchools(owners.Organizations)
-	return services.PlatformWiring{
+	return PlatformWiring{
 		SchoolSettings:   NewSchoolSettingsStore(owners.Organizations),
 		OperatorAuditLog: auditLog,
-		ParentPortal: services.ParentPortalRepositories{
+		ParentPortal: ParentPortalRepositories{
 			ParentPortalRepositories: parentPortal.ParentPortalRepositories,
 			MessagingRepositories:    parentPortal.MessagingRepositories,
 		},
@@ -69,7 +68,7 @@ func NewPlatformWiring(owners PlatformWiringOwners) (services.PlatformWiring, er
 		DataAccessAudit:            NewDataAccessAudit,
 		DeletionAudit:              NewDeletionAudit,
 		TimeTrackingRetentionAudit: NewTimeTrackingRetentionAudit,
-		GuardianDisplays: func(query services.GuardianDisplayQuery) deliveryCompose.GuardianDisplayResolver {
+		GuardianDisplays: func(query GuardianDisplayQuery) deliveryCompose.GuardianDisplayResolver {
 			return GuardianDisplayResolver{Query: query}
 		},
 		AnnouncementDeliveries: func(module *deliveryModule.Module) communicationCompose.ParentAnnouncementDeliveryRecorder {

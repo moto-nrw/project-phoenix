@@ -14,12 +14,11 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The composition the retained School Structure repository suites
 // (database/repositories/education) drive (#2742), composed here so the
-// suites import neither the retained repositories nor the legacy composition.
+// suites import neither the retained repositories nor the service graph.
 
 // SchoolStructureRepositorySuiteDependencies are the owner capabilities the
 // repository factory reads through.
@@ -33,7 +32,7 @@ func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) (*Pe
 }
 
 // The retained School Structure service suites (services/education) may
-// import neither the service package they drive nor the legacy composition
+// import neither the service package they drive nor the service graph
 // (#2742). They compose the service through these entries and name its
 // vocabulary through School Structure's composition (#4005). Every entry goes
 // with the last suite that uses it.
@@ -44,11 +43,11 @@ func NewSchoolStructureRepositorySuiteGraph(db transactionruntime.Database) (*Pe
 type (
 	SchoolStructureSuiteGroupTeacher    = schoolmembership.GroupAssignment
 	SchoolStructureSuiteClassTeacher    = schoolmembership.ClassAssignment
-	SchoolStructureSuiteSubstitutionRow = services.GroupSubstitutionRow
+	SchoolStructureSuiteSubstitutionRow = GroupSubstitutionRow
 )
 
 // NewEducationSuiteService composes the group service over the repositories
-// the way the service factory does, its class assignment audit trail
+// the way the service graph does, its class assignment audit trail
 // included.
 func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactionruntime.Database, broadcasters ...deliveryCompose.RealtimePublisher) education.Service {
 	var broadcaster deliveryCompose.RealtimePublisher
@@ -69,13 +68,13 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 
 // NewSubstitutionSuiteModule composes the substitution module: the stores,
 // the audit trail and the runtime the suite left unset bind to the
-// repositories the way the service factory binds them.
+// repositories the way the service graph binds them.
 func NewSubstitutionSuiteModule(repos *PeopleRepositorySuiteFactory, db transactionruntime.Database, deps education.SubstitutionDependencies) education.SubstitutionModule {
 	if deps.Groups == nil {
 		deps.Groups = repos.Group
 	}
 	if deps.Substitutions == nil {
-		deps.Substitutions = services.NewEducationHandovers(repos.GroupSubstitution)
+		deps.Substitutions = NewEducationHandovers(repos.GroupSubstitution)
 	}
 	if deps.Teachers == nil {
 		deps.Teachers = NewEducationCaregivers(repos.Teacher)
@@ -122,7 +121,7 @@ func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() 
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return GradeTransitionSuiteOwners{}, err
 	}
@@ -134,7 +133,7 @@ func NewGradeTransitionSuiteOwners(db transactionruntime.Database, clock func() 
 }
 
 // NewScheduleSubstitutionSuiteModule constructs only the module's schedule
-// port for the shift-plan-sync integration suites, without a legacy graph.
+// port for the shift-plan-sync integration suites, without the service graph.
 func NewScheduleSubstitutionSuiteModule(schedule education.ScheduleAdapter, runtime education.Runtime, logger *slog.Logger) education.SubstitutionModule {
 	return education.NewSubstitutionModule(education.SubstitutionDependencies{Schedule: schedule, Runtime: runtime, Logger: logger})
 }

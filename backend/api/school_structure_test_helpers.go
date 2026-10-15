@@ -6,8 +6,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// NewSchoolStructure composes the group owner behind the legacy composition
-// seam for test graphs that do not record observations. Production roots
+// NewSchoolStructure composes the group owner for test graphs that do not record observations. Production roots
 // compose the module themselves (api/base.go) so runtime evidence is kept.
 // Its only consumer is a Data Import suite, which may not import School
 // Structure's composition and builds the owner through the root (ADR 0053

@@ -9,7 +9,7 @@ import (
 
 // The rows the root's Enrollment bindings read and write, declared where they
 // are used (Rule 1, #4012): the People Directory rows and the Audit Platform
-// trails the legacy composition hands in. Each port names only the
+// trails the service graph hands in. Each port names only the
 // operations a binding calls.
 
 type enrollmentPersonRows interface {

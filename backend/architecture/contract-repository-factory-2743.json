@@ -73,7 +73,7 @@
       "scripts/backend-repository-factory-callers/main.go",
       "backend/architecture/composition.json",
       "backend/architecture/policy.json",
-      "backend/services/factory.go",
+      "backend/api/service_graph_compose.go",
       "backend/modules/timetable/compose/care_plan_records.go",
       "backend/modules/timetable/compose/workforce_shift_records.go",
       "docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md"

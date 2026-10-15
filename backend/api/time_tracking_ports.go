@@ -118,3 +118,10 @@ func staffScheduleBindings(people timeTrackingStaffLookup) workforceCompose.Staf
 		return workforceCompose.StaffScheduleBinding{ID: staff.ID, WorkTimeModelID: staff.WorkTimeModelID, RotationAnchorDate: staff.RotationAnchorDate}, nil
 	}
 }
+
+// timeTrackingStaffRows are the staff rows the time-tracking ports and the
+// absence request mails read.
+type timeTrackingStaffRows interface {
+	timeTrackingStaffRecords
+	absenceEmailStaffRecords
+}

@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 	sessionEndCompose "github.com/moto-nrw/project-phoenix/workflows/sessionend/compose"
@@ -173,7 +172,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		ActivityGroupRepo: NewSessionActivities(r.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
 		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: hub, WorkSessionService: work.TimeTracking.AutoCheckIn,
 		AttendanceSyncer:         attendanceMirror,
-		TimetableBridgeCompleter: bridge, Logger: logger, Now: services.OptionalClock(clocks),
+		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}
 	presence := presenceservice.NewPresence(presenceDeps, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
 	groups.Active = presence
@@ -205,18 +204,18 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
 	operationRows := r.OwnerRows()
 	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
-	operations, err := NewTimetableOperations(services.TimetableOperationInputs{
+	operations, err := NewTimetableOperations(TimetableOperationInputs{
 		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
 		Sessions: r.ActiveGroup, Presence: presence,
 		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: NewLoggedStudentPresence(db, logger),
 		People: TimetableOperationPeople{OperationPeople: data.Users, Membership: membership}, PlanningTracks: r.Timetable,
-		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: services.OptionalClock(clocks),
+		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: OptionalClock(clocks),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
@@ -227,13 +226,13 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{Active: presence, ActiveGroups: OpenRoomSessionPresence{Presence: NewLoggedStudentPresence(db, logger), Activities: timetableOwner},
 		OpenVisits: presence, Rooms: OpenRoomDirectory{Rooms: rooms}, UserContext: SupervisionCaller{CallerRows: groups.UserContext}, Education: groups.Education,
-		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: services.OptionalClock(clocks)})
+		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: OptionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
 	sessionEnd, err := sessionEndCompose.New(sessionEndCompose.Dependencies{
 		Presence: NewLoggedStudentPresence(db, logger), Sessions: NewLoggedStudentPresence(db, logger), Timetable: timetableOwner, Completion: bridge, Students: students, Rooms: rooms,
-		Broadcaster: hub, Observe: func(sessionEndCompose.Observation) {}, Now: services.OptionalClock(clocks),
+		Broadcaster: hub, Observe: func(sessionEndCompose.Observation) {}, Now: OptionalClock(clocks),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err

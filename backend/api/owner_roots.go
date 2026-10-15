@@ -31,7 +31,7 @@ import (
 )
 
 // The roots below build owners from the database for the CLI roots, the
-// legacy service graph and the test graphs. NewParentPortalRepositories
+// service graph and the test graphs. NewParentPortalRepositories
 // builds the stores of several owners over the database, so no single owner
 // composition can host it (#4013).
 

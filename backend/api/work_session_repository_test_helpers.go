@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type WorkSessionTestRepositories struct {
@@ -29,7 +28,7 @@ func NewWorkSessionTestRepositoriesWithMembers(db transactionruntime.Database, m
 		return WorkSessionTestRepositories{}, err
 	}
 	people := members.People
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return WorkSessionTestRepositories{}, err
 	}

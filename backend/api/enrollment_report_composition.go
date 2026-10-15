@@ -7,7 +7,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below connect Enrollment's reports (#3563) to the People
@@ -17,7 +16,7 @@ import (
 // NewEnrollmentReports composes Enrollment's reports over the root's reads.
 // A missing read stays unbound, so the report that needs it answers "not
 // configured" instead of dereferencing nothing.
-func NewEnrollmentReports(sources services.EnrollmentReportSources) enrollmentOwner.Reports {
+func NewEnrollmentReports(sources EnrollmentReportSources) enrollmentOwner.Reports {
 	deps := enrollmentCompose.ReportDependencies{
 		Requests:          sources.Owner,
 		Children:          sources.Owner,

@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -159,7 +157,7 @@ type StaffMembershipRuntime struct {
 // offboarding carries the database and the employment owner the caller
 // composed; the access, the cleanup, the broadcaster, the logger and the
 // authorization of the offboarding workflow are bound here.
-func bindStaffMembershipRuntime(f *services.Factory, offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.Dependencies, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	if hooks.ResolveEditorStaffID == nil || hooks.QueueOffboardedDocumentCleanup == nil {
 		panic("staff membership runtime: offboarding hooks are required")
 	}
@@ -210,7 +208,7 @@ func bindStaffMembershipRuntime(f *services.Factory, offboarding offboardingcomp
 // newStaffOffboardingWorkflow composes the offboarding workflow with the
 // Identity & Access step, the document cleanup, the realtime hub, the logger
 // and the editor authorization.
-func newStaffOffboardingWorkflow(f *services.Factory, identity *identityaccess.Module, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
+func newStaffOffboardingWorkflow(f *serviceGraph, identity *identityaccess.Module, offboarding offboardingcompose.Dependencies, logger *slog.Logger, hooks StaffMembershipHooks) *staffoffboarding.Workflow {
 	offboarding.Access, offboarding.Cleanup = StaffOffboardingAccess(identity), hooks.QueueOffboardedDocumentCleanup
 	offboarding.Broadcaster, offboarding.Logger = f.RealtimeHub, logger
 	offboarding.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
@@ -225,7 +223,7 @@ func newStaffOffboardingWorkflow(f *services.Factory, identity *identityaccess.M
 }
 
 // staffDirectoryPersons reads the People Directory entries behind staff rows.
-func staffDirectoryPersons(f *services.Factory) (func(context.Context, int64) (StaffDirectoryPerson, error), func(context.Context, []int64) ([]StaffDirectoryPerson, error)) {
+func staffDirectoryPersons(f *serviceGraph) (func(context.Context, int64) (StaffDirectoryPerson, error), func(context.Context, []int64) ([]StaffDirectoryPerson, error)) {
 	person := func(ctx context.Context, id int64) (StaffDirectoryPerson, error) {
 		person, err := f.Users.Get(ctx, id)
 		if err != nil {
@@ -265,7 +263,7 @@ func accountHoldsRole(roles *identityaccess.Module) func(context.Context, int64,
 }
 
 // membershipTeacherGroups lists the groups a Betreuungskraft is assigned to.
-func membershipTeacherGroups(f *services.Factory) func(context.Context, int64) ([]StaffGroup, error) {
+func membershipTeacherGroups(f *serviceGraph) func(context.Context, int64) ([]StaffGroup, error) {
 	return func(ctx context.Context, teacherID int64) ([]StaffGroup, error) {
 		groups, err := f.Education.GetTeacherGroups(ctx, teacherID)
 		if err != nil {
@@ -280,7 +278,7 @@ func membershipTeacherGroups(f *services.Factory) func(context.Context, int64) (
 }
 
 // membershipRoleRows lists the active caregivers and the staff selected by role.
-func membershipRoleRows(f *services.Factory) (func(context.Context) ([]StaffRoleRow, error), func(context.Context, []string) ([]StaffRoleRow, error)) {
+func membershipRoleRows(f *serviceGraph) (func(context.Context) ([]StaffRoleRow, error), func(context.Context, []string) ([]StaffRoleRow, error)) {
 	activeCaregivers := func(ctx context.Context) ([]StaffRoleRow, error) {
 		caregivers, err := f.Users.ListActiveCaregivers(ctx)
 		if err != nil {
@@ -318,7 +316,7 @@ func membershipRoleRows(f *services.Factory) (func(context.Context) ([]StaffRole
 
 // staffDirectoryWrites creates and updates staff records with their teacher
 // profile through the person service.
-func staffDirectoryWrites(f *services.Factory) (func(context.Context, StaffCreateInput) (StaffCreateResult, error), func(context.Context, StaffUpdateInput) (StaffUpdateResult, error)) {
+func staffDirectoryWrites(f *serviceGraph) (func(context.Context, StaffCreateInput) (StaffCreateResult, error), func(context.Context, StaffUpdateInput) (StaffUpdateResult, error)) {
 	createStaff := func(ctx context.Context, input StaffCreateInput) (StaffCreateResult, error) {
 		staff, teacher, teacherCreationFailed, err := f.Users.CreateStaffWithTeacher(ctx, StaffDirectoryCreateInput(input))
 		if err != nil {

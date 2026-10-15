@@ -7,7 +7,6 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -44,7 +43,7 @@ func (g timetableEducationGroupNames) EducationGroupNames(ctx context.Context, i
 // TimetableDeviationPorts binds the Audit Platform's Änderungsprotokoll to
 // the Timetable owner rows: the reader, and the protocol, which stays unbound
 // without a repository so the deviation writes fail closed.
-func TimetableDeviationPorts(events services.TimetableDeviationTrail) (timetableCompose.DeviationEventReader, timetableCompose.DeviationProtocol) {
+func TimetableDeviationPorts(events TimetableDeviationTrail) (timetableCompose.DeviationEventReader, timetableCompose.DeviationProtocol) {
 	if events == nil {
 		return timetableDeviationEvents{}, nil
 	}
@@ -53,12 +52,12 @@ func TimetableDeviationPorts(events services.TimetableDeviationTrail) (timetable
 
 // TimetableDeviationProtocol appends the owner's Änderungsprotokoll entries
 // to the Audit Platform's deviation events.
-func TimetableDeviationProtocol(events services.TimetableDeviationTrail) timetableCompose.DeviationProtocol {
+func TimetableDeviationProtocol(events TimetableDeviationTrail) timetableCompose.DeviationProtocol {
 	return timetableDeviationProtocol{events: events}
 }
 
 type timetableDeviationProtocol struct {
-	events services.TimetableDeviationTrail
+	events TimetableDeviationTrail
 }
 
 func (p timetableDeviationProtocol) RecordDeviationEvent(ctx context.Context, event timetableCompose.DeviationEventRecord) error {
@@ -78,7 +77,7 @@ func (p timetableDeviationProtocol) RecordDeviationEvent(ctx context.Context, ev
 }
 
 type timetableDeviationEvents struct {
-	events services.TimetableDeviationTrail
+	events TimetableDeviationTrail
 }
 
 func (e timetableDeviationEvents) ListDeviationEvents(ctx context.Context, from, to calendar.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error) {

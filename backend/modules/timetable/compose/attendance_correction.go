@@ -50,6 +50,12 @@ type AttendanceCorrectionTrail interface {
 	ListAttendanceCorrections(ctx context.Context, instanceID, studentID int64) ([]timetable.AttendanceCorrectionEntry, error)
 }
 
+// CorrectionPeople resolves the person of the correcting account for the
+// trail's name snapshot.
+type CorrectionPeople interface {
+	FindByAccountID(ctx context.Context, accountID int64) (*usersModel.Person, error)
+}
+
 // AttendanceCorrectionDependencies wires the correction. Participants and
 // Instances are required. Without Trail every correction fails closed and
 // the trail reads empty. People snapshots the actor's name and Locks
@@ -59,7 +65,7 @@ type AttendanceCorrectionDependencies struct {
 	Participants scheduleModel.InstanceStudentRepository
 	Instances    scheduleModel.ActivityInstanceRepository
 	Trail        AttendanceCorrectionTrail
-	People       usersModel.PersonRepository
+	People       CorrectionPeople
 	Locks        AttendanceLocks
 	Logger       *slog.Logger
 }

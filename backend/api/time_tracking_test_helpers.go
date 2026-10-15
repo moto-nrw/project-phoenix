@@ -12,7 +12,7 @@ import (
 
 // timeTrackingTestGraph is what a test module supplies beyond the
 // work-session repositories to compose the Workforce time-tracking side the
-// way the factory composes it (#3413).
+// way the service graph composes it (#3413).
 type timeTrackingTestGraph struct {
 	Audits        timeTrackingAudits
 	Settings      settingsCompose.SettingsService

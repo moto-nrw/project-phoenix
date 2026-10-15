@@ -25,7 +25,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -325,7 +324,7 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 // staffing capability over the retained repositories, the way the root does.
 func newConflictDetection(t *testing.T, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
-	detection, err := api.NewTimetableConflictDetection(services.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(api.TimetableConflictReaders{
 		Instances:         repos.ActivityInstance,
 		InstanceStaff:     repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,

@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type TimetableDependencies struct {
@@ -33,7 +32,7 @@ type TimetableDependencies struct {
 	// the retained operator repositories and account lookups (#2720). The
 	// serving root passes its metrics sink; nil composes the module
 	// unobserved, which repository tests and CLI roots use.
-	ObserveIdentityAccess services.IdentityAccessObserver
+	ObserveIdentityAccess IdentityAccessObserver
 }
 
 // TimetableRepositories are the Timetable owner's retained activities and
@@ -61,7 +60,7 @@ func NewTimetableRepositoriesWithPresence(db transactionruntime.Database, deps T
 // graphs and CLI roots. The session facts come from Student Presence over
 // the same database (#2762).
 func NewUnobservedTimetable(db transactionruntime.Database, students peopledirectory.StudentQuery, rooms facilities.Query) (timetable.Capability, error) {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, err
 	}

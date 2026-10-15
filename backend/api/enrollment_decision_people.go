@@ -10,7 +10,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below connect Enrollment's decision flow (#3564) to the People
@@ -180,7 +179,7 @@ func decisionStudentRow(student *enrollmentCompose.Student) *userModels.Student 
 // enrollmentStudentAudit records the decision flow's student changes on the
 // People Directory's change trail.
 type enrollmentStudentAudit struct {
-	auditor services.EnrollmentStudentAuditor
+	auditor EnrollmentStudentAuditor
 }
 
 func (a enrollmentStudentAudit) RecordChangesForActor(ctx context.Context, before, after *enrollmentCompose.Student, editedBy int64) error {
@@ -470,7 +469,7 @@ func decisionGuardianPhoneRecord(row *userModels.GuardianPhoneNumber) *enrollmen
 // enrollmentDepartureCompanions reads the "läuft mit" edges Care Plan keeps
 // and deletes those a narrowed plan no longer allows.
 type enrollmentDepartureCompanions struct {
-	edges  services.EnrollmentDepartureCompanions
+	edges  EnrollmentDepartureCompanions
 	delete func(context.Context, []int64) error
 }
 

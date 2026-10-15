@@ -17,7 +17,7 @@ func NewCalendarReminderCommand(db transactionruntime.Database, source CalendarR
 }
 
 // NewFacilities composes the unobserved room owner for the test and CLI
-// compositions that reach Facilities through the legacy composition.
+// compositions that reach Facilities through the root.
 func NewFacilities(db transactionruntime.Database) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.NewUnobserved(db.Pool())
 }

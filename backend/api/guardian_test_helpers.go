@@ -8,7 +8,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -57,6 +56,6 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
 	// The compatibility carrier only maps the existing four capabilities to
 	// the production runtime closures. It constructs no additional services.
-	carrier := &services.Factory{Guardian: guardian}
+	carrier := &serviceGraph{Guardian: guardian}
 	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(carrier, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }

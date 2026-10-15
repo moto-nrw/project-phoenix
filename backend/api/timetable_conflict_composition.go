@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,11 +16,11 @@ import (
 // two collaborators the owner may not name itself: Security Runtime's content
 // fingerprint for the persisted conflict fingerprints and Care Plan's
 // arrival baseline for the exception conflicts.
-func NewTimetableConflictDetection(readers services.TimetableConflictReaders) (timetable.ConflictDetectionCapability, error) {
+func NewTimetableConflictDetection(readers TimetableConflictReaders) (timetable.ConflictDetectionCapability, error) {
 	return timetableCompose.NewConflictDetection(timetableConflictDependencies(readers))
 }
 
-func timetableConflictDependencies(r services.TimetableConflictReaders) timetableCompose.ConflictDetectionDependencies {
+func timetableConflictDependencies(r TimetableConflictReaders) timetableCompose.ConflictDetectionDependencies {
 	deps := timetableCompose.ConflictDetectionDependencies{
 		Instances:         r.Instances,
 		InstanceStaff:     r.InstanceStaff,

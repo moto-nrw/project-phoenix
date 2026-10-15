@@ -105,7 +105,7 @@ import (
 // setupActiveService creates an active service with real database connection
 func setupActiveService(t *testing.T, db *testpkg.DB, clocks ...func() time.Time) activeSvc.Service {
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), clocks...) // Pass db as second parameter
+	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), clocks...) // Pass db as second parameter
 	require.NoError(t, err, "Failed to create service factory")
 	activeSvc.ConfigureForTest(composedEngine(t, serviceFactory.Active), activeSvc.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return composedEngine(t, serviceFactory.Active)

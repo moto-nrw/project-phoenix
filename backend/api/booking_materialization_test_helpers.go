@@ -46,7 +46,7 @@ type BookingMaterializationTestOptions struct {
 }
 
 // BookingMaterializationTestModule is the booking materialization over the
-// test database with the owner bindings of services.Factory, and the catalog
+// test database with the owner bindings of the service graph, and the catalog
 // it applies the timetable-link rules of.
 type BookingMaterializationTestModule struct {
 	Bookings careplan.BookingMaterializationCapability

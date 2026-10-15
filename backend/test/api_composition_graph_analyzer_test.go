@@ -108,3 +108,22 @@ func (*Builder) BuildRoute() { services.NewFactory(nil, nil, nil) }
 	require.NoError(t, err)
 	require.NotEmpty(t, violations)
 }
+
+func TestRouteSizedBuilderAnalyzerLimitsServiceGraphException(t *testing.T) {
+	t.Parallel()
+	root := writeRouteBuilderFixture(t, "api/service_graph_test.go", `package api
+func TestServiceGraph() { newServiceGraph() }
+`)
+	writeRouteBuilderSource(t, root, "api/service_graph_compose.go", `package api
+func newServiceGraph() {}
+`)
+	violations, err := routeSizedBuilderViolations(root)
+	require.NoError(t, err)
+	require.Empty(t, violations)
+	writeRouteBuilderSource(t, root, "api/route_test.go", `package api
+func TestRoute() { newServiceGraph() }
+`)
+	violations, err = routeSizedBuilderViolations(root)
+	require.NoError(t, err)
+	require.Condition(t, func() bool { return containsViolation(violations, "TestRoute references broad composition") }, "%v", violations)
+}

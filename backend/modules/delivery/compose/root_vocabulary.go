@@ -55,6 +55,15 @@ type (
 	NotificationEvent              = notifications.Event
 	NotificationAudience           = notifications.Audience
 	NotificationAudienceScope      = notifications.AudienceScope
+	// The mail, notification, push and PWA usage services of the root's
+	// retained service graph (#2747): the school contacts and the stored
+	// mail of the outbox, the delivery observer, the staff notices and the
+	// standalone usage report.
+	MailSchoolContacts           = emailoutbox.SchoolContacts
+	MailEnqueued                 = emailoutbox.Enqueued
+	NotificationDeliveryObserver = notifications.DeliveryObserver
+	StaffParentMessageNotifier   = notifications.StaffParentMessageNotifier
+	PWAUsageService              = pwa.UsageService
 )
 
 // The kinds of the parent appointment notices.
@@ -76,16 +85,20 @@ const (
 )
 
 var (
-	NewEmailOutbox             = emailoutbox.NewService
-	NewEmailTemplateRegistry   = emailoutbox.NewTemplateRegistry
-	NewTenantMailIdentity      = emailoutbox.NewTenantMailIdentity
-	NewNotifier                = notifications.NewServiceWithDeliveryObserver
-	NewSSEChannel              = notifications.NewSSEChannel
-	WithGuardianChildAccess    = notifications.WithGuardianChildAccess
-	NewDurableWebPushChannel   = notifications.NewDurableWebPushChannel
-	NewPushSubscriptionService = notifications.NewPushSubscriptionService
-	NewPreferenceService       = notifications.NewPreferenceService
-	NewEmailRecipientResolver  = notifications.NewEmailRecipientResolver
+	NewEmailOutbox                = emailoutbox.NewService
+	NewEmailTemplateRegistry      = emailoutbox.NewTemplateRegistry
+	NewTenantMailIdentity         = emailoutbox.NewTenantMailIdentity
+	NewNotifier                   = notifications.NewServiceWithDeliveryObserver
+	NewSSEChannel                 = notifications.NewSSEChannel
+	WithGuardianChildAccess       = notifications.WithGuardianChildAccess
+	NewDurableWebPushChannel      = notifications.NewDurableWebPushChannel
+	NewPushSubscriptionService    = notifications.NewPushSubscriptionService
+	NewPreferenceService          = notifications.NewPreferenceService
+	NewEmailRecipientResolver     = notifications.NewEmailRecipientResolver
+	NewStaffRecipientResolver     = notifications.NewStaffRecipientResolver
+	NewStaffParentMessageNotifier = notifications.NewStaffParentMessageNotifier
+	NewAbsenceNotifier            = notifications.NewAbsenceNotifier
+	NewPWAUsageService            = pwa.NewUsageService
 	// ErrRenderCancelled and ErrRenderDeferred are the answers of a renderer
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled

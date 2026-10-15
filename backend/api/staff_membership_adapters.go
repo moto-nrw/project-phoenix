@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -38,7 +36,7 @@ type staffMembershipDeps struct {
 	// (#2753): notes and the birthday opt-out.
 	employment workforce.StaffEmploymentCommand
 	// GroupTeachers is lazy because School Membership may be rebound after construction.
-	GroupTeachers func() services.GroupTeacherRepository
+	GroupTeachers func() GroupTeacherRepository
 }
 
 // staffPersonRows are the person reads the staff projections attach.
@@ -664,14 +662,14 @@ func (r StaffMembershipRepository) ListBirthdaysForExport(ctx context.Context) (
 
 func (r StaffMembershipRepository) SetBirthdayDisplayOptOut(ctx context.Context, staffID int64, optOut bool) error {
 	return membershipError("set staff birthday display opt-out", r.withLiveStaff(ctx, staffID, func(ctx context.Context) error {
-		return services.MembershipEmploymentError(r.Deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
+		return MembershipEmploymentError(r.Deps.employment.SetStaffBirthdayDisplayOptOut(ctx, staffID, optOut))
 	}))
 }
 
 func (r StaffMembershipRepository) AddNotes(ctx context.Context, id int64, notes string) error {
 	return membershipError("add notes", r.withLiveStaff(ctx, id, func(ctx context.Context) error {
 		_, err := r.Deps.employment.AppendStaffNotes(ctx, id, notes)
-		return services.MembershipEmploymentError(err)
+		return MembershipEmploymentError(err)
 	}))
 }
 

@@ -32,7 +32,7 @@ type moveSetup struct {
 	db       *bun.DB
 	ctx      context.Context
 	tenantID int64
-	factory  *api.TestFactory
+	factory  *api.TestServiceGraph
 	roomID   int64
 	staffID  int64 // assigned to source in makeMoveSetup
 	otherID  int64 // free second staff member
@@ -95,7 +95,7 @@ func makeMoveSetup(t *testing.T) *moveSetup {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	tenantID := testpkg.UniqueTestTenantID(t)
