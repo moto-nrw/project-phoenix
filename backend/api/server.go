@@ -20,6 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/database"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -226,10 +227,11 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          graph.services.Audit,
 		settings:             graph.services.Settings,
-		unregisteredTagScans: graph.services.UnregisteredTagScans,
+		unregisteredTagScans: graph.services.IoT.Fleet(),
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
+		deliveries:           deliveryCompose.NewRetention(),
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err

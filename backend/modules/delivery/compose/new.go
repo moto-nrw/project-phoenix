@@ -41,24 +41,7 @@ func New(dependencies Dependencies) (*Runtime, error) {
 		return nil, errors.New("delivery compose: all dependencies are required")
 	}
 	store := postgres.New(
-		func(ctx context.Context, expectedTenantID int64) (bun.IDB, error) {
-			transaction, ok := tenant.TransactionFromContext(ctx)
-			if !ok {
-				return nil, errors.New("delivery postgres: transaction is required")
-			}
-			tx, ok := transaction.(bun.Tx)
-			if !ok {
-				return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", transaction)
-			}
-			actualTenantID, err := tenant.TenantFromContext(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("delivery postgres: tenant is required: %w", err)
-			}
-			if actualTenantID.Int64() != expectedTenantID {
-				return nil, fmt.Errorf("delivery postgres: intent tenant %d does not match transaction tenant %d", expectedTenantID, actualTenantID.Int64())
-			}
-			return tx, nil
-		},
+		tenantDatabase,
 		func(ctx context.Context, callback func(context.Context, bun.IDB) error) error {
 			return tenant.WithAdminTx(ctx, dependencies.DB, func(txCtx context.Context, tx bun.Tx) error {
 				return callback(txCtx, tx)
@@ -284,4 +267,25 @@ func providerResult(value delivery.ProviderResult, err error) (domain.ProviderRe
 
 func toDomainProviderResult(value delivery.ProviderResult) domain.ProviderResult {
 	return domain.ProviderResult{MessageID: value.MessageID, StatusCode: value.StatusCode, Details: value.Details}
+}
+
+// tenantDatabase is the transaction of the school in context; it refuses a
+// call for another school.
+func tenantDatabase(ctx context.Context, expectedTenantID int64) (bun.IDB, error) {
+	transaction, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return nil, errors.New("delivery postgres: transaction is required")
+	}
+	tx, ok := transaction.(bun.Tx)
+	if !ok {
+		return nil, fmt.Errorf("delivery postgres: unsupported transaction %T", transaction)
+	}
+	actualTenantID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("delivery postgres: tenant is required: %w", err)
+	}
+	if actualTenantID.Int64() != expectedTenantID {
+		return nil, fmt.Errorf("delivery postgres: intent tenant %d does not match transaction tenant %d", expectedTenantID, actualTenantID.Int64())
+	}
+	return tx, nil
 }
