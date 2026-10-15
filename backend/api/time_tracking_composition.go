@@ -84,7 +84,7 @@ func newTimeTrackingResource(svc *services.Factory, calendar schoolcalendar.Cale
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
 		StaffShifts:      svc.StaffShifts,
 		Assignments:      svc.StaffAssignments,
-		Calendar:         services.PlanningCalendarCapability(calendar),
+		Calendar:         PlanningCalendarCapability(calendar),
 		AccountStartDate: timeTrackingAccountStartDate(svc.Settings),
 		Identity:         timeTrackingIdentity,
 		DB:               db.Pool(),

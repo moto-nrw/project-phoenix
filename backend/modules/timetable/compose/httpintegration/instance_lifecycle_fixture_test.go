@@ -46,7 +46,7 @@ type lifecycleSetup struct {
 	factory  *api.TestFactory
 	repos    *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
-	timetable services.TimetableRepositories
+	timetable api.TimetableRepositories
 	db        *bun.DB
 	ctx       context.Context
 	roomID    int64
@@ -93,7 +93,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 		presence:  newInstancePresence(t, db),
 		factory:   serviceFactory,
 		repos:     repoFactory,
-		timetable: services.NewTimetableRepositories(db, timetableDependencies),
+		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies),
 		db:        db,
 		ctx:       ctx,
 		roomID:    room.ID,
@@ -169,7 +169,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		RecurrenceLock:      s.factory.TimetableData.RecurrenceLock,
 		CareDays:            lifecycleCareDays{query: s.factory.CareDay},
 		CareDayLocks:        s.repos.CarePlan(),
-		Protocol:            services.TimetableDeviationProtocol(audits.DeviationEvent),
+		Protocol:            api.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
 		DB:                  s.db,
 		Logger:              slog.Default(),
@@ -185,7 +185,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // over the lifecycle's repositories and its (possibly fault-injecting)
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
-	detection, err := services.NewTimetableConflictDetection(services.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(services.TimetableConflictReaders{
 		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
 		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: s.repos.Staff,
 		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,

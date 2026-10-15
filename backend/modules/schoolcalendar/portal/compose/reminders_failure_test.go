@@ -247,7 +247,7 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 			cfg.Logger = slog.Default()
 			breakStep(&cfg)
 
-			queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), calendarRuntime.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
+			queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), api.NewCalendarPortal(cfg)).EnqueueDueAppointmentReminders(ctx, from, to)
 			require.ErrorIs(t, err, errReminderStore)
 			assert.Zero(t, queued)
 		})

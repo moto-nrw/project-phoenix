@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -63,7 +62,7 @@ func TestUpdateTemplateFields_DropsOccurrencesAfterTheNewLastDay(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, listInstancesForDate(t, s.db, s.template.ID, after), 1)
 
-	groups := services.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup
+	groups := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup
 	newEnd := lastDay.String()
 	updated, err := groups.UpdateTemplateFields(s.ctx, s.template.ID, activitiesModels.TemplateFieldsUpdate{
 		Name: s.template.Name, Type: s.template.Type, CategoryID: s.template.CategoryID,

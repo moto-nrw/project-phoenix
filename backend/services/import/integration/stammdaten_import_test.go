@@ -23,7 +23,7 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory, services.TimetableDependencies) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory, api.TimetableDependencies) {
 	t.Helper()
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)

@@ -97,7 +97,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -510,7 +509,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 			IsSpontaneous:   true,
 		}
 		mirroredInstance.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance.Create(ctx, mirroredInstance))
+		require.NoError(t, api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance.Create(ctx, mirroredInstance))
 
 		// ACT: Force-start the same activity on device 2
 		session2, err := service.ForceStartActivitySessionWithSupervisors(ctx, activityGroup.ID, device2.ID, []int64{newSupervisor.ID}, &room2.ID)
@@ -534,7 +533,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session2.ID, transferredVisit.ActiveGroupID, "expected active visit to move to new session")
 		assert.Nil(t, transferredVisit.ExitTime, "expected transferred visit to remain open")
 
-		completedMirror, err := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
+		completedMirror, err := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance.FindByID(ctx, mirroredInstance.ID)
 		require.NoError(t, err)
 		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")
