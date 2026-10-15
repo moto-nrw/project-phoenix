@@ -1,38 +1,85 @@
 package architecture
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
-// reclassifiableRoles are the production-role changes of an existing package
-// a reviewed epoch may make inside its owner (ADR 0057):
-//
-//   - adapter -> http: a shared runtime many owners legitimately use is
-//     classified, not granted into a private role (point 3);
-//   - domain -> legacy-model: the retained models/* packages get their own
-//     role, which only their owner reaches (point 4).
-var reclassifiableRoles = map[[2]string]bool{
-	{"adapter", "http"}:         true,
-	{"domain", legacyModelRole}: true,
+// sessionTokenRuntimePath is the package ADR 0057 point 3 classifies as
+// Identity & Access's http role.
+const sessionTokenRuntimePath = "modules/identityaccess/sessiontoken"
+
+// roleReclassification is one decided production-role change of existing
+// packages (ADR 0057, #4070).
+type roleReclassification struct {
+	matches  func(path string) bool
+	from, to string
+}
+
+// decidedReclassifications are the only role changes the comparison carries
+// over, each bound to its packages: the session token runtime from adapter to
+// http (point 3) and the retained models from domain to legacy-model (point
+// 4). They apply only in the epoch that introduces them, to a package the
+// base still classifies in the old role.
+var decidedReclassifications = []roleReclassification{
+	{matches: func(path string) bool { return path == sessionTokenRuntimePath }, from: "adapter", to: "http"},
+	{matches: func(path string) bool {
+		return path == legacyModelPath || strings.HasPrefix(path, legacyModelPath+"/")
+	}, from: "domain", to: legacyModelRole},
+}
+
+// reclassifiedPackage is a package the candidate moves through a decided
+// reclassification: same owner, same test roles, old role in the base, new
+// role in the candidate.
+type reclassifiedPackage struct {
+	path, owner, from, to string
+}
+
+func activeReclassifications(base, candidate *Policy) []reclassifiedPackage {
+	if candidate.PolicyEpoch != targetOnlyRulesEpoch || base.PolicyEpoch >= candidate.PolicyEpoch {
+		return nil
+	}
+	basePackages := base.packageMap()
+	var moved []reclassifiedPackage
+	for _, current := range candidate.Packages {
+		previous, exists := basePackages[base.absolutePackage(current.Path)]
+		if !exists || previous.Owner != current.Owner ||
+			previous.InternalTestRole != current.InternalTestRole || previous.ExternalTestRole != current.ExternalTestRole {
+			continue
+		}
+		for _, decided := range decidedReclassifications {
+			if decided.matches(current.Path) && previous.Role == decided.from && current.Role == decided.to {
+				moved = append(moved, reclassifiedPackage{path: current.Path, owner: current.Owner, from: decided.from, to: decided.to})
+			}
+		}
+	}
+	return moved
 }
 
 // reclassifiedRolePermission reports whether a permission the base did not
-// grant follows from an allowed reclassification of the source's or the
-// target's production role. Into a reclassified package it holds when the
-// base let the same source into the old role or into the new role of the
-// owner. Out of a reclassified package it holds when the base let the old or
-// the new role of the owner reach the target. A reclassified package thus has
-// the reach its new role states, and keeps what its old role had. Owner
-// changes, test-role changes and every other role change keep the ordinary
-// loosening guards.
+// grant follows from a decided reclassification.
+//
+// Into the new role of an owner it holds when the base let the same source
+// into the old role a reclassified package of that owner had, or into the
+// new role itself: the reclassified package is reachable by exactly those
+// sources, and the owner's other packages in the new role become reachable
+// for them too, which is what the classification states.
+//
+// Out of a package it holds only for a reclassified package itself, judged
+// by its old role or by the new role's reach. For a rule point the owner's
+// new role must consist of reclassified packages only; an unchanged package
+// in that role keeps its own base permissions.
 func reclassifiedRolePermission(base, candidate *Policy, scope Scope, source, target Package) bool {
-	if candidate.PolicyEpoch <= base.PolicyEpoch {
+	moved := activeReclassifications(base, candidate)
+	if len(moved) == 0 {
 		return false
 	}
 	sources := []Package{source}
 	if scope == ScopeProduction {
-		sources = append(sources, reclassifiedSourceRoles(base, candidate, source)...)
+		sources = append(sources, reclassifiedSources(candidate, moved, source)...)
 	}
 	targets := []Package{target}
-	for _, from := range reclassifiedFromRoles(base, candidate, target.Owner, target.Role) {
+	for _, from := range reclassifiedTargetRoles(candidate, moved, target) {
 		targets = append(targets, Package{Owner: target.Owner, Role: from, InternalTestRole: from, ExternalTestRole: from})
 	}
 	if len(sources) == 1 && len(targets) == 1 {
@@ -48,60 +95,76 @@ func reclassifiedRolePermission(base, candidate *Policy, scope Scope, source, ta
 	return false
 }
 
-// reclassifiedSourceRoles returns the other production roles a reclassified
-// source package is judged by: its old roles when source carries the new one
-// (a rule point), or its new role when source is the base classification of
-// a package the candidate reclassified (an import).
-func reclassifiedSourceRoles(base, candidate *Policy, source Package) []Package {
-	var alternatives []Package
-	for _, from := range reclassifiedFromRoles(base, candidate, source.Owner, source.Role) {
-		previous := source
-		previous.Role = from
-		alternatives = append(alternatives, previous)
+// reclassifiedTargetRoles returns the old roles of the packages moved into
+// target's owner and role. A role the base gives no package (legacy-model)
+// is new for every owner, so a point selected by owner kind maps as well.
+func reclassifiedTargetRoles(candidate *Policy, moved []reclassifiedPackage, target Package) []string {
+	newRole := roleIsNew(candidate, moved, target.Role)
+	var roles []string
+	for _, pkg := range moved {
+		if pkg.to == target.Role && (pkg.owner == target.Owner || newRole) && !slices.Contains(roles, pkg.from) {
+			roles = append(roles, pkg.from)
+		}
 	}
-	if source.Path == "" {
+	return roles
+}
+
+// reclassifiedSources returns the other packages a source is judged as. An
+// import names the base classification of a package: only a reclassified
+// package is also judged by its new role. A rule point names an owner and a
+// role: it maps to the old role only when every candidate package of that
+// owner in the role was reclassified into it.
+func reclassifiedSources(candidate *Policy, moved []reclassifiedPackage, source Package) []Package {
+	var alternatives []Package
+	if source.Path != "" {
+		for _, pkg := range moved {
+			if pkg.path == source.Path && pkg.from == source.Role {
+				next := source
+				next.Role = pkg.to
+				alternatives = append(alternatives, next)
+			}
+		}
 		return alternatives
 	}
-	current, exists := candidate.packageMap()[candidate.absolutePackage(source.Path)]
-	if exists && current.Owner == source.Owner && current.Role != source.Role &&
-		slices.Contains(reclassifiedFromRoles(base, candidate, current.Owner, current.Role), source.Role) {
-		next := source
-		next.Role = current.Role
-		alternatives = append(alternatives, next)
+	newRole := roleIsNew(candidate, moved, source.Role)
+	if !newRole {
+		for _, pkg := range candidate.Packages {
+			if pkg.Owner == source.Owner && pkg.Role == source.Role && !isReclassified(moved, pkg.Path) {
+				return nil
+			}
+		}
+	}
+	for _, pkg := range moved {
+		if pkg.to == source.Role && (pkg.owner == source.Owner || newRole) {
+			previous := source
+			previous.Role = pkg.from
+			alternatives = append(alternatives, previous)
+		}
 	}
 	return alternatives
 }
 
-// reclassifiedFromRoles returns the base roles of packages the candidate
-// moved into owner/role through an allowed reclassification. A role the base
-// gives no package is new: it takes the old role's permissions for every
-// owner, which is what a rule selecting owners by kind needs. The target-only
-// validation keeps such a role private (legacy-model, ADR 0057).
-func reclassifiedFromRoles(base, candidate *Policy, owner, role string) []string {
-	basePackages := base.packageMap()
-	newRole := true
-	for _, pkg := range basePackages {
-		if pkg.Role == role {
-			newRole = false
-			break
-		}
-	}
-	seen := make(map[string]struct{})
-	var roles []string
-	for path, current := range candidate.packageMap() {
-		if (current.Owner != owner && !newRole) || current.Role != role {
+// roleIsNew reports whether every candidate package in role was reclassified
+// into it, so the role holds nothing an older permission did not cover.
+func roleIsNew(candidate *Policy, moved []reclassifiedPackage, role string) bool {
+	found := false
+	for _, pkg := range candidate.Packages {
+		if pkg.Role != role {
 			continue
 		}
-		previous, exists := basePackages[path]
-		if !exists || previous.Owner != current.Owner || previous.Role == role ||
-			previous.InternalTestRole != current.InternalTestRole || previous.ExternalTestRole != current.ExternalTestRole ||
-			!reclassifiableRoles[[2]string{previous.Role, role}] {
-			continue
+		if !isReclassified(moved, pkg.Path) {
+			return false
 		}
-		if _, duplicate := seen[previous.Role]; !duplicate {
-			seen[previous.Role] = struct{}{}
-			roles = append(roles, previous.Role)
+		found = true
+	}
+	return found
+}
+
+func isReclassified(moved []reclassifiedPackage, path string) bool {
+	for _, pkg := range moved {
+		if pkg.path == path {
+			return true
 		}
 	}
-	return roles
+	return false
 }

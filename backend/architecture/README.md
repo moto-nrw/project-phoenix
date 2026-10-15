@@ -1035,8 +1035,8 @@ enforced by the base policy.
 
 A rule states the target
 ([ADR 0057](../../docs/adr/0057-only-the-target-is-a-rule.md), #4070). From
-policy epoch 47 the loader rejects every rule the end state of #2580 does not
-keep (`internal/architecture/target_rule.go`):
+policy epoch 47 the loader rejects these rules
+(`internal/architecture/target_rule.go`):
 
 - a rule that lets one owner import another owner's `application`, `domain`,
   `adapter`, `postgres`, `cli` or `legacy-model` role, for any pair of owners
@@ -1045,15 +1045,25 @@ keep (`internal/architecture/target_rule.go`):
 - a rule that lets a `platform` owner import a `domain`, `projection` or
   `workflow` owner, again for any pair its selectors can match, so an
   owner-agnostic rule into a domain role must name its source kinds;
+- a rule that lets the composition of a `domain`, `workflow`, `projection` or
+  `platform` owner (source role `compose`, or no source role) import another
+  owner's `compose` or `http` role: cross-owner glue belongs in the root
+  ([ADR 0059](../../docs/adr/0059-the-roots-hold-no-service-graph.md) point
+  6, #4004). The typed roots, the legacy composition and `inbound` owners are
+  not owner compositions, and a target in a composition owner (the roots'
+  standing test reach) stays allowed;
 - a rule with an `issue` field;
 - a rule whose description contains a transition marker. The markers are a
   fixed list, matched case-insensitively: "convert … to exact debt",
   "compatibility permission", "compatibility binding", "compatibility
   adapter", "temporary"/"temporarily", "until #N" and "tracked by #N".
 
-Rules that close a cycle of the target graph
-([ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md)) are #3417's
-part of the same decision. A temporary allowance is an exact `legacy.jsonl` key
+This is not yet every rule the target excludes. The directions and cycles of
+[ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md) are #3417's
+part: a platform importing anything but platforms and the shared kernel (for
+example `settings-platform.http.inbound-common`, a platform into an `inbound`
+owner), a second direction between two domains, and rules that close a cycle
+are not rejected yet. A temporary allowance is an exact `legacy.jsonl` key
 with its open carrier issue, never a rule. Older epochs stay loadable as
 immutable PR bases: there an `issue` field still marks a temporary
 permission, and an explicit empty, null, malformed, query, fragment or
@@ -1074,18 +1084,23 @@ rather than `contract`: the package holds the signing and verification
 runtime, not a pure contract, and the roots' standing reach into every
 domain's `http` role already covers them.
 
-A reviewed epoch may make exactly these two production-role changes of an
-existing package inside its owner, with unchanged test roles: `adapter` to
-`http` and `domain` to `legacy-model`
-(`internal/architecture/role_reclassification.go`). The comparison then
-judges a rule into or out of the new role by what the base allowed into or out
-of the old role, or into or out of the new role of the same owner. A role the
-base gives no package (`legacy-model` at epoch 47) takes the old role's
-permissions for every owner, so `same_owner` rules selected by kind keep
-their reach. Every other role change, an owner change or a changed test role
-stays under the ordinary guards. The target-only validation keeps both new
-roles from widening into another owner's private role. The epoch may not
-decrease, so the epoch-gated validation cannot be switched off.
+The comparison carries exactly these two decided reclassifications over, bound
+to their packages and to epoch 47, the epoch that makes them
+(`internal/architecture/role_reclassification.go`):
+`modules/identityaccess/sessiontoken` from `adapter` to `http` and `models`
+and `models/*` from `domain` to `legacy-model`, each with unchanged owner and
+test roles and only while the base still has the old role. A rule or import
+into the new role of the owner counts as covered when the base let the same
+source into the old role or into the new role; so the owner's other packages
+in the new role become reachable for those sources too. Out of a package the
+old role's reach carries over only for the reclassified package itself; a
+rule out of an owner's role counts as covered only when every package of the
+owner in that role was reclassified into it. An unchanged package keeps its
+own base permissions. A role the base gives no package (`legacy-model`)
+takes the old role's permissions for every owner, so `same_owner` rules
+selected by kind keep their reach. Any other package, role change, later
+epoch, owner change or test-role change stays under the ordinary guards. The
+epoch may not decrease, so the epoch-gated validation cannot be switched off.
 
 `rules.stale` reports a rule that allows no edge across the union of production,
 internal-test and external-test scopes in the fixed build context. A rule used
@@ -1126,14 +1141,14 @@ rules and record exactly the imports they allowed. A key without a deleted
 rule behind it describes an allowed import and is a stale entry.
 
 #4070 (ADR 0057, policy epoch 46 → 47) applied the target-only validation to
-the whole policy. It deleted 373 rules and recorded the imports they allowed as
-481 exact keys, one carrier per family (6 → 487 keys, 1,351 → 1,008 rules):
+the whole policy. It deleted 405 rules and recorded the imports they allowed as
+514 exact keys, one carrier per family (6 → 520 keys, 1,351 → 976 rules):
 
 | Carrier | Family | Keys added | Keys now |
 |---|---|---:|---:|
 | #4076 | domains, workflows, platforms and test support in another owner's private role, `models/*` | 102 | 102 |
+| #4004 | owner compositions in another owner's private, `compose` or `http` role | 97 | 97 |
 | #4081 | `internal/timezone` wrapper | 87 | 87 |
-| #4004 | owner compositions in another owner's private role | 64 | 64 |
 | #4073 | Parent Portal and `inbound-parent` | 61 | 61 |
 | #4077 | projections, compatibility adapters | 49 | 49 |
 | #4074 | Communication parent compatibility | 44 | 44 |
@@ -1144,7 +1159,7 @@ the whole policy. It deleted 373 rules and recorded the imports they allowed as
 | #2750 | rules with `issue` (root) | 2 | 4 |
 | #2751 | legacy composition | 0 | 3 |
 | #4096 | dev tools of the commands root (ADR 0056) | 2 | 2 |
-| | total | 481 | 487 |
+| | total | 514 | 520 |
 
 The audit's rule list per carrier decides the family of a deleted rule; a rule
 outside it follows the same order: imports of `internal/timezone` go to #4081,
@@ -1152,7 +1167,7 @@ the nine rules with an `issue` field keep #2729 or #2750, `delivery-cutover.*`
 goes to #4075, `communication.parent-compatibility.*` to #4074, Parent Portal
 and `inbound-parent` sources to #4073, platform sources to #4072 (into a
 domain, projection or workflow owner) or #4076, an owner composition into
-another owner's private role to #4004, and the remaining sources by kind:
+another owner's private role, or into its `compose` or `http` role, to #4004, and the remaining sources by kind:
 projections #4077, `inbound` owners #4078, domains, workflows and test support
 #4076, the roots #2750, the legacy composition #2751.
 
@@ -1164,7 +1179,9 @@ The same epoch also:
 - classifies `modules/identityaccess/sessiontoken` as `identity-access`/`http`
   and retargets the 55 rules into `identity-access`/`adapter` to that role.
   The settings platform's two session rules are platform rules into a domain
-  owner and became keys (#4072). The root's two session rules of ADR 0056
+  owner and became keys (#4072); the compositions of Facilities, Timetable
+  and Device Fleet reach the runtime from their `compose` role, which is
+  glue, and became keys too (#4004). The root's two session rules of ADR 0056
   are deleted: `root-composition.reach.domain.http` covers the root's
   imports. Identity's own composition and suites reach the runtime through
   `identity-access.{compose,e2e-test,module-behavior-test}.session-runtime`;
@@ -1186,10 +1203,12 @@ The same epoch also:
   `services/enrollment`, `database/repositories`, `services`), so none can
   fire again.
 
-Kept as target after review: rules into another owner's `public`, `contract`,
-`port`, `compose` or `http` role and `test-support`, including
-`settings-platform.http.inbound-common` (a platform into an `inbound` owner;
-#3417 judges it with the cycle criterion of ADR 0058).
+Kept after review: rules into another owner's `public`, `contract`, `port` or
+`test-support` role, and into its `compose` or `http` role from a source that
+is not an owner composition (the roots, `inbound` owners, HTTP adapters and
+tests). That is not a claim that all of them are target: the direction and
+cycle criteria of ADR 0058 are #3417's, which judges for example
+`settings-platform.http.inbound-common`.
 
 ### Relocating a package without losing its debt
 

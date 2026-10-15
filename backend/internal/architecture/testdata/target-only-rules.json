@@ -37,6 +37,14 @@
     {
       "id": "flow",
       "kind": "workflow"
+    },
+    {
+      "id": "root",
+      "kind": "composition"
+    },
+    {
+      "id": "portal",
+      "kind": "inbound"
     }
   ],
   "roles": [
@@ -209,13 +217,13 @@
       "target_role": "public"
     },
     {
-      "id": "alpha.compose.beta-session",
-      "description": "Alpha's composition reaches Beta's session runtime.",
+      "id": "alpha.http.beta-session",
+      "description": "Alpha's routes reach Beta's session runtime.",
       "scopes": [
         "production"
       ],
       "source_owner": "alpha",
-      "source_role": "compose",
+      "source_role": "http",
       "target_owner": "beta",
       "target_role": "http"
     }

@@ -6040,17 +6040,6 @@
       "target_role": "public"
     },
     {
-      "id": "request-review-view.compose.audit-corrections.compose",
-      "description": "Bind the native tenant-scoped Audit correction reader (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "compose"
-    },
-    {
       "id": "audit-platform.native-corrections.compose.tenant",
       "description": "Compose and verify the native tenant-scoped Audit correction reader (#3179).",
       "scopes": [
@@ -6761,17 +6750,6 @@
       "source_owner": "reminder-delivery",
       "source_role": "compose",
       "target_owner": "reminder-delivery",
-      "target_role": "http"
-    },
-    {
-      "id": "reminder-delivery.compose.common",
-      "description": "Reminder composition binds the shared tenant HTTP runtime.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
@@ -9195,17 +9173,6 @@
       "target_class": "http-router"
     },
     {
-      "id": "timetable-activities.compose.inbound-common",
-      "description": "Timetable compatibility composition uses shared tenant HTTP rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
       "id": "timetable-activities.compose.security-contract",
       "description": "Timetable HTTP composition binds established activity permissions.",
       "scopes": [
@@ -9215,17 +9182,6 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "timetable-activities.compose.identity-adapter",
-      "description": "Timetable HTTP composition reads authenticated claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "timetable-activities.compatibility-application.compose",
@@ -9391,17 +9347,6 @@
       "target_class": "http-router"
     },
     {
-      "id": "facilities.compose.inbound-common",
-      "description": "Facilities HTTP composition binds shared tenant middleware and response rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
       "id": "facilities.compose.security-contract",
       "description": "Facilities HTTP composition supplies the established room permissions.",
       "scopes": [
@@ -9411,28 +9356,6 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "facilities.compose.identity-adapter",
-      "description": "Facilities HTTP composition reads authenticated permission claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "facilities.compose.rooms-http",
-      "description": "Facilities composition constructs its room HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "inbound-rooms",
-      "target_role": "http"
     },
     {
       "id": "facilities.compose.people-public",
@@ -9598,17 +9521,6 @@
       "target_class": "http-router"
     },
     {
-      "id": "workforce.compose.inbound-common",
-      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
       "id": "workforce.compose.security-contract",
       "description": "Workforce HTTP composition supplies the established time-tracking permission.",
       "scopes": [
@@ -9618,17 +9530,6 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "workforce.compose.work-time-models-http",
-      "description": "Workforce composition constructs its work-time-model HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_owner": "inbound-work-time-models",
-      "target_role": "http"
     },
     {
       "id": "workforce.integration-test.support",
@@ -10945,17 +10846,6 @@
       "target_role": "application"
     },
     {
-      "id": "parent-portal.compose.care-plan.compose",
-      "description": "Wire the guardian portal workflow (#3420): construct Care Plan's guardian absence and pickup exception commands over its capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "parent-portal.compose.people-directory.public",
       "description": "Wire the guardian portal workflow (#3420): bind People Directory's guardian and photo-consent commands to the flows' ports.",
       "scopes": [
@@ -10998,17 +10888,6 @@
       "source_role": "compose",
       "target_owner": "audit-platform",
       "target_role": "public"
-    },
-    {
-      "id": "parent-portal.compose.audit-platform.compose",
-      "description": "Wire the guardian portal workflow (#3420): bind the Audit Platform guardian change trail over the ambient unit of work to the flows' ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.compose.meal-plan.public",
@@ -11316,28 +11195,6 @@
       "target_role": "public"
     },
     {
-      "id": "device-fleet.compose.inbound-display",
-      "description": "Device Fleet HTTP composition constructs the established display adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "inbound-display",
-      "target_role": "http"
-    },
-    {
-      "id": "device-fleet.compose.inbound-common",
-      "description": "Device Fleet HTTP composition binds shared tenant middleware and response rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
       "id": "device-fleet.compose.security-contract",
       "description": "Device Fleet HTTP composition supplies the established display permissions.",
       "scopes": [
@@ -11347,17 +11204,6 @@
       "source_role": "compose",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "device-fleet.compose.identity-adapter",
-      "description": "Device Fleet HTTP composition reads authenticated permission claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "http"
     },
     {
       "id": "device-fleet.compose.http-router",
@@ -12502,61 +12348,6 @@
       "target_role": "public"
     },
     {
-      "id": "staff-offboarding.compose.offboarding.people-directory.compose",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.school-membership.compose",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "compose"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.student-presence.compose",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.timetable-activities.compose",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
-      "id": "staff-offboarding.compose.offboarding.workforce.compose",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "compose"
-    },
-    {
       "id": "people-directory.contracttest.staff-offboarding.public",
       "description": "The People Directory contract suite wires the staff lifecycle owner workflow required by #2709 (moved from services/users with #3755).",
       "scopes": [
@@ -12906,17 +12697,6 @@
       "target_role": "public"
     },
     {
-      "id": "request-review-view.compose.enrollment.compose",
-      "description": "Compose the native approved booking reader for care schedule reviews (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "compose"
-    },
-    {
       "id": "request-review-view.compose.timetable.public",
       "description": "Bind native class dismissal and pickup impact facts (#3179).",
       "scopes": [
@@ -12928,17 +12708,6 @@
       "target_role": "public"
     },
     {
-      "id": "request-review-view.compose.timetable.compose",
-      "description": "Compose bounded native timetable reads for care schedule reviews (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
       "id": "request-review-view.compose.care-plan.public",
       "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
       "scopes": [
@@ -12948,17 +12717,6 @@
       "source_role": "compose",
       "target_owner": "care-plan",
       "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.care-plan.compose",
-      "description": "Request review binds native Care Plan queue facts and workflow ports (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "compose"
     },
     {
       "id": "request-review-view.compose.care-plan.contract",
@@ -13025,17 +12783,6 @@
       "source_role": "compose",
       "target_owner": "school-structure",
       "target_role": "public"
-    },
-    {
-      "id": "request-review-view.compose.school-structure.compose",
-      "description": "Request review binds native owner capabilities through typed composition (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "request-review-view",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "compose"
     },
     {
       "id": "request-review-view.compose.orm",
@@ -13267,72 +13014,6 @@
       "target_role": "public"
     },
     {
-      "id": "student-deletion.compose.deletion.appointments.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-deletion.compose.deletion.communication.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-deletion.compose.deletion.enrollment.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-deletion.compose.deletion.identity-access.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-deletion.compose.deletion.school-structure.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-deletion.compose.deletion.student-presence.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-deletion",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "people-directory.http.student-deletion-public",
       "description": "The student routes run the permanent deletion, the graduate purge and the withdrawal deletion through the owner workflow (#2710, #2731).",
       "scopes": [
@@ -13471,28 +13152,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "grade-transition.compose.transition.school-structure.compose",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "compose"
-    },
-    {
-      "id": "grade-transition.compose.transition.student-presence.compose",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "grade-transition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "grade-transition.compose.database-binding",
@@ -14218,17 +13877,6 @@
       "source_role": "compose",
       "target_owner": "student-presence",
       "target_role": "public"
-    },
-    {
-      "id": "facilities.compose.student-presence-compose",
-      "description": "modules/facilities/compose/legacy implements the presence room port (AttendanceRooms, SessionRoom) named by modules/studentpresence/compose/presenceservice (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "student-presence.application.care-plan-absence-records",

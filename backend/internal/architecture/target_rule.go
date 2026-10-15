@@ -29,6 +29,16 @@ const legacyModelPath = "models"
 // (ADR 0057 point 1, ADR 0058 point 2).
 var platformForbiddenTargetKinds = map[string]bool{"domain": true, "projection": true, "workflow": true}
 
+// compositionGlueSourceKinds are the owner kinds whose composition builds only
+// its own owner. Their compose role reaching another owner's compose or http
+// role is glue that belongs in the root (ADR 0059 point 6, #4004). The typed
+// roots and the legacy composition are composition owners and stay outside.
+var compositionGlueSourceKinds = map[string]bool{"domain": true, "workflow": true, "projection": true, "platform": true}
+
+// compositionGlueTargetRoles are the roles an owner composition may not
+// import from another owner.
+var compositionGlueTargetRoles = map[string]bool{"compose": true, "http": true}
+
 // TransitionMarker is one phrase by which a rule description declares the
 // rule temporary. A temporary allowance is an exact legacy.jsonl key with an
 // open carrier issue, never a rule (ADR 0057 point 2).
@@ -61,8 +71,10 @@ func RuleTransitionMarkers(description string) []string {
 	return names
 }
 
-// validateTargetOnlyRule rejects a rule the end state of #2580 does not keep
-// (ADR 0057 point 1). Cycle-closing rules (ADR 0058) are judged by #3417.
+// validateTargetOnlyRule rejects a rule the end state of #2580 does not keep:
+// the criteria of ADR 0057 point 1 except cycles, and owner compositions
+// reaching another owner's compose or http role (ADR 0059 point 6). The
+// directions and cycles of ADR 0058 are judged by #3417.
 func validateTargetOnlyRule(rule Rule, owners map[string]Owner) error {
 	if rule.Issue != "" {
 		return fmt.Errorf("rule %q carries issue %s: a temporary allowance is an exact legacy.jsonl key, not a rule (ADR 0057)", rule.ID, rule.Issue)
@@ -85,6 +97,10 @@ func validateTargetOnlyRule(rule Rule, owners map[string]Owner) error {
 			}
 			if privateRoles[rule.TargetRole] {
 				return fmt.Errorf("rule %q lets %s import the %s role of %s: another owner's private role is never target (ADR 0057)", rule.ID, source.ID, rule.TargetRole, target.ID)
+			}
+			if (rule.SourceRole == "" || rule.SourceRole == "compose") && compositionGlueSourceKinds[source.Kind] &&
+				target.Kind != "composition" && compositionGlueTargetRoles[rule.TargetRole] {
+				return fmt.Errorf("rule %q lets the composition of %s import the %s role of %s: cross-owner glue belongs in the root (ADR 0059 point 6)", rule.ID, source.ID, rule.TargetRole, target.ID)
 			}
 			if source.Kind == "platform" && platformForbiddenTargetKinds[target.Kind] {
 				return fmt.Errorf("rule %q lets platform %s import %s owner %s: a platform depends on platforms and the shared kernel only (ADR 0057, ADR 0058)", rule.ID, source.ID, target.Kind, target.ID)

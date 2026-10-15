@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 15.10.2026 · Ratchet 487 · Composition 139 · Policy-Epoche 47 · 0 Regeln mit Übergangsmarker oder
+Stand 15.10.2026 · Ratchet 520 · Composition 139 · Policy-Epoche 47 · 0 Regeln mit Übergangsmarker oder
 `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
@@ -12,7 +12,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 102 |
 | [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone` | 87 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten Rollen | 64 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -23,7 +23,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 4 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
 | [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools des Kommando-Roots | 2 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 487 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 520 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -32,9 +32,13 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
 Zielgraph ist azyklisch (ADR 0058), die Roots halten keinen Service-Graphen (ADR 0059), Laufzeitregeln
 kommen als letzter Schritt. Die Definition of Done von #2580 ist überarbeitet. [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070)
-hat die Übergangsregeln in Keys umgewandelt (Policy-Epoche 46 → 47): 373 Regeln gelöscht, 481 Keys
-aufgenommen, Ratchet 6 → 487, Regeln 1.351 → 1.008. Der Anstieg ist gewollt; er zeigt die Schuld, die die
-Regeln versteckt haben. Die Validierung lehnt seitdem jede Regel ab, die kein Ziel ist. #3990: Repository-Vokabular aus `models/users` verschieben,
+hat die Übergangsregeln in Keys umgewandelt (Policy-Epoche 46 → 47): 405 Regeln gelöscht, 514 Keys
+aufgenommen, Ratchet 6 → 520, Regeln 1.351 → 976. Der Anstieg ist gewollt; er zeigt die Schuld, die die
+Regeln versteckt haben. Die Validierung lehnt seitdem ab: Regeln in fremde private Rollen und fremde
+`models/*` (ADR 0057 a, b), Plattform → Fach, Projektion, Workflow (c), Übergangsmarker und `issue` (d)
+und Owner-Kompositionen in fremde `compose`- oder `http`-Rollen (ADR 0059 Punkt 6). Noch nicht
+durchgesetzt und bei #3417: Richtungen und Zyklen nach ADR 0058, etwa Plattform → `inbound`
+(`settings-platform.http.inbound-common`). #3990: Repository-Vokabular aus `models/users` verschieben,
 ohne auf den Ersatz von `database/repositories/users` zu warten.
 
 - [ ] Phase 0: [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln → Keys (erledigt), [#4071](https://github.com/moto-nrw/project-phoenix/issues/4071) Messlücken der Ratchets, danach #3417
@@ -83,7 +87,7 @@ ohne auf den Ersatz von `database/repositories/users` zu warten.
 
 - [x] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei; #3755 entfernt zwei: `services/users` in Produktion und internem Test, das Profil kommt über einen eigenen Port; #2734 entfernt drei: `api/enrollment` in Produktion und internem Test, `models/enrollment` im internen Test; #2743 entfernt einen: `modules/careplan/inbound/parent -> database/repositories` im externen Test; #3991 entfernt einen: `models/base` im internen Test, die Zeilen-Literale nennen `users.Model`); Stufe 2: die letzten 20 Keys weg, 81 → 61; Kalender über `sharedkernel/calendar`, die zurückgereichten People-Directory-, Care-Plan- und Enrollment-Werte über das Vokabular des Workflow-Ports, das Profil als HTTP-Werte über den eigenen Port (Übersetzung in der Root), die Locale-Prüfung über die Notification-Texte von Delivery, Transaktionen über `tenant.WithinTenant`/`WithinAdmin` ohne `*bun.DB`, die Handler-Suiten über `modules/settings` und `api/testutil` ohne viper; `api/common`, Session-Adapter und Tenant-Runtime als stehende Regeln per ADR 0051, Policy-Epoche 38 → 39, vier Regeln; HTTP-ORM-Ratchet −2 Einträge, Composition 259 → 259)
 - [x] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale` (das `issue`-Feld hat #4070 wieder abgeschafft, ADR 0057)
-- [x] [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln in exakte Keys — 373 Regeln weg, 481 Keys unter #4072 bis #4078, #4081, #4004, #2729, #2750 und #4096 (6 → 487), Policy-Epoche 46 → 47; `models/*` als `legacy-model`, Session-Token-Runtime als `identity-access`/`http`, neun abgelaufene Cutover-Akzeptoren gelöscht, Temp-Rules-Ratchet strukturell
+- [x] [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln in exakte Keys — 405 Regeln weg, 514 Keys unter #4072 bis #4078, #4081, #4004, #2729, #2750 und #4096 (6 → 520), Policy-Epoche 46 → 47; `models/*` als `legacy-model`, Session-Token-Runtime als `identity-access`/`http`, neun abgelaufene Cutover-Akzeptoren gelöscht, Temp-Rules-Ratchet strukturell
 - [x] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht Quality-Ratchets auf null — am 15.10.2026 aus #2580 gelöst, läuft als eigenes Ticket weiter
 
 ## api/students · 0 Keys
