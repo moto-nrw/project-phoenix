@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -9,8 +9,13 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
+// The adapters below bind File Storage to the Settings Platform and the Audit
+// Platform the legacy graph composes (#4013).
+
+// FileStorageSettings resolves the tenant's file storage settings.
 type FileStorageSettings struct {
 	Service settingsCompose.SettingsService
 }
@@ -31,8 +36,10 @@ func (s FileStorageSettings) MaxStorageBytes(ctx context.Context) (int64, error)
 	return int64(mb) * 1024 * 1024, nil
 }
 
+// FileStorageEvents records the File Storage events in the Audit file event
+// trail.
 type FileStorageEvents struct {
-	Repo auditModels.FileEventRepository
+	Repo services.FileEventAppender
 }
 
 func (e FileStorageEvents) Record(ctx context.Context, event filestorageCompose.Event) error {

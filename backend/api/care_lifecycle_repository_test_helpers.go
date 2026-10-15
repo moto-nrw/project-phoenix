@@ -115,7 +115,7 @@ func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentComp
 			StudentLowID: edge.StudentLowID, StudentHighID: edge.StudentHighID, Weekday: edge.Weekday,
 		})
 	}
-	return services.WrapRetainedError("replace student companions", repository.Capability.ReplaceCompanionEdges(ctx, studentID, values))
+	return WrapRetainedError("replace student companions", repository.Capability.ReplaceCompanionEdges(ctx, studentID, values))
 }
 
 // NewStudentCompanionEdge builds one stored "walks home with" edge between two

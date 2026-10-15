@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -57,15 +56,15 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return FileStoreTestModule{}, err
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), services.ParentAnnouncementApplicants(enrollmentAudience.New())), Settings: settings.Settings, Logger: slog.Default(),
+		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New())), Settings: settings.Settings, Logger: slog.Default(),
 	})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db.Pool(),
 		Objects:       objects,
 		Identity:      identity,
 		People:        persons,
-		Settings:      services.FileStorageSettings{Service: settings.Settings},
-		Events:        services.FileStorageEvents{Repo: newFileEventTestRepository(db, command)},
+		Settings:      FileStorageSettings{Service: settings.Settings},
+		Events:        FileStorageEvents{Repo: newFileEventTestRepository(db, command)},
 		HasPermission: securityruntime.HasPermission,
 		Announcements: announcements,
 		Observe:       func(filestorageCompose.Observation) {},

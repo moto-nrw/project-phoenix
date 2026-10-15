@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,7 +16,7 @@ func TestSessionCleanupRootResolvesRoomsThroughOwner(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
-	repos := services.NewSessionCleanupRepositories(db, timetabletest.New(t, db))
+	repos := api.NewSessionCleanupRepositories(testpkg.NewDatabase(t, db), timetabletest.New(t, db))
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Room Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)

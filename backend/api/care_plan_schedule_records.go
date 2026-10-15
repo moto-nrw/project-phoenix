@@ -323,3 +323,8 @@ func noRowsError() error { return errors.Unwrap(retainedNotFound("")) }
 func retainedNotFound(op string) error {
 	return peopleCompose.RetainedRecordErrors{}.MissingRecordError(op)
 }
+
+// WrapRetainedError preserves the retained repository error shape.
+func WrapRetainedError(op string, err error) error {
+	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(op, err)
+}

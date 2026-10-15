@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -27,7 +26,7 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 	t.Helper()
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	organizations, err := services.NewOrganizationTenancy(db)
+	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

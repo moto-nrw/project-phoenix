@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -14,14 +14,13 @@ import (
 // seams from the retained services: the tenant settings broadcast and the
 // presence-mode guard's open attendance check.
 
-// SettingsChangedNotifier tells the school's open tenant tabs that a setting
+// settingsChangedNotifier tells the school's open tenant tabs that a setting
 // changed, so they drop their settings caches across origins. It is nil
 // without a realtime hub, which disables the broadcast.
-func (f *Factory) SettingsChangedNotifier() settingsCompose.SettingsChangedNotifier {
-	if f.RealtimeHub == nil {
+func settingsChangedNotifier(hub *realtime.Hub) settingsCompose.SettingsChangedNotifier {
+	if hub == nil {
 		return nil
 	}
-	hub := f.RealtimeHub
 	return func(_ context.Context, tenantID int64, key string) {
 		event := realtime.NewEvent(realtime.EventTenantSettingsChanged, "", realtime.EventData{Source: &key})
 		_ = hub.BroadcastToTenant(tenantID, event)
@@ -31,10 +30,6 @@ func (f *Factory) SettingsChangedNotifier() settingsCompose.SettingsChangedNotif
 // OpenAttendanceChecker answers the presence-mode guard from Student
 // Presence. Without the presence service it reports no open attendance,
 // which disables the guard.
-func (f *Factory) OpenAttendanceChecker() settingsCompose.OpenAttendanceChecker {
-	return OpenAttendanceChecker{Service: f.Active}
-}
-
 type OpenAttendanceChecker struct{ Service studentpresence.Presence }
 
 func (c OpenAttendanceChecker) HasOpenAttendanceOn(ctx context.Context, day configModel.CalendarDate) (bool, error) {

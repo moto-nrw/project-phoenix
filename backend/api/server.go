@@ -237,7 +237,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
-	deps := workerRuntimeDependencies(graph, logger, billing)
+	deps := workerRuntimeDependencies(graph, reads, logger, billing)
 	deps.Retention = retention.run
 	deps.CleanupRuns = retention.runs
 	deps.TenantRuntime = runtime
@@ -250,11 +250,11 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	return scheduler.NewWorker(deps)
 }
 
-func workerRuntimeDependencies(graph *serveGraph, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
+func workerRuntimeDependencies(graph *serveGraph, reads workerReads, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
-		SchoolRepo:             schedulerTenantDirectory{schools: graph.services.Schools, billing: billing},
+		SchoolRepo:             schedulerTenantDirectory{schools: reads.schools, billing: billing},
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
 		Tracer:                 workerTracer(graph),

@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"

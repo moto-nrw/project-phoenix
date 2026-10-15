@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -6,18 +6,18 @@ import (
 	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
+// The adapters below record the retention deletions of Student Presence and
+// Workforce in the Audit Platform's deletion ledger (#4013).
+
 type deletionAudit struct {
-	writer interface {
-		Create(context.Context, *audit.DataDeletion) error
-	}
+	writer services.DataDeletionAppender
 }
 
 // NewDeletionAudit connects retention evidence to the existing audit writer.
-func NewDeletionAudit(writer interface {
-	Create(context.Context, *audit.DataDeletion) error
-}) presenceservice.DeletionAudit {
+func NewDeletionAudit(writer services.DataDeletionAppender) presenceservice.DeletionAudit {
 	if writer == nil {
 		return nil
 	}
@@ -39,9 +39,7 @@ func (a deletionAudit) Create(ctx context.Context, event *presenceservice.Deleti
 
 // NewTimeTrackingRetentionAudit connects the retained time-tracking cleanup's
 // retention evidence to the same audit writer.
-func NewTimeTrackingRetentionAudit(writer interface {
-	Create(context.Context, *audit.DataDeletion) error
-}) workforceCompose.DeletionAudit {
+func NewTimeTrackingRetentionAudit(writer services.DataDeletionAppender) workforceCompose.DeletionAudit {
 	if writer == nil {
 		return nil
 	}
@@ -49,9 +47,7 @@ func NewTimeTrackingRetentionAudit(writer interface {
 }
 
 type timeTrackingRetentionAudit struct {
-	writer interface {
-		Create(context.Context, *audit.DataDeletion) error
-	}
+	writer services.DataDeletionAppender
 }
 
 func (a timeTrackingRetentionAudit) Create(ctx context.Context, event *workforceCompose.DeletionEvent) error {

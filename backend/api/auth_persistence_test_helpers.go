@@ -25,12 +25,12 @@ func NewInvitationPersistence(db transactionruntime.Database) (*InvitationPersis
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
 	return &InvitationPersistence{
-		Person: services.NewPersonRepository(db.Pool()),
+		Person: NewPersonRepository(db),
 		Staff:  staff, Teacher: teachers,
 		Student: NewUnboundStudentRepository(db),
 		School:  organizations,
@@ -44,7 +44,7 @@ func newInvitationMembershipRepositories(db transactionruntime.Database) (userMo
 	if err != nil {
 		return nil, nil, err
 	}
-	deps := NewStaffMembershipDeps(services.NewPersonRepository(db.Pool()), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()))
+	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()))
 	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
 	deps.GroupTeachers = func() services.GroupTeacherRepository { return groupTeachers }
 	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps}, nil

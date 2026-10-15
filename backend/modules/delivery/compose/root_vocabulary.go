@@ -5,6 +5,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 )
 
@@ -37,6 +38,10 @@ type (
 	MailIntent       = emailoutbox.Intent
 	MailRenderer     = emailoutbox.Renderer
 	MailRendererFunc = emailoutbox.RendererFunc
+	// PWAUsageCounts and PWAUsageRow are the operator dashboard's standalone
+	// usage the PWA usage report reads from Organisation & Tenancy.
+	PWAUsageCounts = pwa.UsageCounts
+	PWAUsageRow    = pwa.UsageRow
 	// The opt-in mail recipients of a notification type, which the root
 	// binds to Enrollment's "Neue Anmeldung" mail (#3780, #4012).
 	EmailSubscribers       = notifications.EmailSubscribers

@@ -37,6 +37,8 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 
 	people, err := owners.PeopleWiring(testpkg.NewDatabase(t, db), carePlan, slog.Default())
 	require.NoError(t, err)
+	platform, err := owners.PlatformWiring(testpkg.NewDatabase(t, db), people)
+	require.NoError(t, err)
 	presence, err := owners.PresenceWiring(testpkg.NewDatabase(t, db), carePlan, people, slog.Default())
 	require.NoError(t, err)
 	timetable, err := owners.TimetableWiring(testpkg.NewDatabase(t, db), people, slog.Default())
@@ -72,11 +74,11 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		func(string, time.Duration, int64, int64, time.Duration, string, error) {},
 		owners.Workforce,
 		owners.WorkforceWiring(testpkg.NewDatabase(t, db)),
-		func(services.DataImportObservation) {},
 		nil,
 		services.FileStorageWiring{},
 		identity,
 		people,
+		platform,
 		presence,
 		timetable,
 		carePlanWiring,

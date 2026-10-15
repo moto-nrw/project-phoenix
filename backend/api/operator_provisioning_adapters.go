@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -32,8 +32,22 @@ type operatorPersonStudents interface {
 	OperatorPersonStudentMembership(ctx context.Context, personIDs []int64) (map[int64]bool, error)
 }
 
+// provisioningPersonRows are the person reads and writes of a person's
+// deletion.
+type provisioningPersonRows interface {
+	FindByID(ctx context.Context, id any) (*userModels.Person, error)
+	UnlinkFromRFIDCard(ctx context.Context, personID int64) error
+	UnlinkFromAccount(ctx context.Context, personID int64) error
+	AnonymizeAndSoftDelete(ctx context.Context, personID int64) error
+}
+
+// provisioningStaffRows reads the staff row of a person.
+type provisioningStaffRows interface {
+	FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
+}
+
 // OperatorProvisioningDependencies are the owner capabilities and retained
-// repositories the Organisation & Tenancy provisioning seams (#3253) bind to.
+// rows the Organisation & Tenancy provisioning seams (#3253) bind to.
 type OperatorProvisioningDependencies struct {
 	// PersonStudents marks which persons of the operator listing are
 	// students (peopleCompose.LegacyRepositoryRuntime).
@@ -41,8 +55,8 @@ type OperatorProvisioningDependencies struct {
 	Devices        devicefleet.Capability
 	Persons        peopledirectory.Query
 	Membership     schoolmembership.Query
-	PersonRepo     userModels.PersonRepository
-	StaffRepo      userModels.StaffRepository
+	PersonRows     provisioningPersonRows
+	StaffRows      provisioningStaffRows
 	Accounts       accountEmailQuery
 	ActiveGroups   interface {
 		FindActiveByDeviceIDWithNames(ctx context.Context, deviceID int64) (*studentpresence.SessionDetail, error)
@@ -51,7 +65,7 @@ type OperatorProvisioningDependencies struct {
 		FindActiveByStaffID(ctx context.Context, staffID int64) ([]*studentpresence.GroupSupervision, error)
 	}
 	Categories OperatorCategoryCreator
-	AuditLog   platformModels.OperatorAuditLogRepository
+	AuditLog   operatorAuditEntries
 }
 
 // OperatorProvisioningAdapters bind the provisioning seams to the retained
@@ -68,8 +82,8 @@ type OperatorProvisioningAdapters struct {
 
 // NewOperatorProvisioningAdapters binds the provisioning seams.
 func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (OperatorProvisioningAdapters, error) {
-	if deps.PersonStudents == nil || deps.Devices == nil || deps.Persons == nil || deps.Membership == nil || deps.PersonRepo == nil ||
-		deps.StaffRepo == nil || deps.Accounts == nil || deps.ActiveGroups == nil || deps.Supervisors == nil ||
+	if deps.PersonStudents == nil || deps.Devices == nil || deps.Persons == nil || deps.Membership == nil || deps.PersonRows == nil ||
+		deps.StaffRows == nil || deps.Accounts == nil || deps.ActiveGroups == nil || deps.Supervisors == nil ||
 		deps.Categories == nil || deps.AuditLog == nil {
 		return OperatorProvisioningAdapters{}, errors.New("operator provisioning adapters: all dependencies are required")
 	}
@@ -77,8 +91,8 @@ func NewOperatorProvisioningAdapters(deps OperatorProvisioningDependencies) (Ope
 		Devices: provisioningDevices{devices: deps.Devices},
 		People: provisioningPeople{
 			persons: deps.Persons, membership: deps.Membership, childQuota: schoolMembershipCompose.NewChildQuotaCounts(),
-			personRepo: deps.PersonRepo,
-			staffRepo:  deps.StaffRepo, accounts: deps.Accounts, students: deps.PersonStudents,
+			personRows: deps.PersonRows,
+			staffRows:  deps.StaffRows, accounts: deps.Accounts, students: deps.PersonStudents,
 		},
 		Presence:            provisioningPresence{groups: deps.ActiveGroups, supervisors: deps.Supervisors},
 		Categories:          provisioningCategories{categories: deps.Categories},
@@ -188,8 +202,8 @@ type provisioningPeople struct {
 	persons    peopledirectory.Query
 	membership schoolmembership.Query
 	childQuota schoolmembership.ChildQuotaCounts
-	personRepo userModels.PersonRepository
-	staffRepo  userModels.StaffRepository
+	personRows provisioningPersonRows
+	staffRows  provisioningStaffRows
 	accounts   accountEmailQuery
 	students   operatorPersonStudents
 }
@@ -261,7 +275,7 @@ func operatorPersonIDs(persons []peopledirectory.Person) ([]int64, []int64) {
 // FindPerson reads one non-deleted person of any school. The administrative
 // context carries no tenant, so the repository's tenant filter is a no-op.
 func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizationCompose.ProvisioningPerson, bool, error) {
-	person, err := p.personRepo.FindByID(ctx, id)
+	person, err := p.personRows.FindByID(ctx, id)
 	if userModels.IsRepositoryNoRows(err) {
 		return organizationCompose.ProvisioningPerson{}, false, nil
 	}
@@ -274,7 +288,7 @@ func (p provisioningPeople) FindPerson(ctx context.Context, id int64) (organizat
 }
 
 func (p provisioningPeople) FindStaff(ctx context.Context, personID int64) (organizationCompose.StaffMember, bool, error) {
-	staff, err := p.staffRepo.FindByPersonID(ctx, personID)
+	staff, err := p.staffRows.FindByPersonID(ctx, personID)
 	if err != nil || staff == nil {
 		return organizationCompose.StaffMember{}, false, err
 	}
@@ -282,15 +296,15 @@ func (p provisioningPeople) FindStaff(ctx context.Context, personID int64) (orga
 }
 
 func (p provisioningPeople) UnlinkRFIDCard(ctx context.Context, personID int64) error {
-	return p.personRepo.UnlinkFromRFIDCard(ctx, personID)
+	return p.personRows.UnlinkFromRFIDCard(ctx, personID)
 }
 
 func (p provisioningPeople) UnlinkAccount(ctx context.Context, personID int64) error {
-	return p.personRepo.UnlinkFromAccount(ctx, personID)
+	return p.personRows.UnlinkFromAccount(ctx, personID)
 }
 
 func (p provisioningPeople) AnonymizeAndSoftDelete(ctx context.Context, personID int64) error {
-	return p.personRepo.AnonymizeAndSoftDelete(ctx, personID)
+	return p.personRows.AnonymizeAndSoftDelete(ctx, personID)
 }
 
 // --- Student Presence --------------------------------------------------------
@@ -361,7 +375,7 @@ func (c provisioningCategories) SeedCategories(ctx context.Context, tenantID int
 // --- Audit -------------------------------------------------------------------
 
 type provisioningAudit struct {
-	log platformModels.OperatorAuditLogRepository
+	log operatorAuditEntries
 }
 
 func (a provisioningAudit) RecordOperatorAction(ctx context.Context, entry organizationCompose.OperatorAuditEntry) error {

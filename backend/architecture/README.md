@@ -558,8 +558,7 @@ transaction or JWT read: those live in the owner compositions or arrive as
 built values from the root. The `bun`, `tenant` and `sessiontoken`
 (`legacy/jwt` before #3487) keys remain,
 because the builders that compose several owners over one database
-(`services/*_roots.go`, `command_roots.go`, `cleanup_composition.go`,
-`factory.go`) and the test hooks still need them. The Factory still exists.
+(`services/*_roots.go`, `factory.go`) and the test hooks still need them. The Factory still exists.
 [ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
 decides where that code goes: an owner's composition builds its own owner,
 and the typed roots compose the owners. #4001 grants the standing reaches in
@@ -633,6 +632,38 @@ builds arrive as constructors. The root builds the form schemas, the captcha
 and the phase expiry warnings where it mounts them, so three Factory fields
 fall and the composition surface goes from 237 to 234 (see
 [Enrollment wiring out of services](#enrollment-wiring-out-of-services-4012)).
+
+#4013 moved the platform, Communication, Organisation & Tenancy and command
+wiring out of `services`, again without a key or a new rule. Delivery's
+composition builds what binds Delivery to Delivery: the mail and push
+provider, the push authorization, the expired-subscription cleanup and the
+durable e-mail store (`MailPushProvider`, `NewDurableEmails`). The Audit
+composition reads the ambient transaction of its producers itself
+(`NewTenantPersistence` for the service graph, `NewHandoffPersistence` for
+the cleanup command, `NewObservedCommand`); the switch over `bun` transaction
+types lives in its Postgres adapter (`NewHandoffRuntime`), so no composition
+picks a transaction out of the context. The root builds the rest
+(`api.NewPlatformWiring`) and hands it to `NewFactoryWithModules` as
+`services.PlatformWiring`: the school settings store, the operator ledger, the
+parent-portal stores, the unobserved Device Fleet and the list renderer as
+values, and the Audit, Delivery and provisioning adapters over values the
+Factory composes as constructors. It builds the Data Import and the database
+statistics where it mounts them and reads the schools and the announcements
+from the owners it composed, so the Factory fields `Schools`, `Announcement`,
+`ListExport`, `Database`, `DatabaseStatsCapabilities`, `Import`,
+`StaffImport`, `ClassListImport` and `OpeningBalanceImport`, the
+`observeDataImport` parameter and three Factory methods are gone (composition
+surface 237 → 228). The cleanup command composes its sweeps in
+`cmd/cleanup_roots.go`; what its suites share (`NewCleanupAuditCommand`,
+`NewRetentionCleanupRepositories`, `NewSessionCleanupRepositories`) is a root
+function in `api`. `OutboxEnqueuer` and the retained-error helpers stay with
+their callers in `services`. Three rules that allowed no import any more are
+deleted (1,431 → 1,428). `services` keeps 136 of 156 production files (19,108
+of 21,330 LOC). The settings, the realtime hub, the Audit command, Delivery,
+the File Storage module, the operator provisioning and the messaging
+services stay Factory fields: the Factory builds them over values only it
+composes, or the root builders of the other slices read them through
+`*services.Factory`.
 
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of

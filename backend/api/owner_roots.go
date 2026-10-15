@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -27,22 +27,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/uptrace/bun"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// The roots below build owners from the database. Most forward to one owner
-// composition for callers outside this package that may not import it: the
-// serving root, the demo process, the CLI roots and other owners' test
-// graphs. NewParentPortalRepositories builds the stores of several owners
-// over the database, so no single owner composition can host it. They leave
-// with the composition root (#2747).
+// The roots below build owners from the database for the CLI roots, the
+// legacy service graph and the test graphs. NewParentPortalRepositories
+// builds the stores of several owners over the database, so no single owner
+// composition can host it (#4013).
 
-// NewOrganizationTenancy composes the school owner behind the legacy
-// composition seam. Consumers should depend on a narrow projection instead
-// of importing the module's compose package themselves.
-func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) {
+// NewOrganizationTenancy composes the school owner, unobserved.
+func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy.Capability, error) {
 	return organizationCompose.New(organizationCompose.Dependencies{
-		DB:      db,
+		DB:      db.Pool(),
 		Observe: func(organizationCompose.Observation) {},
 	})
 }
@@ -50,43 +46,44 @@ func NewOrganizationTenancy(db *bun.DB) (organizationtenancy.Capability, error) 
 // NewOperatorAuditLog composes the operator ledger over the Audit handoff on
 // the context, with the root database as the fallback, for the roots that
 // record operator actions.
-func NewOperatorAuditLog(db *bun.DB) platform.OperatorAuditLogRepository {
-	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db}).OperatorAuditLog)
+func NewOperatorAuditLog(db transactionruntime.Database) platform.OperatorAuditLogRepository {
+	return NewOperatorAuditLogFromEntries(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).OperatorAuditLog)
 }
 
 // NewParentPortalRepositories builds the retained guardian-portal and
 // messaging repositories with the People Directory, School Membership,
 // School Structure, Identity & Access and Enrollment reads bound. The school
 // names are bound by WithSchools.
-func NewParentPortalRepositories(db *bun.DB, owners ParentPortalOwners) ParentPortalRepositories {
-	identity := owners.Identity
+func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPortalOwners) ParentPortalRepositories {
+	pool, identity := db.Pool(), owners.Identity
 	members := ParentStaffMembers{Membership: owners.Membership}.List
 	// The staff accounts are loaded from the person rows.
 	persons := NewPersonRepository(db)
+	groupNames := parentGroupNames{groups: owners.Groups}.list
 	return ParentPortalRepositories{
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
-			DB: db, Directory: ParentPortalDirectory{People: owners.People},
+			DB: pool, Directory: ParentPortalDirectory{People: owners.People},
 			AccountSchools: identity.ListActiveAccountSchoolIDs,
 			Phases:         owners.Enrollment, Applications: owners.Enrollment,
 			Accounts: IdentityAccountDirectory{Accounts: identity},
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
-			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(db, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),
-			ParentMessageThread: parentStore.NewParentMessageThreadRepository(db, peopleCompose.NewMessageableGuardians(db, identity.FindActiveSchoolMemberships)),
+			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),
+			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
-				parentStore.NewStaffParentMessageReadRepository(db, members, persons), parentGroupNames{groups: owners.Groups}.list),
-			StaffMessageRead: staffStore.NewStaffMessageReadRepository(db, peopleCompose.NewMessageableStaff(db,
+				parentStore.NewStaffParentMessageReadRepository(pool, members, persons), groupNames),
+			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, peopleCompose.NewMessageableStaff(pool,
 				parentStore.CurrentTenantStaffAccounts(members, persons), StaffMessageIdentity(identity))),
 		},
 	}
 }
 
-// NewDeviceFleet composes the device owner behind the legacy composition seam
-// for graphs that do not record observations and never serve the info-point
-// dashboard. Production roots compose the module themselves (api/base.go) so
-// runtime evidence and the dashboard collaborators are kept.
-func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
-	rooms, err := facilitiesCompose.NewUnobserved(db)
+// NewDeviceFleet composes the device owner for graphs that do not record
+// observations and never serve the info-point dashboard. The serving root
+// composes the observed module where it mounts the IoT routes, so runtime
+// evidence and the dashboard collaborators are kept.
+func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
+	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +92,7 @@ func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Dura
 		onlineWindow = onlineWindows[0]
 	}
 	return devicefleetCompose.New(devicefleetCompose.Dependencies{
-		DB:           db,
+		DB:           db.Pool(),
 		Rooms:        rooms,
 		OnlineWindow: onlineWindow,
 		Observe:      func(devicefleetCompose.Observation) {},
@@ -104,12 +101,13 @@ func NewDeviceFleet(db *bun.DB, onlineWindows ...func(context.Context) time.Dura
 
 // NewPersonRepository is the person repository with the Identity & Access
 // account lookup FindWithAccount attaches (#2720).
-func NewPersonRepository(db *bun.DB) userModels.PersonRepository {
-	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db, Observe: func(identityaccessCompose.Observation) {}})
+func NewPersonRepository(db transactionruntime.Database) userModels.PersonRepository {
+	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
 		panic(fmt.Sprintf("compose identity access: %v", err))
 	}
-	return peopleCompose.NewPersonRepository(db, accountLookup(identity))
+	persons := peopleCompose.NewPersonRepository(db.Pool(), accountLookup(identity))
+	return persons
 }
 
 // accountLookup adapts the owner's by-id read to the People Directory
@@ -130,11 +128,10 @@ func accountLookup(accounts identityaccess.AccountProfiles) peopleCompose.Accoun
 
 // Identity & Access owns auth.accounts, platform.operators and the operator
 // refresh sessions. The legacy repositories that used to join or select
-// those tables declare the narrow fact they need and the factory binds it
-// at construction to the owner (#2720): the parent dashboard reads the
-// account's address through the public capability, the People Directory
-// repositories filter or attach accounts through the owner's queries, and
-// the retained operator repository contracts are adapters over the module.
+// those tables declare the narrow fact they need and the root binds it at
+// construction to the owner (#2720): the parent dashboard reads the
+// account's address through the public capability, and the People Directory
+// repositories filter or attach accounts through the owner's queries.
 
 // IdentityAccountDirectory adapts the public account lookup to the parent
 // enrollment repository's directory port.

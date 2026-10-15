@@ -1,8 +1,7 @@
-package services
+package api
 
-// The suites that compose the factory through the typed root are external
-// tests: the root imports this package. These names hand them the internal
-// adapters they pin.
+// The operator provisioning suites pin the identity adapter the root binds
+// provisioning over (#3253).
 
 // ProvisioningIdentityForTest is the operator provisioning's identity adapter.
 type ProvisioningIdentityForTest = provisioningIdentity

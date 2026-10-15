@@ -34,12 +34,12 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
-	persons := services.NewPersonRepository(db.Pool())
+	persons := NewPersonRepository(db)
 	return ParentMessagingTestRepositories{
 		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), NewMessageableGuardianRepository(db)),
 		Message: parentStore.NewParentMessageRepository(db.Pool()),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the factory binds them.
-		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), services.ParentStaffMembers{Membership: membership}.List, persons),
+		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), ParentStaffMembers{Membership: membership}.List, persons),
 	}, nil
 }
