@@ -104,6 +104,12 @@ func marketingStaff() []marketingStaffMember {
 
 // marketingFamilies lists one contact per family. The first family has two
 // children, so one parent account shows two children in the parents portal.
+// Fixed selection: six German and six migrant-background child names familiar
+// in Germany. These are fictional families, not inferred personal attributes.
+// Sources: https://gfds.de/ausfuehrliche-auswertung-vornamen-2018/
+// https://gfds.de/vornamen/familiennamen/
+// https://de.wikipedia.org/wiki/Liste_der_häufigsten_Familiennamen_in_Deutschland
+// https://www.degruyterbrill.com/document/doi/10.1515/zgl-2024-2020/html
 func marketingFamilies() []marketingFamily {
 	return []marketingFamily{
 		{firstName: "Sarah", lastName: "Yilmaz", phone: "+49 151 23450101", parentAccount: true, children: []marketingChild{
@@ -119,14 +125,14 @@ func marketingFamilies() []marketingFamily {
 		{firstName: "Julia", lastName: "Wagner", phone: "+49 151 23450104", parentAccount: true, children: []marketingChild{
 			{firstName: "Mia", lastName: "Wagner", class: "Klasse 4a", birthday: "2016-11-30", group: "fuchsbau", presence: marketingPickedUp},
 		}},
-		{firstName: "Markus", lastName: "Schulz", phone: "+49 151 23450105", children: []marketingChild{
-			{firstName: "Ben", lastName: "Schulz", class: "Klasse 2b", birthday: "2018-04-17", group: "eulennest", presence: marketingPresent},
+		{firstName: "Marta", lastName: "Nowak", phone: "+49 151 23450105", children: []marketingChild{
+			{firstName: "Ben", lastName: "Nowak", class: "Klasse 2b", birthday: "2018-04-17", group: "eulennest", presence: marketingPresent},
 		}},
 		{firstName: "Nadine", lastName: "Krüger", phone: "+49 151 23450106", children: []marketingChild{
 			{firstName: "Emma", lastName: "Krüger", class: "Klasse 3b", birthday: "2017-07-25", group: "fuchsbau", presence: marketingPresent},
 		}},
-		{firstName: "Daniel", lastName: "Weber", phone: "+49 151 23450107", children: []marketingChild{
-			{firstName: "Noah", lastName: "Weber", class: "Klasse 1a", birthday: "2019-02-11", group: "eulennest", presence: marketingPresent},
+		{firstName: "Esra", lastName: "Kaya", phone: "+49 151 23450107", children: []marketingChild{
+			{firstName: "Noah", lastName: "Kaya", class: "Klasse 1a", birthday: "2019-02-11", group: "eulennest", presence: marketingPresent},
 		}},
 		{firstName: "Katharina", lastName: "Lehmann", phone: "+49 151 23450108", children: []marketingChild{
 			{firstName: "Lea", lastName: "Lehmann", class: "Klasse 4b", birthday: "2016-05-08", group: "fuchsbau", presence: marketingNotArrived},
@@ -137,8 +143,8 @@ func marketingFamilies() []marketingFamily {
 		{firstName: "Aylin", lastName: "Demir", phone: "+49 151 23450110", children: []marketingChild{
 			{firstName: "Mira", lastName: "Demir", class: "Klasse 3a", birthday: "2017-12-19", group: "fuchsbau", presence: marketingPickedUp},
 		}},
-		{firstName: "Christina", lastName: "Neumann", phone: "+49 151 23450111", children: []marketingChild{
-			{firstName: "Theo", lastName: "Neumann", class: "Klasse 1b", birthday: "2019-08-27", group: "eulennest", presence: marketingNotArrived},
+		{firstName: "Linh", lastName: "Nguyen", phone: "+49 151 23450111", children: []marketingChild{
+			{firstName: "Theo", lastName: "Nguyen", class: "Klasse 1b", birthday: "2019-08-27", group: "eulennest", presence: marketingNotArrived},
 		}},
 	}
 }
