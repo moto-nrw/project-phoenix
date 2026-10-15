@@ -437,6 +437,50 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *
 	assert.ErrorIs(t, err, os.ErrNotExist)
 }
 
+// fixedSickNoteWindow is the school's sick note retention window in days.
+type fixedSickNoteWindow int
+
+func (w fixedSickNoteWindow) ResolveInt(context.Context, string) (int, error) { return int(w), nil }
+
+// An expired sick note leaves through the nightly retention (#3961), and the
+// staff document file sweep removes its file afterwards.
+func TestStaffDocumentsAPI_SickNoteRetentionRemovesTheFileThroughTheSweep(t *testing.T) {
+	t.Parallel()
+	c := setupDocumentsAPI(t)
+	rec := c.upload(t, "au_bescheinigung", "au-alt.pdf", fakePDF, "staff_documents:health")
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	docID, _ := uploadedDocument(t, rec.Body.Bytes())
+
+	ctx := testpkg.Ctx(t)
+	var storedName string
+	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	_, err := os.Stat(filePath)
+	require.NoError(t, err, "the upload stored the file")
+	_, err = c.tc.db.ExecContext(ctx, `UPDATE users.staff_documents SET created_at = NOW() - INTERVAL '400 days' WHERE id = ?`, docID)
+	require.NoError(t, err)
+
+	retention := workforceCompose.NewSickNoteRetention(fixedSickNoteWindow(365))
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, c.tc.db, testpkg.Tenant(t), func(txCtx context.Context) error {
+		deleted, days, err := retention.DeleteExpiredStaffSickNotes(txCtx)
+		assert.Equal(t, 1, deleted)
+		assert.Equal(t, 365, days)
+		return err
+	}))
+	t.Cleanup(func() {
+		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
+	})
+	var remaining int
+	require.NoError(t, c.tc.db.NewRaw(`SELECT COUNT(*) FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &remaining))
+	require.Zero(t, remaining, "the sick note row is gone")
+
+	removed, err := c.tc.resource.CleanupOrphanedStaffDocumentFiles(ctx)
+	require.NoError(t, err)
+	assert.GreaterOrEqual(t, removed, 1)
+	_, err = os.Stat(filePath)
+	assert.ErrorIs(t, err, os.ErrNotExist, "the sweep removed the file of the deleted sick note")
+}
+
 func TestStaffDocumentsAPI_FileValidation(t *testing.T) {
 	t.Parallel()
 	c := setupDocumentsAPI(t)

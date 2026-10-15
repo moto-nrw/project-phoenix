@@ -38,3 +38,19 @@ func (s *Store) DeleteCompletedOffboardingCleanups(ctx context.Context, before t
 	}
 	return int(rows), nil
 }
+
+// DeleteStaffSickNotesUploadedBefore goes through the database function of
+// 1.15.453: the tenant role has no DELETE on staff documents, and the
+// function deletes only sick notes of the transaction's school and queues
+// their files in the staff document file cleanup.
+func (s *Store) DeleteStaffSickNotesUploadedBefore(ctx context.Context, before time.Time) (int, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	if err := db.NewRaw(`SELECT users.delete_expired_staff_sick_notes(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+		return 0, fmt.Errorf("workforce postgres: delete expired staff sick notes: %w", err)
+	}
+	return int(deleted), nil
+}

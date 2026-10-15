@@ -14,7 +14,7 @@ Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startze
 
 ## Fachliche Daten (je Schule, operator_managed)
 
-Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellungen sind begründete Praxis nach der [Recherche](../research/aufbewahrungsfristen-2026-10-12.md) (Abschnitte 1 bis 6) und vom Verantwortlichen im Vertrag zu bestätigen. Ausnahme: Zeiterfassung mindestens 2 Jahre nach § 16 Abs. 2 ArbZG.
+Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellungen sind begründete Praxis nach der [Recherche](../research/aufbewahrungsfristen-2026-10-12.md) (Abschnitte 1 bis 6) und vom Verantwortlichen im Vertrag zu bestätigen. Ausnahme: Zeiterfassung mindestens 2 Jahre nach § 16 Abs. 2 ArbZG. AU-Bescheinigungen sind Gesundheitsdaten (Art. 9 DSGVO); ein Jahr deckt die Zwölf-Monats-Frist für eine erneute Arbeitsunfähigkeit wegen derselben Krankheit (§ 3 Abs. 1 S. 2 Nr. 2 EFZG).
 
 | Datenart | Einstellung | Voreinstellung | Rahmen | Startzeitpunkt | Owner | Stand |
 |---|---|---|---|---|---|---|
@@ -27,11 +27,11 @@ Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellun
 | App-Nutzung (Startbildschirm) | `gdpr.pwa_usage_retention_days` | 90 Tage | 30 bis 365 Tage | letzte Nutzung | Delivery | umgesetzt |
 | Rückmeldungen | `feedback.data_retention_days` | 90 Tage | 7 bis 365 Tage | Eingang | Feedback | umgesetzt |
 | Abgelehnte Anmeldungen | `enrollment.rejected_retention_days` | 90 Tage | 7 bis 730 Tage | Ablehnung | Enrollment | umgesetzt |
+| Erledigte Anmeldungen ohne Kind (zurückgezogen, verfallen) samt Einladungen zur Nachmeldung | `gdpr.withdrawn_enrollment_retention_days` | 90 Tage | 30 bis 365 Tage | Erledigung; Einladung: Ablauf oder Einlösung | Enrollment | umgesetzt (#3960) |
 | Zeiterfassung (Stempelzeiten, Pausen, Abwesenheiten) | `gdpr.time_tracking_retention_days` | 2 Jahre | 2 bis 8 Jahre | Arbeitstag | Workforce | umgesetzt |
+| AU-Bescheinigungen (samt Datei) | `gdpr.staff_sick_note_retention_days` | 365 Tage | 90 Tage bis 3 Jahre | Hochladen | Workforce | umgesetzt (#3961) |
 | Tagesanwesenheit | geplant | 365 Tage | 30 Tage bis 3 Jahre | Betreuungstag | Student Presence | offen (#3957) |
-| Erledigte Anmeldungen ohne Kind | geplant | 90 Tage | 30 bis 365 Tage | Erledigung | Enrollment | offen (#3960) |
 | Kinder nach Austritt (vollständig) | geplant | 365 Tage | 30 Tage bis 3 Jahre | letzter Betreuungstag | People Directory, Workflow Kinderlöschung | offen (#3962) |
-| AU-Bescheinigungen | geplant | 365 Tage | 90 Tage bis 3 Jahre | Hochladen | Workforce | offen (#3961) |
 | Ausgetretenes Personal | Zeiterfassungsfrist | wie Zeiterfassung | wie Zeiterfassung | Personalaustritt | Workforce, Workflow Personalaustritt | offen (#3963) |
 
 Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule selbst ein. Den Schalter `gdpr.data_cleanup_enabled` ändert nur das moto-Team (#3951).
@@ -52,13 +52,18 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 | Erledigte Austrittsaufträge für Personal | 30 Tage | Abschluss des Auftrags | Workforce | Der Auftrag behält nur die Personal-ID; wie oben | umgesetzt (#4046) |
 | Abgeschlossene Betreuungsabmeldungen | 365 Tage | Abschluss (erledigt oder hinfällig) | Care Plan | Die Abschluss-Historie zeigt das letzte Jahr; offene Abmeldungen bleiben, bis die Schule sie abschließt | umgesetzt (#4046) |
 | Anmelde-Ratenbegrenzung (IP-Adresse oder E-Mail) | 1 Tag | Beginn des Zählfensters | Enrollment | Das längste Zählfenster ist 24 Stunden; danach zählt der Eintrag nichts mehr | umgesetzt (#4046) |
+| Nachweise über Löschungen: gelöschte Kinder, gelöschte und wiederhergestellte Anmeldungen, gelöschte Einträge der Zeiterfassung | 3 Jahre | Löschung bzw. Wiederherstellung | Audit Platform | Nachweis wie das Löschprotokoll (BayLDA: bis 3 Jahre) | umgesetzt (#4044) |
+| Änderungsprotokolle: Personaldaten, Personalnummern, Zahlungsdaten der Eltern | 3 Jahre | Änderung | Audit Platform | Regelverjährung (§ 195 BGB) für Streit um Lohn oder Lastschrift; Lohnkonto und Belege führt der Träger in seinem System (ADR 0048 Nr. 5) | umgesetzt (#4044) |
+| Einstellungsprotokoll | 3 Jahre | Änderung | Settings Platform | Weist nach, wer eine Löschfrist oder andere Einstellung eingetragen hat (ADR 0048, Folgen); so lange wie das Löschprotokoll | umgesetzt (#4044) |
+| Betriebsprotokolle: Klassenlisten-Abgleich, Vertretungen, Ereignisse der Dateiablage | Ende des Folgejahres | Ereignis | Audit Platform | Wer hat wann was zugeordnet oder hochgeladen; gleiche Regel wie das Zugriffsprotokoll | umgesetzt (#4044) |
+| Exportprotokoll (Übertragung per SFTP) | Ende des Folgejahres | Übertragung | Export Transfer | Eine Übertragung ist eine Übermittlung; gleiche Regel wie das Zugriffsprotokoll | umgesetzt (#4044) |
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 24 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 12 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
 
 - **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`), Operator-Konten des moto-Teams.
-- **Weitere Protokolle:** Klassenlisten-Abgleich, Anmeldungs-Löschungen und -Wiederherstellungen, Exporte, Datei-Ereignisse, Änderungen an Finanz-, Personalnummer- und Personaldaten, Kinderlöschungen, Vertretungen, Zeiterfassungs-Löschungen, Einstellungsprotokoll, Operator-Protokoll mit IP-Adresse.
+- **Weitere Protokolle:** Operator-Protokoll mit IP-Adresse.
 - **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.
 - **Technische Reste:** Demo-Besucher.
 
@@ -67,6 +72,9 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 ## Grenzen und Sonderfälle
 
 - **Angenommene Anmeldungen** haben keine eigene Frist; sie gehen mit dem Kind (#3962).
+- **Erledigte Anmeldungen ohne Kind** (#3960): Zurückgezogen hat sie ein Elternteil (oder die Schule hat eine Verlängerung gestrichen), verfallen ist eine Verlängerung, die bis zur Frist nicht bestätigt wurde. Zweck entfällt mit der Erledigung; 90 Tage decken Rückfragen danach ab. Erledigung ist der letzte Statuswechsel des Kindes. Hat eine Anmeldung zurückgezogene und abgelehnte Kinder, geht sie erst, wenn beide Fristen abgelaufen sind; ganz abgelehnte Anmeldungen löscht weiter der Lauf für abgelehnte Anmeldungen. Wie dort sagt moto noch geplante Mails der Anmeldung ab; die Mail-Warteschlange löscht sie 30 Tage nach der Absage (siehe Technische Daten). Jede gelöschte Anmeldung steht zusätzlich in `audit.enrollment_deletions`. Eine Anmeldung, aus der ein Kind angelegt wurde, bleibt. Eine verfallene oder gestrichene Verlängerung bleibt außerdem, bis die Betreuungsphase des bisherigen Kindes endet: Bis dahin zeigt nur sie, dass die Familie nicht verlängert hat, sonst warnt moto zum Schuljahresende wieder vor einem unentschiedenen Kind.
+- **Einladungen zur Nachmeldung** (`enrollment.late_invites`, #3960): Eine eingelöste Einladung geht mit ihrer Anmeldung. Eine nicht eingelöste geht nach derselben Frist ab ihrem Ablauf.
+- **AU-Bescheinigungen** (#3961): Der nächtliche Lauf löscht die Zeile samt Dateinamen und legt die Datei in die Warteschlange `users.staff_document_file_cleanup`. Der Aufräumlauf für Personaldokumente prüft die Warteschlange alle fünf Minuten und entfernt die Datei. Eine schon von der Schule gelöschte AU-Bescheinigung verliert nach der Frist auch ihre Zeile. Die Einträge im Änderungsprotokoll der Personaldaten (`audit.staff_master_data_changes`, Dateiname beim Hochladen und Löschen) bleiben nach dessen fester Frist von 3 Jahren (#4044).
 - **Andere Personaldokumente** haben keine laufende Frist; sie werden beim Personalaustritt entfernt.
 - **Offene Anfragen** in Elternnachrichten bleiben, solange die OGS sie nicht entschieden hat. Danach gilt die normale Frist ab Versand, eine entschiedene alte Anfrage geht also beim nächsten Lauf.
 - **Willkommensmail für Eltern** (#3534): Sie geht je Schule nur einmal an einen Elternkontakt. Damit das nach der Löschfrist so bleibt, löscht der nächtliche Lauf diesen Eintrag der Mail-Warteschlange nicht, sondern leert die Verbindung zum Elternkontakt, Empfänger, Inhalt und Antwort des Mailservers. Übrig bleibt nur der Schlüssel `guardian_welcome:<ID des Elternkontakts>` mit Status und Zeitstempeln (#3955).
@@ -74,4 +82,6 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 - **Essens-Krankhistorie** (`schedule.meal_sickness_status_history`): Grundlage der Essensabrechnung. Sie speichert Krank-Tage ein zweites Mal und hat noch keine Frist. Die Fristlöschung der Krank-Tage schreibt bewusst keine neue Zeile hinein (#3958).
 - **Markierungen der Migration 1.15.428** (`auth.parent_declaration_permission_grants`): Sie dienen nur deren Rücknahme und gehen seit 1.15.449 mit der Beziehung zwischen Kind und Elternteil. Markierungen ohne Beziehung hat die Migration entfernt (#4046).
 - **Betreuungsabmeldungen eines gelöschten Kindes** behalten bis zum Ablauf der Frist nur „Gelöschtes Kind“ und die Konten, die bestätigt und abgeschlossen haben (#2547).
+- **Fachliche Protokolle** (#4044): Jedes Protokoll steht mit eigener Datenart im Löschprotokoll. Die Audit-Tabellen bleiben für die Schule unveränderbar; gelöscht wird nur über feste Funktionen in der Datenbank (Migration 1.15.454), die eine Grenze jünger als die Frist ablehnen. Das Einstellungsprotokoll löscht die Schule über ihre normale Datenbankrolle. Wird ein Konto gelöscht, bleibt seine Einstellungsänderung stehen und verliert nur, wer sie gemacht hat; vorher verhinderte der Eintrag das Löschen des Kontos.
+- **Gelöschte Einträge der Zeiterfassung** (`audit.time_tracking_deletions`) behalten den gelöschten Eintrag als Kopie. Sie gehen nach 3 Jahren, auch wenn die Schule ihre Zeiterfassung länger aufbewahrt.
 - **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).

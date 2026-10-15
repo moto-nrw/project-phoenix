@@ -13,8 +13,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	"github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -27,18 +30,23 @@ import (
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
 // the Device Fleet owner, the Care Plan status days, the parent messages, the
-// delivery data and the technical remains of #4046.
+// staff sick notes, the settled enrollments, the delivery data, the technical
+// remains of #4046 and the setting protocol and export journal of #4044.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
 	UnregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	StatusDays           careplan.StudentStatusDayRetention
 	ParentMessages       communication.ParentMessageCleanup
+	StaffSickNotes       workforce.SickNoteRetention
+	SettledEnrollments   enrollment.SettledEnrollmentRetention
 	Deliveries           delivery.Retention
 	FileCleanups         filestorage.CleanupRetention
 	StaffCleanups        workforce.CleanupRetention
 	CarePlanCleanups     careplan.CleanupRetention
 	SubmissionLimits     enrollment.SubmissionRateLimitRetention
+	SettingAudit         settingsModule.AuditRetention
+	ExportTransfers      exporttransfer.JournalRetention
 }
 
 // NewRetentionTestOwners composes the retention owners over db; unit is the
@@ -64,13 +72,48 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if !ok {
 		return RetentionTestOwners{}, errors.New("care plan does not delete expired status days")
 	}
+	enrollments, err := newSettledEnrollmentTestRetention(db, settings.Settings)
+	if err != nil {
+		return RetentionTestOwners{}, err
+	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
-		ParentMessages:   communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
-		Deliveries:       deliveryCompose.NewRetention(),
-		FileCleanups:     filestorageCompose.NewCleanupRetention(),
-		StaffCleanups:    workforceCompose.NewCleanupRetention(),
-		CarePlanCleanups: carePlanCompose.NewCleanupRetention(),
-		SubmissionLimits: enrollmentCompose.New(),
+		ParentMessages:     communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
+		StaffSickNotes:     workforceCompose.NewSickNoteRetention(settings.Settings),
+		SettledEnrollments: enrollments,
+		Deliveries:         deliveryCompose.NewRetention(),
+		FileCleanups:       filestorageCompose.NewCleanupRetention(),
+		StaffCleanups:      workforceCompose.NewCleanupRetention(),
+		CarePlanCleanups:   carePlanCompose.NewCleanupRetention(),
+		SubmissionLimits:   enrollmentCompose.New(),
+		SettingAudit:       settingsCompose.NewAuditRetention(),
+		ExportTransfers:    exportTransferCompose.NewJournalRetention(),
 	}, nil
+}
+
+// newSettledEnrollmentTestRetention composes the cleanup of settled
+// enrollments as the service graph does: the Enrollment deletion module over
+// the owner, the People Directory guardians, the audited adjustments and
+// deletions, Care Plan's bookings and the Delivery outbox.
+func newSettledEnrollmentTestRetention(db transactionruntime.Database, settings settingsCompose.BatchSettingsService) (enrollment.SettledEnrollmentRetention, error) {
+	repos, err := NewEnrollmentFlowTestRepositories(db)
+	if err != nil {
+		return nil, err
+	}
+	people, err := NewPeopleDirectory(db)
+	if err != nil {
+		return nil, err
+	}
+	deliveries, err := NewEnrollmentFlowDelivery(db)
+	if err != nil {
+		return nil, err
+	}
+	return NewEnrollmentDeletionModule(EnrollmentDeletionSources{
+		Owner: repos.Enrollment(), Guardians: enrollmentGuardianDirectory{guardians: people},
+		CountAuditAdjustments: repos.EnrollmentOfferingAdjustment.CountForDeletion,
+		CountBookings:         repos.CarePlan().CountCareOfferingBookings,
+		Audit:                 repos.EnrollmentDeletionAudit,
+		Delivery:              enrollmentDeliveryAdapter{module: deliveries},
+		Settings:              settings,
+	}).Cleanup, nil
 }

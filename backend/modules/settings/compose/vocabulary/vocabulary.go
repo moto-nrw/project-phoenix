@@ -64,6 +64,7 @@ const (
 	KeyEnrollmentOfferingChangesLeadDays                = upstream.KeyEnrollmentOfferingChangesLeadDays
 	KeyEnrollmentParentCourseRequestsEnabled            = upstream.KeyEnrollmentParentCourseRequestsEnabled
 	KeyEnrollmentRejectedRetentionDays                  = upstream.KeyEnrollmentRejectedRetentionDays
+	KeyGDPRWithdrawnEnrollmentRetentionDays             = upstream.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyEnrollmentRequireCaptcha                         = upstream.KeyEnrollmentRequireCaptcha
 	KeyEnrollmentStatusTokenTTLDays                     = upstream.KeyEnrollmentStatusTokenTTLDays
 	KeyEnrollmentWaitlistEnabled                        = upstream.KeyEnrollmentWaitlistEnabled
