@@ -188,7 +188,7 @@ func (s *pickupScheduleService) UpsertBulkStudentPickupSchedulesForDate(
 		if err := s.upsertBulkSchedules(txCtx, studentID, manualRows); err != nil {
 			return err
 		}
-		if err := s.autoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+		if err := s.autoExcusal.ResyncFutureExceptions(txCtx, []int64{studentID}); err != nil {
 			return err
 		}
 		return s.autoExcusal.RecordWeeklyPickupChanges(txCtx, studentID, date, before)
@@ -219,7 +219,7 @@ func (s *pickupScheduleService) withWeeklyResync(
 		if err := write(txCtx); err != nil {
 			return err
 		}
-		if err := s.autoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
+		if err := s.autoExcusal.ResyncFutureExceptions(txCtx, []int64{studentID}); err != nil {
 			return err
 		}
 		return s.autoExcusal.RecordWeeklyPickupChanges(txCtx, studentID, today, before)

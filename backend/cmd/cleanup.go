@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 )
@@ -936,13 +936,13 @@ func forEachActiveTenant(
 	return nil
 }
 
-func printTimetableCleanupLine(output io.Writer, tenantID int64, r *services.TimetableCleanupResult) {
+func printTimetableCleanupLine(output io.Writer, tenantID int64, r *timetable.TimetableCleanupResult) {
 	mustFprintf(output, "[tenant %d] instances=%d exceptions=%d students=%d retention=%dd cutoff=%s duration_ms=%d\n",
 		tenantID, r.InstancesDeleted, r.ExceptionsDeleted, r.StudentsAffected,
 		r.RetentionDays, r.CutoffDate.Format(dateFormat), r.DurationMS)
 }
 
-func printTimetablePreviewLine(output io.Writer, tenantID int64, p *services.TimetableCleanupPreview) {
+func printTimetablePreviewLine(output io.Writer, tenantID int64, p *timetable.TimetableCleanupPreview) {
 	mustFprintf(output, "[tenant %d] would-delete instances=%d exceptions=%d students=%d retention=%dd cutoff=%s",
 		tenantID, p.InstancesToDelete, p.ExceptionsToDelete, p.StudentsAffected,
 		p.RetentionDays, p.CutoffDate.Format(dateFormat))
@@ -955,7 +955,7 @@ func printTimetablePreviewLine(output io.Writer, tenantID int64, p *services.Tim
 	mustFprintln(output)
 }
 
-func printTimetableStatsLine(output io.Writer, tenantID int64, s *services.TimetableCleanupStats) {
+func printTimetableStatsLine(output io.Writer, tenantID int64, s *timetable.TimetableCleanupStats) {
 	mustFprintf(output, "[tenant %d] instances_total=%d exceptions_total=%d retention=%dd cutoff=%s",
 		tenantID, s.TotalInstances, s.TotalExceptions,
 		s.RetentionDays, s.CutoffDate.Format(dateFormat))

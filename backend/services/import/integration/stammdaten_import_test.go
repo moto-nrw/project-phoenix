@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	importService "github.com/moto-nrw/project-phoenix/services/import"
 	"github.com/moto-nrw/project-phoenix/services/import/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -23,7 +22,7 @@ import (
 // records, both importers support update mode, and the child import carries
 // address, RFID and the guardian role preset.
 
-func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory, services.TimetableDependencies) {
+func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels.StaffInviter) (*importService.StaffImportConfig, *api.RepositoryTestFactory, api.TimetableDependencies) {
 	t.Helper()
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)

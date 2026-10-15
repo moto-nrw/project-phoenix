@@ -2,6 +2,7 @@ package compose
 
 import (
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
@@ -27,6 +28,11 @@ type (
 	// SchoolContact is the reply address of tenant-bound mail, the answer
 	// the mail identity reads from Organisation & Tenancy.
 	SchoolContact = emailoutbox.SchoolContact
+	// AbsenceNotifier and AbsenceReport carry the absences an approved
+	// excused-absence request reports to staff, for Care Plan's requests
+	// (#4011).
+	AbsenceNotifier = notifications.AbsenceNotifier
+	AbsenceReport   = notifications.AbsenceReport
 	// The mail renderers of Identity & Access, which the root binds to
 	// Delivery (#4006).
 	MailIntent       = emailoutbox.Intent
@@ -36,7 +42,32 @@ type (
 	// usage the PWA usage report reads from Organisation & Tenancy.
 	PWAUsageCounts = pwa.UsageCounts
 	PWAUsageRow    = pwa.UsageRow
+	// The opt-in mail recipients of a notification type, which the root
+	// binds to Enrollment's "Neue Anmeldung" mail (#3780, #4012).
+	EmailSubscribers       = notifications.EmailSubscribers
+	EmailAccounts          = notifications.EmailAccounts
+	EmailRecipientResolver = notifications.EmailRecipientResolver
+	// The appointment mail and notices of the calendar portal, which the
+	// root binds to Delivery (#4009).
+	MailEnqueueRequest             = emailoutbox.EnqueueRequest
+	NotificationService            = notifications.Service
+	SynchronousNotificationService = notifications.SynchronousService
+	NotificationEvent              = notifications.Event
+	NotificationAudience           = notifications.Audience
+	NotificationAudienceScope      = notifications.AudienceScope
 )
+
+// The kinds of the parent appointment notices.
+const (
+	ParentAppointmentPublished = notifications.ParentAppointmentPublished
+	ParentAppointmentUpdated   = notifications.ParentAppointmentUpdated
+	ParentAppointmentCancelled = notifications.ParentAppointmentCancelled
+	ParentAppointmentReminder  = notifications.ParentAppointmentReminder
+)
+
+// NotificationEnrollmentSubmitted is the notification type of a new
+// enrollment.
+const NotificationEnrollmentSubmitted = notifications.TypeEnrollmentSubmitted
 
 // The portals a push subscription is bound to.
 const (
@@ -54,8 +85,21 @@ var (
 	NewDurableWebPushChannel   = notifications.NewDurableWebPushChannel
 	NewPushSubscriptionService = notifications.NewPushSubscriptionService
 	NewPreferenceService       = notifications.NewPreferenceService
+	NewEmailRecipientResolver  = notifications.NewEmailRecipientResolver
 	// ErrRenderCancelled and ErrRenderDeferred are the answers of a renderer
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled
 	ErrRenderDeferred  = emailoutbox.ErrRenderDeferred
+	// ErrNoWebPushSubscribers, ErrNotificationsDisabled and
+	// ErrOutsideNotificationWindow are the answers of a notice nobody
+	// receives: no subscriber, notifications off, outside the tenant's window.
+	ErrNoWebPushSubscribers      = notifications.ErrNoWebPushSubscribers
+	ErrNotificationsDisabled     = notifications.ErrDisabled
+	ErrOutsideNotificationWindow = notifications.ErrOutsideActiveWindow
+	// ParentAppointmentCopy is the localized title and body of a parent
+	// appointment notice.
+	ParentAppointmentCopy = notifications.ParentAppointmentCopy
+	// MotoLogoURL and SchoolLogoURL brand the tenant mail.
+	MotoLogoURL   = emailbranding.MotoLogoURL
+	SchoolLogoURL = emailbranding.SchoolLogoURL
 )

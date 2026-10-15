@@ -10,7 +10,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -98,7 +97,7 @@ func timeTrackingPorts(deps timeTrackingPortDependencies) workforceCompose.TimeT
 	ports.ScheduleTargets = workforceCompose.NewWorkScheduleTargets(deps.WorkSchedules)
 	ports.TargetModels = workforceCompose.NewWorkTimeTargetModels(deps.WorkTimeModels)
 	ports.Shifts = workforceCompose.NewTimeTrackingShifts(deps.Workforce)
-	ports.Settings = services.PresenceSettings(deps.Settings)
+	ports.Settings = settingsCompose.PresenceSettings(deps.Settings)
 	ports.Payroll = PayrollExportSettings{Source: deps.Payroll}
 	ports.RenderPDF, ports.RenderWorkbook = RenderTimeTrackingPDF, RenderTimeTrackingWorkbook
 	ports.Logger, ports.Today = deps.Logger, deps.Today

@@ -4,7 +4,6 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewAuthTestParentPortal supplies the parent enrollment requests the auth
@@ -18,5 +17,5 @@ func NewAuthTestParentPortal(db transactionruntime.Database) (carePlanCompose.Pa
 		return carePlanCompose.ParentPortalRepositories{}, err
 	}
 	requests := carePlanCompose.NewParentEnrollmentRequestRepository(db.Pool(), enrollmentCompose.New(), IdentityAccountDirectory{Accounts: NewPeopleIdentityAccess(db, nil)})
-	return carePlanCompose.ParentPortalRepositories{ParentEnrollmentRequest: requests}.WithSchools(services.ParentPortalSchools{Schools: organizations}), nil
+	return carePlanCompose.ParentPortalRepositories{ParentEnrollmentRequest: requests}.WithSchools(ParentPortalSchools{Schools: organizations}), nil
 }

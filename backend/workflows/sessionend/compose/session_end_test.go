@@ -84,12 +84,7 @@ func newStack(t *testing.T) *stack {
 	require.NoError(t, err)
 	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
-	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:            db,
-		DeletionLock:  func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil },
-		Observe:       func(facilitiesCompose.Observation) {},
-	})
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
 	s := &stack{
 		presence:   presence,

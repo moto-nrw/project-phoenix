@@ -8,20 +8,18 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // EnrollmentBookingFixture writes test arrangements through the two storage owners.
 // Production workflows use the owner commands directly.
 type EnrollmentBookingFixture struct {
-	services.EnrollmentBookingProjection
+	EnrollmentBookingProjection
 	bookings     *careplan.OfferingBookings
 	withinTenant func(context.Context, func(context.Context) error) error
 }
 
 func NewEnrollmentBookingFixtureWithin(withinTenant func(context.Context, func(context.Context) error) error) EnrollmentBookingFixture {
-	return EnrollmentBookingFixture{services.NewEnrollmentBookingProjection(enrollmentCompose.New()), carePlanCompose.NewOfferingBookings(), withinTenant}
+	return EnrollmentBookingFixture{NewEnrollmentBookingProjection(NewEnrollmentBookings()), carePlanCompose.NewOfferingBookings(), withinTenant}
 }
 
 // These retained composition methods translate the old fixture-facing command
@@ -132,7 +130,7 @@ func (a EnrollmentBookingFixture) bookingCommandValues(ctx context.Context, chil
 			manual = selection.SelectedDays
 		}
 		values = append(values, careplan.CareOfferingBooking{RequestChildID: childID, CareOfferingID: selection.CareOfferingID,
-			ManualSelectedDays: manual, AutomaticSelectedDays: selection.AutomaticSelectedDays, ValidFrom: services.CarePlanBookingDate(from), ValidUntil: services.CarePlanBookingDate(until)})
+			ManualSelectedDays: manual, AutomaticSelectedDays: selection.AutomaticSelectedDays, ValidFrom: CarePlanBookingDate(from), ValidUntil: CarePlanBookingDate(until)})
 		selection.RequestChildID, selection.ValidFrom, selection.ValidUntil = childID, from, until
 	}
 	return values, nil

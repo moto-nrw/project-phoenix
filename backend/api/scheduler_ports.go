@@ -6,6 +6,7 @@ import (
 
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
@@ -13,7 +14,6 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -73,11 +73,11 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 	return bound.Bind(ctx), nil
 }
 
-// schedulerBookingConsistency binds the booking drift audit, which the legacy
-// composition builds over the graph's People Directory and Care Plan
-// (ADR 0049). A construction failure fails the Worker's composition.
+// schedulerBookingConsistency binds the booking drift audit, which the root
+// builds over the graph's People Directory and Care Plan (ADR 0049). A
+// construction failure fails the Worker's composition.
 func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (scheduler.BookingConsistencyAudit, error) {
-	bookings, err := services.NewBookingConsistencyAudit(graph.db.Pool(), graph.services.PeopleDirectory, reads.carePlan)
+	bookings, err := NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker booking consistency audit: %w", err)
 	}
@@ -191,7 +191,7 @@ func carePlanQuery(module *carePlanModule.Module) carePlanModule.Query {
 
 // schedulerExistingRooms binds the overdue tick's room check.
 func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.ExistingRoomReader {
-	rooms := services.NewRoomRepository(capability)
+	rooms := facilitiesCompose.NewRoomRepository(capability)
 	return func(ctx context.Context, roomIDs []int64) ([]int64, error) {
 		found, err := rooms.FindByIDs(ctx, roomIDs)
 		if err != nil {

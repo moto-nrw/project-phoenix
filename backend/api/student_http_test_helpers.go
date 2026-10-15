@@ -42,7 +42,7 @@ func NewStudentHTTPTestPeople(db transactionruntime.Database) peopledirectory.Ca
 // suite's rows. audit may be nil only for suites that never widen a
 // companion's plan.
 func NewStudentHTTPTestCompanions(rows StudentHTTPTestRows, people peopledirectory.Capability, audit peopleCompose.StudentChangeRecorder) careplan.StudentCompanions {
-	var recorder services.StudentChangeAudit
+	var recorder StudentChangeAudit
 	if audit != nil {
 		recorder = audit
 	}
@@ -62,7 +62,7 @@ func NewStudentHTTPTestConsents(db transactionruntime.Database) StudentHTTPTestC
 // NewStudentHTTPTestPickupReviewBlocks are the timetable blocks a pickup
 // review shows, over the test database.
 func NewStudentHTTPTestPickupReviewBlocks(db transactionruntime.Database) carePlanCompose.PickupReviewBlocks {
-	return services.NewPickupReviewBlocks(db.Pool())
+	return NewPickupReviewBlocks(db)
 }
 
 // NewStudentHTTPTestMembership is the School Membership owner over the test

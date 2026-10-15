@@ -19,7 +19,6 @@ import (
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -142,7 +141,7 @@ type decisionTestEnv struct {
 	db    *bun.DB
 	repos *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
-	timetable services.TimetableRepositories
+	timetable api.TimetableRepositories
 	// requestSvc is the parent-facing intake.
 	requestSvc *enrollmentTest.Intake
 	// offeringCatalog is the Care Plan catalog over the test database; its
@@ -246,7 +245,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       services.NewTimetableRepositories(db, timetableDeps),
+		timetable:       api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDeps),
 		requestSvc:      intake,
 		offeringCatalog: catalog,
 		settings:        settings,
@@ -407,7 +406,7 @@ func composeDecisions(
 		CareBookings:           bookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      students,
-		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:             api.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:           api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(tb, db))),
 		CareWithdrawal:         careWithdrawal,

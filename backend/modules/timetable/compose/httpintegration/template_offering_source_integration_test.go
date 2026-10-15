@@ -21,7 +21,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -89,7 +88,7 @@ func registerSourcedTemplateCleanup(t *testing.T, s *scenarioSetup, templateID i
 
 func loadTemplateGroup(t *testing.T, s *scenarioSetup, templateID int64) *activitiesModels.Group {
 	t.Helper()
-	group, err := bookingFixtures.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindByID(s.ctx, templateID)
+	group, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindByID(s.ctx, templateID)
 	require.NoError(t, err)
 	require.NotNil(t, group)
 	return group

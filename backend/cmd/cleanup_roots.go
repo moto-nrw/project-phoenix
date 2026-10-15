@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"time"
 
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
@@ -30,25 +32,25 @@ func newSessionCleanupService(db transactionruntime.Database, schools organizati
 	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	settings := newCleanupSettingsService(db, schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: services.AttendancePrincipal,
-		SchoolPresence:  services.NewLoggedStudentPresence(db.Pool(), logger),
+		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		SchoolPresence:  api.NewLoggedStudentPresence(db, logger),
 		GroupRepo:       groups, SupervisorRepo: supervisors,
-		DeviceRepo: services.NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db.Pool(), Logger: logger,
-	}, presenceservice.WithPresenceTenantRuntime(db.UnitOfWork()), presenceservice.WithPresenceSettings(services.PresenceSettings(settings)))
+		DeviceRepo: api.NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db.Pool(), Logger: logger,
+	}, presenceservice.WithPresenceTenantRuntime(db.UnitOfWork()), presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings)))
 }
 
 func newRetentionCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, logger *slog.Logger, command auditModels.Command) studentpresence.PresenceCleanup {
 	repos := api.NewRetentionCleanupRepositories(db, command)
 	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	return presenceservice.NewPresenceCleanup(
-		services.NewLoggedStudentPresence(db.Pool(), logger), supervisors, api.NewDeletionAudit(repos.Deletion),
-		services.PresenceSettings(newCleanupSettingsService(db, schools, logger)),
+		api.NewLoggedStudentPresence(db, logger), supervisors, api.NewDeletionAudit(repos.Deletion),
+		settingsCompose.PresenceSettings(newCleanupSettingsService(db, schools, logger)),
 	)
 }
 
-func newTimetableCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command auditModels.Command) (services.TimetableCleanup, error) {
+func newTimetableCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command auditModels.Command) (timetable.TimetableCleanup, error) {
 	audits := newCleanupAudits(db, command)
-	return services.NewTimetableCleanup(services.TimetableRetentionInputs{
+	return api.NewTimetableCleanup(services.TimetableRetentionInputs{
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,
@@ -63,7 +65,7 @@ func newTimetableCleanupService(db transactionruntime.Database, schools organiza
 func newTimeTrackingCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, workTime workforce.Capability, logger *slog.Logger, command auditModels.Command) workforceCompose.TimeTrackingCleanupService {
 	service, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
 		Workforce: workTime, Absences: workforceCompose.NewStaffAbsenceRepository(workTime), Audit: api.NewTimeTrackingRetentionAudit(newCleanupAudits(db, command).DataDeletion),
-		Settings: services.PresenceSettings(newCleanupSettingsService(db, schools, logger)), Logger: logger,
+		Settings: settingsCompose.PresenceSettings(newCleanupSettingsService(db, schools, logger)), Logger: logger,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup: %v", err))

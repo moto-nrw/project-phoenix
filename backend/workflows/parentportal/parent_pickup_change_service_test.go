@@ -14,7 +14,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -65,7 +64,7 @@ func buildPickupChangeServiceWithRequests(t *testing.T, configure ...func(*paren
 
 // buildPickupChangeServiceWithRequestOptions is buildPickupChangeServiceWithRequests
 // with construction options for the request service (#3163 pins its clock).
-func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []services.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
+func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []api.CareRequestOption, configure ...func(*parentportalcompose.Dependencies)) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
@@ -75,7 +74,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []s
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	careRequests := services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	careRequests := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
 		sf.PeopleDirectory,
 		sf.ArrivalSchedule,

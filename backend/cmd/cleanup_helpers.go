@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // Error message and format constants (S1192 fix - reduces string duplication)
@@ -44,7 +43,7 @@ type cleanupContext struct {
 	AuthCleanupService         authCleanupService
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
-	TimetableCleanupService    services.TimetableCleanup
+	TimetableCleanupService    timetable.TimetableCleanup
 	TimeTrackingCleanupService workforceCompose.TimeTrackingCleanupService
 	Output                     io.Writer
 	Logger                     *log.Logger
@@ -69,7 +68,7 @@ type sessionCleanupService interface {
 }
 
 type retentionCleanupService = studentpresence.PresenceCleanup
-type timetableCleanupService = services.TimetableCleanup
+type timetableCleanupService = timetable.TimetableCleanup
 type timeTrackingCleanupService = workforceCompose.TimeTrackingCleanupService
 
 type cleanupRoot struct {
@@ -78,7 +77,7 @@ type cleanupRoot struct {
 	invitationCleanup   func(*cleanupContext) invitationCleanupService
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
 	retentionCleanup    func(*cleanupContext) studentpresence.PresenceCleanup
-	timetableCleanup    func(*cleanupContext) services.TimetableCleanup
+	timetableCleanup    func(*cleanupContext) timetable.TimetableCleanup
 	timeTrackingCleanup func(*cleanupContext) workforceCompose.TimeTrackingCleanupService
 }
 
@@ -296,7 +295,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimetableCleanupService(ctx *cleanupContext) services.TimetableCleanup {
+func buildTimetableCleanupService(ctx *cleanupContext) timetable.TimetableCleanup {
 	logger := slog.Default().With("service", "timetable-cleanup-cli")
 	cleanup, err := newTimetableCleanupService(ctx.DB, ctx.Schools, ctx.Timetable, logger, ctx.Audit)
 	if err != nil {

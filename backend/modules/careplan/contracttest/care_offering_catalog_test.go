@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -985,8 +984,8 @@ func testRepositories(t *testing.T, db *bun.DB) *api.RepositoryTestFactory {
 
 // testTimetableRepositories builds the retained Timetable adapters over the
 // unobserved owners of the test database (#2743).
-func testTimetableRepositories(db *bun.DB) services.TimetableRepositories {
-	return services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
+func testTimetableRepositories(db *bun.DB) api.TimetableRepositories {
+	return api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
 }
 
 func testActivityScheduleRepository(t *testing.T, db *bun.DB) activitiesModels.ScheduleRepository {

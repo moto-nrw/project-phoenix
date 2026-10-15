@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -42,7 +43,7 @@ type databaseStatsSources struct {
 // newDatabaseStats counts the school's rows for the Datenverwaltung hub and
 // redacts every count the caller's permissions do not cover.
 func newDatabaseStats(sources databaseStatsSources) DatabaseStatsReader {
-	rooms := services.NewRoomRepository(sources.rooms)
+	rooms := facilitiesCompose.NewRoomRepository(sources.rooms)
 	devices := devicefleetRepositoryAdapter.NewDeviceRepository(sources.devices)
 	stats := transactionruntime.NewDatabaseStats(transactionruntime.DatabaseStatsDependencies{
 		Students: func(ctx context.Context) (int, error) {

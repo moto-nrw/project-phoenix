@@ -142,7 +142,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		passkeys: operatorPasskeys, accountPasskeys: accountPasskeys, accountRoleQueries: application.NewAccountRoleQueries(service, store, postgres.NewRoleStore(store)),
 		auth: auth, operatorAuth: operatorAuth, accountAccess: accountAccess, lifecycle: lifecycle, roles: roles,
 		resets: resets, invitations: invitations, provisioning: provisioning, administration: administration,
-		mfaFlows: flows, operatorProvisioning: operatorProvisioning,
+		mfaFlows: flows, operatorProvisioning: operatorProvisioning, signInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)),
 		invitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
 	}
 	e.runtime = runtime.Attach
@@ -223,6 +223,9 @@ type engine struct {
 	// invitationMaintenance is always composed: spending a deleted school's
 	// invitations and deleting expired ones need no flow dependencies.
 	invitationMaintenance *application.SchoolInvitationMaintenance
+	// signInRetention is always composed: the fixed retention of short-lived
+	// sign-in data needs no flow dependencies (#3954).
+	signInRetention *application.SignInDataRetention
 	// mfaFlows carries the second factor and the passkey ceremonies. Its
 	// members are nil when the module was composed without them.
 	mfaFlows mfaFlows

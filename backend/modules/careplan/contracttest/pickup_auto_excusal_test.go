@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -85,7 +84,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 	repos, tt := autoExcusalRepositories(db)
 
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), tt, withExtensions)
-	pickupStudents, err := services.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	svc, err := compose.NewPickupSchedules(db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), syncer, pickupStudents, nil)
 	require.NoError(t, err)
@@ -577,7 +576,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: services.NewPartialAbsencePreview(db)}, tt, db}
+	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: api.NewPartialAbsencePreview(testpkg.MustDatabase(db))}, tt, db}
 	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter

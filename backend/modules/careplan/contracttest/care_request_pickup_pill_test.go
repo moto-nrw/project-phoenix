@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -60,7 +60,7 @@ func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 	t.Helper()
 	events := &recordingParentEvents{}
 	f := newCareFixtureWithEmitter(t, parentmessaging.NewEmitter(events),
-		services.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 9, 9) }))
+		api.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 9, 9) }))
 	// The approve path re-checks that the submitting guardian still has the
 	// child; the fixture's chain is that guardian.
 	events.guardians = []parentmessaging.PortalGuardian{{AccountID: f.chain.AccountID}}
@@ -242,7 +242,7 @@ func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReview
 		},
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		Today:                 func() careplan.Date { return "2026-09-09" },
-		Blocks:                services.NewPickupReviewBlocks(f.db),
+		Blocks:                api.NewPickupReviewBlocks(testpkg.MustDatabase(f.db)),
 		ObserveCare:           func(requestreviewcompose.CareObservation) {},
 		ObserveTimetable:      func(requestreviewcompose.TimetableObservation) {},
 	})

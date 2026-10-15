@@ -1,0 +1,224 @@
+package api
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/classday"
+	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/services"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+// The bindings below connect the school portal's class-day capability
+// (#2970, #2527, #3563) to Enrollment's day roster, Care Plan's status days,
+// the People Directory students and guardian contacts, the GDPR access log
+// and the realtime hub.
+
+// NewClassDay composes the school portal's class-day capability.
+func NewClassDay(sources services.ClassDaySources) classday.ClassDay {
+	deps := classdayCompose.ClassDayDependencies{
+		Caller:                 sources.Caller,
+		PickupTimes:            sources.PickupTimes,
+		ArrivalTimes:           sources.ArrivalTimes,
+		CareDays:               sources.CareDays,
+		Companions:             sources.Companions,
+		ClassArrivalExceptions: sources.ClassArrivalExceptions,
+		Settings:               sources.Settings,
+		BlockStarts:            sources.BlockStarts,
+		Announcer:              classDayArrivalAnnouncer{broadcaster: sources.Broadcaster, logger: sources.Logger},
+	}
+	if sources.Reports != nil {
+		deps.Rosters = classDayRosters{reports: sources.Reports}
+	}
+	if sources.StatusDays != nil {
+		deps.StatusDays = classDayStatusDays{reader: sources.StatusDays}
+	}
+	if sources.Students != nil && sources.Persons != nil {
+		deps.Students = classDaySheetStudents{students: sources.Students, persons: sources.Persons}
+	}
+	if sources.StudentGuardians != nil {
+		deps.EmergencyContacts = classDayEmergencyContacts{repo: sources.StudentGuardians}
+	}
+	if sources.AccessLog != nil {
+		deps.AccessLog = classDayAccessLog{repo: sources.AccessLog}
+	}
+	return classdayCompose.NewClassDay(deps)
+}
+
+// classDayRosters reads Enrollment's class roster of a day.
+type classDayRosters struct{ reports enrollmentOwner.Reports }
+
+func (b classDayRosters) ClassRosterDay(ctx context.Context, schoolClass string, date timezone.Date) (*classdayCompose.DayRoster, error) {
+	roster, err := b.reports.ClassRosterDay(ctx, schoolClass, date)
+	if err != nil || roster == nil {
+		return nil, err
+	}
+	out := &classdayCompose.DayRoster{
+		PhaseNames: roster.PhaseNames,
+		Rows:       make([]classdayCompose.DayRosterRow, 0, len(roster.Rows)),
+		Students:   make([]classdayCompose.DayRosterStudent, 0, len(roster.Students)),
+	}
+	for _, row := range roster.Rows {
+		out.Rows = append(out.Rows, classdayCompose.DayRosterRow{
+			StudentID: row.StudentID, FirstName: row.FirstName, LastName: row.LastName,
+			ListEntry: row.ListEntry, ListEntryID: row.ListEntryID, GroupName: row.GroupName, Registered: row.Registered,
+			OfferingsByDay: row.OfferingsByDay, ArrivalByDay: row.ArrivalByDay, PickupByDay: row.PickupByDay,
+		})
+	}
+	for _, student := range roster.Students {
+		modes := make([]peopledirectory.DepartureMode, 0, len(student.DepartureModes))
+		for _, mode := range student.DepartureModes {
+			modes = append(modes, peopledirectory.DepartureMode(mode))
+		}
+		out.Students = append(out.Students, classdayCompose.DayRosterStudent{ID: student.ID, DepartureModes: modes})
+	}
+	return out, nil
+}
+
+// classDayStatusDays reads the active scheduled day statuses.
+type classDayStatusDays struct {
+	reader interface {
+		FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
+	}
+}
+
+func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]classdayCompose.StatusDayEntry, error) {
+	entries, err := b.reader.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]classdayCompose.StatusDayEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry != nil {
+			out = append(out, classdayCompose.StatusDayEntry{StudentID: entry.StudentID, Status: entry.Status, ReportedAt: entry.ReportedAt})
+		}
+	}
+	return out, nil
+}
+
+// classDaySheetStudents reads the child of a supervision sheet.
+type classDaySheetStudents struct {
+	students interface {
+		FindByID(ctx context.Context, id any) (*userModels.Student, error)
+	}
+	persons interface {
+		FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
+	}
+}
+
+func (b classDaySheetStudents) FindSheetStudent(ctx context.Context, studentID int64) (*classdayCompose.SheetStudent, error) {
+	student, err := b.students.FindByID(ctx, studentID)
+	if err != nil || student == nil {
+		return nil, err
+	}
+	return &classdayCompose.SheetStudent{
+		ID: student.ID, PersonID: student.PersonID, SchoolClass: student.SchoolClass,
+		AllowedDepartureModes: student.AllowedDepartureModes, DepartureDays: student.DepartureDays,
+	}, nil
+}
+
+func (b classDaySheetStudents) PersonsByID(ctx context.Context, personIDs []int64) (map[int64]classdayCompose.SheetPerson, error) {
+	persons, err := b.persons.FindByIDs(ctx, personIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[int64]classdayCompose.SheetPerson, len(persons))
+	for _, person := range persons {
+		if person != nil {
+			out[person.ID] = classdayCompose.SheetPerson{FirstName: person.FirstName, LastName: person.LastName}
+		}
+	}
+	return out, nil
+}
+
+// classDayEmergencyContacts reads the guardian contact rows of a child.
+type classDayEmergencyContacts struct {
+	repo interface {
+		ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]userModels.GuardianEmergencyContactRow, error)
+	}
+}
+
+func (b classDayEmergencyContacts) EmergencyContactRows(ctx context.Context, studentIDs []int64) ([]classdayCompose.EmergencyContactRow, error) {
+	rows, err := b.repo.ListEmergencyContactRows(ctx, studentIDs)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]classdayCompose.EmergencyContactRow, 0, len(rows))
+	for _, row := range rows {
+		out = append(out, classdayCompose.EmergencyContactRow{
+			StudentID: row.StudentID, GuardianProfileID: row.GuardianProfileID,
+			FirstName: stringValue(row.FirstName), LastName: stringValue(row.LastName),
+			RelationshipType: stringValue(row.RelationshipType), PickupNotes: stringValue(row.PickupNotes),
+			PhoneNumber: stringValue(row.PhoneNumber), CanPickup: row.CanPickup, IsEmergencyContact: row.IsEmergencyContact,
+		})
+	}
+	return out, nil
+}
+
+// stringValue reads a nullable projection column; NULL reads as "".
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+// classDayAccessLog appends the school portal's reads to
+// audit.data_access_log.
+type classDayAccessLog struct {
+	repo interface {
+		Create(ctx context.Context, entry *auditModels.DataAccessLog) error
+		ExistsSince(ctx context.Context, actorAccountID int64, resourceType string, metadata map[string]string, since time.Time) (bool, error)
+	}
+}
+
+func (l classDayAccessLog) ClassDayViewSeenSince(ctx context.Context, actorAccountID int64, schoolClass, date string, since time.Time) (bool, error) {
+	return l.repo.ExistsSince(ctx, actorAccountID, auditModels.ResourceTypeClassDayView,
+		map[string]string{"school_class": schoolClass, "date": date}, since)
+}
+
+func (l classDayAccessLog) RecordClassDayView(ctx context.Context, entry classdayCompose.AccessRecord) error {
+	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeClassDayView, entry))
+}
+
+func (l classDayAccessLog) RecordSupervisionSheet(ctx context.Context, entry classdayCompose.AccessRecord) error {
+	return l.repo.Create(ctx, classDayAccessRow(auditModels.ResourceTypeSupervisionStudentSheet, entry))
+}
+
+func classDayAccessRow(resourceType string, entry classdayCompose.AccessRecord) *auditModels.DataAccessLog {
+	return &auditModels.DataAccessLog{
+		ActorAccountID: entry.ActorAccountID,
+		ActorRole:      entry.ActorRole,
+		ResourceType:   resourceType,
+		StudentID:      entry.StudentID,
+		RangeStart:     entry.RangeStart,
+		RangeEnd:       entry.RangeEnd,
+		AccessedAt:     entry.AccessedAt,
+		Metadata:       entry.Metadata,
+	}
+}
+
+// classDayArrivalAnnouncer emits the arrival-schedule event the OGS handler
+// emits after its own writes, so Aufsicht and Meine Gruppe refetch. A
+// class-wide change concerns every child of the class, so no student ID
+// travels with it.
+type classDayArrivalAnnouncer struct {
+	broadcaster realtime.Broadcaster
+	logger      *slog.Logger
+}
+
+func (a classDayArrivalAnnouncer) AnnounceArrivalScheduleChange(ctx context.Context) {
+	if a.broadcaster == nil {
+		return
+	}
+	deliveryCompose.QueueArrivalScheduleChanged(ctx, a.broadcaster, a.logger)
+}

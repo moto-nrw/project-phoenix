@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,7 +46,7 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 	registry := settingsCompose.NewSideEffectRegistry()
 	wc := facilitiesCompose.NewWCService(active.Facilities, facilitiesLegacy.ActivityCatalog(active.Activities), slog.Default())
 	facilitiesLegacy.RegisterSettingsSideEffects(registry, active.Schulhof, wc)
-	services.RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
+	RegisterCareWithdrawalSettingsSideEffects(registry, care.CareLifecycle)
 	return OperatorSettingsTestModule{
 		ActiveTestModule:    active,
 		CareLifecycle:       care.CareLifecycle,

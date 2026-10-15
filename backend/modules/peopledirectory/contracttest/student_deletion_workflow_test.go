@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -44,7 +43,7 @@ type deletionFixture struct {
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
 func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
-	return services.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan())
+	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan())
 }
 
 // linkCompanions stages one Monday link between two children.

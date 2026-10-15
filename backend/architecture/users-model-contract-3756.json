@@ -44,7 +44,7 @@
       "backend/models/users/student.go",
       "backend/models/users/student_document.go",
       "backend/database/repositories/users/legacy_composition_support.go",
-      "backend/services/care_plan_request_people.go"
+      "backend/api/care_plan_request_people.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh against origin/development, local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "Code-only contract: every affected suite passes with the same assertions, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",

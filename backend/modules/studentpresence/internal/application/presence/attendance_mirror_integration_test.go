@@ -32,7 +32,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -45,7 +44,7 @@ type attendanceSyncSetup struct {
 	syncer      studentpresence.AttendanceSyncer
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  *services.StudentStatusDayRepository
+	statusRepo  *api.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context
@@ -84,7 +83,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 	testpkg.InsertActivityInstanceRow(t, ctx, db, instance)
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := services.NewTimetableRepositories(db, owners)
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
 	instanceStudentRepo := timetableRepos.InstanceStudent
 
 	// Register parent cleanup first because t.Cleanup executes LIFO: the
@@ -93,14 +92,14 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		// active.group is tenant-owned and dies with the package clone
 	})
 
-	syncer, err := services.NewTimetableAttendanceMirror(services.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
+	syncer, err := api.NewTimetableAttendanceMirror(api.TimetableOwnerRows{Instances: timetableRepos.ActivityInstance, Participants: instanceStudentRepo}, slog.Default())
 	require.NoError(t, err)
 	return &attendanceSyncSetup{
 		syncer:      syncer,
 		instRepo:    timetableRepos.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   services.NewPresenceSessionRecords(db),
+		groupRepo:   api.NewPresenceSessionRecords(testpkg.MustDatabase(db)),
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,
@@ -114,7 +113,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 // Presence syncer port the way the composition root does (#3424 slice S3).
 func newAttendanceMirror(t testing.TB, instances scheduleModels.ActivityInstanceRepository, rows scheduleModels.InstanceStudentRepository, logger *slog.Logger) studentpresence.AttendanceSyncer {
 	t.Helper()
-	syncer, err := services.NewTimetableAttendanceMirror(services.TimetableOwnerRows{Instances: instances, Participants: rows}, logger)
+	syncer, err := api.NewTimetableAttendanceMirror(api.TimetableOwnerRows{Instances: instances, Participants: rows}, logger)
 	require.NoError(t, err)
 	return syncer
 }

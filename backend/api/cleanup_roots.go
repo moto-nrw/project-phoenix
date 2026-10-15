@@ -13,6 +13,7 @@ import (
 	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -59,7 +60,7 @@ type RetentionDeletions interface {
 // with the deletion ledger routed through command.
 func NewRetentionCleanupRepositories(db transactionruntime.Database, command auditModels.Command) RetentionCleanupRepositories {
 	return RetentionCleanupRepositories{
-		Sessions: services.NewPresenceSessionRecords(db.Pool()),
+		Sessions: newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool()}),
 		Deletion: auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).WithRoutedWrites(command).DataDeletion,
 	}
 }
@@ -94,9 +95,9 @@ func NewSessionCleanupRepositories(db transactionruntime.Database, timetableCapa
 		panic(fmt.Sprintf("session cleanup repositories: compose facilities: %v", err))
 	}
 	return SessionCleanupRepositories{
-		Sessions: services.NewSessionRecords(db.Pool(), services.SessionRecordOwners{Devices: fleet, Rooms: rooms, Timetable: timetableCapability}),
+		Sessions: NewSessionRecords(db, SessionRecordOwners{Devices: fleet, Rooms: rooms, Timetable: timetableCapability}),
 		Device:   devicefleetRepositoryAdapter.NewDeviceRepository(fleet),
 		TimetableBridge: timetableCompose.NewActivityInstanceRepository(db.Pool(), timetableCapability,
-			services.NewUnloggedStudentPresence(db.Pool())),
+			NewUnloggedStudentPresence(db)),
 	}
 }

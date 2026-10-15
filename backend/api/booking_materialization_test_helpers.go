@@ -12,7 +12,6 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -81,14 +80,14 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), services.OfferingStudents{Query: people})
+	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: people})
 	pickup, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approved, func(ctx context.Context) (bool, error) {
 		return settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	bookings, err := services.NewBookingMaterialization(services.BookingMaterializationInputs{
+	bookings, err := newBookingMaterialization(bookingMaterializationInputs{
 		Catalog: catalog, Timetable: repos.Timetable, Rosters: repos.RosterMaintenance(slog.Default(), nil),
 		Students: people, Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approved,
 		Settings: settings, Bookings: repos.CarePlan, Withdrawals: options.Withdrawals,

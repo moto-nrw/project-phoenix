@@ -418,12 +418,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 
 	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
-	facilitiesModule, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:            db,
-		DeletionLock:  func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil },
-		Observe:       func(facilitiesCompose.Observation) {},
-	})
+	facilitiesModule, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
 	query, err := New(Sources{
 		Presence:     newPresenceModule(t, db),

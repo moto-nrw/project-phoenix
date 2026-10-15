@@ -12,6 +12,10 @@ var (
 	ErrColorAlreadyInUse  = errors.New("room color already exists")
 	ErrSystemProtected    = errors.New("system room is protected")
 	ErrSystemNameReserved = errors.New("system room name is reserved")
+	// ErrInUse and ErrRequiredByOffering refuse the deletion of a room a
+	// running session or a care offering still needs.
+	ErrInUse              = errors.New("room is in use by an active session")
+	ErrRequiredByOffering = errors.New("room is required by a care offering")
 )
 
 const (

@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +46,7 @@ func setupPickupExtensionHarness(t *testing.T) *pickupExtensionHarness {
 	repos, tt := autoExcusalRepositories(db)
 	baselines := newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t))
 	syncer := newPickupExcusal(t, db, repos.CarePlan(), baselines, tt, true)
-	pickupStudents, err := services.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
+	pickupStudents, err := api.PickupPlanStudents(api.MustNewPeopleDirectory(testpkg.MustDatabase(db)))
 	require.NoError(t, err)
 	svc, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), baselines, syncer, pickupStudents, nil)
 	require.NoError(t, err)

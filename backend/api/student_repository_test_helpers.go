@@ -8,7 +8,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // StudentTestRepositories is the student suites' repository graph. The audit
@@ -21,7 +20,7 @@ type StudentTestRepositories struct {
 	ParentRequestShare usersModels.ParentRequestShareEventRepository
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    timetableCompose.CareScheduleRequestRows
-	ExcusedAbsenceRequest        *services.ExcusedAbsenceRequestRepository
+	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository
 	FamilyProtection             usersModels.FamilyProtectionEventRepository
@@ -54,10 +53,10 @@ func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, membe
 	return StudentTestRepositories{
 		CarePlan:                   care,
 		ParentRequestShare:         peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
-		CareScheduleChangeRequest:  services.NewCareScheduleChangeRequestRepository(care),
-		ExcusedAbsenceRequest:      services.NewExcusedAbsenceRequestRepository(care),
+		CareScheduleChangeRequest:  NewCareScheduleChangeRequestRepository(care),
+		ExcusedAbsenceRequest:      NewExcusedAbsenceRequestRepository(care),
 		ParentRequestEvent:         peopleCompose.NewParentRequestEventRepository(db.Pool()),
-		StudentDataChangeRequest:   services.NewStudentDataChangeRequestRepository(care),
+		StudentDataChangeRequest:   NewStudentDataChangeRequestRepository(care),
 		FamilyProtection:           peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 		EnrollmentTestRepositories: enrollment,
 		CareWithdrawal:             lifecycle.CareWithdrawal,

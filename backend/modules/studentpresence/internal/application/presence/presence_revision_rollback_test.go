@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -44,7 +43,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	testpkg.OwnTenant(t)
 	db := testpkg.SetupTestDB(t)
 	module := testSchoolPresence(t, db)
-	timetableRepos := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	rows := &failingSlotRevision{InstanceStudentRepository: timetableRepos.InstanceStudent}
 	syncer := newAttendanceMirror(t, timetableRepos.ActivityInstance, rows, slog.Default())
 	svc, broadcaster := newServiceWithPresenceSync(t, db, module, syncer)
@@ -58,7 +57,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	})
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 	ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 	require.NoError(t, svc.CreateVisit(ctx, visit))
 	original, err := module.FindVisit(ctx, visit.ID)
@@ -130,7 +129,7 @@ func TestVisitRevisionRollsBackAfterEachWriteAndRetries(t *testing.T) {
 			device := testpkg.CreateTestDevice(t, db, "visit-revise-rollback")
 			group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 			ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+			ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			require.NoError(t, svc.CreateVisit(ctx, visit))
 			original, err := module.FindVisit(ctx, visit.ID)

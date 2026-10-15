@@ -34,21 +34,6 @@ type PlatformWiringOwners struct {
 	Now func() time.Time
 }
 
-// newGraphWiring builds what the root hands the legacy service graph: the
-// People Directory, School Membership and School Structure wiring (#4007)
-// and the platform, Communication and Organisation & Tenancy wiring (#4013).
-func newGraphWiring(owners PeopleWiringOwners, organizations organizationtenancy.Capability) (services.PeopleWiring, services.PlatformWiring, error) {
-	people, err := NewPeopleWiring(owners)
-	if err != nil {
-		return services.PeopleWiring{}, services.PlatformWiring{}, err
-	}
-	platform, err := NewPlatformWiring(PlatformWiringOwners{
-		DB: owners.DB, Organizations: organizations, Persons: owners.Persons, Groups: owners.Groups,
-		Membership: owners.Membership, People: people,
-	})
-	return people, platform, err
-}
-
 // NewPlatformWiring builds the values over the owners and the adapters the
 // legacy service graph binds the platform owners, Communication and
 // Organisation & Tenancy through. The graph takes the result in place of
@@ -67,13 +52,17 @@ func NewPlatformWiring(owners PlatformWiringOwners) (services.PlatformWiring, er
 		DB: owners.DB, Organizations: owners.Organizations, Persons: owners.Persons, Membership: owners.Membership,
 		PersonRows: owners.People.Persons, StaffRows: owners.People.Staff, AuditLog: auditLog,
 	}
+	parentPortal := NewParentPortalRepositories(owners.DB, ParentPortalOwners{
+		People: owners.Persons, Groups: owners.Groups, Membership: owners.Membership,
+		Identity: owners.People.Identity, Enrollment: enrollmentCompose.New(), Now: owners.Now,
+	}).WithSchools(owners.Organizations)
 	return services.PlatformWiring{
 		SchoolSettings:   NewSchoolSettingsStore(owners.Organizations),
 		OperatorAuditLog: auditLog,
-		ParentPortal: NewParentPortalRepositories(owners.DB, services.ParentPortalOwners{
-			People: owners.Persons, Groups: owners.Groups, Membership: owners.Membership,
-			Identity: owners.People.Identity, Enrollment: enrollmentCompose.New(), Now: owners.Now,
-		}).WithSchools(owners.Organizations),
+		ParentPortal: services.ParentPortalRepositories{
+			ParentPortalRepositories: parentPortal.ParentPortalRepositories,
+			MessagingRepositories:    parentPortal.MessagingRepositories,
+		},
 		DeviceFleet: fleet,
 		ListExport:  lists.NewRendererService(),
 

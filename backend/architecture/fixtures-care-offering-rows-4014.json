@@ -36,7 +36,7 @@
       "backend/test/approved_children_without_care_offerings_audit_fixture.go",
       "backend/test/booking_consistency_audit_fixture.go",
       "backend/modules/enrollment/enrollmenttest/enrollment.go",
-      "backend/services/care_offering_catalog_composition.go"
+      "backend/api/care_plan_offering_catalog.go"
     ],
     "workload": "Targeted go test runs and scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local managed postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength, and the architecture check reports no new violation and no stale baseline entry.",

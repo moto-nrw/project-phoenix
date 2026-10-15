@@ -4,7 +4,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // Test bindings of Enrollment's intake and change requests (#3565): the
@@ -21,5 +20,5 @@ type EnrollmentCareBookingCommands interface {
 // NewEnrollmentCareBookingCommands binds the intake's booking writes to Care
 // Plan's offering bookings.
 func NewEnrollmentCareBookingCommands(owner careplan.OfferingBookingCommands) EnrollmentCareBookingCommands {
-	return services.EnrollmentCareBookingAdapter{Owner: owner}
+	return enrollmentCareBookings{owner: owner}
 }

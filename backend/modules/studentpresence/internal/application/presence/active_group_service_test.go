@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1089,7 +1088,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NotNil(t, session)
 
 		// Create visits for students using context with device/staff
-		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 		deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 		visit1 := &studentpresence.Visit{
@@ -1262,7 +1261,7 @@ func TestActiveService_EndDailySessions_WithActiveData(t *testing.T) {
 		require.NoError(t, err)
 
 		// Add a visit to session1
-		staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+		staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 		deviceCtx := api.WithAttendanceDevice(staffCtx, device1.ID, device1.TenantID)
 		visit := &studentpresence.Visit{
 			StudentID:     student.ID,

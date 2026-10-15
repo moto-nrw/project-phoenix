@@ -5324,18 +5324,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
-      "id": "legacy-composition.to.transaction-runtime-public",
-      "description": "The legacy composition binds the dashboard database statistics to the owners' counters through the Transaction Runtime public package (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "transaction-runtime",
-      "target_role": "public",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
-    },
-    {
       "id": "request-review-view.compose.impact-token",
       "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
       "scopes": [
@@ -5940,17 +5928,6 @@
       "target_role": "contract"
     },
     {
-      "id": "legacy-composition.compose.audit-consent-contract",
-      "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "contract"
-    },
-    {
       "id": "data-import.application.audit-consent-contract",
       "description": "Record consent transitions through the Audit command using persistence-free consent types (#2744).",
       "scopes": [
@@ -6124,17 +6101,6 @@
       "source_role": "compose",
       "target_owner": "facilities",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.production.data-import.compose",
-      "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "compose"
     },
     {
       "id": "data-import.adapter.file-rendering",
@@ -6452,17 +6418,6 @@
       "source_role": "compose",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "legacy-composition.module-internal-test.student-presence-public",
-      "description": "Reminder composition tests preserve room grouping and failed-read behavior from public presence facts (#2691).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "module-internal-test",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "timetable-activities.compose.presence-cutover.presence-legacy-view.postgres",
@@ -7200,17 +7155,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.reminder-compose",
-      "description": "Existing composition constructs the reminder owner facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "compose"
-    },
-    {
       "id": "reminder-delivery.application.ports",
       "description": "Reminder evaluation consumes its own input projections.",
       "scopes": [
@@ -7218,17 +7162,6 @@
       ],
       "source_owner": "reminder-delivery",
       "source_role": "application",
-      "target_owner": "reminder-delivery",
-      "target_role": "port"
-    },
-    {
-      "id": "legacy-composition.reminder-ports",
-      "description": "Existing composition adapts pickup and settings inputs to reminder-owned ports.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
       "target_owner": "reminder-delivery",
       "target_role": "port"
     },
@@ -7537,17 +7470,6 @@
       "source_role": "port",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "data-import.integration-test.legacy-composition",
-      "description": "Data import integration tests compose the owner graph at the legacy composition boundary (#2708).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "data-import.integration-test.data-import.application",
@@ -8413,17 +8335,6 @@
       "source_owner": "enrollment",
       "source_role": "workflow-integration-test",
       "target_owner": "identity-access",
-      "target_role": "compose"
-    },
-    {
-      "id": "enrollment.http-integration-test.legacy-composition",
-      "description": "The enrollment route suites compose the retained repositories the owner's flows still read through (#2734).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
       "target_role": "compose"
     },
     {
@@ -12610,17 +12521,6 @@
       "target_role": "application"
     },
     {
-      "id": "care-plan.integration-test.legacy-composition",
-      "description": "Care Plan compatibility tests exercise the production repository wiring.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
       "id": "care-plan.integration-test.postgres",
       "description": "Care Plan compatibility tests exercise the legacy Postgres projection adapter.",
       "scopes": [
@@ -12970,17 +12870,6 @@
       "source_role": "workflow-integration-test",
       "same_owner": true,
       "target_role": "application"
-    },
-    {
-      "id": "parent-portal.integration-test.legacy-composition",
-      "description": "The relocated parent-portal tests build the legacy repository and service graph they exercise; compatibility permission until the package exists at a base SHA (#3227).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.integration-test.identity-adapter",
@@ -13448,17 +13337,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "security-runtime",
       "target_role": "application"
-    },
-    {
-      "id": "parent-portal.decision-test.legacy-composition.compose",
-      "description": "Portal behaviour tests (#3420) build the real composition, fixtures and owner rows they assert on.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "parent-portal",
-      "source_role": "workflow-decision-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.decision-test.legacy-shared.domain",
@@ -19087,17 +18965,6 @@
       "source_role": "module-behavior-test",
       "same_owner": true,
       "target_role": "application"
-    },
-    {
-      "id": "workforce.behaviour-test.legacy-composition",
-      "description": "The Workforce planning behaviour suites build their fixtures through the legacy factory and repositories (#3418).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "module-behavior-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "workforce.behaviour-test.legacy-shared-domain",

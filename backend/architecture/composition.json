@@ -56,7 +56,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        247
+        250
       ],
       "tables": []
     },
@@ -16372,32 +16372,32 @@
       "locations": [
         {
           "file": "api/base.go",
-          "line": 166,
+          "line": 172,
           "declaration": "type moduleServices"
         },
         {
           "file": "api/base.go",
-          "line": 391,
+          "line": 421,
           "declaration": "initializeModuleServices"
         },
         {
           "file": "api/base.go",
-          "line": 512,
+          "line": 581,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 784,
+          "line": 836,
           "declaration": "type serveGraph"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 49,
+          "line": 51,
           "declaration": "type TestFactory"
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 207,
+          "line": 276,
           "declaration": "OwnerCapabilities.factory"
         },
         {

@@ -5,7 +5,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -20,18 +19,6 @@ func NewSchoolMembership(db transactionruntime.Database) (schoolmembership.Capab
 	return services.NewSchoolMembership(db.Pool())
 }
 
-// NewSessionRecords composes the Student Presence session records over the
-// given owners.
-func NewSessionRecords(db transactionruntime.Database, owners services.SessionRecordOwners) *presenceCompose.SessionRecords {
-	return services.NewSessionRecords(db.Pool(), owners)
-}
-
-// NewRetainedTimetableRepositories builds the retained Timetable adapters over
-// the given dependencies.
-func NewRetainedTimetableRepositories(db transactionruntime.Database, deps services.TimetableDependencies) services.TimetableRepositories {
-	return services.NewTimetableRepositories(db.Pool(), deps)
-}
-
 // The enrollment flows and their sources, as the root composes them.
 type (
 	EnrollmentChangeRequestSources = services.EnrollmentChangeRequestSources
@@ -43,17 +30,9 @@ type (
 	EnrollmentIntakeSettings       = services.EnrollmentIntakeSettings
 	EnrollmentIntakeSources        = services.EnrollmentIntakeSources
 	EnrollmentRolloverSources      = services.EnrollmentRolloverSources
-	SessionRecordOwners            = services.SessionRecordOwners
-	TimetableDependencies          = services.TimetableDependencies
 )
 
 var (
-	NewEnrollmentChangeRequests   = services.NewEnrollmentChangeRequests
-	NewEnrollmentDecisions        = services.NewEnrollmentDecisions
-	NewEnrollmentDeletionModule   = services.NewEnrollmentDeletionModule
-	NewEnrollmentIntake           = services.NewEnrollmentIntake
-	NewEnrollmentOfferingCapacity = services.NewEnrollmentOfferingCapacity
-	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
 	NewRoomSnapshotPeople = peopleCompose.NewRoomSnapshotPeople
@@ -64,16 +43,9 @@ var (
 
 // The legacy composition's values the Identity & Access behaviour suites
 // name build through the typed root (#4006).
-type (
-	FactoryConfig             = services.FactoryConfig
-	ParentRequestReviewPolicy = services.ParentRequestReviewPolicy
-)
+type FactoryConfig = services.FactoryConfig
 
 var (
-	// NewParentRequestReviewPolicy and ReviewPermissions are the parent
-	// request review decision the caller context serves.
-	NewParentRequestReviewPolicy = services.NewParentRequestReviewPolicy
-	ReviewPermissions            = services.ReviewPermissions
 	// NewOperatorAccountDirectory is the operator account listing over
 	// Identity & Access, the People Directory, School Membership and the
 	// schools.

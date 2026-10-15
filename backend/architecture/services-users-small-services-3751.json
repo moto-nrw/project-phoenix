@@ -47,7 +47,7 @@
       "backend/modules/peopledirectory/birthdays.go",
       "backend/modules/peopledirectory/compose/birthdays.go",
       "backend/modules/peopledirectory/internal/application/birthday.go",
-      "backend/services/birthday_composition.go",
+      "backend/api/birthday_composition.go",
       "backend/modules/peopledirectory/inbound/birthdays/api.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh, scripts/pre-push.sh and scripts/test-changed.sh against the stack parent, local postgres-test server, per-test tenants, default package parallelism.",

@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -112,17 +111,17 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	require.NoError(t, err)
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	deviceFault := activeService.NewCheckinDeviceFault(services.NewSessionDeviceDirectory(devices, nil, nil))
+	deviceFault := activeService.NewCheckinDeviceFault(api.NewSessionDeviceDirectory(devices, nil, nil))
 	groupFault := &checkinAttributionFault{ActiveGroupRepository: sessionGroups(repos.ActiveGroup)}
 	presence := testSchoolPresence(t, db)
 	statuses := &plannedStatusFault{StudentStatusDayRepository: repos.StudentStatusDay}
 	students := &plannedStudentFault{PresenceStudents: api.PresenceStudents(testpkg.MustDatabase(db), repos.Student)}
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
+	svc := activeService.NewService(activeService.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		SchoolPresence: presence, StudentRepo: students, StudentStatusRepo: statuses,
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
-		RoomRepo: services.NewAttendanceRooms(repos.Room), ActivityGroupRepo: services.NewSessionActivities(repos.GroupReads()),
+		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
+		RoomRepo: api.NewAttendanceRooms(repos.Room), ActivityGroupRepo: api.NewSessionActivities(repos.GroupReads()),
 		DB: db, Broadcaster: broadcaster,
 	})
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
@@ -152,7 +151,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 	device := testpkg.EnsureWebManualDevice(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Rollback")
 	ctx = api.WithAttendanceDevice(ctx, device.ID, device.TenantID)
-	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	studentFixture := testpkg.CreateTestStudent(t, db, "Planned", "Rollback", "3a")
 	student, err := repos.Student.FindByID(ctx, studentFixture.ID)
 	require.NoError(t, err)
@@ -191,7 +190,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		checkinCtx, deviceID := ctx, device.ID
 		if stage == "device lookup" {
 			deviceID = 0
-			checkinCtx = services.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
+			checkinCtx = api.WithAttendanceStaff(testpkg.Ctx(t), staff.ID, staff.TenantID)
 		}
 		if stage == "staff attribution" {
 			checkinCtx = api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)

@@ -148,7 +148,7 @@ func (s *pickupScheduleService) patchPickupWeek(ctx context.Context, student por
 	}
 	// Every selected student is locked before writes and per-day excusal locks.
 	if s.autoExcusal != nil {
-		if err := s.autoExcusal.ResyncFutureExceptions(ctx, student.ID); err != nil {
+		if err := s.autoExcusal.ResyncFutureExceptions(ctx, []int64{student.ID}); err != nil {
 			return err
 		}
 		return s.autoExcusal.RecordWeeklyPickupChanges(ctx, student.ID, calendar.TodayDate(), before)
