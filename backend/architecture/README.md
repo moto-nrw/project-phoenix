@@ -4255,6 +4255,36 @@ of [#4063](https://github.com/moto-nrw/project-phoenix/issues/4063). The
 composition surface stays at 139. The evidence record is
 `relocate-inbound-packages-4064.json`.
 
+### The operator router moves into the HTTP host (#4064)
+
+`api/operator` mounted the operator routes of Identity & Access,
+Organisation & Tenancy, Settings Platform, Communication and Device Fleet.
+That is cross-owner glue, which ADR 0056 lets the HTTP host mount, so the
+router moves into the server root as `api/operator_routes.go`. Routes,
+status codes, error bodies and the route and middleware goldens are
+unchanged.
+
+- `operator.Resource` and `operator.ResourceConfig` held values of several
+  owners, which a root may not (ADR 0059 point 1). `operatorRouter` takes
+  each owner's part as its own value instead: the Identity & Access inputs
+  (`operatorIdentity`), Organisation & Tenancy's `ProvisioningConfig` and
+  billing routes, Settings Platform's school settings routes, the
+  Communication capability and the Device Fleet handler. The rate limiters
+  come as the root's `authRateLimiters` instead of three setters.
+- `IdentityResponses` becomes `operatorIdentityResponses` in `api`.
+- The router's suites move into `api` (`api/operator_*_test.go`) with their
+  assertions; only the router construction changes, and the panic for
+  missing session chains no longer names the deleted `ResourceConfig`.
+- The owner `inbound-operator`, its package entry and its eight rules are
+  deleted. The root reaches every import through the standing reaches of
+  ADR 0053 point 2 (`root-composition.reach.domain.{http,public}`,
+  `reach.platform.{http,public}` and the internal-test reaches); no rule is
+  added.
+
+`api -> api/operator` (#2750) leaves `legacy.jsonl`, 520 -> 519. The
+composition surface falls from 1,746 to 1,743. The evidence record is
+`relocate-operator-router-4064.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.

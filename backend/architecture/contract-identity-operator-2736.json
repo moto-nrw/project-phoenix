@@ -97,7 +97,7 @@
       "backend/modules/identityaccess/inbound/account/api.go",
       "backend/modules/settings/settings.go",
       "backend/modules/settings/compose/operator.go",
-      "backend/api/operator/api.go",
+      "backend/api/operator_routes.go",
       "backend/modules/peopledirectory/compose/caregiver_capability_views.go",
       "backend/api/testdata/middleware_table.golden"
     ],

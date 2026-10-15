@@ -1,4 +1,4 @@
-package operator
+package api
 
 import (
 	"bytes"
@@ -122,10 +122,10 @@ func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 	t.Parallel()
 
 	svc := &operatorPasskeyServiceStub{}
-	router := NewResource(ResourceConfig{
-		PasskeyService: svc,
-		Sessions:       identityoperator.NewSessions(routetest.TestTokenAuth(t), nil),
-	}).Router()
+	router := testOperatorRouter(operatorIdentity{
+		passkeys: svc,
+		sessions: identityoperator.NewSessions(routetest.TestTokenAuth(t), nil),
+	}, nil)
 
 	req := operatorPasskeyJSONRequest("/auth/passkeys/login/options", `{}`)
 	req.Header.Set("X-Moto-Frontend-Origin", "https://operator.localhost")
@@ -147,10 +147,10 @@ func TestOperatorPasskeyLoginRoutesArePublic(t *testing.T) {
 func TestOperatorPasskeyListRouteAcceptsBothSlashForms(t *testing.T) {
 	t.Parallel()
 
-	router := NewResource(ResourceConfig{
-		PasskeyService: &operatorPasskeyServiceStub{},
-		Sessions:       identityoperator.NewSessions(routetest.TestTokenAuth(t), nil),
-	}).Router()
+	router := testOperatorRouter(operatorIdentity{
+		passkeys: &operatorPasskeyServiceStub{},
+		sessions: identityoperator.NewSessions(routetest.TestTokenAuth(t), nil),
+	}, nil)
 
 	for _, path := range []string{"/auth/passkeys", "/auth/passkeys/"} {
 		w := httptest.NewRecorder()

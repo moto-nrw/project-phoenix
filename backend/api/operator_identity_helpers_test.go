@@ -1,9 +1,8 @@
-package operator_test
+package api
 
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/api/operator"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 )
@@ -11,7 +10,7 @@ import (
 // newIdentityResource builds the Identity & Access operator routes the
 // operator router mounts (#3252), answering in the operator error format.
 func newIdentityResource(identity identityoperator.Capability) *identityoperator.Resource {
-	return identityoperator.NewResource(identity, operator.IdentityResponses())
+	return identityoperator.NewResource(identity, operatorIdentityResponses())
 }
 
 // identityOperatorOf is the operator the capability answers with: the
