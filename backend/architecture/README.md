@@ -4155,6 +4155,24 @@ The standing composition and test reaches of
 inside one of the four reaches, and nothing else. See
 [Standing composition reaches](#standing-composition-reaches-adr-0053).
 
+The server root is the HTTP host
+([ADR 0056](../../docs/adr/0056-the-server-root-is-the-http-host.md), #4063).
+In a reviewed epoch, `reviewedHTTPHostRule`
+(`internal/architecture/http_host_rule.go`) accepts exactly six
+`root-composition` rules, each pinned to one source role and one scope:
+`compose` to the class `http-router`, to `inbound-common`/`http` and to
+`identity-access`/`adapter` in production; `module-internal-test` to
+`identity-access`/`adapter` and to the class `cli-config` in the internal
+test scope; `cli` to `dev-tools`/`cli` in production. Like the test
+infrastructure rule, it also admits the external-class imports its rules
+imply. Epoch 46 registers them as `root-composition.compose.http-router`,
+`root-composition.http-host.{inbound-common,session-adapter}`,
+`root-composition.internal-test.{session-adapter,cli-config}` and
+`root-composition.cli.dev-tools`, and reclassifies `middleware` and
+`analytics` from `adapter` to their owners' `http` role, which
+`root-composition.reach.platform.http` (#4064) covers. Another source owner,
+role, target, class or scope stays forbidden.
+
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),
 #2743). In a reviewed epoch whose base classifies `database/repositories`
