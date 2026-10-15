@@ -43,14 +43,18 @@ import (
 // successors for one name, or one declaration naming two predecessors, fail. Moving
 // a measurement out of the ratchet files therefore fails as well.
 //
-// A raise, or a disappearance, is accepted only when a comment on the raised
-// entry or its declaration, or for a disappearance any comment naming the old
-// declaration, cites an ADR ("ADR 0123") with a number the base does not have
+// A raise is accepted only when a comment on the raised entry or its
+// declaration cites an ADR ("ADR 0123") with a number the base does not have
 // and the change adds as docs/adr/0123-*.md: a raised budget needs a new
-// decision, and renaming an existing ADR file is none.
+// decision, and renaming an existing ADR file is none. A measurement may be
+// retired when a comment in the candidate ratchet files names the old
+// declaration and cites an ADR the candidate holds.
 type ratchetBudgets struct {
 	fset  *token.FileSet
 	files []ratchetFile
+
+	// decisions are the ADR numbers the candidate tree holds.
+	decisions map[string]bool
 
 	finalized   bool
 	constants   map[string]ratchetValue
@@ -138,6 +142,10 @@ func CompareRatchetBudgets(project, ref string) error {
 	if err != nil {
 		return err
 	}
+	candidate.decisions, err = candidateADRs(root)
+	if err != nil {
+		return err
+	}
 	raises := compareRatchetBudgets(base, candidate, adrs)
 	if len(raises) != 0 {
 		return fmt.Errorf("ratchet budgets raised against base %s; a raise needs an ADR this change adds (ADR 0057 point 5):\n  %s", sha, strings.Join(raises, "\n  "))
@@ -182,6 +190,21 @@ func adrNumber(name string) (string, bool) {
 		return "", false
 	}
 	return match[1], true
+}
+
+// candidateADRs lists the ADR numbers of the candidate tree.
+func candidateADRs(root string) (map[string]bool, error) {
+	paths, err := filepath.Glob(filepath.Join(root, "docs", "adr", "*.md"))
+	if err != nil {
+		return nil, err
+	}
+	numbers := map[string]bool{}
+	for _, path := range paths {
+		if number, ok := adrNumber(filepath.Base(path)); ok {
+			numbers[number] = true
+		}
+	}
+	return numbers, nil
 }
 
 func newRatchetBudgets() *ratchetBudgets {
@@ -395,10 +418,21 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 		}
 		return false
 	}
+	// A measurement may be retired under any decision the candidate holds:
+	// unlike a raise, a retirement names what goes, and reusing an old ADR
+	// for it is visible in the comment that has to name the old declaration.
+	decided := func(comment string) bool {
+		for _, match := range ratchetADRCitation.FindAllStringSubmatch(comment, -1) {
+			if adrs[match[1]] || candidate.decisions[match[1]] {
+				return true
+			}
+		}
+		return false
+	}
 	nameCited := func(name string) bool {
 		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`)
 		for _, comment := range candidate.comments {
-			if pattern.MatchString(comment) && justified(comment) {
+			if pattern.MatchString(comment) && decided(comment) {
 				return true
 			}
 		}

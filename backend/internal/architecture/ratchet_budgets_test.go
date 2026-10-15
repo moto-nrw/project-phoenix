@@ -292,3 +292,37 @@ func TestCompareRatchetBudgetsRejectsAmbiguousRenames(t *testing.T) {
 		})
 	}
 }
+
+// A measurement may be retired under a decision the candidate holds, which a
+// comment naming the old declaration cites; an unknown number retires
+// nothing, and an existing number still raises nothing.
+func TestCompareRatchetBudgetsRetiresUnderAnExistingDecision(t *testing.T) {
+	t.Parallel()
+	const retired = "package test\n\n// Budgets is retired under ADR 0057.\nconst Total = 5\n\nconst Threshold = 15\n\nvar Exceptions = map[string]string{\n\t\"f\": \"reason\",\n}\n"
+	for _, tt := range []struct {
+		name      string
+		candidate string
+		decisions map[string]bool
+		want      string
+	}{
+		{"existing decision", retired, map[string]bool{"0057": true}, ""},
+		{"unknown decision", retired, map[string]bool{"0001": true}, "register Budgets (sum 5 at base) disappeared"},
+		{"existing decision raises nothing", strings.Replace(retired, "const Threshold = 15", "// ADR 0057.\nconst Threshold = 16", 1), map[string]bool{"0057": true}, "constant Threshold: 15 -> 16"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base, candidate := newRatchetBudgets(), newRatchetBudgets()
+			if err := base.add("test/example_ratchet_test.go", []byte(ratchetBudgetBase)); err != nil {
+				t.Fatal(err)
+			}
+			if err := candidate.add("test/example_ratchet_test.go", []byte(tt.candidate)); err != nil {
+				t.Fatal(err)
+			}
+			candidate.decisions = tt.decisions
+			raises := strings.Join(compareRatchetBudgets(base, candidate, nil), "\n")
+			if tt.want == "" && raises != "" || !strings.Contains(raises, tt.want) {
+				t.Fatalf("want %q, got %q", tt.want, raises)
+			}
+		})
+	}
+}
