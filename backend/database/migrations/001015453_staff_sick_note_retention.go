@@ -37,11 +37,11 @@ const staffSickNoteRetentionKind = "staff_sick_note_retention"
 // request only soft-deletes, so the metadata row stays the trail of a
 // document. The function runs as its owner in the pattern of 1.15.449,
 // accepts only the tenant of the calling transaction, deletes only the
-// au_bescheinigung category and refuses a cutoff inside the 90-day lower
-// bound of the school's frame. Each deleted row whose file still exists
-// queues its stored name in users.staff_document_file_cleanup, the queue the
-// staff document file sweep already drains; an intent finished by the upload
-// is queued again.
+// au_bescheinigung category and refuses a cutoff outside the 90- to 1095-day
+// frame of the school. Each deleted row whose file still exists queues its
+// stored name in users.staff_document_file_cleanup, the queue the staff
+// document file sweep already drains; an intent finished by the upload is
+// queued again.
 const staffSickNoteRetentionUpSQL = `
 		CREATE OR REPLACE FUNCTION users.delete_expired_staff_sick_notes(
 			p_tenant_id BIGINT,
@@ -56,6 +56,7 @@ const staffSickNoteRetentionUpSQL = `
 		DECLARE
 			deleted_count BIGINT;
 			invoker_is_superuser BOOLEAN;
+			earliest_allowed_cutoff TIMESTAMPTZ;
 			latest_allowed_cutoff TIMESTAMPTZ;
 		BEGIN
 			IF p_cutoff IS NULL THEN
@@ -65,7 +66,11 @@ const staffSickNoteRetentionUpSQL = `
 			latest_allowed_cutoff := (
 				((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 90)::timestamp
 			) AT TIME ZONE 'Europe/Berlin';
-			IF NOT COALESCE(invoker_is_superuser, FALSE) AND p_cutoff > latest_allowed_cutoff THEN
+			earliest_allowed_cutoff := (
+				((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 1095)::timestamp
+			) AT TIME ZONE 'Europe/Berlin';
+			IF NOT COALESCE(invoker_is_superuser, FALSE)
+				AND (p_cutoff > latest_allowed_cutoff OR p_cutoff < earliest_allowed_cutoff) THEN
 				RAISE EXCEPTION 'sick note cutoff exceeds retention window' USING ERRCODE = '42501';
 			END IF;
 

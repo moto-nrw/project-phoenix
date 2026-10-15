@@ -57,6 +57,7 @@ func TestSickNoteRetentionDeletesNothingWithoutAValidWindow(t *testing.T) {
 	cases := map[string]sickNoteWindowDouble{
 		"unreadable window":       {err: errors.New("settings unavailable")},
 		"window below the frame":  {days: 89},
+		"window above the frame":  {days: 1096},
 		"window of zero days":     {days: 0},
 		"negative window of days": {days: -365},
 	}

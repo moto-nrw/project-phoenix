@@ -122,6 +122,8 @@ func TestSickNoteRetentionRefusesACutoffInsideTheFrame(t *testing.T) {
 	}
 	require.ErrorContains(t, inSchool(`SELECT users.delete_expired_staff_sick_notes(?, CURRENT_TIMESTAMP)`, school),
 		"sick note cutoff exceeds retention window")
+	require.ErrorContains(t, inSchool(`SELECT users.delete_expired_staff_sick_notes(?, CURRENT_TIMESTAMP - INTERVAL '1096 days')`, school),
+		"sick note cutoff exceeds retention window")
 	require.ErrorContains(t, inSchool(`DELETE FROM users.staff_documents WHERE id = ?`, recent),
 		"permission denied for table staff_documents", "the tenant role keeps no direct DELETE on staff documents")
 	assert.True(t, suite.exists(t, "users.staff_documents", recent))

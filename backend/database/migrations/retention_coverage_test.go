@@ -56,7 +56,7 @@ var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
-	specGapTables = 4
+	specGapTables = 5
 	openGapTables = 24
 )
 
@@ -283,7 +283,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.profiles":                                        parent("auth.accounts"),
 	"users.rfid_cards":                                      notPersonal("RFID tag registry"),
 	"users.staff_document_file_cleanup":                     own("nightly retention step staff_cleanup_retention, DeleteFinishedStaffCleanups -> SQL users.delete_finished_staff_document_file_cleanups (30 days after cleaned_at)"),
-	"users.staff_documents":                                 own("nightly retention step staff_sick_note_retention, DeleteExpiredStaffSickNotes -> SQL users.delete_expired_staff_sick_notes (au_bescheinigung after gdpr.staff_sick_note_retention_days, file queued in users.staff_document_file_cleanup); other categories go with their staff member (#3963)"),
+	"users.staff_documents":                                 gap("#3963"), // AU-Bescheinigungen leave through staff_sick_note_retention; other categories remain until offboarding.
 	"users.staff_employment_profiles":                       parent("users.staff_school_memberships"),
 	"users.staff_financial_data":                            parent("users.staff_school_memberships"),
 	"users.staff_master_data":                               parent("users.staff_school_memberships"),
