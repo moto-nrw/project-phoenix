@@ -67,8 +67,8 @@ func NewEnrollmentDeletionModule(src EnrollmentDeletionSources) enrollmentCompos
 	return enrollmentCompose.NewDeletionModule(deps)
 }
 
-// enrollmentRetentionSettings resolves the retention of rejected
-// enrollments.
+// enrollmentRetentionSettings resolves the retention of rejected and of
+// withdrawn enrollments.
 type enrollmentRetentionSettings struct {
 	settings interface {
 		ResolveInt(ctx context.Context, key string) (int, error)
@@ -77,6 +77,10 @@ type enrollmentRetentionSettings struct {
 
 func (s enrollmentRetentionSettings) RejectedRetentionDays(ctx context.Context) (int, error) {
 	return s.settings.ResolveInt(ctx, configModels.KeyEnrollmentRejectedRetentionDays)
+}
+
+func (s enrollmentRetentionSettings) WithdrawnRetentionDays(ctx context.Context) (int, error) {
+	return s.settings.ResolveInt(ctx, configModels.KeyGDPRWithdrawnEnrollmentRetentionDays)
 }
 
 // enrollmentDeletionAudit appends the enrollment deletion audit rows.

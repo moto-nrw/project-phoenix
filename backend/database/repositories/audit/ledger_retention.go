@@ -75,3 +75,23 @@ func (a *Appender) retentionTenant(ctx context.Context, operation string) (bun.I
 	}
 	return db, tenantID, nil
 }
+
+// deleteExpiredProtocolSQL deletes the rows of one protocol of #4044
+// through the tenant-bound function of migration 1.15.454, which names each
+// protocol's table and refuses a cutoff inside its fixed window.
+const deleteExpiredProtocolSQL = `SELECT audit.delete_expired_protocol(?, ?, ?)`
+
+// DeleteExpiredProtocol removes the school's rows of the protocol of kind
+// before cutoff; the function refuses a kind it does not name.
+func (a *Appender) DeleteExpiredProtocol(ctx context.Context, kind string, cutoff time.Time) (int64, error) {
+	operation := "delete expired " + kind
+	db, tenantID, err := a.retentionTenant(ctx, operation)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	if err := db.NewRaw(deleteExpiredProtocolSQL, tenantID, kind, cutoff).Scan(ctx, &deleted); err != nil {
+		return 0, wrapDatabase(operation, err)
+	}
+	return deleted, nil
+}

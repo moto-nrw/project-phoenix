@@ -57,6 +57,25 @@ const (
 	DeletionTypeStudentDocumentCleanupRetention = "student_document_cleanup_retention"
 	DeletionTypeCareWithdrawalRetention         = "care_withdrawal_retention"
 	DeletionTypeSubmissionRateLimitRetention    = "submission_rate_limit_retention"
+	// Withdrawn and lapsed enrollments no child was created from, with
+	// their invitations to enroll late (#3960).
+	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
+	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
+	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
+	// The protocols of #4044 and the setting protocol, each after its fixed
+	// window.
+	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
+	DeletionTypeEnrollmentDeletionLogRetention    = "enrollment_deletion_log_retention"
+	DeletionTypeEnrollmentRestorationLogRetention = "enrollment_restoration_log_retention"
+	DeletionTypeTimeTrackingDeletionLogRetention  = "time_tracking_deletion_log_retention"
+	DeletionTypeStaffMasterDataChangeRetention    = "staff_master_data_change_retention"
+	DeletionTypePersonnelNumberChangeRetention    = "personnel_number_change_retention"
+	DeletionTypeGuardianFinancialChangeRetention  = "guardian_financial_change_retention"
+	DeletionTypeClassListChangeRetention          = "class_list_change_retention"
+	DeletionTypeSubstitutionChangeRetention       = "substitution_change_retention"
+	DeletionTypeFileEventRetention                = "file_event_retention"
+	DeletionTypeExportTransferRetention           = "export_transfer_retention"
+	DeletionTypeSettingAuditRetention             = "setting_audit_retention"
 )
 
 // IsDataKindRetention reports whether deletionType logs a whole data kind
@@ -74,7 +93,21 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeStaffCleanupRetention,
 		DeletionTypeStudentDocumentCleanupRetention,
 		DeletionTypeCareWithdrawalRetention,
-		DeletionTypeSubmissionRateLimitRetention:
+		DeletionTypeSubmissionRateLimitRetention,
+		DeletionTypeSettledEnrollmentRetention,
+		DeletionTypeStaffSickNoteRetention,
+		DeletionTypeStudentDeletionLogRetention,
+		DeletionTypeEnrollmentDeletionLogRetention,
+		DeletionTypeEnrollmentRestorationLogRetention,
+		DeletionTypeTimeTrackingDeletionLogRetention,
+		DeletionTypeStaffMasterDataChangeRetention,
+		DeletionTypePersonnelNumberChangeRetention,
+		DeletionTypeGuardianFinancialChangeRetention,
+		DeletionTypeClassListChangeRetention,
+		DeletionTypeSubstitutionChangeRetention,
+		DeletionTypeFileEventRetention,
+		DeletionTypeExportTransferRetention,
+		DeletionTypeSettingAuditRetention:
 		return true
 	}
 	return false

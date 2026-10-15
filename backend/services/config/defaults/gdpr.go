@@ -205,6 +205,26 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
+	// Withdrawn and lapsed enrollments no child was created from (#3960),
+	// counted from settling. They have no further purpose; 90 days cover the
+	// questions after a withdrawal. The frame of 30 to 365 days is ADR 0048's.
+	// Rejected children keep enrollment.rejected_retention_days.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRWithdrawnEnrollmentRetentionDays,
+		Label:           "Zurückgezogene Anmeldungen aufbewahren (Tage)",
+		Description:     "So lange speichert moto Anmeldungen, die zurückgezogen oder verfallen sind. Danach löscht moto sie. Das gilt nur, wenn daraus kein Kind angelegt wurde.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       32,
+		Validation:      config.Range(30, 365),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
 	minPWAUsageRetentionDays := float64(30)
 	maxPWAUsageRetentionDays := float64(365)
 	config.Register(config.Definition{
@@ -269,6 +289,28 @@ func init() {
 		Category:        "bewegungsdaten",
 		SortOrder:       17,
 		Validation:      config.Range(30, 730),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
+	// Staff sick notes (AU-Bescheinigungen, #3961), counted from the upload.
+	// They are health data (Art. 9 DSGVO); moto is no legal archive (ADR 0048).
+	// A year covers the twelve-month window of § 3 Abs. 1 S. 2 Nr. 2 EFZG for
+	// a repeated incapacity from the same illness. The frame of 90 days to
+	// 3 years is ADR 0048's. Other staff documents stay until the staff member
+	// leaves.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStaffSickNoteRetentionDays,
+		Label:           "AU-Bescheinigungen aufbewahren (Tage)",
+		Description:     "So lange speichert moto AU-Bescheinigungen ab dem Hochladen. Danach löscht moto sie samt Datei. Andere Dokumente einer Person bleiben, bis sie ausscheidet.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "personaldokumente",
+		SortOrder:       45,
+		Validation:      config.Range(90, 1095),
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 }

@@ -46,6 +46,7 @@ export const categoryLabels: Record<string, string> = {
   "nach-hause": "„Nach Hause“ am Tablet",
   nutzungsanalyse: "Nutzungsanalyse",
   organisation: "Organisation",
+  personaldokumente: "Personaldokumente",
   pin: "Zugang zum Tablet",
   rechtstexte: "Rechtstexte",
   schulstunden: "Schulstunden",
