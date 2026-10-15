@@ -14,7 +14,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -60,7 +59,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 	// must go through the same path production uses. FindByAccountID only
 	// touches the person repository, so the other sources stay empty on purpose.
 	persons := api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
-		Persons: services.NewPersonRepository(db),
+		Persons: api.NewPersonRepository(testpkg.NewDatabase(t, db)),
 	})
 
 	repos := newRepositories(t, db)

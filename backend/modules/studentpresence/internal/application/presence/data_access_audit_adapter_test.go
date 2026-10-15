@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +33,7 @@ func TestDataAccessAuditPreservesEvidenceAndFailure(t *testing.T) {
 	entry.StudentID = &entry.ActorAccountID
 	writeErr := errors.New("audit unavailable")
 	calls := 0
-	writer := services.NewDataAccessAudit(accessEventWriter{write: func(gotCtx context.Context, got *auditModels.DataAccessLog) error {
+	writer := api.NewDataAccessAudit(accessEventWriter{write: func(gotCtx context.Context, got *auditModels.DataAccessLog) error {
 		calls++
 		require.Equal(t, ctx, gotCtx)
 		require.Equal(t, entry.ActorAccountID, got.ActorAccountID)
@@ -48,5 +48,5 @@ func TestDataAccessAuditPreservesEvidenceAndFailure(t *testing.T) {
 	}})
 	require.ErrorIs(t, writer.Create(ctx, entry), writeErr)
 	require.Equal(t, 1, calls)
-	require.Nil(t, services.NewDataAccessAudit(nil))
+	require.Nil(t, api.NewDataAccessAudit(nil))
 }

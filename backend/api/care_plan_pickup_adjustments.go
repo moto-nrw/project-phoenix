@@ -3,14 +3,13 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,7 +21,7 @@ type PickupAdjustmentInputs struct {
 	ArrivalSchedules careplan.ArrivalScheduleService
 	Baselines        careplan.PickupBaselineReader
 	Offerings        careplan.DirectOfferingAdjustments
-	Settings         services.OfferingChangeSettingsReads
+	Settings         OfferingChangeSettingsReads
 	Audit            peopleCompose.StudentPickupPlanRecorder
 	Students         PickupAdjustmentStudentRows
 	Today            func() calendar.Date
@@ -32,7 +31,7 @@ func NewPickupAdjustments(inputs PickupAdjustmentInputs) (careplan.PickupAdjustm
 	return carePlanCompose.NewPickupAdjustments(carePlanCompose.PickupAdjustmentDependencies{
 		PickupSchedules: inputs.PickupSchedules, ArrivalSchedules: inputs.ArrivalSchedules, Records: inputs.CarePlan,
 		Baselines: inputs.Baselines, Offerings: inputs.Offerings,
-		Settings: services.OfferingChangeSettings{BookingSettings: services.BookingSettings{Settings: inputs.Settings}, Reads: inputs.Settings},
+		Settings: offeringChangeSettings{BookingSettings{Settings: inputs.Settings}, inputs.Settings},
 		Audit:    inputs.Audit, Students: pickupAdjustmentStudents{students: inputs.Students},
 		Fingerprint: securityruntime.Fingerprint, Today: inputs.Today,
 	})
@@ -69,4 +68,40 @@ func (s pickupAdjustmentStudents) LockStudents(ctx context.Context, ids []int64)
 		}
 	}
 	return result, nil
+}
+
+// OfferingChangeSettingsReads is the slice of the settings service offering
+// changes and pickup adjustments resolve through.
+type OfferingChangeSettingsReads interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// NewOfferingChangeSettings resolves the tenant settings the root's
+// offering-change review obeys, the ones the pickup adjustment reads too.
+func NewOfferingChangeSettings(reads OfferingChangeSettingsReads) carePlanCompose.OfferingChangeSettings {
+	return offeringChangeSettings{BookingSettings{Settings: reads}, reads}
+}
+
+// offeringChangeSettings resolves the tenant settings offering changes and
+// pickup adjustments obey.
+type offeringChangeSettings struct {
+	BookingSettings
+	reads OfferingChangeSettingsReads
+}
+
+func (s offeringChangeSettings) OfferingChangesEnabled(ctx context.Context) (bool, error) {
+	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentOfferingChangesEnabled)
+}
+
+func (s offeringChangeSettings) CourseRequestsEnabled(ctx context.Context) (bool, error) {
+	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentParentCourseRequestsEnabled)
+}
+
+func (s offeringChangeSettings) OfferingChangeLeadDays(ctx context.Context) (string, error) {
+	return s.reads.ResolveString(ctx, configModels.KeyEnrollmentOfferingChangesLeadDays)
+}
+
+func (s offeringChangeSettings) PickupOfferingReviewRequired(ctx context.Context) (bool, error) {
+	return s.reads.ResolveBool(ctx, configModels.KeyRequirePickupOfferingReview)
 }

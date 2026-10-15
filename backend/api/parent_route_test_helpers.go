@@ -9,7 +9,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type ParentRouteTestRepositories struct {
@@ -64,7 +63,7 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 	}
 	return ParentRouteTestRepositories{
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
-			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, services.ParentPortalDirectory{People: people}),
+			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, ParentPortalDirectory{People: people}),
 		},
 		Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,

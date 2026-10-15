@@ -8,10 +8,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	databasestats "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
-func NewDatabaseStatsTestReader(db transactionruntime.Database) (services.DatabaseStatsReader, error) {
+func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsReader, error) {
 	repos, err := NewTimetableTestRepositories(db)
 	if err != nil {
 		return nil, err
@@ -50,7 +49,7 @@ func NewDatabaseStatsTestReader(db transactionruntime.Database) (services.Databa
 		},
 	}, slog.Default())
 
-	return services.NewDatabaseStatsReader(databaseService, func(ctx context.Context) databasestats.DatabaseStatsCapabilities {
+	return NewDatabaseStatsReader(databaseService, func(ctx context.Context) databasestats.DatabaseStatsCapabilities {
 		return securityruntime.DatabaseStatsCapabilities(requestTokenReads.Permissions(ctx))
 	}), nil
 }

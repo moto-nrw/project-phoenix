@@ -98,6 +98,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 		Students: people.Students, Persons: people.Persons, Membership: owners.Membership,
 		People: persons, Timetable: owners.Timetable, Calendar: owners.Calendar,
 		Presence: NewUnloggedStudentPresence(owners.DB), PlanReads: MustPresenceReads(owners.DB),
+		Enrollment: NewEnrollmentBookingProjection(NewEnrollmentBookings()),
 	}, NewCareEndRecorder(studentAudit))
 
 	wiring := services.CarePlanWiring{

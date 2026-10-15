@@ -43,7 +43,7 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return ClassDayTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
-	reports := services.NewEnrollmentReports(services.EnrollmentReportSources{
+	reports := NewEnrollmentReports(services.EnrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
 		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
 		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),

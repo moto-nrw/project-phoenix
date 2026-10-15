@@ -7,16 +7,18 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type retentionAuditFault struct {
-	command     services.AuditCommand
+	command interface {
+		Append(context.Context, any) error
+	}
 	afterAppend error
 	writes      int
 }
@@ -57,7 +59,7 @@ func testRetentionRollback(t *testing.T, stage string) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	presence := testSchoolPresence(t, db)
-	command, err := services.NewCleanupAuditCommand(slog.Default())
+	command, err := api.NewCleanupAuditCommand(slog.Default())
 	require.NoError(t, err)
 	injected := errors.New("fail after retention write")
 	fault := &retentionAuditFault{command: command}
@@ -67,8 +69,8 @@ func testRetentionRollback(t *testing.T, stage string) {
 	} else {
 		fault.afterAppend = injected
 	}
-	repos := services.NewRetentionCleanupRepositories(db, fault)
-	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), services.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
+	repos := api.NewRetentionCleanupRepositories(testpkg.NewDatabase(t, db), fault)
+	svc := activeService.NewCleanupService(deleteFault, sessionSupervisors(repos.Sessions), api.NewDeletionAudit(repos.Deletion), visitRetentionSetting{days: 30})
 	consent := testpkg.CreateTestPrivacyConsent(t, db, "retention-rollback")
 	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 	entry := time.Now().AddDate(0, 0, -45)

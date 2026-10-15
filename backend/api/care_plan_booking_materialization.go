@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -38,7 +36,7 @@ type bookingMaterializationInputs struct {
 	Periods     bookingPeriodReads
 	Enrollment  bookingEnrollmentReads
 	Approved    bookingApprovedChildren
-	Settings    services.BookingSettingsReads
+	Settings    BookingSettingsReads
 	Bookings    careplanCompose.BookingCommands
 	Withdrawals careplanCompose.BookingWithdrawals
 	Adjustments bookingAdjustmentTrail
@@ -72,7 +70,7 @@ func newBookingMaterialization(inputs bookingMaterializationInputs) (careplan.Bo
 		Periods:     bookingPeriods{calendar: inputs.Periods},
 		Enrollment:  bookingEnrollment{owner: inputs.Enrollment, approved: inputs.Approved},
 		Students:    bookingStudents{people: inputs.Students},
-		Settings:    services.BookingSettings{Settings: inputs.Settings},
+		Settings:    BookingSettings{Settings: inputs.Settings},
 		Bookings:    inputs.Bookings,
 		Withdrawals: inputs.Withdrawals,
 		Audit:       bookingAdjustmentAudit{repo: inputs.Adjustments, persons: inputs.Persons, accounts: inputs.Accounts},
@@ -359,7 +357,7 @@ func (e bookingEnrollment) Phase(ctx context.Context, id int64) (careplanCompose
 	if phase == nil {
 		return careplanCompose.BookingPhase{}, careplanCompose.BookingRowNotFound(fmt.Errorf("phase %d not found", id))
 	}
-	return careplanCompose.BookingPhase{OfferingPhase: services.BookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
+	return careplanCompose.BookingPhase{OfferingPhase: BookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
 }
 
 func (e bookingEnrollment) Phases(ctx context.Context) ([]careplan.OfferingPhase, error) {
@@ -376,20 +374,56 @@ func bookingOfferingPhases(phases []*enrollmentOwner.Phase) []careplan.OfferingP
 	result := make([]careplan.OfferingPhase, 0, len(phases))
 	for _, phase := range phases {
 		if phase != nil {
-			result = append(result, services.BookingOfferingPhase(phase))
+			result = append(result, BookingOfferingPhase(phase))
 		}
 	}
 	return result
 }
 
+// BookingOfferingPhase is an Enrollment phase as Care Plan's booking flows
+// read it; the root's offering-change review reads it too.
+func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
+	return careplan.OfferingPhase{
+		ID: phase.ID, Name: phase.Name,
+		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
+	}
+}
+
 func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))
-	return services.BookedOfferings(values), err
+	return BookedOfferings(values), err
 }
 
 func (e bookingEnrollment) SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingHistory(ctx, childID)
-	return services.BookedOfferings(values), err
+	return BookedOfferings(values), err
+}
+
+// BookedOfferings are Enrollment's selections as Care Plan's booked
+// offerings; the root's offering-change review reads them too.
+func BookedOfferings(values []*enrollmentOwner.RequestChildOffering) []careplan.BookedOffering {
+	if values == nil {
+		return nil
+	}
+	links := make([]careplan.BookedOffering, 0, len(values))
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		link := careplan.BookedOffering{
+			RequestChildID: value.RequestChildID, CareOfferingID: value.CareOfferingID,
+			SelectedDays: value.SelectedDays, ManualSelectedDays: value.ManualSelectedDays,
+			AutomaticSelectedDays: value.AutomaticSelectedDays,
+		}
+		if value.ValidFrom != nil {
+			link.ValidFrom = new(calendar.Date(*value.ValidFrom))
+		}
+		if value.ValidUntil != nil {
+			link.ValidUntil = new(calendar.Date(*value.ValidUntil))
+		}
+		links = append(links, link)
+	}
+	return links
 }
 
 func (e bookingEnrollment) ApprovedChildren(ctx context.Context, offeringIDs []int64, onOrAfter calendar.Date) ([]careplanCompose.ApprovedOfferingChild, error) {

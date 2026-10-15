@@ -4,20 +4,21 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
+
+	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
 func TestBookingCapacityCutoverPreservesBoundariesAndTenantIsolation(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	bookings := carePlanTest.NewOfferingBookings()
-	projection := services.NewEnrollmentBookingProjection(enrollmentTest.New())
+	projection := api.NewEnrollmentBookings()
 	type school struct {
 		ctx                               context.Context
 		phaseID, offeringID, firstChildID int64

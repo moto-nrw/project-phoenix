@@ -59,7 +59,7 @@ func NewPresenceWiring(owners PresenceWiringOwners) (services.PresenceWiring, er
 		logger = slog.Default()
 	}
 	db := owners.DB
-	devices, err := services.NewDeviceFleet(db.Pool())
+	devices, err := NewDeviceFleet(db)
 	if err != nil {
 		return services.PresenceWiring{}, err
 	}

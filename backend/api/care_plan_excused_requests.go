@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -29,7 +27,7 @@ type ExcusedRequestServiceWiring struct {
 	Scope       carePlanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster
-	Events      services.ParentRequestEvents
+	Events      ParentRequestEvents
 	notifier    deliveryCompose.AbsenceNotifier
 	shares      carePlanCompose.ShareVisibility
 	observe     CarePlanObserver
@@ -45,7 +43,7 @@ type CarePlanObserver func(carePlanCompose.Observation)
 func NewExcusedAbsenceRequestService(wiring ExcusedRequestServiceWiring) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	var messenger carePlanCompose.RequestMessenger
 	if wiring.Emitter != nil {
-		messenger = services.NewExcusedRequestMessenger(wiring.Emitter)
+		messenger = NewExcusedRequestMessenger(wiring.Emitter)
 	}
 	var broadcaster carePlanCompose.StaffBroadcaster
 	if wiring.Broadcaster != nil {
@@ -53,7 +51,7 @@ func NewExcusedAbsenceRequestService(wiring ExcusedRequestServiceWiring) (*careP
 	}
 	var ledger carePlanCompose.RequestLedger
 	if wiring.Events != nil {
-		ledger = services.NewParentRequestLedger(wiring.Events)
+		ledger = NewParentRequestLedger(wiring.Events)
 	}
 	var notifier carePlanCompose.AbsenceNotifier
 	if wiring.notifier != nil {

@@ -16,7 +16,6 @@ import (
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,7 @@ func (f *overviewFixture) newExportService() timetracking.StaffTimeExportService
 		f.svc,
 		f.newWorkSessionService(),
 		api.TimeExportStaff(f.repos.Staff),
-		services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
+		api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.MustDatabase(f.db), nil).DataAccessLog),
 		nil,
 		nil,
 		api.RenderTimeTrackingWorkbook,
@@ -303,7 +302,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	f.cleanupAccessLogs(t)
 	sessionSvc := f.newWorkSessionService()
 	exportSvc := timetracking.NewStaffTimeExportService(
-		f.svc, sessionSvc, api.TimeExportStaff(f.repos.Staff), services.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
+		f.svc, sessionSvc, api.TimeExportStaff(f.repos.Staff), api.NewTimeTrackingDataAccessAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataAccessLog), nil, nil,
 		api.RenderTimeTrackingWorkbook,
 	)
 

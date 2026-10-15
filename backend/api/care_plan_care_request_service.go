@@ -160,7 +160,7 @@ type careScheduleRequestService struct {
 	// shareVisibility answers who the parent explicitly shared a request
 	// with; nil means nobody was, so every co-guardian gets the neutral line.
 	shareVisibility communicationCompose.ParentShareVisibilityResolver
-	events          *services.ParentRequestLedger
+	events          *ParentRequestLedger
 	today           func() timezone.Date
 
 	// tenant reads the ambient school and schedules the effects that run
@@ -208,7 +208,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
 	permissions func(context.Context) []string,
-	events services.ParentRequestEvents,
+	events ParentRequestEvents,
 	logger *slog.Logger,
 	studentAudit peopleCompose.StudentChangeRecorder,
 	options ...CareRequestOption,
@@ -218,7 +218,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	}
 	svc := newCareScheduleRequestService(
 		requestRecords, people, arrival, pickup, userContext,
-		emitter, broadcaster, reviewPolicy, services.NewParentRequestLedger(events), logger, studentAudit,
+		emitter, broadcaster, reviewPolicy, NewParentRequestLedger(events), logger, studentAudit,
 	)
 	svc.permissions = permissions
 	svc.attendance = attendance
@@ -283,7 +283,7 @@ func newCareScheduleRequestService(
 	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
-	events *services.ParentRequestLedger,
+	events *ParentRequestLedger,
 	logger *slog.Logger,
 	studentAudit peopleCompose.StudentChangeRecorder,
 ) *careScheduleRequestService {

@@ -17,7 +17,7 @@ import (
 // newProjectedOperatorAccountDirectory uses the serving owner projection.
 func newProjectedOperatorAccountDirectory(t *testing.T, db *bun.DB) services.OperatorAccountDirectory {
 	t.Helper()
-	schools, err := services.NewOrganizationTenancy(db)
+	schools, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	persons, err := api.NewPeopleDirectory(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)

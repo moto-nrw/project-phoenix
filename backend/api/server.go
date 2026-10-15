@@ -15,6 +15,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	"github.com/go-chi/chi/v5"
+
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -244,7 +245,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
-	deps := workerRuntimeDependencies(graph, logger, billing)
+	deps := workerRuntimeDependencies(graph, reads, logger, billing)
 	deps.Retention = retention.run
 	deps.CleanupRuns = retention.runs
 	deps.TenantRuntime = runtime
@@ -257,11 +258,11 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	return scheduler.NewWorker(deps)
 }
 
-func workerRuntimeDependencies(graph *serveGraph, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
+func workerRuntimeDependencies(graph *serveGraph, reads workerReads, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
 	return scheduler.WorkerDependencies{
 		Logger:                 logger.With("service", "scheduler"),
 		Getenv:                 os.Getenv,
-		SchoolRepo:             schedulerTenantDirectory{schools: graph.services.Schools, billing: billing},
+		SchoolRepo:             schedulerTenantDirectory{schools: reads.schools, billing: billing},
 		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
 		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
 		Tracer:                 workerTracer(graph),
@@ -301,7 +302,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *ser
 	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(graph)
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
-	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
+	deps.EnrollmentRejectedCleanup = enrollmentRejectedCleanup{cleaner: services.EnrollmentRejectedCleanup}
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
 	deps.TimetableBridge = services.TimetableBridge

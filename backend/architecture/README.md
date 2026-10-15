@@ -558,8 +558,7 @@ transaction or JWT read: those live in the owner compositions or arrive as
 built values from the root. The `bun`, `tenant` and `sessiontoken`
 (`legacy/jwt` before #3487) keys remain,
 because the builders that compose several owners over one database
-(`services/*_roots.go`, `command_roots.go`, `cleanup_composition.go`,
-`factory.go`) and the test hooks still need them. The Factory still exists.
+(`services/*_roots.go`, `factory.go`) and the test hooks still need them. The Factory still exists.
 [ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
 decides where that code goes: an owner's composition builds its own owner,
 and the typed roots compose the owners. #4001 grants the standing reaches in
@@ -620,6 +619,51 @@ order of the weekly pickup approval sits behind a consumer-owned port. The
 Factory fields `Students` and `RequestReviewPolicy` are gone, so the
 composition surface fell from 235 to 233 (see
 [Care Plan wiring out of services](#care-plan-wiring-out-of-services-4011)).
+
+#4012 moved the Enrollment wiring out of `services` without a key or a policy
+rule. The booking projection's reads, capacity peaks and approved bookings are
+Enrollment's own rules (`modules/enrollment`, `BookingProjection` behind the
+consumer-owned port `OfferingBookings`, ADR 0053 point 4); Enrollment's
+composition builds the admin deletion and the retention cleanup over one
+preview (`NewDeletionModule`). The root binds
+Care Plan's bookings to that port, builds every cross-owner adapter, and hands
+the Factory `services.EnrollmentWiring`; the flows over values only the Factory
+builds arrive as constructors. The root builds the form schemas, the captcha
+and the phase expiry warnings where it mounts them, so three Factory fields
+fall and the composition surface goes from 237 to 234 (see
+[Enrollment wiring out of services](#enrollment-wiring-out-of-services-4012)).
+
+#4013 moved the platform, Communication, Organisation & Tenancy and command
+wiring out of `services`, again without a key or a new rule. Delivery's
+composition builds what binds Delivery to Delivery: the mail and push
+provider, the push authorization, the expired-subscription cleanup and the
+durable e-mail store (`MailPushProvider`, `NewDurableEmails`). The Audit
+composition reads the ambient transaction of its producers itself
+(`NewTenantPersistence` for the service graph, `NewHandoffPersistence` for
+the cleanup command, `NewObservedCommand`); the switch over `bun` transaction
+types lives in its Postgres adapter (`NewHandoffRuntime`), so no composition
+picks a transaction out of the context. The root builds the rest
+(`api.NewPlatformWiring`) and hands it to `NewFactoryWithModules` as
+`services.PlatformWiring`: the school settings store, the operator ledger, the
+parent-portal stores, the unobserved Device Fleet and the list renderer as
+values, and the Audit, Delivery and provisioning adapters over values the
+Factory composes as constructors. It builds the Data Import and the database
+statistics where it mounts them and reads the schools and the announcements
+from the owners it composed, so the Factory fields `Schools`, `Announcement`,
+`ListExport`, `Database`, `DatabaseStatsCapabilities`, `Import`,
+`StaffImport`, `ClassListImport` and `OpeningBalanceImport`, the
+`observeDataImport` parameter and three Factory methods are gone (composition
+surface 237 → 228). The cleanup command composes its sweeps in
+`cmd/cleanup_roots.go`; what its suites share (`NewCleanupAuditCommand`,
+`NewRetentionCleanupRepositories`, `NewSessionCleanupRepositories`) is a root
+function in `api`. `OutboxEnqueuer` and the retained-error helpers stay with
+their callers in `services`. Three rules that allowed no import any more are
+deleted (1,431 → 1,428). `services` keeps 136 of 156 production files (19,108
+of 21,330 LOC). The settings, the realtime hub, the Audit command, Delivery,
+the File Storage module, the operator provisioning and the messaging
+services stay Factory fields: the Factory builds them over values only it
+composes, or the root builders of the other slices read them through
+`*services.Factory`.
 
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
@@ -3479,6 +3523,61 @@ production files and from 35,473 to 30,454 LOC, and `services ->
 sessiontoken` falls (#2747, 40 → 39). Declarations whose callers stay in
 `services` moved into those callers' files. `api -> sessiontoken` (#2750)
 stays: the root's middleware and claim reads still use the adapter.
+
+### Enrollment wiring out of services (#4012)
+
+None of the 19 Enrollment files of #4012 remains in `services`. Measured
+against `development` after #4006 to #4008: `services` goes from 156 to 137
+production files and from 21,330 to 18,532 LOC; the baseline stays at 39 keys
+and the policy at 1,431 rules.
+
+After merging #4009 to #4011, the combined composition surface is 228
+(231 on the merged `development`), with 39 legacy keys. The Care Plan,
+Presence and Timetable wiring remains root-composed alongside Enrollment.
+
+- **Enrollment** decides what is its own: `BookingProjection` in the public
+  package (selections at a date, the first upcoming interval before a phase
+  starts, capacity peaks, grade counts, approved bookings and the offering
+  links of the booking audit) reads Care Plan's bookings through the
+  consumer-owned port `OfferingBookings`, next to the owner's other ports such
+  as `PhaseExpiryStudents`. It is not in the application layer, whose
+  pass-through ratchet would count its port reads. The three functions above
+  the module complexity limit are split into helpers;
+  `booking_capacity_internal_test.go` pins their boundaries. Enrollment's
+  composition only constructs: `NewDeletionModule` shares one impact preview
+  between the admin deletion and the retention cleanup.
+- **The root** (`api`) holds the glue: Care Plan's bookings behind the port
+  (`api/enrollment_bookings.go`), the Settings Platform, Delivery outbox,
+  Audit trail, People Directory, Care Plan and Timetable adapters of the
+  intake, decision, change-request, rollover, report, phase and
+  offering-change flows, the booking consistency audit next to the Worker job
+  that runs it (`api/booking_consistency_audit.go`), and the settings guards.
+  The adapters read People Directory and Audit rows through narrow ports
+  (`api/enrollment_rows.go`, Rule 1).
+- **The Factory** takes `services.EnrollmentWiring` as one new constructor
+  parameter: the projection, the adapters over owners the root composes, and
+  constructors for the flows over the settings, audit trails, outbox,
+  realtime hub and booking materialization only the Factory builds. The
+  source types of those constructors stay in `factory.go`. The root builds
+  `EnrollmentFormSchema`, `EnrollmentCaptcha` and `EnrollmentPhaseExpiry`
+  where it mounts the routes, so those fields are gone (237 → 234);
+  `EnrollmentRejectedCleanup` keeps its name with Enrollment's own type, and
+  the root adds the scheduler's counts.
+- **The guard closures** of `newFactory` (ADR 0053 point 4): each of the three
+  settings guards (class restriction, grade restriction, grade cap) binds a
+  Settings port to an Enrollment phase read, and Settings decides what it
+  refuses. All three are glue and moved to the root
+  (`bindEnrollmentSettingsGuards`); none decides anything.
+- **Care Plan integration after #4011:** the care exit's booking writes now
+  live in `api/care_exit_enrollment_bookings.go` around Enrollment's root-built
+  projection. `NewCareLifecycleOwners` receives that adapter. The shared
+  offering-change settings adapter lives next to the root's pickup adjustment;
+  `BookedOfferings` and `BookingOfferingPhase` live next to booking
+  materialization. The Factory consumes Enrollment's projection directly.
+
+Delivery's composition names the e-mail recipient resolver of the "Neue
+Anmeldung" mail, and the People Directory vocabulary the emergency contact
+row, because the root may not import an owner's application role.
 
 ### Workforce wiring out of services (#4008)
 

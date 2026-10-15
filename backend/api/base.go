@@ -18,6 +18,8 @@ import (
 	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -167,13 +169,20 @@ type moduleServices struct {
 	reviewPolicy *ParentRequestReviewPolicy
 	// timetableRepositories are the retained Timetable adapters (#2743).
 	timetableRepositories timetableCompose.Repositories
+	services              *services.Factory
+	// organizations is the Organisation & Tenancy owner the root composed;
+	// listExport renders the list documents; imports are the Data Import
+	// services; databaseStats counts the Datenverwaltung hub (#4013).
+	organizations organizationModule.Capability
+	listExport    *lists.RendererService
+	imports       imports
+	databaseStats DatabaseStatsReader
 	// presence is the Student Presence, Facilities, Device Fleet and
 	// class-day wiring the root built for the service graph (#4010).
 	presence services.PresenceWiring
 	// planningTracks is the planning-track administration the timetable
 	// routes and the service graph share (#4009).
 	planningTracks timetableModule.PlanningTrackAdministration
-	services       *services.Factory
 	// identity is the Identity & Access module the root composed (#4006);
 	// userContext is its caller context with the rows the retained routes
 	// read.
@@ -344,7 +353,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		DB:            pool,
 		Organizations: organizations,
 		People:        persons,
-		Audit:         communicationCompose.NewOperatorAnnouncementAudit(services.NewOperatorAuditLog(pool).Create),
+		Audit:         communicationCompose.NewOperatorAnnouncementAudit(NewOperatorAuditLog(db).Create),
 		Observe: func(observation communicationCompose.Observation) {
 			observability.ObserveCommunicationOperation(
 				observation.Operation,
@@ -371,14 +380,14 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	// records and the room service (#4010). The meal plan's participants, the
 	// Worker's activation tick and its reminder recipients read the same
 	// student and staff repositories.
-	people, presence, timetableWiring, err := newLegacyWiring(PeopleWiringOwners{
+	people, presence, timetableWiring, platform, err := newLegacyWiring(PeopleWiringOwners{
 		DB: db, Logger: logger, Persons: persons, Groups: groups, Rooms: rooms, Membership: membership,
 		Workforce: workTime, CarePlan: carePlan, Organizations: organizations, Timetable: timetableCapability,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 	}, PresenceWiringOwners{
 		DB: db, Logger: logger, Persons: persons, Rooms: rooms, Membership: membership, CarePlan: carePlan,
 		Calendar: calendar, Timetable: timetableCapability, TimetableRows: timetableRepositories,
-	})
+	}, organizations)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -435,14 +444,18 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			observability.ObserveIdentityAccessOperation,
 			workTime,
 			newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
-			observeDataImport,
 			productEvents,
 			fileStorageWiring,
 			identity,
 			people,
+			platform,
 			presence,
 			timetableWiring,
 			carePlanWiring,
+			newEnrollmentWiring(enrollmentWiringOwners{
+				DB: db, CarePlan: carePlan, Persons: persons, Calendar: calendar,
+				Timetable: timetableCapability, Schools: people.EnrollmentSchools,
+			}),
 		)
 	})
 	if err != nil {
@@ -461,29 +474,56 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	// The parent request review policy of the request queues, for the review
 	// projection and the student routes (#4011).
 	reviewPolicy := NewParentRequestReviewPolicy(userContext.Caller().ParentRequestReviews)
-	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+	// The Data Import (#2708) commits every accepted row through the owner
+	// commands; the root builds it where it mounts the import routes (#4013).
+	imports := NewImports(ImportWiring{
+		Identity: identityModule, Organizations: organizations, Groups: groups, Rooms: rooms,
+		Persons: persons, Membership: membership, Workforce: workTime,
+		CarePlan: carePlan, Presence: presence.Presence,
+		InvitationService: identityModule,
+		OpeningBalance: dataImportRetained.OpeningBalanceImportDeps{
+			BalanceAdjustService: factory.WorkSession.OpeningBalances,
+			StaffAbsenceService:  factory.WorkSession.VacationTakeovers,
+		},
+		ConsentHistory: auditCompose.NewConsentRecorder(factory.Audit),
+		Audit:          factory.Audit,
+		Observe:        observeDataImport,
+	})
+	databaseStats := newDatabaseStats(databaseStatsSources{
+		people: people, rooms: rooms, timetable: timetableRepositories, identity: identityModule,
+		devices: platform.DeviceFleet, logger: logger,
+	})
+	return moduleServices{organizations: organizations, listExport: platform.ListExport, imports: imports, databaseStats: databaseStats, carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
 }
 
 // newLegacyWiring builds what the root hands the legacy service graph in
 // place of building it there: the People Directory, School Membership and
 // School Structure wiring (#4007) and, over its retained rows, the Student
 // Presence, Facilities, Device Fleet and class-day wiring (#4010), together
-// with the Timetable, School Calendar and reminder wiring (#4009).
-func newLegacyWiring(people PeopleWiringOwners, presence PresenceWiringOwners) (services.PeopleWiring, services.PresenceWiring, services.TimetableWiring, error) {
+// with the Timetable, School Calendar and reminder wiring (#4009) and
+// the platform, Communication and Organisation & Tenancy wiring (#4013).
+func newLegacyWiring(people PeopleWiringOwners, presence PresenceWiringOwners, organizations organizationModule.Capability) (services.PeopleWiring, services.PresenceWiring, services.TimetableWiring, services.PlatformWiring, error) {
 	peopleWiring, err := NewPeopleWiring(people)
 	if err != nil {
-		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, err
+		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, services.PlatformWiring{}, err
 	}
 	presence.People = peopleWiring
 	presenceWiring, err := NewPresenceWiring(presence)
 	if err != nil {
-		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, err
+		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, services.PlatformWiring{}, err
 	}
 	timetableWiring, err := NewTimetableWiring(TimetableWiringOwners{
 		DB: people.DB, Logger: people.Logger, Repositories: presence.TimetableRows, Timetable: people.Timetable,
 		Calendar: presence.Calendar, Rooms: people.Rooms, Membership: people.Membership, Persons: people.Persons, People: peopleWiring,
 	})
-	return peopleWiring, presenceWiring, timetableWiring, err
+	if err != nil {
+		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, services.PlatformWiring{}, err
+	}
+	platform, err := NewPlatformWiring(PlatformWiringOwners{
+		DB: people.DB, Organizations: organizations, Persons: people.Persons, Groups: people.Groups,
+		Membership: people.Membership, People: peopleWiring,
+	})
+	return peopleWiring, presenceWiring, timetableWiring, platform, err
 }
 
 // composeSchoolMembership composes the observed School Membership owner. A
@@ -553,7 +593,15 @@ func withRootWiring(db transactionruntime.Database, carePlanOwners carePlanWirin
 	if err != nil {
 		return nil, nil, carePlanRoot{}, err
 	}
-	factory, err := build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage}, wiring, carePlan.wiring)
+	factory, err := build(services.FileStorageWiring{
+		Objects: uploads, Observe: observeFileStorage,
+		Settings: func(settings settingsCompose.SettingsService) filestorageCompose.Settings {
+			return FileStorageSettings{Service: settings}
+		},
+		Events: func(events services.FileEventAppender) filestorageCompose.Events {
+			return FileStorageEvents{Repo: events}
+		},
+	}, wiring, carePlan.wiring)
 	if err != nil {
 		return nil, nil, carePlanRoot{}, err
 	}
@@ -564,7 +612,7 @@ func observeFileStorage(observation filestorageCompose.Observation) {
 	observability.ObserveFileStorageOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, filestorageModule.ErrorCode(observation.Err), observation.Err)
 }
 
-func observeDataImport(observation services.DataImportObservation) {
+func observeDataImport(observation dataImportRetained.ImportObservation) {
 	observability.ObserveDataImport(observation.Entity, observation.DryRun, observation.Rows, observation.Accepted, observation.Rejected, observation.Created, observation.Updated, observation.Duration)
 	if observation.DryRun {
 		return
@@ -668,7 +716,7 @@ func renderMealPlanFailure(w http.ResponseWriter, r *http.Request, err error, in
 	apiCommon.RenderError(w, r, renderer(err))
 }
 
-func newMealPlanResource(module *mealplanModule.Module, renderer services.SimpleListRenderer) *mealplanAPI.Resource {
+func newMealPlanResource(module *mealplanModule.Module, renderer SimpleListRenderer) *mealplanAPI.Resource {
 	return mealplanAPI.NewResource(module, mealplanAPI.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, mealplanAPI.Middleware)) {
 			apiCommon.ProtectedTenantRoutes(router, register)
@@ -695,7 +743,7 @@ func newMealPlanResource(module *mealplanModule.Module, renderer services.Simple
 	})
 }
 
-func renderMealParticipationExport(renderer services.SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
+func renderMealParticipationExport(renderer SimpleListRenderer, list mealplanModule.DailyList, format string) (mealplanAPI.ExportFile, error) {
 	rows := make([][]string, 0, len(list.Participants))
 	for _, participant := range list.Participants {
 		rows = append(rows, []string{participant.LastName + ", " + participant.FirstName, participant.SchoolClass})
@@ -704,12 +752,12 @@ func renderMealParticipationExport(renderer services.SimpleListRenderer, list me
 	if err != nil {
 		return mealplanAPI.ExportFile{}, err
 	}
-	file, err := renderer(services.SimpleListDocument{
+	file, err := renderer(SimpleListDocument{
 		Title:       "Mittagessen – Tagesliste",
 		Subtitle:    "Tagesliste für den " + date,
 		GeneratedAt: time.Now(),
 		Filters:     []string{"Änderungsfrist: " + list.CutoffTime + " Uhr", fmt.Sprintf("%d Kinder", len(rows))},
-		Columns: []services.SimpleListColumn{
+		Columns: []SimpleListColumn{
 			{ID: "student_name", Label: "Kind"},
 			{ID: "student_class", Label: "Klasse"},
 		},
@@ -1486,7 +1534,7 @@ func newDeviceAuthentication(modules moduleServices) *deviceauth.Authenticators 
 	svc := modules.services
 	return deviceauth.New(deviceauth.Dependencies{
 		Devices:     svc.IoT.Fleet(),
-		Schools:     deviceSchoolDirectory{schools: svc.Schools},
+		Schools:     deviceSchoolDirectory{schools: modules.organizations},
 		Settings:    svc.Settings,
 		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
 	})
@@ -1528,7 +1576,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		ArrivalScheduleService:       svc.ArrivalSchedule,
 		InstanceService:              svc.Instance,
 		CareDayService:               svc.CareDay,
-		SchoolService:                studentSchoolDirectory{schools: svc.Schools},
+		SchoolService:                studentSchoolDirectory{schools: modules.organizations},
 		SettingsService:              svc.Settings,
 		MasterDataReviewService:      svc.MasterDataReview,
 		CareRequestService:           svc.CareRequests,
@@ -1549,7 +1597,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		ActiveEnrollments:            studentActiveEnrollments{enrollments: svc.Activities},
 		EnrollmentDecision:           svc.EnrollmentDecision,
 		OfferingPickupTimes:          svc.EnrollmentCareOffering,
-		EnrollmentFormSchema:         svc.EnrollmentFormSchema,
+		EnrollmentFormSchema:         newEnrollmentFormSchemas(svc.Settings, in.logger),
 		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		Broadcaster:                  svc.RealtimeHub,
@@ -1650,7 +1698,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		FeedbackResponseObserver: func(status int, code string) {
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
-		SchoolName:              devicescanCompose.NewSchoolName(schoolName(svc.Schools)),
+		SchoolName:              devicescanCompose.NewSchoolName(schoolName(modules.organizations)),
 		ErrorReports:            errorReports,
 		SessionEnd:              sessionEnd,
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
@@ -1706,7 +1754,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	// pattern and the People Directory names of the acknowledgement list
 	// (#3418). All staff read them, admins write them.
 	staffNotices := timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
-		DB: in.db.Pool(), Periods: timetableCompose.NewCalendarPeriodRepository(in.modules.calendar, services.NewCalendarPeriodUsage(in.modules.timetable)), Names: peopleCompose.StaffNoticeNames(svc.PeopleDirectory),
+		DB: in.db.Pool(), Periods: timetableCompose.NewCalendarPeriodRepository(in.modules.calendar, newCalendarPeriodUsage(in.modules.timetable)), Names: peopleCompose.StaffNoticeNames(svc.PeopleDirectory),
 		Logger: in.logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
 	// Notification abstraction (#1624).
@@ -1732,7 +1780,7 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         modules.calendar,
 		ClosingDays:             modules.calendar,
-		CalendarPeriodUsage:     calendarPeriodUsage{usage: services.NewCalendarPeriodUsage(modules.timetable)},
+		CalendarPeriodUsage:     calendarPeriodUsage{usage: newCalendarPeriodUsage(modules.timetable)},
 		MaterializationService:  svc.Materialization,
 		InstanceService:         svc.Instance,
 		InstanceSeriesConverter: svc.InstanceSeriesConverter,
@@ -1767,12 +1815,12 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		Facilities: modules.presence.RoomService, Settings: svc.Settings,
 		UserContext: modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
-		ListExport: svc.ListExport,
+		ListExport: modules.listExport,
 	}, logger.With("handler", "rooms")).Router())
 	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router())
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router())
 	// Parent enrollment (PR 5+).
-	tenant.Mount("/enrollment", newEnrollmentResource(modules).Router())
+	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router())
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the services factory composes it and the IoT service hands it
 	// back here (#2676).
@@ -1786,25 +1834,28 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	), pool).Router())
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(svc.Settings)
-	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, services.NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
+	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
 	// Class-list-only entries (#2382).
 	tenant.Mount("/class-list-entries", newClassListEntriesResource(modules.membership, logger.With("handler", "class-list-entries")).Router())
 	tenant.Mount("/database", databaseStatsRouter(in))
 	// CSV/Excel import endpoints.
 	tenant.Mount("/import", importAPI.NewResource(importAPI.Dependencies{
-		Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport,
-		Files: dataImportCompose.NewFileDecoder(), Runtime: importCompose.HTTPRuntime(pool, svc.PeopleDirectory, modules.membership, svc.OpeningBalanceImport),
+		Students: modules.imports.Student, Staff: modules.imports.Staff, ClassList: modules.imports.ClassList,
+		Files: dataImportCompose.NewFileDecoder(), Runtime: importCompose.HTTPRuntime(pool, svc.PeopleDirectory, modules.membership, modules.imports.OpeningBalance),
 	}).Router())
 	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router())
 }
 
-func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
+// newEnrollmentResource mounts Enrollment's staff and public routes. The
+// root builds the form schemas, the captcha and the phase expiry warnings
+// here, over the settings and the owners it composed (#4012).
+func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollmentAPI.Resource {
 	svc := modules.services
 	resource := enrollmentAPI.NewResource(
-		svc.EnrollmentFormSchema,
+		newEnrollmentFormSchemas(svc.Settings, logger),
 		enrollmentAPI.NewCareOfferingCatalog(NewEnrollmentCareOfferingValues(svc.EnrollmentCareOffering)),
 		enrollmentAPI.NewRequestService(svc.EnrollmentRequest),
-		svc.EnrollmentCaptcha,
+		newEnrollmentCaptcha(svc.Settings, logger),
 		svc.EnrollmentPhase,
 		enrollmentAPI.NewDecisionService(svc.EnrollmentDecision),
 		svc.EnrollmentReport,
@@ -1812,12 +1863,12 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 		enrollmentAPI.NewChangeRequestService(svc.EnrollmentChangeRequest),
 		svc.EnrollmentDeletion,
 		enrollmentGuardianInvitations(modules.identity),
-		services.NewEnrollmentGuardianAutofill(modules.guardianProfiles),
-		enrollmentSchoolDirectory{schools: svc.Schools},
-		services.NewEnrollmentBookings(),
+		NewEnrollmentGuardianAutofill(modules.guardianProfiles),
+		enrollmentSchoolDirectory{schools: modules.organizations},
+		NewEnrollmentBookings(),
 	)
-	resource.ListExportService = svc.ListExport
-	resource.PhaseExpiryService = svc.EnrollmentPhaseExpiry
+	resource.ListExportService = modules.listExport
+	resource.PhaseExpiryService = newEnrollmentPhaseExpiry(modules.persons, modules.carePlan)
 	return resource
 }
 
@@ -1826,8 +1877,8 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 // the meal plan under /api.
 func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, logger := in.modules.services, in.modules, in.logger
-	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, svc.ListExport, logger.With("handler", "statistics")).Router())
-	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, NewGuardianDirectoryRuntime(svc, modules.identity, modules.userContext.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(in.db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
+	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, modules.listExport, logger.With("handler", "statistics")).Router())
+	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, NewGuardianDirectoryRuntime(svc, modules.listExport, modules.identity, modules.userContext.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(in.db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())
 	tenant.Mount("/users", newUsersResource(modules.persons, modules.identity.ListAccountEmails, func(ctx context.Context, tagID string) (bool, error) {
@@ -1835,7 +1886,7 @@ func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 		return found, err
 	}).Router())
 	// Birthday display and staff birthday list (#1542).
-	tenant.Mount("/birthdays", birthdaysAPI.NewResource(modules.birthdays, svc.ListExport, modules.userContext, logger.With("handler", "birthdays")).Router())
+	tenant.Mount("/birthdays", birthdaysAPI.NewResource(modules.birthdays, modules.listExport, modules.userContext, logger.With("handler", "birthdays")).Router())
 	tenant.Mount("/me", meAPI.NewResource(modules.userContext.Caller(), modules.userContext).Router())
 	tenant.Mount("/emergency", emergencyAPI.NewResource(svc.Emergency).Router())
 }
@@ -1852,7 +1903,7 @@ func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/pwa", pwaUsageRouter(svc.PWAUsage))
 	// User-facing platform announcements.
 	tenant.Mount("/platform", platformAPI.NewResource(platformAPI.ResourceConfig{
-		AnnouncementsService: svc.Announcement,
+		AnnouncementsService: in.modules.communication,
 		Runtime:              newPlatformRuntime(),
 	}).Router())
 }
@@ -1932,7 +1983,7 @@ func caregiverCapabilityViews(in routeInputs) peopleCompose.CaregiverCapabilityV
 // capability is the one the operator routes provision with.
 func newAccountResource(in routeInputs) *authAPI.Resource {
 	svc, identity := in.modules.services, in.modules.identity
-	authSchools := authSchoolDirectory{schools: svc.Schools, memberships: identity.ListActiveAccountSchoolIDs}
+	authSchools := authSchoolDirectory{schools: in.modules.organizations, memberships: identity.ListActiveAccountSchoolIDs}
 	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{})
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(in)
 	resource.SettingsService = svc.Settings
@@ -1948,7 +1999,7 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 	svc := in.modules.services
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
 		Scans:     svc.IoT.Fleet(),
-		Directory: tagScanSchoolDirectory{schools: svc.Schools},
+		Directory: tagScanSchoolDirectory{schools: in.modules.organizations},
 		Surface: tagScanOperatorAPI.Surface{
 			InvalidRequest: apiCommon.OperatorInvalidRequest,
 			Internal:       apiCommon.OperatorInternal,
@@ -1966,8 +2017,8 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 	schoolSettings := settingsCompose.NewOperatorSchoolSettings(settingsCompose.OperatorDependencies{
 		Settings:       svc.Settings,
 		DB:             in.db.Pool(),
-		Notify:         svc.SettingsChangedNotifier(),
-		OpenAttendance: svc.OpenAttendanceChecker(),
+		Notify:         settingsChangedNotifier(svc.RealtimeHub),
+		OpenAttendance: OpenAttendanceChecker{Service: svc.Active},
 		CareLifecycle:  svc.CareLifecycle,
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
@@ -1986,10 +2037,10 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 		InvitationService:    in.modules.identity,
 		ProvisioningService:  svc.OperatorProvisioning,
 		Caregivers:           caregiverCapabilityViews(in),
-		AnnouncementsService: svc.Announcement,
+		AnnouncementsService: in.modules.communication,
 		UnregisteredTagScans: tagScanReview.Router(),
 		SchoolSettings:       schoolSettings,
-		SchoolService:        svc.Schools,
+		SchoolService:        in.modules.organizations,
 		Billing:              billing,
 		TenantMFAService:     in.modules.identity,
 		Sessions:             identityOperatorAPI.NewSessions(in.sessionAuth, in.modules.identity),
@@ -2007,7 +2058,7 @@ func newParentResource(in routeInputs) *parentAPI.Resource {
 		Calendar:              svc.Calendar,
 		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(svc.EnrollmentRequest)),
 		GuardianProfileLoader: newParentGuardianProfiles(in.modules.guardianProfiles),
-		Schools:               parentSchoolDirectory{schools: svc.Schools},
+		Schools:               parentSchoolDirectory{schools: in.modules.organizations},
 		Push:                  svc.PushSubscriptions,
 		Preferences:           svc.NotificationPreferences,
 		PWAUsage:              svc.PWAUsage,
@@ -2201,24 +2252,23 @@ func mountPublicRoutes(root chi.Router, metricsToken string) {
 }
 
 func databaseStatsRouter(in routeInputs) chi.Router {
-	svc := in.modules.services
-	return newDatabaseStatsRouter(services.NewDatabaseStatsReader(svc.Database, svc.DatabaseStatsCapabilities), in.logger.With("handler", "database"))
+	return newDatabaseStatsRouter(in.modules.databaseStats, in.logger.With("handler", "database"))
 }
 
-func newDatabaseStatsRouter(read services.DatabaseStatsReader, logger *slog.Logger) chi.Router {
+func newDatabaseStatsRouter(read DatabaseStatsReader, logger *slog.Logger) chi.Router {
 	router := chi.NewRouter()
 	apiCommon.ProtectedTenantRoutes(router, func(router chi.Router, withTx apiCommon.Middleware) {
 		// The reader redacts every count the caller may not read, so the
 		// route opens for any permission authorize.NewDatabaseStatsCapabilities
 		// honours: the Datenverwaltung hub shows its counts to a lead role a
 		// school defines itself, not only to system administrators (#3469).
-		router.With(apiCommon.RequiresAnyPermission(services.DatabaseStatsPermissions()...), withTx).
+		router.With(apiCommon.RequiresAnyPermission(DatabaseStatsPermissions()...), withTx).
 			Get("/stats", func(w http.ResponseWriter, r *http.Request) { serveDatabaseStats(w, r, read, logger) })
 	})
 	return router
 }
 
-func serveDatabaseStats(w http.ResponseWriter, r *http.Request, read services.DatabaseStatsReader, logger *slog.Logger) {
+func serveDatabaseStats(w http.ResponseWriter, r *http.Request, read DatabaseStatsReader, logger *slog.Logger) {
 	stats, err := read(r.Context())
 	if err != nil {
 		logger.Error("failed to get database stats",
@@ -2264,8 +2314,8 @@ func publicCalendarFeed(modules moduleServices) http.HandlerFunc {
 
 // newMealPlanExportRenderer keeps the export adapter construction in the API
 // composition layer so both production and route tests receive a real renderer.
-func newMealPlanExportRenderer() services.SimpleListRenderer {
-	return services.NewSimpleListRenderer()
+func newMealPlanExportRenderer() SimpleListRenderer {
+	return NewSimpleListRenderer()
 }
 
 // newSessionTokenAuth resolves the signing configuration once for the API root.

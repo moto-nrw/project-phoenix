@@ -121,7 +121,7 @@ func NewDeviceTestModule(db transactionruntime.Database, unit tenant.UnitOfWork)
 	if err != nil {
 		return DeviceTestModule{}, err
 	}
-	fleet, err := services.NewDeviceFleet(db.Pool(), devicefleetLegacy.NewOnlineWindowResolver(settings.Settings, nil))
+	fleet, err := NewDeviceFleet(db, devicefleetLegacy.NewOnlineWindowResolver(settings.Settings, nil))
 	if err != nil {
 		return DeviceTestModule{}, err
 	}

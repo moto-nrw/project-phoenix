@@ -7,7 +7,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // EnrollmentTestRepositories is the enrollment suites' repository graph;
@@ -29,7 +28,7 @@ func NewEnrollmentTestRepositoriesWithMembers(db transactionruntime.Database, me
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return EnrollmentTestRepositories{}, err
 	}

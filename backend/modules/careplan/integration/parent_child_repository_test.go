@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -26,7 +25,7 @@ func newSchoolProjectionFactory(t *testing.T, db *bun.DB) *api.RepositoryTestFac
 	t.Helper()
 	factory, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	capability, err := services.NewOrganizationTenancy(db)
+	capability, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return factory.WithSchoolProjections(capability)
 }

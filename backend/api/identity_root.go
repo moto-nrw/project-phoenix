@@ -266,12 +266,17 @@ func (p precedingMails) PrecedingMailState(ctx context.Context, tenantID, outbox
 // reset maintenance the cleanup CLI runs (#3251, #3332). The sweep never
 // signs or verifies a session, so it is composed without a signer.
 func NewAuthCleanupService(db transactionruntime.Database, logger *slog.Logger, command auditModels.Command) (*identityaccessCompose.SessionMaintenance, error) {
-	repos := services.NewAuthCleanupRepositories(db.Pool())
+	// The sweep resolves the school and person facts through their owners
+	// and clears the push subscriptions through Delivery (#3251, #4013).
+	schools, err := NewOrganizationTenancy(db)
+	if err != nil {
+		return nil, fmt.Errorf("auth cleanup: compose organization tenancy: %w", err)
+	}
 	events := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).WithRoutedWrites(command).AuthEvent
 	return identityaccessCompose.NewSessionMaintenance(identityaccessCompose.SessionMaintenanceDependencies{
 		DB: db.Pool(), Runtime: db.UnitOfWork(),
-		Schools: schoolDirectory{schools: repos.School}, Persons: personDirectory{persons: repos.Person},
-		Audit: authAudit{command: command, events: events}, Push: pushSubscriptionCleanup{subscriptions: repos.PushSubscription},
+		Schools: schoolDirectory{schools: schools}, Persons: personDirectory{persons: NewPersonRepository(db)},
+		Audit: authAudit{command: command, events: events}, Push: pushSubscriptionCleanup{subscriptions: deliveryCompose.NewPushSubscriptionRepository(db.Pool())},
 		// The cleanup root only removes spent links and stale windows; it
 		// never issues a link.
 		ResetExpiry: cleanupResetExpiry, Logger: logger,
