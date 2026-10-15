@@ -27,8 +27,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/lestrrat-go/jwx/v3/transform"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 
@@ -39,8 +37,6 @@ import (
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	"github.com/moto-nrw/project-phoenix/database"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
@@ -875,12 +871,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	// and writes its departure columns unconditionally (no per-request
 	// information_schema probes, #2059), so the server must only start against
 	// a fully migrated database.
-	if err := usersRepo.VerifyStudentSchema(context.Background(), db.Pool()); err != nil {
+	if err := peopleCompose.VerifyRetainedStudentSchema(context.Background(), db.Pool()); err != nil {
 		return nil, workerReads{}, nil, err
 	}
 
 	if viper.GetBool("db_debug") {
-		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
+		db.LogQueries(logger.With("component", "database"))
 	}
 
 	tracker, err = newProductAnalytics(logger)
@@ -991,7 +987,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 func registerRuntimeStatsProviders(db transactionruntime.Database, modules moduleServices) {
 	retained := modules.services
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
-		stats := database.SnapshotCapacity(db.Pool())
+		stats := db.Capacity()
 		return observability.DBStats{
 			OpenConnections:   stats.OpenConnections,
 			InUse:             stats.InUse,
@@ -1328,7 +1324,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		}
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
-	generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	generalRateLimiter.SetKeyFunc(tokenAuth.RateLimitKey)
 	if exemptLoopback {
 		generalRateLimiter.ExemptLoopback()
 	}
@@ -1336,66 +1332,6 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
-}
-
-// identityRateLimitKey buckets authenticated requests by their stable quota
-// identity — account ID, scope, and tenant ID from the verified JWT claims —
-// instead of a per-token hash (#2064). Every valid session of the same
-// identity shares one budget, so a re-login or token refresh no longer
-// resets the quota. The key carries only numeric IDs and the scope label,
-// never the raw token, email, or name.
-//
-// Quota-identity rules:
-//   - Same account, same scope, same tenant → one shared budget across all
-//     sessions (browser tabs, refreshed tokens, re-logins).
-//   - A tenant switch mints a JWT with a different tenant_id and gets its
-//     own budget. Different portal scopes ("", "org", "platform", "parent")
-//     are separate budgets too — scope must be in the key because operator
-//     IDs (platform.operators) and account IDs (auth.accounts) are
-//     different ID spaces.
-//   - Requests without a verified identity — missing, expired, or
-//     manipulated JWTs, non-JWT bearer values such as IoT device API keys,
-//     and MFA challenge/enrollment tokens (no "id" claim) — return "" and
-//     the limiter falls back to the trusted client IP. Unverified bearer
-//     values must never produce token-derived buckets: an attacker could
-//     mint arbitrary values and sidestep IP limiting entirely.
-func identityRateLimitKey(tokenAuth *sessiontoken.TokenAuth) func(*http.Request) string {
-	return func(r *http.Request) string {
-		tokenString := extractBearerToken(r.Header.Get("Authorization"))
-		if tokenString == "" || tokenAuth == nil || tokenAuth.JwtAuth == nil {
-			return ""
-		}
-
-		token, err := tokenAuth.JwtAuth.Decode(tokenString)
-		if err != nil {
-			return ""
-		}
-		if err := jwxjwt.Validate(token); err != nil {
-			return ""
-		}
-
-		claims := map[string]any{}
-		if err := transform.AsMap(token, claims); err != nil {
-			return ""
-		}
-		// JSON numbers decode as float64 (same contract as AppClaims.ParseClaims).
-		accountID, ok := claims["id"].(float64)
-		if !ok || accountID <= 0 {
-			return ""
-		}
-		scope, _ := claims["scope"].(string)
-		tenantID, _ := claims["tenant_id"].(float64)
-
-		return fmt.Sprintf("acct:%d:%s:%d", int64(accountID), scope, int64(tenantID))
-	}
-}
-
-func extractBearerToken(authHeader string) string {
-	const bearerPrefix = "Bearer "
-	if len(authHeader) <= len(bearerPrefix) || !strings.HasPrefix(authHeader, bearerPrefix) {
-		return ""
-	}
-	return strings.TrimSpace(authHeader[len(bearerPrefix):])
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value

@@ -33,9 +33,14 @@ const (
 	KeyEarlyCheckoutNoteEnabled              = configModel.KeyEarlyCheckoutNoteEnabled
 	KeyEarlyCheckoutNoteToleranceMinutes     = configModel.KeyEarlyCheckoutNoteToleranceMinutes
 	KeyEnrollmentBookingsAuthoritative       = configModel.KeyEnrollmentBookingsAuthoritative
+	KeyEnrollmentAutoInviteGuardianOnApprove = configModel.KeyEnrollmentAutoInviteGuardianOnApprove
 	KeyEnrollmentCareOfferingsEnabled        = configModel.KeyEnrollmentCareOfferingsEnabled
+	KeyEnrollmentCollectGradeLevel           = configModel.KeyEnrollmentCollectGradeLevel
+	KeyEnrollmentDuplicateHandling           = configModel.KeyEnrollmentDuplicateHandling
 	KeyEnrollmentGradeLevelMax               = configModel.KeyEnrollmentGradeLevelMax
 	KeyEnrollmentLegalAGBDocumentURL         = configModel.KeyEnrollmentLegalAGBDocumentURL
+	KeyEnrollmentNotifyPerDecision           = configModel.KeyEnrollmentNotifyPerDecision
+	KeyEnrollmentRejectedRetentionDays       = configModel.KeyEnrollmentRejectedRetentionDays
 	KeyEnrollmentWaitlistEnabled             = configModel.KeyEnrollmentWaitlistEnabled
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
@@ -46,6 +51,8 @@ const (
 	KeyGuardianParentInviteMode              = configModel.KeyGuardianParentInviteMode
 	KeyOperationalOverviewScope              = configModel.KeyOperationalOverviewScope
 	KeyParentAbsenceReviewScope              = configModel.KeyParentAbsenceReviewScope
+	KeyParentCareModeRequestEnabled          = configModel.KeyParentCareModeRequestEnabled
+	KeyParentCarePickupRequestEnabled        = configModel.KeyParentCarePickupRequestEnabled
 	KeyParentExcusedRequiresApproval         = configModel.KeyParentExcusedRequiresApproval
 	KeyParentNotesEnabled                    = configModel.KeyParentNotesEnabled
 	KeyParentPickupChangeCutoffTime          = configModel.KeyParentPickupChangeCutoffTime

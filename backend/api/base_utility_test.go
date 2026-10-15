@@ -20,9 +20,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -398,169 +398,6 @@ func rateLimitRequest(token string) *http.Request {
 	return req
 }
 
-func TestIdentityRateLimitKey_TwoSessionsSameIdentityShareKey(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	// Two distinct tokens (differing payloads) for the same account/tenant —
-	// the re-login / second-browser-session scenario.
-	sessionA := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
-		ID: 42, Sub: "user@example.com", FirstName: "SessionA", TenantID: 7,
-	})
-	sessionB := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
-		ID: 42, Sub: "user@example.com", FirstName: "SessionB", TenantID: 7,
-	})
-	require.NotEqual(t, sessionA, sessionB,
-		"sessions must be distinct tokens for this test to prove anything")
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.Equal(t, "acct:42::7", keyFunc(rateLimitRequest(sessionA)))
-	assert.Equal(t, keyFunc(rateLimitRequest(sessionA)), keyFunc(rateLimitRequest(sessionB)))
-}
-
-func TestIdentityRateLimitKey_RefreshTokenSharesAccountBudget(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	access := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
-		ID: 42, Sub: "user@example.com", TenantID: 7,
-	})
-	refresh, err := tokenAuth.CreateRefreshJWT(sessiontoken.RefreshClaims{
-		ID: 42, Token: "opaque-refresh-token", TenantID: 7,
-	})
-	require.NoError(t, err)
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.Equal(t, keyFunc(rateLimitRequest(access)), keyFunc(rateLimitRequest(refresh)),
-		"a refresh token presented as bearer must land in the same account bucket")
-}
-
-func TestIdentityRateLimitKey_DifferentAccountsHaveDifferentKeys(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	tokenA := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "user-a@example.com", TenantID: 7})
-	tokenB := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 43, Sub: "user-b@example.com", TenantID: 7})
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.NotEqual(t, keyFunc(rateLimitRequest(tokenA)), keyFunc(rateLimitRequest(tokenB)))
-}
-
-func TestIdentityRateLimitKey_TenantSwitchGetsOwnBudget(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	tenant7 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
-	tenant8 := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 8})
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	assert.NotEqual(t, keyFunc(rateLimitRequest(tenant7)), keyFunc(rateLimitRequest(tenant8)),
-		"a tenant switch mints a new tenant_id and gets its own budget")
-}
-
-func TestIdentityRateLimitKey_ScopeSeparatesPortals(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	// Operator IDs and account IDs are different ID spaces — the same numeric
-	// ID with different scopes must never share a bucket.
-	tenantToken := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "staff@example.com", TenantID: 7})
-	operatorToken := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "op@example.com", Scope: "platform"})
-	parentToken := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{ID: 42, Sub: "parent@example.com", Scope: "parent"})
-
-	keyFunc := identityRateLimitKey(tokenAuth)
-	keys := map[string]bool{
-		keyFunc(rateLimitRequest(tenantToken)):   true,
-		keyFunc(rateLimitRequest(operatorToken)): true,
-		keyFunc(rateLimitRequest(parentToken)):   true,
-	}
-	assert.Len(t, keys, 3, "tenant, platform, and parent scopes must have distinct keys")
-}
-
-func TestIdentityRateLimitKey_KeyContainsNoTokenOrPII(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	token := mintRateLimitJWT(t, tokenAuth, sessiontoken.AppClaims{
-		ID: 42, Sub: "jane.doe@example.com", Username: "jane.doe@example.com",
-		FirstName: "Jane", LastName: "Doe", TenantID: 7,
-	})
-
-	key := identityRateLimitKey(tokenAuth)(rateLimitRequest(token))
-	assert.Equal(t, "acct:42::7", key)
-	assert.NotContains(t, key, token)
-	assert.NotContains(t, key, "jane.doe@example.com")
-	assert.NotContains(t, key, "Jane")
-	assert.NotContains(t, key, "Doe")
-}
-
-func TestIdentityRateLimitKey_InvalidTokenFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("not-a-real-token")))
-}
-
-func TestIdentityRateLimitKey_DeviceAPIKeyFallsBack(t *testing.T) {
-	t.Parallel()
-	// IoT devices send an opaque API key as bearer token. It is not a JWT and
-	// cannot be verified here, so device requests must stay on IP limiting —
-	// an unverified bearer value must never open its own bucket.
-	tokenAuth := rateLimitTestAuth(t)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("phx_3f9c2d1a8b7e6f5a4d3c2b1a")))
-}
-
-func TestIdentityRateLimitKey_MissingHeaderFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest("")))
-}
-
-func TestIdentityRateLimitKey_ExpiredTokenFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-
-	_, token, err := tokenAuth.JwtAuth.Encode(map[string]any{
-		"id":  42,
-		"exp": time.Now().Add(-1 * time.Hour).Unix(),
-		"iat": time.Now().Add(-2 * time.Hour).Unix(),
-	})
-	require.NoError(t, err)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
-}
-
-func TestIdentityRateLimitKey_TamperedTokenFallsBack(t *testing.T) {
-	t.Parallel()
-	tokenAuth := rateLimitTestAuth(t)
-	otherAuth, err := sessiontoken.NewTokenAuthWithDurations("a-completely-different-32char-key!!", 15*time.Minute, time.Hour)
-	require.NoError(t, err)
-
-	forged := mintRateLimitJWT(t, otherAuth, sessiontoken.AppClaims{ID: 42, Sub: "user@example.com", TenantID: 7})
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(forged)),
-		"a token signed with the wrong secret must not produce an identity key")
-}
-
-func TestIdentityRateLimitKey_TokenWithoutAccountIDFallsBack(t *testing.T) {
-	t.Parallel()
-	// MFA challenge/enrollment tokens carry account_id + a pending flag but
-	// no "id" claim — they must fall back to IP limiting.
-	tokenAuth := rateLimitTestAuth(t)
-
-	_, token, err := tokenAuth.JwtAuth.Encode(map[string]any{
-		"account_id":  42,
-		"mfa_pending": true,
-		"exp":         time.Now().Add(5 * time.Minute).Unix(),
-		"iat":         time.Now().Unix(),
-	})
-	require.NoError(t, err)
-
-	assert.Empty(t, identityRateLimitKey(tokenAuth)(rateLimitRequest(token)))
-}
-
 // TestRateLimiting_SameIdentitySharesBudget wires the identity key function
 // into the real limiter middleware and asserts the #2064 acceptance
 // criteria end to end: two valid sessions of one identity drain ONE budget,
@@ -572,7 +409,7 @@ func TestRateLimiting_SameIdentitySharesBudget(t *testing.T) {
 	// 1 request/minute refill with burst 3: the refill contributes no tokens
 	// within the test's runtime, so exactly 3 requests per key pass.
 	limiter := customMiddleware.NewRateLimiter(1, 3)
-	limiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
 
 	router := chi.NewRouter()
 	router.Use(limiter.Middleware())
@@ -621,7 +458,7 @@ func TestRateLimiting_ConcurrentSessionsShareBudget(t *testing.T) {
 
 	const burst = 10
 	limiter := customMiddleware.NewRateLimiter(1, burst)
-	limiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	limiter.SetKeyFunc(tokenAuth.RateLimitKey)
 
 	router := chi.NewRouter()
 	router.Use(limiter.Middleware())
@@ -887,7 +724,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, enableReq).Code)
-	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
+	awaitTenantSettings(t, settings.KeyStudentPhotosEnabled)
 	drainEvents(client.Channel)
 
 	// 2. Disable photo feature → tenant_settings_changed (alongside the
@@ -897,7 +734,7 @@ func TestOnValueSetCallback_TenantSettingsChangedBroadcasts(t *testing.T) {
 		testutil.WithJWTBearer(testutil.MintTestJWT(t, adminClaimsForCallback())),
 	)
 	require.Equal(t, http.StatusOK, testutil.ExecuteRequest(router, disableReq).Code)
-	awaitTenantSettings(t, configModel.KeyStudentPhotosEnabled)
+	awaitTenantSettings(t, settings.KeyStudentPhotosEnabled)
 	drainEvents(client.Channel)
 
 }

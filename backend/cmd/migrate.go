@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/applog"
 	"github.com/moto-nrw/project-phoenix/database/migrations"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -58,15 +58,7 @@ func (root migrateRoot) runCommand(ctx context.Context, command string) error {
 // the standard-library log.Printf calls that the older migrations still make,
 // which otherwise bypass the handler and go straight to stderr.
 func configureMigrationLogger() {
-	format := "json"
-	if viper.GetBool("log_textlogging") {
-		format = "text"
-	}
-	applog.ConfigureDefault(applog.New(applog.Config{
-		Level:  viper.GetString("log_level"),
-		Format: format,
-		Env:    viper.GetString("app_env"),
-	}))
+	observabilityCompose.InstallProcessLogger(viper.GetString("log_level"), viper.GetBool("log_textlogging"), viper.GetString("app_env"))
 }
 
 func (root migrateRoot) run(ctx context.Context, operation migrationOperation) error {

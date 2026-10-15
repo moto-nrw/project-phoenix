@@ -18,7 +18,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/database"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -178,7 +177,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 
 func newRuntimeCapacityLogger(graph *serveGraph, logger *slog.Logger) *capacityLogger {
 	return newCapacityLogger(func() dbCapacityStats {
-		stats := database.SnapshotCapacity(graph.db.Pool())
+		stats := graph.db.Capacity()
 		return dbCapacityStats{
 			openConnections:   stats.OpenConnections,
 			inUse:             stats.InUse,

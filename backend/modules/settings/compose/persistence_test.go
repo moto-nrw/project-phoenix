@@ -21,5 +21,4 @@ func TestSettingsCompositionBuildsItsRepositories(t *testing.T) {
 	assert.NotNil(t, NewSettingValueRepository(runtime))
 	assert.NotNil(t, NewSettingAuditRepository(runtime))
 	assert.NotNil(t, NewHomeLayoutRepository(runtime))
-	assert.NotNil(t, NewSettingsCommandRepository(new(bun.DB)))
 }

@@ -7,8 +7,8 @@ import (
 	"os"
 	"text/tabwriter"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
@@ -28,17 +28,17 @@ var settingsOverridesCmd = &cobra.Command{
 }
 
 var activationSettingKeys = []string{
-	configModel.KeyAttendanceWebEnabled,
-	configModel.KeyGroupMode,
-	configModel.KeyOperationalOverviewScope,
-	configModel.KeyTimetableShowExpectedChildrenCount,
-	configModel.KeyEnrollmentCollectGradeLevel,
-	configModel.KeyEnrollmentCareOfferingsEnabled,
-	configModel.KeyEnrollmentNotifyPerDecision,
-	configModel.KeyEnrollmentDuplicateHandling,
-	configModel.KeyEnrollmentRejectedRetentionDays,
-	configModel.KeyEnrollmentWaitlistEnabled,
-	configModel.KeyEnrollmentAutoInviteGuardianOnApprove,
+	settings.KeyAttendanceWebEnabled,
+	settings.KeyGroupMode,
+	settings.KeyOperationalOverviewScope,
+	settings.KeyTimetableShowExpectedChildrenCount,
+	settings.KeyEnrollmentCollectGradeLevel,
+	settings.KeyEnrollmentCareOfferingsEnabled,
+	settings.KeyEnrollmentNotifyPerDecision,
+	settings.KeyEnrollmentDuplicateHandling,
+	settings.KeyEnrollmentRejectedRetentionDays,
+	settings.KeyEnrollmentWaitlistEnabled,
+	settings.KeyEnrollmentAutoInviteGuardianOnApprove,
 }
 
 type settingOverrideRow struct {
@@ -52,7 +52,12 @@ type settingOverrideRow struct {
 type settingsCommandContext struct {
 	*cleanupContext
 	schools organizationtenancy.Query
-	values  configModel.SettingValueRepository
+	values  storedOverrides
+}
+
+// storedOverrides reads the overrides a school stored, without defaults.
+type storedOverrides interface {
+	StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error)
 }
 
 func newSettingsCommandContext() (*settingsCommandContext, error) {
@@ -63,7 +68,7 @@ func newSettingsCommandContext() (*settingsCommandContext, error) {
 	return &settingsCommandContext{
 		cleanupContext: base,
 		schools:        base.Schools,
-		values:         settingsCompose.NewSettingsCommandRepository(base.DB.Pool()),
+		values:         settingsCompose.NewStoredOverrideReader(base.DB.Pool()),
 	}, nil
 }
 
@@ -96,18 +101,18 @@ func selectedSettingOverrideKeys() []string {
 	return activationSettingKeys
 }
 
-func collectSettingOverrideRows(ctx context.Context, schools []organizationtenancy.School, keys []string, values configModel.SettingValueRepository) ([]settingOverrideRow, error) {
+func collectSettingOverrideRows(ctx context.Context, schools []organizationtenancy.School, keys []string, values storedOverrides) ([]settingOverrideRow, error) {
 	rows := []settingOverrideRow{}
 	for _, school := range schools {
 		for _, key := range keys {
-			value, findErr := values.FindByTenantAndKey(ctx, school.ID, key)
+			value, found, findErr := values.StoredOverride(ctx, school.ID, key)
 			if findErr != nil {
 				return nil, fmt.Errorf("read override for tenant %d key %s: %w", school.ID, key, findErr)
 			}
-			if value == nil {
+			if !found {
 				continue
 			}
-			rows = append(rows, settingOverrideRow{TenantID: school.ID, TenantSlug: school.Slug, TenantName: school.Name, Key: key, Value: value.Value})
+			rows = append(rows, settingOverrideRow{TenantID: school.ID, TenantSlug: school.Slug, TenantName: school.Name, Key: key, Value: value})
 		}
 	}
 	return rows, nil
