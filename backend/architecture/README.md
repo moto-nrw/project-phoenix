@@ -1118,10 +1118,12 @@ declaration naming two predecessors, fail. A new declaration has no base and
 starts a measurement; other literals (selector sets, scanned directories) are
 not compared.
 
-A raise or a disappearance passes only under an ADR the change adds: the
-comment on the raised entry or its declaration, or for a disappearance any
-comment naming the old declaration, cites `ADR 0123`, and the base has no ADR
-with that number. Renaming or copying an existing ADR file authorizes nothing.
+A raise passes only under an ADR the change adds: the comment on the raised
+entry or its declaration cites `ADR 0123`, and the base has no ADR with that
+number. Renaming or copying an existing ADR file authorizes nothing. A
+measurement may be retired when a comment in the ratchet files names the old
+declaration and cites an ADR the tree holds, as the temporary-rule registers
+#4070 made structural are under ADR 0057.
 `internal/architecture/ratchet_budgets_test.go` pins the rules.
 
 ### Converting temporary permissions to exact debt
