@@ -8,8 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,19 +95,20 @@ func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.
 		}))
 	}
 
-	options := func(page int) *modelBase.QueryOptions {
-		return &modelBase.QueryOptions{
-			Filter:     modelBase.NewFilter().Equal("date", date),
-			Pagination: &modelBase.Pagination{Page: page, PageSize: 1},
+	query := func(page int) studentpresence.StatusDayOverviewQuery {
+		return studentpresence.StatusDayOverviewQuery{
+			From: date, To: date,
+			Children: []studentpresence.StatusDayWindow{{StudentID: last.ID}, {StudentID: first.ID}},
+			Page:     page, PageSize: 1,
 		}
 	}
 	orderedStudentIDs := []int64{first.ID, last.ID}
-	firstPage, err := repo.ListOverviewWithOptions(ctx, options(1), orderedStudentIDs)
+	firstPage, err := repo.ListOverview(ctx, query(1), orderedStudentIDs)
 	require.NoError(t, err)
 	require.Len(t, firstPage, 1)
 	assert.Equal(t, first.ID, firstPage[0].StudentID)
 
-	secondPage, err := repo.ListOverviewWithOptions(ctx, options(2), orderedStudentIDs)
+	secondPage, err := repo.ListOverview(ctx, query(2), orderedStudentIDs)
 	require.NoError(t, err)
 	require.Len(t, secondPage, 1)
 	assert.Equal(t, last.ID, secondPage[0].StudentID)
