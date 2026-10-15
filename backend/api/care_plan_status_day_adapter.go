@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // StudentStatusDayRepository serves the retained status-day rows over the Care
@@ -102,12 +102,57 @@ func (r StudentStatusDayRepository) FindByStudentAndDateRange(ctx context.Contex
 	return r.list(ctx, careplan.StudentStatusDayFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
 }
 
-func (r StudentStatusDayRepository) ListOverviewWithOptions(ctx context.Context, options *userModels.QueryOptions, orderedStudentIDs []int64) ([]*absencerecords.StudentStatusDay, error) {
-	return r.list(ctx, careplan.StudentStatusDayFilter{Options: legacyScheduleQueryOptions(options), OrderedStudentIDs: orderedStudentIDs, Overview: true})
+func (r StudentStatusDayRepository) ListOverview(ctx context.Context, query studentpresence.StatusDayOverviewQuery, orderedStudentIDs []int64) ([]*absencerecords.StudentStatusDay, error) {
+	return r.list(ctx, careplan.StudentStatusDayFilter{Options: statusDayOverviewOptions(query), OrderedStudentIDs: orderedStudentIDs, Overview: true})
 }
 
-func (r StudentStatusDayRepository) CountWithOptions(ctx context.Context, options *userModels.QueryOptions) (int, error) {
-	return r.capability.CountStudentStatusDays(ctx, legacyScheduleQueryOptions(options))
+func (r StudentStatusDayRepository) CountOverview(ctx context.Context, query studentpresence.StatusDayOverviewQuery) (int, error) {
+	return r.capability.CountStudentStatusDays(ctx, statusDayOverviewOptions(query))
+}
+
+// statusDayOverviewOptions renders the presence overview query in the owner's
+// schedule query shape: the date range and the optional status, any of the
+// children's windows, and the rows still active or archived at end of day.
+func statusDayOverviewOptions(query studentpresence.StatusDayOverviewQuery) *careplan.StudentScheduleQueryOptions {
+	filter := careplan.StudentScheduleQueryFilter{Conditions: []careplan.StudentScheduleQueryCondition{
+		{Field: "date", Operator: ">=", Value: query.From},
+		{Field: "date", Operator: "<=", Value: query.To},
+	}}
+	if query.Status != "" {
+		filter.Conditions = append(filter.Conditions, careplan.StudentScheduleQueryCondition{Field: "status", Operator: "=", Value: query.Status})
+	}
+	active := careplan.StudentScheduleQueryFilter{
+		Conditions: []careplan.StudentScheduleQueryCondition{{Field: "cleared_at", Operator: "IS NULL"}},
+		Or: []careplan.StudentScheduleQueryFilter{{Conditions: []careplan.StudentScheduleQueryCondition{
+			{Field: "source", Operator: "=", Value: absencerecords.StudentStatusSourceEndOfDay},
+		}}},
+	}
+	filter.And = []careplan.StudentScheduleQueryFilter{statusDayWindowsFilter(query.Children), active}
+	return &careplan.StudentScheduleQueryOptions{Filter: &filter, Limit: query.PageSize, Offset: (query.Page - 1) * query.PageSize}
+}
+
+// statusDayWindowsFilter matches a row inside any child's window; no child
+// matches nothing.
+func statusDayWindowsFilter(children []studentpresence.StatusDayWindow) careplan.StudentScheduleQueryFilter {
+	if len(children) == 0 {
+		return careplan.StudentScheduleQueryFilter{Conditions: []careplan.StudentScheduleQueryCondition{{Field: "student_id", Operator: "=", Value: int64(-1)}}}
+	}
+	windows := make([]careplan.StudentScheduleQueryFilter, 0, len(children))
+	for _, child := range children {
+		window := careplan.StudentScheduleQueryFilter{Conditions: []careplan.StudentScheduleQueryCondition{{Field: "student_id", Operator: "=", Value: child.StudentID}}}
+		if child.From != nil {
+			window.Conditions = append(window.Conditions, careplan.StudentScheduleQueryCondition{Field: "date", Operator: ">=", Value: *child.From})
+		}
+		if child.Until != nil {
+			window.Conditions = append(window.Conditions, careplan.StudentScheduleQueryCondition{Field: "date", Operator: "<=", Value: *child.Until})
+		}
+		windows = append(windows, window)
+	}
+	first := windows[0]
+	if len(windows) > 1 {
+		first.Or = windows[1:]
+	}
+	return first
 }
 
 func (r StudentStatusDayRepository) list(ctx context.Context, filter careplan.StudentStatusDayFilter) ([]*absencerecords.StudentStatusDay, error) {
