@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 45,
+  "policy_epoch": 46,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -737,7 +737,7 @@
     {
       "path": "analytics",
       "owner": "observability",
-      "role": "adapter",
+      "role": "http",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1409,7 +1409,7 @@
     {
       "path": "middleware",
       "owner": "tenant-runtime",
-      "role": "adapter",
+      "role": "http",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -19296,6 +19296,70 @@
       "source_role": "module-internal-test",
       "target_owner": "root-composition",
       "target_role": "compose"
+    },
+    {
+      "id": "root-composition.compose.http-router",
+      "description": "ADR 0056: the server root is the HTTP host. It builds the router, sets CORS and runs the HTTP server.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.http-host.inbound-common",
+      "description": "ADR 0056: the HTTP host builds the global middleware chain and binds owner failure kinds from the shared HTTP runtime (ADR 0046).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.http-host.session-adapter",
+      "description": "ADR 0056: the HTTP host mounts the session middleware and reads claims through the session token adapter, the HTTP session runtime (ADR 0031, ADR 0054).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.internal-test.session-adapter",
+      "description": "ADR 0056: the internal tests of the typed roots put claims on requests through the session token adapter.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.internal-test.cli-config",
+      "description": "ADR 0056: the internal tests of the typed roots drive the commands through the CLI class the commands root uses.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "root-composition.cli.dev-tools",
+      "description": "ADR 0056: the commands root starts the seeder, the demo and the simulator. Runtime guards keep them off non-dev targets.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "dev-tools",
+      "target_role": "cli"
     },
     {
       "id": "owner-compose.domain.adapter",
