@@ -221,13 +221,6 @@ type Scheduler struct {
 	done chan struct{}
 	wg   sync.WaitGroup
 
-	// Session cleanup configuration (parsed once during initialization)
-	sessionCleanupIntervalMinutes    int
-	sessionAbandonedThresholdMinutes int
-
-	// Break auto-end configuration (parsed once during initialization)
-	breakAutoEndIntervalSeconds int
-
 	// Per-tenant tracking for minute-polling (keyed by tenant ID)
 	lastSessionEnd              sync.Map // tenant_id → time.Time
 	lastDataCleanup             sync.Map // tenant_id → time.Time
@@ -318,6 +311,8 @@ type ScheduledTask struct {
 	mu       sync.Mutex
 }
 
+// newScheduler builds the Worker from its complete typed dependencies in one
+// literal; no dependency is wired after construction (#2749).
 func newScheduler(deps WorkerDependencies) *Scheduler {
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	scheduler := &Scheduler{
@@ -332,67 +327,56 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		announcementReminderScannedAt: make(map[int64]time.Time),
 		retention:                     deps.Retention,
 		cleanupRuns:                   deps.CleanupRuns,
+
+		cleanupService:             deps.ActiveCleanup,
+		authCleanup:                deps.AuthCleanup,
+		invitationCleanup:          deps.InvitationCleanup,
+		workSessionCleanup:         deps.WorkSessionCleanup,
+		feedbackCleaner:            deps.FeedbackCleaner,
+		staffDocumentFileCleaner:   deps.StaffDocumentCleaner,
+		studentDocumentFileCleaner: deps.StudentDocumentCleaner,
+		fileStoreCleaner:           deps.FileStoreCleaner,
+		timetableCleanup:           deps.TimetableCleanup,
+		calendarFeedCleanup:        deps.CalendarFeedCleanup,
+		timeTrackingCleanup:        deps.TimeTrackingCleanup,
+		studentChangeLogCleanup:    deps.StudentChangeLogCleanup,
+		pwaUsageCleanup:            deps.PWAUsageCleanup,
+		staffMessageCleanup:        deps.StaffMessageCleanup,
+		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
+		cleanupJobs:                buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
+
+		activeService:          deps.Active,
+		breakAutoEnder:         deps.BreakAutoEnder,
+		autoCheckouter:         deps.AutoCheckouter,
+		materializer:           deps.Materializer,
+		bookingConsistency:     deps.BookingConsistency,
+		autoStart:              deps.AutoStart,
+		autoEnd:                deps.AutoEnd,
+		instanceRepo:           deps.InstanceRepo,
+		instanceRoomRepo:       deps.InstanceRoomRepo,
+		instanceStudentRepo:    deps.InstanceStudentRepo,
+		timetableBridge:        deps.TimetableBridge,
+		studentStatusDayRepo:   deps.StudentStatusDayRepo,
+		overdueBroadcaster:     deps.OverdueBroadcaster,
+		studentLifecycleRepo:   deps.StudentLifecycleRepo,
+		studentLifecycleAudit:  deps.StudentLifecycleAudit,
+		careExitEffector:       deps.CareExitEffector,
+		outboxWorker:           deps.OutboxWorker,
+		rolloverDeadlineRunner: deps.RolloverDeadlineRunner,
+		reminderNotifications:  deps.ReminderNotifications,
+		appointmentReminders:   deps.AppointmentReminders,
+
+		settings:              deps.Settings,
+		schoolRepo:            deps.SchoolRepo,
+		tenantRuntime:         deps.TenantRuntime,
+		tenantRuntimeObserver: deps.TenantRuntimeObserver,
+		unitOfWorkObserver:    deps.UnitOfWorkObserver,
+		workerTracer:          deps.Tracer,
 	}
-	addCleanupDependencies(scheduler, deps)
-	addScheduleDependencies(scheduler, deps)
-	addRuntimeDependencies(scheduler, deps)
 	if !isNilDependency(deps.Lease.Store) {
 		scheduler.leadership = newLeadership(deps.Lease, scheduler.getLogger(), lifecycleCtx)
 	}
 	return scheduler
-}
-
-func addCleanupDependencies(scheduler *Scheduler, deps WorkerDependencies) {
-	scheduler.cleanupService = deps.ActiveCleanup
-	scheduler.authCleanup = deps.AuthCleanup
-	scheduler.invitationCleanup = deps.InvitationCleanup
-	scheduler.workSessionCleanup = deps.WorkSessionCleanup
-	scheduler.feedbackCleaner = deps.FeedbackCleaner
-	scheduler.staffDocumentFileCleaner = deps.StaffDocumentCleaner
-	scheduler.studentDocumentFileCleaner = deps.StudentDocumentCleaner
-	scheduler.fileStoreCleaner = deps.FileStoreCleaner
-	scheduler.timetableCleanup = deps.TimetableCleanup
-	scheduler.calendarFeedCleanup = deps.CalendarFeedCleanup
-	scheduler.timeTrackingCleanup = deps.TimeTrackingCleanup
-	scheduler.studentChangeLogCleanup = deps.StudentChangeLogCleanup
-	scheduler.pwaUsageCleanup = deps.PWAUsageCleanup
-	scheduler.staffMessageCleanup = deps.StaffMessageCleanup
-	scheduler.enrollmentRejectedCleanup = deps.EnrollmentRejectedCleanup
-	scheduler.cleanupJobs = buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup)
-}
-
-func addScheduleDependencies(scheduler *Scheduler, deps WorkerDependencies) {
-	scheduler.activeService = deps.Active
-	scheduler.breakAutoEnder = deps.BreakAutoEnder
-	scheduler.autoCheckouter = deps.AutoCheckouter
-	scheduler.materializer = deps.Materializer
-	scheduler.bookingConsistency = deps.BookingConsistency
-	scheduler.autoStart = deps.AutoStart
-	scheduler.autoEnd = deps.AutoEnd
-	scheduler.instanceRepo = deps.InstanceRepo
-	scheduler.instanceRoomRepo = deps.InstanceRoomRepo
-	scheduler.instanceStudentRepo = deps.InstanceStudentRepo
-	scheduler.timetableBridge = deps.TimetableBridge
-	scheduler.studentStatusDayRepo = deps.StudentStatusDayRepo
-	scheduler.overdueBroadcaster = deps.OverdueBroadcaster
-	scheduler.studentLifecycleRepo = deps.StudentLifecycleRepo
-	scheduler.studentLifecycleAudit = deps.StudentLifecycleAudit
-	scheduler.careExitEffector = deps.CareExitEffector
-	scheduler.outboxWorker = deps.OutboxWorker
-	scheduler.rolloverDeadlineRunner = deps.RolloverDeadlineRunner
-	scheduler.reminderNotifications = deps.ReminderNotifications
-	scheduler.appointmentReminders = deps.AppointmentReminders
-}
-
-func addRuntimeDependencies(scheduler *Scheduler, deps WorkerDependencies) {
-	scheduler.settings = deps.Settings
-	scheduler.schoolRepo = deps.SchoolRepo
-	if !isNilDependency(deps.TenantRuntime) {
-		scheduler.tenantRuntime = deps.TenantRuntime
-	}
-	scheduler.tenantRuntimeObserver = deps.TenantRuntimeObserver
-	scheduler.unitOfWorkObserver = deps.UnitOfWorkObserver
-	scheduler.workerTracer = deps.Tracer
 }
 
 // getLogger returns the scheduler's logger, falling back to slog.Default() if nil.
@@ -1461,20 +1445,6 @@ func (s *Scheduler) scheduleSessionCleanupTask() {
 		return
 	}
 
-	// Parse global defaults (used as fallback and for backward-compatible struct fields)
-	s.sessionCleanupIntervalMinutes = 15
-	if envInterval := s.env("SESSION_CLEANUP_INTERVAL_MINUTES"); envInterval != "" {
-		if parsed, err := strconv.Atoi(envInterval); err == nil && parsed > 0 {
-			s.sessionCleanupIntervalMinutes = parsed
-		}
-	}
-	s.sessionAbandonedThresholdMinutes = 60
-	if envThreshold := s.env("SESSION_ABANDONED_THRESHOLD_MINUTES"); envThreshold != "" {
-		if parsed, err := strconv.Atoi(envThreshold); err == nil && parsed > 0 {
-			s.sessionAbandonedThresholdMinutes = parsed
-		}
-	}
-
 	s.registerTask("session-cleanup", "5m-poll", s.runSessionCleanupTaskPolling)
 }
 
@@ -1550,22 +1520,24 @@ func (s *Scheduler) scheduleBreakAutoEndTask() {
 	}
 
 	// Resolve interval from env var (global, not per-tenant)
-	s.breakAutoEndIntervalSeconds = 60
+	seconds := 60
 	if val := s.env("BREAK_AUTO_END_INTERVAL_SECONDS"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			s.breakAutoEndIntervalSeconds = parsed
+			seconds = parsed
 		}
 	}
 
-	s.registerTask("break-auto-end", fmt.Sprintf("%ds-poll", s.breakAutoEndIntervalSeconds), s.runBreakAutoEndTaskPolling)
+	s.registerTask("break-auto-end", fmt.Sprintf("%ds-poll", seconds), func(task *ScheduledTask) {
+		s.runBreakAutoEndTaskPolling(task, seconds)
+	})
 }
 
 // runBreakAutoEndTaskPolling runs break auto-end check at the configured interval for all tenants.
-func (s *Scheduler) runBreakAutoEndTaskPolling(task *ScheduledTask) {
-	interval := time.Duration(s.breakAutoEndIntervalSeconds) * time.Second
+func (s *Scheduler) runBreakAutoEndTaskPolling(task *ScheduledTask, seconds int) {
+	interval := time.Duration(seconds) * time.Second
 	s.runIntervalPolling(task, "panic in break auto-end task", "break auto-end polling started",
 		10*time.Second, func() time.Duration { return interval }, s.checkAndRunBreakAutoEnd,
-		slog.Int("interval_seconds", s.breakAutoEndIntervalSeconds))
+		slog.Int("interval_seconds", seconds))
 }
 
 // checkAndRunBreakAutoEnd runs break auto-end for all tenants.

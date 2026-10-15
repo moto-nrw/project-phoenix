@@ -40,8 +40,9 @@ Before backend design, implementation, or review:
 2. Put new behavior behind an existing target owner's public capability.
    Dependencies use consumer-owned ports; cross-module writes use application
    workflows; cross-module reads use named tenant-safe projections.
-3. Treat `services.Factory`, scheduler setters, `SetupAPITest`, and broad
-   legacy composition as shrink-only. The root mounts each route resource
+3. Treat `services.Factory` and broad legacy composition as shrink-only.
+   The Worker receives every dependency in its constructor literal (#2749);
+   API tests build route-sized routers. The root mounts each route resource
    where it builds it; only the Worker's document sweeps outlive the mount
    (#2745). The repository Factory is deleted: build a retained repository
    where it is used, in its owner composition (#2743).
