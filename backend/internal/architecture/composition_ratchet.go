@@ -10,6 +10,7 @@ import (
 	"go/types"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,9 +23,9 @@ import (
 
 // CompareCompositionSurface derives both inventories from source, never from a
 // candidate-editable manifest. Locations are evidence, not declaration identity.
-// The policies classify the root-composition packages and the owners of their
-// struct fields (compositionOwnership); the CLI passes the base and the
-// candidate policy.
+// The policies name the root-composition packages and classify the owners of
+// the structs those hold (rootStructInventory); the CLI passes the base and
+// the candidate policy.
 func CompareCompositionSurface(project, ref string, policies ...*Policy) error {
 	ownership := newCompositionOwnership(policies...)
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
@@ -91,10 +92,21 @@ func CompareCompositionSurface(project, ref string, policies ...*Policy) error {
 		return err
 	}
 	base.external, candidate.external = external, external
-	base.ownership, candidate.ownership = ownership, ownership
 	accepted := base.inventory()
 	var added []string
 	current := candidate.inventory()
+	if len(ownership.roots) != 0 {
+		baseRoots, err := baseRootStructInventory(root, prefix, sha, ownership)
+		if err != nil {
+			return fmt.Errorf("root structs at base %s: %w", sha, err)
+		}
+		candidateRoots, err := rootStructInventory(project, ownership)
+		if err != nil {
+			return fmt.Errorf("root structs of the candidate: %w", err)
+		}
+		maps.Copy(accepted, baseRoots)
+		maps.Copy(current, candidateRoots)
+	}
 	for key, location := range current {
 		if _, exists := accepted[key]; !exists {
 			added = append(added, key+" at "+location)
@@ -184,16 +196,12 @@ type parsedCompositionSource struct {
 }
 
 type compositionSnapshot struct {
-	module string
-	fset   *token.FileSet
-	parsed map[string]parsedCompositionSource
-	files  []*compositionFile
-	types  map[string]compositionType
-	// typeParams holds the type parameter list of generic declarations.
-	typeParams map[string]*ast.FieldList
-	external   map[string]*types.Package
-	// ownership classifies root structs; nil counts only central aggregates.
-	ownership *compositionOwnership
+	module   string
+	fset     *token.FileSet
+	parsed   map[string]parsedCompositionSource
+	files    []*compositionFile
+	types    map[string]compositionType
+	external map[string]*types.Package
 }
 
 func loadCompositionExternalTypes(project string, snapshot *compositionSnapshot) (map[string]*types.Package, error) {
@@ -236,7 +244,7 @@ func loadCompositionExternalTypes(project string, snapshot *compositionSnapshot)
 func newCompositionSnapshot() *compositionSnapshot {
 	return &compositionSnapshot{
 		fset: token.NewFileSet(), parsed: map[string]parsedCompositionSource{},
-		types: map[string]compositionType{}, typeParams: map[string]*ast.FieldList{},
+		types: map[string]compositionType{},
 	}
 }
 
@@ -244,7 +252,7 @@ func newCompositionSnapshotSharingSyntax(base *compositionSnapshot) *composition
 	// Syntax is read-only; each snapshot still resolves it through its own
 	// module, import and type registries. This table lives for one comparison.
 	return &compositionSnapshot{
-		fset: base.fset, parsed: base.parsed, types: map[string]compositionType{}, typeParams: map[string]*ast.FieldList{},
+		fset: base.fset, parsed: base.parsed, types: map[string]compositionType{},
 	}
 }
 
@@ -295,11 +303,7 @@ func (s *compositionSnapshot) add(path string, source []byte) error {
 		}
 		for _, spec := range general.Specs {
 			if typ, ok := spec.(*ast.TypeSpec); ok {
-				key := file.scope + "|" + file.pkg + "|" + typ.Name.Name
-				s.types[key] = compositionType{file, typ.Type}
-				if typ.TypeParams != nil {
-					s.typeParams[key] = typ.TypeParams
-				}
+				s.types[file.scope+"|"+file.pkg+"|"+typ.Name.Name] = compositionType{file, typ.Type}
 			}
 		}
 	}
@@ -309,8 +313,7 @@ func (s *compositionSnapshot) add(path string, source []byte) error {
 func (s *compositionSnapshot) inventory() map[string]string {
 	result := map[string]string{}
 	for _, file := range s.files {
-		root := s.ownership.root(file.pkg)
-		if !compositionPackage(file.pkg) && !root {
+		if !compositionPackage(file.pkg) {
 			continue
 		}
 		add := func(kind, symbol string, pos token.Pos) {
@@ -320,66 +323,29 @@ func (s *compositionSnapshot) inventory() map[string]string {
 			pkg, name := relocatedAggregate(file.pkg, aggregate)
 			result[file.scope+"|field|"+pkg+"|"+name+"."+field] = s.fset.Position(pos).String()
 		}
-		addFields := func(name string, structure *ast.StructType, pos token.Pos) {
-			for _, field := range structure.Fields.List {
-				if len(field.Names) == 0 {
-					addField(name, compositionTypeName(field.Type), pos)
-				}
-				for _, fieldName := range field.Names {
-					addField(name, fieldName.Name, pos)
-				}
-			}
-		}
 		for _, declaration := range file.syntax.Decls {
 			switch declaration := declaration.(type) {
 			case *ast.GenDecl:
 				for _, spec := range declaration.Specs {
-					switch spec := spec.(type) {
-					case *ast.TypeSpec:
-						central := centralAggregate(file.pkg, spec.Name.Name)
-						if central {
-							if structure, _ := s.structure(file, spec.Type, map[string]bool{}); structure != nil {
-								addFields(spec.Name.Name, structure, spec.Pos())
-							}
-							continue
+					typ, ok := spec.(*ast.TypeSpec)
+					if !ok || !centralAggregate(file.pkg, typ.Name.Name) {
+						continue
+					}
+					structure, _ := s.structure(file, typ.Type, map[string]bool{})
+					if structure == nil {
+						continue
+					}
+					for _, field := range structure.Fields.List {
+						if len(field.Names) == 0 {
+							addField(typ.Name.Name, compositionTypeName(field.Type), typ.Pos())
 						}
-						if !root {
-							continue
-						}
-						shadow := typeParameters(spec.TypeParams, nil)
-						// A root struct counts by what its own declaration
-						// holds, a generic instance by its type arguments.
-						if structure := s.rootStruct(file, spec.Type); structure != nil {
-							if s.severalOwners(file, spec.Type, shadow) {
-								addFields(spec.Name.Name, structure, spec.Pos())
-							}
-							continue
-						}
-						s.anonymousStructs(file, spec.Name.Name, spec.Type, shadow, func(name string, structure *ast.StructType) {
-							addFields(name, structure, structure.Pos())
-						})
-					case *ast.ValueSpec:
-						if root {
-							symbol := spec.Names[0].Name
-							s.anonymousStructs(file, symbol, spec, nil, func(name string, structure *ast.StructType) {
-								addFields(name, structure, structure.Pos())
-							})
+						for _, name := range field.Names {
+							addField(typ.Name.Name, name.Name, typ.Pos())
 						}
 					}
 				}
 			case *ast.FuncDecl:
-				if root {
-					symbol := declaration.Name.Name
-					if declaration.Recv != nil && len(declaration.Recv.List) != 0 {
-						symbol = compositionTypeName(declaration.Recv.List[0].Type) + "." + symbol
-					}
-					s.anonymousStructs(file, symbol, declaration, nil, func(name string, structure *ast.StructType) {
-						addFields(name, structure, structure.Pos())
-					})
-				}
-				if compositionPackage(file.pkg) {
-					s.collectSetters(file, declaration, add)
-				}
+				s.collectSetters(file, declaration, add)
 			}
 		}
 	}

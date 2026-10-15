@@ -103,7 +103,8 @@ func TestCompareRatchetBudgetsEvaluatesConstantExpressions(t *testing.T) {
 		{"conversion", "Threshold = 15", "Threshold = int(16)", "constant Threshold: 15 -> 16"},
 		{"named map type", "var Budgets = map[string]int{", "type registry map[string]int\n\nvar Budgets = registry{\n\t\"c\": 1,", "Budgets: entries sum 5 -> 6"},
 		{"equal value as an expression", "Threshold = 15", "Threshold = 14 + 1", ""},
-		{"unreadable constant", "Threshold = 15", `Threshold = len("sixteen letters!")`, "constant Threshold cannot be measured any more"},
+		{"builtin constant function", "Threshold = 15", `Threshold = len("sixteen letters!")`, "constant Threshold: 15 -> 16"},
+		{"unreadable constant", "const Threshold = 15", "var limit = 16\n\nconst Threshold = limit", "constant Threshold cannot be measured any more"},
 		{"register built by a function", "var Budgets = map[string]int{", "var Budgets = func() map[string]int { return map[string]int{\"x\": 9} }()\n\nvar unused = map[string]int{", "register Budgets cannot be measured any more"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -216,6 +217,77 @@ func TestAddedADRsIgnoreNumbersTheBaseHas(t *testing.T) {
 			}
 			if !tt.want && (err == nil || !strings.Contains(err.Error(), "constant Threshold: 15 -> 16")) {
 				t.Fatalf("ADR %s exists at the base and must not authorize the raise: %v", number, err)
+			}
+		})
+	}
+}
+
+// Review of #4095, round 2, C1: a typed constant keeps its Go value, so
+// ^uint8(0) is 255 and a raise, not -1.
+func TestCompareRatchetBudgetsUsesTheCompilerValue(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct{ name, old, new, want string }{
+		{"typed complement", "Threshold = 15", "Threshold = ^uint8(0)", "constant Threshold: 15 -> 255"},
+		{"typed complement in a register", `"b": 3`, `"b": int(^uint8(0))`, `Budgets["b"]: 3 -> 255`},
+		{"typed constant reference", "const Threshold = 15", "type limit uint8\n\nconst ceiling limit = ^limit(0)\n\nconst Threshold = int(ceiling) - 239", "constant Threshold: 15 -> 16"},
+		{"overflowing conversion", "Threshold = 15", "Threshold = uint8(256)", "constant Threshold cannot be measured any more"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base, candidate := newRatchetBudgets(), newRatchetBudgets()
+			source := strings.Replace(ratchetBudgetBase, tt.old, tt.new, 1)
+			if err := base.add("test/example_ratchet_test.go", []byte(ratchetBudgetBase)); err != nil {
+				t.Fatal(err)
+			}
+			if err := candidate.add("test/example_ratchet_test.go", []byte(source)); err != nil {
+				t.Fatal(err)
+			}
+			if raises := strings.Join(compareRatchetBudgets(base, candidate, nil), "\n"); !strings.Contains(raises, tt.want) {
+				t.Fatalf("want %q, got %q", tt.want, raises)
+			}
+		})
+	}
+	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	path := filepath.Join(repo, "test", "example_ratchet_test.go")
+	writeFile(t, path, ratchetBudgetBase)
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "budget base")
+	base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	writeFile(t, path, strings.Replace(ratchetBudgetBase, "Threshold = 15", "Threshold = ^uint8(0)", 1))
+	if err := CompareRatchetBudgets(repo, base); err == nil || !strings.Contains(err.Error(), "constant Threshold: 15 -> 255") {
+		t.Fatalf("public comparison accepted 15 -> 255: %v", err)
+	}
+}
+
+// Review of #4095, round 2, C2: a history continues in exactly one
+// successor, and the result does not depend on map iteration order.
+func TestCompareRatchetBudgetsRejectsAmbiguousRenames(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct{ name, base, candidate, want string }{
+		{"two successors", "package test\nvar Budgets = map[string]int{\"a\": 5}\n",
+			"package test\n// renamed from Budgets\nvar Kept = map[string]int{\"a\": 5}\n// renamed from Budgets\nvar Raised = map[string]int{\"a\": 6}\n",
+			"Budgets is claimed by several successors (Kept, Raised)"},
+		{"two predecessors", "package test\nconst A = 1\nconst B = 2\n",
+			"package test\n// Renamed from A, moved from B.\nconst C = 3\n",
+			"C names several predecessors (A, B)"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base, candidate := newRatchetBudgets(), newRatchetBudgets()
+			if err := base.add("test/example_ratchet_test.go", []byte(tt.base)); err != nil {
+				t.Fatal(err)
+			}
+			if err := candidate.add("test/example_ratchet_test.go", []byte(tt.candidate)); err != nil {
+				t.Fatal(err)
+			}
+			first := strings.Join(compareRatchetBudgets(base, candidate, nil), "\n")
+			if !strings.Contains(first, tt.want) {
+				t.Fatalf("want %q, got %q", tt.want, first)
+			}
+			for range 256 {
+				if again := strings.Join(compareRatchetBudgets(base, candidate, nil), "\n"); again != first {
+					t.Fatalf("result depends on iteration order:\n%s\n---\n%s", first, again)
+				}
 			}
 		})
 	}

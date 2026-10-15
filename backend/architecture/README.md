@@ -1044,30 +1044,43 @@ It counts:
 - setters, assignments to the dependency fields of a receiver or pointer
   parameter after construction;
 - since #4071, every field of every struct a `root-composition` package
-  (`.`, `api`, `cmd`, read from `policy.json`) declares that holds values of
-  several owners (ADR 0059 point 1): package-level struct types, instances of
-  a generic root struct (`type Wiring = Graph[alpha.Port, beta.Port]`), and
-  structs without a package-level name, that is anonymous struct variables and
-  literals and types declared in a function. Those are keyed by the enclosing
-  declaration and their local name or position (`root.Wiring.A`,
-  `root.struct1.A`).
+  (`.`, `api`, `cmd`, read from `policy.json`) writes down that holds values
+  of several owners (ADR 0059 point 1).
 
-A struct holds values of several owners when its fields hold values of at
-least two owners other than the root. A field holds a value of owner O when
-its type, after unwrapping pointers, slices, arrays, maps, channels and type
-arguments, names a type declared in a package `policy.json` assigns to O. The
-root's own structs, aliases and defined types are followed into their
-declaration, so wrapping owners into a local struct does not hide them. A
-type argument is a value its instance holds; type parameters hold none. A
-function type and the own methods of an interface are ports of the root and
-hold no owner value, but an interface that embeds a named interface holds what
-that one holds: a wrapper around another owner's port keeps its origin. Owners
+The root-struct part is semantic (`internal/architecture/composition_owners.go`).
+PR mode loads the root packages of the candidate and of the base commit,
+whose tree it extracts with `git archive`, with full type information,
+production and test variants alike. A root package that does not type-check
+fails the comparison. Every struct the root writes down is a carrier: a struct
+type literal anywhere (package-level or local type, anonymous variable,
+literal, parameter or field, nested structs included), a type expression that
+instantiates a generic root struct (`type Wiring = Graph[alpha.Port,
+beta.Port]`, `var wiring Graph[...]`, `Graph[...]{}`), and a variable a call
+types as such an instance.
+
+A carrier counts when its struct holds values of at least two owners other
+than the root. A type holds a value of owner O when it is, after resolving
+aliases and unwrapping pointers, slices, arrays, maps and channels, a named
+type declared in a package `policy.json` assigns to O; the type arguments of a
+foreign generic type count as well. The root's own named types, local ones
+included, are followed into their underlying type, so wrapper structs, local
+aliases and generic instances resolve to what they hold. A function type and
+the own methods of an interface are ports of the root and hold no owner value;
+an interface that embeds a named interface holds what that one holds. Owners
 of the `kernel` kind are shared vocabulary and do not count; an internal
 package without classification counts as an owner of its own. Base and
-candidate are classified with both the base and the candidate policy, and a
-struct counts when either sees two owners, so a reclassification cannot drop a
-struct the base counts. `internal/architecture/composition_owners_test.go`
-pins the definition.
+candidate are classified with both policies, and a struct counts when either
+sees two owners, so a reclassification cannot drop a struct the base counts.
+
+The carrier name is lexical: the type or variable name, prefixed with the
+enclosing function or method when it is local (`root.Wiring.A`), the parent
+carrier and field for a nested struct (`wiring.Inner.More`), or `struct<n>`
+for the n-th counted unnamed struct of a declaration (`root.struct1.A`). A name
+that repeats within a package scope gets `#2`, `#3` in source order; only
+counted carriers take part in the numbering. Known limits, which only
+deliberate code reaches: a generic instance a call infers and passes on
+without a variable or written type, and structs built by reflection.
+`internal/architecture/composition_owners_test.go` pins the definition.
 
 On development `c49b81c3a9` the surface rose from 139 to 1,732 keys when #4071
 added the root structs: 192 structs with 1,684 fields, among them
@@ -1090,15 +1103,19 @@ the files of the package:
   key cannot add what an existing one may not;
 - the entry count of a top-level `map[string]string` exception register.
 
-Values are Go constant expressions, evaluated with `go/constant`: literals,
-parentheses, operators, conversions, `iota` and references to other constants;
-a register may have a named map type. A base measurement whose candidate
-declaration cannot be evaluated is an error. A base measurement may not
-disappear either, also not by moving it out of the ratchet files: it stays,
-its register was empty, or the candidate declaration of the same kind that
-replaces it says `renamed from <old name>` in its comment and is compared with
-the old values. A new declaration has no base and starts a measurement; other
-literals (selector sets, scanned directories) are not compared.
+The ratchet files are type-checked together with `go/types`, so every value
+is the compiler's: typed conversions and complements (`^uint8(0)` is 255),
+`iota` and references to other constants included, and a register may have a
+named map type. Imports resolve to empty packages; a value that depends on one
+or on a declaration outside the ratchet files has no value. A base
+measurement whose candidate declaration has no integer value is an error. A
+base measurement may not disappear either, also not by moving it out of the
+ratchet files: it stays, its register was empty, or exactly one candidate
+declaration of the same kind says `renamed from <old name>` in its comment
+and is compared with the old values. Two successors for one name, or one
+declaration naming two predecessors, fail. A new declaration has no base and
+starts a measurement; other literals (selector sets, scanned directories) are
+not compared.
 
 A raise or a disappearance passes only under an ADR the change adds: the
 comment on the raised entry or its declaration, or for a disappearance any

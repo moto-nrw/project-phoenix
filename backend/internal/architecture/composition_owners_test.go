@@ -38,6 +38,23 @@ const compositionOwnerImports = "package api\nimport (\n" +
 	"\"sync/atomic\"\n)\n" +
 	"var _ = []any{alpha.Service{}, beta.Service{}, gamma.Service{}, kernel.Date{}, other.Service{}, atomic.Bool{}}\n"
 
+// ownerFixtureRepository is a ratchet repository with the owner packages the
+// root fixtures import, so the root packages type-check.
+func ownerFixtureRepository(t *testing.T) string {
+	t.Helper()
+	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	for path, source := range map[string]string{
+		"modules/alpha/alpha.go": "package alpha\ntype Port interface{ Run() }\ntype Service struct{}\n",
+		"modules/beta/beta.go":   "package beta\ntype Port interface{ Run() }\ntype Service struct{}\n",
+		"modules/gamma/gamma.go": "package gamma\ntype Port interface{ Run() }\ntype Service struct{}\n",
+		"modules/other/other.go": "package other\ntype Service struct{}\n",
+		"sharedkernel/kernel.go": "package sharedkernel\ntype Date struct{}\n",
+	} {
+		writeFile(t, filepath.Join(repo, filepath.FromSlash(path)), source)
+	}
+	return repo
+}
+
 func TestCompositionSurfaceCountsRootStructsOfSeveralOwners(t *testing.T) {
 	t.Parallel()
 	for _, tt := range []struct{ name, base, candidate, want string }{
@@ -60,7 +77,7 @@ func TestCompositionSurfaceCountsRootStructsOfSeveralOwners(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			repo, _ := ratchetRepository(t, legacyRecord(2583))
+			repo := ownerFixtureRepository(t)
 			path := filepath.Join(repo, "api", "wiring.go")
 			writeFile(t, path, compositionOwnerImports+tt.base+"\n")
 			runGit(t, repo, "add", ".")
@@ -82,7 +99,7 @@ func TestCompositionSurfaceCountsRootStructsOfSeveralOwners(t *testing.T) {
 
 func TestCompositionSurfaceRootStructsKeepTheirScope(t *testing.T) {
 	t.Parallel()
-	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	repo := ownerFixtureRepository(t)
 	writeFile(t, filepath.Join(repo, "cmd", "root.go"), "package cmd\n")
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "composition base")
@@ -98,7 +115,7 @@ func TestCompositionSurfaceRootStructsKeepTheirScope(t *testing.T) {
 
 func TestCompositionSurfaceReclassificationCannotHideRootGrowth(t *testing.T) {
 	t.Parallel()
-	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	repo := ownerFixtureRepository(t)
 	path := filepath.Join(repo, "api", "wiring.go")
 	writeFile(t, path, compositionOwnerImports+"type Wiring struct { A alpha.Port; B beta.Port }\n")
 	runGit(t, repo, "add", ".")
@@ -122,7 +139,7 @@ func TestCompositionSurfaceReclassificationCannotHideRootGrowth(t *testing.T) {
 
 func TestCompositionSurfaceWithoutPolicyCountsCentralAggregatesOnly(t *testing.T) {
 	t.Parallel()
-	repo, _ := ratchetRepository(t, legacyRecord(2583))
+	repo := ownerFixtureRepository(t)
 	path := filepath.Join(repo, "api", "wiring.go")
 	writeFile(t, path, compositionOwnerImports+"type Wiring struct { A alpha.Port }\n")
 	runGit(t, repo, "add", ".")
@@ -154,13 +171,13 @@ func TestCompositionSurfaceCountsEveryFormOfARootGraph(t *testing.T) {
 		{"unnamed literal", "func root() any { return struct { A alpha.Port; B beta.Port }{} }", "production|field|api|root.struct1.B"},
 		{"method", "type Root struct{}; func (r *Root) build() { type Wiring struct { A alpha.Port; B beta.Port }; _ = Wiring{} }", "production|field|api|Root.build.Wiring.A"},
 		{"local generic instance", "type Graph[A, B any] struct { A A; B B }; func root() { type Wiring = Graph[alpha.Port, beta.Port]; _ = Wiring{} }", "production|field|api|root.Wiring.A"},
-		{"anonymous struct in a named type", "type registry map[string]struct { A alpha.Port; B beta.Port }", "production|field|api|registry.struct1.A"},
+		{"anonymous struct in a named type", "type registry map[string]struct { A alpha.Port; B beta.Port }", "production|field|api|registry.A"},
 		{"single-owner local graph", "func root() { type Wiring struct { A alpha.Port; B alpha.Service }; _ = Wiring{} }", ""},
-		{"function type parameter", "func root[T any]() { type Wiring struct { A alpha.Port; T T }; _ = Wiring{} }", ""},
+		{"function type parameter", "func root[T any](t T) { w := struct { A alpha.Port; T T }{T: t}; _ = w }", ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			repo, _ := ratchetRepository(t, legacyRecord(2583))
+			repo := ownerFixtureRepository(t)
 			path := filepath.Join(repo, "api", "wiring.go")
 			writeFile(t, path, compositionOwnerImports)
 			runGit(t, repo, "add", ".")
@@ -184,5 +201,65 @@ func TestCompositionSurfaceCountsEveryFormOfARootGraph(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// Review of #4095, round 2: the inventory is semantic, so neither a direct
+// generic instance, nor local aliases and wrappers, nor a repeated local name,
+// nor a nested struct hides a graph, and an unrelated struct moves no key.
+func TestCompositionSurfaceFollowsTheTypesOfEveryCarrier(t *testing.T) {
+	t.Parallel()
+	const generic = "type Graph[A, B any] struct { A A; B B }\n"
+	const block = "{ type Wiring struct { A alpha.Port; B beta.Port }; _ = Wiring{} }"
+	const variable = "{ w := struct { A alpha.Port; B beta.Port }{}; _ = w }"
+	for _, tt := range []struct{ name, base, candidate, want string }{
+		{"direct generic variable", generic, generic + "var wiring Graph[alpha.Port, beta.Port]", "production|field|api|wiring.A"},
+		{"direct generic literal", generic, generic + "func root() { _ = Graph[alpha.Port, beta.Port]{} }", "production|field|api|root.struct1.B"},
+		{"inferred generic instance", generic + "func newGraph[A, B any](a A, b B) Graph[A, B] { return Graph[A, B]{a, b} }",
+			generic + "func newGraph[A, B any](a A, b B) Graph[A, B] { return Graph[A, B]{a, b} }\nfunc root(a alpha.Port, b beta.Port) { g := newGraph(a, b); _ = g }", "production|field|api|root.g.A"},
+		{"local owner aliases", "func root() {}", "func root() { type A = alpha.Port; type B = beta.Port; type Wiring struct { A A; B B }; _ = Wiring{} }", "production|field|api|root.Wiring.A"},
+		{"local wrapper types", "func root() {}", "func root() { type A struct { P alpha.Port }; type B struct { P beta.Port }; type Wiring struct { A A; B B }; _ = Wiring{} }", "production|field|api|root.Wiring.B"},
+		{"local alias shadows a package type", "type A = alpha.Port\nfunc root() {}", "type A = alpha.Port\nfunc root() { type A = beta.Port; type Wiring struct { X A; Y gamma.Port }; _ = Wiring{} }", ""},
+		{"ports with own methods", "func root() {}", "type A interface { alpha.Port; Extra() }; type B interface { beta.Port; Extra() }; type Wiring struct { A A; B B }", "production|field|api|Wiring.A"},
+		{"same-named local types", "func root() {" + block + "}", "func root() {" + block + ";" + block + "}", "production|field|api|root.Wiring#2.A"},
+		{"same-named local variables", "func root() {" + variable + "}", "func root() {" + variable + ";" + variable + "}", "production|field|api|root.w#2.B"},
+		{"nested growth", "var wiring = struct { Inner struct { A alpha.Port; B beta.Port } }{}", "var wiring = struct { Inner struct { A alpha.Port; B beta.Port; More alpha.Port } }{}", "production|field|api|wiring.Inner.More"},
+		{"nested in a named struct", "type Wiring struct { Inner struct { A alpha.Port; B beta.Port } }", "type Wiring struct { Inner struct { A alpha.Port; B beta.Port; More alpha.Port } }", "production|field|api|Wiring.Inner.More"},
+		{"unrelated struct keeps the numbering", "func root() any { return struct { A alpha.Port; B beta.Port }{} }", "func root() any { _ = struct{}{}; _ = struct{ A alpha.Port }{}; return struct { A alpha.Port; B beta.Port }{} }", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo := ownerFixtureRepository(t)
+			path := filepath.Join(repo, "api", "wiring.go")
+			writeFile(t, path, compositionOwnerImports+tt.base+"\n")
+			runGit(t, repo, "add", ".")
+			runGit(t, repo, "commit", "-qm", "composition base")
+			base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+			writeFile(t, path, compositionOwnerImports+tt.candidate+"\n")
+			policy := ownerFixturePolicy(compositionOwnerClassification)
+			err := CompareCompositionSurface(repo, base, policy, policy)
+			if tt.want == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+func TestCompositionSurfaceFailsWhenARootPackageDoesNotTypeCheck(t *testing.T) {
+	t.Parallel()
+	repo := ownerFixtureRepository(t)
+	path := filepath.Join(repo, "api", "wiring.go")
+	writeFile(t, path, compositionOwnerImports)
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "composition base")
+	base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	writeFile(t, path, compositionOwnerImports+"type Wiring struct { A alpha.Missing }\n")
+	policy := ownerFixturePolicy(compositionOwnerClassification)
+	if err := CompareCompositionSurface(repo, base, policy); err == nil || !strings.Contains(err.Error(), "type-check") {
+		t.Fatalf("a root package without type information must fail closed: %v", err)
 	}
 }

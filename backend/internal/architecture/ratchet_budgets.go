@@ -6,6 +6,7 @@ import (
 	"go/constant"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -28,17 +29,18 @@ import (
 //   - the number of entries of a top-level map[string]string register (an
 //     exception register keyed by function or file, valued by its reason).
 //
-// Values are Go constant expressions, evaluated with go/constant: literals,
-// parentheses, operators, conversions, iota and references to other
-// constants of the files. A register may have a named map type. A base
-// measurement whose candidate declaration this evaluation cannot read is an
-// error, never a silent drop. Other literals (selector sets, scanned
+// Values come from go/types: the ratchet files are type-checked together, so
+// every Go constant expression counts with its compiler value (typed
+// conversions and complements, iota, references to other constants), and a
+// register may have a named map type. A base measurement whose candidate
+// declaration has no such value is an error, never a silent drop. Other literals (selector sets, scanned
 // directories) are configuration whose direction this comparison cannot judge.
 //
 // A declaration that is new in the candidate has no base and starts a
 // measurement. A base measurement may not disappear: it stays, its register
 // was empty, or a candidate declaration of the same kind says "renamed from
-// <old name>" in its comment and is compared with the old base values. Moving
+// <old name>" in its comment and is compared with the old base values. Two
+// successors for one name, or one declaration naming two predecessors, fail. Moving
 // a measurement out of the ratchet files therefore fails as well.
 //
 // A raise, or a disappearance, is accepted only when a comment on the raised
@@ -196,15 +198,12 @@ func (r *ratchetBudgets) add(path string, source []byte) error {
 	return nil
 }
 
-type ratchetConstant struct {
-	expression ast.Expr
-	iota       int64
-	location   string
-	comment    string
-}
-
-// finalize evaluates the measurements of all added files together, because
-// a constant or a map type may be declared in another file of the package.
+// finalize type-checks the added files together with go/types and reads the
+// measurements from the checked declarations, so a value is whatever the Go
+// compiler makes of it: typed conversions, complements, iota and references
+// to other constants included. Imports resolve to empty packages; a value
+// that depends on one, or on a declaration outside the ratchet files, cannot
+// be determined and counts as unmeasurable.
 func (r *ratchetBudgets) finalize() {
 	if r.finalized {
 		return
@@ -212,283 +211,156 @@ func (r *ratchetBudgets) finalize() {
 	r.finalized = true
 	r.constants, r.budgets = map[string]ratchetValue{}, map[string]ratchetRegister{}
 	r.exceptions, r.unsupported, r.comments = map[string]ratchetValue{}, map[string]string{}, nil
-	declared := map[string]ratchetConstant{}
-	typesByName := map[string]ast.Expr{}
-	type variable struct {
-		name    *ast.Ident
-		typ     ast.Expr
-		value   ast.Expr
-		file    ratchetFile
-		comment string
+	if len(r.files) == 0 {
+		return
 	}
-	var variables []variable
+	syntax := make([]*ast.File, 0, len(r.files))
 	for _, file := range r.files {
+		syntax = append(syntax, file.syntax)
 		for _, group := range file.syntax.Comments {
 			r.comments = append(r.comments, group.Text())
 		}
+	}
+	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}, Defs: map[*ast.Ident]types.Object{}}
+	config := types.Config{Importer: emptyImporter{}, Error: func(error) {}}
+	// Type errors leave the affected declarations without a value; they are
+	// reported per measurement below.
+	_, _ = config.Check(syntax[0].Name.Name, r.fset, syntax, info)
+	for _, file := range r.files {
 		for _, declaration := range file.syntax.Decls {
 			general, ok := declaration.(*ast.GenDecl)
-			if !ok {
+			if !ok || general.Tok != token.CONST && general.Tok != token.VAR {
 				continue
 			}
-			var previous []ast.Expr
-			for index, spec := range general.Specs {
-				switch spec := spec.(type) {
-				case *ast.TypeSpec:
-					typesByName[spec.Name.Name] = spec.Type
-				case *ast.ValueSpec:
-					doc := commentText(file.comments, general) + commentText(file.comments, spec)
-					if general.Tok == token.CONST {
-						values := spec.Values
-						if len(values) == 0 {
-							values = previous
-						}
-						previous = values
-						for position, name := range spec.Names {
-							if position < len(values) && name.Name != "_" {
-								declared[name.Name] = ratchetConstant{values[position], int64(index), r.fset.Position(name.Pos()).String(), doc}
-							}
-						}
+			for _, spec := range general.Specs {
+				value, ok := spec.(*ast.ValueSpec)
+				if !ok {
+					continue
+				}
+				doc := commentText(file.comments, general) + commentText(file.comments, value)
+				for index, name := range value.Names {
+					if name.Name == "_" {
 						continue
 					}
-					for position, name := range spec.Names {
-						var value ast.Expr
-						if position < len(spec.Values) {
-							value = spec.Values[position]
-						}
-						variables = append(variables, variable{name, spec.Type, value, file, doc})
+					if general.Tok == token.CONST {
+						r.measureConstant(info, name, doc)
+						continue
 					}
+					var expression ast.Expr
+					if index < len(value.Values) {
+						expression = value.Values[index]
+					}
+					r.measureRegister(info, file, name, expression, doc)
 				}
 			}
-		}
-	}
-	evaluator := &ratchetEvaluator{declared: declared, values: map[string]constant.Value{}, active: map[string]bool{}}
-	for name, declaration := range declared {
-		value, err := evaluator.constant(name)
-		if err != nil {
-			r.unsupported[name] = err.Error()
-			continue
-		}
-		if value.Kind() != constant.Int {
-			r.unsupported[name] = "no integer constant"
-			continue
-		}
-		number, exact := constant.Int64Val(value)
-		if !exact {
-			r.unsupported[name] = "integer constant out of range"
-			continue
-		}
-		r.constants[name] = ratchetValue{int(number), declaration.location, declaration.comment}
-	}
-	for _, variable := range variables {
-		name := variable.name.Name
-		value := variable.value
-		for {
-			paren, ok := value.(*ast.ParenExpr)
-			if !ok {
-				break
-			}
-			value = paren.X
-		}
-		literal, _ := value.(*ast.CompositeLit)
-		typ := variable.typ
-		if literal != nil && literal.Type != nil {
-			typ = literal.Type
-		}
-		kind := ratchetMapValue(typ, typesByName)
-		if kind == "" {
-			// Not a register; named only for a base measurement that became it.
-			r.unsupported[name] = "neither an integer constant nor a map[string]int or map[string]string literal"
-			continue
-		}
-		location := r.fset.Position(variable.name.Pos()).String()
-		if literal == nil {
-			r.unsupported[name] = "register is not a composite literal"
-			continue
-		}
-		entries := map[string]ratchetValue{}
-		for _, element := range literal.Elts {
-			pair, ok := element.(*ast.KeyValueExpr)
-			if !ok {
-				r.unsupported[name] = "register entry without a key"
-				break
-			}
-			key, err := evaluator.expression(pair.Key, 0)
-			if err != nil || key.Kind() != constant.String {
-				r.unsupported[name] = fmt.Sprintf("register key at %s is no string constant", r.fset.Position(pair.Pos()))
-				break
-			}
-			number := 0
-			if kind == "int" {
-				amount, err := evaluator.expression(pair.Value, 0)
-				exact := false
-				if err == nil && amount.Kind() == constant.Int {
-					var wide int64
-					wide, exact = constant.Int64Val(amount)
-					number = int(wide)
-				}
-				if !exact {
-					r.unsupported[name] = fmt.Sprintf("register value at %s is no integer constant", r.fset.Position(pair.Pos()))
-					break
-				}
-			}
-			entries[constant.StringVal(key)] = ratchetValue{number, r.fset.Position(pair.Pos()).String(), commentText(variable.file.comments, pair)}
-		}
-		if _, failed := r.unsupported[name]; failed {
-			continue
-		}
-		if kind == "int" {
-			r.budgets[name] = ratchetRegister{entries, location, variable.comment}
-		} else {
-			r.exceptions[name] = ratchetValue{len(entries), location, variable.comment}
 		}
 	}
 }
 
-// ratchetMapValue names the value kind of a map[string]int or
-// map[string]string register type, following named types of the files.
-func ratchetMapValue(expression ast.Expr, typesByName map[string]ast.Expr) string {
-	resolved := ratchetResolveType(expression, typesByName, map[string]bool{})
-	mapping, ok := resolved.(*ast.MapType)
-	if !ok || ratchetBasicType(mapping.Key, typesByName) != "string" {
+func (r *ratchetBudgets) measureConstant(info *types.Info, name *ast.Ident, doc string) {
+	object, ok := info.Defs[name].(*types.Const)
+	if !ok || object.Val().Kind() != constant.Int {
+		r.unsupported[name.Name] = "no integer constant the type checker can determine"
+		return
+	}
+	number, exact := constant.Int64Val(object.Val())
+	if !exact {
+		r.unsupported[name.Name] = "integer constant out of range"
+		return
+	}
+	r.constants[name.Name] = ratchetValue{int(number), r.fset.Position(name.Pos()).String(), doc}
+}
+
+func (r *ratchetBudgets) measureRegister(info *types.Info, file ratchetFile, name *ast.Ident, expression ast.Expr, doc string) {
+	object, ok := info.Defs[name].(*types.Var)
+	if !ok {
+		r.unsupported[name.Name] = "no variable the type checker can determine"
+		return
+	}
+	kind := ratchetMapKind(object.Type())
+	if kind == "" {
+		r.unsupported[name.Name] = "neither an integer constant nor a map[string]int or map[string]string register"
+		return
+	}
+	for {
+		paren, ok := expression.(*ast.ParenExpr)
+		if !ok {
+			break
+		}
+		expression = paren.X
+	}
+	literal, ok := expression.(*ast.CompositeLit)
+	if !ok {
+		r.unsupported[name.Name] = "register is not a composite literal"
+		return
+	}
+	entries := map[string]ratchetValue{}
+	for _, element := range literal.Elts {
+		pair, ok := element.(*ast.KeyValueExpr)
+		if !ok {
+			r.unsupported[name.Name] = "register entry without a key"
+			return
+		}
+		key := info.Types[pair.Key].Value
+		if key == nil || key.Kind() != constant.String {
+			r.unsupported[name.Name] = fmt.Sprintf("register key at %s is no string constant", r.fset.Position(pair.Pos()))
+			return
+		}
+		number := 0
+		if kind == "int" {
+			value := info.Types[pair.Value].Value
+			exact := false
+			if value != nil && value.Kind() == constant.Int {
+				var wide int64
+				wide, exact = constant.Int64Val(value)
+				number = int(wide)
+			}
+			if !exact {
+				r.unsupported[name.Name] = fmt.Sprintf("register value at %s is no integer constant", r.fset.Position(pair.Pos()))
+				return
+			}
+		}
+		entries[constant.StringVal(key)] = ratchetValue{number, r.fset.Position(pair.Pos()).String(), commentText(file.comments, pair)}
+	}
+	location := r.fset.Position(name.Pos()).String()
+	if kind == "int" {
+		r.budgets[name.Name] = ratchetRegister{entries, location, doc}
+		return
+	}
+	r.exceptions[name.Name] = ratchetValue{len(entries), location, doc}
+}
+
+// ratchetMapKind names the value kind of a register type: a map from a
+// string type to an integer ("int") or string ("string") type.
+func ratchetMapKind(typ types.Type) string {
+	mapping, ok := typ.Underlying().(*types.Map)
+	if !ok {
 		return ""
 	}
-	switch value := ratchetBasicType(mapping.Value, typesByName); value {
-	case "int", "int8", "int16", "int32", "int64", "uint", "uint8", "uint16", "uint32", "uint64":
+	key, ok := mapping.Key().Underlying().(*types.Basic)
+	if !ok || key.Info()&types.IsString == 0 {
+		return ""
+	}
+	value, ok := mapping.Elem().Underlying().(*types.Basic)
+	switch {
+	case !ok:
+		return ""
+	case value.Info()&types.IsInteger != 0:
 		return "int"
-	case "string":
+	case value.Info()&types.IsString != 0:
 		return "string"
 	}
 	return ""
 }
 
-func ratchetResolveType(expression ast.Expr, typesByName map[string]ast.Expr, seen map[string]bool) ast.Expr {
-	switch typed := expression.(type) {
-	case *ast.ParenExpr:
-		return ratchetResolveType(typed.X, typesByName, seen)
-	case *ast.Ident:
-		if next, ok := typesByName[typed.Name]; ok && !seen[typed.Name] {
-			seen[typed.Name] = true
-			return ratchetResolveType(next, typesByName, seen)
-		}
-	}
-	return expression
-}
+// emptyImporter resolves every import to an empty package: the ratchet
+// measurements are constants of the ratchet files themselves.
+type emptyImporter struct{}
 
-func ratchetBasicType(expression ast.Expr, typesByName map[string]ast.Expr) string {
-	if id, ok := ratchetResolveType(expression, typesByName, map[string]bool{}).(*ast.Ident); ok {
-		return id.Name
-	}
-	return ""
-}
-
-// ratchetEvaluator evaluates Go constant expressions over the constants the
-// ratchet files declare.
-type ratchetEvaluator struct {
-	declared map[string]ratchetConstant
-	values   map[string]constant.Value
-	active   map[string]bool
-}
-
-func (e *ratchetEvaluator) constant(name string) (constant.Value, error) {
-	if value, ok := e.values[name]; ok {
-		return value, nil
-	}
-	declaration, ok := e.declared[name]
-	if !ok {
-		return nil, fmt.Errorf("unknown constant %s", name)
-	}
-	if e.active[name] {
-		return nil, fmt.Errorf("constant %s refers to itself", name)
-	}
-	e.active[name] = true
-	defer delete(e.active, name)
-	value, err := e.expression(declaration.expression, declaration.iota)
-	if err != nil {
-		return nil, err
-	}
-	e.values[name] = value
-	return value, nil
-}
-
-var ratchetConversions = map[string]bool{
-	"int": true, "int8": true, "int16": true, "int32": true, "int64": true,
-	"uint": true, "uint8": true, "uint16": true, "uint32": true, "uint64": true,
-	"uintptr": true, "byte": true, "rune": true, "string": true,
-}
-
-func (e *ratchetEvaluator) expression(expression ast.Expr, iota int64) (constant.Value, error) {
-	switch typed := expression.(type) {
-	case *ast.BasicLit:
-		value := constant.MakeFromLiteral(typed.Value, typed.Kind, 0)
-		if value.Kind() == constant.Unknown {
-			return nil, fmt.Errorf("invalid literal %s", typed.Value)
-		}
-		return value, nil
-	case *ast.ParenExpr:
-		return e.expression(typed.X, iota)
-	case *ast.Ident:
-		switch typed.Name {
-		case "iota":
-			return constant.MakeInt64(iota), nil
-		case "true", "false":
-			return constant.MakeBool(typed.Name == "true"), nil
-		}
-		return e.constant(typed.Name)
-	case *ast.UnaryExpr:
-		operand, err := e.expression(typed.X, iota)
-		if err != nil {
-			return nil, err
-		}
-		switch typed.Op {
-		case token.ADD, token.SUB, token.XOR, token.NOT:
-			return constant.UnaryOp(typed.Op, operand, 0), nil
-		}
-	case *ast.BinaryExpr:
-		left, err := e.expression(typed.X, iota)
-		if err != nil {
-			return nil, err
-		}
-		right, err := e.expression(typed.Y, iota)
-		if err != nil {
-			return nil, err
-		}
-		return ratchetBinary(typed.Op, left, right)
-	case *ast.CallExpr:
-		if function, ok := typed.Fun.(*ast.Ident); ok && ratchetConversions[function.Name] && len(typed.Args) == 1 {
-			return e.expression(typed.Args[0], iota)
-		}
-	}
-	return nil, fmt.Errorf("unsupported constant expression %T", expression)
-}
-
-func ratchetBinary(operator token.Token, left, right constant.Value) (constant.Value, error) {
-	switch operator {
-	case token.SHL, token.SHR:
-		shift, exact := constant.Uint64Val(constant.ToInt(right))
-		if !exact || shift > 1024 {
-			return nil, fmt.Errorf("invalid shift count")
-		}
-		return constant.Shift(constant.ToInt(left), operator, uint(shift)), nil
-	case token.EQL, token.NEQ, token.LSS, token.LEQ, token.GTR, token.GEQ:
-		return constant.MakeBool(constant.Compare(left, operator, right)), nil
-	case token.QUO:
-		if left.Kind() == constant.Int && right.Kind() == constant.Int {
-			if constant.Sign(right) == 0 {
-				return nil, fmt.Errorf("division by zero")
-			}
-			operator = token.QUO_ASSIGN
-		}
-	case token.REM:
-		if constant.Sign(right) == 0 {
-			return nil, fmt.Errorf("division by zero")
-		}
-	}
-	value := constant.BinaryOp(left, operator, right)
-	if value.Kind() == constant.Unknown {
-		return nil, fmt.Errorf("unsupported operator %s", operator)
-	}
-	return value, nil
+func (emptyImporter) Import(path string) (*types.Package, error) {
+	pkg := types.NewPackage(path, filepath.Base(path))
+	pkg.MarkComplete()
+	return pkg, nil
 }
 
 func commentText(comments ast.CommentMap, node ast.Node) string {
@@ -532,24 +404,38 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 		}
 		return false
 	}
-	// successors maps a base name to the candidate declaration that says it
-	// was renamed from it. A declaration names one predecessor at most.
-	successors := map[string]string{}
+	// successors maps a base name to the one candidate declaration that says
+	// it was renamed from it. Two claims on one name, or one declaration
+	// claiming two names, are ambiguous and fail: a history moves to exactly
+	// one successor.
+	claims := map[string][]string{}
 	claim := func(name, comment string) {
-		for _, old := range renamedFrom(comment) {
-			if _, taken := successors[old]; !taken {
-				successors[old] = name
-			}
+		predecessors := renamedFrom(comment)
+		if len(predecessors) > 1 {
+			raises = append(raises, fmt.Sprintf("%s names several predecessors (%s); a declaration continues one measurement", name, strings.Join(predecessors, ", ")))
+		}
+		for _, old := range predecessors {
+			claims[old] = append(claims[old], name)
 		}
 	}
-	for name, value := range candidate.constants {
-		claim(name, value.comment)
+	for _, name := range sortedKeys(candidate.constants) {
+		claim(name, candidate.constants[name].comment)
 	}
-	for name, register := range candidate.budgets {
-		claim(name, register.comment)
+	for _, name := range sortedKeys(candidate.budgets) {
+		claim(name, candidate.budgets[name].comment)
 	}
-	for name, value := range candidate.exceptions {
-		claim(name, value.comment)
+	for _, name := range sortedKeys(candidate.exceptions) {
+		claim(name, candidate.exceptions[name].comment)
+	}
+	successors := map[string]string{}
+	for _, old := range sortedKeys(claims) {
+		names := claims[old]
+		if len(names) > 1 {
+			sort.Strings(names)
+			raises = append(raises, fmt.Sprintf("%s is claimed by several successors (%s); mark exactly one \"renamed from %s\"", old, strings.Join(names, ", "), old))
+			continue
+		}
+		successors[old] = names[0]
 	}
 	successor := func(name string) string {
 		_, constant := candidate.constants[name]
@@ -571,7 +457,8 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 		}
 		raises = append(raises, fmt.Sprintf("%s %s (%s at base) disappeared; keep it, mark its successor \"renamed from %s\" or cite an ADR this change adds", kind, name, was, name))
 	}
-	for name, was := range base.constants {
+	for _, name := range sortedKeys(base.constants) {
+		was := base.constants[name]
 		now, ok := candidate.constants[successor(name)]
 		if !ok {
 			missing("constant", name, strconv.Itoa(was.value))
@@ -581,7 +468,8 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 			raises = append(raises, fmt.Sprintf("constant %s: %d -> %d at %s", name, was.value, now.value, now.location))
 		}
 	}
-	for name, register := range base.budgets {
+	for _, name := range sortedKeys(base.budgets) {
+		register := base.budgets[name]
 		before := 0
 		for _, was := range register.entries {
 			before += was.value
@@ -611,7 +499,8 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 			raises = append(raises, fmt.Sprintf("%s: entries sum %d -> %d (a new or moved entry may not add to the register)", name, before, after))
 		}
 	}
-	for name, was := range base.exceptions {
+	for _, name := range sortedKeys(base.exceptions) {
+		was := base.exceptions[name]
 		now, ok := candidate.exceptions[successor(name)]
 		if !ok {
 			if was.value == 0 && candidate.unsupported[successor(name)] == "" {
