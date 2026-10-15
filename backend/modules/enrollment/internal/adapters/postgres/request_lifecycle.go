@@ -86,8 +86,9 @@ func (r *Store) DeleteRequest(ctx context.Context, id int64) error {
 
 // SettledRequestsBefore lists the requests no child was created from whose
 // children are all settled past their windows, with at least one withdrawn
-// (#3960). A withdrawal settles at its latest stamp: the parent's withdrawal
-// stamps reviewed_at, the rollover deadline only updated_at. A rejection
+// (#3960). A withdrawal settles at its status stamp: the parent's withdrawal
+// stamps reviewed_at, while the rollover deadline only updates updated_at.
+// A rejection
 // keeps the window of rejected enrollments; fully rejected requests stay
 // with FullyRejectedRequestsBefore. A lapsed or declined renewal stays while
 // the care of its source phase runs: the end-of-year warning counts the
@@ -116,7 +117,7 @@ func (r *Store) SettledRequestsBefore(ctx context.Context, withdrawnCutoff, reje
 		Having("BOOL_OR(rc.status = ?)", "withdrawn").
 		Having("BOOL_AND(rc.created_student_id IS NULL)").
 		Having(`BOOL_AND(CASE rc.status
-			WHEN 'withdrawn' THEN GREATEST(rc.reviewed_at, rc.updated_at) < ?
+			WHEN 'withdrawn' THEN COALESCE(rc.reviewed_at, rc.updated_at) < ?
 			WHEN 'rejected' THEN rc.reviewed_at IS NOT NULL AND rc.reviewed_at < ?
 			ELSE FALSE END)`, withdrawnCutoff, rejectedCutoff).
 		OrderExpr("request.id").Scan(ctx, &ids)

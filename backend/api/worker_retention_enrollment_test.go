@@ -223,6 +223,24 @@ func TestNightlyRetentionDeletesSettledEnrollmentsWithoutAChild(t *testing.T) {
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionSettledEnrollments))
 }
 
+func TestNightlyRetentionCountsWithdrawnEnrollmentsFromTheirStatusChange(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	f := suite.enrollments(t, school)
+
+	requestID := f.request(t, "spaet-korrigiert", settledChild{status: enrollment.ChildStatusWithdrawn, daysAgo: 91})
+	_, err := suite.admin.ExecContext(context.Background(), `UPDATE enrollment.request_children
+		SET updated_at = CURRENT_TIMESTAMP
+		WHERE request_id = ?`, requestID)
+	require.NoError(t, err)
+
+	suite.run(t, school)
+
+	assert.False(t, suite.exists(t, "enrollment.requests", requestID),
+		"a later data correction does not restart the retention window after withdrawal")
+}
+
 func TestNightlyRetentionFollowsTheSchoolsRecordedSettledEnrollmentWindow(t *testing.T) {
 	t.Parallel()
 	suite := newRetentionSuite(t)

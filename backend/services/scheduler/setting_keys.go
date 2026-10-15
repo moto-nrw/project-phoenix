@@ -18,6 +18,7 @@ const (
 	settingStatusDayRetentionDays                = "gdpr.status_day_retention_days"
 	settingParentMessageRetentionDays            = "gdpr.parent_message_retention_days"
 	settingWithdrawnEnrollmentRetentionDays      = "gdpr.withdrawn_enrollment_retention_days"
+	settingEnrollmentRejectedRetentionDays       = "enrollment.rejected_retention_days"
 	settingFeedbackDataRetentionDays             = "feedback.data_retention_days"
 	settingSessionEndEnabled                     = "operations.session_end_enabled"
 	settingSessionEndTime                        = "operations.session_end_time"

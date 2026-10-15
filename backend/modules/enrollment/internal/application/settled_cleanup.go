@@ -108,9 +108,8 @@ func childrenRemainSettledBefore(children []*enrollment.RequestChild, cutoffs se
 }
 
 // childSettledBefore reports whether no child record was created from child
-// and it is withdrawn or rejected past its window. A withdrawal settles at
-// its latest stamp, since the rollover deadline lapses a renewal without
-// stamping a review.
+// and it is withdrawn or rejected past its window. A parent withdrawal stamps
+// reviewed_at; the rollover deadline lapses a renewal without a review stamp.
 func childSettledBefore(child *enrollment.RequestChild, cutoffs settledCutoffs) bool {
 	if child == nil || (child.CreatedStudentID != nil && *child.CreatedStudentID > 0) {
 		return false
@@ -118,7 +117,7 @@ func childSettledBefore(child *enrollment.RequestChild, cutoffs settledCutoffs) 
 	switch child.Status {
 	case enrollmentModels.ChildStatusWithdrawn:
 		settledAt := child.UpdatedAt
-		if child.ReviewedAt != nil && child.ReviewedAt.After(settledAt) {
+		if child.ReviewedAt != nil {
 			settledAt = *child.ReviewedAt
 		}
 		return settledAt.Before(cutoffs.withdrawn)

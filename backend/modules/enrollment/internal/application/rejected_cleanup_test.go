@@ -338,3 +338,21 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 		})
 	}
 }
+
+func TestChildSettledBeforeUsesTheWithdrawalStatusTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cutoff := time.Now()
+	withdrawnAt := cutoff.Add(-time.Hour)
+	updatedLater := cutoff.Add(time.Hour)
+
+	assert.True(t, childSettledBefore(&enrollment.RequestChild{
+		Status:     enrollmentModels.ChildStatusWithdrawn,
+		ReviewedAt: &withdrawnAt,
+		UpdatedAt:  updatedLater,
+	}, settledCutoffs{withdrawn: cutoff}), "a later data correction does not restart retention")
+	assert.True(t, childSettledBefore(&enrollment.RequestChild{
+		Status:    enrollmentModels.ChildStatusWithdrawn,
+		UpdatedAt: withdrawnAt,
+	}, settledCutoffs{withdrawn: cutoff}), "a lapsed renewal has no review timestamp")
+}

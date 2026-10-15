@@ -48,6 +48,7 @@ var schedulerPollingSettingKeys = []string{
 	settingStatusDayRetentionDays,
 	settingParentMessageRetentionDays,
 	settingWithdrawnEnrollmentRetentionDays,
+	settingEnrollmentRejectedRetentionDays,
 	settingFeedbackDataRetentionDays,
 	settingSessionEndEnabled,
 	settingSessionEndTime,
