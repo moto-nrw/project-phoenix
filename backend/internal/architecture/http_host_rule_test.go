@@ -55,9 +55,6 @@ func TestHTTPHostRuleRejectsBroadenedSelectors(t *testing.T) {
 		{SourceOwner: "root-composition", SourceRole: "compose", TargetClass: "http-router", Scopes: production},
 		{SourceOwner: "root-composition", SourceRole: "module-internal-test", TargetClass: "cli-config", Scopes: internalTest},
 		{SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "inbound-common", TargetRole: "http", Scopes: production},
-		{SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: production},
-		{SourceOwner: "root-composition", SourceRole: "module-internal-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: internalTest},
-		{SourceOwner: "root-composition", SourceRole: "cli", TargetOwner: "dev-tools", TargetRole: "cli", Scopes: production},
 	}
 	for _, original := range standing {
 		if !reviewedHTTPHostRule(original) {
@@ -90,6 +87,12 @@ func TestHTTPHostRuleRejectsBroadenedSelectors(t *testing.T) {
 		{SourceOwner: "root-composition", SourceRole: "module-internal-test", TargetOwner: "inbound-common", TargetRole: "http", Scopes: internalTest},
 		{SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "dev-tools", TargetRole: "cli", Scopes: production},
 		{SourceOwner: "root-composition", SourceRole: "cli", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: production},
+		// ADR 0057: the session runtime is Identity's http role, which the
+		// root reaches through ADR 0053 point 2; the dev tools' cli role is
+		// another owner's private role.
+		{SourceOwner: "root-composition", SourceRole: "compose", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: production},
+		{SourceOwner: "root-composition", SourceRole: "module-internal-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: internalTest},
+		{SourceOwner: "root-composition", SourceRole: "cli", TargetOwner: "dev-tools", TargetRole: "cli", Scopes: production},
 	} {
 		if reviewedHTTPHostRule(broadened) {
 			t.Fatalf("accepted rule outside the HTTP host: %+v", broadened)
