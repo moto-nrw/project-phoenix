@@ -28,7 +28,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
@@ -122,7 +121,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	logger := slog.Default()
-	now := services.OptionalClock(clocks)
+	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
 	settingsService := live.Settings
@@ -142,8 +141,8 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	careLifecycleService := care.CareLifecycle
 	studentAuditService := care.StudentAudit
 	emailOutboxService := delivery.EmailOutbox
-	frontendURL := services.CurrentFactoryConfig().FrontendURL
-	parentsURL := services.CurrentFactoryConfig().ParentsURL
+	frontendURL := CurrentServiceConfig().FrontendURL
+	parentsURL := CurrentServiceConfig().ParentsURL
 	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
@@ -213,7 +212,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(services.EnrollmentDecisionSources{
+	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(EnrollmentDecisionSources{
 		Requests:               repos.Enrollment(),
 		Children:               repos.Enrollment(),
 		Guardians:              repos.Enrollment(),
@@ -224,7 +223,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		DataAccessLog:          repos.DataAccessLog,
 		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
 		Restorations:           repos.EnrollmentRestorationAudit,
-		Notifications:          NewEnrollmentNotifications(repos.Enrollment(), settingsService, services.OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
+		Notifications:          NewEnrollmentNotifications(repos.Enrollment(), settingsService, OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
 		Persons:                repos.Person,
 		Staff:                  repos.Staff,
 		Students:               repos.Student,
@@ -275,7 +274,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		studentAuditService,
 		WithCareRequestToday(today),
 	)
-	offeringChanges, err := newOfferingChanges(services.OfferingChangeInputs{
+	offeringChanges, err := newOfferingChanges(OfferingChangeInputs{
 		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
 		Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db.Pool()), CourseGroups: repos.Timetable},
@@ -305,7 +304,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	masterDataDecisions, err := NewMasterDataDecisions(services.MasterDataDecisionWiring{
+	masterDataDecisions, err := NewMasterDataDecisions(MasterDataDecisionWiring{
 		CarePlan: repos.CarePlan, Fields: persons, Students: repos.Student, Persons: repos.Person,
 		Audit: studentAuditService, Scope: ParentRequestWriteScope(requestReviewPolicy, requestTokenReads.Permissions),
 		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
@@ -314,7 +313,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	parentRequestCoordinator, err := NewParentRequestCoordinator(services.ParentRequestCoordinatorWiring{
+	parentRequestCoordinator, err := NewParentRequestCoordinator(ParentRequestCoordinatorWiring{
 		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
 		Offering: newOfferingChangeConflicts(offeringChanges), Events: parentRequestEvents,
 		Permissions: requestTokenReads.Permissions,
@@ -331,9 +330,9 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	substitutionService := schoolStructure.NewSubstitutionModule(schoolStructure.SubstitutionDependencies{
-		Groups: repos.Group, Substitutions: services.NewEducationHandovers(contextRepos.Substitutions),
+		Groups: repos.Group, Substitutions: NewEducationHandovers(contextRepos.Substitutions),
 		Persons: NewEducationPersonQuery(persons), Teachers: NewEducationCaregivers(repos.Teacher),
-		Staff: NewEducationStaff(repos.Staff), Actors: services.SubstitutionActorResolver{Identity: userContextService.Caller()},
+		Staff: NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),

@@ -21,12 +21,11 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The compositions the retained People Directory repository suites
 // (database/repositories/users) drive (#2727), composed here so the suites
-// import neither the retained repositories nor the legacy composition. Every
+// import neither the retained repositories nor the service graph. Every
 // entry goes with the last suite that uses it.
 
 // The composed graphs and the values the suites pass back into them.
@@ -48,10 +47,10 @@ type PeopleRepositorySuiteFactory struct {
 	FamilyProtection      usersModels.FamilyProtectionEventRepository
 	ParentRequestShare    usersModels.ParentRequestShareEventRepository
 	ParentRequestEvent    usersModels.ParentRequestEventRepository
-	GroupSubstitution     services.GroupSubstitutionRepository
+	GroupSubstitution     GroupSubstitutionRepository
 	CaregiverBindingLock  usersModels.CaregiverBindingLocker
 	// RFIDCard and Profile are the Identity & Access cards and account
-	// profiles the factory used to hand out.
+	// profiles the repository factory used to hand out.
 	RFIDCard identityaccess.RFIDCards
 	Profile  identityaccess.AccountProfiles
 
@@ -112,7 +111,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 	if deps.Capability == nil || deps.Students == nil || deps.Groups == nil || deps.Rooms == nil || deps.Calendar == nil || deps.Membership == nil || deps.Workforce == nil {
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
-	now := services.OptionalClock(clocks)
+	now := OptionalClock(clocks)
 	identity := NewPeopleIdentityAccess(db, nil)
 	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
 	members.People = deps.Students
@@ -146,14 +145,14 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
 		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
-			Identity: NewPeopleIdentityAccess(db, services.IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
+			Identity: NewPeopleIdentityAccess(db, IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
 		GuardianPhoneNumber:      peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		GuardianFinancialData:    peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		FamilyProtection:         peopleCompose.NewFamilyProtectionEventRepository(db.Pool()),
 		ParentRequestShare:       peopleCompose.NewParentRequestShareEventRepository(db.Pool()),
 		ParentRequestEvent:       peopleCompose.NewParentRequestEventRepository(db.Pool()),
-		GroupSubstitution:        services.NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
+		GroupSubstitution:        NewGroupSubstitutionRepository(members.Group, deps.Membership, deps.Workforce),
 		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
@@ -284,7 +283,7 @@ func NewRepositoryTestFactoryWithPeopleDirectory(db transactionruntime.Database,
 // the teacher-scoped roster reads fail closed. Repository suites that only
 // read and write the child's row use it.
 func NewUnboundStudentRepository(db transactionruntime.Database) usersModels.StudentRepository {
-	enrollment, err := services.NewSchoolMembership(db.Pool())
+	enrollment, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}

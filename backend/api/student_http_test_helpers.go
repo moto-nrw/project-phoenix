@@ -10,7 +10,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -68,7 +67,7 @@ func NewStudentHTTPTestPickupReviewBlocks(db transactionruntime.Database) carePl
 // NewStudentHTTPTestMembership is the School Membership owner over the test
 // database.
 func NewStudentHTTPTestMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
-	return services.NewSchoolMembership(db.Pool())
+	return NewSchoolMembership(db)
 }
 
 // StudentHTTPTestCareLifecycle tunes the Care Plan lifecycle a student route

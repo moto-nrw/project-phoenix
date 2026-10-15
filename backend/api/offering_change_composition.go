@@ -14,7 +14,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -26,7 +25,7 @@ import (
 // repositories had; they decide nothing.
 
 // newOfferingChanges composes the offering-change review over the inputs.
-func newOfferingChanges(inputs services.OfferingChangeInputs) (careplan.OfferingChangeCapability, error) {
+func newOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCapability, error) {
 	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil || inputs.Permissions == nil {
 		return nil, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
 	}
@@ -65,7 +64,7 @@ func newOfferingChanges(inputs services.OfferingChangeInputs) (careplan.Offering
 
 // offeringChangeReviewScope applies the identity-owned review policy with
 // the permissions of the request claims.
-func offeringChangeReviewScope(policy services.OfferingChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
+func offeringChangeReviewScope(policy OfferingChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
 		schoolWide, groupIDs, err := policy.Scope(ctx, permissions(ctx))
 		if err != nil {
@@ -293,7 +292,7 @@ func offeringPendingError(op string, err error) error {
 // offeringChangeEnrollment reads Enrollment's requests, children, phases and
 // booked selections for the review.
 type offeringChangeEnrollment struct {
-	owner services.OfferingChangeEnrollmentReads
+	owner OfferingChangeEnrollmentReads
 }
 
 func (e offeringChangeEnrollment) StudentCarePeriods(ctx context.Context, studentID int64) ([]carePlanCompose.OfferingCarePeriod, error) {

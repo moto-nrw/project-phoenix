@@ -14,8 +14,8 @@ import (
 // they are used (Rule 1, #4006): the identity chain of the People Directory
 // and School Membership, the groups the caller context names, the
 // authentication and operator ledgers, and Delivery's push subscriptions.
-// The legacy composition hands in its retained stores; each port names only
-// the operations a seam calls.
+// The service graph hands in its retained stores; each port names only the
+// operations a seam calls.
 
 type personRows interface {
 	Create(ctx context.Context, person *userModels.Person) error

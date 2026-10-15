@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -57,7 +56,7 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Education:  module.Education,
 		Pickups:    module.PickupSchedule,
 		Settings:   module.Settings,
-		Now:        services.OptionalClock(clocks),
+		Now:        OptionalClock(clocks),
 		Logger:     logger,
 	})
 	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan, Rosters: rosters}, nil

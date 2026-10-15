@@ -20,7 +20,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -79,7 +78,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
 		DB: db, Access: api.StaffOffboardingAccess(authService),
-		Employment: services.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
+		Employment: api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)
 			actor.AccountID = actorAccount.ID
@@ -562,7 +561,7 @@ func TestOffboardStaff_ReinviteSameEmailSameSchool(t *testing.T) {
 
 	sc := newOffboardingScenario(t)
 
-	factory, factoryErr := api.NewFactoryForTests(sc.repos, testpkg.NewDatabase(t, sc.db), slog.Default())
+	factory, factoryErr := api.NewServiceGraphForTests(sc.repos, testpkg.NewDatabase(t, sc.db), slog.Default())
 	require.NoError(t, factoryErr)
 	require.NoError(t, factory.SetTenantRuntime(testpkg.TenantRuntime(t, sc.db)))
 	invSvc := factory.Invitation

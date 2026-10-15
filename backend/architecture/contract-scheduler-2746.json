@@ -82,7 +82,7 @@
       "backend/modules/settings/compose/tenant_snapshots.go",
       "backend/services/scheduler/setting_keys.go",
       "backend/services/scheduler/tenant_runtime.go",
-      "backend/services/settings_tenant_snapshots_test.go"
+      "backend/api/settings_tenant_snapshots_test.go"
     ],
     "workload": "No load run. Go suites through scripts/run-go-toolchain.sh and scripts/test-changed.sh origin/development against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "Code-only contract: every affected suite passes, and scripts/backend-architecture.sh check passes with exactly the listed keys removed, no key added and a composition surface that does not grow.",

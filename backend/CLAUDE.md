@@ -40,13 +40,15 @@ Before backend design, implementation, or review:
 2. Put new behavior behind an existing target owner's public capability.
    Dependencies use consumer-owned ports; cross-module writes use application
    workflows; cross-module reads use named tenant-safe projections.
-3. Treat `services.Factory` and broad legacy composition as shrink-only.
-   The Worker receives every dependency in its constructor literal (#2749);
-   API tests build route-sized routers. The root mounts each route resource
-   where it builds it; only the Worker's document sweeps outlive the mount
-   (#2745). The repository Factory is deleted: build a retained repository
-   where it is used, in its owner composition (#2743).
-   Do not add fields, setters, callers, or wrappers that still build that graph.
+3. Treat the root's service graph (`api/service_graph*.go`) and broad legacy
+   composition as shrink-only. The Worker receives every dependency in its
+   constructor literal (#2749); API tests build route-sized routers. The root
+   mounts each route resource where it builds it; only the Worker's document
+   sweeps outlive the mount (#2745). The repository Factory and the service
+   Factory are deleted (#2743, #2747): build a retained repository where it is
+   used, in its owner composition.
+   Do not add fields, stages, setters, callers, or wrappers that widen the
+   service graph.
 4. Assign new writable data objects to existing target owners in the same diff.
    A new owner requires an architecture decision linked from #2580 first.
 5. Keep temporary dependencies out of target-allowed rules. Remove each legacy
@@ -169,7 +171,7 @@ All backend code uses `log/slog` via injected loggers — never logrus or `log.P
 s.logger.Info("visit recorded", "student_id", sid, "group_id", gid)  // snake_case keys
 ```
 
-- Loggers flow through the legacy composition: `services.NewFactoryWithModules(..., db, logger, ...)`; services scope with `logger.With("service", "active")`
+- Loggers flow through the root composition: `initializeModuleServices(db, publicAPIURL, logger, ...)` hands the root logger to the owners and the service graph; services scope with `logger.With("service", "active")`
 - Structs that tests construct bare use the nil-safe pattern: `getLogger()` returning `slog.Default()` when nil
 - **GDPR: student names never at Info level** — IDs only; names at Debug
 - Known exceptions (intentional `log.Printf`): `modules/identityaccess/sessiontoken/tokenauth.go` startup logging; `cmd/` and `simulator/` route through slog default at WARN

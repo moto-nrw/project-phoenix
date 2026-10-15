@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewStudentPresenceForTests composes the Student Presence owner for
@@ -22,5 +21,5 @@ func NewStudentPresenceForTests(db transactionruntime.Database) studentpresence.
 // devices fail loudly, and supervision reads carry no staff members. The
 // optional clock fixes the supervision "today".
 func NewPresenceSessionRecords(db transactionruntime.Database, clocks ...func() time.Time) *presenceCompose.SessionRecords {
-	return newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool(), Now: services.OptionalClock(clocks)})
+	return newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db.Pool(), Now: OptionalClock(clocks)})
 }

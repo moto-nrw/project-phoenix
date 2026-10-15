@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
@@ -16,13 +14,13 @@ const caregiverCapabilityAuditIP = "0.0.0.0"
 // caregiverCapabilityAudit records People Directory's caregiver capability
 // changes as authentication audit events (#3754).
 type caregiverCapabilityAudit struct {
-	events services.AuthEventAppender
+	events AuthEventAppender
 }
 
 // newCaregiverCapabilityAudit binds the audit port. A nil repository leaves
 // the port unbound, so the capability refuses the change instead of
 // committing it without an audit event.
-func newCaregiverCapabilityAudit(events services.AuthEventAppender) peopleCompose.CaregiverCapabilityAudit {
+func newCaregiverCapabilityAudit(events AuthEventAppender) peopleCompose.CaregiverCapabilityAudit {
 	if events == nil {
 		return nil
 	}

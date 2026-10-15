@@ -15,14 +15,13 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewMembershipTestRepositories composes the People Directory and School
 // Membership repositories the repository test graphs read through, over
 // unobserved owners (#2743).
 func NewMembershipTestRepositories(db transactionruntime.Database) (MembershipTestRepositories, error) {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
@@ -47,7 +46,7 @@ func NewMembershipTestRepositories(db transactionruntime.Database) (MembershipTe
 	members.Student = NewStudentRepository(db, membership, groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
 	members.StudentGuardian = NewStudentGuardianRepository(db)
-	members.GroupSubstitution = services.NewGroupSubstitutionRepository(members.Group, membership, workTime)
+	members.GroupSubstitution = NewGroupSubstitutionRepository(members.Group, membership, workTime)
 	return members, nil
 }
 
@@ -127,12 +126,12 @@ type MembershipTestRepositories struct {
 	Staff           userModels.StaffRepository
 	Teacher         userModels.TeacherRepository
 	Guest           userModels.GuestRepository
-	Group           services.EducationGroupRepository
-	GroupTeacher    services.GroupTeacherRepository
-	ClassTeacher    services.ClassTeacherRepository
+	Group           EducationGroupRepository
+	GroupTeacher    GroupTeacherRepository
+	ClassTeacher    ClassTeacherRepository
 	// GroupSubstitution is the Workforce group substitution contract over the
 	// group store and School Membership.
-	GroupSubstitution services.GroupSubstitutionRepository
+	GroupSubstitution GroupSubstitutionRepository
 	// Membership is the owner capability itself; the class-list entries
 	// (#2382) are read and written through it.
 	Membership schoolmembership.Capability
@@ -153,6 +152,6 @@ func NewMembershipRepositories(db transactionruntime.Database, persons userModel
 
 // NewGroupTeacherRepository serves the retained teaching-assignment contract
 // over membership, for the repository test graphs.
-func NewGroupTeacherRepository(membership schoolmembership.Capability, groups groupsByID) services.GroupTeacherRepository {
+func NewGroupTeacherRepository(membership schoolmembership.Capability, groups groupsByID) GroupTeacherRepository {
 	return newGroupTeacherRepository(membership, groups)
 }

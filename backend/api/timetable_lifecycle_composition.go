@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The Timetable owner's instance lifecycle (#3424 slice S1), bound to the
@@ -22,7 +21,7 @@ import (
 
 // NewTimetableLifecycle composes the instance lifecycle over the retained
 // rows and binds the collaborators the owner may not name.
-func NewTimetableLifecycle(in services.TimetableLifecycleInputs) (*timetableCompose.InstanceLifecycleService, error) {
+func NewTimetableLifecycle(in TimetableLifecycleInputs) (*timetableCompose.InstanceLifecycleService, error) {
 	if in.Rows.Locks == nil {
 		return nil, errors.New("timetable instance lifecycle: the recovery locks are required")
 	}

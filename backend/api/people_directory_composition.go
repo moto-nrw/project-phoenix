@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -56,7 +54,7 @@ func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleD
 	return capability, photoRuntime, nil
 }
 
-func identityAccessObservation(observe services.IdentityAccessObserver) func(identityCompose.Observation) {
+func identityAccessObservation(observe IdentityAccessObserver) func(identityCompose.Observation) {
 	if observe == nil {
 		return func(identityCompose.Observation) {}
 	}
@@ -70,7 +68,7 @@ func identityAccessObservation(observe services.IdentityAccessObserver) func(ide
 // Directory's audit seams: the deletion log, the per-child change history and
 // the consent history.
 type peopleDirectoryAuditTrails struct {
-	DataDeletion         services.DataDeletionAppender
+	DataDeletion         DataDeletionAppender
 	StudentFieldEdit     studentFieldEditTrail
 	StudentConsentChange interface {
 		ListByStudentID(ctx context.Context, studentID int64) ([]*auditModels.StudentConsentChange, error)
@@ -84,7 +82,7 @@ type studentFieldEditTrail interface {
 }
 
 type studentNoteDeletionAudit struct {
-	repo services.DataDeletionAppender
+	repo DataDeletionAppender
 }
 
 func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(

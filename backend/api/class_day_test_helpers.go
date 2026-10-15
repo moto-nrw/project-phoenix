@@ -13,7 +13,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -43,13 +42,13 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return ClassDayTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(active.CareDay, care.CareLifecycle)
-	reports := NewEnrollmentReports(services.EnrollmentReportSources{
+	reports := NewEnrollmentReports(EnrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
 		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
 		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,
 	})
-	classDay := NewClassDay(services.ClassDaySources{
+	classDay := NewClassDay(ClassDaySources{
 		Caller: active.UserContext, Reports: reports, StatusDays: r.StudentStatusDay,
 		PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: NewStudentCompanionRepository(r.CarePlan), Students: r.Student, Persons: r.Person,

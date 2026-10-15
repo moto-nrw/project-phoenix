@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
 
@@ -100,7 +99,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 // Directory repositories read accounts and memberships through. A nil
 // observer composes it unobserved, which is what test graphs and CLI roots
 // use.
-func NewPeopleIdentityAccess(db transactionruntime.Database, observe services.IdentityAccessObserver) *identityaccess.Module {
+func NewPeopleIdentityAccess(db transactionruntime.Database, observe IdentityAccessObserver) *identityaccess.Module {
 	module, err := identityCompose.New(identityCompose.Dependencies{DB: db.Pool(), Observe: identityAccessObservation(observe)})
 	if err != nil {
 		panic(fmt.Sprintf("compose identity access: %v", err))
@@ -124,7 +123,7 @@ func peopleDirectoryAudit(db transactionruntime.Database) peopleDirectoryAuditTr
 // commands behind the relationship's unit of work. Both halves are
 // constructible from the database alone, so every graph that builds the
 // relationship store also gets its owners.
-func newGuardianRelationshipOwners(db transactionruntime.Database, observeIdentity services.IdentityAccessObserver) (guardianPickupPort, guardianAccessPort) {
+func newGuardianRelationshipOwners(db transactionruntime.Database, observeIdentity IdentityAccessObserver) (guardianPickupPort, guardianAccessPort) {
 	pickup, err := careplanCompose.NewGuardianPickupPermissions(db.Pool(), func(careplanCompose.Observation) {})
 	if err != nil {
 		panic(fmt.Sprintf("compose guardian pickup permissions: %v", err))
@@ -160,7 +159,7 @@ func NewStudentGuardianRepository(db transactionruntime.Database) userModels.Stu
 
 // newStudentGuardianRepository is the relationship store with its membership
 // lookup, both owner halves and the default role preset bound.
-func newStudentGuardianRepository(db transactionruntime.Database, memberships activeSchoolMemberships, observe services.IdentityAccessObserver) userModels.StudentGuardianRepository {
+func newStudentGuardianRepository(db transactionruntime.Database, memberships activeSchoolMemberships, observe IdentityAccessObserver) userModels.StudentGuardianRepository {
 	pickup, access := newGuardianRelationshipOwners(db, observe)
 	relationships := peopleCompose.NewGuardianRelationshipRepository(db.Pool(), peopleCompose.GuardianRelationshipDependencies{
 		Memberships: memberships.FindActiveSchoolMemberships,
@@ -195,11 +194,11 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 }
 
 // NewStaffMembershipRuntime composes the staff membership closures over the
-// legacy service graph and the root's Identity & Access module, with the
+// service graph and the root's Identity & Access module, with the
 // offboarding workflow over db and an unobserved Workforce employment owner
 // (#4007).
-func NewStaffMembershipRuntime(f *services.Factory, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
+func NewStaffMembershipRuntime(f *serviceGraph, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	return bindStaffMembershipRuntime(f, offboardingcompose.Dependencies{
-		DB: db.Pool(), Employment: services.MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
+		DB: db.Pool(), Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
 	}, identity, logger, hooks)
 }

@@ -32,8 +32,8 @@ const testNewPassword = "NewStr0ng!Pass" //nolint:gosec // pragma: allowlist sec
 const recoveryGrace = 5 * time.Minute
 
 // setupAuthService creates an Auth Service with real database connection
-func authTestFactoryConfig(rateLimitEnabled bool) api.FactoryConfig {
-	return api.FactoryConfig{
+func authTestFactoryConfig(rateLimitEnabled bool) api.ServiceConfig {
+	return api.ServiceConfig{
 		JWTSecret:        "test-jwt-secret-for-unit-tests-minimum-32-chars",
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
@@ -79,11 +79,11 @@ func setupAuthService(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) testAu
 // setupAuthFactory composes the service factory the auth service and the
 // Identity & Access module are wired through, for tests that drive the
 // module's public contract directly.
-func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *api.TestFactory {
+func setupAuthFactory(t *testing.T, db *bun.DB, rateLimitEnabled ...bool) *api.TestServiceGraph {
 	t.Helper()
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	enabled := len(rateLimitEnabled) > 0 && rateLimitEnabled[0]
-	serviceFactory, err := api.NewFactoryForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
+	serviceFactory, err := api.NewServiceGraphForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), authTestFactoryConfig(enabled))
 	require.NoError(t, err, "Failed to create service factory")
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	return serviceFactory

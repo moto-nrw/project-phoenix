@@ -7,12 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // TimetableMaterializationDependencies binds the recurrence engine to the
 // realtime hub over the template rows.
-func TimetableMaterializationDependencies(in services.TimetableMaterializationInputs) timetableCompose.MaterializationDependencies {
+func TimetableMaterializationDependencies(in TimetableMaterializationInputs) timetableCompose.MaterializationDependencies {
 	return timetableCompose.MaterializationDependencies{
 		GroupRepo:      in.Rows.Groups,
 		ScheduleRepo:   in.Rows.Schedules,
@@ -34,7 +33,7 @@ func TimetableMaterializationDependencies(in services.TimetableMaterializationIn
 
 // TimetableTemplateDependencies binds the template writes to Care Plan's
 // catalog guards, School Structure's class rules and the realtime hub.
-func TimetableTemplateDependencies(in services.TimetableTemplateInputs) (timetableCompose.TemplateAdministrationDependencies, error) {
+func TimetableTemplateDependencies(in TimetableTemplateInputs) (timetableCompose.TemplateAdministrationDependencies, error) {
 	if in.CareOfferings == nil || in.Deviations == nil {
 		return timetableCompose.TemplateAdministrationDependencies{}, errors.New("timetable templates: care offerings and instance lifecycle are required")
 	}

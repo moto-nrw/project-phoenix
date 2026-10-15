@@ -18,11 +18,10 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // operatorProvisioningOwners are the owners the root composed that operator
-// provisioning (#3253) binds alongside the values of the legacy graph.
+// provisioning (#3253) binds alongside the values of the service graph.
 type operatorProvisioningOwners struct {
 	DB            transactionruntime.Database
 	Organizations organizationtenancy.Capability
@@ -34,8 +33,8 @@ type operatorProvisioningOwners struct {
 }
 
 // compose binds Organisation & Tenancy's provisioning to the root's owners
-// and the legacy graph's values.
-func (owners operatorProvisioningOwners) compose(sources services.OperatorProvisioningSources) (organizationtenancy.Provisioning, error) {
+// and the service graph's values.
+func (owners operatorProvisioningOwners) compose(sources OperatorProvisioningSources) (organizationtenancy.Provisioning, error) {
 	adapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
 		PersonStudents: peopleCompose.NewLegacyRepositoryRuntime(owners.DB.Pool()),
 		Devices:        sources.Devices,
@@ -78,7 +77,7 @@ type provisioningRoles interface {
 
 // provisioningIdentity binds provisioning to public identity capabilities.
 type provisioningIdentity struct {
-	accounts       services.OperatorAccountDirectory
+	accounts       OperatorAccountDirectory
 	sessions       identityaccess.AccountSessionMaintenance
 	invitations    identityaccess.SchoolInvitations
 	provisioning   identityaccess.AccountProvisioning

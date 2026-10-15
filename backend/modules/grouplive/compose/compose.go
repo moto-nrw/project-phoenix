@@ -8,5 +8,9 @@ import grouplivelegacy "github.com/moto-nrw/project-phoenix/modules/grouplive/le
 // Sources are the owner capabilities the live-group view reads.
 type Sources = grouplivelegacy.Sources
 
+// CallerContext is the caller the live-group view resolves its groups for,
+// as the root's Identity & Access composition serves it (#4006).
+type CallerContext = grouplivelegacy.CallerContext
+
 // New builds the live-group view over its sources.
 var New = grouplivelegacy.New

@@ -592,6 +592,7 @@ feature flag is off. The frontend proxies it at `/api/notifications/test`.
 ## Adding a new channel
 
 Implement `notifications.Channel` (`Name()` + `Deliver(ctx, Event)`), register
-it in `services/factory.go` where `notifications.NewService` is wired, and
-respect the GDPR contract above for anything that leaves the backend
+it in `composeNotifications` (`backend/api/service_graph_compose_requests.go`),
+where the root wires `deliveryCompose.NewNotifier`, and respect the GDPR
+contract above for anything that leaves the backend
 (especially push payloads: `Title`/`Body`/`DeepLink` only, never `Data`).

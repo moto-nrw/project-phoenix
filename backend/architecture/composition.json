@@ -16366,123 +16366,7 @@
       ]
     }
   ],
-  "legacy_callers": [
-    {
-      "key": "production|composition.legacy-reference|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services.Factory",
-      "locations": [
-        {
-          "file": "api/base.go",
-          "line": 172,
-          "declaration": "type moduleServices"
-        },
-        {
-          "file": "api/base.go",
-          "line": 421,
-          "declaration": "initializeModuleServices"
-        },
-        {
-          "file": "api/base.go",
-          "line": 581,
-          "declaration": "withRootWiring"
-        },
-        {
-          "file": "api/base.go",
-          "line": 836,
-          "declaration": "type serveGraph"
-        },
-        {
-          "file": "api/factory_test_helpers.go",
-          "line": 51,
-          "declaration": "type TestFactory"
-        },
-        {
-          "file": "api/factory_test_helpers.go",
-          "line": 276,
-          "declaration": "OwnerCapabilities.factory"
-        },
-        {
-          "file": "api/guardian_directory_composition.go",
-          "line": 143,
-          "declaration": "NewGuardianDirectoryRuntime"
-        },
-        {
-          "file": "api/guardian_directory_composition.go",
-          "line": 215,
-          "declaration": "pendingGuardianInvitations"
-        },
-        {
-          "file": "api/guardian_test_helpers.go",
-          "line": 60,
-          "declaration": "NewGuardianTestModule"
-        },
-        {
-          "file": "api/people_directory_roots.go",
-          "line": 201,
-          "declaration": "NewStaffMembershipRuntime"
-        },
-        {
-          "file": "api/session_end.go",
-          "line": 17,
-          "declaration": "newSessionEnd"
-        },
-        {
-          "file": "api/staff_composition.go",
-          "line": 116,
-          "declaration": "newStaffComposition"
-        },
-        {
-          "file": "api/staff_composition.go",
-          "line": 132,
-          "declaration": "newExportTransferModule"
-        },
-        {
-          "file": "api/staff_membership_composition.go",
-          "line": 162,
-          "declaration": "bindStaffMembershipRuntime"
-        },
-        {
-          "file": "api/staff_membership_composition.go",
-          "line": 213,
-          "declaration": "newStaffOffboardingWorkflow"
-        },
-        {
-          "file": "api/staff_membership_composition.go",
-          "line": 228,
-          "declaration": "staffDirectoryPersons"
-        },
-        {
-          "file": "api/staff_membership_composition.go",
-          "line": 268,
-          "declaration": "membershipTeacherGroups"
-        },
-        {
-          "file": "api/staff_membership_composition.go",
-          "line": 283,
-          "declaration": "membershipRoleRows"
-        },
-        {
-          "file": "api/staff_membership_composition.go",
-          "line": 321,
-          "declaration": "staffDirectoryWrites"
-        },
-        {
-          "file": "api/staff_test_helpers.go",
-          "line": 39,
-          "declaration": "NewStaffTestModule"
-        },
-        {
-          "file": "api/student_photo_composition.go",
-          "line": 289,
-          "declaration": "enableStudentPhotos"
-        },
-        {
-          "file": "api/time_tracking_composition.go",
-          "line": 78,
-          "declaration": "newTimeTrackingResource"
-        }
-      ]
-    }
-  ],
+  "legacy_callers": null,
   "production_roots": [
     {
       "id": "serve",
@@ -16554,7 +16438,6 @@
     "api/route_table_golden_test.go#TestFullProductionRouterGolden",
     "cmd/root_test.go#TestRootCmd_HasCommands",
     "internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
-    "services/factory_test.go#TestNewFactory",
     "test/composition_inventory_test.go#TestCompositionInventory",
     "test/composition_inventory_test.go#TestWorkerJobRegistryInventory",
     "test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",
@@ -16575,14 +16458,6 @@
       "file": "cmd/main_test.go",
       "declaration": "TestMain",
       "smoke_test": "cmd/root_test.go#TestRootCmd_HasCommands",
-      "tables": []
-    },
-    {
-      "id": "services-tests",
-      "kind": "test-binary",
-      "file": "services/main_test.go",
-      "declaration": "TestMain",
-      "smoke_test": "services/factory_test.go#TestNewFactory",
       "tables": []
     },
     {

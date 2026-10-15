@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -43,9 +42,9 @@ func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	cleanup, err := NewTimetableCleanup(services.TimetableRetentionInputs{
+	cleanup, err := NewTimetableCleanup(TimetableRetentionInputs{
 		Owner: r.Timetable, Deletions: NewDataDeletionTestRepository(db, command),
-		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: services.OptionalClock(clocks),
+		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: OptionalClock(clocks),
 	})
 	if err != nil {
 		return TimetableScenarioTestModule{}, err

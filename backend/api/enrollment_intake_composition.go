@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below compose Enrollment's intake and change requests (#3565)
@@ -22,7 +21,7 @@ import (
 // Delivery outbox.
 
 // NewEnrollmentIntake composes Enrollment's intake over the sources.
-func NewEnrollmentIntake(src services.EnrollmentIntakeSources) *enrollmentCompose.Intake {
+func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake {
 	return enrollmentCompose.NewIntake(enrollmentCompose.IntakeDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
@@ -52,7 +51,7 @@ func (s enrollmentAdminSubscribers) AdminNotificationRecipients(ctx context.Cont
 
 // NewEnrollmentChangeRequests composes Enrollment's change requests over the
 // sources.
-func NewEnrollmentChangeRequests(src services.EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests {
+func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests {
 	people := enrollmentCompose.PeopleDirectory{}
 	if src.GuardianProfileRepo != nil {
 		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfileRepo}
@@ -83,7 +82,7 @@ func intakeMailOutbox(outbox platformModels.OutboxEnqueuer) enrollmentCompose.Ma
 	return enrollmentMailOutbox{outbox: outbox}
 }
 
-func intakeSettings(settings services.EnrollmentIntakeSettings) enrollmentCompose.IntakeSettings {
+func intakeSettings(settings EnrollmentIntakeSettings) enrollmentCompose.IntakeSettings {
 	if settings == nil {
 		return nil
 	}
@@ -92,7 +91,7 @@ func intakeSettings(settings services.EnrollmentIntakeSettings) enrollmentCompos
 
 // enrollmentReviewerNames renders the deciding staffer's display name.
 type enrollmentReviewerNames struct {
-	persons services.EnrollmentReviewerPersons
+	persons EnrollmentReviewerPersons
 }
 
 func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
@@ -112,7 +111,7 @@ func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs [
 // enrollmentIntakeSettings resolves the intake settings with the fallbacks
 // the registry defines.
 type enrollmentIntakeSettings struct {
-	settings services.EnrollmentIntakeSettings
+	settings EnrollmentIntakeSettings
 }
 
 func (s enrollmentIntakeSettings) EnrollmentEnabled(ctx context.Context) bool {

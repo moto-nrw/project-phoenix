@@ -18,7 +18,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -200,7 +199,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
 	audits = audits.WithRoutedWrites(command)
 	operatorAuditLog := NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
-	cfg := services.CurrentFactoryConfig()
+	cfg := CurrentServiceConfig()
 	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
 		option(&settingsOverrides)
@@ -231,7 +230,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 		return AuthTestModule{}, err
 	}
 	// The delivery module is composed after the identity module, so the
-	// guardian mail reads its outbox at call time, as the factory does.
+	// guardian mail reads its outbox at call time, as the service graph does.
 	var deliveryModule DeliveryTestModule
 	identity := deliveryCompose.NewTenantMailIdentity(SchoolContactDirectory{Schools: organizations}, func(ctx context.Context, tenantID int64) (string, error) {
 		return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
@@ -281,7 +280,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			GuardianMail: &GuardianInvitationWiring{
 				Settings: settings.Settings, Schools: organizations,
 				Outbox: func() platformModels.OutboxResultEnqueuer {
-					return services.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
+					return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 				},
 				Enrollments: parentPortal.ParentEnrollmentRequest, ParentsURL: parentsURL,
 				FallbackExpiry: time.Duration(inviteHours) * time.Hour, Logger: logger,
@@ -298,7 +297,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 			MailIdentity: identity, Expiry: time.Duration(inviteHours) * time.Hour,
 			Backoff: settingsOverrides.resetBackoff, Settings: settings.Settings,
 			Outbox: func() platformModels.OutboxEnqueuer {
-				return services.OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
+				return OutboxEnqueuer{Outbox: deliveryModule.EmailOutbox}
 			},
 			WelcomeDelay: StaffWelcomeDelay,
 		},
@@ -328,7 +327,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 }
 
 // IdentityAccessForTests composes the Identity & Access module over the
-// identity chain rows of db the way the factory does it, for behaviour tests
+// identity chain rows of db the way the service graph does it, for behaviour tests
 // that exercise sessions, the account lifecycle or the role administration
 // without the whole factory (#3364).
 func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.Database, logger *slog.Logger) (*identityaccess.Module, error) {
@@ -410,20 +409,20 @@ func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error 
 // mfaTestSecret is the signing secret the composed test module derives its
 // trusted-device HMAC key from: the process configuration, exactly as the
 // production root reads it, so no key is stored in source.
-func mfaTestSecret() string { return services.CurrentFactoryConfig().JWTSecret }
+func mfaTestSecret() string { return CurrentServiceConfig().JWTSecret }
 
 // TokenAdapterForTests binds the root's request reads to the session tokens of the
 // signer cfg names.
-func TokenAdapterForTests(cfg services.FactoryConfig) (TokenAdapter, error) {
+func TokenAdapterForTests(cfg ServiceConfig) (TokenAdapter, error) {
 	return tokenAdapterFor(cfg.JWTSecret, cfg.JWTExpiry, cfg.JWTRefreshExpiry)
 }
 
 // IdentityRootForTests is the root's Identity & Access composition a test
-// hands the legacy composition, signing with the secret cfg names (#4006).
-func IdentityRootForTests(db transactionruntime.Database, cfg services.FactoryConfig) (services.IdentityRoot, error) {
+// hands the service graph, signing with the secret cfg names (#4006).
+func IdentityRootForTests(db transactionruntime.Database, cfg ServiceConfig) (IdentityRoot, error) {
 	tokens, err := TokenAdapterForTests(cfg)
 	if err != nil {
-		return services.IdentityRoot{}, err
+		return IdentityRoot{}, err
 	}
 	wiring, _ := newIdentityRoot(db, tokens)
 	return wiring, nil

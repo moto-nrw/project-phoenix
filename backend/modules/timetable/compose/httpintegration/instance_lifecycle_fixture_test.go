@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -43,7 +42,7 @@ func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 type lifecycleSetup struct {
 	presence compose.LifecyclePresence
 	svc      *compose.InstanceLifecycleService
-	factory  *api.TestFactory
+	factory  *api.TestServiceGraph
 	repos    *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
 	timetable api.TimetableRepositories
@@ -65,7 +64,7 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 
 	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
@@ -185,7 +184,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 // over the lifecycle's repositories and its (possibly fault-injecting)
 // presence; the lifecycle only consumes its start check.
 func lifecycleStartConflicts(s *lifecycleSetup) timetable.StartConflictQuery {
-	detection, err := api.NewTimetableConflictDetection(services.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(api.TimetableConflictReaders{
 		Instances: s.timetable.ActivityInstance, InstanceStaff: s.timetable.InstanceStaff, InstanceStudents: s.timetable.InstanceStudent,
 		Exceptions: s.timetable.ActivityException, Schedules: s.timetable.ActivitySchedule, Staff: s.repos.Staff,
 		CalendarPeriods: s.repos.CalendarPeriod, ArrivalExceptions: s.repos.StudentArrivalException,

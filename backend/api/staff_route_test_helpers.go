@@ -13,7 +13,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -66,12 +65,12 @@ func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	birthdays := NewBirthdays(
 		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
-		settings.Settings, slog.Default(), services.OptionalClock(clocks))
+		settings.Settings, slog.Default(), OptionalClock(clocks))
 	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: lists.NewRendererService()}, nil
 }
 
 // NewBirthdayCapabilityForTests composes the birthday capability over the
-// retained repositories the way the factory does, with caller-supplied
+// retained repositories the way the service graph does, with caller-supplied
 // settings and clock.
 func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
 	members, err := NewMembershipTestRepositories(db)

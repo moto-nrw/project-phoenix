@@ -8,12 +8,11 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewTimetableCleanup composes the Timetable owner's GDPR retention (WP-B14).
-func NewTimetableCleanup(in services.TimetableRetentionInputs) (timetable.TimetableCleanup, error) {
+func NewTimetableCleanup(in TimetableRetentionInputs) (timetable.TimetableCleanup, error) {
 	logger := in.Logger
 	if logger == nil {
 		logger = slog.Default()
@@ -39,7 +38,7 @@ func NewTimetableCleanup(in services.TimetableRetentionInputs) (timetable.Timeta
 // override, else the registry default. A failed override check is only
 // logged; the resolution below still answers.
 type timetableRetentionSettings struct {
-	settings services.TimetableRetentionSettings
+	settings TimetableRetentionSettings
 	logger   *slog.Logger
 }
 
@@ -56,7 +55,7 @@ func (s timetableRetentionSettings) TimetableRetentionDays(ctx context.Context) 
 // timetableDeletionAudit writes one audit.data_deletions row per child the
 // retention run touches.
 type timetableDeletionAudit struct {
-	deletions services.DataDeletionAppender
+	deletions DataDeletionAppender
 }
 
 func (a timetableDeletionAudit) RecordTimetableRetention(ctx context.Context, record timetableCompose.StudentDeletionRecord) error {
@@ -79,11 +78,15 @@ func (a timetableDeletionAudit) RecordTimetableRetention(ctx context.Context, re
 // timetableDeviationRetention deletes the Änderungsprotokoll rows of the
 // expired slots.
 type timetableDeviationRetention struct {
-	events interface {
-		DeleteOlderThan(ctx context.Context, cutoff auditModels.Date) (int64, error)
-	}
+	events timetableDeviationSweep
 }
 
 func (r timetableDeviationRetention) DeleteDeviationEventsBefore(ctx context.Context, cutoff timezone.Date) (int64, error) {
 	return r.events.DeleteOlderThan(ctx, auditModels.Date(cutoff))
+}
+
+// timetableDeviationSweep deletes the Änderungsprotokoll entries older than
+// the retention cutoff.
+type timetableDeviationSweep interface {
+	DeleteOlderThan(ctx context.Context, cutoff auditModels.Date) (int64, error)
 }

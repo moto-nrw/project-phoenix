@@ -11,7 +11,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -41,7 +40,7 @@ type OfferingChangeTestOptions struct {
 }
 
 // NewOfferingChangeTestModule composes the offering-change review over the
-// test database with the owner bindings of services.Factory.
+// test database with the owner bindings of Factory.
 func NewOfferingChangeTestModule(db transactionruntime.Database, options OfferingChangeTestOptions) (careplan.OfferingChangeCapability, error) {
 	if options.Settings == nil || options.Bookings == nil {
 		return nil, errors.New("offering change test module: settings and bookings are required")
@@ -54,7 +53,7 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	if err != nil {
 		return nil, err
 	}
-	return newOfferingChanges(services.OfferingChangeInputs{
+	return newOfferingChanges(OfferingChangeInputs{
 		CarePlan: repos.CarePlan, Catalog: options.Catalog, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db.Pool()), CourseGroups: repos.Timetable},
 		Bookings: options.Bookings, Reviews: offeringChangeTestScope(options.Scope), Permissions: requestTokenReads.Permissions, Today: options.Today,

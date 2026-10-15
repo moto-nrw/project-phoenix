@@ -3877,6 +3877,69 @@ The baseline goes from 46 to 42 and the policy from 1,438 to 1,440 rules. The
 composition surface stays at 252, and `cycles --graph target` is unchanged at
 58 owners, 335 edges and one component of 32 members.
 
+### Service Factory deleted (#2747)
+
+The top-level package `services` and `services.Factory` are gone; the
+classified packages below `services/` stay with their owners. The root
+(`api`) composes the retained services itself, as ADR 0053 point 8 planned:
+
+- **Stages, not a Factory.** `newServiceGraph` (`api/service_graph_compose*.go`)
+  binds the services over the owners the root composed and the wiring it built
+  for them (`PeopleWiring`, `PresenceWiring`, `TimetableWiring`,
+  `PlatformWiring`, `CarePlanWiring`, `EnrollmentWiring`, `WorkforceWiring`).
+  Each stage takes the build so far and returns it extended instead of setting
+  graph fields through a receiver; the binding calls the Factory made on
+  composed services (`WithDecisionNotifications`, `SetAttachmentPurger`,
+  `WireCareParticipation`, `BindGuardianDirectory`, `BindClassListEntries`,
+  `BindSettingsGuards`) stay as they were. A
+  value a later stage binds (Delivery's outbox and state, Care Plan's
+  participation, the sick cascade, the booking materialization, the
+  cancellation notice, the parents portal's sharing rules) sits in one slot the
+  earlier services read at call time, as the Factory's local variables did.
+  `newServeServiceGraph` requires every owner, observer and wiring and reads the
+  process configuration; `NewServiceGraphForTests` (formerly
+  `NewFactoryForTests`) builds the test graphs. The graph's
+  `bindTenantRuntime` replaces `Factory.SetTenantRuntime`. The photo lifecycle
+  is composed from the root's photo slot and file unlinker instead of the
+  post-construction setter `EnableStudentPhotos`.
+- **Imports through compositions.** The root may not import Delivery's
+  application role, the projections' adapters, Observability's store or
+  Workforce's adapter. Delivery's composition names the notification, outbox
+  and PWA usage services; `modules/grouplive/compose` and
+  `modules/supervisiondashboard/compose` name the callers and the open room
+  sessions; the new `modules/emergencysnapshot/compose` and
+  `observability/compose` build the Notfallliste and the PWA usage store;
+  `modules/workforce/compose` names the group substitution row. The two new
+  packages are created packages of their owners, so PR mode accepts their
+  classification.
+- **Rule 1 and the complexity limit hold under `api/`** without an allowlist
+  entry. Source fields name the narrow ports the root's adapters already
+  declare. The Timetable composition takes consumer-owned ports for the
+  lifecycle staff, the deviation staff and the correction actor
+  (`LifecycleStaff`, `DeviationStaff`, `CorrectionPeople`). The People Directory
+  composition names the retained row stores (`Repositories`) the root hands the
+  graph. Stateless adapters such as the room, guardian phone and request event
+  stores are built where a stage uses them.
+- **Tests.** The legacy composition's suites run as internal tests of `api`.
+  `TestAPITestsUseNarrowRouteBuilders` treats `newServiceGraph` and
+  `newServeServiceGraph` as broad composition, as it treated
+  `services.NewFactory*`; only the graph's own tests (`api/service_graph*_test.go`)
+  may build it.
+
+The policy loses the package entry of `services`, the `legacy_composition`
+entry `services.Factory` and the 69 rules only `services` used (1,415 → 1,346
+rules); the epoch stays 44. The baseline goes from 39 to 34: `services -> bun`
+and `services -> tenant` (#2747) and `api -> services`, `cmd -> services` and
+the composition reference `api -> services.Factory` (#2750). The composition
+ratchet counts `api.serviceGraph` as a central aggregate and compares a base's
+`services.Factory` fields with it (`relocatedAggregate`), so the moved fields
+stay shrink-only and a new one fails the check. Measured after merging #2749,
+the surface goes from 140 to 139: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
+owners, 335 edges and one component of 32 members. The caller inventory
+`callers/service-factory-2747.json` (`scripts/backend-service-factory-callers`)
+lists no Go file and no importer of `services` and no declaration or reference
+of the retired symbols; at the merge base it lists 29 Go files and 109 imports.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.

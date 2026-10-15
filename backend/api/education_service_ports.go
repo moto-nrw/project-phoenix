@@ -12,8 +12,8 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
 
-// The ports of the retained School Structure services the legacy composition
-// binds over the retained repositories (#2742). Each adapter translates the
+// The ports of the retained School Structure services the root's service
+// graph binds over the retained repositories (#2742). Each adapter translates the
 // People Directory, Facilities, Workforce and Audit Platform rows into the
 // School Structure values the services own (#3556), and changes nothing about
 // which reads and writes run.

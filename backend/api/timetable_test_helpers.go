@@ -21,7 +21,6 @@ import (
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -31,7 +30,7 @@ type TimetableTestModule struct {
 	SchoolCalendar schoolcalendar.Calendar
 	// TimetableData carries the Timetable owner's template writes, recurrence
 	// gate, planner reads and conflict detection over the same repositories,
-	// as services.Factory does.
+	// as serviceGraph does.
 	TimetableData arrivalTimetable.Planning
 	// ConflictDetection is the Timetable owner's conflict detection and
 	// staffing capability over the same repositories (#3550).
@@ -57,7 +56,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	now := services.OptionalClock(clocks)
+	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
 	logger := slog.Default()
 	hub := deliveryCompose.NewRealtimeHub(logger)
@@ -129,7 +128,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, err
 	}
 	rows := r.TimetableTemplateRows()
-	materializationDeps := TimetableMaterializationDependencies(services.TimetableMaterializationInputs{
+	materializationDeps := TimetableMaterializationDependencies(TimetableMaterializationInputs{
 		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger,
 	})
 	materializationDeps.DB = db.Pool()
@@ -138,7 +137,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, err
 	}
 	recovery := arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
-	conflicts, err := NewTimetableConflictDetection(services.TimetableConflictReaders{
+	conflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
 		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: r.Staff, CalendarPeriods: r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException, Sessions: r.ActiveGroup, Shifts: r.StaffShift,
@@ -153,7 +152,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	lifecycleRows := r.OwnerRows()
 	lifecycleRows.Locks = recovery
-	instance, err := NewTimetableLifecycle(services.TimetableLifecycleInputs{
+	instance, err := NewTimetableLifecycle(TimetableLifecycleInputs{
 		Rows: lifecycleRows, Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db.Pool(),
 		},
@@ -167,7 +166,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	dataRows := r.OwnerRows()
 	dataRows.Locks = recovery
-	timetableData, err := NewTimetableData(services.TimetableDataInputs{
+	timetableData, err := NewTimetableData(TimetableDataInputs{
 		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: NewLoggedStudentPresence(db, logger),
 		Groups: r.Timetable, Sessions: r.ActiveGroup,
 		ConflictAcks: r.Timetable, BlockMetadata: arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List), Transactional: true, Logger: logger,
@@ -175,7 +174,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	templateDeps, err := TimetableTemplateDependencies(services.TimetableTemplateInputs{
+	templateDeps, err := TimetableTemplateDependencies(TimetableTemplateInputs{
 		Rows: rows, PlanningTracks: arrivalTimetable.NewPlanningTrackAdministration(r.Timetable, db.Pool()),
 		Materialization: materialization, Deviations: instance.SeriesDeviations(), CareOfferings: offerings,
 		RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger, Today: today,
@@ -188,7 +187,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	deviationDeps, err := TimetableStaffDeviationDependencies(services.TimetableDeviationInputs{
+	deviationDeps, err := TimetableStaffDeviationDependencies(TimetableDeviationInputs{
 		Rows: r.OwnerRows(), Staff: r.Staff, Supervisions: r.GroupSupervisor,
 		Lifecycle: instance.DeviationLifecycle(), Broadcaster: hub, Logger: logger, Now: now,
 	})
@@ -201,7 +200,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, err
 	}
 	// The trail stays unwired, as before: a correction fails closed here.
-	corrections, err := NewTimetableAttendanceCorrections(services.TimetableCorrectionInputs{
+	corrections, err := NewTimetableAttendanceCorrections(TimetableCorrectionInputs{
 		Rows: dataRows, Logger: logger,
 	})
 	if err != nil {

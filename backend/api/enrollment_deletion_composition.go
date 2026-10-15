@@ -9,7 +9,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // enrollmentGuardianDirectory serves the deletion preview's guardians from
@@ -53,7 +52,7 @@ func (c enrollmentRejectedCleanup) CleanupRejectedEnrollments(ctx context.Contex
 // NewEnrollmentDeletionModule binds the admin deletion and the retention
 // cleanup of Enrollment's composition to the Audit Platform's deletion trail
 // and the retention setting.
-func NewEnrollmentDeletionModule(src services.EnrollmentDeletionSources) enrollmentCompose.DeletionModule {
+func NewEnrollmentDeletionModule(src EnrollmentDeletionSources) enrollmentCompose.DeletionModule {
 	deps := enrollmentCompose.DeletionModuleDependencies{
 		Owner: src.Owner, Guardians: src.Guardians,
 		CountAuditAdjustments: src.CountAuditAdjustments, CountBookings: src.CountBookings,

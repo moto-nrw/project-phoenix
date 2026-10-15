@@ -33,7 +33,6 @@ var expectedCompositionSmokeTests = []string{
 	"api/route_table_golden_test.go#TestFullProductionRouterGolden",
 	"cmd/root_test.go#TestRootCmd_HasCommands",
 	"internal/architecture/composition_inventory_test.go#TestCompositionLegacyCallerInventory",
-	"services/factory_test.go#TestNewFactory",
 	"test/composition_inventory_test.go#TestCompositionInventory",
 	"test/composition_inventory_test.go#TestWorkerJobRegistryInventory",
 	"test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",
@@ -43,7 +42,6 @@ var expectedCompositionSmokeTests = []string{
 var compositionTestPackages = []string{
 	"api",
 	"cmd",
-	"services",
 	"test",
 	"test/e2e/calendar",
 	"test/e2e/timetable",
@@ -52,7 +50,6 @@ var compositionTestPackages = []string{
 var compositionTestSmokeByPackage = map[string]string{
 	"api":                "api/route_table_golden_test.go#TestFullProductionRouterGolden",
 	"cmd":                "cmd/root_test.go#TestRootCmd_HasCommands",
-	"services":           "services/factory_test.go#TestNewFactory",
 	"test":               "test/composition_inventory_test.go#TestCompositionInventory",
 	"test/e2e/calendar":  "test/e2e/calendar/parent_calendar_flow_test.go#TestParentCalendarHTTPFlow_ViewICSAndFeed",
 	"test/e2e/timetable": "test/e2e/timetable/flow_a_happy_path_test.go#TestFlowA_PlanToReport",

@@ -17,11 +17,10 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // carePlanWiringOwners are the owners the root has composed when it builds
-// the Care Plan wiring of the legacy service graph (#4011).
+// the Care Plan wiring of the service graph (#4011).
 type carePlanWiringOwners struct {
 	DB         transactionruntime.Database
 	Logger     *slog.Logger
@@ -32,7 +31,7 @@ type carePlanWiringOwners struct {
 	Calendar   schoolcalendar.Query
 	// People are the retained People Directory repositories the root built
 	// for the graph; AuditActor names the actor of a child's change history.
-	People     services.PeopleWiring
+	People     PeopleWiring
 	AuditActor peopleCompose.RequestAuditActor
 	// ObserveCarePlan records the excused-absence workflow as Care Plan
 	// operations; nil leaves it unobserved.
@@ -42,7 +41,7 @@ type carePlanWiringOwners struct {
 // carePlanRoot is the Care Plan wiring the graph takes, and the companion
 // graph the root mounts on the student routes.
 type carePlanRoot struct {
-	wiring     services.CarePlanWiring
+	wiring     CarePlanWiring
 	companions careplan.StudentCompanions
 }
 
@@ -101,7 +100,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 		Enrollment: NewEnrollmentBookingProjection(NewEnrollmentBookings()),
 	}, NewCareEndRecorder(studentAudit))
 
-	wiring := services.CarePlanWiring{
+	wiring := CarePlanWiring{
 		StatusDays:             NewStudentStatusDayRepository(carePlan),
 		PickupStudents:         pickupStudents,
 		PickupStudentLocks:     pickupStudentLocks{students: persons},
@@ -110,9 +109,6 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 		ArrivalDependencies:    arrivalDependencies,
 		LifecycleOwners:        lifecycleOwners,
 		CompanionGraph:         companionGraphCoordinator{CompanionLocks: companions, strandings: people.Students},
-		Companions:             NewStudentCompanionRepository(carePlan),
-		Withdrawals:            NewCareWithdrawalCompletionRepository(carePlan),
-		DataChangeRequests:     NewStudentDataChangeRequestRepository(carePlan),
 		CareScheduleRequests:   NewCareScheduleChangeRequestRepository(carePlan),
 		ExcusedRequestRows:     NewExcusedAbsenceRequestRepository(carePlan),
 
@@ -120,7 +116,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 		ArrivalBaselines: func(approved careplan.ApprovedBookingReader, bookingsAuthoritative func(context.Context) (bool, error)) (careplan.ArrivalBaselineReader, error) {
 			return NewArrivalBaselines(carePlan, persons, classArrivals, approved, bookingsAuthoritative)
 		},
-		OfferingCatalog: func(sources services.CareOfferingCatalogSources) (careplan.CareOfferingCatalogCapability, error) {
+		OfferingCatalog: func(sources CareOfferingCatalogSources) (careplan.CareOfferingCatalogCapability, error) {
 			sourcedTemplates, pickup := lateCareOfferingResync(sources.Resync)
 			return newCareOfferingCatalog(careOfferingCatalogInputs{
 				Records: carePlan, Phases: sources.Enrollment, Bookings: sources.Enrollment,
@@ -130,7 +126,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 			})
 		},
 		OfferingPhaseGuard: careOfferingPhaseGuard,
-		BookingMaterialization: func(sources services.BookingMaterializationSources) (careplan.BookingMaterializationCapability, error) {
+		BookingMaterialization: func(sources BookingMaterializationSources) (careplan.BookingMaterializationCapability, error) {
 			return newBookingMaterialization(bookingMaterializationInputs{
 				Catalog: sources.Catalog, Timetable: owners.Timetable, Rosters: sources.Rosters,
 				Students: persons, Periods: owners.Calendar, Enrollment: sources.Enrollment, Approved: sources.Approved,
@@ -147,7 +143,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 			})
 		},
 		OfferingRosterResync: timetableOfferingRosterResync,
-		StudentDocuments: func(sources services.StudentDocumentSources) (careplan.StudentDocuments, error) {
+		StudentDocuments: func(sources StudentDocumentSources) (careplan.StudentDocuments, error) {
 			deps, err := StudentDocumentDependencies(carePlan, people.Students, sources.Caller, sources.Edits, sources.AccessLog)
 			if err != nil {
 				return nil, err
@@ -155,10 +151,10 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 			deps.DB = pool
 			return carePlanCompose.NewStudentDocuments(deps)
 		},
-		ReviewPolicy: func(reviews identityaccess.ParentRequestReviews) services.RequestReviewPolicy {
+		ReviewPolicy: func(reviews identityaccess.ParentRequestReviews) CarePlanReviewPolicy {
 			return NewParentRequestReviewPolicy(reviews)
 		},
-		CareRequests: func(sources services.CareRequestSources) carerequests.Service {
+		CareRequests: func(sources CareRequestSources) carerequests.Service {
 			return NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 				carePlan, persons, sources.Arrivals, sources.Pickups, NewLoggedStudentPresence(owners.DB, logger),
 				sources.AutoExcusal, carePlan, sources.Staff, sources.Emitter, sources.Broadcaster,
@@ -166,14 +162,14 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 				WithRequestShareVisibility(sources.Shares), WithCareRequestToday(sources.Today),
 			)
 		},
-		PickupAdjustments: func(sources services.PickupAdjustmentSources) (careplan.PickupAdjustments, error) {
+		PickupAdjustments: func(sources PickupAdjustmentSources) (careplan.PickupAdjustments, error) {
 			return NewPickupAdjustments(PickupAdjustmentInputs{
 				CarePlan: carePlan, PickupSchedules: sources.PickupSchedules, ArrivalSchedules: sources.ArrivalSchedules,
 				Baselines: sources.Baselines, Offerings: sources.Offerings, Settings: sources.Settings,
 				Audit: sources.Audit, Students: people.Students, Today: sources.Today,
 			})
 		},
-		ExcusedRequests: func(sources services.ExcusedRequestSources) (*carePlanCompose.ExcusedAbsenceRequests, error) {
+		ExcusedRequests: func(sources ExcusedRequestSources) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 			return NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
 				CarePlan: carePlan, Students: people.Students, Persons: people.Persons,
 				Scope:   ParentRequestReviewScope(sources.Reviews, sources.Permissions),

@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
@@ -148,7 +146,7 @@ type careScheduleRequestService struct {
 	attendance        PickupChangePresence
 	pickupAutoExcusal careplan.PickupAutoExcusal
 	dayLocker         careplan.CareDayLocker
-	userContext       services.CareRequestStaff
+	userContext       CareRequestStaff
 	emitter           *communicationCompose.ParentEventEmitter
 	broadcaster       realtime.Broadcaster
 	studentAudit      peopleCompose.StudentChangeRecorder
@@ -203,7 +201,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	attendance PickupChangePresence,
 	pickupAutoExcusal careplan.PickupAutoExcusal,
 	dayLocker careplan.CareDayLocker,
-	userContext services.CareRequestStaff,
+	userContext CareRequestStaff,
 	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,
@@ -279,7 +277,7 @@ func newCareScheduleRequestService(
 	people RequestPeople,
 	arrival RequestArrivalPlans,
 	pickup RequestPickupPlans,
-	userContext services.CareRequestStaff,
+	userContext CareRequestStaff,
 	emitter *communicationCompose.ParentEventEmitter,
 	broadcaster realtime.Broadcaster,
 	reviewPolicy RequestReviewPolicy,

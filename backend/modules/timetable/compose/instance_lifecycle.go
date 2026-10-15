@@ -86,6 +86,15 @@ type LifecycleSettings interface {
 	CompleteLeadMinutes(ctx context.Context) (int, error)
 }
 
+// LifecycleStaff are the staff rows the instance lifecycle resolves the
+// block's staff and the creator through.
+type LifecycleStaff interface {
+	FindByID(ctx context.Context, id any) (*usersModel.Staff, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
+	FindWithPerson(ctx context.Context, id int64) (*usersModel.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
+}
+
 // InstanceLifecycleDependencies wires the lifecycle. Broadcaster and
 // GuardianNotices are optional (nil announces nothing and refuses every
 // notice); Settings is required with EnforceTimePolicy; Logger and Now
@@ -99,7 +108,7 @@ type InstanceLifecycleDependencies struct {
 	CalendarPeriodRepo  scheduleModel.CalendarPeriodRepository
 	RecoveryRepo        scheduleModel.ActivityRecoveryRepository
 	ActivityGroupRepo   activitiesModel.GroupRepository
-	StaffRepo           usersModel.StaffRepository
+	StaffRepo           LifecycleStaff
 	StudentRepo         usersModel.StudentRepository
 	ActiveGroupRepo     studentpresence.SessionRecords
 	SupervisorRepo      studentpresence.SupervisionRecords

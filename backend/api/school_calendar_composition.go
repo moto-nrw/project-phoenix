@@ -80,7 +80,7 @@ func GuardedCalendarAdministration(settings federalStateResolver, recurrence tim
 	}
 	runtime := SchoolCalendarAdministration(settings, lockRecurrence, guard)
 	if guard == nil {
-		// NewFactoryWithConfig refuses this composition; keep the refusal loud on the
+		// The service graph refuses this composition; keep the refusal loud on the
 		// write path rather than administering periods unguarded.
 		runtime.CareOfferingGuard = func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error {
 			return errors.New("calendar period care-offering validation is not configured")

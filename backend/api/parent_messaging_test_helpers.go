@@ -5,7 +5,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewMessageableGuardianRepository binds the recipient lookup to the native
@@ -26,11 +25,11 @@ type ParentMessagingTestRepositories struct {
 // stores plus the staff-membership decorator the guardian-facing reads need,
 // WITHOUT constructing the legacy repository graph.
 //
-// Tests reach for this instead of NewFactory: the factory is shrink-only under
+// Tests reach for this instead of the service graph, which only shrinks under
 // #2580, so a test that only needs three repositories must not add another
 // caller that builds all of them.
 func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentMessagingTestRepositories, error) {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return ParentMessagingTestRepositories{}, err
 	}
@@ -39,7 +38,7 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		Thread:  parentStore.NewParentMessageThreadRepository(db.Pool(), NewMessageableGuardianRepository(db)),
 		Message: parentStore.NewParentMessageRepository(db.Pool()),
 		// The three guardian-facing projections resolve the school's staff
-		// accounts through School Membership, exactly as the factory binds them.
+		// accounts through School Membership, exactly as the service graph binds them.
 		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), ParentStaffMembers{Membership: membership}.List, persons),
 	}, nil
 }

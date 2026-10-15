@@ -26,7 +26,7 @@ type CareOfferingCatalogTestOptions struct {
 }
 
 // CareOfferingCatalogTestModule is the catalog over the test database with
-// the same owner bindings as services.Factory.
+// the same owner bindings as the service graph.
 type CareOfferingCatalogTestModule struct {
 	Catalog careplan.CareOfferingCatalogCapability
 }

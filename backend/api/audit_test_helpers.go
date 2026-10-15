@@ -8,10 +8,10 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-// The test graphs below are the repository test sets of the legacy
-// composition with the Audit Platform persistence filled in. The repository
-// package no longer constructs Audit persistence; the Audit composition does,
-// and this package is the legacy composition that may reach it (ADR 0049).
+// The test graphs below are the repository test sets of the root with the
+// Audit Platform persistence filled in. The repository package no longer
+// constructs Audit persistence; the Audit composition does, and the root may
+// reach it (ADR 0049, ADR 0053).
 // Repositories routed through command append through the Audit command,
 // exactly as the service graph's repositories do.
 
@@ -29,7 +29,7 @@ func NewTestAuditPersistence(db transactionruntime.Database, command auditModels
 
 // NewRoutedTestAuditPersistence is NewTestAuditPersistence with every write
 // routed through an Audit command over the test append store, the way the
-// test service graph (NewFactoryForTests) routes its repositories.
+// test service graph (NewServiceGraphForTests) routes its repositories.
 func NewRoutedTestAuditPersistence(db transactionruntime.Database) (*auditCompose.Persistence, error) {
 	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
 	if err != nil {

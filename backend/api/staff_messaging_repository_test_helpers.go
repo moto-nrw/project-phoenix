@@ -6,7 +6,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type StaffMessagingTestRepositories struct {
@@ -16,7 +15,7 @@ type StaffMessagingTestRepositories struct {
 }
 
 func NewStaffMessagingTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return StaffMessagingTestRepositories{}, err
 	}
