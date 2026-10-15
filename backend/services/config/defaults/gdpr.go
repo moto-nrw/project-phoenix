@@ -205,6 +205,26 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
+	// Withdrawn and lapsed enrollments no child was created from (#3960),
+	// counted from settling. They have no further purpose; 90 days cover the
+	// questions after a withdrawal. The frame of 30 to 365 days is ADR 0048's.
+	// Rejected children keep enrollment.rejected_retention_days.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRWithdrawnEnrollmentRetentionDays,
+		Label:           "Zurückgezogene Anmeldungen aufbewahren (Tage)",
+		Description:     "So lange speichert moto Anmeldungen, die zurückgezogen oder verfallen sind. Danach löscht moto sie. Das gilt nur, wenn daraus kein Kind angelegt wurde.",
+		Type:            config.FieldNumber,
+		Default:         90,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       32,
+		Validation:      config.Range(30, 365),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
 	minPWAUsageRetentionDays := float64(30)
 	maxPWAUsageRetentionDays := float64(365)
 	config.Register(config.Definition{

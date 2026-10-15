@@ -57,6 +57,9 @@ const (
 	DeletionTypeStudentDocumentCleanupRetention = "student_document_cleanup_retention"
 	DeletionTypeCareWithdrawalRetention         = "care_withdrawal_retention"
 	DeletionTypeSubmissionRateLimitRetention    = "submission_rate_limit_retention"
+	// Withdrawn and lapsed enrollments no child was created from, with
+	// their invitations to enroll late (#3960).
+	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
 	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
 	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
 )
@@ -77,6 +80,7 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeStudentDocumentCleanupRetention,
 		DeletionTypeCareWithdrawalRetention,
 		DeletionTypeSubmissionRateLimitRetention,
+		DeletionTypeSettledEnrollmentRetention,
 		DeletionTypeStaffSickNoteRetention:
 		return true
 	}

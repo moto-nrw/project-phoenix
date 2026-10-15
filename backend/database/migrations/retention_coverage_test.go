@@ -52,11 +52,11 @@ func undecided(what string) tableRetention { return tableRetention{class: openGa
 // openSpecTickets are the tickets of spec #3949 that still add a deletion
 // path. When a ticket lands, its tables move to own retention or with
 // parent and the ticket leaves this list.
-var openSpecTickets = []string{"#3957", "#3960", "#3962", "#3963"}
+var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
-	specGapTables = 6
+	specGapTables = 4
 	openGapTables = 24
 )
 
@@ -184,7 +184,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.change_request_messages":                    parent("enrollment.change_requests"),
 	"enrollment.change_requests":                            parent("enrollment.requests"),
 	"enrollment.form_schemas":                               notPersonal("enrollment form definitions"),
-	"enrollment.late_invites":                               gap("#3960"),
+	"enrollment.late_invites":                               own("nightly retention step settled_enrollment_retention (api/worker_retention.go), DeleteLateInvitesSettledBefore; used invites go with their request (DeleteRequestTree)"),
 	"enrollment.offering_change_requests":                   parent("users.student_profiles"),
 	"enrollment.phases":                                     notPersonal("enrollment phase configuration"),
 	"enrollment.request_child_offering_selections":          parent("enrollment.request_children"),
@@ -192,7 +192,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.request_children":                           parent("enrollment.requests"),
 	"enrollment.request_guardians":                          parent("enrollment.requests"),
 	"enrollment.request_reads":                              parent("auth.accounts"),
-	"enrollment.requests":                                   gap("#3960"),
+	"enrollment.requests":                                   own("nightly retention step settled_enrollment_retention (withdrawn and lapsed, CleanupSettledEnrollments) and the rejected cleanup (CleanupRejectedEnrollments); accepted requests go with the child (#3962)"),
 	"enrollment.submission_rate_limits":                     own("nightly retention step submission_rate_limit_retention, DeleteExpiredSubmissionRateLimits -> Store.CleanupExpired (24 hours after window_start)"),
 	"facilities.rooms":                                      notPersonal("room catalog"),
 	"feedback.entries":                                      own("nightly visit-cleanup run, FeedbackCleaner.DeleteExpired -> Cleanup -> DeleteOlderThan"),

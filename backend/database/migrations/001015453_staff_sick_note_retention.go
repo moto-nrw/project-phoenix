@@ -18,7 +18,7 @@ func init() {
 		Version:     staffSickNoteRetentionVersion,
 		Description: staffSickNoteRetentionDescription,
 		DependsOn: []string{
-			cleanupJobRetentionVersion,        // previous subject check of audit.data_deletions
+			settledEnrollmentRetentionVersion, // previous subject check of audit.data_deletions
 			auditRetentionCapabilitiesVersion, // audit.authorize_retention_tenant
 			staffDocumentsVersion,             // users.staff_documents and its file cleanup queue
 		},
@@ -112,13 +112,14 @@ const staffSickNoteRetentionUpSQL = `
 						'student_document_cleanup_retention',
 						'care_withdrawal_retention',
 						'submission_rate_limit_retention',
+						'settled_enrollment_retention',
 						'staff_sick_note_retention'
 					)
 				)
 			);
 `
 
-// staffSickNoteRetentionDownSQL restores the subject check of 1.15.449 and
+// staffSickNoteRetentionDownSQL restores the subject check of 1.15.452 and
 // drops the function.
 const staffSickNoteRetentionDownSQL = `
 		ALTER TABLE audit.data_deletions
@@ -141,7 +142,8 @@ const staffSickNoteRetentionDownSQL = `
 						'staff_cleanup_retention',
 						'student_document_cleanup_retention',
 						'care_withdrawal_retention',
-						'submission_rate_limit_retention'
+						'submission_rate_limit_retention',
+						'settled_enrollment_retention'
 					)
 				)
 			);

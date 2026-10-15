@@ -23,6 +23,10 @@ func (s cleanupSettingsStub) RejectedRetentionDays(context.Context) (int, error)
 	return s.days, s.err
 }
 
+func (s cleanupSettingsStub) WithdrawnRetentionDays(context.Context) (int, error) {
+	return s.days, s.err
+}
+
 type cleanupRequestStub struct {
 	ids       []int64
 	listErr   error
@@ -39,6 +43,10 @@ func (s *cleanupRequestStub) DeleteRequestTree(ctx context.Context, id int64) er
 
 func (s *cleanupRequestStub) FullyRejectedRequestsBefore(_ context.Context, cutoff time.Time) ([]int64, error) {
 	s.cutoff = cutoff
+	return s.ids, s.listErr
+}
+func (s *cleanupRequestStub) SettledRequestsBefore(_ context.Context, withdrawnCutoff, _ time.Time) ([]int64, error) {
+	s.cutoff = withdrawnCutoff
 	return s.ids, s.listErr
 }
 func (s *cleanupRequestStub) RequestByID(_ context.Context, id int64, _ bool) (*enrollment.Request, error) {
@@ -99,6 +107,10 @@ type cleanupLateInvitesStub struct {
 	counts  map[int64]int64
 	errFor  map[int64]error
 	deleted []int64
+}
+
+func (s *cleanupLateInvitesStub) DeleteLateInvitesSettledBefore(context.Context, time.Time) (int64, error) {
+	return 0, nil
 }
 
 func (s *cleanupLateInvitesStub) DeleteLateInvitesByUsedRequestID(_ context.Context, requestID int64) (int64, error) {
@@ -325,4 +337,22 @@ func TestChildrenRemainFullyRejectedBefore(t *testing.T) {
 			assert.Equal(t, tt.want, childrenRemainFullyRejectedBefore(tt.children, cutoff))
 		})
 	}
+}
+
+func TestChildSettledBeforeUsesTheWithdrawalStatusTimestamp(t *testing.T) {
+	t.Parallel()
+
+	cutoff := time.Now()
+	withdrawnAt := cutoff.Add(-time.Hour)
+	updatedLater := cutoff.Add(time.Hour)
+
+	assert.True(t, childSettledBefore(&enrollment.RequestChild{
+		Status:     enrollmentModels.ChildStatusWithdrawn,
+		ReviewedAt: &withdrawnAt,
+		UpdatedAt:  updatedLater,
+	}, settledCutoffs{withdrawn: cutoff}), "a later data correction does not restart retention")
+	assert.True(t, childSettledBefore(&enrollment.RequestChild{
+		Status:    enrollmentModels.ChildStatusWithdrawn,
+		UpdatedAt: withdrawnAt,
+	}, settledCutoffs{withdrawn: cutoff}), "a lapsed renewal has no review timestamp")
 }
