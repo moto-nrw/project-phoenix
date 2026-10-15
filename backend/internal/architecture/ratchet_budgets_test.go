@@ -293,33 +293,32 @@ func TestCompareRatchetBudgetsRejectsAmbiguousRenames(t *testing.T) {
 	}
 }
 
-// A measurement may be retired under a decision the candidate holds, which a
-// comment naming the old declaration cites; an unknown number retires
-// nothing, and an existing number still raises nothing.
-func TestCompareRatchetBudgetsRetiresUnderAnExistingDecision(t *testing.T) {
+// The three temporary-rule registers ADR 0057 made structural may end; every
+// other measurement still needs an ADR the change adds, even when a comment
+// cites an existing one, and a raise stays forbidden.
+func TestCompareRatchetBudgetsRetiresOnlyTheListedRegisters(t *testing.T) {
 	t.Parallel()
-	const retired = "package test\n\n// Budgets is retired under ADR 0057.\nconst Total = 5\n\nconst Threshold = 15\n\nvar Exceptions = map[string]string{\n\t\"f\": \"reason\",\n}\n"
+	const temporaryRules = "package test\n\nconst (\n\tpolicyTempRulesTotal = 2\n\tpolicyTempRulesCompatTotal = 49\n)\n\nvar policyTempRulesFamilies = map[string]int{\"a\": 1, \"b\": 1}\n"
 	for _, tt := range []struct {
-		name      string
-		candidate string
-		decisions map[string]bool
-		want      string
+		name, file, base, candidate, want string
+		adrs                              map[string]bool
 	}{
-		{"existing decision", retired, map[string]bool{"0057": true}, ""},
-		{"unknown decision", retired, map[string]bool{"0001": true}, "register Budgets (sum 5 at base) disappeared"},
-		{"existing decision raises nothing", strings.Replace(retired, "const Threshold = 15", "// ADR 0057.\nconst Threshold = 16", 1), map[string]bool{"0057": true}, "constant Threshold: 15 -> 16"},
+		{"listed registers end", "test/policy_temporary_rules_ratchet_test.go", temporaryRules, "package test\n", "", nil},
+		{"listed names in another file", "test/other_ratchet_test.go", temporaryRules, "package test\n", "constant policyTempRulesTotal (2 at base) disappeared", nil},
+		{"other register with an existing ADR", "test/example_ratchet_test.go", ratchetBudgetBase, strings.Replace(ratchetBudgetBase, "// Budgets is a register.\nvar Budgets = map[string]int{\n\t\"a\": 2,\n\t\"b\": 3,\n}\n", "// Budgets is retired under ADR 0057.\n", 1), "register Budgets (sum 5 at base) disappeared", nil},
+		{"other register with an added ADR", "test/example_ratchet_test.go", ratchetBudgetBase, strings.Replace(ratchetBudgetBase, "// Budgets is a register.\nvar Budgets = map[string]int{\n\t\"a\": 2,\n\t\"b\": 3,\n}\n", "// Budgets is retired under ADR 0999.\n", 1), "", map[string]bool{"0999": true}},
+		{"listed register raised", "test/policy_temporary_rules_ratchet_test.go", temporaryRules, strings.Replace(temporaryRules, "policyTempRulesTotal = 2", "// Raised under ADR 0057.\n\tpolicyTempRulesTotal = 3", 1), "constant policyTempRulesTotal: 2 -> 3", nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			base, candidate := newRatchetBudgets(), newRatchetBudgets()
-			if err := base.add("test/example_ratchet_test.go", []byte(ratchetBudgetBase)); err != nil {
+			if err := base.add(tt.file, []byte(tt.base)); err != nil {
 				t.Fatal(err)
 			}
-			if err := candidate.add("test/example_ratchet_test.go", []byte(tt.candidate)); err != nil {
+			if err := candidate.add(tt.file, []byte(tt.candidate)); err != nil {
 				t.Fatal(err)
 			}
-			candidate.decisions = tt.decisions
-			raises := strings.Join(compareRatchetBudgets(base, candidate, nil), "\n")
+			raises := strings.Join(compareRatchetBudgets(base, candidate, tt.adrs), "\n")
 			if tt.want == "" && raises != "" || !strings.Contains(raises, tt.want) {
 				t.Fatalf("want %q, got %q", tt.want, raises)
 			}

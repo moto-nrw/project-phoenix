@@ -46,15 +46,12 @@ import (
 // A raise is accepted only when a comment on the raised entry or its
 // declaration cites an ADR ("ADR 0123") with a number the base does not have
 // and the change adds as docs/adr/0123-*.md: a raised budget needs a new
-// decision, and renaming an existing ADR file is none. A measurement may be
-// retired when a comment in the candidate ratchet files names the old
-// declaration and cites an ADR the candidate holds.
+// decision, and renaming an existing ADR file is none. A measurement that
+// disappears needs the same: a comment naming it that cites an ADR the change
+// adds. The only exception is the closed list retiredByADR0057.
 type ratchetBudgets struct {
 	fset  *token.FileSet
 	files []ratchetFile
-
-	// decisions are the ADR numbers the candidate tree holds.
-	decisions map[string]bool
 
 	finalized   bool
 	constants   map[string]ratchetValue
@@ -142,10 +139,6 @@ func CompareRatchetBudgets(project, ref string) error {
 	if err != nil {
 		return err
 	}
-	candidate.decisions, err = candidateADRs(root)
-	if err != nil {
-		return err
-	}
 	raises := compareRatchetBudgets(base, candidate, adrs)
 	if len(raises) != 0 {
 		return fmt.Errorf("ratchet budgets raised against base %s; a raise needs an ADR this change adds (ADR 0057 point 5):\n  %s", sha, strings.Join(raises, "\n  "))
@@ -192,19 +185,23 @@ func adrNumber(name string) (string, bool) {
 	return match[1], true
 }
 
-// candidateADRs lists the ADR numbers of the candidate tree.
-func candidateADRs(root string) (map[string]bool, error) {
-	paths, err := filepath.Glob(filepath.Join(root, "docs", "adr", "*.md"))
-	if err != nil {
-		return nil, err
-	}
-	numbers := map[string]bool{}
-	for _, path := range paths {
-		if number, ok := adrNumber(filepath.Base(path)); ok {
-			numbers[number] = true
-		}
-	}
-	return numbers, nil
+// retiredByADR0057 is the one-time transition exception of ADR 0057: #4070
+// (PR #4097) replaced the temporary-rule registers of
+// TestPolicyTemporaryRulesRatchet by a structural check that allows no
+// temporary rule at all, so these three measurements end without a new ADR.
+// The list is closed; every other measurement that disappears needs an ADR
+// the change adds. Delete the list once #4097 and #4095 are in development.
+var retiredByADR0057 = map[string]string{
+	"policyTempRulesTotal":       "test/policy_temporary_rules_ratchet_test.go",
+	"policyTempRulesCompatTotal": "test/policy_temporary_rules_ratchet_test.go",
+	"policyTempRulesFamilies":    "test/policy_temporary_rules_ratchet_test.go",
+}
+
+// retired reports whether a base measurement that disappeared is one of the
+// exact exceptions, declared in its named file.
+func retired(name, location string) bool {
+	file, ok := retiredByADR0057[name]
+	return ok && strings.HasPrefix(location, file+":")
 }
 
 func newRatchetBudgets() *ratchetBudgets {
@@ -418,21 +415,10 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 		}
 		return false
 	}
-	// A measurement may be retired under any decision the candidate holds:
-	// unlike a raise, a retirement names what goes, and reusing an old ADR
-	// for it is visible in the comment that has to name the old declaration.
-	decided := func(comment string) bool {
-		for _, match := range ratchetADRCitation.FindAllStringSubmatch(comment, -1) {
-			if adrs[match[1]] || candidate.decisions[match[1]] {
-				return true
-			}
-		}
-		return false
-	}
 	nameCited := func(name string) bool {
 		pattern := regexp.MustCompile(`\b` + regexp.QuoteMeta(name) + `\b`)
 		for _, comment := range candidate.comments {
-			if pattern.MatchString(comment) && decided(comment) {
+			if pattern.MatchString(comment) && justified(comment) {
 				return true
 			}
 		}
@@ -481,7 +467,10 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 		}
 		return name
 	}
-	missing := func(kind, name, was string) {
+	missing := func(kind, name, was, location string) {
+		if retired(name, location) {
+			return
+		}
 		if reason, ok := candidate.unsupported[successor(name)]; ok {
 			raises = append(raises, fmt.Sprintf("%s %s cannot be measured any more (%s); keep it a Go constant expression or register literal", kind, name, reason))
 			return
@@ -495,7 +484,7 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 		was := base.constants[name]
 		now, ok := candidate.constants[successor(name)]
 		if !ok {
-			missing("constant", name, strconv.Itoa(was.value))
+			missing("constant", name, strconv.Itoa(was.value), was.location)
 			continue
 		}
 		if now.value > was.value && !justified(now.comment) {
@@ -513,7 +502,7 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 			if before == 0 && candidate.unsupported[successor(name)] == "" {
 				continue
 			}
-			missing("register", name, "sum "+strconv.Itoa(before))
+			missing("register", name, "sum "+strconv.Itoa(before), register.location)
 			continue
 		}
 		after := 0
@@ -540,7 +529,7 @@ func compareRatchetBudgets(base, candidate *ratchetBudgets, adrs map[string]bool
 			if was.value == 0 && candidate.unsupported[successor(name)] == "" {
 				continue
 			}
-			missing("exception register", name, strconv.Itoa(was.value)+" entries")
+			missing("exception register", name, strconv.Itoa(was.value)+" entries", was.location)
 			continue
 		}
 		if now.value > was.value && !justified(now.comment) {

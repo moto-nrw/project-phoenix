@@ -1121,9 +1121,11 @@ not compared.
 A raise passes only under an ADR the change adds: the comment on the raised
 entry or its declaration cites `ADR 0123`, and the base has no ADR with that
 number. Renaming or copying an existing ADR file authorizes nothing. A
-measurement may be retired when a comment in the ratchet files names the old
-declaration and cites an ADR the tree holds, as the temporary-rule registers
-#4070 made structural are under ADR 0057.
+measurement that disappears needs the same: a comment naming it that cites an
+ADR the change adds. The only exception is a closed, one-time list bound to ADR
+0057 (`retiredByADR0057`): the three temporary-rule registers of
+`test/policy_temporary_rules_ratchet_test.go` that #4070 replaced by a
+structural check.
 `internal/architecture/ratchet_budgets_test.go` pins the rules.
 
 ### Converting temporary permissions to exact debt

@@ -25,11 +25,7 @@ import (
 // phrases missed most of them: on 4072c83a48 it saw 2 and 49 of the 180 rules
 // whose description declared them temporary. #4070 converted every such rule
 // into exact keys, so the test is structural now: any rule with a transition
-// marker or an `issue` field fails, and there is no seed to raise. The
-// former registers policyTempRulesTotal, policyTempRulesCompatTotal and
-// policyTempRulesFamilies are retired under ADR 0057; the ratchet budget
-// comparison of `scripts/backend-architecture.sh check` reads this sentence
-// as the record of their retirement.
+// marker or an `issue` field fails, and there is no seed to raise.
 //
 // The evaluator rejects the same rules when it loads the policy
 // (internal/architecture/target_rule.go). This test reads the policy file
