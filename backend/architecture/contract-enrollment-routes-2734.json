@@ -80,7 +80,7 @@
       "backend/modules/enrollment/http/parent_forms.go",
       "backend/modules/enrollment/compose/care_offering_values.go",
       "backend/modules/careplan/inbound/parent/enrollment_forms.go",
-      "backend/services/enrollment_guardian_autofill.go",
+      "backend/api/enrollment_guardian_autofill.go",
       "backend/api/testdata/route_table.golden",
       "backend/test/query_budgets.go",
       "backend/architecture/callers/enrollment-routes-2734.json",

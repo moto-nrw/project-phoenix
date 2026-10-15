@@ -140,7 +140,7 @@ type GuardianDirectoryInvitations interface {
 // serves the invitation writes, verifiedStaff tells a verified staff caller.
 // runtime is the People Directory's tenant runtime the invitation writes run
 // in.
-func NewGuardianDirectoryRuntime(f *services.Factory, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
+func NewGuardianDirectoryRuntime(f *services.Factory, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
 	sendInvitation, inviteGuardian, bulkInvite := guardianInvitationFlows(invitations, runtime)
 	listApprovals, approve, reject := guardianApprovalFlows(invitations, runtime)
 	return GuardianDirectoryRuntime{
@@ -157,7 +157,7 @@ func NewGuardianDirectoryRuntime(f *services.Factory, invitations GuardianDirect
 		PendingInvitationStudentID: invitations.PendingInvitationStudentID,
 		ApproveInvitation:          approve,
 		RejectInvitation:           reject,
-		RenderPaymentExport:        guardianPaymentExport(f),
+		RenderPaymentExport:        guardianPaymentExport(renderer),
 	}
 }
 
@@ -271,9 +271,9 @@ func guardianApprovalFlows(invitations GuardianDirectoryInvitations, runtime peo
 
 // guardianPaymentExport renders the Bankverbindungen list; format is one of
 // pdf, docx or xlsx, validated by the adapter beforehand.
-func guardianPaymentExport(f *services.Factory) func(rows []peopledirectory.GuardianPaymentRow, format string) (GuardianExportFile, error) {
+func guardianPaymentExport(renderer *lists.RendererService) func(rows []peopledirectory.GuardianPaymentRow, format string) (GuardianExportFile, error) {
 	return func(rows []peopledirectory.GuardianPaymentRow, format string) (GuardianExportFile, error) {
-		if f.ListExport == nil {
+		if renderer == nil {
 			return GuardianExportFile{}, errors.New("list export service is not configured")
 		}
 		doc := lists.Document{
@@ -289,7 +289,7 @@ func guardianPaymentExport(f *services.Factory) func(rows []peopledirectory.Guar
 			},
 			Rows: buildPaymentExportRows(rows),
 		}
-		file, err := f.ListExport.Render(doc, lists.Format(format), doc.Title)
+		file, err := renderer.Render(doc, lists.Format(format), doc.Title)
 		if err != nil {
 			return GuardianExportFile{}, err
 		}

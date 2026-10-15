@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -23,7 +23,7 @@ import (
 )
 
 func newPickupChangeFixture(t *testing.T) *careFixture {
-	return newCareFixture(t, services.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }))
+	return newCareFixture(t, api.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }))
 }
 
 // nextSchoolDay moves a date off the weekend. A pickup schedule only knows

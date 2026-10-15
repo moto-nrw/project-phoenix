@@ -4,7 +4,6 @@ import (
 	"fmt"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewStudentScheduleRepositories composes only the student schedule adapters
@@ -21,6 +20,6 @@ func NewStudentScheduleRepositories(db transactionruntime.Database, dependencies
 		PickupSchedule:   NewPickupScheduleRepository(carePlan),
 		PickupException:  NewPickupExceptionRepository(carePlan),
 		PickupNote:       NewPickupNoteRepository(carePlan),
-		StatusDay:        services.NewStudentStatusDayRepository(carePlan),
+		StatusDay:        NewStudentStatusDayRepository(carePlan),
 	}
 }

@@ -59,7 +59,7 @@ func NewPresenceWiring(owners PresenceWiringOwners) (services.PresenceWiring, er
 		logger = slog.Default()
 	}
 	db := owners.DB
-	devices, err := services.NewDeviceFleet(db.Pool())
+	devices, err := NewDeviceFleet(db)
 	if err != nil {
 		return services.PresenceWiring{}, err
 	}
@@ -86,7 +86,7 @@ func NewPresenceWiring(owners PresenceWiringOwners) (services.PresenceWiring, er
 		OpenRoomSessions: OpenRoomSessionPresence{Presence: presence, Activities: owners.Timetable},
 		OpenRooms:        OpenRoomDirectory{Rooms: owners.Rooms},
 		StatusDays: presenceservice.NewStatusDays(
-			services.NewStudentStatusDayRepository(owners.CarePlan), NewManualPartialAbsenceDates(owners.CarePlan),
+			NewStudentStatusDayRepository(owners.CarePlan), NewManualPartialAbsenceDates(owners.CarePlan),
 			db.Pool(), owners.CarePlan.LockExceptionDay, owners.Now,
 		),
 		ClassListEntries: NewClassListEntryRosterReader(owners.Membership),

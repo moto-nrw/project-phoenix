@@ -35,8 +35,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -47,7 +45,6 @@ import (
 	devicefleetModule "github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
-	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	emergencysnapshotlegacy "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/legacy"
@@ -83,7 +80,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
@@ -176,40 +172,30 @@ type Factory struct {
 	Users                   *peopleCompose.PersonDirectory
 	// StaffDocuments is Workforce's personnel-record administration: the
 	// Dokumente tab, the Stammdaten sections and the payroll number (#3752).
-	StaffDocuments            *workforceModule.StaffAdmin
-	StudentDocuments          careplan.StudentDocuments
-	FileStore                 *filestorageModule.Module
-	CaregiverCapability       peopleCompose.CaregiverCapabilityService
-	Guardian                  *peopleCompose.GuardianService
-	PeopleDirectory           peopledirectory.Capability
-	Database                  transactionruntime.DatabaseStats
-	DatabaseStatsCapabilities func(context.Context) transactionruntime.DatabaseStatsCapabilities
-	Import                    *importService.ImportService[importModels.StudentImportRow]        // Student import service
-	StaffImport               *importService.ImportService[importModels.StaffImportRow]          // Staff (Mitarbeiter) import service
-	ClassListImport           *importService.ImportService[importModels.ClassListEntryImportRow] // Class-list entry import (#2382)
-	OpeningBalanceImport      importService.OpeningBalanceImportFactory                          // Opening balance import (#2132), request-scoped
-	ListExport                *lists.RendererService
-	Emergency                 emergencysnapshot.Query
-	SlotLists                 classday.SlotLists
-	PlanExport                planexport.Service
-	Reminders                 reminder.Capability
-	Notifications             notifications.Notifier
-	PushSubscriptions         notifications.PushSubscriptionService
-	PWAUsage                  pwa.UsageService
-	NotificationPreferences   notifications.PreferenceService
-	AbsenceNotifier           notifications.AbsenceNotifier
-	RealtimeHub               *realtime.Hub // SSE event hub (shared by services and API)
-	Mailer                    email.Mailer
-	DefaultFrom               email.Email
-	FrontendURL               string
-	InvitationTokenExpiry     time.Duration
-	PasswordResetTokenExpiry  time.Duration
+	StaffDocuments           *workforceModule.StaffAdmin
+	StudentDocuments         careplan.StudentDocuments
+	FileStore                *filestorageModule.Module
+	CaregiverCapability      peopleCompose.CaregiverCapabilityService
+	Guardian                 *peopleCompose.GuardianService
+	PeopleDirectory          peopledirectory.Capability
+	Emergency                emergencysnapshot.Query
+	SlotLists                classday.SlotLists
+	PlanExport               planexport.Service
+	Reminders                reminder.Capability
+	Notifications            notifications.Notifier
+	PushSubscriptions        notifications.PushSubscriptionService
+	PWAUsage                 pwa.UsageService
+	NotificationPreferences  notifications.PreferenceService
+	AbsenceNotifier          notifications.AbsenceNotifier
+	RealtimeHub              *realtime.Hub // SSE event hub (shared by services and API)
+	Mailer                   email.Mailer
+	DefaultFrom              email.Email
+	FrontendURL              string
+	InvitationTokenExpiry    time.Duration
+	PasswordResetTokenExpiry time.Duration
 
 	// Platform domain (operator dashboard)
 	OperatorProvisioning organizationtenancy.Provisioning
-	Announcement         communication.Capability
-	Schools              organizationtenancy.Capability
-	Students             StudentServices
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        careplan.CareLifecycle
 	StudentAudit         peopleCompose.StudentAuditService
@@ -217,12 +203,8 @@ type Factory struct {
 	CareRequests         carerequests.Service
 	ExcusedRequests      careplan.ExcusedAbsenceRequests
 	ParentRequests       parentrequests.Coordinator
-	// RequestReviewPolicy is the one cross-domain decision about WHO may see
-	// and decide parent requests. The API layer reads it to explain an empty
-	// queue; the four request services enforce it per child.
-	RequestReviewPolicy *ParentRequestReviewPolicy
-	AbsenceOverview     studentpresence.StatusDayOverviews
-	StudentHistory      studentpresence.StudentHistory
+	AbsenceOverview      studentpresence.StatusDayOverviews
+	StudentHistory       studentpresence.StudentHistory
 	// Statistics is the Statistik report (#2606).
 	Statistics              studentpresence.StatisticsReports
 	OGSGroupLive            grouplive.Query
@@ -235,13 +217,12 @@ type Factory struct {
 	EmailOutboxWorker *deliveryModule.Worker
 	Delivery          *deliveryModule.Module
 
-	// Enrollment domain (parent-enrollment PR 5+).
-	EnrollmentFormSchema   enrollmentOwner.FormSchemaAdministration
+	// Enrollment domain (parent-enrollment PR 5+). The root builds the form
+	// schemas, the captcha and the phase expiry warnings where it mounts
+	// them (#4012).
 	EnrollmentCareOffering careplan.CareOfferingCapability
-	EnrollmentCaptcha      enrollmentOwner.CaptchaVerifier
 	EnrollmentRequest      *enrollmentCompose.Intake
 	EnrollmentPhase        enrollmentOwner.PhaseAdministration
-	EnrollmentPhaseExpiry  enrollmentOwner.PhaseExpiryWarnings
 	EnrollmentDecision     enrollmentOwner.Decisions
 	EnrollmentReport       enrollmentOwner.Reports
 	// ClassDayArrivalExceptions carries the school portal's whole class-day
@@ -252,7 +233,7 @@ type Factory struct {
 	EnrollmentRollover        enrollmentOwner.Rollovers
 	EnrollmentChangeRequest   enrollmentOwner.ChangeRequests
 	EnrollmentDeletion        enrollmentOwner.EnrollmentDeletions
-	EnrollmentRejectedCleanup EnrollmentRejectedCleanup
+	EnrollmentRejectedCleanup enrollmentOwner.RejectedEnrollmentCleaner
 
 	// Parent (cross-tenant guardian portal - PR 9)
 	Parent *parentportal.Portal
@@ -479,39 +460,10 @@ type CallerRowReads interface {
 }
 type DurableDeliveryObserver func(transport, template, operation string, duration time.Duration, count int, err error)
 
-// DataImportObserver records one Data Import run (#2708): rows parsed,
-// accepted, rejected, created and updated plus the run duration. The
-// composition root supplies it so this package keeps no metrics dependency.
-type DataImportObservation = importService.ImportObservation
-type DataImportObserver func(DataImportObservation)
-
 // ProductEventTracker captures the product analytics events of the services
 // this graph composes. The composition root owns the tracker and its lifetime.
 type ProductEventTracker interface {
 	Capture(distinctID, event string, props map[string]any)
-}
-
-func newAuditCommand(store auditModels.AppendStore, logger *slog.Logger, observe AuditAppendObserver) (*auditCompose.Command, error) {
-	if store == nil || logger == nil || observe == nil {
-		return nil, errors.New("audit command store, logger, and observer are required")
-	}
-	command, err := auditCompose.NewCommand(store, func(observation auditCompose.AppendObservation) {
-		observe(observation.EventType, observation.Duration, observation.Rows, observation.Err)
-		log := logger.Debug
-		if observation.Err != nil {
-			log = logger.Error
-		}
-		log("audit append",
-			"event_type", observation.EventType,
-			"duration_ms", observation.Duration.Milliseconds(),
-			"rows", observation.Rows,
-			"failed", observation.Err != nil,
-		)
-	})
-	if err != nil {
-		return nil, err
-	}
-	return command, nil
 }
 
 // NewFactoryWithModules builds the legacy service graph around the migrated
@@ -532,7 +484,6 @@ func NewFactoryWithModules(
 	appointmentCapability appointments.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
-	observeCarePlan CarePlanObserver,
 	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter studentdeletioncompose.Feedback,
@@ -544,13 +495,15 @@ func NewFactoryWithModules(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	workforce WorkforceWiring,
-	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
 	identity IdentityRoot,
 	people PeopleWiring,
+	platform PlatformWiring,
 	presence PresenceWiring,
 	timetableWiring TimetableWiring,
+	carePlanWiring CarePlanWiring,
+	enrollment EnrollmentWiring,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
 	if err := people.validate(); err != nil {
@@ -562,16 +515,19 @@ func NewFactoryWithModules(
 	if err := timetableWiring.validate(); err != nil {
 		return nil, err
 	}
+	if err := carePlanWiring.validate(); err != nil {
+		return nil, err
+	}
 	if identity.Compose == nil || identity.Permissions == nil || identity.ActorScope == nil || identity.AuditActor == nil {
 		return nil, errors.New("the Identity & Access composition and the request reads are required")
 	}
-	if carePlan == nil || organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || observeCarePlan == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || observeDataImport == nil || fileStorage.Objects == nil || fileStorage.Observe == nil {
-		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce, and Data Import capabilities with their binders and observers are required")
+	if carePlan == nil || organizations == nil || persons == nil || groups == nil || rooms == nil || membership == nil || calendar == nil || timetableCapability == nil || appointmentCapability == nil || communicationCapability == nil || observeCommunication == nil || mealPlan == nil || bindMealPlanSettings == nil || feedbackCounter == nil || bindFeedbackSettings == nil || observeAuditAppend == nil || observeDelivery == nil || observeDurableDelivery == nil || observeDeviceFleet == nil || observeIdentityAccess == nil || workTime == nil || fileStorage.Objects == nil || fileStorage.Observe == nil || fileStorage.Settings == nil || fileStorage.Events == nil {
+		return nil, errors.New("organization tenancy, people directory, school structure, facilities, school membership, school calendar, timetable, appointments, communication, care plan, meal plan, feedback, Audit, Delivery, Identity & Access, Workforce and File Storage capabilities with their binders and observers are required")
 	}
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	cfg := CurrentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, workforce, observeDataImport, productEvents, fileStorage, identity, people, presence, timetableWiring, false, clocks...)
+	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, workforce, productEvents, fileStorage, identity, people, platform, presence, timetableWiring, carePlanWiring, enrollment, false, clocks...)
 }
 
 // WorkforceWiring is what the root binds of Workforce into the service graph
@@ -732,6 +688,9 @@ type (
 	StudentConsentAppender interface {
 		Create(ctx context.Context, entry *auditModels.StudentConsentChange) error
 	}
+	FileEventAppender interface {
+		Create(ctx context.Context, event *auditModels.FileEvent) error
+	}
 )
 
 // RetentionSettings resolves a tenant's retention period setting.
@@ -760,6 +719,385 @@ func (w PeopleWiring) validate() error {
 		}
 	}
 	return nil
+}
+
+// EnrollmentWiring is what the root binds of Enrollment into this graph
+// (#4012, ADR 0053 point 8): the booking projection over Care Plan's
+// bookings and the adapters over the owners the root composes come built.
+// The flows over the settings, audit trails, outbox, realtime hub and the
+// other values only this graph builds come as functions the graph calls with
+// them.
+type EnrollmentWiring struct {
+	// Bookings is the Enrollment owner with Care Plan's bookings bound in.
+	Bookings *enrollmentOwner.BookingProjection
+	// ApprovedOfferings resolves approved bookings to the People Directory's
+	// students.
+	ApprovedOfferings *enrollmentCompose.ApprovedOfferingProjection
+	// CareBookings records and replaces a child's bookings in Care Plan.
+	CareBookings EnrollmentCareBookings
+	// Guardians is the People Directory guardian read of the deletion preview.
+	Guardians enrollmentCompose.GuardianDirectory
+	// The parents portal's reads of a child's care periods and bookings.
+	ParentCarePeriods     EnrollmentCarePeriods
+	ParentOfferingHistory EnrollmentOfferingHistory
+	// OfferingPlanning serves the offering-change review's manual planning
+	// and course groups from Enrollment and Timetable.
+	OfferingPlanning careplanCompose.OfferingChangePlanning
+
+	// BindSettingsGuards registers Enrollment's active phase restrictions as
+	// the Settings Platform's collection guards (#1663).
+	BindSettingsGuards func(settingsCompose.BatchSettingsService)
+	// MailRenderers render Enrollment's outbox kinds from the default sender.
+	MailRenderers       func(defaultFrom email.Email) map[string]emailoutbox.Renderer
+	Notifications       func(EnrollmentSettings, platformModels.OutboxEnqueuer) enrollmentOwner.Notifications
+	Deletions           func(EnrollmentDeletionSources) enrollmentCompose.DeletionModule
+	Phases              func(EnrollmentPhaseSources) *enrollmentCompose.Phases
+	Decisions           func(EnrollmentDecisionSources) *enrollmentCompose.Decisions
+	Capacity            func(EnrollmentSettings) enrollmentOwner.OfferingCapacity
+	AdminSubscribers    func(notifications.EmailSubscribers, notifications.EmailAccounts) enrollmentCompose.AdminMailSubscribers
+	Intake              func(EnrollmentIntakeSources) *enrollmentCompose.Intake
+	Reports             func(EnrollmentReportSources) enrollmentOwner.Reports
+	GuardianInvitations func(EnrollmentGuardianInvitations) enrollmentCompose.GuardianInvitationAvailability
+	ChangeRequests      func(EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests
+	Rollovers           func(EnrollmentRolloverSources) enrollmentOwner.Rollovers
+	OfferingChanges     func(OfferingChangeInputs) (careplan.OfferingChangeCapability, error)
+	OfferingConflicts   func(careplan.OfferingChangeConflicts) careplanCompose.ParentRequestConflicts
+}
+
+// validate refuses a wiring with a missing value or constructor.
+func (w EnrollmentWiring) validate() error {
+	required := []any{
+		w.Bookings, w.ApprovedOfferings, w.CareBookings, w.Guardians, w.ParentCarePeriods, w.ParentOfferingHistory,
+		w.OfferingPlanning, w.BindSettingsGuards, w.MailRenderers, w.Notifications, w.Deletions, w.Phases,
+		w.Decisions, w.Capacity, w.AdminSubscribers, w.Intake, w.Reports, w.GuardianInvitations,
+		w.ChangeRequests, w.Rollovers, w.OfferingChanges, w.OfferingConflicts,
+	}
+	for _, value := range required {
+		if value == nil || reflect.ValueOf(value).IsZero() {
+			return errors.New("the Enrollment wiring is incomplete")
+		}
+	}
+	return nil
+}
+
+// EnrollmentCareBookings records and replaces the bookings of an approved
+// child in Care Plan.
+type EnrollmentCareBookings interface {
+	RecordCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error
+	ReplaceCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error
+}
+
+// EnrollmentCarePeriods answers the parents portal's care periods.
+type EnrollmentCarePeriods interface {
+	CarePeriods(ctx context.Context, studentID int64) ([]*parentportalcompose.CarePeriod, error)
+}
+
+// EnrollmentOfferingHistory answers the parents portal's booked offerings.
+type EnrollmentOfferingHistory interface {
+	OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportalcompose.OfferingBooking, error)
+}
+
+// EnrollmentSettings is the slice of the settings service the Enrollment
+// bindings resolve through.
+type EnrollmentSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	LockClassCollectionPair(ctx context.Context) error
+}
+
+// EnrollmentGuardianInvitations lists the open invitations of guardian
+// profiles.
+type EnrollmentGuardianInvitations interface {
+	ListOpenGuardianInvitations(context.Context, []int64) ([]identityaccess.GuardianInvitation, error)
+}
+
+// EnrollmentPhaseSources are the values of this graph the phase
+// administration is bound over.
+type EnrollmentPhaseSources struct {
+	LockTemplateRecurrence          func(context.Context) error
+	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollmentOwner.Phase) error
+	// SourcedTemplates resolves the booking materialization on every edit.
+	SourcedTemplates func() enrollmentOwner.SourcedTemplateResyncer
+	Settings         EnrollmentSettings
+	Logger           *slog.Logger
+}
+
+// EnrollmentDecisionSettings resolves the tenant settings of the decision
+// flow.
+type EnrollmentDecisionSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+// EnrollmentStudentAuditor records tracked profile changes made while
+// approving or synchronizing enrollment data for an existing student.
+type EnrollmentStudentAuditor interface {
+	RecordChangesForActor(ctx context.Context, before, after *userModels.Student, editedBy int64) error
+	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after userModels.StudentStatus) error
+}
+
+// EnrollmentConsentAuditor records effective consent transitions made while an
+// enrollment submission is applied to a student.
+type EnrollmentConsentAuditor interface {
+	RecordTransitions(ctx context.Context, before, after *userModels.Student, source string, actorAccountID *int64, changedAt time.Time) error
+}
+
+// EnrollmentDepartureCompanions reads Care Plan's "läuft mit" edges of a
+// student.
+type EnrollmentDepartureCompanions interface {
+	ListForStudent(context.Context, int64) ([]*userModels.StudentCompanion, error)
+	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)
+}
+
+// EnrollmentDecisionSources are the owners and retained repositories the root
+// binds the decision flow to. A nil source skips the work that needs it, the
+// way the decision flow always treated an unwired repository.
+type EnrollmentDecisionSources struct {
+	Requests               enrollmentCompose.DecisionRequests
+	Children               enrollmentCompose.DecisionChildren
+	Guardians              enrollmentCompose.DecisionGuardians
+	LateInvites            enrollmentCompose.DecisionLateInvites
+	Phases                 enrollmentCompose.DecisionPhases
+	Schemas                enrollmentCompose.DecisionSchemas
+	CareOfferings          enrollmentCompose.CareOfferingCatalog
+	DataAccessLog          auditModels.DataAccessLogRepository
+	OfferingAdjustments    auditModels.EnrollmentOfferingAdjustmentRepository
+	Restorations           auditModels.EnrollmentRestorationRepository
+	Notifications          enrollmentOwner.Notifications
+	Persons                userModels.PersonRepository
+	Staff                  userModels.StaffRepository
+	Students               userModels.StudentRepository
+	StudentEnrollment      enrollmentCompose.DecisionStudentEnrollment
+	Companions             EnrollmentDepartureCompanions
+	DeleteCompanions       func(context.Context, []int64) error
+	StudentGuardians       userModels.StudentGuardianRepository
+	GuardianFinancialAudit auditModels.GuardianFinancialChangeCreator
+	GuardianProfiles       userModels.GuardianProfileRepository
+	GuardianPhones         userModels.GuardianPhoneNumberRepository
+	PickupSchedules        enrollmentCompose.WeeklyPickupSchedules
+	ArrivalSchedules       enrollmentCompose.WeeklyArrivalSchedules
+	// CareBookings is Care Plan's booking materialization (#3560). Nil skips
+	// the roster materialization of an approval (focused tests).
+	CareBookings enrollmentCompose.DecisionBookings
+	// GuardianAccess is the Identity & Access capability an approval uses to
+	// recognise a parent's existing portal account. Required: an approval
+	// without it fails instead of silently skipping the account attach.
+	GuardianAccess  enrollmentCompose.DecisionGuardianAccess
+	StudentAudit    EnrollmentStudentAuditor
+	StudentConsents EnrollmentConsentAuditor
+	CareWithdrawal  enrollmentCompose.CareWithdrawalReconciler
+	// Broadcaster announces student_updated + student_companions_changed
+	// after an approved enrollment sync trimmed a child's "läuft mit" links.
+	Broadcaster realtime.Broadcaster
+	FrontendURL string
+	// ParentsURL is the base of the status links in the parent mails. It
+	// falls back to FrontendURL when empty.
+	ParentsURL             string
+	Settings               EnrollmentDecisionSettings
+	LockTemplateRecurrence func(context.Context) error
+	Pickups                enrollmentCompose.WeeklyPickupHooks
+	Logger                 *slog.Logger
+	Today                  func() timezone.Date
+}
+
+// EnrollmentIntakeSettings resolves the tenant settings of the intake by key.
+// A resolver that also answers ResolveMany is read through one snapshot.
+type EnrollmentIntakeSettings interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// EnrollmentIntakeSources are the owners and retained repositories the root
+// binds the intake to. A nil source skips the work that needs it, the way
+// the intake always treated an unwired repository.
+type EnrollmentIntakeSources struct {
+	Requests           enrollmentCompose.IntakeRequests
+	Children           enrollmentCompose.IntakeChildren
+	Bookings           enrollmentOwner.CareBookingCommands
+	Guardians          enrollmentCompose.IntakeGuardians
+	LateInviteRepo     enrollmentCompose.IntakeLateInvites
+	CareOfferingRepo   enrollmentCompose.IntakeOfferings
+	Capacity           enrollmentOwner.OfferingCapacity
+	Catalog            enrollmentCompose.IntakeCatalog
+	SchoolRepo         enrollmentOwner.SchoolDirectory
+	Notifications      enrollmentOwner.Notifications
+	StudentRepo        enrollmentCompose.StudentMatches
+	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
+	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
+	OutboxEnqueuer     platformModels.OutboxEnqueuer
+	Settings           EnrollmentIntakeSettings
+	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
+	// mail (#3780); nil keeps the configured address list only.
+	AdminSubscribers enrollmentCompose.AdminMailSubscribers
+	ManualDecider    enrollmentCompose.ManualEnrollmentDecider
+	// ParentChanges makes a request unread again after a parent edit (#3778).
+	ParentChanges enrollmentCompose.RequestParentChanges
+	// FrontendURL is the base of the staff links, ParentsURL of the
+	// parent-facing ones; it falls back to FrontendURL.
+	FrontendURL string
+	ParentsURL  string
+	Logger      *slog.Logger
+}
+
+// EnrollmentChangeRequestSources are the owners and retained repositories the
+// root binds the change requests to.
+type EnrollmentChangeRequestSources struct {
+	Bookings            enrollmentCompose.CareBookingChanges
+	Requests            enrollmentCompose.ChangeRequestRecords
+	Children            enrollmentCompose.IntakeChildren
+	Guardians           enrollmentCompose.IntakeGuardians
+	LateInviteRepo      enrollmentCompose.DecisionLateInvites
+	CareOfferingRepo    enrollmentCompose.IntakeOfferings
+	Capacity            enrollmentOwner.OfferingCapacity
+	Catalog             enrollmentCompose.IntakeCatalog
+	Notifications       enrollmentOwner.Notifications
+	GuardianProfileRepo userModels.GuardianProfileRepository
+	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
+	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
+	PersonRepo          EnrollmentReviewerPersons
+	StudentRepo         enrollmentCompose.StudentMatches
+	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
+	// Decisions applies an approved change to a child the decision flow
+	// already approved; BookingGates wrap those writes. A nil Decisions
+	// leaves every child to the booking replacement.
+	Decisions            enrollmentOwner.ApprovedChildChanges
+	BookingGates         enrollmentCompose.CareBookingGates
+	CompanionGraphLocker enrollmentCompose.CompanionGraphCoordinator
+	Settings             EnrollmentIntakeSettings
+	OutboxEnqueuer       platformModels.OutboxEnqueuer
+	FrontendURL          string
+	ParentsURL           string
+	Logger               *slog.Logger
+}
+
+// EnrollmentReviewerPersons resolves the persons behind reviewer accounts.
+type EnrollmentReviewerPersons interface {
+	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*userModels.Person, error)
+}
+
+// EnrollmentReportOwnerReads are the Enrollment owner reads of the reports.
+type EnrollmentReportOwnerReads interface {
+	enrollmentCompose.ReportRequests
+	enrollmentCompose.ReportChildren
+	enrollmentCompose.ReportGuardians
+	enrollmentCompose.ReportSchemas
+	enrollmentCompose.ReportPhases
+}
+
+// EnrollmentReportSources are the reads the root binds the reports to.
+type EnrollmentReportSources struct {
+	Owner             EnrollmentReportOwnerReads
+	Offerings         enrollmentCompose.ReportOfferings
+	AccessLog         auditModels.DataAccessLogRepository
+	Students          userModels.StudentRepository
+	Persons           userModels.PersonRepository
+	Groups            enrollmentCompose.RosterGroups
+	StudentGuardians  userModels.StudentGuardianRepository
+	Companions        enrollmentCompose.RosterCompanions
+	ClassListEntries  enrollmentCompose.ClassListEntries
+	PickupSchedules   enrollmentCompose.PickupSchedules
+	CareParticipation enrollmentCompose.CareParticipation
+	Settings          interface {
+		ResolveBool(ctx context.Context, key string) (bool, error)
+	}
+}
+
+// EnrollmentRolloverSettings resolves the grade collection settings the
+// rollover reads.
+type EnrollmentRolloverSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// EnrollmentRolloverSources are the owners the root binds the rollover to.
+type EnrollmentRolloverSources struct {
+	Bookings enrollmentOwner.CareBookingCommands
+	Phases   enrollmentCompose.RolloverPhases
+	Requests enrollmentCompose.RolloverRequests
+	Children enrollmentCompose.RolloverChildren
+	// Catalog clones the source phase's care-offering catalog (#2249).
+	Catalog          enrollmentCompose.RolloverCatalogCloner
+	Notifications    enrollmentOwner.Notifications
+	PhaseEligibility enrollmentCompose.PhaseEligibilityGuard
+	Outbox           platformModels.OutboxEnqueuer
+	Settings         EnrollmentRolloverSettings
+	// Decisions approves auto-renewed rows on an auto-approve phase.
+	Decisions  enrollmentCompose.RolloverDecider
+	ParentsURL string
+	Logger     *slog.Logger
+}
+
+// EnrollmentDeletionOwner is the Enrollment owner slice the admin deletion
+// and the retention cleanup read, lock and delete through.
+type EnrollmentDeletionOwner = enrollmentCompose.DeletionOwner
+
+// EnrollmentDeletionSources are the owners the root binds the admin deletion
+// and the retention cleanup to.
+type EnrollmentDeletionSources struct {
+	Owner     EnrollmentDeletionOwner
+	Guardians enrollmentCompose.GuardianDirectory
+	// CountAuditAdjustments counts the audited offering adjustments of a
+	// request or one of its children.
+	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
+	// CountBookings counts Care Plan's bookings of the request children.
+	CountBookings func(context.Context, []int64) (int, error)
+	Audit         auditModels.EnrollmentDeletionRepository
+	Delivery      enrollmentCompose.EnrollmentDeletionDelivery
+	Settings      interface {
+		ResolveInt(ctx context.Context, key string) (int, error)
+	}
+	Logger *slog.Logger
+}
+
+// OfferingChangeInputs are the owners the offering-change review is composed
+// over.
+type OfferingChangeSettingsReads interface {
+	ResolveBool(context.Context, string) (bool, error)
+	ResolveString(context.Context, string) (string, error)
+}
+
+type OfferingChangeInputs struct {
+	CarePlan careplan.Capability
+	// Catalog reads the care offerings; nil reads them from CarePlan.
+	Catalog     careplanCompose.OfferingChangeCatalog
+	Enrollment  OfferingChangeEnrollmentReads
+	Students    userModels.StudentRepository
+	Withdrawals userModels.CareWithdrawalCompletionRepository
+	Settings    OfferingChangeSettingsReads
+	Planning    careplanCompose.OfferingChangePlanning
+	Bookings    careplan.BookingMaterializationCapability
+	Reviews     OfferingChangeReviewPolicy
+	// Permissions reads the permissions of the request claims.
+	Permissions func(context.Context) []string
+	Emitter     *communicationCompose.ParentEventEmitter
+	Events      userModels.ParentRequestEventRepository
+	Shares      careplanCompose.ShareVisibility
+	Today       func() timezone.Date
+	Logger      *slog.Logger
+}
+
+// OfferingChangeEnrollmentReads is the part of the Enrollment owner an
+// offering change reads.
+type OfferingChangeEnrollmentReads interface {
+	StudentCarePeriods(context.Context, int64) ([]*enrollmentOwner.StudentCarePeriod, error)
+	RequestByID(context.Context, int64, bool) (*enrollmentOwner.Request, error)
+	ChildByID(context.Context, int64) (*enrollmentOwner.RequestChild, error)
+	ChildrenByID(context.Context, []int64) ([]*enrollmentOwner.RequestChild, error)
+	Phase(context.Context, int64) (*enrollmentOwner.Phase, error)
+	RequestChildOfferingsAtDate(context.Context, int64, enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
+	EffectiveOfferingSelectionsAtDates(context.Context, map[int64]enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
+	OfferingCatalogState(context.Context, int64, int64, enrollmentOwner.Date, enrollmentOwner.Date) (*enrollmentOwner.OfferingCatalogState, error)
+	OfferingCapacityPeak(context.Context, int64, []int64, enrollmentOwner.Date, enrollmentOwner.Date) (int, error)
+}
+
+// OfferingChangeReviewPolicy is the parent-request review policy's scope of
+// the caller.
+type OfferingChangeReviewPolicy interface {
+	Scope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
 }
 
 // EducationGroupRepository is the retained group store this graph and its
@@ -954,6 +1292,78 @@ func (w PresenceWiring) validate() error {
 type FileStorageWiring struct {
 	Objects filestorageCompose.ObjectBackend
 	Observe func(filestorageCompose.Observation)
+	// Settings and Events bind File Storage to the settings and the Audit
+	// file events this graph composes.
+	Settings func(settingsCompose.SettingsService) filestorageCompose.Settings
+	Events   func(FileEventAppender) filestorageCompose.Events
+}
+
+// PlatformWiring is what the root builds of the platform owners,
+// Communication and Organisation & Tenancy and hands to this graph in place
+// of building it here (#4013, ADR 0053 point 8): the values over the owners
+// the root composes, and the adapters that bind those owners to the values
+// this graph composes itself.
+type PlatformWiring struct {
+	// SchoolSettings keeps the tenant settings on the school row of
+	// Organisation & Tenancy.
+	SchoolSettings settingsCompose.SchoolSettingsStore
+	// OperatorAuditLog is the operator ledger of the Audit Platform.
+	OperatorAuditLog platformModels.OperatorAuditLogRepository
+	// ParentPortal are the retained guardian-portal, parent-messaging and
+	// announcement repositories over their owners.
+	ParentPortal ParentPortalRepositories
+	// DeviceFleet is the unobserved Device Fleet the retained session and
+	// device contracts read.
+	DeviceFleet devicefleetModule.Capability
+	// ListExport renders the list documents.
+	ListExport *lists.RendererService
+
+	// Constructors over the values this graph composes.
+	DataAccessAudit            func(DataAccessAppender) presenceservice.DataAccessAudit
+	DeletionAudit              func(DataDeletionAppender) presenceservice.DeletionAudit
+	TimeTrackingRetentionAudit func(DataDeletionAppender) workforceCompose.DeletionAudit
+	GuardianDisplays           func(GuardianDisplayQuery) deliveryCompose.GuardianDisplayResolver
+	AnnouncementDeliveries     func(*deliveryModule.Module) communicationCompose.ParentAnnouncementDeliveryRecorder
+	EnrollmentDeliveries       func(*deliveryModule.Module) enrollmentCompose.EnrollmentDeletionDelivery
+	OperatorProvisioning       func(OperatorProvisioningSources) (organizationtenancy.Provisioning, error)
+	PWAUsageCounts             func(organizationtenancy.Provisioning) pwa.UsageCounts
+}
+
+// GuardianDisplayQuery names the guardians of the Delivery recipients.
+type GuardianDisplayQuery interface {
+	GuardianDisplays(context.Context, []int64) ([]peopleCompose.GuardianDisplay, error)
+}
+
+// OperatorProvisioningSources are the values of this graph the root binds
+// Organisation & Tenancy's operator provisioning over (#3253).
+type OperatorProvisioningSources struct {
+	Identity     *identityaccess.Module
+	Accounts     OperatorAccountDirectory
+	Devices      devicefleetModule.Capability
+	Sessions     *presenceCompose.SessionRecords
+	Supervisions studentpresence.SupervisionRecords
+	// Categories seeds the activity categories of a new school.
+	Categories interface {
+		CreateCategory(ctx context.Context, name, description, color string) error
+	}
+	Settings settingsCompose.SettingsService
+	Logger   *slog.Logger
+}
+
+// validate refuses a wiring with a missing value or constructor: the graph
+// binds every one of them while it composes.
+func (w PlatformWiring) validate() error {
+	required := []any{
+		w.SchoolSettings, w.OperatorAuditLog, w.ParentPortal.ParentAnnouncement, w.DeviceFleet, w.ListExport,
+		w.DataAccessAudit, w.DeletionAudit, w.TimeTrackingRetentionAudit, w.GuardianDisplays,
+		w.AnnouncementDeliveries, w.EnrollmentDeliveries, w.OperatorProvisioning, w.PWAUsageCounts,
+	}
+	for _, value := range required {
+		if value == nil || reflect.ValueOf(value).IsZero() {
+			return errors.New("the platform, Communication and Organisation & Tenancy wiring is incomplete")
+		}
+	}
+	return nil
 }
 
 // TimetableWiring is what the root binds of Timetable & Activities, the
@@ -1341,7 +1751,6 @@ func NewFactoryWithConfig(
 	appointmentCapability appointments.Capability,
 	communicationCapability communication.Capability,
 	observeCommunication func(communicationCompose.Observation),
-	observeCarePlan CarePlanObserver,
 	mealPlan parentportalcompose.MealPlanProvider,
 	bindMealPlanSettings MealPlanSettingsBinder,
 	feedbackCounter studentdeletioncompose.Feedback,
@@ -1353,18 +1762,26 @@ func NewFactoryWithConfig(
 	observeIdentityAccess IdentityAccessObserver,
 	workTime workforceModule.Capability,
 	workforce WorkforceWiring,
-	observeDataImport DataImportObserver,
 	productEvents ProductEventTracker,
 	fileStorage FileStorageWiring,
 	identityRoot IdentityRoot,
 	people PeopleWiring,
+	platform PlatformWiring,
 	presence PresenceWiring,
 	timetableWiring TimetableWiring,
+	carePlanWiring CarePlanWiring,
+	enrollmentWiring EnrollmentWiring,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
 	if !workforce.complete() {
 		return nil, errors.New("the root's Workforce wiring is required")
+	}
+	if err := platform.validate(); err != nil {
+		return nil, err
+	}
+	if err := enrollmentWiring.validate(); err != nil {
+		return nil, err
 	}
 	now := OptionalClock(clocks)
 	today := timezone.CalendarDateClock(now)
@@ -1390,24 +1807,17 @@ func NewFactoryWithConfig(
 	groupSubstitutionRepository := NewGroupSubstitutionRepository(groupRepository, membership, workTime)
 	// The repositories the retained services read are built here, over the
 	// owners this graph binds (#2743).
-	enrollmentModule := enrollmentCompose.New()
-	enrollmentRecords := NewEnrollmentBookingProjection(enrollmentModule)
+	enrollmentModule := enrollmentWiring.Bookings.Module
+	enrollmentRecords := enrollmentWiring.Bookings
 	// Student Presence and its session records come from the root, which
 	// composes them over the same owners (#4010).
 	sessionRecords := presence.SessionRecords
 	presenceModule := presence.Presence
-	presenceReads, err := arrivalTimetable.NewPresenceReads(db)
-	if err != nil {
-		return nil, fmt.Errorf("compose timetable presence reads: %w", err)
-	}
 	groupSupervisions := people.SupervisionRecords(sessionRecords)
 	staffAbsences := workforce.StaffAbsences
 	calendarPeriods := arrivalTimetable.NewCalendarPeriodRepository(calendar, arrivalTimetable.NewPlanningCalendarPeriodUsage(enrollmentModule, timetableCapability))
-	statusDays := NewStudentStatusDayRepository(carePlan)
-	parentPortal := NewParentPortalRepositories(db, ParentPortalOwners{
-		People: persons, Groups: groups, Membership: membership,
-		Identity: peopleIdentity, Enrollment: enrollmentModule, Now: now,
-	}).WithSchools(organizations)
+	statusDays := carePlanWiring.StatusDays
+	parentPortal := platform.ParentPortal
 	caregiverBindingLock := people.CaregiverBindingLock
 	settingsRuntime := settingsCompose.NewTenantSettingsRuntime(db, nil)
 
@@ -1431,52 +1841,24 @@ func NewFactoryWithConfig(
 	// Create scoped loggers for services that need them
 	activeLogger := logger.With("service", "active")
 	facilitiesLogger := logger.With("service", "facilities")
-	databaseLogger := logger.With("service", "database")
 	platformLogger := logger.With("service", "platform")
 	emailLogger := logger.With("component", "email")
 	auditLogger := logger.With("component", "audit-command")
-	auditTransactionRuntime := func(ctx context.Context) (bun.IDB, int64) {
-		auditTenantID := tenant.FromContext(ctx)
-		raw, ok := tenant.TransactionFromContext(ctx)
-		if !ok {
-			if allowAuditRootWrites {
-				return db, auditTenantID
-			}
-			return nil, auditTenantID
-		}
-		switch tx := raw.(type) {
-		case bun.Tx:
-			return tx, auditTenantID
-		case *bun.Tx:
-			if tx != nil {
-				return tx, auditTenantID
-			}
-		}
-		panic(fmt.Sprintf("audit command: unsupported transaction %T", raw))
-	}
-	auditReadRuntime := func(ctx context.Context) (bun.IDB, int64) {
-		transaction, tenantID := auditTransactionRuntime(ctx)
-		if transaction == nil {
-			return db, tenantID
-		}
-		return transaction, tenantID
-	}
 	// The Audit composition binds every retained Audit query adapter to the
 	// caller's transaction, tenant and read-only root DB fallback, and the
-	// append store to the authoritative transaction (ADR 0049). Writes are
-	// routed through the fail-closed command before services capture them.
-	audits, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{
-		Reads: auditReadRuntime, Appends: auditTransactionRuntime,
-	})
+	// append store to the authoritative transaction (ADR 0049); it reads the
+	// tenant runtime's ambient transaction itself (#4013). Writes are routed
+	// through the fail-closed command before services capture them.
+	audits, err := auditCompose.NewTenantPersistence(db, allowAuditRootWrites)
 	if err != nil {
 		return nil, err
 	}
-	auditCommand, err := newAuditCommand(audits.AppendStore, auditLogger, observeAuditAppend)
+	auditCommand, err := auditCompose.NewObservedCommand(audits.AppendStore, auditLogger, observeAuditAppend)
 	if err != nil {
 		return nil, err
 	}
 	audits = audits.WithRoutedWrites(auditCommand)
-	operatorAuditLog := NewOperatorAuditLog(db)
+	operatorAuditLog := platform.OperatorAuditLog
 	if err := presence.BindClassListEntries(auditCommand); err != nil {
 		return nil, err
 	}
@@ -1601,7 +1983,7 @@ func NewFactoryWithConfig(
 	settingsService := settingsCompose.NewSettingsServiceWithHomeLayouts(
 		settingsCompose.NewSettingValueRepository(settingsRuntime),
 		settingsCompose.NewSettingAuditRepository(settingsRuntime),
-		NewSchoolSettingsStore(organizations),
+		platform.SchoolSettings,
 		settingsRuntime,
 		logger,
 		homeLayoutService,
@@ -1629,36 +2011,9 @@ func NewFactoryWithConfig(
 			},
 		)
 	}
-	// Wire the enrollment class-restriction probe so the settings service can
-	// refuse disabling concrete-class collection while an active phase
-	// restricts eligibility to specific classes (#1663). Runs inside the
-	// caller's tenant tx, so the phase lookup is RLS-scoped.
-	if guarded, ok := settingsService.(interface {
-		SetClassRestrictionGuard(func(context.Context) (bool, error))
-	}); ok {
-		guarded.SetClassRestrictionGuard(func(ctx context.Context) (bool, error) {
-			return enrollmentRecords.HasActiveClassRestrictedPhase(ctx)
-		})
-	}
-	// Same for the grade-level restriction, which survives concrete-class
-	// collection being off but not grade-level collection (#1663).
-	if guarded, ok := settingsService.(interface {
-		SetGradeRestrictionGuard(func(context.Context) (bool, error))
-	}); ok {
-		guarded.SetGradeRestrictionGuard(func(ctx context.Context) (bool, error) {
-			return enrollmentRecords.HasActiveGradeRestrictedPhase(ctx)
-		})
-	}
-	// And the cap probe, so enrollment.grade_level_max cannot be lowered below
-	// a grade an active phase already restricts itself to — which would leave
-	// that phase with no selectable eligible grade at all (#1663).
-	if guarded, ok := settingsService.(interface {
-		SetGradeCapGuard(func(context.Context) (int, error))
-	}); ok {
-		guarded.SetGradeCapGuard(func(ctx context.Context) (int, error) {
-			return enrollmentRecords.MaxActivePhaseGrade(ctx)
-		})
-	}
+	// Enrollment's active phase restrictions guard the collection settings
+	// (#1663); the root binds them.
+	enrollmentWiring.BindSettingsGuards(settingsService)
 
 	// Replies to tenant-bound mail belong to the OGS, not to moto (#1936).
 	// Built once here and shared by every tenant-bound sender.
@@ -1732,7 +2087,7 @@ func NewFactoryWithConfig(
 		StudentRepo:      studentRepository,
 		TeacherRepo:      teacherRepository,
 		StaffDirectory:   staffDirectory,
-		CareParticipation: CareParticipationResolver(func() careplan.CareParticipation {
+		CareParticipation: carePlanWiring.CareParticipation(func() careplan.CareParticipation {
 			return careParticipation
 		}),
 	})
@@ -1773,14 +2128,6 @@ func NewFactoryWithConfig(
 	// School-defined Abwesenheitsarten (#2403): the time-tracking services
 	// resolve custom names on both the write path (which base type an art
 	// inherits) and the read paths.
-	// The retained device and unregistered-tag-scan contracts read the
-	// unobserved Device Fleet composition the repository factory built
-	// (#2676); the observed module composed below serves the IoT routes.
-	legacyDeviceFleet, err := NewDeviceFleet(db)
-	if err != nil {
-		return nil, err
-	}
-	legacyDevices := devicefleetRepositoryAdapter.NewDeviceRepository(legacyDeviceFleet)
 	// Parent and staff messages belong to Communication; the stores are
 	// built where the message services use them.
 	parentMessages := parentStore.NewParentMessageRepository(db)
@@ -1837,7 +2184,7 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable attendance mirror: %w", err)
 	}
-	approvedOfferingProjection := enrollmentCompose.NewApprovedOfferingProjection(enrollmentRecords, OfferingStudents{Query: persons})
+	approvedOfferingProjection := enrollmentWiring.ApprovedOfferings
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(carePlan, approvedOfferingProjection, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
@@ -1848,18 +2195,7 @@ func NewFactoryWithConfig(
 	// with enrollment.bookings_authoritative on, the approved bookings supply
 	// the care days (#2414, ADR 0005). The care-day resolver reads through it
 	// so a stale row on an unbooked weekday stops marking a child expected.
-	classArrivalQueries, err := arrivalTimetable.NewClassArrivals(db, func(observation arrivalTimetable.Observation) {
-		logger.Debug("class arrival query",
-			"operation", observation.Operation,
-			"duration", observation.Duration,
-			"queries", observation.Stats.Queries,
-			"rows", observation.Stats.Rows,
-			"error", observation.Err)
-	})
-	if err != nil {
-		return nil, err
-	}
-	arrivalBaselines, err := NewArrivalBaselines(carePlan, persons, classArrivalQueries, approvedOfferingProjection, func(ctx context.Context) (bool, error) {
+	arrivalBaselines, err := carePlanWiring.ArrivalBaselines(approvedOfferingProjection, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
@@ -1975,23 +2311,17 @@ func NewFactoryWithConfig(
 	// recurrence resources. Room/timeframe FKs use ON DELETE SET NULL, so those
 	// delete services must preflight the same materializability invariant as
 	// template and calendar-period mutations.
-	// The decision service that keeps offering-sourced rosters and the pickup
-	// projection in step is composed later; the catalog resolves it on every
-	// edit (#2147 review).
-	var careOfferingResyncer careOfferingResync
-	resyncSourcedTemplates, resyncPickup := lateCareOfferingResync(&careOfferingResyncer)
-	enrollmentCareOfferingService, err := NewCareOfferingCatalog(CareOfferingCatalogInputs{
-		Records:          carePlan,
-		Phases:           enrollmentRecords,
-		Bookings:         enrollmentRecords,
-		Timetable:        timetableCapability,
-		Calendar:         calendar,
-		Settings:         settingsService,
-		SourcedTemplates: resyncSourcedTemplates,
-		Pickup:           resyncPickup,
-		LockRecurrence:   recurrenceLock.LockRecurrenceWrites,
-		Today:            today,
-		Logger:           logger.With("service", "enrollment-care-offering"),
+	// The booking materialization that keeps offering-sourced rosters and the
+	// pickup projection in step is composed later; the catalog resolves it on
+	// every edit (#2147 review).
+	var careBookings careplan.BookingMaterializationCapability
+	enrollmentCareOfferingService, err := carePlanWiring.OfferingCatalog(CareOfferingCatalogSources{
+		Enrollment:     enrollmentRecords,
+		Settings:       settingsService,
+		Resync:         func() careplan.BookingMaterializationCapability { return careBookings },
+		LockRecurrence: recurrenceLock.LockRecurrenceWrites,
+		Today:          today,
+		Logger:         logger.With("service", "enrollment-care-offering"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose care offering catalog: %w", err)
@@ -2058,19 +2388,15 @@ func NewFactoryWithConfig(
 	// Later pickups open a block decision for the Leitung (#3261).
 	pickupAutoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
 		DB: db, Records: carePlan, Baselines: pickupBaselines,
-		Blocks: presenceModule, Preview: NewPickupExcusalTimetable(timetableCapability, presence.PartialAbsencePreview), Extensions: NewPickupExcusalTimetable(timetableCapability, presence.PartialAbsencePreview),
+		Blocks: presenceModule, Preview: carePlanWiring.PickupExcusalTimetable, Extensions: carePlanWiring.PickupExcusalTimetable,
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	// Initialize pickup schedule service
-	pickupStudents, err := PickupPlanStudents(persons)
-	if err != nil {
-		return nil, err
-	}
 	pickupScheduleService, err := careplanCompose.NewPickupSchedules(db, carePlan, pickupBaselines,
-		pickupAutoExcusal, pickupStudents, logger.With("service", "pickup-schedule"))
+		pickupAutoExcusal, carePlanWiring.PickupStudents, logger.With("service", "pickup-schedule"))
 	if err != nil {
 		return nil, err
 	}
@@ -2234,7 +2560,7 @@ func NewFactoryWithConfig(
 	// tenant's retention window. Per-staff audit rows via DataDeletion
 	// (staff_id subject, added in migration 1.15.58).
 	timeTrackingCleanupService, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
-		Workforce: workTime, Absences: staffAbsences, Audit: NewTimeTrackingRetentionAudit(audits.DataDeletion),
+		Workforce: workTime, Absences: staffAbsences, Audit: platform.TimeTrackingRetentionAudit(audits.DataDeletion),
 		Settings: settingsCompose.PresenceSettings(settingsService), Logger: logger.With("service", "time-tracking-cleanup"),
 	})
 	if err != nil {
@@ -2259,15 +2585,7 @@ func NewFactoryWithConfig(
 		return nil, fmt.Errorf("compose timetable auto start and end: %w", err)
 	}
 
-	classExceptions, err := NewClassArrivalExceptions(classArrivalQueries, persons)
-	if err != nil {
-		return nil, err
-	}
-	arrivalRules, arrivalDeps, err := ArrivalScheduleBinding(persons, ClassArrivalPlans(classArrivalQueries), classExceptions, logger.With("service", "arrival-schedule"))
-	if err != nil {
-		return nil, err
-	}
-	arrivalScheduleService, err := careplanCompose.NewArrivalSchedules(db, carePlan, arrivalBaselines, arrivalRules, arrivalDeps)
+	arrivalScheduleService, err := careplanCompose.NewArrivalSchedules(db, carePlan, arrivalBaselines, carePlanWiring.ArrivalRules, carePlanWiring.ArrivalDependencies)
 	if err != nil {
 		return nil, err
 	}
@@ -2312,7 +2630,7 @@ func NewFactoryWithConfig(
 		platformModels.EmailKindAppointmentCancelled: appointmentRenderer,
 		platformModels.EmailKindAppointmentReminder:  appointmentRenderer,
 	}
-	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
+	for kind, renderer := range enrollmentWiring.MailRenderers(defaultFrom) {
 		renderers[kind] = renderer
 	}
 	for kind, renderer := range identity.MailRenderers {
@@ -2328,14 +2646,14 @@ func NewFactoryWithConfig(
 	}
 	deliveryRuntime, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB:     db,
-		People: GuardianDisplayResolver{Query: guardianService},
-		Provider: &DeliveryProvider{
+		People: platform.GuardianDisplays(guardianService),
+		Provider: &deliveryCompose.MailPushProvider{
 			Registry: emailTemplateRegistry, Mailer: mailer, MailIdentity: tenantMailIdentity,
 			Push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
 				Subscriber: vapidConfig.Subscriber, PublicKey: vapidConfig.PublicKey, PrivateKey: vapidConfig.PrivateKey,
-			}, NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushSubscriptions)),
+			}, deliveryCompose.NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(db), pushSubscriptions)),
 			Logger: logger.With("service", "delivery"), Tenants: deliveryCompose.NewTenantTransactions(db),
-			PushAuthorized: NewPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushSubscriptions),
+			PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(db), pushSubscriptions),
 		},
 		Observe: func(observation deliveryModule.Observation) {
 			observeDurableDelivery(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
@@ -2346,7 +2664,7 @@ func NewFactoryWithConfig(
 	}
 	deliveryForIdentity = deliveryRuntime
 	emailOutboxWorker := deliveryRuntime.Worker
-	emailOutboxService = emailoutbox.NewService(DurableEmailAdapter{Module: deliveryRuntime.Module})
+	emailOutboxService = emailoutbox.NewService(deliveryCompose.NewDurableEmails(deliveryRuntime.Module))
 
 	caregiverCapabilityService := peopleCompose.NewCaregiverCapabilityService(peopleCompose.CaregiverCapabilityServiceDependencies{
 		RequestActorScope:      identityRoot.ActorScope,
@@ -2399,46 +2717,11 @@ func NewFactoryWithConfig(
 		Now: now,
 	})
 
-	// Initialize database stats service
-	databaseService := transactionruntime.NewDatabaseStats(transactionruntime.DatabaseStatsDependencies{
-		Students: func(ctx context.Context) (int, error) {
-			return studentRepository.CountEnrolled(ctx)
-		},
-		Teachers: func(ctx context.Context) (int, error) {
-			rows, err := staffRepository.List(ctx, nil)
-			return len(rows), err
-		},
-		Rooms: func(ctx context.Context) (int, error) {
-			rows, err := roomRepository.List(ctx, nil)
-			return len(rows), err
-		},
-		Activities: func(ctx context.Context) (int, error) {
-			rows, err := timetableRepos.ActivityGroup.List(ctx, nil)
-			return len(rows), err
-		},
-		Groups: func(ctx context.Context) (int, error) {
-			rows, err := groupRepository.List(ctx, nil)
-			return len(rows), err
-		},
-		Roles: func(ctx context.Context) (int, error) {
-			rows, err := identityAccess.ListRoles(ctx, identityaccess.RoleFilter{})
-			return len(rows), err
-		},
-		Devices: func(ctx context.Context) (int, error) {
-			rows, err := legacyDevices.List(ctx, nil)
-			return len(rows), err
-		},
-		PermissionCount: func(ctx context.Context) (int, error) {
-			rows, err := identityAccess.ListPermissions(ctx, identityaccess.PermissionFilter{})
-			return len(rows), err
-		},
-	}, databaseLogger)
-
 	// Initialize cleanup service
 	activeCleanupService := presenceservice.NewPresenceCleanup(
 		presenceModule,
 		sessionSupervisors,
-		NewDeletionAudit(audits.DataDeletion),
+		platform.DeletionAudit(audits.DataDeletion),
 		settingsCompose.PresenceSettings(settingsService),
 		today,
 	)
@@ -2448,51 +2731,22 @@ func NewFactoryWithConfig(
 	// repositories (#2699); it is the same module instance the auth service
 	// delegates its session flows to.
 	guardianAccess := identityAccess
-	// Data Import (#2708): every accepted row is committed through the owner
-	// commands the composer binds. The observer records rows
-	// parsed/accepted/rejected per run without personal data.
-	dataImports := NewImports(ImportWiring{
-		Identity:      guardianAccess,
-		Organizations: organizations,
-		Groups:        groups, Rooms: rooms,
-		Persons: persons, Membership: membership, Workforce: workTime,
-		CarePlan: carePlan, Presence: presenceModule,
-		InvitationService: identityAccess,
-		OpeningBalance: importService.OpeningBalanceImportDeps{
-			BalanceAdjustService: timeTracking.OpeningBalances,
-			StaffAbsenceService:  timeTracking.VacationTakeovers,
-		},
-		ConsentHistory: auditCompose.NewConsentRecorder(auditCommand),
-		Audit:          auditCommand,
-		Observe: func(observation importService.ImportObservation) {
-			observeDataImport(observation)
-		},
-	})
-
-	enrollmentCollection := enrollmentCollectionSettings{settings: settingsService}
-	enrollmentFormSchemaService := enrollmentCompose.NewFormSchemas(enrollmentRecords, enrollmentCollection, logger.With("service", "enrollment-form-schema"))
-
-	enrollmentCaptchaService := enrollmentCompose.NewCaptcha(enrollmentCaptchaSettings{settings: settingsService}, "", logger.With("service", "enrollment-captcha"))
 
 	// Enrollment brands its mails and notifies decisions through the Delivery
 	// outbox; the retained request, decision, change-request and rollover
 	// services share this capability.
-	enrollmentNotifications := NewEnrollmentNotifications(enrollmentRecords, settingsService,
-		OutboxEnqueuer{Outbox: emailOutboxService}, people.EnrollmentSchools)
+	enrollmentNotifications := enrollmentWiring.Notifications(settingsService, OutboxEnqueuer{Outbox: emailOutboxService})
 
 	// The admin deletion and the retention cleanup of rejected enrollments
 	// share one impact preview (#3564).
-	enrollmentDeletions := NewEnrollmentDeletionModule(EnrollmentDeletionSources{
-		Owner: enrollmentRecords, Guardians: enrollmentGuardianDirectory{persons},
+	enrollmentDeletions := enrollmentWiring.Deletions(EnrollmentDeletionSources{
+		Owner: enrollmentRecords, Guardians: enrollmentWiring.Guardians,
 		CountAuditAdjustments: audits.EnrollmentOfferingAdjustment.CountForDeletion,
 		CountBookings:         carePlan.CountCareOfferingBookings,
 		Audit:                 audits.EnrollmentDeletionAudit,
-		Delivery: enrollmentDeliveryAdapter{module: deliveryRuntime.Module, tenantID: func(ctx context.Context) (int64, error) {
-			id, err := tenant.TenantFromContext(ctx)
-			return id.Int64(), err
-		}},
-		Settings: settingsService,
-		Logger:   logger,
+		Delivery:              platform.EnrollmentDeliveries(deliveryRuntime.Module),
+		Settings:              settingsService,
+		Logger:                logger,
 	})
 	enrollmentDeletionService := enrollmentDeletions.Deletions
 	enrollmentRejectedCleanupService := enrollmentDeletions.Cleanup
@@ -2502,32 +2756,17 @@ func NewFactoryWithConfig(
 	// (#2147 review). The booking materialization composed below provides
 	// the resync; the phase administration resolves it on every edit.
 	var phaseSourcedTemplates enrollmentOwner.SourcedTemplateResyncer
-	enrollmentPhaseService := enrollmentCompose.NewPhases(enrollmentCompose.PhaseDependencies{
-		Records:                         enrollmentRecords,
-		Offerings:                       enrollmentPhaseOfferings{carePlan: carePlan},
-		Calendar:                        calendar,
+	enrollmentPhaseService := enrollmentWiring.Phases(EnrollmentPhaseSources{
 		LockTemplateRecurrence:          recurrenceLock.LockRecurrenceWrites,
-		ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(enrollmentCareOfferingService),
+		ValidateCareOfferingPhaseChange: carePlanWiring.OfferingPhaseGuard(enrollmentCareOfferingService),
 		SourcedTemplates:                func() enrollmentOwner.SourcedTemplateResyncer { return phaseSourcedTemplates },
-		Settings:                        enrollmentCollection,
-		Roster:                          phaseResponseRoster{query: persons},
-		CareExits:                       phaseResponseCareExits{query: carePlan},
-		PortalAccounts:                  persons,
+		Settings:                        settingsService,
 		Logger:                          logger.With("service", "enrollment-phase"),
 	})
-	enrollmentPhaseExpiryService := enrollmentCompose.NewPhaseExpiryWarnings(enrollmentCompose.NewPhaseExpirySnapshots(
-		enrollmentRecords, phaseExpiryStudents{query: persons}, phaseExpiryCarePlanDirectory{query: carePlan},
-		enrollmentRecords,
-	))
 
 	studentAuditService := peopleCompose.NewStudentAuditService(identityRoot.AuditActor, people.StudentAudit)
 	careLifecycleService, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
-		DB: db, Records: carePlan,
-		Owners: NewCareLifecycleOwners(CareLifecycleOwnerSources{
-			Students: studentRepository, Persons: personRepository, Membership: membership,
-			People: persons, Timetable: timetableCapability, Calendar: calendar,
-			Presence: presence.UnloggedPresence, PlanReads: presenceReads,
-		}, NewCareEndRecorder(studentAuditService)),
+		DB: db, Records: carePlan, Owners: carePlanWiring.LifecycleOwners,
 		LockCareBookingWrites: recurrenceLock.LockRecurrenceWrites,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
 			return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
@@ -2542,38 +2781,23 @@ func NewFactoryWithConfig(
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
 	// Offering-sourced weekly Gehzeit changes move the same baseline a staff
 	// weekly edit does, so they re-derive the auto excusals of the students'
-	// future day exceptions too (#2360). The wrapper reuses an ambient tenant
-	// transaction and opens one otherwise — the resync's care-day locks are
-	// transaction-scoped.
-	resyncPickupAutoExcusals := func(ctx context.Context, studentIDs []int64) error {
-		return tenant.WithTenantTx(ctx, db, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
-			for _, studentID := range studentIDs {
-				if err := pickupAutoExcusal.ResyncFutureExceptions(txCtx, studentID); err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-	}
+	// future day exceptions too (#2360), in Care Plan's own unit of work.
 	// Care Plan's booking materialization (#3560): the rosters an approval
 	// derives, the offering-sourced Regeltermine, the dated offering
 	// adjustments and the offering pickup times. Sourced-roster resyncs also
 	// refresh already-materialized future occurrences (#2147 review) through
 	// the Timetable roster reconciliation.
-	careBookings, err := NewBookingMaterialization(BookingMaterializationInputs{
-		Catalog: enrollmentCareOfferingService, Timetable: timetableCapability, Rosters: rosterReconciler,
-		Students: persons, Periods: calendar, Enrollment: enrollmentRecords,
-		Approved: enrollmentCompose.NewApprovedOfferingProjection(enrollmentRecords, OfferingStudents{Query: persons}),
-		Settings: settingsService, Bookings: carePlan, Withdrawals: careLifecycleService,
-		Adjustments: audits.EnrollmentOfferingAdjustment, Persons: personRepository, Accounts: guardianAccess,
-		Pickup: pickupBaselines, PickupRows: carePlan,
-		LockRecurrence:              recurrenceLock.LockRecurrenceWrites,
-		ResyncPickupAutoExcusals:    resyncPickupAutoExcusals,
-		ClearPickupWeekdayExtension: timetableCapability.ClearPickupWeekdayExtension,
-		Broadcaster:                 realtimeHub,
-		GuardianNotifier:            pillEmitter,
-		Today:                       today,
-		Logger:                      logger.With("service", "care-plan-bookings"),
+	careBookings, err = carePlanWiring.BookingMaterialization(BookingMaterializationSources{
+		Catalog: enrollmentCareOfferingService, Rosters: rosterReconciler, Enrollment: enrollmentRecords,
+		Approved: approvedOfferingProjection,
+		Settings: settingsService, Withdrawals: careLifecycleService,
+		Adjustments: audits.EnrollmentOfferingAdjustment, Accounts: guardianAccess, Pickup: pickupBaselines,
+		LockRecurrence:           recurrenceLock.LockRecurrenceWrites,
+		ResyncPickupAutoExcusals: pickupAutoExcusal.ResyncFutureExceptions,
+		Broadcaster:              realtimeHub,
+		GuardianNotifier:         pillEmitter,
+		Today:                    today,
+		Logger:                   logger.With("service", "care-plan-bookings"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose care plan booking materialization: %w", err)
@@ -2581,7 +2805,7 @@ func NewFactoryWithConfig(
 	// Care Plan's offerings in the enrollment rows the decision flow, the
 	// intake, the change requests, the capacity gate and the reports read.
 	enrollmentCareOfferings := enrollmentCompose.NewCareOfferingRecords(carePlan)
-	enrollmentDecisions := NewEnrollmentDecisions(EnrollmentDecisionSources{
+	enrollmentDecisions := enrollmentWiring.Decisions(EnrollmentDecisionSources{
 		Requests:               enrollmentRecords,
 		Children:               enrollmentRecords,
 		Guardians:              enrollmentRecords,
@@ -2597,7 +2821,7 @@ func NewFactoryWithConfig(
 		Staff:                  staffRepository,
 		Students:               studentRepository,
 		StudentEnrollment:      persons,
-		Companions:             NewStudentCompanionRepository(carePlan),
+		Companions:             carePlanWiring.Companions,
 		DeleteCompanions:       carePlan.DeleteCompanionEdges,
 		StudentGuardians:       studentGuardianRepository,
 		GuardianFinancialAudit: audits.GuardianFinancialChange,
@@ -2616,24 +2840,10 @@ func NewFactoryWithConfig(
 		Settings:               settingsService,
 		LockTemplateRecurrence: recurrenceLock.LockRecurrenceWrites,
 		Pickups: enrollmentCompose.WeeklyPickupHooks{
-			// An approved weekly Gehzeit plan takes the student lock BEFORE its
-			// weekly rows — the same student → schedule-row → care-day lock
-			// order the staff weekly editors use, so the writers cannot
-			// deadlock against each other (#2360 review). Uses the ambient
-			// tenant transaction; missing students (concurrent offboarding)
-			// are skipped.
-			LockStudents: func(ctx context.Context, studentIDs []int64) error {
-				for _, studentID := range studentIDs {
-					if err := persons.LockStudent(ctx, studentID); err != nil {
-						if errors.Is(err, peopledirectory.ErrStudentNotFound) {
-							continue
-						}
-						return err
-					}
-				}
-				return nil
-			},
-			ResyncExcusal: resyncPickupAutoExcusals,
+			// An approved weekly Gehzeit plan takes the student locks in Care
+			// Plan's lock order before its weekly rows (#2360 review).
+			LockStudents:  careplanCompose.LockWeeklyPickupStudents(carePlanWiring.PickupStudentLocks),
+			ResyncExcusal: pickupAutoExcusal.ResyncFutureExceptions,
 			Snapshot: func(ctx context.Context, studentID int64, date timezone.Date) (map[int]string, error) {
 				return pickupAutoExcusal.SnapshotWeeklyPickups(ctx, studentID, date)
 			},
@@ -2666,12 +2876,11 @@ func NewFactoryWithConfig(
 	// change re-bounds the rosters derived from its offerings. The catalog and
 	// the phase administration resolve the booking materialization composed
 	// here on every edit.
-	careOfferingResyncer = careBookings
 	phaseSourcedTemplates = careBookings
 
 	// One capacity gate for the submissions, their edits, the change-request
 	// approvals and the restore of a withdrawn request.
-	enrollmentOfferingCapacity := NewEnrollmentOfferingCapacity(enrollmentCareOfferings, enrollmentRecords, settingsService)
+	enrollmentOfferingCapacity := enrollmentWiring.Capacity(settingsService)
 	// Consent rows back both the notification preferences below and the
 	// opt-in "Neue Anmeldung" mail of the intake (#3780).
 	notificationConsent, err := communicationCompose.NewNotificationConsent(communicationCompose.NotificationConsentConfig{
@@ -2681,11 +2890,11 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, err
 	}
-	enrollmentRequestService := NewEnrollmentIntake(EnrollmentIntakeSources{
+	enrollmentRequestService := enrollmentWiring.Intake(EnrollmentIntakeSources{
 		Requests:           enrollmentRecords,
 		ParentChanges:      enrollmentRecords,
 		Children:           enrollmentRecords,
-		Bookings:           EnrollmentCareBookingAdapter{Owner: carePlan},
+		Bookings:           enrollmentWiring.CareBookings,
 		Guardians:          enrollmentRecords,
 		LateInviteRepo:     enrollmentRecords,
 		CareOfferingRepo:   enrollmentCareOfferings,
@@ -2698,14 +2907,14 @@ func NewFactoryWithConfig(
 		RateLimitRepo:      enrollmentRecords,
 		OutboxEnqueuer:     OutboxEnqueuer{Outbox: emailOutboxService},
 		Settings:           settingsService,
-		AdminSubscribers:   NewEnrollmentAdminSubscribers(notificationConsent, identityAccess),
+		AdminSubscribers:   enrollmentWiring.AdminSubscribers(notificationConsent, identityAccess),
 		ManualDecider:      enrollmentDecisions,
 		FrontendURL:        frontendURL, // admin notification email
 		ParentsURL:         parentsURL,  // parent confirmation/status emails
 		Logger:             logger.With("service", "enrollment-request"),
 	})
 
-	enrollmentReports := NewEnrollmentReports(EnrollmentReportSources{
+	enrollmentReports := enrollmentWiring.Reports(EnrollmentReportSources{
 		Owner:             enrollmentRecords,
 		Offerings:         enrollmentCareOfferings,
 		AccessLog:         audits.DataAccessLog,
@@ -2713,7 +2922,7 @@ func NewFactoryWithConfig(
 		Persons:           personRepository,
 		Groups:            education.NewGroupNames(groupRepository),
 		StudentGuardians:  studentGuardianRepository,
-		Companions:        NewStudentCompanionRepository(carePlan),
+		Companions:        carePlanWiring.Companions,
 		ClassListEntries:  presence.ClassListEntries,
 		PickupSchedules:   pickupScheduleService,
 		CareParticipation: careLifecycleService,
@@ -2729,7 +2938,7 @@ func NewFactoryWithConfig(
 		PickupTimes:            pickupScheduleService,
 		ArrivalTimes:           arrivalScheduleService,
 		CareDays:               careDayService,
-		Companions:             NewStudentCompanionRepository(carePlan),
+		Companions:             carePlanWiring.Companions,
 		Students:               studentRepository,
 		Persons:                personRepository,
 		StudentGuardians:       studentGuardianRepository,
@@ -2741,33 +2950,18 @@ func NewFactoryWithConfig(
 		Logger:                 logger.With("service", "class-day-arrival-exceptions"),
 	})
 
-	studentService := peopleCompose.NewStudentService(
-		peopleCompose.NewStudentDirectory(persons),
-		persons,
-		studentRepository,
-	)
-	// Created before the change-request service: its multi-child approval takes
-	// the companion lock order through this service.
-	companionService, err := careplanCompose.NewCompanions(carePlan, NewCompanionStudents(studentRepository, persons, studentAuditService))
-	if err != nil {
-		return nil, fmt.Errorf("compose care plan companions: %w", err)
-	}
-
 	// Child documents (#777): metadata, per-category authority and the
 	// per-child access gate for the Dokumente tab. Needs the user context to
 	// answer "is this caller verified staff", so it is wired after it.
-	studentDocumentDeps, err := StudentDocumentDependencies(carePlan, studentRepository, userContextService, audits.StudentFieldEdit, audits.DataAccessLog)
-	if err != nil {
-		return nil, fmt.Errorf("compose care plan documents: %w", err)
-	}
-	studentDocumentDeps.DB = db
-	studentDocumentService, err := careplanCompose.NewStudentDocuments(studentDocumentDeps)
+	studentDocumentService, err := carePlanWiring.StudentDocuments(StudentDocumentSources{
+		Caller: userContextService, Edits: audits.StudentFieldEdit, AccessLog: audits.DataAccessLog,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("compose care plan documents: %w", err)
 	}
 
-	enrollmentChangeRequestService := NewEnrollmentChangeRequests(EnrollmentChangeRequestSources{
-		Bookings:             EnrollmentCareBookingAdapter{Owner: carePlan},
+	enrollmentChangeRequestService := enrollmentWiring.ChangeRequests(EnrollmentChangeRequestSources{
+		Bookings:             enrollmentWiring.CareBookings,
 		Requests:             enrollmentRecords,
 		Children:             enrollmentRecords,
 		Guardians:            enrollmentRecords,
@@ -2778,13 +2972,13 @@ func NewFactoryWithConfig(
 		Notifications:        enrollmentNotifications,
 		GuardianProfileRepo:  guardianProfileRepository,
 		GuardianPhoneRepo:    guardianPhoneRepository,
-		GuardianInvitations:  enrollmentGuardianInvitationAvailability{invitations: identityAccess},
+		GuardianInvitations:  enrollmentWiring.GuardianInvitations(identityAccess),
 		PersonRepo:           personRepository,
 		StudentRepo:          studentRepository,
 		GuardianAuthorizer:   studentGuardianRepository,
 		Decisions:            enrollmentDecisions,
 		BookingGates:         careBookings,
-		CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: companionService, strandings: studentRepository},
+		CompanionGraphLocker: carePlanWiring.CompanionGraph,
 		Settings:             settingsService,
 		OutboxEnqueuer:       OutboxEnqueuer{Outbox: emailOutboxService},
 		FrontendURL:          frontendURL,
@@ -2794,8 +2988,8 @@ func NewFactoryWithConfig(
 
 	// The rollover approves auto-renewed rows through the decision flow on
 	// the rollover_auto_approve=true deadline path.
-	enrollmentRolloverService := NewEnrollmentRollovers(EnrollmentRolloverSources{
-		Bookings:         EnrollmentCareBookingAdapter{Owner: carePlan},
+	enrollmentRolloverService := enrollmentWiring.Rollovers(EnrollmentRolloverSources{
+		Bookings:         enrollmentWiring.CareBookings,
 		Phases:           enrollmentRecords,
 		Requests:         enrollmentRecords,
 		Children:         enrollmentRecords,
@@ -2808,7 +3002,7 @@ func NewFactoryWithConfig(
 		ParentsURL:       parentsURL,
 		Logger:           logger.With("service", "enrollment-rollover"),
 	})
-	requestReviewPolicy := NewParentRequestReviewPolicy(callerContext.ParentRequestReviews)
+	requestReviewPolicy := carePlanWiring.ReviewPolicy(callerContext.ParentRequestReviews)
 
 	// One append-only ledger for every parent request, shared by all four
 	// domains so a request's history survives edits, decisions and corrections
@@ -2829,35 +3023,23 @@ func NewFactoryWithConfig(
 	// Care-schedule change requests (#1803): the schedule-domain request
 	// lifecycle (create / withdraw / staff decide + apply), decoupled from the
 	// chat.
-	careRequestService := NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-		carePlan,
-		persons,
-		arrivalScheduleService,
-		pickupScheduleService,
-		presenceModule,
-		pickupAutoExcusal,
-		carePlan,
-		userContextService,
-		pillEmitter,
-		realtimeHub,
-		requestReviewPolicy,
-		identityRoot.Permissions,
-		parentRequestEvents,
-		logger.With("service", "care-requests"),
-		studentAuditService,
-		WithRequestShareVisibility(requestShares),
-		WithCareRequestToday(today),
-	)
+	careRequestService := carePlanWiring.CareRequests(CareRequestSources{
+		Arrivals: arrivalScheduleService, Pickups: pickupScheduleService, AutoExcusal: pickupAutoExcusal,
+		Staff: userContextService, Emitter: pillEmitter, Broadcaster: realtimeHub,
+		Reviews: requestReviewPolicy, Permissions: identityRoot.Permissions, Events: parentRequestEvents,
+		Audit: studentAuditService, Shares: requestShares, Today: today,
+		Logger: logger.With("service", "care-requests"),
+	})
 
 	// Post-enrollment offering changes (#1665, #3561): the parents portal
 	// submits them, staff decide them on the same review page, and an
 	// approval applies the switch through Care Plan's dated offering
 	// adjustment. Permanent pickup-time changes switch to a matching offering
 	// through the same review.
-	offeringChanges, err := NewOfferingChanges(OfferingChangeInputs{
+	offeringChanges, err := enrollmentWiring.OfferingChanges(OfferingChangeInputs{
 		CarePlan: carePlan, Enrollment: enrollmentRecords, Students: studentRepository,
-		Withdrawals: NewCareWithdrawalCompletionRepository(carePlan), Settings: settingsService,
-		Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db), CourseGroups: timetableCapability},
+		Withdrawals: carePlanWiring.Withdrawals, Settings: settingsService,
+		Planning: enrollmentWiring.OfferingPlanning,
 		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: identityRoot.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Shares: requestShares, Today: today,
 		Logger: logger.With("service", "offering-change-requests"),
@@ -2865,10 +3047,10 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, fmt.Errorf("compose care plan offering changes: %w", err)
 	}
-	pickupAdjustments, err := NewPickupAdjustments(PickupAdjustmentInputs{
-		CarePlan: carePlan, PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
+	pickupAdjustments, err := carePlanWiring.PickupAdjustments(PickupAdjustmentSources{
+		PickupSchedules: pickupScheduleService, ArrivalSchedules: arrivalScheduleService,
 		Baselines: pickupBaselines, Offerings: offeringChanges, Settings: settingsService,
-		Audit: studentAuditService, Students: studentRepository, Today: today,
+		Audit: studentAuditService, Today: today,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose care plan pickup adjustments: %w", err)
@@ -2935,12 +3117,10 @@ func NewFactoryWithConfig(
 	// writes the excused status days directly. The workflow is owned by Care
 	// Plan (#3093); this root adapts the legacy directories, the review policy,
 	// and the effect sinks. The sharing port is the lazy requestShares above.
-	excusedRequestService, err := NewExcusedAbsenceRequestService(ExcusedRequestServiceWiring{
-		CarePlan: carePlan, Students: studentRepository, Persons: personRepository,
-		Scope:   ParentRequestReviewScope(requestReviewPolicy, identityRoot.Permissions),
+	excusedRequestService, err := carePlanWiring.ExcusedRequests(ExcusedRequestSources{
+		Reviews: requestReviewPolicy, Permissions: identityRoot.Permissions,
 		Emitter: pillEmitter, Broadcaster: realtimeHub, Events: parentRequestEvents,
-		notifier: absenceNotifier, observe: observeCarePlan,
-		shares: requestShares,
+		Notifier: absenceNotifier, Shares: requestShares,
 		Logger: logger.With("service", "excused-requests"),
 	})
 	if err != nil {
@@ -3047,9 +3227,9 @@ func NewFactoryWithConfig(
 		Settings:                  settingsService,
 		Broadcaster:               realtimeHub,
 		PersonRepo:                personRepository,
-		ChangeRequestRepo:         NewStudentDataChangeRequestRepository(carePlan),
-		CareRequestRepo:           NewCareScheduleChangeRequestRepository(carePlan),
-		ExcusedRequestRepo:        NewExcusedAbsenceRequestRepository(carePlan),
+		ChangeRequestRepo:         carePlanWiring.DataChangeRequests,
+		CareRequestRepo:           carePlanWiring.CareScheduleRequests,
+		ExcusedRequestRepo:        carePlanWiring.ExcusedRequestRows,
 		OfferingChangeRequestRepo: enrollmentCompose.NewOfferingChangeRecords(carePlan),
 		FamilyProtectionEvents:    familyProtectionRepository,
 		ParentRequestShares:       parentRequestShareRepository,
@@ -3081,8 +3261,8 @@ func NewFactoryWithConfig(
 			return factory.StudentPhotos
 		},
 		AbsenceNotifier:  absenceNotifier,
-		CarePeriods:      parentCarePeriods{owner: enrollmentRecords},
-		OfferingHistory:  parentOfferingHistory{owner: enrollmentRecords},
+		CarePeriods:      enrollmentWiring.ParentCarePeriods,
+		OfferingHistory:  enrollmentWiring.ParentOfferingHistory,
 		CareOfferingRepo: enrollmentCareOfferings,
 		OfferingChanges:  offeringChanges,
 		Logger:           logger.With("service", "parent"),
@@ -3097,7 +3277,7 @@ func NewFactoryWithConfig(
 		Notifier:         notificationsService,
 		ReminderNotifier: notificationsService,
 		Preferences:      notificationPreferencesService,
-		Deliveries:       announcementDeliveryAdapter{module: deliveryRuntime.Module},
+		Deliveries:       platform.AnnouncementDeliveries(deliveryRuntime.Module),
 		ParentsURL:       parentsURL,
 		Logger:           logger.With("service", "announcement"),
 	})
@@ -3114,13 +3294,16 @@ func NewFactoryWithConfig(
 	// Dienst, statt ohne Prüfung zu entscheiden.
 	var fileStoreService *filestorageModule.Module
 	if fileStorage.Objects != nil {
+		if fileStorage.Settings == nil || fileStorage.Events == nil {
+			return nil, errors.New("file storage settings and events bindings are required with an object store")
+		}
 		fileStoreService, err = filestorageCompose.New(filestorageCompose.Dependencies{
 			DB:               db,
 			Objects:          fileStorage.Objects,
 			Identity:         guardianAccess,
 			People:           persons,
-			Settings:         FileStorageSettings{Service: settingsService},
-			Events:           FileStorageEvents{Repo: audits.FileEvent},
+			Settings:         fileStorage.Settings(settingsService),
+			Events:           fileStorage.Events(audits.FileEvent),
 			HasPermission:    securityruntime.HasPermission,
 			Announcements:    parentAnnouncementService,
 			GuardianAudience: parentService,
@@ -3136,40 +3319,21 @@ func NewFactoryWithConfig(
 
 	// Operator provisioning belongs to Organisation & Tenancy (#3253); the
 	// retained owners it touches are bound through its provisioning seams.
-	provisioningAdapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
-		PersonStudents: peopleCompose.NewLegacyRepositoryRuntime(db),
-		Devices:        deviceFleet,
-		Persons:        persons,
-		Membership:     membership,
-		PersonRepo:     personRepository,
-		StaffRepo:      staffRepository,
-		Accounts:       identityAccess,
-		ActiveGroups:   sessionRecords,
-		Supervisors:    groupSupervisions,
-		Categories:     arrivalTimetable.NewActivityCategorySeeder(timetableRepos.ActivityCategory),
-		AuditLog:       operatorAuditLog,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("compose operator provisioning adapters: %w", err)
-	}
-	operatorProvisioningService, err := newOperatorProvisioning(operatorProvisioningSources{
-		accounts:       NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
-		organizations:  organizations,
-		adapters:       provisioningAdapters,
-		sessions:       identityAccess,
-		invitations:    identityAccess,
-		provisioning:   identityAccess,
-		administration: identityAccess,
-		schoolIdentity: identityAccess,
-		roles:          identityAccess,
-		settings:       settingsService,
-		logger:         platformLogger,
+	operatorProvisioningService, err := platform.OperatorProvisioning(OperatorProvisioningSources{
+		Identity:     identityAccess,
+		Accounts:     NewOperatorAccountDirectory(identityAccess, persons, membership, organizations),
+		Devices:      deviceFleet,
+		Sessions:     sessionRecords,
+		Supervisions: groupSupervisions,
+		Categories:   arrivalTimetable.NewActivityCategorySeeder(timetableRepos.ActivityCategory),
+		Settings:     settingsService,
+		Logger:       platformLogger,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("compose operator provisioning: %w", err)
 	}
 
-	listExportService := lists.NewRendererService()
+	listExportService := platform.ListExport
 	// The Notfallliste is the emergency snapshot read projection (#2704): the
 	// owner facades are its tenant-safe reads, the retained student and
 	// guardian repositories, the presence-mode read and the renderer its
@@ -3239,7 +3403,7 @@ func NewFactoryWithConfig(
 	pwaUsageService := pwa.NewUsageService(
 		db,
 		pwausage.NewPWAStandaloneUsageRepository(db),
-		pwaUsageCounts{provisioning: operatorProvisioningService},
+		platform.PWAUsageCounts(operatorProvisioningService),
 		identityAccess,
 		settingsService,
 		logger.With("service", "pwa_usage"),
@@ -3322,7 +3486,7 @@ func NewFactoryWithConfig(
 		Materialization:      materializationService,
 		Deviations:           instanceService.SeriesDeviations(),
 		CareOfferings:        enrollmentCareOfferingService,
-		ResyncOfferingRoster: timetableOfferingRosterResync(careBookings),
+		ResyncOfferingRoster: carePlanWiring.OfferingRosterResync(careBookings),
 		RecurrenceLock:       recurrenceLock,
 		Broadcaster:          realtimeHub,
 		Logger:               logger.With("service", "timetable-templates"),
@@ -3398,7 +3562,7 @@ func NewFactoryWithConfig(
 	// which writes its own decided event.
 	parentRequestCoordinator, err := people.ParentRequestCoordinator(ParentRequestCoordinatorWiring{
 		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
-		Offering: OfferingChangeConflictPort{Changes: offeringChanges}, Events: parentRequestEvents,
+		Offering: enrollmentWiring.OfferingConflicts(offeringChanges), Events: parentRequestEvents,
 		Permissions: identityRoot.Permissions,
 	})
 	if err != nil {
@@ -3444,18 +3608,9 @@ func NewFactoryWithConfig(
 		CaregiverCapability:     caregiverCapabilityService,
 		Guardian:                guardianService,
 		PeopleDirectory:         persons,
-		Database:                databaseService,
-		DatabaseStatsCapabilities: func(ctx context.Context) transactionruntime.DatabaseStatsCapabilities {
-			return securityruntime.DatabaseStatsCapabilities(identityRoot.Permissions(ctx))
-		},
-		Import:               dataImports.Student,        // Student import service
-		StaffImport:          dataImports.Staff,          // Staff (Mitarbeiter) import service
-		ClassListImport:      dataImports.ClassList,      // Class-list entry import (#2382)
-		OpeningBalanceImport: dataImports.OpeningBalance, // Opening balance import (#2132)
-		ListExport:           listExportService,
-		PlanExport:           planExportService,
-		Emergency:            emergencyService,
-		SlotLists:            slotListsService,
+		PlanExport:              planExportService,
+		Emergency:               emergencyService,
+		SlotLists:               slotListsService,
 		Reminders: reminder.Module{
 			Query:                     remindersService,
 			Command:                   timetableWiring.ReminderCommand(calendarSvc),
@@ -3474,9 +3629,6 @@ func NewFactoryWithConfig(
 		PasswordResetTokenExpiry: passwordResetTokenExpiry,
 
 		OperatorProvisioning:    operatorProvisioningService,
-		Announcement:            communicationCapability,
-		Schools:                 organizations,
-		Students:                StudentServices{Directory: studentService, Companions: companionService},
 		CareLifecycle:           careLifecycleService,
 		StudentAudit:            studentAuditService,
 		StudentConsents:         studentConsentService,
@@ -3484,9 +3636,8 @@ func NewFactoryWithConfig(
 		CareRequests:            careRequestService,
 		ExcusedRequests:         excusedRequestService,
 		ParentRequests:          parentRequestCoordinator,
-		RequestReviewPolicy:     requestReviewPolicy,
 		AbsenceOverview:         studentStatusDayOverviewService,
-		StudentHistory:          presenceservice.NewStudentHistory(presenceModule, timetableWiring.HistoryRooms, NewDataAccessAudit(audits.DataAccessLog), timetableWiring.HistorySlots),
+		StudentHistory:          presenceservice.NewStudentHistory(presenceModule, timetableWiring.HistoryRooms, platform.DataAccessAudit(audits.DataAccessLog), timetableWiring.HistorySlots),
 		Statistics:              presence.Statistics(StatisticsSources{AccessLog: audits.DataAccessLog, Settings: settingsService}),
 		OGSGroupLive:            ogsGroupLiveService,
 		SupervisionDashboard:    supervisionDashboardService,
@@ -3496,19 +3647,16 @@ func NewFactoryWithConfig(
 		EmailOutboxWorker: emailOutboxWorker,
 		Delivery:          deliveryRuntime.Module,
 
-		EnrollmentFormSchema:      enrollmentFormSchemaService,
-		EnrollmentCareOffering:    carePlanCareOfferings{enrollmentCareOfferingService, careBookings, offeringChanges, pickupAdjustments},
-		EnrollmentCaptcha:         enrollmentCaptchaService,
+		EnrollmentCareOffering:    careplanCompose.NewCareOfferings(enrollmentCareOfferingService, careBookings, offeringChanges, pickupAdjustments),
 		EnrollmentRequest:         enrollmentRequestService,
 		EnrollmentPhase:           enrollmentPhaseService,
-		EnrollmentPhaseExpiry:     enrollmentPhaseExpiryService,
 		EnrollmentDecision:        enrollmentDecisionService,
 		EnrollmentReport:          enrollmentReports,
 		ClassDayArrivalExceptions: classDayService,
 		EnrollmentRollover:        enrollmentRolloverService,
 		EnrollmentChangeRequest:   enrollmentChangeRequestService,
 		EnrollmentDeletion:        enrollmentDeletionService,
-		EnrollmentRejectedCleanup: EnrollmentRejectedCleanup{cleaner: enrollmentRejectedCleanupService},
+		EnrollmentRejectedCleanup: enrollmentRejectedCleanupService,
 
 		Parent:              parentService,
 		Messaging:           messagingService,
@@ -3521,7 +3669,7 @@ func NewFactoryWithConfig(
 
 	factory.SettingsSideEffects = settingsCompose.NewSideEffectRegistry()
 	facilitiesLegacy.RegisterSettingsSideEffects(factory.SettingsSideEffects, schulhofService, wcService)
-	RegisterCareWithdrawalSettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
+	carePlanWiring.SettingsSideEffects(factory.SettingsSideEffects, careLifecycleService)
 	tenantSettings := settingsCompose.NewTenantOperations(
 		settingsService,
 		payrollStatusService,
@@ -3620,4 +3768,37 @@ type unconfiguredFeedbackCounter struct{}
 
 func (unconfiguredFeedbackCounter) CountForStudent(context.Context, int64) (int, error) {
 	return 0, errors.New("student deletion: feedback counter is not configured")
+}
+
+// OutboxEnqueuer serves the retained OutboxEnqueuer contract of the auth and
+// enrollment producers over the Delivery enqueue facade.
+type OutboxEnqueuer struct{ Outbox *emailoutbox.Service }
+
+func (o OutboxEnqueuer) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+	_, err := o.EnqueueOutboxWithResult(ctx, req)
+	return err
+}
+
+func (o OutboxEnqueuer) EnqueueOutboxWithResult(ctx context.Context, req platformModels.OutboxEnqueueRequest) (platformModels.OutboxEnqueued, error) {
+	stored, err := o.Outbox.Enqueue(ctx, emailoutbox.EnqueueRequest{
+		Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType,
+		RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey, DeliverAfter: req.DeliverAfter,
+	})
+	if err != nil {
+		return platformModels.OutboxEnqueued{}, err
+	}
+	return platformModels.OutboxEnqueued{ID: stored.ID}, nil
+}
+
+// CareRequestStaff resolves the staff member deciding a care request. found
+// is false, without an error, for a caller who is no staff member.
+type CareRequestStaff interface {
+	CurrentStaffID(context.Context) (staffID int64, found bool, err error)
+}
+
+// ParentPortalRepositories are the built Care Plan and Communication stores
+// supplied by the root.
+type ParentPortalRepositories struct {
+	careplanCompose.ParentPortalRepositories
+	parentStore.MessagingRepositories
 }

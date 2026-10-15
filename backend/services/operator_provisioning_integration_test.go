@@ -11,7 +11,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -698,7 +697,7 @@ func TestOperatorProvisioningIntegration_CreateSchoolAccount_BuildsIdentityChain
 	dbCtx := testpkg.Ctx(t)
 
 	t.Run("role projection uses public identity capability", func(t *testing.T) {
-		identity := services.NewProvisioningIdentityForTest(factory.Auth)
+		identity := api.NewProvisioningIdentityForTest(factory.Auth)
 		custom := testpkg.CreateTestRole(t, db, "operator-custom")
 		system := testpkg.CreateTestSystemRole(t, db, "operator-system")
 		roles, err := identity.ListSystemRoles(ctx)

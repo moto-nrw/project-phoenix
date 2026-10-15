@@ -79,7 +79,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	arrival, err := services.NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
+	arrival, err := NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {

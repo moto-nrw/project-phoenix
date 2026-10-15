@@ -104,7 +104,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -132,7 +132,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	arrival, err := services.NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
+	arrival, err := NewArrivalBaselines(carePlan, students, classArrivalQueries, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settings.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
 	if err != nil {
@@ -180,12 +180,12 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	groups.Users = data.Users
 	yard := facilitiesCompose.NewSchulhofService(data.Facilities, facilitiesLegacy.ActivityCatalog(data.Activities), facilitiesLegacy.OpenGroupCatalog(FacilitiesGroupSupervisions(NewLoggedStudentPresence(db, logger)), FacilitiesRoomSessions(NewLoggedStudentPresence(db, logger)), FacilitiesGroupVisits(NewLoggedStudentPresence(db, logger))), logger)
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: services.NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: carePlan, Baselines: pickup, Blocks: NewLoggedStudentPresence(db, logger), Preview: NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	pickupStudents, err := services.PickupPlanStudents(students)
+	pickupStudents, err := PickupPlanStudents(students)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -193,11 +193,11 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	classExceptions, err := services.NewClassArrivalExceptions(classArrivalQueries, students)
+	classExceptions, err := NewClassArrivalExceptions(classArrivalQueries, students)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	arrivalRules, arrivalDeps, err := services.ArrivalScheduleBinding(students, services.ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
+	arrivalRules, arrivalDeps, err := ArrivalScheduleBinding(students, ClassArrivalPlans(classArrivalQueries), classExceptions, logger)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

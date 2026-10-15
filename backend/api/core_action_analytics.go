@@ -13,7 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/spf13/viper"
 )
 
@@ -28,7 +28,7 @@ func newProductAnalytics(logger *slog.Logger) (analytics.Tracker, error) {
 		logger.With("component", "analytics"),
 		// The pseudonymous user ID under Analyse-Freigabe (#3603) hashes with
 		// the Security Runtime's SHA-256 fingerprint, like the browser.
-		analytics.WithFingerprint(services.AnalyticsFingerprint),
+		analytics.WithFingerprint(securityruntime.Fingerprint),
 	)
 }
 

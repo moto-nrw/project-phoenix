@@ -12,12 +12,14 @@ import (
 	"time"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
 
 // Error message and format constants (S1192 fix - reduces string duplication)
@@ -42,12 +44,12 @@ type cleanupContext struct {
 	InvitationCleanupService   invitationCleanupService
 	SessionCleanupService      sessionCleanupService
 	TimetableCleanupService    timetable.TimetableCleanup
-	TimeTrackingCleanupService services.TimeTrackingCleanupService
+	TimeTrackingCleanupService workforceCompose.TimeTrackingCleanupService
 	Output                     io.Writer
 	Logger                     *log.Logger
-	Audit                      services.AuditCommand
-	Schools                    services.SchoolCapability
-	Timetable                  services.TimetableCapability
+	Audit                      auditModels.Command
+	Schools                    organizationtenancy.Capability
+	Timetable                  timetable.Capability
 }
 
 type authCleanupService interface {
@@ -67,7 +69,7 @@ type sessionCleanupService interface {
 
 type retentionCleanupService = studentpresence.PresenceCleanup
 type timetableCleanupService = timetable.TimetableCleanup
-type timeTrackingCleanupService = services.TimeTrackingCleanupService
+type timeTrackingCleanupService = workforceCompose.TimeTrackingCleanupService
 
 type cleanupRoot struct {
 	openDatabase        func() (transactionruntime.Database, error)
@@ -76,7 +78,7 @@ type cleanupRoot struct {
 	sessionCleanup      func(*cleanupContext) sessionCleanupService
 	retentionCleanup    func(*cleanupContext) studentpresence.PresenceCleanup
 	timetableCleanup    func(*cleanupContext) timetable.TimetableCleanup
-	timeTrackingCleanup func(*cleanupContext) services.TimeTrackingCleanupService
+	timeTrackingCleanup func(*cleanupContext) workforceCompose.TimeTrackingCleanupService
 }
 
 var defaultCleanupRoot = cleanupRoot{
@@ -152,7 +154,7 @@ func (root cleanupRoot) newContext() (*cleanupContext, error) {
 		_ = db.Close()
 		return nil, err
 	}
-	schools, err := services.NewOrganizationTenancy(db.Pool())
+	schools, err := api.NewOrganizationTenancy(db)
 	if err != nil {
 		_ = db.Close()
 		return nil, err
@@ -190,8 +192,8 @@ func newCleanupContextWithAuthCleanup() (*cleanupContext, error) {
 
 // newCleanupAuditCommand builds the fail-closed Audit command every cleanup
 // root appends through.
-func newCleanupAuditCommand() (services.AuditCommand, error) {
-	return services.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
+func newCleanupAuditCommand() (auditModels.Command, error) {
+	return api.NewCleanupAuditCommand(slog.Default().With("service", "cleanup-cli"))
 }
 
 func buildAuthCleanupService(ctx *cleanupContext) authCleanupService {
@@ -247,7 +249,7 @@ func newCleanupContextWithSessionCleanup() (*cleanupContext, error) {
 }
 
 func buildSessionCleanupService(ctx *cleanupContext) sessionCleanupService {
-	return services.NewSessionCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, ctx.Timetable, slog.Default().With("service", "session-cleanup-cli"))
+	return newSessionCleanupService(ctx.DB, ctx.Schools, ctx.Timetable, slog.Default().With("service", "session-cleanup-cli"))
 }
 
 // newCleanupContextWithCleanupService initializes database and cleanup service.
@@ -271,8 +273,7 @@ func newCleanupContextWithCleanupService() (*cleanupContext, error) {
 }
 
 func buildRetentionCleanupService(ctx *cleanupContext) studentpresence.PresenceCleanup {
-	return services.NewRetentionCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
-
+	return newRetentionCleanupService(ctx.DB, ctx.Schools, slog.Default().With("service", "retention-cleanup-cli"), ctx.Audit)
 }
 
 // newCleanupContextWithTimetableCleanup initializes database + timetable
@@ -296,7 +297,7 @@ func newCleanupContextWithTimetableCleanup() (*cleanupContext, error) {
 
 func buildTimetableCleanupService(ctx *cleanupContext) timetable.TimetableCleanup {
 	logger := slog.Default().With("service", "timetable-cleanup-cli")
-	cleanup, err := services.NewTimetableCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, ctx.Timetable, logger, ctx.Audit, api.NewTimetableCleanup)
+	cleanup, err := newTimetableCleanupService(ctx.DB, ctx.Schools, ctx.Timetable, logger, ctx.Audit)
 	if err != nil {
 		// buildCleanupDependency reports the missing service to the caller.
 		logger.Error("compose timetable cleanup", slog.String("error", err.Error()))
@@ -325,12 +326,12 @@ func newCleanupContextWithTimeTrackingCleanup() (*cleanupContext, error) {
 	return ctx, nil
 }
 
-func buildTimeTrackingCleanupService(ctx *cleanupContext) services.TimeTrackingCleanupService {
+func buildTimeTrackingCleanupService(ctx *cleanupContext) workforceCompose.TimeTrackingCleanupService {
 	workTime, err := api.NewUnobservedWorkforce(ctx.DB)
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup: compose workforce: %v", err))
 	}
-	return services.NewTimeTrackingCleanupService(ctx.DB.Pool(), ctx.DB.UnitOfWork(), ctx.Schools, workTime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
+	return newTimeTrackingCleanupService(ctx.DB, ctx.Schools, workTime, slog.Default().With("service", "time-tracking-cleanup-cli"), ctx.Audit)
 }
 
 // Close releases database resources.
@@ -491,7 +492,7 @@ type recentDeletionRow struct {
 
 // queryRecentDeletions fetches recent deletion activity from the audit table.
 func queryRecentDeletions(ctx context.Context, db transactionruntime.Database) ([]recentDeletionRow, error) {
-	summaries, err := services.ListRecentAuditRetentionSummaries(ctx, db.Pool(), time.Now().AddDate(0, 0, -30), 10)
+	summaries, err := listRecentAuditRetentionSummaries(ctx, db, time.Now().AddDate(0, 0, -30), 10)
 	if err != nil {
 		return nil, err
 	}

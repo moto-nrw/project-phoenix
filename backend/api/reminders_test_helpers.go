@@ -10,7 +10,6 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
@@ -59,12 +58,12 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return RemindersTestModule{}, err
 	}
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: carePlan, Baselines: baseline, Blocks: NewLoggedStudentPresence(db, slog.Default()), Preview: services.NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
+		DB: db.Pool(), Records: carePlan, Baselines: baseline, Blocks: NewLoggedStudentPresence(db, slog.Default()), Preview: NewPickupExcusalTimetable(r.Timetable, NewPartialAbsencePreview(db)),
 	})
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	pickupStudents, err := services.PickupPlanStudents(students)
+	pickupStudents, err := PickupPlanStudents(students)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

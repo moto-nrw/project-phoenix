@@ -8,8 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	iot "github.com/moto-nrw/project-phoenix/models/iot"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,7 +37,7 @@ type deviceQueries struct {
 
 func newDeviceQueries(t *testing.T, db *bun.DB) deviceQueries {
 	t.Helper()
-	fleet, err := services.NewDeviceFleet(db)
+	fleet, err := api.NewDeviceFleet(testpkg.NewDatabase(t, db))
 	require.NoError(t, err, "Failed to compose the device fleet")
 	return deviceQueries{DeviceRepository: newDeviceRepository(t, db), devices: fleet}
 }

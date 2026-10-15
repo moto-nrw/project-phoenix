@@ -7,7 +7,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // EnrollmentFlowTestRepositories is the repository set the enrollment flow
@@ -37,7 +36,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +47,7 @@ func NewEnrollmentFlowTestRepositoriesWithMembers(db transactionruntime.Database
 		StudentGuardian:           members.StudentGuardian,
 		GuardianProfile:           members.GuardianProfile,
 		GuardianPhoneNumber:       peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
-		CareWithdrawal:            services.NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 	}, nil
 }
 

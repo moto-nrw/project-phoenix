@@ -191,7 +191,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	if err != nil {
 		return AuthTestModule{}, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return AuthTestModule{}, err
 	}
@@ -199,7 +199,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	// appends to the operator ledger (#3331), so the module needs it bound.
 	audits := auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()})
 	audits = audits.WithRoutedWrites(command)
-	operatorAuditLog := services.NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
+	operatorAuditLog := NewOperatorAuditLogFromEntries(audits.OperatorAuditLog)
 	cfg := services.CurrentFactoryConfig()
 	settingsOverrides := authTestSettings{mailer: email.NewMockMailer(), rateLimitEnabled: cfg.RateLimitEnabled, demoMaxActiveSchools: 300}
 	for _, option := range options {
@@ -347,7 +347,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 	if err != nil {
 		return nil, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return nil, err
 	}
@@ -360,7 +360,7 @@ func IdentityAccessForTests(cfg IdentityAccessTestConfig, db transactionruntime.
 		Repos: SessionRepositoriesOf(repos, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool())), Codec: codec, Settings: cfg.Settings,
 		Audit: cfg.Audit, Logger: logger,
 		Mfa: &MfaWiring{
-			OperatorAuditLog: services.NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), Settings: cfg.Settings,
+			OperatorAuditLog: NewOperatorAuditLogFromEntries(audits.OperatorAuditLog), Settings: cfg.Settings,
 			Dispatcher: cfg.Dispatcher, DefaultFrom: cfg.DefaultFrom, FrontendURL: cfg.FrontendURL,
 			JwtSecret: mfaTestSecret(), Logger: logger,
 		},

@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
@@ -267,7 +266,7 @@ func newDecisionsForTestWithBookings(
 		CareBookings:           bookings,
 		GuardianAccess:         testGuardianAccess(env.db),
 		StudentEnrollment:      testStudentEnrollment(env.db),
-		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:             api.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:           api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor),
 		StudentConsents:        studentConsents,

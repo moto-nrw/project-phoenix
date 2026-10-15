@@ -42,7 +42,7 @@ type PeopleRepositorySuiteFactory struct {
 	MembershipTestRepositories
 	CareScheduleRepositories
 	timetableCompose.SchoolCalendarRepositories
-	services.ParentPortalRepositories
+	ParentPortalRepositories
 	GuardianPhoneNumber   usersModels.GuardianPhoneNumberRepository
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
 	FamilyProtection      usersModels.FamilyProtectionEventRepository
@@ -57,8 +57,8 @@ type PeopleRepositorySuiteFactory struct {
 
 	CareWithdrawal           usersModels.CareWithdrawalCompletionRepository
 	StudentDataChangeRequest usersModels.StudentDataChangeRequestRepository
-	StudentStatusDay         *services.StudentStatusDayRepository
-	ExcusedAbsenceRequest    *services.ExcusedAbsenceRequestRepository
+	StudentStatusDay         *StudentStatusDayRepository
+	ExcusedAbsenceRequest    *ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
 	GroupSupervisor          studentpresence.SupervisionRecords
 	CrossTenant              CrossTenantQuery
@@ -83,8 +83,8 @@ func (f *PeopleRepositorySuiteFactory) SchoolMembership() schoolmembership.Capab
 func (f *PeopleRepositorySuiteFactory) CarePlan() careplan.Capability { return f.carePlan }
 
 // Enrollment is the Enrollment booking projection of the graph.
-func (f *PeopleRepositorySuiteFactory) Enrollment() services.EnrollmentBookingProjection {
-	return services.NewEnrollmentBookingProjection(f.enrollment)
+func (f *PeopleRepositorySuiteFactory) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(newEnrollmentBookings(f.enrollment))
 }
 
 // SchoolCalendar is the calendar owner the period, closing day and dateframe
@@ -114,7 +114,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 	}
 	now := services.OptionalClock(clocks)
 	identity := NewPeopleIdentityAccess(db, nil)
-	members := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), identity, deps.Membership, deps.Rooms, deps.Workforce)
+	members := NewMembershipRepositories(db, NewPersonRepository(db), identity, deps.Membership, deps.Rooms, deps.Workforce)
 	members.People = deps.Students
 	members.Student = NewStudentRepository(db, deps.Membership, deps.Groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)
@@ -131,7 +131,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose school calendar: %v", err))
 	}
-	devices, err := services.NewDeviceFleet(db.Pool())
+	devices, err := NewDeviceFleet(db)
 	if err != nil {
 		panic(fmt.Sprintf("repository test factory: compose device fleet: %v", err))
 	}
@@ -144,7 +144,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 		MembershipTestRepositories: members,
 		CareScheduleRepositories:   NewCareScheduleRepositories(carePlan),
 		SchoolCalendarRepositories: timetableCompose.NewSchoolCalendarRepositories(calendar, timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), deps.Capability)),
-		ParentPortalRepositories: services.NewParentPortalRepositories(db.Pool(), services.ParentPortalOwners{
+		ParentPortalRepositories: NewParentPortalRepositories(db, ParentPortalOwners{
 			People: deps.Students, Groups: deps.Groups, Membership: deps.Membership,
 			Identity: NewPeopleIdentityAccess(db, services.IdentityAccessObserver(deps.ObserveIdentityAccess)), Enrollment: enrollment, Now: now,
 		}),
@@ -157,10 +157,10 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
-		CareWithdrawal:           services.NewCareWithdrawalCompletionRepository(carePlan),
-		StudentDataChangeRequest: services.NewStudentDataChangeRequestRepository(carePlan),
-		StudentStatusDay:         services.NewStudentStatusDayRepository(carePlan),
-		ExcusedAbsenceRequest:    services.NewExcusedAbsenceRequestRepository(carePlan),
+		CareWithdrawal:           NewCareWithdrawalCompletionRepository(carePlan),
+		StudentDataChangeRequest: NewStudentDataChangeRequestRepository(carePlan),
+		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
+		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
 		ActiveGroup:              sessions,
 		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
 		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
@@ -190,8 +190,8 @@ func NewPeopleRepositorySuiteParentMessaging(db transactionruntime.Database) (Pa
 
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
-func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience services.AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
-	return parentStore.NewParentAnnouncementRepository(db.Pool(), services.ParentAnnouncementApplicants(audience), clocks...)
+func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+	return parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(audience), clocks...)
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding
@@ -203,7 +203,7 @@ func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Databa
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
 func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) usersModels.StudentCompanionRepository {
-	return services.NewStudentCompanionRepository(capability)
+	return NewStudentCompanionRepository(capability)
 }
 
 // NewPeopleRepositorySuiteCompanionEdge validates one companion edge.
@@ -231,8 +231,8 @@ func NewPeopleRepositorySuiteGuardianProfiles(db transactionruntime.Database) us
 // NewEnrollmentGuardianAutofillSuite is the enrollment form's autofill
 // reader as the composition root binds it, over the retained guardian profile
 // store of db (#2734).
-func NewEnrollmentGuardianAutofillSuite(db transactionruntime.Database) services.EnrollmentGuardianAutofill {
-	return services.EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db.Pool(), nil)}
+func NewEnrollmentGuardianAutofillSuite(db transactionruntime.Database) EnrollmentGuardianAutofill {
+	return EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db.Pool(), nil)}
 }
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup

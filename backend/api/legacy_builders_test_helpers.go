@@ -1,14 +1,9 @@
 package api
 
 import (
-	"context"
-	"time"
-
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
@@ -19,20 +14,9 @@ import (
 // composition reach them here until the slices of #2747 move them into the
 // owners and the root (#4005).
 
-// NewOrganizationTenancy composes the Organization & Tenancy owner.
-func NewOrganizationTenancy(db transactionruntime.Database) (organizationtenancy.Capability, error) {
-	return services.NewOrganizationTenancy(db.Pool())
-}
-
 // NewSchoolMembership composes the School Membership owner, unobserved.
 func NewSchoolMembership(db transactionruntime.Database) (schoolmembership.Capability, error) {
 	return services.NewSchoolMembership(db.Pool())
-}
-
-// NewDeviceFleet composes the Device Fleet owner, with the online windows the
-// suite pins.
-func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(context.Context) time.Duration) (devicefleet.Capability, error) {
-	return services.NewDeviceFleet(db.Pool(), onlineWindows...)
 }
 
 // The enrollment flows and their sources, as the root composes them.
@@ -49,12 +33,6 @@ type (
 )
 
 var (
-	NewEnrollmentChangeRequests   = services.NewEnrollmentChangeRequests
-	NewEnrollmentDecisions        = services.NewEnrollmentDecisions
-	NewEnrollmentDeletionModule   = services.NewEnrollmentDeletionModule
-	NewEnrollmentIntake           = services.NewEnrollmentIntake
-	NewEnrollmentOfferingCapacity = services.NewEnrollmentOfferingCapacity
-	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
 	NewRoomSnapshotPeople = peopleCompose.NewRoomSnapshotPeople
@@ -65,16 +43,9 @@ var (
 
 // The legacy composition's values the Identity & Access behaviour suites
 // name build through the typed root (#4006).
-type (
-	FactoryConfig             = services.FactoryConfig
-	ParentRequestReviewPolicy = services.ParentRequestReviewPolicy
-)
+type FactoryConfig = services.FactoryConfig
 
 var (
-	// NewParentRequestReviewPolicy and ReviewPermissions are the parent
-	// request review decision the caller context serves.
-	NewParentRequestReviewPolicy = services.NewParentRequestReviewPolicy
-	ReviewPermissions            = services.ReviewPermissions
 	// NewOperatorAccountDirectory is the operator account listing over
 	// Identity & Access, the People Directory, School Membership and the
 	// schools.

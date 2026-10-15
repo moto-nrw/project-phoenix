@@ -89,7 +89,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	organizations, err := services.NewOrganizationTenancy(db.Pool())
+	organizations, err := NewOrganizationTenancy(db)
 	if err != nil {
 		return ImportTestModule{}, err
 	}
@@ -97,7 +97,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return ImportTestModule{}, err
 	}
-	wiring := services.ImportWiring{
+	wiring := ImportWiring{
 		Identity:      rfid,
 		Organizations: organizations,
 		Groups:        groups, Rooms: rooms,
@@ -121,7 +121,7 @@ func NewImportTestModuleWithOptions(db transactionruntime.Database, unit tenant.
 		wiring.GuardianOverride = options.WrapGuardians(persons)
 	}
 
-	dataImports := services.NewImports(wiring)
+	dataImports := NewImports(wiring)
 	return ImportTestModule{
 		PeopleDirectory: persons, Membership: membership,
 		Import: dataImports.Student, StaffImport: dataImports.Staff, ClassListImport: dataImports.ClassList,

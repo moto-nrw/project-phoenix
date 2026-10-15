@@ -42,7 +42,7 @@ func NewMembershipTestRepositories(db transactionruntime.Database) (MembershipTe
 	if err != nil {
 		return MembershipTestRepositories{}, err
 	}
-	members := NewMembershipRepositories(db, services.NewPersonRepository(db.Pool()), NewPeopleIdentityAccess(db, nil), membership, rooms, workTime)
+	members := NewMembershipRepositories(db, NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), membership, rooms, workTime)
 	members.People = people
 	members.Student = NewStudentRepository(db, membership, groups)
 	members.GuardianProfile = NewGuardianProfileRepository(db)

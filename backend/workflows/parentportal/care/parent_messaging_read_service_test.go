@@ -21,7 +21,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -42,7 +41,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 	// it before the school projections, as the service graph does.
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	organizationTenancy, err := services.NewOrganizationTenancy(db)
+	organizationTenancy, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	repos = repos.WithSchoolProjections(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()

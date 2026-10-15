@@ -9,7 +9,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type ParentRouteTestRepositories struct {
@@ -20,9 +19,9 @@ type ParentRouteTestRepositories struct {
 	Person                usersModels.PersonRepository
 	GuardianProfile       usersModels.GuardianProfileRepository
 	StudentGuardian       usersModels.StudentGuardianRepository
-	StudentStatusDay      *services.StudentStatusDayRepository
+	StudentStatusDay      *StudentStatusDayRepository
 	CareExceptions        careplan.Capability
-	ExcusedAbsenceRequest *services.ExcusedAbsenceRequestRepository
+	ExcusedAbsenceRequest *ExcusedAbsenceRequestRepository
 	// ExcusedRequests is the Care Plan excused-absence workflow over the same
 	// graph, scoped school-wide because parent routes never decide requests.
 	ExcusedRequests careplan.ExcusedAbsenceRequests
@@ -56,7 +55,7 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	excusedRequests, err := services.NewExcusedAbsenceRequests(services.ExcusedRequestWiring{
+	excusedRequests, err := NewExcusedAbsenceRequests(ExcusedRequestWiring{
 		CarePlan: care, Students: members.Student, Persons: members.Person, Scope: schoolWideReviewScope,
 	})
 	if err != nil {
@@ -64,11 +63,11 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 	}
 	return ParentRouteTestRepositories{
 		ParentPortalRepositories: carePlanCompose.ParentPortalRepositories{
-			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, services.ParentPortalDirectory{People: people}),
+			ParentChild: carePlanCompose.NewParentChildRepository(NewPeopleIdentityAccess(db, nil).ListActiveAccountSchoolIDs, ParentPortalDirectory{People: people}),
 		},
 		Student: members.Student, Person: members.Person,
 		GuardianProfile: members.GuardianProfile, StudentGuardian: members.StudentGuardian,
-		StudentStatusDay: services.NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: services.NewExcusedAbsenceRequestRepository(care),
+		StudentStatusDay: NewStudentStatusDayRepository(care), CareExceptions: care, ExcusedAbsenceRequest: NewExcusedAbsenceRequestRepository(care),
 		ExcusedRequests: excusedRequests,
 	}, nil
 }

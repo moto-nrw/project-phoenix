@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -99,7 +98,7 @@ func (f masterDataFixture) linkCompanionOnTuesday(t *testing.T) {
 	}
 	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*userModels.StudentCompanion{edge}))
 }
 
 func (f masterDataFixture) personFirstName(t *testing.T) string {
