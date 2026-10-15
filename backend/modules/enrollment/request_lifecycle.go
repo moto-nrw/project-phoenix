@@ -46,6 +46,20 @@ func (m *Module) FullyRejectedRequestsBefore(ctx context.Context, cutoff time.Ti
 	return ids, err
 }
 
+// SettledRequestsBefore lists the requests settled without a child: every
+// child withdrawn or rejected and none of them created a child record, at
+// least one withdrawn, each withdrawal before withdrawnCutoff and each
+// rejection before rejectedCutoff (#3960).
+func (m *Module) SettledRequestsBefore(ctx context.Context, withdrawnCutoff, rejectedCutoff time.Time) ([]int64, error) {
+	var ids []int64
+	err := m.transactions.RunInTx(ctx, func(ctx context.Context) error {
+		var err error
+		ids, err = m.engine.SettledRequestsBefore(ctx, withdrawnCutoff, rejectedCutoff)
+		return err
+	})
+	return ids, err
+}
+
 func (m *Module) DeleteRequest(ctx context.Context, id int64) error {
 	return m.transactions.RunInTx(ctx, func(ctx context.Context) error { return m.engine.DeleteRequest(ctx, id) })
 }
