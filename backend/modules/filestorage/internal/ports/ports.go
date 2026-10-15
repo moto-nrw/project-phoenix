@@ -222,3 +222,11 @@ type Logger interface {
 	Warn(msg string, args ...any)
 	Error(msg string, args ...any)
 }
+
+// CleanupRetentionStore deletes the finished cleanup intents of one school
+// whose bytes were removed before the instant (#4046). Every statement runs
+// on the school's tenant transaction.
+type CleanupRetentionStore interface {
+	DeleteFinishedFileCleanups(ctx context.Context, before time.Time) (int, error)
+	DeleteFinishedAttachmentCleanups(ctx context.Context, before time.Time) (int, error)
+}

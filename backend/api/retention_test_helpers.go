@@ -5,13 +5,20 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/filestorage"
+	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -19,7 +26,8 @@ import (
 // steps bind (#3950), composed over the test database for the root's
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
-// the Device Fleet owner, the Care Plan status days, the parent messages and the delivery data.
+// the Device Fleet owner, the Care Plan status days, the parent messages, the
+// delivery data and the technical remains of #4046.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
@@ -27,6 +35,10 @@ type RetentionTestOwners struct {
 	StatusDays           careplan.StudentStatusDayRetention
 	ParentMessages       communication.ParentMessageCleanup
 	Deliveries           delivery.Retention
+	FileCleanups         filestorage.CleanupRetention
+	StaffCleanups        workforce.CleanupRetention
+	CarePlanCleanups     careplan.CleanupRetention
+	SubmissionLimits     enrollment.SubmissionRateLimitRetention
 }
 
 // NewRetentionTestOwners composes the retention owners over db; unit is the
@@ -54,7 +66,11 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
-		ParentMessages: communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
-		Deliveries:     deliveryCompose.NewRetention(),
+		ParentMessages:   communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
+		Deliveries:       deliveryCompose.NewRetention(),
+		FileCleanups:     filestorageCompose.NewCleanupRetention(),
+		StaffCleanups:    workforceCompose.NewCleanupRetention(),
+		CarePlanCleanups: carePlanCompose.NewCleanupRetention(),
+		SubmissionLimits: enrollmentCompose.New(),
 	}, nil
 }

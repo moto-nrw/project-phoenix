@@ -170,6 +170,10 @@ func restoreGuardianStorage(tb testing.TB, db *bun.DB) {
 		ALTER TABLE meta.meal_participation_permission_grants
 			ADD CONSTRAINT meal_participation_permission_grants_student_guardian_id_fkey
 			FOREIGN KEY (student_guardian_id) REFERENCES users.students_guardians(id) ON DELETE CASCADE NOT VALID;
+		-- The markers of 1.15.428 reference the target relationships since
+		-- 1.15.449; before the cutover they had no foreign key.
+		ALTER TABLE auth.parent_declaration_permission_grants
+			DROP CONSTRAINT IF EXISTS fk_parent_declaration_permission_grant_relationship;
 
 		SELECT setval('users.students_guardians_id_seq', GREATEST(
 			(SELECT last_value FROM users.students_guardians_id_seq),

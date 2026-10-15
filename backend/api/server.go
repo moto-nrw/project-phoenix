@@ -18,11 +18,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database"
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
@@ -232,6 +236,10 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
 		deliveries:           deliveryCompose.NewRetention(),
+		fileCleanups:         filestorageCompose.NewCleanupRetention(),
+		staffCleanups:        workforceCompose.NewCleanupRetention(),
+		carePlanCleanups:     carePlanCompose.NewCleanupRetention(),
+		submissionLimits:     enrollmentCompose.New(),
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err
