@@ -1050,8 +1050,9 @@ policy epoch 47 the loader rejects these rules
   owner's `compose` or `http` role: cross-owner glue belongs in the root
   ([ADR 0059](../../docs/adr/0059-the-roots-hold-no-service-graph.md) point
   6, #4004). The typed roots, the legacy composition and `inbound` owners are
-  not owner compositions, and a target in a composition owner (the roots'
-  standing test reach) stays allowed;
+  not owner compositions. A target in a composition owner stays allowed in
+  the test scopes only (the roots' standing test reach); no owner imports a
+  root in production (ADR 0058);
 - a rule with an `issue` field;
 - a rule whose description contains a transition marker. The markers are a
   fixed list, matched case-insensitively: "convert … to exact debt",

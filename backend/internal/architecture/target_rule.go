@@ -36,7 +36,9 @@ var platformForbiddenTargetKinds = map[string]bool{"domain": true, "projection":
 var compositionGlueSourceKinds = map[string]bool{"domain": true, "workflow": true, "projection": true, "platform": true}
 
 // compositionGlueTargetRoles are the roles an owner composition may not
-// import from another owner.
+// import from another owner. A composition owner (the typed roots) is a target
+// only in the test scopes, the standing test reach of ADR 0053 point 7.2: no
+// owner imports a root in production (ADR 0058).
 var compositionGlueTargetRoles = map[string]bool{"compose": true, "http": true}
 
 // TransitionMarker is one phrase by which a rule description declares the
@@ -99,7 +101,7 @@ func validateTargetOnlyRule(rule Rule, owners map[string]Owner) error {
 				return fmt.Errorf("rule %q lets %s import the %s role of %s: another owner's private role is never target (ADR 0057)", rule.ID, source.ID, rule.TargetRole, target.ID)
 			}
 			if (rule.SourceRole == "" || rule.SourceRole == "compose") && compositionGlueSourceKinds[source.Kind] &&
-				target.Kind != "composition" && compositionGlueTargetRoles[rule.TargetRole] {
+				compositionGlueTargetRoles[rule.TargetRole] && (target.Kind != "composition" || ruleHasScope(rule, ScopeProduction)) {
 				return fmt.Errorf("rule %q lets the composition of %s import the %s role of %s: cross-owner glue belongs in the root (ADR 0059 point 6)", rule.ID, source.ID, rule.TargetRole, target.ID)
 			}
 			if source.Kind == "platform" && platformForbiddenTargetKinds[target.Kind] {

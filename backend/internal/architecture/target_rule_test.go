@@ -287,6 +287,8 @@ func TestTargetOnlyRuleKeepsCompositionGlueInTheRoot(t *testing.T) {
 		{"composition into an inbound owner", map[string]any{"id": "alpha.compose.portal-http", "source_owner": "alpha", "source_role": "compose", "target_owner": "portal", "target_role": "http"}},
 		{"any role of a domain", map[string]any{"id": "alpha.any.beta-compose", "source_owner": "alpha", "target_owner": "beta", "target_role": "compose"}},
 		{"compositions by kind", map[string]any{"id": "domain.compose.domain-compose", "source_owner_kind": "domain", "source_role": "compose", "target_owner_kind": "domain", "target_role": "compose"}},
+		{"composition into a root in production", map[string]any{"id": "alpha.compose.root-compose", "source_owner": "alpha", "source_role": "compose", "target_owner": "root", "target_role": "compose"}},
+		{"any role into a root in production and test", map[string]any{"id": "alpha.any.root-compose", "source_owner": "alpha", "target_owner": "root", "target_role": "compose", "scopes": []any{"production", "internal_test"}}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			t.Parallel()
@@ -304,6 +306,28 @@ func TestTargetOnlyRuleKeepsCompositionGlueInTheRoot(t *testing.T) {
 	} {
 		if err := targetOnlyFixture(t, addFixtureRule(rule)); err != nil {
 			t.Fatalf("%s rejected: %v", rule["id"], err)
+		}
+	}
+}
+
+// The root exception covers the standing test reach only: a production rule
+// from an owner composition into a root is rejected by the loader, and the
+// comparison reports it as a loosening against the repository policy.
+func TestCompositionIntoARootIsRejectedInProduction(t *testing.T) {
+	t.Parallel()
+	base := repositoryPolicy(t)
+	for _, scopes := range [][]string{{"production"}, {"production", "internal_test"}} {
+		candidate := *base
+		candidate.PolicyEpoch++
+		rule := Rule{ID: "facilities.compose.root-compose", Description: "Facilities composition names the root.", Scopes: scopes,
+			SourceOwner: "facilities", SourceRole: "compose", TargetOwner: rootCompositionOwner, TargetRole: "compose"}
+		candidate.Rules = append(slices.Clone(base.Rules), rule)
+		if err := candidate.Validate(); err == nil || !strings.Contains(err.Error(), "cross-owner glue belongs in the root") {
+			t.Fatalf("%v: validation accepted an owner composition importing a root: %v", scopes, err)
+		}
+		err := comparePolicyStrictness(base, &candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated())
+		if err == nil || !strings.Contains(err.Error(), "rule facilities.compose.root-compose newly allows production") {
+			t.Fatalf("%v: comparison accepted an owner composition importing a root: %v", scopes, err)
 		}
 	}
 }
