@@ -41,7 +41,7 @@ func NewEnrollmentAdminSubscribersForTests(db transactionruntime.Database) (enro
 	if err != nil {
 		return nil, nil, err
 	}
-	return services.NewEnrollmentAdminSubscribers(consent, identity), consent, nil
+	return NewEnrollmentAdminSubscribers(consent, identity), consent, nil
 }
 
 type DeliveryTestModule struct {

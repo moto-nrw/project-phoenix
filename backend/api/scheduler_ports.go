@@ -71,11 +71,11 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 	return bound.Bind(ctx), nil
 }
 
-// schedulerBookingConsistency binds the booking drift audit, which the legacy
-// composition builds over the graph's People Directory and Care Plan
-// (ADR 0049). A construction failure fails the Worker's composition.
+// schedulerBookingConsistency binds the booking drift audit, which the root
+// builds over the graph's People Directory and Care Plan (ADR 0049). A
+// construction failure fails the Worker's composition.
 func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (scheduler.BookingConsistencyAudit, error) {
-	bookings, err := services.NewBookingConsistencyAudit(graph.db.Pool(), graph.services.PeopleDirectory, reads.carePlan)
+	bookings, err := NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker booking consistency audit: %w", err)
 	}

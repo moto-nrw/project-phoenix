@@ -72,6 +72,7 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		services.FileStorageWiring{},
 		identity,
 		people,
+		owners.EnrollmentWiring(testpkg.NewDatabase(t, db), carePlan, people),
 		true,
 	)
 	require.NoError(t, err)

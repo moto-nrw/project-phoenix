@@ -56,7 +56,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        247
+        248
       ],
       "tables": []
     },
@@ -16382,12 +16382,12 @@
         },
         {
           "file": "api/base.go",
-          "line": 483,
+          "line": 487,
           "declaration": "withRootWiring"
         },
         {
           "file": "api/base.go",
-          "line": 747,
+          "line": 751,
           "declaration": "type serveGraph"
         },
         {
@@ -16397,7 +16397,7 @@
         },
         {
           "file": "api/factory_test_helpers.go",
-          "line": 191,
+          "line": 200,
           "declaration": "OwnerCapabilities.factory"
         },
         {

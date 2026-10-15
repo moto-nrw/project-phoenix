@@ -50,6 +50,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,
 			Presence: services.NewUnloggedStudentPresence(db.Pool()), PlanReads: services.MustPresenceReads(db.Pool()),
+			Enrollment: tt.Enrollment(),
 		},
 	}, nil
 }

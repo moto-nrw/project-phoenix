@@ -368,7 +368,7 @@ func (e bookingEnrollment) Phase(ctx context.Context, id int64) (careplanCompose
 	if phase == nil {
 		return careplanCompose.BookingPhase{}, careplanCompose.BookingRowNotFound(fmt.Errorf("phase %d not found", id))
 	}
-	return careplanCompose.BookingPhase{OfferingPhase: bookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
+	return careplanCompose.BookingPhase{OfferingPhase: BookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
 }
 
 func (e bookingEnrollment) Phases(ctx context.Context) ([]careplan.OfferingPhase, error) {
@@ -385,13 +385,15 @@ func bookingOfferingPhases(phases []*enrollmentOwner.Phase) []careplan.OfferingP
 	result := make([]careplan.OfferingPhase, 0, len(phases))
 	for _, phase := range phases {
 		if phase != nil {
-			result = append(result, bookingOfferingPhase(phase))
+			result = append(result, BookingOfferingPhase(phase))
 		}
 	}
 	return result
 }
 
-func bookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
+// BookingOfferingPhase is an Enrollment phase as Care Plan's booking flows
+// read it; the root's offering-change review reads it too.
+func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
 	return careplan.OfferingPhase{
 		ID: phase.ID, Name: phase.Name,
 		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
@@ -400,15 +402,17 @@ func bookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
 
 func (e bookingEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))
-	return bookedOfferings(values), err
+	return BookedOfferings(values), err
 }
 
 func (e bookingEnrollment) SelectionHistory(ctx context.Context, childID int64) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingHistory(ctx, childID)
-	return bookedOfferings(values), err
+	return BookedOfferings(values), err
 }
 
-func bookedOfferings(values []*enrollmentOwner.RequestChildOffering) []careplan.BookedOffering {
+// BookedOfferings are Enrollment's selections as Care Plan's booked
+// offerings; the root's offering-change review reads them too.
+func BookedOfferings(values []*enrollmentOwner.RequestChildOffering) []careplan.BookedOffering {
 	if values == nil {
 		return nil
 	}

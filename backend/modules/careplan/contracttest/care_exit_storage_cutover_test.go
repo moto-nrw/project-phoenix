@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/services"
+
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type careExitOfferingSchool struct {
@@ -29,7 +31,7 @@ type careExitOfferingSchool struct {
 func TestCareExitOfferingLinksTenantScopeRollbackAndRestore(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	module := services.NewEnrollmentBookingProjection(enrollmentTest.New())
+	module := services.NewEnrollmentBookingProjection(api.NewEnrollmentBookings())
 	const validUntil = enrollmentTest.Date("2031-02-01")
 	schools := make([]careExitOfferingSchool, 0, 2)
 	for _, school := range []string{"first", "second"} {

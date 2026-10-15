@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -185,9 +185,9 @@ func (o enrollmentMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentCo
 // enrollmentMailRenderers registers Enrollment's renderers by outbox kind.
 // A mail without a school name keeps the default sender; otherwise it goes
 // out under the school's name from the default address.
-func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFrom email.Email) map[string]emailoutbox.Renderer {
-	render := func(renderer enrollmentOwner.MailRenderer) emailoutbox.Renderer {
-		return emailoutbox.RendererFunc(func(ctx context.Context, intent *emailoutbox.Intent) (*email.Message, error) {
+func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
+	render := func(renderer enrollmentOwner.MailRenderer) deliveryCompose.MailRenderer {
+		return deliveryCompose.MailRendererFunc(func(ctx context.Context, intent *deliveryCompose.MailIntent) (*email.Message, error) {
 			payload, err := json.Marshal(intent.Payload)
 			if err != nil {
 				return nil, fmt.Errorf("%s payload: %w", intent.Kind, err)
@@ -206,7 +206,7 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 			}, nil
 		})
 	}
-	return map[string]emailoutbox.Renderer{
+	return map[string]deliveryCompose.MailRenderer{
 		platformModels.EmailKindEnrollmentSubmitted:                render(renderers.Submitted),
 		platformModels.EmailKindEnrollmentAdminNotify:              render(renderers.AdminNotification),
 		platformModels.EmailKindEnrollmentApproved:                 render(renderers.Approved),

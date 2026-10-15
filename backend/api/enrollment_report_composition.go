@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -6,45 +6,18 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below connect Enrollment's reports (#3563) to the People
 // Directory students, persons, guardian contacts, the School Structure groups,
 // the tenant settings and the GDPR access log.
 
-// enrollmentReportOwnerReads are the Enrollment owner reads of the reports.
-type enrollmentReportOwnerReads interface {
-	enrollmentCompose.ReportRequests
-	enrollmentCompose.ReportChildren
-	enrollmentCompose.ReportGuardians
-	enrollmentCompose.ReportSchemas
-	enrollmentCompose.ReportPhases
-}
-
-// EnrollmentReportSources are the reads the root binds the reports to.
-type EnrollmentReportSources struct {
-	Owner             enrollmentReportOwnerReads
-	Offerings         enrollmentCompose.ReportOfferings
-	AccessLog         auditModels.DataAccessLogRepository
-	Students          userModels.StudentRepository
-	Persons           userModels.PersonRepository
-	Groups            enrollmentCompose.RosterGroups
-	StudentGuardians  userModels.StudentGuardianRepository
-	Companions        enrollmentCompose.RosterCompanions
-	ClassListEntries  enrollmentCompose.ClassListEntries
-	PickupSchedules   enrollmentCompose.PickupSchedules
-	CareParticipation enrollmentCompose.CareParticipation
-	Settings          interface {
-		ResolveBool(ctx context.Context, key string) (bool, error)
-	}
-}
-
 // NewEnrollmentReports composes Enrollment's reports over the root's reads.
 // A missing read stays unbound, so the report that needs it answers "not
 // configured" instead of dereferencing nothing.
-func NewEnrollmentReports(sources EnrollmentReportSources) enrollmentOwner.Reports {
+func NewEnrollmentReports(sources services.EnrollmentReportSources) enrollmentOwner.Reports {
 	deps := enrollmentCompose.ReportDependencies{
 		Requests:          sources.Owner,
 		Children:          sources.Owner,
@@ -76,7 +49,7 @@ func NewEnrollmentReports(sources EnrollmentReportSources) enrollmentOwner.Repor
 	return enrollmentCompose.NewReports(deps)
 }
 
-type enrollmentRosterStudents struct{ repo userModels.StudentRepository }
+type enrollmentRosterStudents struct{ repo enrollmentRosterStudentRows }
 
 func (b enrollmentRosterStudents) ListClassRoster(ctx context.Context, schoolClass string) ([]*enrollmentCompose.RosterStudent, error) {
 	students, err := b.repo.ListClassRoster(ctx, schoolClass)
@@ -97,7 +70,7 @@ func (b enrollmentRosterStudents) ListClassRoster(ctx context.Context, schoolCla
 	return out, nil
 }
 
-type enrollmentRosterPersons struct{ repo userModels.PersonRepository }
+type enrollmentRosterPersons struct{ repo enrollmentRosterPersonRows }
 
 func (b enrollmentRosterPersons) PersonsByID(ctx context.Context, personIDs []int64) (map[int64]*enrollmentCompose.RosterPerson, error) {
 	persons, err := b.repo.FindByIDs(ctx, personIDs)
@@ -114,7 +87,7 @@ func (b enrollmentRosterPersons) PersonsByID(ctx context.Context, personIDs []in
 }
 
 type enrollmentRosterGuardianContacts struct {
-	repo userModels.StudentGuardianRepository
+	repo enrollmentGuardianContactRows
 }
 
 func (b enrollmentRosterGuardianContacts) GuardianContacts(ctx context.Context, studentIDs []int64) ([]enrollmentCompose.GuardianContactRow, error) {
@@ -151,7 +124,7 @@ func (s enrollmentReportSettings) CareOfferingsEnabled(ctx context.Context) (boo
 // enrollmentExportAccessLog appends the enrollment export rows to
 // audit.data_access_log.
 type enrollmentExportAccessLog struct {
-	repo auditModels.DataAccessLogRepository
+	repo enrollmentAccessLogAppender
 }
 
 func (l enrollmentExportAccessLog) RecordPhaseExport(ctx context.Context, entry enrollmentCompose.ExportAccess) error {
@@ -177,4 +150,11 @@ func (l enrollmentExportAccessLog) RecordStudentExport(ctx context.Context, stud
 		AccessedAt:     entry.AccessedAt,
 		Metadata:       entry.Metadata,
 	})
+}
+
+func stringValue(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
 }

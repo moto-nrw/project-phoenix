@@ -84,7 +84,7 @@ func (f *PeopleRepositorySuiteFactory) CarePlan() careplan.Capability { return f
 
 // Enrollment is the Enrollment booking projection of the graph.
 func (f *PeopleRepositorySuiteFactory) Enrollment() services.EnrollmentBookingProjection {
-	return services.NewEnrollmentBookingProjection(f.enrollment)
+	return services.NewEnrollmentBookingProjection(newEnrollmentBookings(f.enrollment))
 }
 
 // SchoolCalendar is the calendar owner the period, closing day and dateframe
@@ -231,8 +231,8 @@ func NewPeopleRepositorySuiteGuardianProfiles(db transactionruntime.Database) us
 // NewEnrollmentGuardianAutofillSuite is the enrollment form's autofill
 // reader as the composition root binds it, over the retained guardian profile
 // store of db (#2734).
-func NewEnrollmentGuardianAutofillSuite(db transactionruntime.Database) services.EnrollmentGuardianAutofill {
-	return services.EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db.Pool(), nil)}
+func NewEnrollmentGuardianAutofillSuite(db transactionruntime.Database) EnrollmentGuardianAutofill {
+	return EnrollmentGuardianAutofill{Loader: peopleCompose.NewGuardianProfileLoader(NewGuardianProfileRepository(db), db.Pool(), nil)}
 }
 
 // NewPeopleRepositorySuiteRecipients is the parent-message recipient lookup

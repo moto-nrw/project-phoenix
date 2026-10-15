@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below connect Enrollment's decision flow (#3564) to the People
@@ -85,7 +86,7 @@ func enrollmentGuardianRoleName(role enrollmentCompose.GuardianRole) string {
 
 // enrollmentPersons creates and renames persons and resolves a reviewer's
 // person.
-type enrollmentPersons struct{ repo userModels.PersonRepository }
+type enrollmentPersons struct{ repo enrollmentPersonRows }
 
 func (p enrollmentPersons) CreatePerson(ctx context.Context, person *enrollmentCompose.Person) error {
 	row := decisionPersonRow(person)
@@ -132,7 +133,7 @@ func decisionPersonRecord(row *userModels.Person) *enrollmentCompose.Person {
 }
 
 // enrollmentReviewerStaff resolves the staff member of a reviewer's person.
-type enrollmentReviewerStaff struct{ repo userModels.StaffRepository }
+type enrollmentReviewerStaff struct{ repo enrollmentStaffRows }
 
 func (s enrollmentReviewerStaff) StaffIDByPerson(ctx context.Context, personID int64) (int64, error) {
 	staff, err := s.repo.FindByPersonID(ctx, personID)
@@ -143,7 +144,7 @@ func (s enrollmentReviewerStaff) StaffIDByPerson(ctx context.Context, personID i
 }
 
 // enrollmentStudentRecords confirms that a student exists.
-type enrollmentStudentRecords struct{ repo userModels.StudentRepository }
+type enrollmentStudentRecords struct{ repo enrollmentStudentRows }
 
 func (s enrollmentStudentRecords) FindStudent(ctx context.Context, id int64) error {
 	_, err := s.repo.FindByID(ctx, id)
@@ -178,7 +179,9 @@ func decisionStudentRow(student *enrollmentCompose.Student) *userModels.Student 
 
 // enrollmentStudentAudit records the decision flow's student changes on the
 // People Directory's change trail.
-type enrollmentStudentAudit struct{ auditor EnrollmentStudentAuditor }
+type enrollmentStudentAudit struct {
+	auditor services.EnrollmentStudentAuditor
+}
 
 func (a enrollmentStudentAudit) RecordChangesForActor(ctx context.Context, before, after *enrollmentCompose.Student, editedBy int64) error {
 	return a.auditor.RecordChangesForActor(ctx, decisionStudentRow(before), decisionStudentRow(after), editedBy)
@@ -190,7 +193,7 @@ func (a enrollmentStudentAudit) RecordSystemStatusChange(ctx context.Context, st
 
 // enrollmentGuardianProfiles reads and writes the tenant's guardian profiles.
 type enrollmentGuardianProfiles struct {
-	repo userModels.GuardianProfileRepository
+	repo enrollmentGuardianProfileRows
 }
 
 func (g enrollmentGuardianProfiles) GuardianProfileByAccount(ctx context.Context, accountID int64) (*enrollmentCompose.GuardianProfile, error) {
@@ -316,7 +319,7 @@ func decisionGuardianProfileRecord(row *userModels.GuardianProfile) *enrollmentC
 // enrollmentStudentGuardians reads and writes the student-guardian links
 // through the retained composition seam over their three owners.
 type enrollmentStudentGuardians struct {
-	repo userModels.StudentGuardianRepository
+	repo enrollmentStudentGuardianRows
 }
 
 func (s enrollmentStudentGuardians) GuardianLinksOfStudent(ctx context.Context, studentID int64) ([]*enrollmentCompose.StudentGuardian, error) {
@@ -407,7 +410,7 @@ func decisionStudentGuardianRecord(row *userModels.StudentGuardian) *enrollmentC
 
 // enrollmentGuardianPhones reads and adds guardian phone numbers.
 type enrollmentGuardianPhones struct {
-	repo userModels.GuardianPhoneNumberRepository
+	repo enrollmentGuardianPhoneRows
 }
 
 func (p enrollmentGuardianPhones) GuardianPhones(ctx context.Context, guardianProfileID int64) ([]*enrollmentCompose.GuardianPhone, error) {
@@ -467,7 +470,7 @@ func decisionGuardianPhoneRecord(row *userModels.GuardianPhoneNumber) *enrollmen
 // enrollmentDepartureCompanions reads the "läuft mit" edges Care Plan keeps
 // and deletes those a narrowed plan no longer allows.
 type enrollmentDepartureCompanions struct {
-	edges  EnrollmentDepartureCompanions
+	edges  services.EnrollmentDepartureCompanions
 	delete func(context.Context, []int64) error
 }
 

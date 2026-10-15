@@ -89,7 +89,7 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 		return nil, err
 	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, true, clocks...))
+	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, owners.EnrollmentWiring(db, repos.CarePlan(), people), true, clocks...))
 	if err != nil {
 		return nil, err
 	}
@@ -109,6 +109,15 @@ func (owners OwnerCapabilities) PeopleWiring(db transactionruntime.Database, car
 		DB: db, Logger: logger, Persons: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
 		Membership: owners.Membership, Workforce: owners.Workforce, CarePlan: carePlan,
 		Organizations: owners.Organizations, Timetable: owners.Timetable,
+	})
+}
+
+// EnrollmentWiring binds Enrollment over the test owners, the given Care Plan
+// and the People wiring's schools, as the serving root does (#4012).
+func (owners OwnerCapabilities) EnrollmentWiring(db transactionruntime.Database, carePlan careplan.Capability, people services.PeopleWiring) services.EnrollmentWiring {
+	return newEnrollmentWiring(enrollmentWiringOwners{
+		DB: db, CarePlan: carePlan, Persons: owners.Persons, Calendar: owners.Calendar,
+		Timetable: owners.Timetable, Schools: people.EnrollmentSchools,
 	})
 }
 

@@ -1,20 +1,18 @@
-package services
+package api
 
 import (
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -25,40 +23,16 @@ import (
 // the owners' capabilities with the queries and error shapes the retained
 // repositories had; they decide nothing.
 
-// OfferingChangeInputs are the owners the offering-change review is composed
-// over.
-type OfferingChangeInputs struct {
-	CarePlan careplan.Capability
-	// Catalog reads the care offerings; nil reads them from CarePlan.
-	Catalog     carePlanCompose.OfferingChangeCatalog
-	Enrollment  offeringChangeEnrollmentReads
-	Students    usersModels.StudentRepository
-	Withdrawals usersModels.CareWithdrawalCompletionRepository
-	Settings    offeringChangeSettingsReads
-	Planning    carePlanCompose.OfferingChangePlanning
-	Bookings    careplan.BookingMaterializationCapability
-	Reviews     offeringChangeReviewPolicy
-	// Permissions reads the permissions of the request claims.
-	Permissions func(context.Context) []string
-	Emitter     *communicationCompose.ParentEventEmitter
-	Events      usersModels.ParentRequestEventRepository
-	Shares      carePlanCompose.ShareVisibility
-	Today       func() calendar.Date
-	Logger      *slog.Logger
-}
-
-func NewOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCapability, error) {
+// newOfferingChanges composes the offering-change review over the inputs.
+func newOfferingChanges(inputs services.OfferingChangeInputs) (careplan.OfferingChangeCapability, error) {
 	if inputs.CarePlan == nil || inputs.Enrollment == nil || inputs.Students == nil || inputs.Reviews == nil || inputs.Permissions == nil {
 		return nil, errors.New("offering changes: care plan, enrollment, students, review policy and request permissions are required")
 	}
 	var messenger carePlanCompose.RequestMessenger
 	if inputs.Emitter != nil {
-		messenger = excusedRequestMessenger{emitter: inputs.Emitter}
+		messenger = services.NewExcusedRequestMessenger(inputs.Emitter)
 	}
-	var ledger carePlanCompose.RequestLedger
-	if inputs.Events != nil {
-		ledger = newParentRequestLedger(inputs.Events)
-	}
+	ledger := services.NewParentRequestLedger(inputs.Events)
 	var catalog carePlanCompose.OfferingChangeCatalog = inputs.CarePlan
 	if inputs.Catalog != nil {
 		catalog = inputs.Catalog
@@ -68,7 +42,7 @@ func NewOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCap
 		Catalog:    catalog,
 		Enrollment: offeringChangeEnrollment{owner: inputs.Enrollment},
 		Students:   offeringChangeStudents{students: inputs.Students, withdrawals: inputs.Withdrawals},
-		Settings:   offeringChangeSettings{bookingSettings{settings: inputs.Settings}, inputs.Settings},
+		Settings:   services.NewOfferingChangeSettings(inputs.Settings),
 		Planning:   inputs.Planning,
 		Bookings:   inputs.Bookings,
 		Scope:      offeringChangeReviewScope(inputs.Reviews, inputs.Permissions),
@@ -84,15 +58,9 @@ func NewOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCap
 	return offeringChangeLifecycle{OfferingChangeCapability: changes}, nil
 }
 
-// offeringChangeReviewPolicy is the parent-request review policy's scope of
-// the caller.
-type offeringChangeReviewPolicy interface {
-	Scope(ctx context.Context, permissions []string) (schoolWide bool, groupIDs []int64, err error)
-}
-
 // offeringChangeReviewScope applies the identity-owned review policy with
 // the permissions of the request claims.
-func offeringChangeReviewScope(policy offeringChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
+func offeringChangeReviewScope(policy services.OfferingChangeReviewPolicy, permissions func(context.Context) []string) carePlanCompose.ReviewScopeResolver {
 	return func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
 		schoolWide, groupIDs, err := policy.Scope(ctx, permissions(ctx))
 		if err != nil {
@@ -143,39 +111,41 @@ func mapOfferingLifecycleError(err error) error {
 	}
 }
 
-// OfferingChangeConflictPort presents the review to the cross-kind conflict
+// newOfferingChangeConflicts presents the review to the cross-kind conflict
 // coordinator in the coordinator's own vocabulary.
-type OfferingChangeConflictPort struct {
-	Changes careplan.OfferingChangeConflicts
+func newOfferingChangeConflicts(changes careplan.OfferingChangeConflicts) carePlanCompose.ParentRequestConflicts {
+	return offeringChangeConflictPort{changes: changes}
 }
 
-var _ carePlanCompose.ParentRequestConflicts = OfferingChangeConflictPort{}
+type offeringChangeConflictPort struct {
+	changes careplan.OfferingChangeConflicts
+}
 
-func (p OfferingChangeConflictPort) ConflictCandidate(ctx context.Context, requestID int64) (*carePlanCompose.ConflictCandidate, error) {
-	candidate, err := p.Changes.ConflictCandidate(ctx, requestID)
+func (p offeringChangeConflictPort) ConflictCandidate(ctx context.Context, requestID int64) (*carePlanCompose.ConflictCandidate, error) {
+	candidate, err := p.changes.ConflictCandidate(ctx, requestID)
 	if err != nil {
 		return nil, err
 	}
 	return &carePlanCompose.ConflictCandidate{StudentID: candidate.StudentID, UpdatedAt: candidate.UpdatedAt}, nil
 }
 
-func (p OfferingChangeConflictPort) LockConflictRequest(ctx context.Context, requestID int64) error {
-	return p.Changes.LockConflictRequest(ctx, requestID)
+func (p offeringChangeConflictPort) LockConflictRequest(ctx context.Context, requestID int64) error {
+	return p.changes.LockConflictRequest(ctx, requestID)
 }
 
-func (p OfferingChangeConflictPort) DecideConflictRequest(ctx context.Context, decision carePlanCompose.ConflictDecision) error {
-	return p.Changes.DecideConflictRequest(ctx, careplan.OfferingConflictDecision{
+func (p offeringChangeConflictPort) DecideConflictRequest(ctx context.Context, decision carePlanCompose.ConflictDecision) error {
+	return p.changes.DecideConflictRequest(ctx, careplan.OfferingConflictDecision{
 		RequestID: decision.RequestID, Approve: decision.Approve, Reason: decision.Reason,
 		ReviewerID: decision.ReviewerID, ActorRole: decision.ActorRole, ExpectedVersion: decision.ExpectedVersion,
 	})
 }
 
-func (p OfferingChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
+func (p offeringChangeConflictPort) WriteStaffValue(ctx context.Context, write carePlanCompose.StaffValueWrite) error {
 	effectiveFrom, selections, err := parseStaffOfferingValue(write.Value)
 	if err != nil {
 		return err
 	}
-	return p.Changes.WriteStaffValue(ctx, careplan.OfferingStaffValueWrite{
+	return p.changes.WriteStaffValue(ctx, careplan.OfferingStaffValueWrite{
 		StudentID: write.StudentID, EffectiveFrom: effectiveFrom, Selections: selections, Reason: write.Reason,
 		ReviewerID: write.ReviewerID, ActorRole: write.ActorRole,
 	})
@@ -315,23 +285,11 @@ func offeringPendingError(op string, err error) error {
 	return nil
 }
 
-// offeringChangeEnrollmentReads is the part of the Enrollment owner an
-// offering change reads.
-type offeringChangeEnrollmentReads interface {
-	StudentCarePeriods(context.Context, int64) ([]*enrollmentOwner.StudentCarePeriod, error)
-	RequestByID(context.Context, int64, bool) (*enrollmentOwner.Request, error)
-	ChildByID(context.Context, int64) (*enrollmentOwner.RequestChild, error)
-	ChildrenByID(context.Context, []int64) ([]*enrollmentOwner.RequestChild, error)
-	Phase(context.Context, int64) (*enrollmentOwner.Phase, error)
-	RequestChildOfferingsAtDate(context.Context, int64, enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
-	EffectiveOfferingSelectionsAtDates(context.Context, map[int64]enrollmentOwner.Date) ([]*enrollmentOwner.RequestChildOffering, error)
-	OfferingCatalogState(context.Context, int64, int64, enrollmentOwner.Date, enrollmentOwner.Date) (*enrollmentOwner.OfferingCatalogState, error)
-	OfferingCapacityPeak(context.Context, int64, []int64, enrollmentOwner.Date, enrollmentOwner.Date) (int, error)
-}
-
 // offeringChangeEnrollment reads Enrollment's requests, children, phases and
 // booked selections for the review.
-type offeringChangeEnrollment struct{ owner offeringChangeEnrollmentReads }
+type offeringChangeEnrollment struct {
+	owner services.OfferingChangeEnrollmentReads
+}
 
 func (e offeringChangeEnrollment) StudentCarePeriods(ctx context.Context, studentID int64) ([]carePlanCompose.OfferingCarePeriod, error) {
 	periods, err := enrollmentOwner.StudentCarePeriodRecords(ctx, e.owner, studentID)
@@ -391,12 +349,12 @@ func (e offeringChangeEnrollment) Phase(ctx context.Context, id int64) (*carePla
 	if err != nil || phase == nil {
 		return nil, err
 	}
-	return &carePlanCompose.BookingPhase{OfferingPhase: bookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
+	return &carePlanCompose.BookingPhase{OfferingPhase: services.BookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
 }
 
 func (e offeringChangeEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))
-	return bookedOfferings(values), err
+	return services.BookedOfferings(values), err
 }
 
 func (e offeringChangeEnrollment) EffectiveSelectionsAt(ctx context.Context, dates map[int64]calendar.Date) ([]careplan.BookedOffering, error) {
@@ -405,7 +363,7 @@ func (e offeringChangeEnrollment) EffectiveSelectionsAt(ctx context.Context, dat
 		ownerDates[childID] = enrollmentOwner.Date(date)
 	}
 	values, err := e.owner.EffectiveOfferingSelectionsAtDates(ctx, ownerDates)
-	return bookedOfferings(values), err
+	return services.BookedOfferings(values), err
 }
 
 func (e offeringChangeEnrollment) CatalogState(ctx context.Context, phaseID, childID int64, on, until calendar.Date) (carePlanCompose.OfferingCatalogState, error) {
@@ -413,7 +371,7 @@ func (e offeringChangeEnrollment) CatalogState(ctx context.Context, phaseID, chi
 	if err != nil || state == nil {
 		return carePlanCompose.OfferingCatalogState{}, err
 	}
-	return carePlanCompose.OfferingCatalogState{Current: bookedOfferings(state.Current), CapacityPeaks: state.CapacityPeaks}, nil
+	return carePlanCompose.OfferingCatalogState{Current: services.BookedOfferings(state.Current), CapacityPeaks: state.CapacityPeaks}, nil
 }
 
 func (e offeringChangeEnrollment) CapacityPeak(ctx context.Context, offeringID int64, excludeChildIDs []int64, from, until calendar.Date) (int, error) {
@@ -423,8 +381,8 @@ func (e offeringChangeEnrollment) CapacityPeak(ctx context.Context, offeringID i
 // offeringChangeStudents reads the People Directory students a decision
 // authorizes against and their open complete-withdrawal follow-up.
 type offeringChangeStudents struct {
-	students    usersModels.StudentRepository
-	withdrawals usersModels.CareWithdrawalCompletionRepository
+	students    offeringChangeStudentRows
+	withdrawals offeringChangeWithdrawalRows
 }
 
 func (s offeringChangeStudents) FindStudent(ctx context.Context, id int64) (*carePlanCompose.ReviewStudent, error) {
@@ -459,34 +417,6 @@ func offeringReviewStudent(row *usersModels.Student) *carePlanCompose.ReviewStud
 		student.EnrolledUntil = careplan.Date(*row.EnrolledUntil)
 	}
 	return student
-}
-
-type offeringChangeSettingsReads interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-}
-
-// offeringChangeSettings resolves the tenant settings offering changes and
-// pickup adjustments obey.
-type offeringChangeSettings struct {
-	bookingSettings
-	reads offeringChangeSettingsReads
-}
-
-func (s offeringChangeSettings) OfferingChangesEnabled(ctx context.Context) (bool, error) {
-	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentOfferingChangesEnabled)
-}
-
-func (s offeringChangeSettings) CourseRequestsEnabled(ctx context.Context) (bool, error) {
-	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentParentCourseRequestsEnabled)
-}
-
-func (s offeringChangeSettings) OfferingChangeLeadDays(ctx context.Context) (string, error) {
-	return s.reads.ResolveString(ctx, configModels.KeyEnrollmentOfferingChangesLeadDays)
-}
-
-func (s offeringChangeSettings) PickupOfferingReviewRequired(ctx context.Context) (bool, error) {
-	return s.reads.ResolveBool(ctx, configModels.KeyRequirePickupOfferingReview)
 }
 
 // offeringChangeDatabaseError keeps the error text of the retained request

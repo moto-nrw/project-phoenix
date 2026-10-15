@@ -12,62 +12,19 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-// EnrollmentBookingProjection joins application identity with owner-provided effective
-// bookings. No compatibility-view reads or writes are used by this workflow.
+// EnrollmentBookingProjection is Enrollment's booking projection with the
+// care exit's writes to Care Plan's bookings: the lock, the end and the
+// restore of the bookings a care exit ends. No compatibility-view reads or
+// writes are used by this workflow.
 type EnrollmentBookingProjection struct {
-	*enrollment.Module
+	*enrollment.BookingProjection
 	bookings *careplan.OfferingBookings
 }
 
-// NewEnrollmentBookingProjection composes application identity and effective bookings
-// for cleanup and consistency audits on the caller's tenant transaction.
-func NewEnrollmentBookingProjection(applications *enrollment.Module) EnrollmentBookingProjection {
-	return EnrollmentBookingProjection{Module: applications, bookings: carePlanCompose.NewOfferingBookings()}
-}
-
-func (a EnrollmentBookingProjection) AllCareOfferingLinks(ctx context.Context) ([]enrollment.CareOfferingLink, error) {
-	return a.CareExitOfferingLinks(ctx, nil)
-}
-
-func (a EnrollmentBookingProjection) CareExitOfferingLinks(ctx context.Context, studentIDs []int64) ([]enrollment.CareOfferingLink, error) {
-	children, err := a.CareExitApplicationLinks(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(children))
-	for _, child := range children {
-		ids = append(ids, child.ID)
-	}
-	return a.offeringLinks(ctx, ids)
-}
-
-func (a EnrollmentBookingProjection) ApprovedBookingOfferingLinks(ctx context.Context) ([]enrollment.CareOfferingLink, error) {
-	children, err := a.CareExitApplicationLinks(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(children))
-	for _, child := range children {
-		if child.Status == enrollment.ChildStatusApproved {
-			ids = append(ids, child.ID)
-		}
-	}
-	return a.offeringLinks(ctx, ids)
-}
-
-func (a EnrollmentBookingProjection) offeringLinks(ctx context.Context, ids []int64) ([]enrollment.CareOfferingLink, error) {
-	bookings, err := a.bookings.CareOfferingBookingHistory(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	links := make([]enrollment.CareOfferingLink, 0, len(bookings))
-	for _, booking := range bookings {
-		links = append(links, enrollment.CareOfferingLink{ID: booking.ID, TenantID: booking.TenantID,
-			RequestChildID: booking.RequestChildID, CareOfferingID: booking.CareOfferingID, SelectedDays: booking.EffectiveSelectedDays(),
-			ValidFrom: enrollmentBookingDate(booking.ValidFrom), ValidUntil: enrollmentBookingDate(booking.ValidUntil)})
-	}
-	sort.Slice(links, func(i, j int) bool { return links[i].ID < links[j].ID })
-	return links, nil
+// NewEnrollmentBookingProjection adds the care exit's booking writes to the
+// projection the root binds, on the caller's tenant transaction.
+func NewEnrollmentBookingProjection(projection *enrollment.BookingProjection) EnrollmentBookingProjection {
+	return EnrollmentBookingProjection{BookingProjection: projection, bookings: carePlanCompose.NewOfferingBookings()}
 }
 
 func enrollmentBookingDate(date *careplan.Date) *enrollment.Date {

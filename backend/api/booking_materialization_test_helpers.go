@@ -81,7 +81,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), services.OfferingStudents{Query: people})
+	approved := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: people})
 	pickup, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approved, func(ctx context.Context) (bool, error) {
 		return settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})

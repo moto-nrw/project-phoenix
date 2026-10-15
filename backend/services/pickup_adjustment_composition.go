@@ -9,6 +9,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,7 +21,7 @@ type PickupAdjustmentInputs struct {
 	ArrivalSchedules careplan.ArrivalScheduleService
 	Baselines        careplan.PickupBaselineReader
 	Offerings        careplan.DirectOfferingAdjustments
-	Settings         offeringChangeSettingsReads
+	Settings         OfferingChangeSettingsReads
 	Audit            peopleCompose.StudentPickupPlanRecorder
 	Students         usersModels.StudentRepository
 	Today            func() calendar.Date
@@ -60,4 +61,40 @@ func (s pickupAdjustmentStudents) LockStudents(ctx context.Context, ids []int64)
 		}
 	}
 	return result, nil
+}
+
+// OfferingChangeSettingsReads is the slice of the settings service offering
+// changes and pickup adjustments resolve through.
+type OfferingChangeSettingsReads interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// NewOfferingChangeSettings resolves the tenant settings the root's
+// offering-change review obeys, the ones the pickup adjustment reads too.
+func NewOfferingChangeSettings(reads OfferingChangeSettingsReads) carePlanCompose.OfferingChangeSettings {
+	return offeringChangeSettings{bookingSettings{settings: reads}, reads}
+}
+
+// offeringChangeSettings resolves the tenant settings offering changes and
+// pickup adjustments obey.
+type offeringChangeSettings struct {
+	bookingSettings
+	reads OfferingChangeSettingsReads
+}
+
+func (s offeringChangeSettings) OfferingChangesEnabled(ctx context.Context) (bool, error) {
+	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentOfferingChangesEnabled)
+}
+
+func (s offeringChangeSettings) CourseRequestsEnabled(ctx context.Context) (bool, error) {
+	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentParentCourseRequestsEnabled)
+}
+
+func (s offeringChangeSettings) OfferingChangeLeadDays(ctx context.Context) (string, error) {
+	return s.reads.ResolveString(ctx, configModels.KeyEnrollmentOfferingChangesLeadDays)
+}
+
+func (s offeringChangeSettings) PickupOfferingReviewRequired(ctx context.Context) (bool, error) {
+	return s.reads.ResolveBool(ctx, configModels.KeyRequirePickupOfferingReview)
 }

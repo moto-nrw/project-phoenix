@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
@@ -21,7 +20,7 @@ type EnrollmentBookingFixture struct {
 }
 
 func NewEnrollmentBookingFixtureWithin(withinTenant func(context.Context, func(context.Context) error) error) EnrollmentBookingFixture {
-	return EnrollmentBookingFixture{services.NewEnrollmentBookingProjection(enrollmentCompose.New()), carePlanCompose.NewOfferingBookings(), withinTenant}
+	return EnrollmentBookingFixture{services.NewEnrollmentBookingProjection(NewEnrollmentBookings()), carePlanCompose.NewOfferingBookings(), withinTenant}
 }
 
 // These retained composition methods translate the old fixture-facing command

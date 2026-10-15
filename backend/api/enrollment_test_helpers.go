@@ -10,7 +10,7 @@ import (
 type ApprovedOfferingTestProjection = enrollmentCompose.ApprovedOfferingProjection
 
 func NewOwnerApprovedOfferingTestProjection(db transactionruntime.Database) (*ApprovedOfferingTestProjection, error) {
-	return NewApprovedOfferingTestProjection(db, services.NewEnrollmentBookingProjection(enrollmentCompose.New()))
+	return NewApprovedOfferingTestProjection(db, services.NewEnrollmentBookingProjection(NewEnrollmentBookings()))
 }
 
 func NewApprovedOfferingTestProjection(db transactionruntime.Database, selections enrollmentCompose.ApprovedSelections) (*enrollmentCompose.ApprovedOfferingProjection, error) {
@@ -18,5 +18,5 @@ func NewApprovedOfferingTestProjection(db transactionruntime.Database, selection
 	if err != nil {
 		return nil, err
 	}
-	return enrollmentCompose.NewApprovedOfferingProjection(selections, services.OfferingStudents{Query: students}), nil
+	return enrollmentCompose.NewApprovedOfferingProjection(selections, OfferingStudents{Query: students}), nil
 }

@@ -590,6 +590,19 @@ pattern does not cover. Code that other slices still call stays with those calle
 `services` until they move. Two stale offboarding rules of the legacy
 composition are gone, and the composition surface fell from 250 to 248.
 
+#4012 moved the Enrollment wiring out of `services` without a key or a policy
+rule. The booking projection's reads, capacity peaks and approved bookings are
+Enrollment's own rules (`modules/enrollment`, `BookingProjection` behind the
+consumer-owned port `OfferingBookings`, ADR 0053 point 4); Enrollment's
+composition builds the admin deletion and the retention cleanup over one
+preview (`NewDeletionModule`). The root binds
+Care Plan's bookings to that port, builds every cross-owner adapter, and hands
+the Factory `services.EnrollmentWiring`; the flows over values only the Factory
+builds arrive as constructors. The root builds the form schemas, the captcha
+and the phase expiry warnings where it mounts them, so three Factory fields
+fall and the composition surface goes from 237 to 234 (see
+[Enrollment wiring out of services](#enrollment-wiring-out-of-services-4012)).
+
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
 #3421 (the production and internal-test import of `api/enrollment`, and the
@@ -3448,6 +3461,57 @@ production files and from 35,473 to 30,454 LOC, and `services ->
 sessiontoken` falls (#2747, 40 → 39). Declarations whose callers stay in
 `services` moved into those callers' files. `api -> sessiontoken` (#2750)
 stays: the root's middleware and claim reads still use the adapter.
+
+### Enrollment wiring out of services (#4012)
+
+None of the 19 Enrollment files of #4012 remains in `services`. Measured
+against `development` after #4006 to #4008: `services` goes from 156 to 137
+production files and from 21,330 to 18,532 LOC; the baseline stays at 39 keys
+and the policy at 1,431 rules.
+
+- **Enrollment** decides what is its own: `BookingProjection` in the public
+  package (selections at a date, the first upcoming interval before a phase
+  starts, capacity peaks, grade counts, approved bookings and the offering
+  links of the booking audit) reads Care Plan's bookings through the
+  consumer-owned port `OfferingBookings`, next to the owner's other ports such
+  as `PhaseExpiryStudents`. It is not in the application layer, whose
+  pass-through ratchet would count its port reads. The three functions above
+  the module complexity limit are split into helpers;
+  `booking_capacity_internal_test.go` pins their boundaries. Enrollment's
+  composition only constructs: `NewDeletionModule` shares one impact preview
+  between the admin deletion and the retention cleanup.
+- **The root** (`api`) holds the glue: Care Plan's bookings behind the port
+  (`api/enrollment_bookings.go`), the Settings Platform, Delivery outbox,
+  Audit trail, People Directory, Care Plan and Timetable adapters of the
+  intake, decision, change-request, rollover, report, phase and
+  offering-change flows, the booking consistency audit next to the Worker job
+  that runs it (`api/booking_consistency_audit.go`), and the settings guards.
+  The adapters read People Directory and Audit rows through narrow ports
+  (`api/enrollment_rows.go`, Rule 1).
+- **The Factory** takes `services.EnrollmentWiring` as one new constructor
+  parameter: the projection, the adapters over owners the root composes, and
+  constructors for the flows over the settings, audit trails, outbox,
+  realtime hub and booking materialization only the Factory builds. The
+  source types of those constructors stay in `factory.go`. The root builds
+  `EnrollmentFormSchema`, `EnrollmentCaptcha` and `EnrollmentPhaseExpiry`
+  where it mounts the routes, so those fields are gone (237 → 234);
+  `EnrollmentRejectedCleanup` keeps its name with Enrollment's own type, and
+  the root adds the scheduler's counts.
+- **The guard closures** of `newFactory` (ADR 0053 point 4): each of the three
+  settings guards (class restriction, grade restriction, grade cap) binds a
+  Settings port to an Enrollment phase read, and Settings decides what it
+  refuses. All three are glue and moved to the root
+  (`bindEnrollmentSettingsGuards`); none decides anything.
+- **Callers in `services`** keep what they still call: the care exit's
+  booking writes stay in `care_exit_enrollment_bookings.go` (#4011) around the
+  root-built projection, which `NewCareLifecycleOwners` now receives instead
+  of building; the offering-change settings adapter moved next to the pickup
+  adjustment (#4011), and `BookedOfferings` and `BookingOfferingPhase` are
+  exported for the root's offering-change review.
+
+Delivery's composition names the e-mail recipient resolver of the "Neue
+Anmeldung" mail, and the People Directory vocabulary the emergency contact
+row, because the root may not import an owner's application role.
 
 ### Workforce wiring out of services (#4008)
 

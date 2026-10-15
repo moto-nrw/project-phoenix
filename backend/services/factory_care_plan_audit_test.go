@@ -6,14 +6,14 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
+
+	"github.com/stretchr/testify/require"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/require"
 )
 
-// The booking consistency audit the Worker runs is composed over the Care Plan
-// the service graph retains on the repository factory (ADR 0049).
+// The booking consistency audit the Worker runs is composed by the root over
+// the Care Plan the service graph retains (ADR 0049, #4012).
 func TestNewFactoryRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	t.Parallel()
 
@@ -22,7 +22,7 @@ func TestNewFactoryRetainsCarePlanForBookingConsistencyAudit(t *testing.T) {
 	_, err := api.NewFactoryForTestsWithConfig(repos, testpkg.NewDatabase(t, db), slog.Default(), testFactoryConfig())
 	require.NoError(t, err)
 
-	bookings, err := services.NewBookingConsistencyAudit(db, api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), repos.CarePlan())
+	bookings, err := api.NewBookingConsistencyAudit(testpkg.NewDatabase(t, db), api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)), repos.CarePlan())
 	require.NoError(t, err)
 	audit := reflect.ValueOf(bookings)
 	auditDate := reflect.New(audit.Type().In(1)).Elem()

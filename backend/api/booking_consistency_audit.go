@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -7,27 +7,26 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/uptrace/bun"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
 // BookingConsistencyAudit checks one tenant day's approved booking windows.
 type BookingConsistencyAudit func(context.Context, auditModels.Date) (*auditModels.BookingConsistencyReport, error)
 
 // NewBookingConsistencyAudit composes the booking drift audit the Worker runs
-// (ADR 0049). The Audit composition builds it over the caller's tenant
-// transaction, with the root database as the fallback outside one; People
-// Directory names the alumni the audit excludes, Care Plan supplies the
-// offerings and Enrollment the approved bookings, each through a port the
-// Audit composition declares.
-func NewBookingConsistencyAudit(db *bun.DB, students peopledirectory.StudentQuery, carePlan careplan.Query) (BookingConsistencyAudit, error) {
-	if db == nil || students == nil || carePlan == nil {
+// (ADR 0049) next to the job that runs it (#4012). The Audit composition
+// builds it over the caller's tenant transaction, with the root database as
+// the fallback outside one; People Directory names the alumni the audit
+// excludes, Care Plan supplies the offerings and Enrollment the approved
+// bookings, each through a port the Audit composition declares.
+func NewBookingConsistencyAudit(db transactionruntime.Database, students peopledirectory.StudentQuery, carePlan careplan.Query) (BookingConsistencyAudit, error) {
+	if db.Pool() == nil || students == nil || carePlan == nil {
 		return nil, fmt.Errorf("booking consistency audit: database, People Directory and Care Plan are required")
 	}
 	audits, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{
-		DB:         db,
-		Enrollment: NewEnrollmentBookingProjection(enrollmentCompose.New()),
+		DB:         db.Pool(),
+		Enrollment: NewEnrollmentBookings(),
 		Students:   auditStudentDirectory{students: students},
 		CarePlan:   auditCarePlanDirectory{query: carePlan},
 	})

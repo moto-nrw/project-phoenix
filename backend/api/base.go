@@ -412,6 +412,10 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			fileStorageWiring,
 			identity,
 			people,
+			newEnrollmentWiring(enrollmentWiringOwners{
+				DB: db, CarePlan: carePlan, Persons: persons, Calendar: calendar,
+				Timetable: timetableCapability, Schools: people.EnrollmentSchools,
+			}),
 		)
 	})
 	if err != nil {
@@ -1508,7 +1512,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		ActiveEnrollments:            studentActiveEnrollments{enrollments: svc.Activities},
 		EnrollmentDecision:           svc.EnrollmentDecision,
 		OfferingPickupTimes:          svc.EnrollmentCareOffering,
-		EnrollmentFormSchema:         svc.EnrollmentFormSchema,
+		EnrollmentFormSchema:         newEnrollmentFormSchemas(svc.Settings, in.logger),
 		OfferingSourceResyncer:       studentClassResyncer,
 		LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		Broadcaster:                  svc.RealtimeHub,
@@ -1661,7 +1665,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	// pattern and the People Directory names of the acknowledgement list
 	// (#3418). All staff read them, admins write them.
 	staffNotices := timetableHTTPAdapter.NewStaffNoticeResource(timetableCompose.NewStaffNotices(timetableCompose.StaffNoticeDependencies{
-		DB: in.db.Pool(), Periods: timetableCompose.NewCalendarPeriodRepository(in.modules.calendar, services.NewCalendarPeriodUsage(in.modules.timetable)), Names: peopleCompose.StaffNoticeNames(svc.PeopleDirectory),
+		DB: in.db.Pool(), Periods: timetableCompose.NewCalendarPeriodRepository(in.modules.calendar, newCalendarPeriodUsage(in.modules.timetable)), Names: peopleCompose.StaffNoticeNames(svc.PeopleDirectory),
 		Logger: in.logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
 	// Notification abstraction (#1624).
@@ -1687,7 +1691,7 @@ func newTimetableResource(modules moduleServices, pickupExtensions timetableModu
 	return timetableAPI.NewResource(timetableAPI.Dependencies{
 		CalendarPeriods:         modules.calendar,
 		ClosingDays:             modules.calendar,
-		CalendarPeriodUsage:     calendarPeriodUsage{usage: services.NewCalendarPeriodUsage(modules.timetable)},
+		CalendarPeriodUsage:     calendarPeriodUsage{usage: newCalendarPeriodUsage(modules.timetable)},
 		MaterializationService:  svc.Materialization,
 		InstanceService:         svc.Instance,
 		InstanceSeriesConverter: svc.InstanceSeriesConverter,
@@ -1727,7 +1731,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router())
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router())
 	// Parent enrollment (PR 5+).
-	tenant.Mount("/enrollment", newEnrollmentResource(modules).Router())
+	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router())
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the services factory composes it and the IoT service hands it
 	// back here (#2676).
@@ -1741,7 +1745,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	), pool).Router())
 	// The schema-driven settings system.
 	homeLayouts := requireHomeLayoutOperations(svc.Settings)
-	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, services.NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
+	tenant.Mount("/settings", newSettingsResource(svc.TenantSettings, homeLayouts, NewEnrollmentBookings().SchemaReferencesLegalDocument).SettingsRouter())
 	// Class-list-only entries (#2382).
 	tenant.Mount("/class-list-entries", newClassListEntriesResource(modules.membership, logger.With("handler", "class-list-entries")).Router())
 	tenant.Mount("/database", databaseStatsRouter(in))
@@ -1753,13 +1757,16 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router())
 }
 
-func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
+// newEnrollmentResource mounts Enrollment's staff and public routes. The
+// root builds the form schemas, the captcha and the phase expiry warnings
+// here, over the settings and the owners it composed (#4012).
+func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollmentAPI.Resource {
 	svc := modules.services
 	resource := enrollmentAPI.NewResource(
-		svc.EnrollmentFormSchema,
+		newEnrollmentFormSchemas(svc.Settings, logger),
 		enrollmentAPI.NewCareOfferingCatalog(services.NewEnrollmentCareOfferingValues(svc.EnrollmentCareOffering)),
 		enrollmentAPI.NewRequestService(svc.EnrollmentRequest),
-		svc.EnrollmentCaptcha,
+		newEnrollmentCaptcha(svc.Settings, logger),
 		svc.EnrollmentPhase,
 		enrollmentAPI.NewDecisionService(svc.EnrollmentDecision),
 		svc.EnrollmentReport,
@@ -1767,12 +1774,12 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 		enrollmentAPI.NewChangeRequestService(svc.EnrollmentChangeRequest),
 		svc.EnrollmentDeletion,
 		enrollmentGuardianInvitations(modules.identity),
-		services.NewEnrollmentGuardianAutofill(modules.guardianProfiles),
+		NewEnrollmentGuardianAutofill(modules.guardianProfiles),
 		enrollmentSchoolDirectory{schools: svc.Schools},
-		services.NewEnrollmentBookings(),
+		NewEnrollmentBookings(),
 	)
 	resource.ListExportService = svc.ListExport
-	resource.PhaseExpiryService = svc.EnrollmentPhaseExpiry
+	resource.PhaseExpiryService = newEnrollmentPhaseExpiry(modules.persons, modules.carePlan)
 	return resource
 }
 
