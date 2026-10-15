@@ -26,6 +26,11 @@ type (
 	// SchoolContact is the reply address of tenant-bound mail, the answer
 	// the mail identity reads from Organisation & Tenancy.
 	SchoolContact = emailoutbox.SchoolContact
+	// AbsenceNotifier and AbsenceReport carry the absences an approved
+	// excused-absence request reports to staff, for Care Plan's requests
+	// (#4011).
+	AbsenceNotifier = notifications.AbsenceNotifier
+	AbsenceReport   = notifications.AbsenceReport
 	// The mail renderers of Identity & Access, which the root binds to
 	// Delivery (#4006).
 	MailIntent       = emailoutbox.Intent

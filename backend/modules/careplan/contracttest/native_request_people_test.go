@@ -6,18 +6,18 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type requestPlanDirectory struct {
-	services.RequestPeople
+	api.RequestPeople
 	student  peopledirectory.StudentRecord
 	baseline *peopledirectory.StudentPlan
 }
@@ -72,13 +72,13 @@ func TestRequestApprovalPreservesNativePlanAndAuditSnapshots(t *testing.T) {
 			}
 			directory := &requestPlanDirectory{RequestPeople: f.sf.PeopleDirectory, student: student}
 			audit := &requestPlanAudit{}
-			service := services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+			service := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 				f.repos.CarePlan(), directory, f.sf.ArrivalSchedule, f.sf.PickupSchedule,
 				nil, nil, nil, f.sf.UserContext, nil, nil,
 				testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: f.sf.UserContext}, testpkg.PermissionsFromContext, nil, slog.Default(), audit,
 				// The child is enrolled until 2026-12-31; on a live clock the
 				// approval finds no request from 2027 on (#4027).
-				services.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
+				api.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
 			)
 			request := f.createPending(t, careWeekdays(map[string]any{"weekday": 5, "mode": "pickup", "arrival": "08:00", "pickup": "16:00"}))
 			_, err = service.Decide(ctx, carerequests.DecideInput{RequestID: request.ID, Approve: true, ReviewedBy: f.staffAccount})

@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -51,7 +49,7 @@ type CallerContextWiring struct {
 // Student Presence.
 func newCallerContext(wiring CallerContextWiring) (identityaccess.CallerContext, error) {
 	review := &identityCompose.ParentRequestReviewDependencies{
-		Permissions:           services.ReviewPermissions,
+		Permissions:           ReviewPermissions,
 		GroupLeaderSettingKey: configModels.KeyParentRequestGroupLeaderReviewEnabled,
 		RequestSettingKey:     configModels.KeyParentRequestReviewScope,
 		AbsenceSettingKey:     configModels.KeyParentAbsenceReviewScope,

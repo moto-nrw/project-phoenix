@@ -59,12 +59,12 @@ func NewRemindersTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return RemindersTestModule{}, err
 	}
 	autoExcusal, err := careplanCompose.NewPickupAutoExcusal(careplanCompose.PickupExcusalDependencies{
-		DB: db.Pool(), Records: carePlan, Baselines: baseline, Blocks: services.NewLoggedStudentPresence(db.Pool(), slog.Default()), Preview: services.NewPickupExcusalTimetable(r.Timetable, services.NewPartialAbsencePreview(db.Pool())),
+		DB: db.Pool(), Records: carePlan, Baselines: baseline, Blocks: services.NewLoggedStudentPresence(db.Pool(), slog.Default()), Preview: NewPickupExcusalTimetable(r.Timetable, services.NewPartialAbsencePreview(db.Pool())),
 	})
 	if err != nil {
 		return RemindersTestModule{}, err
 	}
-	pickupStudents, err := services.PickupPlanStudents(students)
+	pickupStudents, err := PickupPlanStudents(students)
 	if err != nil {
 		return RemindersTestModule{}, err
 	}

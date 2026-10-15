@@ -21,6 +21,6 @@ func NewStudentScheduleRepositories(db transactionruntime.Database, dependencies
 		PickupSchedule:   NewPickupScheduleRepository(carePlan),
 		PickupException:  NewPickupExceptionRepository(carePlan),
 		PickupNote:       NewPickupNoteRepository(carePlan),
-		StatusDay:        services.NewStudentStatusDayRepository(carePlan),
+		StatusDay:        NewStudentStatusDayRepository(carePlan),
 	}
 }

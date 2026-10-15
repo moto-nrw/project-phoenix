@@ -407,7 +407,7 @@ func composeDecisions(
 		CareBookings:           bookings,
 		GuardianAccess:         guardianAccess,
 		StudentEnrollment:      students,
-		Companions:             services.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:             api.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:       repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:           api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(tb, db))),
 		CareWithdrawal:         careWithdrawal,

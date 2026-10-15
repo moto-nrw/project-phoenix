@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -89,7 +90,11 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 		return nil, err
 	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, true, clocks...))
+	carePlan, err := owners.CarePlanWiring(db, repos.CarePlan(), people, wiring.AuditActor, logger)
+	if err != nil {
+		return nil, err
+	}
+	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, carePlan, true, clocks...))
 	if err != nil {
 		return nil, err
 	}
@@ -99,6 +104,17 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 		OperatorAuth: module, OperatorInvitation: module, OperatorMFA: module,
 		UserContext: userContext,
 	}, nil
+}
+
+// CarePlanWiring builds the Care Plan wiring over the test owners, the given
+// Care Plan and People Directory repositories, as the serving root does
+// (#4011).
+func (owners OwnerCapabilities) CarePlanWiring(db transactionruntime.Database, carePlan careplan.Capability, people services.PeopleWiring, auditActor peopleCompose.RequestAuditActor, logger *slog.Logger) (services.CarePlanWiring, error) {
+	root, err := newCarePlanWiring(carePlanWiringOwners{
+		DB: db, Logger: logger, CarePlan: carePlan, Persons: owners.Persons, Membership: owners.Membership,
+		Timetable: owners.Timetable, Calendar: owners.Calendar, People: people, AuditActor: auditActor,
+	})
+	return root.wiring, err
 }
 
 // PeopleWiring builds the People Directory, School Membership and School

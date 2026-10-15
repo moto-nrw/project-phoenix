@@ -80,16 +80,9 @@ var (
 
 // The legacy composition's values the Identity & Access behaviour suites
 // name build through the typed root (#4006).
-type (
-	FactoryConfig             = services.FactoryConfig
-	ParentRequestReviewPolicy = services.ParentRequestReviewPolicy
-)
+type FactoryConfig = services.FactoryConfig
 
 var (
-	// NewParentRequestReviewPolicy and ReviewPermissions are the parent
-	// request review decision the caller context serves.
-	NewParentRequestReviewPolicy = services.NewParentRequestReviewPolicy
-	ReviewPermissions            = services.ReviewPermissions
 	// NewOperatorAccountDirectory is the operator account listing over
 	// Identity & Access, the People Directory, School Membership and the
 	// schools.

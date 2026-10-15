@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -37,7 +35,7 @@ func (p presenceStudents) FindByID(ctx context.Context, id int64) (*studentprese
 	if err != nil {
 		return nil, err
 	}
-	return services.StudentRecord(row), nil
+	return StudentRecord(row), nil
 }
 
 func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*studentpresence.StudentRecord, error) {
@@ -45,7 +43,7 @@ func (p presenceStudents) FindByIDForUpdate(ctx context.Context, id int64) (*stu
 	if err != nil {
 		return nil, err
 	}
-	return services.StudentRecord(row), nil
+	return StudentRecord(row), nil
 }
 
 func (p presenceStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*studentpresence.StudentRecord, error) {
@@ -55,7 +53,7 @@ func (p presenceStudents) FindByIDsForUpdate(ctx context.Context, ids []int64) (
 	}
 	records := make(map[int64]*studentpresence.StudentRecord, len(rows))
 	for id, row := range rows {
-		records[id] = services.StudentRecord(row)
+		records[id] = StudentRecord(row)
 	}
 	return records, nil
 }
@@ -106,7 +104,7 @@ func (p statusDayOverviewPeople) GetStudentsByGroupIDs(ctx context.Context, grou
 		if row == nil {
 			continue
 		}
-		records = append(records, services.StudentRecord(row))
+		records = append(records, StudentRecord(row))
 	}
 	return records, nil
 }

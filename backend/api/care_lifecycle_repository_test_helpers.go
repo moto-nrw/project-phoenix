@@ -24,7 +24,7 @@ type CareLifecycleTestRepositories struct {
 	CareWithdrawal   usersModels.CareWithdrawalCompletionRepository
 	StudentFieldEdit auditModels.StudentFieldEditRepository
 	db               transactionruntime.Database
-	sources          services.CareLifecycleOwnerSources
+	sources          CareLifecycleOwnerSources
 }
 
 func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (CareLifecycleTestRepositories, error) {
@@ -44,9 +44,9 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 	care := tt.CarePlan
 	return CareLifecycleTestRepositories{
 		TimetableTestRepositories: tt,
-		CareWithdrawal:            services.NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
+		CareWithdrawal:            NewLateBoundCareWithdrawalCompletionRepository(func() careplan.Capability { return care }),
 		db:                        db,
-		sources: services.CareLifecycleOwnerSources{
+		sources: CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,
 			Presence: services.NewUnloggedStudentPresence(db.Pool()), PlanReads: services.MustPresenceReads(db.Pool()),
@@ -57,7 +57,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 // CareLifecycleTestConfig tunes the composed lifecycle for one suite.
 type CareLifecycleTestConfig struct {
 	// Audit records the care-end history; companion suites share it.
-	Audit                 services.StudentChangeAudit
+	Audit                 StudentChangeAudit
 	BookingsAuthoritative func(context.Context) (bool, error)
 	// LockCareBookingWrites is the booking-write gate. nil takes none.
 	LockCareBookingWrites func(context.Context) error
@@ -74,7 +74,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 	}
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
 		DB: r.db.Pool(), Records: r.CarePlan,
-		Owners:                services.NewCareLifecycleOwners(r.sources, services.NewCareEndRecorder(config.Audit)),
+		Owners:                NewCareLifecycleOwners(r.sources, NewCareEndRecorder(config.Audit)),
 		LockCareBookingWrites: lock,
 		BookingsAuthoritative: config.BookingsAuthoritative,
 		Fingerprint:           securityruntime.Fingerprint,
@@ -86,8 +86,8 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 // MustNewStudentCompanions composes the companion capability over a test
 // graph's Care Plan records, student repository and People Directory. audit
 // may be nil when the suite never widens a plan.
-func MustNewStudentCompanions(records careplan.Capability, students usersModels.StudentRepository, people services.CompanionStudentLock, audit services.StudentChangeAudit) careplan.StudentCompanions {
-	companions, err := carePlanCompose.NewCompanions(records, services.NewCompanionStudents(students, people, audit))
+func MustNewStudentCompanions(records careplan.Capability, students usersModels.StudentRepository, people CompanionStudentLock, audit StudentChangeAudit) careplan.StudentCompanions {
+	companions, err := carePlanCompose.NewCompanions(records, NewCompanionStudents(students, people, audit))
 	if err != nil {
 		panic(err)
 	}
@@ -100,7 +100,7 @@ func MustNewStudentCompanions(records careplan.Capability, students usersModels.
 // suites that may not name Care Plan's edge type; production writes go
 // through the companion capability's rules instead.
 func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
-	repository, ok := links.(services.CompanionRepository)
+	repository, ok := links.(CompanionRepository)
 	if !ok {
 		return errors.New("companion links are not served by the Care Plan owner")
 	}

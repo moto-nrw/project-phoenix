@@ -159,6 +159,10 @@ type moduleServices struct {
 	carePlan *carePlanModule.Module
 	// studentStatusDays archives the Worker's status flags over Care Plan.
 	studentStatusDays scheduler.StudentStatusFlagArchiver
+	// companions is Care Plan's companion graph of the student routes;
+	// reviewPolicy is the parent request review reach (#4011).
+	companions   carePlanModule.StudentCompanions
+	reviewPolicy *ParentRequestReviewPolicy
 	// timetableRepositories are the retained Timetable adapters (#2743).
 	timetableRepositories timetableCompose.Repositories
 	services              *services.Factory
@@ -341,7 +345,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	carePlan, err := composeCarePlan(db, persons, services.CarePlanStatusSlots(timetableRepositories.InstanceStudent))
+	carePlan, err := composeCarePlan(db, persons, CarePlanStatusSlots(timetableRepositories.InstanceStudent))
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -378,7 +382,14 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	if err != nil {
 		return moduleServices{}, err
 	}
-	factory, identity, err := withRootWiring(db, func(fileStorageWiring services.FileStorageWiring, identity services.IdentityRoot) (*services.Factory, error) {
+	// Care Plan's bindings to the owners composed here are built by the root
+	// and handed to the legacy service graph (#4011); the student routes
+	// mount the same companion graph.
+	carePlanOwners := carePlanWiringOwners{
+		DB: db, Logger: logger, CarePlan: carePlan, Persons: persons, Membership: membership,
+		Timetable: timetableCapability, Calendar: calendar, People: people, ObserveCarePlan: observeCarePlan,
+	}
+	factory, identity, carePlanBindings, err := withRootWiring(db, carePlanOwners, func(fileStorageWiring services.FileStorageWiring, identity services.IdentityRoot, carePlanWiring services.CarePlanWiring) (*services.Factory, error) {
 		return services.NewFactoryWithModules(
 			carePlan, pool, logger, publicAPIURL, tenantRuntime,
 			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
@@ -395,9 +406,6 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 					observation.Err,
 				)
 			},
-			func(observation carePlanCompose.Observation) {
-				observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
-			},
 			mealPlan, mealPlanSettings.Bind,
 			feedbackCapability, feedbackSettings.Bind,
 			observability.ObserveAuditAppend,
@@ -412,6 +420,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 			fileStorageWiring,
 			identity,
 			people,
+			carePlanWiring,
 		)
 	})
 	if err != nil {
@@ -426,8 +435,11 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		factory.Settings, logger.With("service", "birthdays"), nil)
 	calendarAdministration = factory.SchoolCalendarAdministration()
 	identityModule, userContext := identity()
-	studentStatusDays := services.NewStudentStatusDayRepository(carePlan)
-	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, timetableRepositories: timetableRepositories, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+	studentStatusDays := NewStudentStatusDayRepository(carePlan)
+	// The parent request review policy of the request queues, for the review
+	// projection and the student routes (#4011).
+	reviewPolicy := NewParentRequestReviewPolicy(userContext.Caller().ParentRequestReviews)
+	return moduleServices{carePlan: carePlan, studentStatusDays: studentStatusDays, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
 }
 
 // composeSchoolMembership composes the observed School Membership owner. A
@@ -479,22 +491,29 @@ func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.S
 // metrics sink; the factory composes the module where the announcement ports
 // live. Identity & Access is composed by the root over the values the
 // factory builds, with the session codec of Identity's session token adapter
-// (#2747, #4006).
-func withRootWiring(db transactionruntime.Database, build func(services.FileStorageWiring, services.IdentityRoot) (*services.Factory, error)) (*services.Factory, composedIdentity, error) {
+// (#2747, #4006). Care Plan's bindings to the root's owners come built
+// (#4011); their change history names the actor through the same token
+// adapter.
+func withRootWiring(db transactionruntime.Database, carePlanOwners carePlanWiringOwners, build func(services.FileStorageWiring, services.IdentityRoot, services.CarePlanWiring) (*services.Factory, error)) (*services.Factory, composedIdentity, carePlanRoot, error) {
 	uploads, err := apiCommon.PrivateUploadsBackend()
 	if err != nil {
-		return nil, nil, fmt.Errorf("resolve uploads backend: %w", err)
+		return nil, nil, carePlanRoot{}, fmt.Errorf("resolve uploads backend: %w", err)
 	}
 	tokens, err := newLegacyTokenAdapter()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, carePlanRoot{}, err
 	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage}, wiring)
+	carePlanOwners.AuditActor = wiring.AuditActor
+	carePlan, err := newCarePlanWiring(carePlanOwners)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, carePlanRoot{}, err
 	}
-	return factory, identity, nil
+	factory, err := build(services.FileStorageWiring{Objects: uploads, Observe: observeFileStorage}, wiring, carePlan.wiring)
+	if err != nil {
+		return nil, nil, carePlanRoot{}, err
+	}
+	return factory, identity, carePlan, nil
 }
 
 func observeFileStorage(observation filestorageCompose.Observation) {
@@ -541,7 +560,7 @@ func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 	if err != nil {
 		return nil, err
 	}
-	statusStudents, err := services.CarePlanStatusStudents(persons, profiles)
+	statusStudents, err := CarePlanStatusStudents(persons, profiles)
 	if err != nil {
 		return nil, err
 	}
@@ -1363,13 +1382,13 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	// The staff projection lists exactly what the decisions accept: one
 	// Identity & Access review policy serves both (#3804).
 	reviewScope := func(ctx context.Context) (carePlanCompose.ReviewScope, error) {
-		schoolWide, groupIDs, err := svc.RequestReviewPolicy.Scope(ctx, sessiontoken.PermissionsFromCtx(ctx))
+		schoolWide, groupIDs, err := modules.reviewPolicy.Scope(ctx, sessiontoken.PermissionsFromCtx(ctx))
 		return carePlanCompose.ReviewScope{SchoolWide: schoolWide, GroupIDs: groupIDs}, err
 	}
 	// Report the union of ordinary and absence-review rights, as the
 	// navigation capability does. Each native queue keeps its own scope.
 	reviewAccess, err := requestreviewcompose.NewAccess(studentsAPI.RequestReviewPrincipal, func(ctx context.Context) (string, error) {
-		return svc.RequestReviewPolicy.AccessLevel(ctx, sessiontoken.PermissionsFromCtx(ctx))
+		return modules.reviewPolicy.AccessLevel(ctx, sessiontoken.PermissionsFromCtx(ctx))
 	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
@@ -1470,7 +1489,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
 		PeopleDirectory:              svc.PeopleDirectory,
 		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
-		CompanionService:             svc.Students.Companions,
+		CompanionService:             modules.companions,
 		ClassListEntries:             classListEntryStudentsReader{entries: modules.membership},
 		ChildQuota:                   childQuotaStudentsReader{usages: modules.membership},
 		StudentDeletion:              svc.StudentDeletion,
@@ -1499,7 +1518,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		ParentRequestConflictService: svc.ParentRequests,
 		FamilyProtection:             svc.PeopleDirectory,
 		StudentNotes:                 svc.PeopleDirectory,
-		RequestReviewAccess:          svc.RequestReviewPolicy,
+		RequestReviewAccess:          modules.reviewPolicy,
 		RequestReview:                requestReview,
 		StudentStatusDayService:      svc.StudentStatusDays,
 		AbsenceOverview:              svc.AbsenceOverview,
@@ -1757,7 +1776,7 @@ func newEnrollmentResource(modules moduleServices) *enrollmentAPI.Resource {
 	svc := modules.services
 	resource := enrollmentAPI.NewResource(
 		svc.EnrollmentFormSchema,
-		enrollmentAPI.NewCareOfferingCatalog(services.NewEnrollmentCareOfferingValues(svc.EnrollmentCareOffering)),
+		enrollmentAPI.NewCareOfferingCatalog(NewEnrollmentCareOfferingValues(svc.EnrollmentCareOffering)),
 		enrollmentAPI.NewRequestService(svc.EnrollmentRequest),
 		svc.EnrollmentCaptcha,
 		svc.EnrollmentPhase,

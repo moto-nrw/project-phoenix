@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -56,8 +55,8 @@ func NewCareOfferingCatalogTestModule(db transactionruntime.Database, unit tenan
 
 // newTestCareOfferingCatalog binds the catalog to the owners of a test
 // repository set.
-func newTestCareOfferingCatalog(r TimetableTestRepositories, settings services.CareOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
-	return services.NewCareOfferingCatalog(services.CareOfferingCatalogInputs{
+func newTestCareOfferingCatalog(r TimetableTestRepositories, settings careOfferingSettingsReads, options CareOfferingCatalogTestOptions) (careplan.CareOfferingCatalogCapability, error) {
+	return newCareOfferingCatalog(careOfferingCatalogInputs{
 		Records: r.CarePlan, Phases: r.Enrollment(), Bookings: r.Enrollment(),
 		Timetable: r.Timetable, Calendar: r.SchoolCalendar(), Settings: settings,
 		SourcedTemplates: func() careplanCompose.SourcedTemplateResyncer { return options.SourcedTemplates },

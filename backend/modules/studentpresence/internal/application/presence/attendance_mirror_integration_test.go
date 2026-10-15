@@ -45,7 +45,7 @@ type attendanceSyncSetup struct {
 	syncer      studentpresence.AttendanceSyncer
 	instRepo    scheduleModels.ActivityInstanceRepository
 	isRepo      scheduleModels.InstanceStudentRepository
-	statusRepo  *services.StudentStatusDayRepository
+	statusRepo  *api.StudentStatusDayRepository
 	groupRepo   studentpresence.SessionRecords
 	db          *bun.DB
 	ctx         context.Context

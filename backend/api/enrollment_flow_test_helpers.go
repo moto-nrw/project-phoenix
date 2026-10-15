@@ -75,7 +75,7 @@ func NewEnrollmentFlowStudentAudit(db transactionruntime.Database, actor peopleC
 // way the root binds it; extensions also records the pickup extensions the
 // Timetable owner keeps.
 func NewEnrollmentFlowPickupExcusal(db transactionruntime.Database, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) (careplan.PickupAutoExcusal, error) {
-	adapter := services.NewPickupExcusalTimetable(tt, services.NewPartialAbsencePreview(db.Pool()))
+	adapter := NewPickupExcusalTimetable(tt, services.NewPartialAbsencePreview(db.Pool()))
 	deps := careplanCompose.PickupExcusalDependencies{
 		DB: db.Pool(), Records: records, Baselines: baselines, Blocks: services.NewLoggedStudentPresence(db.Pool(), slog.Default()), Preview: adapter,
 	}

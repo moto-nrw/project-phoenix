@@ -179,7 +179,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		return nil, nil, err
 	}
 	legacyBookings := func(context.Context) (bool, error) { return false, nil }
-	arrivals, err := services.NewArrivalBaselines(carePlan, people, classArrivalQueries, approvedOfferings, legacyBookings)
+	arrivals, err := NewArrivalBaselines(carePlan, people, classArrivalQueries, approvedOfferings, legacyBookings)
 	if err != nil {
 		return nil, nil, err
 	}

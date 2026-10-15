@@ -56,8 +56,8 @@ type careFixture struct {
 }
 
 func newCareScheduleRequestService(
-	requestRepo services.RequestRecords,
-	people services.RequestPeople,
+	requestRepo api.RequestRecords,
+	people api.RequestPeople,
 	arrival careplan.ArrivalScheduleService,
 	pickup careplan.PickupScheduleService,
 	factory *api.TestFactory,
@@ -65,7 +65,7 @@ func newCareScheduleRequestService(
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) carerequests.Service {
-	return services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		requestRepo, people, arrival, pickup, nil, nil, nil,
 		factory.UserContext, emitter, broadcaster,
 		testpkg.RequestReviewPolicy[*usersModels.Student]{UserContext: factory.UserContext}, testpkg.PermissionsFromContext, nil, logger,
@@ -84,21 +84,21 @@ func (f *careFixture) emitter(
 	return emitter
 }
 
-func newPickupChangePresence(t *testing.T, db *bun.DB) services.PickupChangePresence {
+func newPickupChangePresence(t *testing.T, db *bun.DB) api.PickupChangePresence {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	return presence
 }
 
-func newCareFixture(t *testing.T, options ...services.CareRequestOption) *careFixture {
+func newCareFixture(t *testing.T, options ...api.CareRequestOption) *careFixture {
 	t.Helper()
 	return newCareFixtureWithEmitter(t, nil, options...)
 }
 
 // newCareFixtureWithEmitter builds the same service with a pill emitter, so a
 // test can assert what the message thread receives (#3135).
-func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, options ...services.CareRequestOption) *careFixture {
+func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, options ...api.CareRequestOption) *careFixture {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
@@ -108,7 +108,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 
 	autoExcusal := newPickupExcusal(t, db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), timetableDeps.Capability, false)
-	svc := services.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	svc := api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		repos.CarePlan(),
 		sf.PeopleDirectory,
 		sf.ArrivalSchedule,
@@ -1073,7 +1073,7 @@ func (f *careFixture) linkCompanionOnTuesday(t *testing.T) {
 
 	edge, err := api.NewStudentCompanionEdge(f.chain.StudentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(f.repos.CarePlan()), f.chain.StudentID, []*usersModels.StudentCompanion{edge}))
 }
 
 // TestDecide_BogusIDNotFound covers the staff-decision lock on a missing row:

@@ -8427,17 +8427,6 @@
       "target_role": "compose"
     },
     {
-      "id": "enrollment.http-integration-test.legacy-composition",
-      "description": "The enrollment route suites compose the retained repositories the owner's flows still read through (#2734).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
-    },
-    {
       "id": "enrollment.http-integration-test.domain",
       "description": "The enrollment route suites seed and read the owner's enrollment rows (#2734).",
       "scopes": [

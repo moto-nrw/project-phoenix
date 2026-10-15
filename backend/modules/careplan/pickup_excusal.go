@@ -19,7 +19,7 @@ type PickupAutoExcusal interface {
 	Preview(context.Context, int64, calendar.Date, time.Time) ([]carerequests.Block, error)
 	DetachForDate(context.Context, int64, calendar.Date) error
 	DetachRow(context.Context, *PickupException) error
-	ResyncFutureExceptions(context.Context, int64) error
+	ResyncFutureExceptions(context.Context, []int64) error
 	ReleaseBeforeDelete(context.Context, *PickupException) error
 	SnapshotWeeklyPickups(context.Context, int64, calendar.Date) (WeeklyPickupSnapshot, error)
 	RecordWeeklyPickupChanges(context.Context, int64, calendar.Date, WeeklyPickupSnapshot) error

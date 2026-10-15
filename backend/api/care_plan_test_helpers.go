@@ -21,7 +21,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	if err != nil {
 		return nil, err
 	}
-	statusStudents, err := services.CarePlanStatusStudents(students, profiles)
+	statusStudents, err := CarePlanStatusStudents(students, profiles)
 	if err != nil {
 		return nil, err
 	}
@@ -29,7 +29,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db.Pool(), Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents,
-		StatusSlots:    services.CarePlanStatusSlots(slots),
+		StatusSlots:    CarePlanStatusSlots(slots),
 		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := students.ListStudentNamesByID(ctx, ids)
 			if err != nil {
