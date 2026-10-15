@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -15,7 +13,7 @@ import (
 // applications that created the children and the source bookings a care exit
 // ends and restores, over the composed booking projection.
 type careExitEnrollment struct {
-	projection services.EnrollmentBookingProjection
+	projection EnrollmentBookingProjection
 }
 
 func (e careExitEnrollment) CreatedStudentRequestChildIDs(ctx context.Context, studentIDs []int64) ([]int64, error) {

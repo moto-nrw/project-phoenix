@@ -135,8 +135,8 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	return result, nil
 }
 
-func (r TimetableTestRepositories) Enrollment() services.EnrollmentBookingProjection {
-	return services.NewEnrollmentBookingProjection(r.enrollment)
+func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(newEnrollmentBookings(r.enrollment))
 }
 
 // SchoolCalendar returns the calendar owner the period, closing-day and

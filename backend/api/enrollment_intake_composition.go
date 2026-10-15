@@ -1,12 +1,11 @@
-package services
+package api
 
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
@@ -14,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below compose Enrollment's intake and change requests (#3565)
@@ -21,49 +21,8 @@ import (
 // Directory rows of the retained repositories, the Settings Platform and the
 // Delivery outbox.
 
-// EnrollmentIntakeSettings resolves the tenant settings of the intake by key.
-// A resolver that also answers ResolveMany is read through one snapshot.
-type EnrollmentIntakeSettings interface {
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveString(ctx context.Context, key string) (string, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-}
-
-// EnrollmentIntakeSources are the owners and retained repositories the root
-// binds the intake to. A nil source skips the work that needs it, the way
-// the intake always treated an unwired repository.
-type EnrollmentIntakeSources struct {
-	Requests           enrollmentCompose.IntakeRequests
-	Children           enrollmentCompose.IntakeChildren
-	Bookings           enrollmentOwner.CareBookingCommands
-	Guardians          enrollmentCompose.IntakeGuardians
-	LateInviteRepo     enrollmentCompose.IntakeLateInvites
-	CareOfferingRepo   enrollmentCompose.IntakeOfferings
-	Capacity           enrollmentOwner.OfferingCapacity
-	Catalog            enrollmentCompose.IntakeCatalog
-	SchoolRepo         enrollmentOwner.SchoolDirectory
-	Notifications      enrollmentOwner.Notifications
-	StudentRepo        enrollmentCompose.StudentMatches
-	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
-	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
-	OutboxEnqueuer     platformModels.OutboxEnqueuer
-	Settings           EnrollmentIntakeSettings
-	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
-	// mail (#3780); nil keeps the configured address list only.
-	AdminSubscribers enrollmentCompose.AdminMailSubscribers
-	ManualDecider    enrollmentCompose.ManualEnrollmentDecider
-	// ParentChanges makes a request unread again after a parent edit (#3778).
-	ParentChanges enrollmentCompose.RequestParentChanges
-	// FrontendURL is the base of the staff links, ParentsURL of the
-	// parent-facing ones; it falls back to FrontendURL.
-	FrontendURL string
-	ParentsURL  string
-	Logger      *slog.Logger
-}
-
 // NewEnrollmentIntake composes Enrollment's intake over the sources.
-func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake {
+func NewEnrollmentIntake(src services.EnrollmentIntakeSources) *enrollmentCompose.Intake {
 	return enrollmentCompose.NewIntake(enrollmentCompose.IntakeDependencies{
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
@@ -79,57 +38,21 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 // NewEnrollmentAdminSubscribers binds Delivery's opt-in e-mail resolver to the
 // intake's admin notification (#3780): the configured addresses plus every
 // enrollment manager of the school who switched "Neue Anmeldung" on.
-func NewEnrollmentAdminSubscribers(subscribers notifications.EmailSubscribers, accounts notifications.EmailAccounts) enrollmentCompose.AdminMailSubscribers {
-	return enrollmentAdminSubscribers{resolver: notifications.NewEmailRecipientResolver(subscribers, accounts)}
+func NewEnrollmentAdminSubscribers(subscribers deliveryCompose.EmailSubscribers, accounts deliveryCompose.EmailAccounts) enrollmentCompose.AdminMailSubscribers {
+	return enrollmentAdminSubscribers{resolver: deliveryCompose.NewEmailRecipientResolver(subscribers, accounts)}
 }
 
 type enrollmentAdminSubscribers struct {
-	resolver notifications.EmailRecipientResolver
+	resolver deliveryCompose.EmailRecipientResolver
 }
 
 func (s enrollmentAdminSubscribers) AdminNotificationRecipients(ctx context.Context, configured []string) ([]string, error) {
-	return s.resolver.Recipients(ctx, notifications.TypeEnrollmentSubmitted, configured)
-}
-
-// EnrollmentChangeRequestSources are the owners and retained repositories the
-// root binds the change requests to.
-type EnrollmentChangeRequestSources struct {
-	Bookings            enrollmentCompose.CareBookingChanges
-	Requests            enrollmentCompose.ChangeRequestRecords
-	Children            enrollmentCompose.IntakeChildren
-	Guardians           enrollmentCompose.IntakeGuardians
-	LateInviteRepo      enrollmentCompose.DecisionLateInvites
-	CareOfferingRepo    enrollmentCompose.IntakeOfferings
-	Capacity            enrollmentOwner.OfferingCapacity
-	Catalog             enrollmentCompose.IntakeCatalog
-	Notifications       enrollmentOwner.Notifications
-	GuardianProfileRepo userModels.GuardianProfileRepository
-	GuardianPhoneRepo   userModels.GuardianPhoneNumberRepository
-	GuardianInvitations enrollmentCompose.GuardianInvitationAvailability
-	PersonRepo          EnrollmentReviewerPersons
-	StudentRepo         enrollmentCompose.StudentMatches
-	GuardianAuthorizer  enrollmentCompose.GuardianStudentAuthorizer
-	// Decisions applies an approved change to a child the decision flow
-	// already approved; BookingGates wrap those writes. A nil Decisions
-	// leaves every child to the booking replacement.
-	Decisions            enrollmentOwner.ApprovedChildChanges
-	BookingGates         enrollmentCompose.CareBookingGates
-	CompanionGraphLocker enrollmentCompose.CompanionGraphCoordinator
-	Settings             EnrollmentIntakeSettings
-	OutboxEnqueuer       platformModels.OutboxEnqueuer
-	FrontendURL          string
-	ParentsURL           string
-	Logger               *slog.Logger
-}
-
-// EnrollmentReviewerPersons resolves the persons behind reviewer accounts.
-type EnrollmentReviewerPersons interface {
-	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*userModels.Person, error)
+	return s.resolver.Recipients(ctx, deliveryCompose.NotificationEnrollmentSubmitted, configured)
 }
 
 // NewEnrollmentChangeRequests composes Enrollment's change requests over the
 // sources.
-func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests {
+func NewEnrollmentChangeRequests(src services.EnrollmentChangeRequestSources) enrollmentOwner.ChangeRequests {
 	people := enrollmentCompose.PeopleDirectory{}
 	if src.GuardianProfileRepo != nil {
 		people.GuardianProfiles = enrollmentGuardianProfiles{repo: src.GuardianProfileRepo}
@@ -160,7 +83,7 @@ func intakeMailOutbox(outbox platformModels.OutboxEnqueuer) enrollmentCompose.Ma
 	return enrollmentMailOutbox{outbox: outbox}
 }
 
-func intakeSettings(settings EnrollmentIntakeSettings) enrollmentCompose.IntakeSettings {
+func intakeSettings(settings services.EnrollmentIntakeSettings) enrollmentCompose.IntakeSettings {
 	if settings == nil {
 		return nil
 	}
@@ -168,7 +91,9 @@ func intakeSettings(settings EnrollmentIntakeSettings) enrollmentCompose.IntakeS
 }
 
 // enrollmentReviewerNames renders the deciding staffer's display name.
-type enrollmentReviewerNames struct{ persons EnrollmentReviewerPersons }
+type enrollmentReviewerNames struct {
+	persons services.EnrollmentReviewerPersons
+}
 
 func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs []int64) (map[int64]string, error) {
 	persons, err := r.persons.FindByAccountIDs(ctx, accountIDs)
@@ -186,7 +111,9 @@ func (r enrollmentReviewerNames) ReviewerNames(ctx context.Context, accountIDs [
 
 // enrollmentIntakeSettings resolves the intake settings with the fallbacks
 // the registry defines.
-type enrollmentIntakeSettings struct{ settings EnrollmentIntakeSettings }
+type enrollmentIntakeSettings struct {
+	settings services.EnrollmentIntakeSettings
+}
 
 func (s enrollmentIntakeSettings) EnrollmentEnabled(ctx context.Context) bool {
 	return settingsCompose.ResolveBoolOrDefault(ctx, s.settings, configModels.KeyEnrollmentEnabled, false, nil)

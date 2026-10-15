@@ -37,6 +37,11 @@ type (
 	MailIntent       = emailoutbox.Intent
 	MailRenderer     = emailoutbox.Renderer
 	MailRendererFunc = emailoutbox.RendererFunc
+	// The opt-in mail recipients of a notification type, which the root
+	// binds to Enrollment's "Neue Anmeldung" mail (#3780, #4012).
+	EmailSubscribers       = notifications.EmailSubscribers
+	EmailAccounts          = notifications.EmailAccounts
+	EmailRecipientResolver = notifications.EmailRecipientResolver
 	// The appointment mail and notices of the calendar portal, which the
 	// root binds to Delivery (#4009).
 	MailEnqueueRequest             = emailoutbox.EnqueueRequest
@@ -55,6 +60,10 @@ const (
 	ParentAppointmentReminder  = notifications.ParentAppointmentReminder
 )
 
+// NotificationEnrollmentSubmitted is the notification type of a new
+// enrollment.
+const NotificationEnrollmentSubmitted = notifications.TypeEnrollmentSubmitted
+
 // The portals a push subscription is bound to.
 const (
 	PushPortalParent = deliveryModels.PushPortalParent
@@ -71,6 +80,7 @@ var (
 	NewDurableWebPushChannel   = notifications.NewDurableWebPushChannel
 	NewPushSubscriptionService = notifications.NewPushSubscriptionService
 	NewPreferenceService       = notifications.NewPreferenceService
+	NewEmailRecipientResolver  = notifications.NewEmailRecipientResolver
 	// ErrRenderCancelled and ErrRenderDeferred are the answers of a renderer
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled

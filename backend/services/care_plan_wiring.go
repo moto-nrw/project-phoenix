@@ -101,7 +101,7 @@ type RequestReviewPolicy interface {
 // catalog is composed over. Resync resolves the booking materialization,
 // which is composed after the catalog; it returns nil until then.
 type CareOfferingCatalogSources struct {
-	Enrollment     EnrollmentBookingProjection
+	Enrollment     *enrollmentOwner.BookingProjection
 	Settings       settingsCompose.SettingsService
 	Resync         func() careplan.BookingMaterializationCapability
 	LockRecurrence func(context.Context) error
@@ -114,7 +114,7 @@ type CareOfferingCatalogSources struct {
 type BookingMaterializationSources struct {
 	Catalog                  careplan.CareOfferingCatalogCapability
 	Rosters                  *arrivalTimetable.RosterReconciler
-	Enrollment               EnrollmentBookingProjection
+	Enrollment               *enrollmentOwner.BookingProjection
 	Approved                 *enrollmentCompose.ApprovedOfferingProjection
 	Settings                 settingsCompose.SettingsService
 	Withdrawals              careplanCompose.BookingWithdrawals

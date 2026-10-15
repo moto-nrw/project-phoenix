@@ -15,6 +15,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	"github.com/go-chi/chi/v5"
+
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/database"
@@ -293,7 +294,7 @@ func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *ser
 	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(graph)
 	deps.PWAUsageCleanup = services.PWAUsage
 	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
-	deps.EnrollmentRejectedCleanup = services.EnrollmentRejectedCleanup
+	deps.EnrollmentRejectedCleanup = enrollmentRejectedCleanup{cleaner: services.EnrollmentRejectedCleanup}
 	deps.AutoStart = services.AutoStart
 	deps.AutoEnd = services.AutoEnd
 	deps.TimetableBridge = services.TimetableBridge

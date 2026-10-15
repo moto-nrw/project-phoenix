@@ -49,12 +49,6 @@ type (
 )
 
 var (
-	NewEnrollmentChangeRequests   = services.NewEnrollmentChangeRequests
-	NewEnrollmentDecisions        = services.NewEnrollmentDecisions
-	NewEnrollmentDeletionModule   = services.NewEnrollmentDeletionModule
-	NewEnrollmentIntake           = services.NewEnrollmentIntake
-	NewEnrollmentOfferingCapacity = services.NewEnrollmentOfferingCapacity
-	NewEnrollmentRollovers        = services.NewEnrollmentRollovers
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
 	NewRoomSnapshotPeople = peopleCompose.NewRoomSnapshotPeople

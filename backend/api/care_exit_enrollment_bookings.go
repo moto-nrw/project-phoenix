@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -10,81 +10,21 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
-// NewEnrollmentBookings is the Enrollment booking projection the serving
-// root's enrollment and settings routes read, over the ambient tenant
-// transaction (#2743).
-func NewEnrollmentBookings() EnrollmentBookingProjection {
-	return NewEnrollmentBookingProjection(enrollmentCompose.New())
-}
-
-// NewCalendarPeriodUsage answers the School Calendar deletion preview's
-// per-period reference counts from Enrollment's phases and the planning
-// owner's tables, one statement each (#3124).
-func NewCalendarPeriodUsage(planning timetable.Capability) *timetableCompose.CalendarPeriodUsageRepository {
-	return timetableCompose.NewPlanningCalendarPeriodUsage(enrollmentCompose.New(), planning)
-}
-
-// EnrollmentBookingProjection joins application identity with owner-provided effective
-// bookings. No compatibility-view reads or writes are used by this workflow.
+// EnrollmentBookingProjection is Enrollment's booking projection with the
+// care exit's writes to Care Plan's bookings: the lock, the end and the
+// restore of the bookings a care exit ends. No compatibility-view reads or
+// writes are used by this workflow.
 type EnrollmentBookingProjection struct {
-	*enrollment.Module
+	*enrollment.BookingProjection
 	bookings *careplan.OfferingBookings
 }
 
-// NewEnrollmentBookingProjection composes application identity and effective bookings
-// for cleanup and consistency audits on the caller's tenant transaction.
-func NewEnrollmentBookingProjection(applications *enrollment.Module) EnrollmentBookingProjection {
-	return EnrollmentBookingProjection{Module: applications, bookings: carePlanCompose.NewOfferingBookings()}
-}
-
-func (a EnrollmentBookingProjection) AllCareOfferingLinks(ctx context.Context) ([]enrollment.CareOfferingLink, error) {
-	return a.CareExitOfferingLinks(ctx, nil)
-}
-
-func (a EnrollmentBookingProjection) CareExitOfferingLinks(ctx context.Context, studentIDs []int64) ([]enrollment.CareOfferingLink, error) {
-	children, err := a.CareExitApplicationLinks(ctx, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(children))
-	for _, child := range children {
-		ids = append(ids, child.ID)
-	}
-	return a.offeringLinks(ctx, ids)
-}
-
-func (a EnrollmentBookingProjection) ApprovedBookingOfferingLinks(ctx context.Context) ([]enrollment.CareOfferingLink, error) {
-	children, err := a.CareExitApplicationLinks(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(children))
-	for _, child := range children {
-		if child.Status == enrollment.ChildStatusApproved {
-			ids = append(ids, child.ID)
-		}
-	}
-	return a.offeringLinks(ctx, ids)
-}
-
-func (a EnrollmentBookingProjection) offeringLinks(ctx context.Context, ids []int64) ([]enrollment.CareOfferingLink, error) {
-	bookings, err := a.bookings.CareOfferingBookingHistory(ctx, ids)
-	if err != nil {
-		return nil, err
-	}
-	links := make([]enrollment.CareOfferingLink, 0, len(bookings))
-	for _, booking := range bookings {
-		links = append(links, enrollment.CareOfferingLink{ID: booking.ID, TenantID: booking.TenantID,
-			RequestChildID: booking.RequestChildID, CareOfferingID: booking.CareOfferingID, SelectedDays: booking.EffectiveSelectedDays(),
-			ValidFrom: enrollmentBookingDate(booking.ValidFrom), ValidUntil: enrollmentBookingDate(booking.ValidUntil)})
-	}
-	sort.Slice(links, func(i, j int) bool { return links[i].ID < links[j].ID })
-	return links, nil
+// NewEnrollmentBookingProjection adds the care exit's booking writes to the
+// projection the root binds, on the caller's tenant transaction.
+func NewEnrollmentBookingProjection(projection *enrollment.BookingProjection) EnrollmentBookingProjection {
+	return EnrollmentBookingProjection{BookingProjection: projection, bookings: carePlanCompose.NewOfferingBookings()}
 }
 
 func enrollmentBookingDate(date *careplan.Date) *enrollment.Date {
@@ -123,15 +63,7 @@ func (a EnrollmentBookingProjection) CareExitOfferingSnapshots(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	ids := make([]int64, 0, len(children))
-	students := make(map[int64]int64, len(children))
-	for _, child := range children {
-		if child.CreatedStudentID == nil || !slices.Contains(studentIDs, *child.CreatedStudentID) || (sourceChildID != nil && child.ID != *sourceChildID) {
-			continue
-		}
-		ids = append(ids, child.ID)
-		students[child.ID] = *child.CreatedStudentID
-	}
+	ids, students := careExitBookingChildren(children, studentIDs, sourceChildID)
 	bookings, err := a.bookings.CareOfferingBookingHistory(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -166,6 +98,20 @@ func (a EnrollmentBookingProjection) CareExitOfferingSnapshots(ctx context.Conte
 	}
 	sort.Slice(result, func(i, j int) bool { return result[i].SourceRowID < result[j].SourceRowID })
 	return result, nil
+}
+
+// careExitBookingChildren maps the selected application children to their students.
+func careExitBookingChildren(children []enrollment.CareExitApplicationLink, studentIDs []int64, sourceChildID *int64) ([]int64, map[int64]int64) {
+	ids := make([]int64, 0, len(children))
+	students := make(map[int64]int64, len(children))
+	for _, child := range children {
+		if child.CreatedStudentID == nil || !slices.Contains(studentIDs, *child.CreatedStudentID) || (sourceChildID != nil && child.ID != *sourceChildID) {
+			continue
+		}
+		ids = append(ids, child.ID)
+		students[child.ID] = *child.CreatedStudentID
+	}
+	return ids, students
 }
 
 func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error) {

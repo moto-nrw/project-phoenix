@@ -5,12 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -23,8 +20,8 @@ import (
 // CareLifecycleOwnerSources are the owners the Care Plan lifecycle (#3427)
 // drives around a care exit: the child rows and memberships, the persons and
 // bracelets, the timetable, the school calendar, the unlogged Student
-// Presence and the Timetable plan reads joined with its attendance. Enrollment
-// is composed here.
+// Presence, the Timetable plan reads joined with its attendance and the
+// Enrollment applications with their bookings.
 type CareLifecycleOwnerSources struct {
 	Students   CareStudentRows
 	Persons    CarePersonRows
@@ -34,6 +31,7 @@ type CareLifecycleOwnerSources struct {
 	Calendar   schoolcalendar.Query
 	Presence   *studentpresence.Module
 	PlanReads  timetableCompose.PresenceReads
+	Enrollment EnrollmentBookingProjection
 }
 
 // NewCareLifecycleOwners binds the lifecycle's ports to their owners. The
@@ -47,7 +45,7 @@ func NewCareLifecycleOwners(sources CareLifecycleOwnerSources, changeTrail careP
 		},
 		Roster:      newCareExitRoster(sources.PlanReads, sources.Timetable, presence),
 		Bookings:    careExitBookings{capability: sources.Timetable},
-		Enrollment:  careExitEnrollment{projection: services.NewEnrollmentBookingProjection(enrollmentCompose.New())},
+		Enrollment:  careExitEnrollment{projection: sources.Enrollment},
 		Presence:    careExitPresence{presence: presence},
 		Calendar:    schoolCalendarCompose.CalendarPeriodIDs{Calendar: sources.Calendar},
 		Tags:        peopleCompose.NewStudentTagReleaser(sources.People),

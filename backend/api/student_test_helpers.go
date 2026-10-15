@@ -156,7 +156,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	studentPhotoService := newStudentPhotos(realtimeHub, nil)
 	careplanCompose.WireCareParticipation(careDayService, careLifecycleService)
-	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), services.OfferingStudents{Query: persons})
+	approvedOfferings := enrollmentCompose.NewApprovedOfferingProjection(repos.Enrollment(), OfferingStudents{Query: persons})
 	pickupBaselines, err := careplanCompose.NewPickupBaselines(repos.CarePlan, approvedOfferings, func(ctx context.Context) (bool, error) {
 		return settingsService.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 	})
@@ -213,7 +213,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	if err != nil {
 		return StudentTestModule{}, err
 	}
-	enrollmentDecisionService := enrollmentCompose.PublicDecisions(services.NewEnrollmentDecisions(services.EnrollmentDecisionSources{
+	enrollmentDecisionService := enrollmentCompose.PublicDecisions(NewEnrollmentDecisions(services.EnrollmentDecisionSources{
 		Requests:               repos.Enrollment(),
 		Children:               repos.Enrollment(),
 		Guardians:              repos.Enrollment(),
@@ -224,7 +224,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		DataAccessLog:          repos.DataAccessLog,
 		OfferingAdjustments:    repos.EnrollmentOfferingAdjustment,
 		Restorations:           repos.EnrollmentRestorationAudit,
-		Notifications:          services.NewEnrollmentNotifications(repos.Enrollment(), settingsService, services.OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
+		Notifications:          NewEnrollmentNotifications(repos.Enrollment(), settingsService, services.OutboxEnqueuer{Outbox: emailOutboxService}, EnrollmentSchoolDirectory{Schools: repos.School}),
 		Persons:                repos.Person,
 		Staff:                  repos.Staff,
 		Students:               repos.Student,
@@ -275,10 +275,10 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		studentAuditService,
 		WithCareRequestToday(today),
 	)
-	offeringChanges, err := services.NewOfferingChanges(services.OfferingChangeInputs{
+	offeringChanges, err := newOfferingChanges(services.OfferingChangeInputs{
 		CarePlan: repos.CarePlan, Enrollment: repos.Enrollment(), Students: repos.Student,
 		Withdrawals: repos.CareWithdrawal, Settings: settingsService,
-		Planning: services.ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db.Pool()), CourseGroups: repos.Timetable},
+		Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db.Pool()), CourseGroups: repos.Timetable},
 		Bookings: careBookings, Reviews: requestReviewPolicy, Permissions: requestTokenReads.Permissions, Emitter: pillEmitter,
 		Events: parentRequestEvents, Today: today, Logger: logger.With("service", "offering-change-requests"),
 	})
@@ -316,7 +316,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	parentRequestCoordinator, err := NewParentRequestCoordinator(services.ParentRequestCoordinatorWiring{
 		MasterData: masterDataDecisions, Excused: excusedRequestService, Care: careRequestService,
-		Offering: services.OfferingChangeConflictPort{Changes: offeringChanges}, Events: parentRequestEvents,
+		Offering: newOfferingChangeConflicts(offeringChanges), Events: parentRequestEvents,
 		Permissions: requestTokenReads.Permissions,
 	})
 	if err != nil {

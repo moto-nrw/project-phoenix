@@ -1,4 +1,4 @@
-package services
+package api
 
 import (
 	"context"
@@ -7,16 +7,18 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
-type EnrollmentCareBookingAdapter struct {
-	Owner careplan.OfferingBookingCommands
+// enrollmentCareBookings records and replaces an approved child's bookings
+// in Care Plan for Enrollment's intake, change requests and rollover.
+type enrollmentCareBookings struct {
+	owner careplan.OfferingBookingCommands
 }
 
-func (a EnrollmentCareBookingAdapter) RecordCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
-	return a.Owner.RecordCareOfferingBookings(ctx, childID, careBookingValues(inputs))
+func (a enrollmentCareBookings) RecordCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
+	return a.owner.RecordCareOfferingBookings(ctx, childID, careBookingValues(inputs))
 }
 
-func (a EnrollmentCareBookingAdapter) ReplaceCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
-	return a.Owner.ReplaceCareOfferingBookings(ctx, childID, careBookingValues(inputs))
+func (a enrollmentCareBookings) ReplaceCareBookings(ctx context.Context, childID int64, inputs []enrollmentOwner.CareBookingInput) error {
+	return a.owner.ReplaceCareOfferingBookings(ctx, childID, careBookingValues(inputs))
 }
 
 func careBookingValues(inputs []enrollmentOwner.CareBookingInput) []careplan.CareOfferingBooking {
