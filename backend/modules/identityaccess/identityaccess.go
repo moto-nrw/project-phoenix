@@ -349,6 +349,7 @@ type Engine interface {
 	AccountMFA
 	PasswordResets
 	SchoolInvitations
+	SignInDataRetention
 	AccountSessionAccess
 	RFIDQuery
 	AccountProfiles

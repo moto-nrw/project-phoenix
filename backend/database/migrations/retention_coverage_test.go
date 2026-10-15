@@ -52,11 +52,11 @@ func undecided(what string) tableRetention { return tableRetention{class: openGa
 // openSpecTickets are the tickets of spec #3949 that still add a deletion
 // path. When a ticket lands, its tables move to own retention or with
 // parent and the ticket leaves this list.
-var openSpecTickets = []string{"#3954", "#3955", "#3957", "#3960", "#3961", "#3962", "#3963"}
+var openSpecTickets = []string{"#3957", "#3960", "#3961", "#3962", "#3963"}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
-	specGapTables = 16
+	specGapTables = 7
 	openGapTables = 32
 )
 
@@ -124,16 +124,16 @@ var tableRetentions = map[string]tableRetention{
 	"auth.accounts":                                         undecided("accounts (e-mail, username, calendar link) stay until someone deletes them"),
 	"auth.accounts_parents":                                 undecided("legacy parent accounts (e-mail, username) without a deletion path"),
 	"auth.demo_accesses":                                    own("demo process only: hourly demoExpiry -> ExpireDemoAccesses -> DeleteExpiredDemoAccesses"),
-	"auth.guardian_invitations":                             gap("#3954"),
+	"auth.guardian_invitations":                             own("hourly token-cleanup, DeleteExpiredGuardianInvitations (30 days after accepted_at, else expires_at)"),
 	"auth.guardian_student_access":                          parent("users.student_guardian_relationships"),
 	"auth.invitation_tokens":                                own("hourly token-cleanup, DeleteExpiredSchoolInvitations (expires_at < now)"),
 	"auth.mfa_credentials":                                  parent("auth.accounts"),
-	"auth.mfa_email_challenges":                             gap("#3954"),
+	"auth.mfa_email_challenges":                             own("hourly token-cleanup, DeleteExpiredMFAEmailChallenges (7 days after expires_at)"),
 	"auth.mfa_overrides":                                    parent("auth.accounts"),
 	"auth.mfa_trusted_devices":                              parent("auth.accounts"),
 	"auth.parent_declaration_permission_grants":             undecided("relationship_id marker rows written by migration 1.15.428 for its rollback; no FK, never deleted"),
 	"auth.passkey_credentials":                              parent("auth.accounts"),
-	"auth.passkey_sessions":                                 gap("#3954"),
+	"auth.passkey_sessions":                                 own("hourly token-cleanup, DeleteExpiredPasskeySessions (7 days after expires_at)"),
 	"auth.password_reset_rate_limits":                       own("hourly token-cleanup, DeleteStalePasswordResetWindows"),
 	"auth.password_reset_tokens":                            own("hourly token-cleanup, DeleteSpentPasswordResetTokens (expired or used)"),
 	"auth.permissions":                                      notPersonal("permission catalog"),
@@ -208,20 +208,20 @@ var tableRetentions = map[string]tableRetention{
 	"platform.billing_settings":                             notPersonal("billing configuration"),
 	"platform.cleanup_runs":                                 notPersonal("ledger of last successful cleanup per school and job"),
 	"platform.demo_school_states":                           undecided("demo visitor names and account ids; never deleted (demo schools only retired via soft delete)"),
-	"platform.email_delivery":                               gap("#3955"),
-	"platform.email_outbox":                                 gap("#3955"),
+	"platform.email_delivery":                               own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after its mail ended, else after created_at)"),
+	"platform.email_outbox":                                 own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled; guardian welcome keeps only its key)"),
 	"platform.operator_audit_log":                           undecided("operator request_ip (operators FK NO ACTION); no automated deletion"),
 	"platform.operator_email_change_tokens":                 own("hourly token-cleanup, CleanupOperatorEmailChanges -> DeleteStaleOperatorEmailChanges"),
 	"platform.operator_invitation_tokens":                   own("hourly token-cleanup, DeleteExpiredOperatorInvitations"),
 	"platform.operator_mfa_credentials":                     parent("platform.operators"),
-	"platform.operator_mfa_email_challenges":                gap("#3954"),
+	"platform.operator_mfa_email_challenges":                own("hourly token-cleanup, DeleteExpiredMFAEmailChallenges (7 days after expires_at)"),
 	"platform.operator_mfa_trusted_devices":                 parent("platform.operators"),
 	"platform.operator_passkey_credentials":                 parent("platform.operators"),
-	"platform.operator_passkey_sessions":                    gap("#3954"),
-	"platform.operator_refresh_tokens":                      gap("#3954"),
+	"platform.operator_passkey_sessions":                    own("hourly token-cleanup, DeleteExpiredPasskeySessions (7 days after expires_at)"),
+	"platform.operator_refresh_tokens":                      own("hourly token-cleanup, DeleteExpiredOperatorSessions (expiry < now)"),
 	"platform.operators":                                    undecided("operator accounts of the moto team, deleted manually only"),
 	"platform.organizations":                                notPersonal("organization (Träger) master data"),
-	"platform.push_outbox":                                  gap("#3955"),
+	"platform.push_outbox":                                  own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled)"),
 	"platform.schools":                                      notPersonal("school institution master data"),
 	"platform.storage_backfill_checkpoints":                 notPersonal("progress of a data migration, counters only"),
 	"platform.worker_leases":                                notPersonal("Worker leadership lease"),
