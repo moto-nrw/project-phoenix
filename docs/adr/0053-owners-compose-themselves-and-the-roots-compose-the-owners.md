@@ -4,6 +4,13 @@ status: accepted
 
 # Owners compose themselves, and the typed roots compose the owners
 
+> Amended on 2026-10-15 by [ADR 0059](0059-the-roots-hold-no-service-graph.md):
+> the roots hold no service graph, and the consequence that `api` grows while
+> `services` drains no longer stands. Point 3's open cross-owner reach is
+> decided there (#4004). A grant into another owner's `adapter` role is
+> expressed as a classification, not a rule
+> ([ADR 0057](0057-only-the-target-is-a-rule.md), point 3).
+
 Decision for [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747)
 under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
 also settles the role of the Identity behaviour suites
