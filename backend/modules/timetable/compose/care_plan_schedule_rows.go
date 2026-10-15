@@ -1,9 +1,11 @@
 package compose
 
 import (
+	"context"
 	"errors"
 	"fmt"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 )
 
@@ -54,6 +56,38 @@ func (c CarePlanRows) scheduleError(op string, err error) error {
 		return c.Errors.MissingRecordError(op)
 	}
 	return c.Errors.WrapRecordError(op, err)
+}
+
+// careScheduleListFilter reads the retained listing options: the page, the
+// sort order and one student_id equality, the shape the retained callers
+// list with. Any other condition is refused rather than dropped.
+func careScheduleListFilter(options *modelBase.QueryOptions) (CareScheduleFilter, error) {
+	return narrowListOptions(options, "care schedule",
+		func(f *CareScheduleFilter, limit, offset int) { f.Limit, f.Offset = limit, offset },
+		func(f *CareScheduleFilter, field modelBase.SortField) {
+			f.Sort = append(f.Sort, CareScheduleSort{Field: field.Field, Descending: field.Direction == modelBase.SortDesc})
+		},
+		func(f *CareScheduleFilter, condition modelBase.FilterCondition) error {
+			id, ok := condition.Value.(int64)
+			if condition.Field != "student_id" || condition.Operator != modelBase.OpEqual || !ok || f.StudentIDs != nil {
+				return fmt.Errorf("unsupported care schedule filter %s %s", condition.Field, condition.Operator)
+			}
+			f.StudentIDs = []int64{id}
+			return nil
+		})
+}
+
+// listWithOptions serves a retained List over one of the owner's listings.
+func listWithOptions[T, R any](ctx context.Context, rows CarePlanRows, options *modelBase.QueryOptions, list func(context.Context, CareScheduleFilter) ([]T, error), convert func(T) R) ([]R, error) {
+	filter, err := careScheduleListFilter(options)
+	var values []T
+	if err == nil {
+		values, err = list(ctx, filter)
+	}
+	if err != nil {
+		return nil, rows.scheduleError("list with options", err)
+	}
+	return mapRows(values, convert), nil
 }
 
 func mapRows[T any, R any](values []T, convert func(T) R) []R {

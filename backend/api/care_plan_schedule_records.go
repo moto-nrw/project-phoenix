@@ -55,8 +55,21 @@ func carePlanScheduleFilter(filter timetableCompose.CareScheduleFilter) careplan
 		StudentIDs: filter.StudentIDs, Weekday: filter.Weekday,
 		Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), To: careplan.Date(filter.To),
 		UpcomingFrom: careplan.Date(filter.UpcomingFrom),
-		Options:      legacyScheduleQueryOptions(filter.Options),
+		Options:      carePlanSchedulePage(filter),
 	}
+}
+
+// carePlanSchedulePage pages and orders a retained listing; a filter without
+// either keeps the owner's order and every row.
+func carePlanSchedulePage(filter timetableCompose.CareScheduleFilter) *careplan.StudentScheduleQueryOptions {
+	if filter.Limit == 0 && filter.Offset == 0 && len(filter.Sort) == 0 {
+		return nil
+	}
+	options := &careplan.StudentScheduleQueryOptions{Limit: filter.Limit, Offset: filter.Offset}
+	for _, field := range filter.Sort {
+		options.Sorting = append(options.Sorting, careplan.StudentScheduleSortField(field))
+	}
+	return options
 }
 
 func carePlanSlice[T any, R any](values []T, convert func(T) R) []R {
