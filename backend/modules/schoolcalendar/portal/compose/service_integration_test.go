@@ -57,7 +57,7 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 		CalendarFacts: calendarRuntime.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  calendarRuntime.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
+			GuardianProfileRepo:  api.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            repos.ParentChildLinks(),
 			GroupRepo:            repos.Group,
@@ -70,12 +70,12 @@ func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDepend
 		Appointments:     repos.Appointments(),
 		UserContext:      userContext,
 		Runtime:          calendarCompose.NewTenantRuntime(db),
-		CalendarRenderer: testCalendarRenderer{renderer: repos.SchoolCalendar()},
+		CalendarRenderer: calendarCompose.NewCalendarRenderer(repos.SchoolCalendar()),
 	}
 }
 func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 	t.Helper()
-	return calendarRuntime.NewCalendarPortal(calendarTestConfig(t, db))
+	return api.NewCalendarPortal(calendarTestConfig(t, db))
 }
 
 func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarRuntime.CalendarOutbox) calendarCompose.Application {
@@ -83,7 +83,7 @@ func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarRun
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	return calendarRuntime.NewCalendarPortal(cfg)
+	return api.NewCalendarPortal(cfg)
 }
 
 var errInjectedRecurrenceCreate = errors.New("injected recurrence create failure")
@@ -624,7 +624,7 @@ func TestCalendarServiceIntegration_SubscriptionFeed(t *testing.T) {
 	// The feed counts its window from today; the appointments below sit on
 	// fixed dates, so today is pinned to them instead of the wall clock.
 	cfg.Today = func() appointments.Date { return portalDate(2026, 8, 24) }
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -730,7 +730,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Mitarbeiter")
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
@@ -784,7 +784,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	cfg.CalDAVPolicy = fixedCalDAVSettings{enabled: true}
 	cfg.FrontendURL = "https://moto.test"
 	cfg.CalDAVURL = "https://api.moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "CalDAV", "Mitarbeiter")
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
@@ -836,7 +836,7 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 
 	disabledConfig := cfg
 	disabledConfig.CalDAVPolicy = fixedCalDAVSettings{enabled: false}
-	disabledService := calendarRuntime.NewCalendarPortal(disabledConfig)
+	disabledService := api.NewCalendarPortal(disabledConfig)
 	_, err = disabledService.AuthenticateStaffCalDAV(testpkg.Ctx(t), account.Email, access.CalDAV.AppPassword)
 	assert.ErrorIs(t, err, calendarSvc.ErrNotFound)
 	_, _, err = disabledService.StaffCalendarFeedByToken(testpkg.Ctx(t), access.CalDAV.AppPassword)
@@ -868,7 +868,7 @@ func TestCalendarServiceIntegration_StaffCalDAVSettingFailureLeavesICalendarAvai
 	cfg.PersonRepo = repos.Person
 	cfg.CalDAVPolicy = fixedCalDAVSettings{err: errors.New("setting unavailable")}
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "CalDAV", "Fail Closed")
 	access, err := service.StaffCalendarAccess(calendarContext(t, account.ID))
@@ -891,7 +891,7 @@ func TestCalendarServiceIntegration_StaffFeedPreservesIdentityDatabaseErrors(t *
 	cfg.StaffFeedRepo = repos.StaffCalendarFeedToken
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Fehler")
 	ctx, cancel := context.WithCancel(calendarContext(t, account.ID))
@@ -915,7 +915,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionLifecycleKeepsParentFeedInd
 	cfg.PersonRepo = repos.Person
 	cfg.ParentsURL = "https://parents.test"
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Dual", "Role")
 	staffURL, _, err := service.StaffCalendarFeedURL(calendarContext(t, account.ID))
@@ -960,7 +960,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Quellen")
 	day := calendarSvc.Date(timezone.TodayDate()).AddDays(7)
@@ -1017,7 +1017,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Entfernt")
 	otherStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Andere", "Person")
@@ -1066,7 +1066,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Alte Absage")
 	day := calendarSvc.Date(timezone.TodayDate()).AddDays(-60)
@@ -1120,7 +1120,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionPublishesOccurrenceAndDelet
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
 	cfg.PersonRepo = repos.Person
 	cfg.FrontendURL = "https://moto.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Absage")
 	start := portalDate(2026, 8, 24).AddDays(7)
@@ -1166,7 +1166,7 @@ func TestCalendarServiceIntegration_CleanupExpiredFeedTombstonesCascadesChildren
 	repos := calendarTestRepositories(t, db)
 	cfg := calendarTestConfig(t, db)
 	cfg.StaffFeedTombstoneRepo = repos.CalendarStaffFeedTombstone
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Cleanup", "Feed")
 	day := portalDate(2026, 8, 24).AddDays(7)
@@ -1262,7 +1262,7 @@ func TestCalendarServiceIntegration_DeleteFeedVisibleLeavesTombstone(t *testing.
 	// The feed counts its window from today; the appointments below sit on
 	// fixed dates, so today is pinned to them instead of the wall clock.
 	cfg.Today = func() appointments.Date { return portalDate(2026, 8, 24) }
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Tombstone", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1385,7 +1385,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 	repos := calendarTestRepositories(t, db)
 	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OldCancel", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -1928,7 +1928,7 @@ func TestCalendarServiceIntegration_CreateRollsBackAppointmentsWhenRecurrenceWri
 	recorder := &recordingAppointmentCreate{Capability: cfg.Appointments}
 	cfg.Appointments = recorder
 	cfg.Appointments = failingRecurrenceCreate{Capability: cfg.Appointments}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Rollback", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Rollback", "Invitee")
 	endsOn := portalDate(2030, 3, 31)
@@ -2016,7 +2016,7 @@ func runRecurrenceUpdateRollbackScenario(t *testing.T, failure error, wrap func(
 	fixture := setupRecurrenceUpdateRollbackFixture(t, db)
 	failingCfg := calendarTestConfig(t, db)
 	failingCfg.Appointments = wrap(failingCfg.Appointments)
-	_, err := calendarRuntime.NewCalendarPortal(failingCfg).UpdateStaffAppointment(calendarContext(t, fixture.accountID), fixture.appointmentID, fixture.update)
+	_, err := api.NewCalendarPortal(failingCfg).UpdateStaffAppointment(calendarContext(t, fixture.accountID), fixture.appointmentID, fixture.update)
 	require.ErrorIs(t, err, failure)
 	assertRecurrenceUpdateRolledBack(t, fixture)
 	assertRecurrenceUpdateRetry(t, fixture)
@@ -2025,7 +2025,7 @@ func runRecurrenceUpdateRollbackScenario(t *testing.T, failure error, wrap func(
 func setupRecurrenceUpdateRollbackFixture(t *testing.T, db *bun.DB) recurrenceUpdateRollbackFixture {
 	t.Helper()
 	config := calendarTestConfig(t, db)
-	service := calendarRuntime.NewCalendarPortal(config)
+	service := api.NewCalendarPortal(config)
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Series", "Organizer")
 	invitedStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Series", "Invitee")
 	oldEndsOn := portalDate(2030, 3, 31)
@@ -2388,7 +2388,7 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 	repos := calendarTestRepositories(t, db)
 	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Inactive", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -2982,7 +2982,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	repos := calendarTestRepositories(t, db)
 	cfg.AccountRepo = repos.ParentCalendarFeed
 	cfg.ParentsURL = "https://parents.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "ExpiredFeed", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -3126,7 +3126,7 @@ func TestCalendarServiceIntegration_CancelOccurrenceClearsPendingNotifications(t
 	cfg.Outbox = outbox
 	cfg.PushOutbox = pushOutbox
 	cfg.ParentsURL = "https://parents.test"
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "OccMail", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 

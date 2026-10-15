@@ -92,8 +92,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
-	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -161,7 +159,6 @@ type Factory struct {
 	StaffAssignments        workforceModule.StaffAssignmentQuery
 	StaffScheduleOverview   workforceModule.StaffScheduleOverviewQuery
 	ShiftTypes              workforceModule.ShiftTypeAdministration
-	PlanningTracks          timetable.PlanningTrackAdministration
 	PickupSchedule          careplan.PickupScheduleService
 	PartialAbsence          careplan.PartialAbsenceService
 	ArrivalSchedule         careplan.ArrivalScheduleService
@@ -230,7 +227,7 @@ type Factory struct {
 	Statistics              studentpresence.StatisticsReports
 	OGSGroupLive            grouplive.Query
 	SupervisionDashboard    supervisiondashboard.Query
-	TimetableData           TimetablePlanning
+	TimetableData           arrivalTimetable.Planning
 	InstanceSeriesConverter timetable.InstanceSeriesConversion
 	UnregisteredTagScans    auditCompose.UnregisteredTagScanService
 
@@ -553,9 +550,13 @@ func NewFactoryWithModules(
 	fileStorage FileStorageWiring,
 	identity IdentityRoot,
 	people PeopleWiring,
+	timetableWiring TimetableWiring,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
 	if err := people.validate(); err != nil {
+		return nil, err
+	}
+	if err := timetableWiring.validate(); err != nil {
 		return nil, err
 	}
 	if identity.Compose == nil || identity.Permissions == nil || identity.ActorScope == nil || identity.AuditActor == nil {
@@ -567,7 +568,7 @@ func NewFactoryWithModules(
 	communicationCompose.InstallMessageQueryInstrumentation(db)
 	cfg := CurrentFactoryConfig()
 	cfg.PublicAPIURL = publicAPIURL
-	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, workforce, observeDataImport, productEvents, fileStorage, identity, people, false, clocks...)
+	return NewFactoryWithConfig(carePlan, db, logger, cfg, tenantRuntime, organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability, communicationCapability, observeCommunication, observeCarePlan, mealPlan, bindMealPlanSettings, feedbackCounter, bindFeedbackSettings, observeAuditAppend, observeDelivery, observeDurableDelivery, observeDeviceFleet, observeIdentityAccess, workTime, workforce, observeDataImport, productEvents, fileStorage, identity, people, timetableWiring, false, clocks...)
 }
 
 // WorkforceWiring is what the root binds of Workforce into the service graph
@@ -859,6 +860,375 @@ type FileStorageWiring struct {
 	Observe func(filestorageCompose.Observation)
 }
 
+// TimetableWiring is what the root binds of Timetable & Activities, the
+// School Calendar and Reminder Delivery into the service graph (#4009, ADR
+// 0053 point 8). The values over the owners the root composes come built.
+// The bindings over values only this graph builds come as functions the
+// graph calls with them.
+type TimetableWiring struct {
+	// Repositories are the Timetable owner's retained activities and schedule
+	// repositories over the capabilities the root composes (#2743).
+	Repositories arrivalTimetable.Repositories
+	// EducationGroupNames names School Structure's education groups for the
+	// Timetable owner rows (#3551).
+	EducationGroupNames arrivalTimetable.EducationGroupNames
+	// PlanningTracks is the planning-track administration the template
+	// writes and the plan export read.
+	PlanningTracks timetable.PlanningTrackAdministration
+	// RecurrenceLock is the tenant recurrence gate every recurrence writer of
+	// the graph serializes on (#3424 slice S2).
+	RecurrenceLock timetable.RecurrenceWriteLock
+	// ClassDayTimetable serves the slot lists' block and roster reads.
+	ClassDayTimetable classdayCompose.TimetableReader
+	// HistoryRooms and HistorySlots serve the student history's room names
+	// and planned slots.
+	HistoryRooms presenceservice.HistoryRoomReader
+	HistorySlots presenceservice.HistorySlotReader
+	// PlanExportClosingDays and PlanExportHolidays label the plan export's
+	// non-working days from the School Calendar.
+	PlanExportClosingDays planexport.ClosingDayReader
+	PlanExportHolidays    planexport.HolidayReader
+	// CalendarGuardians is the calendar's guardian directory over the People
+	// Directory.
+	CalendarGuardians calendarCompose.GuardianDirectory
+
+	// Constructors over the values this graph composes.
+	AttendanceMirror       func(arrivalTimetable.OwnerRows, *slog.Logger) (studentpresence.AttendanceSyncer, error)
+	EndedSessionCompletion func(arrivalTimetable.OwnerRows, careplan.CareDayQuery) (timetable.EndedSessionCompletion, error)
+	DeviationPorts         func(TimetableDeviationTrail) (arrivalTimetable.DeviationEventReader, arrivalTimetable.DeviationProtocol)
+	ConflictDetection      func(TimetableConflictReaders) (timetable.ConflictDetectionCapability, error)
+	Lifecycle              func(TimetableLifecycleInputs) (*arrivalTimetable.InstanceLifecycleService, error)
+	StaffDeviations        func(TimetableDeviationInputs) (arrivalTimetable.StaffDeviationDependencies, error)
+	Cleanup                TimetableCleanupComposer
+	Operations             func(TimetableOperationInputs) (timetable.OperationCapability, error)
+	Materialization        func(TimetableMaterializationInputs) arrivalTimetable.MaterializationDependencies
+	Data                   func(TimetableDataInputs) (timetable.TimetableDataCapability, error)
+	Templates              func(TimetableTemplateInputs) (arrivalTimetable.TemplateAdministrationDependencies, error)
+	AttendanceCorrections  func(TimetableCorrectionInputs) (timetable.AttendanceCorrections, error)
+	Calendar               func(CalendarDependencies) calendarCompose.Application
+	AppointmentRenderer    func(defaultFrom email.Email) emailoutbox.Renderer
+	ReminderQuery          func(ReminderSources) reminder.Query
+	ReminderCommand        func(calendarCompose.Application) reminder.Command
+}
+
+// validate refuses a wiring with a missing value or constructor: the graph
+// binds every one of them while it composes.
+func (w TimetableWiring) validate() error {
+	required := []any{
+		w.EducationGroupNames, w.PlanningTracks, w.RecurrenceLock, w.ClassDayTimetable, w.HistoryRooms, w.HistorySlots,
+		w.PlanExportClosingDays, w.PlanExportHolidays, w.CalendarGuardians,
+		w.AttendanceMirror, w.EndedSessionCompletion, w.DeviationPorts, w.ConflictDetection, w.Lifecycle,
+		w.StaffDeviations, w.Cleanup, w.Operations, w.Materialization, w.Data, w.Templates,
+		w.AttendanceCorrections, w.Calendar, w.AppointmentRenderer, w.ReminderQuery, w.ReminderCommand,
+	}
+	for _, value := range required {
+		if value == nil || reflect.ValueOf(value).IsZero() {
+			return errors.New("the Timetable, School Calendar and reminder wiring is incomplete")
+		}
+	}
+	if w.Repositories.ActivityInstance == nil {
+		return errors.New("the Timetable repositories are required")
+	}
+	return nil
+}
+
+// TimetableDeviationTrail is the Audit Platform's Änderungsprotokoll as the
+// Timetable owner rows read and append it.
+type TimetableDeviationTrail interface {
+	Create(ctx context.Context, event *auditModels.DeviationEvent) error
+	ListByRange(ctx context.Context, from, to auditModels.Date, activityGroupID *int64, startTime *string) ([]*auditModels.DeviationEvent, error)
+}
+
+// TimetableConflictReaders are the retained readers the Timetable conflict
+// detection and staffing capability reads (#3550). The production factory
+// and the test compositions fill them from their own repository sets.
+// ArrivalBaselines is optional (the exception-conflict read fails without
+// it); every other reader is required.
+type TimetableConflictReaders struct {
+	Instances         arrivalTimetable.ConflictInstances
+	InstanceStaff     arrivalTimetable.ConflictInstanceStaff
+	InstanceStudents  arrivalTimetable.ConflictInstanceStudents
+	Exceptions        arrivalTimetable.ConflictExceptions
+	Schedules         arrivalTimetable.ConflictSchedules
+	Staff             arrivalTimetable.ConflictStaffDirectory
+	CalendarPeriods   arrivalTimetable.ConflictCalendarPeriods
+	ArrivalExceptions arrivalTimetable.ConflictArrivalExceptions
+	Sessions          arrivalTimetable.ConflictSessions
+	Shifts            arrivalTimetable.ConflictShifts
+	Presence          arrivalTimetable.ConflictPresence
+	ArrivalBaselines  careplan.ArrivalBaselineReader
+	Logger            *slog.Logger
+}
+
+// TimetableLifecycleInputs compose the lifecycle over the retained rows
+// (Instances, InstanceStaff, Participants, Templates, Students, Rooms,
+// DeviationEvents and the recovery Locks). Planning carries the retained
+// planning repositories the rows do not (IdempotencyRepo, ExceptionRepo,
+// CalendarPeriodRepo) and the composition root's DB; every other field of it
+// is filled from these inputs. Broadcaster and GuardianNotices are optional.
+type TimetableLifecycleInputs struct {
+	Rows                arrivalTimetable.OwnerRows
+	Planning            arrivalTimetable.InstanceLifecycleDependencies
+	Staff               userModels.StaffRepository
+	Sessions            studentpresence.SessionRecords
+	Supervisions        studentpresence.SupervisionRecords
+	Presence            arrivalTimetable.LifecyclePresence
+	SessionEnder        arrivalTimetable.SessionEnder
+	CareDays            careplan.CareDayQuery
+	CareDayLocks        arrivalTimetable.CareDayLocks
+	GuardianNotices     communication.CareCancellationPublisher
+	Settings            TimetableSettings
+	Materialization     timetable.MaterializationCapability
+	RecurrenceLock      timetable.RecurrenceWriteLock
+	StartConflicts      timetable.StartConflictQuery
+	SubstituteConflicts timetable.SubstituteConflictQuery
+	Broadcaster         realtime.Broadcaster
+	Logger              *slog.Logger
+	Now                 func() time.Time
+	EnforceTimePolicy   bool
+}
+
+// TimetableDeviationInputs compose the deviation writes over the retained
+// rows (Instances, InstanceStaff and the Audit Platform's DeviationEvents).
+// Lifecycle is the instance lifecycle the cancel branch and the
+// "deliberately unstaffed" acknowledgement hand over to. The composition root
+// adds its database handle to the dependencies they bind.
+type TimetableDeviationInputs struct {
+	Rows         arrivalTimetable.OwnerRows
+	Staff        userModels.StaffRepository
+	Supervisions studentpresence.SupervisionRecords
+	Lifecycle    arrivalTimetable.DeviationLifecycle
+	Broadcaster  realtime.Broadcaster
+	Logger       *slog.Logger
+	Now          func() time.Time
+}
+
+// TimetableCorrectionInputs compose the attendance correction over the
+// retained rows (Participants, Instances and the optional completion Locks).
+// Trail is optional: without it every correction fails closed.
+type TimetableCorrectionInputs struct {
+	Rows   arrivalTimetable.OwnerRows
+	Trail  auditModels.AttendanceCorrectionRepository
+	People userModels.PersonRepository
+	Logger *slog.Logger
+}
+
+// TimetableCleanupComposer composes the Timetable owner's GDPR retention
+// (WP-B14) over the Settings and Audit collaborators.
+type TimetableCleanupComposer func(TimetableRetentionInputs) (timetable.TimetableCleanup, error)
+
+// TimetableRetentionInputs are the collaborators the Timetable owner may not
+// name itself: the Settings Platform's retention window and the Audit
+// Platform's deletion records. Deviations and Settings are optional.
+type TimetableRetentionInputs struct {
+	Owner      timetable.Capability
+	Deletions  auditModels.DataDeletionRepository
+	Deviations auditModels.DeviationEventRepository
+	Settings   TimetableRetentionSettings
+	Logger     *slog.Logger
+	Clock      func() time.Time
+}
+
+// TimetableRetentionSettings is the slice of the settings service the
+// retention window resolves through.
+type TimetableRetentionSettings interface {
+	HasTenantOverride(ctx context.Context, key string) (bool, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// TimetableSettings is the slice of the settings service the operational
+// policies resolve through.
+type TimetableSettings interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
+	ResolveInt(ctx context.Context, key string) (int, error)
+}
+
+// TimetableOperationPresence is the Student Presence slice the operational
+// day writes visits through.
+type TimetableOperationPresence interface {
+	CreateVisit(ctx context.Context, visit *studentpresence.Visit) error
+	EndVisit(ctx context.Context, id int64) error
+	MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error)
+}
+
+// EffectiveArrivalTimes and EffectivePickupTimes are Care Plan's effective
+// arrival and pickup times of a day.
+type (
+	EffectiveArrivalTimes interface {
+		GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
+	}
+	EffectivePickupTimes interface {
+		GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
+	}
+)
+
+// TimetableOperationInputs are the retained rows and the owners the
+// Timetable operational day reads through (#3551). Broadcaster is optional.
+type TimetableOperationInputs struct {
+	Rows           arrivalTimetable.OwnerRows
+	PlanningTracks timetable.PlanningTrackQuery
+	Sessions       studentpresence.SessionRecords
+	Supervisions   studentpresence.SupervisionRecords
+	Visits         arrivalTimetable.OperationVisits
+	Presence       TimetableOperationPresence
+	People         arrivalTimetable.OperationPeople
+	Settings       TimetableSettings
+	CareDays       careplan.CareDayQuery
+	Arrivals       EffectiveArrivalTimes
+	Pickups        EffectivePickupTimes
+	Lifecycle      arrivalTimetable.OperationLifecycle
+	Broadcaster    realtime.Broadcaster
+	Logger         *slog.Logger
+	Now            func() time.Time
+}
+
+// TimetableDataInputs are the retained rows and the owners the planner's
+// reads of the Timetable owner read through (#3551). ArrivalBaselines and
+// PickupBaselines are optional; BlockMetadata is the block display projection
+// the composition root binds; Transactional binds the tenant runtime's
+// advisory locks a spontaneous start takes.
+type TimetableDataInputs struct {
+	Rows             arrivalTimetable.OwnerRows
+	ArrivalBaselines careplan.ArrivalBaselineReader
+	PickupBaselines  careplan.PickupBaselineReader
+	Visits           arrivalTimetable.OperationVisits
+	Groups           arrivalTimetable.DataGroups
+	Sessions         studentpresence.SessionRecords
+	ConflictAcks     timetable.ConflictAckCapability
+	BlockMetadata    arrivalTimetable.BlockDisplayMetadata
+	Transactional    bool
+	Logger           *slog.Logger
+}
+
+// TimetableMaterializationInputs compose the recurrence engine. CareBounds
+// is the per-date care filter (#2487); NonWorkingDays skips holidays and
+// closing days (#3594); Broadcaster announces created
+// occurrences to the staffing caches (#1844). The composition root adds its
+// database handle to the dependencies they bind.
+type TimetableMaterializationInputs struct {
+	Rows           arrivalTimetable.TemplateRows
+	CareBounds     arrivalTimetable.CareBoundReader
+	NonWorkingDays timetable.NonWorkingDayCalendar
+	RecurrenceLock timetable.RecurrenceWriteLock
+	Broadcaster    realtime.Broadcaster
+	Logger         *slog.Logger
+}
+
+// TimetableTemplateInputs compose the template writes. Deviations is the
+// instance lifecycle's deviation machinery the split preserves
+// Vertretungsplan overrides with; CareOfferings and ResyncOfferingRoster are
+// Enrollment's. The composition root adds its database handle to the
+// dependencies they bind.
+type TimetableTemplateInputs struct {
+	Rows                 arrivalTimetable.TemplateRows
+	PlanningTracks       arrivalTimetable.PlanningTrackAssignments
+	Materialization      timetable.MaterializationCapability
+	Deviations           arrivalTimetable.SeriesDeviations
+	CareOfferings        careplan.CareOfferingGuards
+	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
+	RecurrenceLock       timetable.RecurrenceWriteLock
+	Broadcaster          realtime.Broadcaster
+	Logger               *slog.Logger
+	Today                func() timezone.Date
+}
+
+// CalendarDependencies are the values the staff and parent calendars bind
+// their narrow fact ports over.
+type CalendarDependencies struct {
+	CalendarFacts
+	Appointments appointments.Capability
+	UserContext  identityaccess.CallerIdentities
+	// Runtime is the tenant runtime over the root database
+	// (calendarCompose.NewTenantRuntime); nil runs without a database.
+	Runtime          *calendarCompose.TenantRuntime
+	CalendarRenderer calendarService.CalendarRenderer
+
+	// Notification dependencies (all optional — nil disables e-mail; the in-app
+	// calendar is unaffected).
+	Outbox     CalendarOutbox
+	PushOutbox CalendarPushOutbox
+	Settings   CalendarLogoResolver
+	// CalDAVPolicy decides whether CalDAV is enabled; without it the
+	// policy resolves calendar.caldav_enabled through CalDAVSettings, and
+	// without both CalDAV has no policy.
+	CalDAVPolicy           calendarService.CalDAVPolicy
+	CalDAVSettings         CalendarCalDAVSettings
+	StaffFeedTombstoneRepo schoolcalendar.FeedHistory
+	ParentsURL             string
+	FrontendURL            string
+	CalDAVURL              string
+	// Today pins the feeds' calendar day; nil uses the real day.
+	Today func() appointments.Date
+
+	// Notifier and Preferences drive the guardian push/in-app notification that
+	// accompanies the appointment e-mails (#1671). Both optional and both
+	// required together: without consent there is nobody to address, so a nil
+	// Preferences disables the push rather than broadcasting past consent.
+	Notifier notifications.Service
+	// ReminderNotifier waits for Web Push acceptance so the scheduler can retry
+	// a transient failure without permanently claiming the reminder delivery.
+	ReminderNotifier notifications.SynchronousService
+	Preferences      notifications.PreferenceService
+
+	// Logger is nil-safe (see service.logger()); notification dispatch is
+	// fire-and-forget and reports its failures here instead of to the caller.
+	Logger *slog.Logger
+}
+
+type CalendarOutbox interface {
+	Enqueue(context.Context, emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
+	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
+}
+type CalendarPushOutbox interface {
+	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
+}
+type CalendarLogoResolver interface {
+	GetLoginImageURL(context.Context, int64) (string, error)
+}
+type CalendarCalDAVSettings interface {
+	ResolveBool(context.Context, string) (bool, error)
+	ResolveBoolForTenant(context.Context, int64, string) (bool, error)
+}
+
+// CalendarFacts are the retained rows and owner reads the calendar's fact
+// ports read. A nil source leaves its port unset.
+type CalendarFacts struct {
+	StaffRepo            userModels.StaffRepository
+	StudentRepo          userModels.StudentRepository
+	GuardianProfileRepo  calendarCompose.GuardianDirectory
+	StudentGuardianRepo  userModels.StudentGuardianRepository
+	ChildRepo            ParentChildLinkSource
+	GroupRepo            EducationGroupRepository
+	InstanceStaffRepo    arrivalTimetable.CalendarAssignmentRows
+	ActivityInstanceRepo arrivalTimetable.CalendarInstanceRows
+	RoomRepo             facilitiesCompose.RoomRows
+	StaffShiftRepo       arrivalTimetable.CalendarShiftRows
+	ShiftTypeRepo        arrivalTimetable.CalendarShiftTypeRows
+	SchoolRepo           organizationtenancy.Query
+	AccountRepo          identityaccess.ParentCalendarFeeds
+	StaffFeedRepo        identityaccess.StaffCalendarFeeds
+	PersonRepo           userModels.PersonRepository
+}
+
+// ParentChildLinkSource lists the children a guardian account reaches
+// (careplanCompose.ParentChildLinks).
+type ParentChildLinkSource interface {
+	ListByAccount(context.Context, int64) ([]careplanCompose.ParentChildLink, error)
+}
+
+// ReminderSources are the values of this graph the reminder evaluation
+// reads: the acting staff member, the tenant settings, the effective
+// pickups, the live sessions and the active supervisions.
+type ReminderSources struct {
+	CurrentStaff CareRequestStaff
+	Settings     settingsCompose.SettingsService
+	Pickups      EffectivePickupTimes
+	Sessions     studentpresence.Presence
+	Supervisions studentpresence.SupervisionRecords
+	Logger       *slog.Logger
+}
+
 func NewFactoryWithConfig(
 	carePlan careplan.Capability,
 	db *bun.DB,
@@ -892,6 +1262,7 @@ func NewFactoryWithConfig(
 	fileStorage FileStorageWiring,
 	identityRoot IdentityRoot,
 	people PeopleWiring,
+	timetableWiring TimetableWiring,
 	allowAuditRootWrites bool,
 	clocks ...func() time.Time,
 ) (*Factory, error) {
@@ -902,11 +1273,8 @@ func NewFactoryWithConfig(
 	today := timezone.CalendarDateClock(now)
 	roomRepository := NewRoomRepository(rooms)
 	// The retained activities and schedule repositories belong to Timetable;
-	// they are built over the capabilities this graph binds (#2743).
-	timetableRepos := NewTimetableRepositories(db, TimetableDependencies{
-		Capability: timetableCapability, Students: persons, Groups: groups, Rooms: rooms,
-		Calendar: calendar, Membership: membership, Workforce: workTime,
-	})
+	// the root builds them over the capabilities it composes (#2743, #4009).
+	timetableRepos := timetableWiring.Repositories
 	// The People Directory, School Membership and School Structure
 	// repositories come from the root, which builds them over the same owners
 	// (#4007).
@@ -1108,13 +1476,8 @@ func NewFactoryWithConfig(
 		now,
 	)
 	// The Timetable owner's tenant recurrence gate (#3424 slice S2) orders
-	// every recurrence writer the factory composes.
-	recurrenceLock, err := arrivalTimetable.NewRecurrenceWriteLock(arrivalTimetable.RecurrenceLockDependencies{
-		DB: db, GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("compose timetable recurrence lock: %w", err)
-	}
+	// every recurrence writer the factory composes; the root builds it.
+	recurrenceLock := timetableWiring.RecurrenceLock
 
 	// The grade transition workflow (#2711) is composed after the enrollment
 	// decision service exists: it needs the offering-roster resync that
@@ -1308,7 +1671,7 @@ func NewFactoryWithConfig(
 	// (#1418 3b) share the Soll=0 semantics. The Soll consumers get the UNION
 	// of both from the School Calendar; the statistics reports and the
 	// holidays endpoint keep reading only the statutory holidays.
-	nonWorkingDayService := NonWorkingDays{Calendar: calendar}
+	nonWorkingDayService := schoolCalendarCompose.NonWorkingDays{Calendar: calendar}
 	// School-defined Abwesenheitsarten (#2403): the time-tracking services
 	// resolve custom names on both the write path (which base type an art
 	// inherits) and the read paths.
@@ -1369,7 +1732,7 @@ func NewFactoryWithConfig(
 	// it in their own tenant transaction to mirror into
 	// schedule.instance_students and enrich SSE events. No circular
 	// dependency because it only depends on repos, not on studentpresence.Presence.
-	attendanceSyncService, err := NewTimetableAttendanceMirror(
+	attendanceSyncService, err := timetableWiring.AttendanceMirror(
 		arrivalTimetable.OwnerRows{Instances: timetableRepos.ActivityInstance, Participants: timetableRepos.InstanceStudent},
 		logger.With("service", "attendance-sync"),
 	)
@@ -1430,13 +1793,13 @@ func NewFactoryWithConfig(
 		Templates:         timetableRepos.ActivityGroup,
 		Categories:        timetableRepos.ActivityCategory,
 		Students:          studentRepository,
-		EducationGroups:   TimetableEducationGroupNames(groupRepository),
+		EducationGroups:   timetableWiring.EducationGroupNames,
 		Rooms:             facilitiesCompose.NewRoomNameDirectory(roomRepository),
 		PickupExceptions:  people.PickupExceptions,
 		ArrivalExceptions: people.ArrivalExceptions,
 	}
-	timetableRows.DeviationEvents, timetableRows.Deviations = TimetableDeviationPorts(audits.DeviationEvent)
-	timetableBridgeService, err := NewTimetableEndedSessionCompletion(timetableRows, careDayService)
+	timetableRows.DeviationEvents, timetableRows.Deviations = timetableWiring.DeviationPorts(audits.DeviationEvent)
+	timetableBridgeService, err := timetableWiring.EndedSessionCompletion(timetableRows, careDayService)
 	if err != nil {
 		return nil, fmt.Errorf("compose ended session completion: %w", err)
 	}
@@ -1574,7 +1937,7 @@ func NewFactoryWithConfig(
 		facilitiesLogger,
 	)
 
-	planningTrackService := arrivalTimetable.NewPlanningTrackAdministration(timetableCapability, db)
+	planningTrackService := timetableWiring.PlanningTracks
 
 	// The Dienstplan side of Workforce (#3418): shifts, series, shift types,
 	// the self-service assignments ("Mein Tag", #1844) and the week overview,
@@ -1676,7 +2039,7 @@ func NewFactoryWithConfig(
 		InstanceStaff: timetableRepos.InstanceStaff, Participants: timetableRepos.InstanceStudent, Timeframes: timetableRepos.Timeframe,
 		CalendarPeriods: calendarPeriods, Exceptions: timetableRepos.ActivityException, EducationGroups: groupRepository,
 	}
-	materializationDeps := TimetableMaterializationDependencies(TimetableMaterializationInputs{
+	materializationDeps := timetableWiring.Materialization(TimetableMaterializationInputs{
 		Rows:       timetableTemplateRows,
 		CareBounds: studentRepository,
 		// Holidays and closing days carry no series occurrences unless the
@@ -1703,7 +2066,7 @@ func NewFactoryWithConfig(
 	// Conflict detection and staffing are the Timetable owner's (#3550): the
 	// start check of the instance lifecycle and the auto-start tick, and the
 	// planning reads api/timetable serves.
-	timetableConflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
+	timetableConflicts, err := timetableWiring.ConflictDetection(TimetableConflictReaders{
 		Instances:         timetableRepos.ActivityInstance,
 		InstanceStaff:     timetableRepos.InstanceStaff,
 		InstanceStudents:  timetableRepos.InstanceStudent,
@@ -1721,11 +2084,11 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable conflict detection: %w", err)
 	}
-	substituteConflicts, err := NewTimetableSubstituteConflicts(timetableRows)
+	substituteConflicts, err := arrivalTimetable.NewSubstituteConflictsOverRows(timetableRows)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable substitute conflicts: %w", err)
 	}
-	instanceService, err := NewTimetableLifecycle(TimetableLifecycleInputs{
+	instanceService, err := timetableWiring.Lifecycle(TimetableLifecycleInputs{
 		Rows: timetableRows,
 		Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: timetableRepos.InstanceIdempotency, ExceptionRepo: timetableRepos.ActivityException, CalendarPeriodRepo: calendarPeriods,
@@ -1757,7 +2120,7 @@ func NewFactoryWithConfig(
 	// The Timetable owner's deviation writes (Vertretungsplan, #3424 slice S3)
 	// hand the cancel branch and the understaffed acknowledgement to the
 	// lifecycle.
-	staffDeviationDeps, err := TimetableStaffDeviationDependencies(TimetableDeviationInputs{
+	staffDeviationDeps, err := timetableWiring.StaffDeviations(TimetableDeviationInputs{
 		Rows: timetableRows, Staff: staffRepository, Supervisions: groupSupervisions, Lifecycle: instanceService.DeviationLifecycle(),
 		Broadcaster: realtimeHub, Logger: logger.With("service", "timetable-deviations"), Now: now,
 	})
@@ -1774,7 +2137,7 @@ func NewFactoryWithConfig(
 	// schedule.activity_instances (CASCADE → instance_staff + instance_students)
 	// and schedule.activity_exceptions older than the tenant's retention window.
 	// Per-student audit rows via DataDeletion; exceptions slog-only.
-	timetableCleanupService, err := NewTimetableCleanup(TimetableRetentionInputs{
+	timetableCleanupService, err := timetableWiring.Cleanup(TimetableRetentionInputs{
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,
@@ -1810,7 +2173,7 @@ func NewFactoryWithConfig(
 		logger.With("service", "student-change-log-cleanup"),
 	)
 
-	autoStartService, autoEndService, err := newTimetableLifecycleSchedulers(
+	autoStartService, autoEndService, err := arrivalTimetable.NewLifecycleSchedulers(
 		timetableRows, instanceService, timetableConflicts, logger.With("service", "timetable-auto-start"),
 	)
 	if err != nil {
@@ -1830,14 +2193,14 @@ func NewFactoryWithConfig(
 		return nil, err
 	}
 
-	timetableOperationsService, err := NewTimetableOperations(TimetableOperationInputs{
+	timetableOperationsService, err := timetableWiring.Operations(TimetableOperationInputs{
 		Rows:           timetableRows,
 		PlanningTracks: timetableCapability,
 		Sessions:       sessionRecords,
 		Supervisions:   groupSupervisions,
 		Visits:         NewLoggedStudentPresence(db, logger),
 		Presence:       activeService,
-		People:         TimetableOperationPeople{OperationPeople: usersService, Membership: membership},
+		People:         usersService,
 		Settings:       settingsService,
 		CareDays:       careDayService,
 		Arrivals:       arrivalScheduleService,
@@ -1859,11 +2222,7 @@ func NewFactoryWithConfig(
 	// rollover pair reuses the submission template as a placeholder until
 	// proper branded copy lands. Calendar appointments share one renderer
 	// for all four kinds.
-	appointmentRenderer := emailoutbox.RendererFunc(NewCalendarAppointmentRenderer(CalendarEmailDependencies{
-		DefaultFrom: defaultFrom,
-		Runtime:     calendarCompose.NewTenantRuntime(db),
-		Guardians:   studentGuardianRepository,
-	}))
+	appointmentRenderer := timetableWiring.AppointmentRenderer(defaultFrom)
 	renderers := map[string]emailoutbox.Renderer{
 		platformModels.EmailKindParentAnnouncement: emailoutbox.RendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
 			DefaultFrom: defaultFrom,
@@ -2552,11 +2911,11 @@ func NewFactoryWithConfig(
 		Observe:     observeCommunication,
 	})
 
-	calendarSvc := NewCalendarPortal(CalendarDependencies{
+	calendarSvc := timetableWiring.Calendar(CalendarDependencies{
 		CalendarFacts: CalendarFacts{
 			StaffRepo:            staffRepository,
 			StudentRepo:          studentRepository,
-			GuardianProfileRepo:  NewCalendarGuardianDirectory(guardianProfileRepository, persons),
+			GuardianProfileRepo:  timetableWiring.CalendarGuardians,
 			StudentGuardianRepo:  studentGuardianRepository,
 			ChildRepo:            careplanCompose.NewParentChildLinks(parentPortal.ParentChild),
 			GroupRepo:            groupRepository,
@@ -2573,11 +2932,11 @@ func NewFactoryWithConfig(
 		Appointments:           appointmentCapability,
 		UserContext:            userContextService.Caller(),
 		Runtime:                calendarCompose.NewTenantRuntime(db),
-		CalendarRenderer:       SchoolCalendarRendererAdapter{Renderer: calendar},
+		CalendarRenderer:       calendarCompose.NewCalendarRenderer(calendar),
 		Outbox:                 emailOutboxService,
 		PushOutbox:             deliveryCompose.NewDurablePushOutbox(deliveryRuntime.Module),
 		Settings:               settingsService,
-		CalDAVPolicy:           calendarCalDAVPolicy{settings: settingsService},
+		CalDAVSettings:         settingsService,
 		StaffFeedTombstoneRepo: schoolCalendarCompose.NewFeedHistory(db),
 		ParentsURL:             parentsURL,
 		FrontendURL:            frontendURL,
@@ -2757,12 +3116,8 @@ func NewFactoryWithConfig(
 	// The slot lists are the class-day read projection (#2701): the owner
 	// facades are its tenant-safe reads, the retained schedule services its
 	// compatibility bindings.
-	classDayReads, err := arrivalTimetable.NewPresenceReads(db)
-	if err != nil {
-		return nil, fmt.Errorf("compose class day timetable reads: %w", err)
-	}
 	slotListsService := classdayCompose.NewSlotLists(classdayCompose.SlotListDependencies{
-		Timetable:       NewClassDayTimetableRows(classDayReads),
+		Timetable:       timetableWiring.ClassDayTimetable,
 		Presence:        NewLoggedStudentPresence(db, logger),
 		CarePlan:        carePlan,
 		Students:        persons,
@@ -2792,8 +3147,8 @@ func NewFactoryWithConfig(
 		Staff:          workforce.PlanExportStaff,
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(timetableRepos.ActivityGroup),
 		PlanningTracks: timetableCapability,
-		ClosingDays:    planExportClosingDays{calendar: calendar},
-		Holidays:       planExportHolidays{calendar: calendar},
+		ClosingDays:    timetableWiring.PlanExportClosingDays,
+		Holidays:       timetableWiring.PlanExportHolidays,
 		Renderer:       listExportService,
 		Logger:         logger.With("service", "plan_export"),
 	})
@@ -2815,25 +3170,13 @@ func NewFactoryWithConfig(
 		logger.With("service", "pwa_usage"),
 	)
 
-	remindersService := reminderCompose.NewQuery(reminderPorts.QueryDependencies{
-		Clock:        ReminderClock(),
-		CurrentStaff: ReminderStaffIdentity(userContextService),
-		Settings:     ReminderSettings{settingsService},
-		Attendance:   NewLoggedStudentPresence(db, logger),
-		Pickup:       ReminderPickupReader{Source: pickupScheduleService},
-		Instance:     ReminderTimetableReader{Source: timetableCapability},
-		Room:         ReminderRoomReader{Source: rooms},
-		Student:      ReminderStudentReader{Source: studentRepository},
-		Person:       ReminderPersonReader{Source: personRepository},
-		Supervision:  ReminderSupervisionReader{Source: activeService, Presence: NewLoggedStudentPresence(db, logger)},
-		Visits:       ReminderVisitReader{Source: NewLoggedStudentPresence(db, logger)},
+	remindersService := timetableWiring.ReminderQuery(ReminderSources{
+		CurrentStaff: userContextService,
+		Settings:     settingsService,
+		Pickups:      pickupScheduleService,
+		Sessions:     activeService,
+		Supervisions: groupSupervisions,
 		Logger:       logger.With("service", "reminders"),
-
-		// Bulk readers for ComputeBatch. They answer the three genuinely
-		// per-person facts for the whole tenant in one query each, which is what
-		// keeps the per-minute cost flat in the number of staff.
-		BulkSupervision:   ReminderBulkSupervisionReader{Source: groupSupervisions},
-		BulkInstanceStaff: ReminderTimetableReader{Source: timetableCapability},
 	})
 
 	studentStatusDayService := presenceservice.NewStatusDays(
@@ -2884,7 +3227,7 @@ func NewFactoryWithConfig(
 		return nil, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
 
-	timetableData, err := NewTimetableData(TimetableDataInputs{
+	timetableData, err := timetableWiring.Data(TimetableDataInputs{
 		Rows:             timetableRows,
 		ArrivalBaselines: arrivalBaselines,
 		PickupBaselines:  pickupBaselines,
@@ -2904,7 +3247,7 @@ func NewFactoryWithConfig(
 	// successor and re-plans the window through the materialization, keeping
 	// the instance lifecycle's Vertretungsplan overrides. Enrollment's roster
 	// resync reconciles offering-sourced rosters (#2137, #2147).
-	timetableTemplateDeps, err := TimetableTemplateDependencies(TimetableTemplateInputs{
+	timetableTemplateDeps, err := timetableWiring.Templates(TimetableTemplateInputs{
 		Rows:                 timetableTemplateRows,
 		PlanningTracks:       planningTrackService,
 		Materialization:      materializationService,
@@ -2934,7 +3277,7 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable series conversion: %w", err)
 	}
-	attendanceCorrections, err := NewTimetableAttendanceCorrections(TimetableCorrectionInputs{
+	attendanceCorrections, err := timetableWiring.AttendanceCorrections(TimetableCorrectionInputs{
 		Rows:   timetableRows,
 		Trail:  audits.AttendanceCorrection,
 		People: personRepository,
@@ -2943,7 +3286,7 @@ func NewFactoryWithConfig(
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable attendance corrections: %w", err)
 	}
-	timetablePlanning := TimetablePlanning{
+	timetablePlanning := arrivalTimetable.Planning{
 		Templates:             timetableTemplates,
 		RecurrenceLock:        recurrenceLock,
 		Data:                  timetableData,
@@ -3013,7 +3356,6 @@ func NewFactoryWithConfig(
 		StaffAssignments:        shiftPlanning.Assignments,
 		StaffScheduleOverview:   shiftPlanning.Overview,
 		ShiftTypes:              shiftPlanning.ShiftTypes,
-		PlanningTracks:          planningTrackService,
 		PickupSchedule:          pickupScheduleService,
 		PartialAbsence:          partialAbsenceService,
 		ArrivalSchedule:         arrivalScheduleService,
@@ -3048,7 +3390,7 @@ func NewFactoryWithConfig(
 		SlotLists:            slotListsService,
 		Reminders: reminder.Module{
 			Query:                     remindersService,
-			Command:                   reminderCompose.NewCommand(db, CalendarReminderDelivery(calendarSvc)),
+			Command:                   timetableWiring.ReminderCommand(calendarSvc),
 			ParentAnnouncementCommand: parentAnnouncementService,
 		},
 		Notifications:            notificationsService,
@@ -3077,13 +3419,13 @@ func NewFactoryWithConfig(
 		RequestReviewPolicy:  requestReviewPolicy,
 		StudentStatusDays:    studentStatusDayService,
 		AbsenceOverview:      studentStatusDayOverviewService,
-		StudentHistory:       presenceservice.NewStudentHistory(NewLoggedStudentPresence(db, logger), historyRoomNames(rooms), NewDataAccessAudit(audits.DataAccessLog), NewHistorySlots(timetableRepos.InstanceStudent)),
+		StudentHistory:       presenceservice.NewStudentHistory(NewLoggedStudentPresence(db, logger), timetableWiring.HistoryRooms, NewDataAccessAudit(audits.DataAccessLog), timetableWiring.HistorySlots),
 		Statistics: NewStatistics(logger, presenceCompose.StatisticsDependencies{
 			DB:          db,
 			StatusDays:  StatisticsStatusDays{carePlan},
 			Courses:     NewCourseStatistics(MustPresenceReads(db)),
-			Holidays:    TenantHolidays{Calendar: calendar},
-			ClosingDays: TenantClosingDays{Calendar: calendar},
+			Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
+			ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar},
 			Periods:     StatisticsReportPeriods{calendar},
 			Students:    StatisticsReportStudents{studentRepository},
 			Rooms:       StatisticsReportRooms{rooms},

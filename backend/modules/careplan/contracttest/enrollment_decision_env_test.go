@@ -142,7 +142,7 @@ type decisionTestEnv struct {
 	db    *bun.DB
 	repos *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
-	timetable services.TimetableRepositories
+	timetable api.TimetableRepositories
 	// requestSvc is the parent-facing intake.
 	requestSvc *enrollmentTest.Intake
 	// offeringCatalog is the Care Plan catalog over the test database; its
@@ -246,7 +246,7 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 		tb:              t,
 		db:              db,
 		repos:           repoFactory,
-		timetable:       services.NewTimetableRepositories(db, timetableDeps),
+		timetable:       api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDeps),
 		requestSvc:      intake,
 		offeringCatalog: catalog,
 		settings:        settings,

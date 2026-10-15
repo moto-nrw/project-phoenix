@@ -48,7 +48,7 @@ type careFixture struct {
 	svc          carerequests.Service
 	sf           *api.TestFactory
 	repos        *api.RepositoryTestFactory
-	timetable    services.TimetableRepositories
+	timetable    api.TimetableRepositories
 	chain        testpkg.ParentChain
 	staffAccount int64
 	staffID      int64
@@ -134,7 +134,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 		svc:          svc,
 		sf:           sf,
 		repos:        repos,
-		timetable:    services.NewTimetableRepositories(db, timetableDeps),
+		timetable:    api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDeps),
 		chain:        chain,
 		staffAccount: staffAccount.ID,
 		staffID:      staff.ID,

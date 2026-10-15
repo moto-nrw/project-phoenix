@@ -23,9 +23,9 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*api.RepositoryTestFactory, services.TimetableRepositories, *workforceCompose.ShiftRows, services.TimetableDependencies) {
+func overviewRepositories(db *bun.DB) (*api.RepositoryTestFactory, api.TimetableRepositories, *workforceCompose.ShiftRows, api.TimetableDependencies) {
 	dependencies := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), dependencies), services.NewTimetableRepositories(db, dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), dependencies), api.NewTimetableRepositories(testpkg.MustDatabase(db), dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
 }
 
 func integrationClock(t *testing.T, value string) time.Time {
