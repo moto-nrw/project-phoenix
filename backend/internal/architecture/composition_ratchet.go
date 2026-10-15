@@ -10,6 +10,7 @@ import (
 	"go/types"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -22,7 +23,11 @@ import (
 
 // CompareCompositionSurface derives both inventories from source, never from a
 // candidate-editable manifest. Locations are evidence, not declaration identity.
-func CompareCompositionSurface(project, ref string) error {
+// The policies name the root-composition packages and classify the owners of
+// the structs those hold (rootStructInventory); the CLI passes the base and
+// the candidate policy.
+func CompareCompositionSurface(project, ref string, policies ...*Policy) error {
+	ownership := newCompositionOwnership(policies...)
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return err
@@ -90,6 +95,18 @@ func CompareCompositionSurface(project, ref string) error {
 	accepted := base.inventory()
 	var added []string
 	current := candidate.inventory()
+	if len(ownership.roots) != 0 {
+		baseRoots, err := baseRootStructInventory(root, prefix, sha, ownership)
+		if err != nil {
+			return fmt.Errorf("root structs at base %s: %w", sha, err)
+		}
+		candidateRoots, err := rootStructInventory(project, ownership)
+		if err != nil {
+			return fmt.Errorf("root structs of the candidate: %w", err)
+		}
+		maps.Copy(accepted, baseRoots)
+		maps.Copy(current, candidateRoots)
+	}
 	for key, location := range current {
 		if _, exists := accepted[key]; !exists {
 			added = append(added, key+" at "+location)

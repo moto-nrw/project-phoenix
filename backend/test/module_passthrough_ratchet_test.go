@@ -75,6 +75,16 @@ import (
 // scanned here — it has its own migration track, and the application layer is
 // the surface the module boundary is supposed to make deep.
 //
+// The owner compositions are scanned too (#4071, ADR 0057 point 5): every
+// non-test .go file below a directory named compose or composition under
+// modules/ or workflows/, legacy/ excluded as above. A composition is where
+// forwarding moved when the application layer shrank — identityaccess.Module
+// alone forwards hundreds of methods — so a register that stopped at the
+// application layer measured where code left, not where it went. The
+// composition register is separate (modulePassthroughComposeBudgets), keyed by
+// the composition directory ("modules/timetable/compose",
+// "modules/communication/composition"); its subpackages count with it.
+//
 // Form: a budget per module, like test/query_budgets.go, not an allowlist per
 // method. The key is the module directory relative to the backend root
 // ("modules/identityaccess", "workflows/reminderdelivery"); the value is the
@@ -96,6 +106,15 @@ import (
 //
 // A red run prints the measured count for every module, so the register can
 // always be rebuilt from the failure output. Numbers only ever go down.
+//
+// Both registers have a total (modulePassthroughBudgetTotal,
+// modulePassthroughComposeBudgetTotal) that must equal the sum of their
+// entries. Raising an entry therefore means raising the total as well, and a
+// raise of either against the pull request's base fails
+// `scripts/backend-architecture.sh check` (ratchet budgets, #4071); a raise
+// needs an ADR added in the same change (ADR 0057 point 5). The application
+// register's total was 718 when the total was introduced; it had grown from
+// the 704 seeded below through the four raises recorded in the entries.
 //
 // Known limitations — conditions 1-4 describe a shape, not an intent. Five
 // gaps survive this version and are recorded rather than patched, because a
@@ -147,6 +166,10 @@ const modulePassthroughMaxBodyLines = 14
 // under a module that reaches into its application layer, at any nesting
 // depth.
 const modulePassthroughApplicationSegment = "/internal/application/"
+
+// modulePassthroughBudgetTotal is the sum of modulePassthroughBudgets.
+// Shrink-only, like every entry.
+const modulePassthroughBudgetTotal = 718
 
 // modulePassthroughBudgets is the register: module directory → pass-throughs
 // measured there. Sorted alphabetically so later diffs stay readable.
@@ -279,6 +302,55 @@ var modulePassthroughBudgets = map[string]int{
 	"modules/workforce": 62,
 }
 
+// modulePassthroughComposeBudgetTotal is the sum of
+// modulePassthroughComposeBudgets. Shrink-only, like every entry.
+const modulePassthroughComposeBudgetTotal = 2397
+
+// modulePassthroughComposeBudgets is the composition register (#4071): owner
+// composition directory → pass-throughs measured below it. First measured on
+// 2026-10-15 on top of development c49b81c3a9 by the scan below: 2394 in
+// 34 compositions. The four largest are modules/identityaccess/compose
+// (the Module facade forwarding to its engine), modules/timetable/compose,
+// modules/workforce/compose and modules/peopledirectory/compose. #4084 carries
+// the compositions that still hold more than construction. Shrink-only — an
+// entry may fall or go, never rise, and no composition gets a new entry.
+var modulePassthroughComposeBudgets = map[string]int{
+	"modules/appointments/compose":          36,
+	"modules/auditlog/compose":              1,
+	"modules/careplan/compose":              188,
+	"modules/careplan/requestfeed/compose":  4,
+	"modules/classday/compose":              15,
+	"modules/communication/composition":     66,
+	"modules/dataimport/compose":            1,
+	"modules/delivery/compose":              14,
+	"modules/devicefleet/compose":           42,
+	"modules/devicescan/compose":            48,
+	"modules/enrollment/compose":            19,
+	"modules/exporttransfer/compose":        3,
+	"modules/facilities/compose":            15,
+	"modules/feedback/compose":              8,
+	"modules/filestorage/compose":           26,
+	"modules/identityaccess/compose":        484,
+	"modules/mealplan/compose":              7,
+	"modules/organizationtenancy/compose":   39,
+	"modules/peopledirectory/compose":       256,
+	"modules/planexport/compose":            4,
+	"modules/requestreview/compose":         17,
+	"modules/schedulerruntime/compose":      4,
+	"modules/schoolcalendar/compose":        27,
+	"modules/schoolcalendar/portal/compose": 2,
+	"modules/schoolmembership/compose":      56,
+	"modules/schoolsetup/compose":           3,
+	"modules/schoolstructure/compose":       72,
+	"modules/settings/compose":              20,
+	"modules/studentpresence/compose":       151,
+	"modules/timetable/compose":             404,
+	"modules/workforce/compose":             339,
+	"workflows/openroommove/compose":        1,
+	"workflows/parentportal/compose":        22,
+	"workflows/shiftplansync/compose":       3,
+}
+
 func TestModulePassthroughRatchet(t *testing.T) {
 	t.Parallel()
 
@@ -288,12 +360,19 @@ func TestModulePassthroughRatchet(t *testing.T) {
 		return
 	}
 
-	counts, err := modulePassthroughScan(backendRoot)
+	counts, err := modulePassthroughScan(backendRoot, modulePassthroughModuleKey)
 	if err != nil {
 		t.Fatalf("module-passthrough scan failed: %v", err)
 	}
+	composeCounts, err := modulePassthroughScan(backendRoot, modulePassthroughComposeKey)
+	if err != nil {
+		t.Fatalf("module-passthrough scan of the compositions failed: %v", err)
+	}
 
 	violations := modulePassthroughViolations(counts, modulePassthroughBudgets)
+	violations = append(violations, modulePassthroughViolations(composeCounts, modulePassthroughComposeBudgets)...)
+	violations = append(violations, modulePassthroughTotalViolations("modulePassthroughBudgetTotal", modulePassthroughBudgets, modulePassthroughBudgetTotal)...)
+	violations = append(violations, modulePassthroughTotalViolations("modulePassthroughComposeBudgetTotal", modulePassthroughComposeBudgets, modulePassthroughComposeBudgetTotal)...)
 	if len(violations) > 0 {
 		sort.Strings(violations)
 		t.Errorf("Module-passthrough ratchet check failed (%d issue(s)):\n\n%s\n\n"+
@@ -317,7 +396,8 @@ func modulePassthroughViolations(counts, budgets map[string]int) []string {
 		case !ok:
 			violations = append(violations, fmt.Sprintf(
 				"[module passthrough] %s: %d single-call delegation(s), but the module has no budget.\n"+
-					"  New application package — add the entry with today's count and shrink it from there (Rule 8).",
+					"  New application package or composition — a new application package gets an entry with today's count\n"+
+					"  and shrinks from there (Rule 8); code moved out of a counted tree keeps its delegations counted.",
 				module, got))
 		case got > budget:
 			violations = append(violations, fmt.Sprintf(
@@ -342,10 +422,34 @@ func modulePassthroughViolations(counts, budgets map[string]int) []string {
 	return violations
 }
 
-// modulePassthroughScan counts pass-through methods per module in the
-// application layers of modules/ and workflows/. Modules without a single hit
-// do not appear in the result, which is what makes a stale budget detectable.
-func modulePassthroughScan(backendRoot string) (map[string]int, error) {
+// modulePassthroughTotalViolations pins a register's total to the sum of its
+// entries, so that raising an entry shows up as a raised constant as well.
+func modulePassthroughTotalViolations(name string, budgets map[string]int, total int) []string {
+	sum := 0
+	for _, budget := range budgets {
+		sum += budget
+	}
+	switch {
+	case sum > total:
+		return []string{fmt.Sprintf(
+			"[module passthrough] %s: the entries sum to %d, the total is %d.\n"+
+				"  An entry was raised. Never raise a budget; a raise needs an ADR (ADR 0057 point 5).",
+			name, sum, total)}
+	case sum < total:
+		return []string{fmt.Sprintf(
+			"[module passthrough] %s: the entries sum to %d, the total is %d.\n"+
+				"  Nice — lower %s to %d so the reduction cannot regress.",
+			name, sum, total, name, sum)}
+	}
+	return nil
+}
+
+// modulePassthroughScan counts pass-through methods per register key in
+// modules/ and workflows/. key maps a backend-relative file path to its
+// register entry, or "" when the file is outside the register's tree. Keys
+// without a single hit do not appear in the result, which is what makes a
+// stale budget detectable.
+func modulePassthroughScan(backendRoot string, key func(string) string) (map[string]int, error) {
 	counts := make(map[string]int)
 	for _, tree := range []string{"modules", "workflows"} {
 		root := filepath.Join(backendRoot, tree)
@@ -367,13 +471,10 @@ func modulePassthroughScan(backendRoot string) (map[string]int, error) {
 				return relErr
 			}
 			rel = filepath.ToSlash(rel)
-			if !strings.Contains(rel, modulePassthroughApplicationSegment) {
-				return nil
-			}
 			if strings.Contains(rel, "/legacy/") {
 				return nil
 			}
-			module := modulePassthroughModuleKey(rel)
+			module := key(rel)
 			if module == "" {
 				return nil
 			}
@@ -401,13 +502,32 @@ func modulePassthroughScan(backendRoot string) (map[string]int, error) {
 }
 
 // modulePassthroughModuleKey maps "modules/careplan/requestfeed/internal/
-// application/x.go" to its owning module directory, "modules/careplan".
+// application/x.go" to its owning module directory, "modules/careplan", and
+// every file outside an application layer to "".
 func modulePassthroughModuleKey(rel string) string {
+	if !strings.Contains(rel, modulePassthroughApplicationSegment) {
+		return ""
+	}
 	parts := strings.Split(rel, "/")
 	if len(parts) < 2 {
 		return ""
 	}
 	return parts[0] + "/" + parts[1]
+}
+
+// modulePassthroughComposeKey maps a file below an owner composition to the
+// composition directory: "modules/timetable/compose/httpadapter/x.go" to
+// "modules/timetable/compose", "modules/careplan/requestfeed/compose/x.go" to
+// "modules/careplan/requestfeed/compose". Files outside a directory named
+// compose or composition map to "".
+func modulePassthroughComposeKey(rel string) string {
+	parts := strings.Split(rel, "/")
+	for index, part := range parts[:len(parts)-1] {
+		if index >= 2 && (part == "compose" || part == "composition") {
+			return strings.Join(parts[:index+1], "/")
+		}
+	}
+	return ""
 }
 
 // modulePassthroughIsDelegation applies the four conditions from the header,

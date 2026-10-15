@@ -3,8 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 15.10.2026 · Ratchet 520 · Composition 139 · Policy-Epoche 47 · 0 Regeln mit Übergangsmarker oder
-`issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`
+Stand 15.10.2026 · Ratchet 520 · Composition 1.732 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 47 ·
+0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
+90.627 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -39,7 +40,11 @@ Regeln versteckt haben. Die Validierung lehnt seitdem ab: Regeln in fremde priva
 und Owner-Kompositionen in fremde `compose`- oder `http`-Rollen (ADR 0059 Punkt 6). Noch nicht
 durchgesetzt und bei #3417: Richtungen und Zyklen nach ADR 0058, etwa Plattform → `inbound`
 (`settings-platform.http.inbound-common`). #3990: Repository-Vokabular aus `models/users` verschieben,
-ohne auf den Ersatz von `database/repositories/users` zu warten.
+ohne auf den Ersatz von `database/repositories/users` zu warten. #4071 misst, wohin Code gewandert ist:
+Composition zählt jedes Root-Struct mehrerer Owner (139 → 1.732, Messgröße für #4080), Passthrough die
+`compose`-Pakete (2.394), dazu `legacy_*.go`, LOC je `compose`-Paket (Messgröße für #4084) und die
+Handler-Ratchets unter `modules/*/http`, `*/inbound`; Budget-Erhöhungen lehnt der Check gegen die Base ab.
+Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/project-phoenix/issues/4094).
 
 - [ ] Phase 0: [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln → Keys (erledigt), [#4071](https://github.com/moto-nrw/project-phoenix/issues/4071) Messlücken der Ratchets, danach #3417
 - [ ] Phase 1: #4063 (ADR 0056), #4064, #4067, #2750, #3990 → #2729

@@ -1031,6 +1031,103 @@ conversion rule below. Unchanged entries must keep their issue. Candidate
 policy, package classification, and ownership changes may not weaken the checks
 enforced by the base policy.
 
+### Composition surface
+
+PR mode also derives the composition surface of the base commit and of the
+candidate from source and rejects every key the candidate adds. A key is
+`scope|field|package|Struct.Field` or `scope|setter|package|Function->Target`.
+It counts:
+
+- the fields of the central aggregates: `database/repositories.Factory`,
+  `api.API` and `api.serviceGraph`, which also names the fields of the deleted
+  `services.Factory`;
+- setters, assignments to the dependency fields of a receiver or pointer
+  parameter after construction;
+- since #4071, every field of every struct a `root-composition` package
+  (`.`, `api`, `cmd`, read from `policy.json`) writes down that holds values
+  of several owners (ADR 0059 point 1).
+
+The root-struct part is semantic (`internal/architecture/composition_owners.go`).
+PR mode loads the root packages of the candidate and of the base commit,
+whose tree it extracts with `git archive`, with full type information,
+production and test variants alike, as a standalone module (`GOWORK=off`; a
+`go.work` in the repository is reported as unsupported). A root package that
+does not load or type-check fails the comparison; it never counts as empty. Every struct the root writes down is a carrier: a struct
+type literal anywhere (package-level or local type, anonymous variable,
+literal, parameter or field, nested structs included), a type expression that
+instantiates a generic root struct (`type Wiring = Graph[alpha.Port,
+beta.Port]`, `var wiring Graph[...]`, `Graph[...]{}`), and a variable a call
+types as such an instance, also as one of several results.
+
+A carrier counts when its struct holds values of at least two owners other
+than the root. A type holds a value of owner O when it is, after resolving
+aliases and unwrapping pointers, slices, arrays, maps and channels, a named
+type declared in a package `policy.json` assigns to O; the type arguments of a
+foreign generic type count as well. The root's own named types, local ones
+included, are followed into their underlying type, so wrapper structs, local
+aliases and generic instances resolve to what they hold. A function type and
+the own methods of an interface are ports of the root and hold no owner value;
+an interface that embeds a named interface holds what that one holds. Owners
+of the `kernel` kind are shared vocabulary and do not count; an internal
+package without classification counts as an owner of its own. Base and
+candidate are classified with both policies, and a struct counts when either
+sees two owners, so a reclassification cannot drop a struct the base counts.
+
+The carrier name is lexical: the type or variable name, prefixed with the
+enclosing function or method when it is local (`root.Wiring.A`), the parent
+carrier and field for a nested struct (`wiring.Inner.More`), or `struct<n>`
+for the n-th counted unnamed struct of a declaration (`root.struct1.A`). A name
+that repeats within a package scope gets `#2`, `#3` in source order; only
+counted carriers take part in the numbering. Known limits, which only
+deliberate code reaches: a generic instance a call infers and passes on
+without a variable or written type, and structs built by reflection.
+`internal/architecture/composition_owners_test.go` pins the definition.
+
+On development `c49b81c3a9` the surface rose from 139 to 1,732 keys when #4071
+added the root structs: 192 structs with 1,684 fields, among them
+`serviceGraph` (91), `graphBuild` (46), `PeopleWiring` (40),
+`serviceGraphInputs` (38), `IdentityMaterial` (33) and the other `*Wiring`,
+`*Sources` and `*Inputs` structs. That rise is the purpose of the measurement,
+not new debt: the fields existed and no ratchet counted them. It is the
+measure of #4080 and reaches 0 when no root struct holds values of several
+owners. From here it only falls.
+
+### Source ratchet budgets
+
+The ratchet tests in `test/*ratchet*_test.go` keep their budgets and
+allowlists in Go declarations. PR mode reads them at the base commit and
+rejects a raise (ADR 0057 point 5). The measurements, compared by name across
+the files of the package:
+
+- every top-level integer constant (a threshold or a register total);
+- every value of a top-level `map[string]int` register and its sum, so a new
+  key cannot add what an existing one may not;
+- the entry count of a top-level `map[string]string` exception register.
+
+The ratchet files are type-checked together with `go/types`, so every value
+is the compiler's: typed conversions and complements (`^uint8(0)` is 255),
+`iota` and references to other constants included, and a register may have a
+named map type. Imports resolve to empty packages; a value that depends on one
+or on a declaration outside the ratchet files has no value. A base
+measurement whose candidate declaration has no integer value is an error. A
+base measurement may not disappear either, also not by moving it out of the
+ratchet files: it stays, its register was empty, or exactly one candidate
+declaration of the same kind says `renamed from <old name>` in its comment
+and is compared with the old values. Two successors for one name, or one
+declaration naming two predecessors, fail. A new declaration has no base and
+starts a measurement; other literals (selector sets, scanned directories) are
+not compared.
+
+A raise passes only under an ADR the change adds: the comment on the raised
+entry or its declaration cites `ADR 0123`, and the base has no ADR with that
+number. Renaming or copying an existing ADR file authorizes nothing. A
+measurement that disappears needs the same: a comment naming it that cites an
+ADR the change adds. The only exception is a closed, one-time list bound to ADR
+0057 (`retiredByADR0057`): the three temporary-rule registers of
+`test/policy_temporary_rules_ratchet_test.go` that #4070 replaced by a
+structural check.
+`internal/architecture/ratchet_budgets_test.go` pins the rules.
+
 ### Converting temporary permissions to exact debt
 
 A rule states the target
