@@ -83,14 +83,20 @@ type moveStack struct {
 	command   openroommove.Command
 }
 
+// unusedRooms answers that nothing still needs a room.
+type unusedRooms struct{}
+
+func (unusedRooms) HasActiveSessions(context.Context, int64) (bool, error)      { return false, nil }
+func (unusedRooms) RequiredByCareOffering(context.Context, int64) (bool, error) { return false, nil }
+
 func newMoveStack(t *testing.T) *moveStack {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:            db,
-		DeletionLock:  func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil },
-		Observe:       func(facilitiesCompose.Observation) {},
+		DB:           db,
+		DeletionLock: func(context.Context) error { return nil },
+		Usage:        unusedRooms{},
+		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
 	s := &moveStack{rooms: rooms, timetable: timetabletest.New(t, db), presence: newRecordingPresence()}

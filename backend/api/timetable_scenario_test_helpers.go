@@ -23,7 +23,7 @@ type TimetableScenarioTestModule struct {
 	TimetableCleanup timetable.TimetableCleanup
 	// People serves the People port of the timetable routes from Users, as
 	// the root binds it.
-	People services.TimetablePeople
+	People TimetablePeople
 }
 
 func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (TimetableScenarioTestModule, error) {
@@ -43,12 +43,12 @@ func NewTimetableScenarioTestModule(db transactionruntime.Database, unit tenant.
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	cleanup, err := services.NewTimetableCleanup(services.TimetableRetentionInputs{
+	cleanup, err := NewTimetableCleanup(services.TimetableRetentionInputs{
 		Owner: r.Timetable, Deletions: NewDataDeletionTestRepository(db, command),
 		Deviations: r.DeviationEvent, Settings: live.Settings, Logger: slog.Default(), Clock: services.OptionalClock(clocks),
 	})
 	if err != nil {
 		return TimetableScenarioTestModule{}, err
 	}
-	return TimetableScenarioTestModule{TimetableTestModule: timetable, Active: live.Active, Users: live.Users, UserContext: live.UserContext, Settings: live.Settings, TimetableCleanup: cleanup, People: services.NewTimetablePeople(live.Users)}, nil
+	return TimetableScenarioTestModule{TimetableTestModule: timetable, Active: live.Active, Users: live.Users, UserContext: live.UserContext, Settings: live.Settings, TimetableCleanup: cleanup, People: NewTimetablePeople(live.Users)}, nil
 }

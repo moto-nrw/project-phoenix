@@ -3,7 +3,6 @@ package httpadapter
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -18,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -41,9 +39,10 @@ type testContext struct {
 
 // RoomsComposition is what the route suites take from the root's Rooms
 // composition: the route dependencies, whose settings service the suites
-// also toggle.
+// also toggle, and the room usage the deletion asks.
 type RoomsComposition struct {
 	Dependencies Dependencies
+	Usage        facilitiesCompose.RoomUsage
 }
 
 // ComposeRooms composes the root's Rooms graph over the package's test
@@ -63,22 +62,8 @@ func setupRoomsRoute(t *testing.T) *testContext {
 	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
 		DB:           db,
 		DeletionLock: func(context.Context) error { return nil },
-		DeletionGuard: func(ctx context.Context, roomID int64) error {
-			err := svc.Dependencies.Facilities.ValidateRoomDeletion(ctx, roomID)
-			var coded interface{ Code() string }
-			if !errors.As(err, &coded) {
-				return err
-			}
-			switch coded.Code() {
-			case "room_in_use":
-				return facilitiesModule.ErrRoomInUse
-			case "room_required_by_offering":
-				return facilitiesModule.ErrRoomRequiredByOffering
-			default:
-				return err
-			}
-		},
-		Observe: func(facilitiesCompose.Observation) {},
+		Usage:        svc.Usage,
+		Observe:      func(facilitiesCompose.Observation) {},
 	})
 	require.NoError(t, err)
 	resource := NewResource(rooms, svc.Dependencies, slog.Default())

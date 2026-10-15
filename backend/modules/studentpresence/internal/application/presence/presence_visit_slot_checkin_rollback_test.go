@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -82,7 +81,7 @@ func TestVisitCheckInRollsBackAfterEachSlotWriteAndRetries(t *testing.T) {
 				testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 			}
 			ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+			ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			if tc.failAt == "checkout" {
 				exit := visit.EntryTime.Add(time.Minute)

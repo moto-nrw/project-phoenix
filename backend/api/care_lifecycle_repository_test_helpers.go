@@ -49,7 +49,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 		sources: services.CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,
-			Presence: services.NewUnloggedStudentPresence(db.Pool()), PlanReads: services.MustPresenceReads(db.Pool()),
+			Presence: NewUnloggedStudentPresence(db), PlanReads: MustPresenceReads(db),
 		},
 	}, nil
 }

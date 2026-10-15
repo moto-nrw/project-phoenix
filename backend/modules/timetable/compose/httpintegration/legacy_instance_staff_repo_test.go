@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -18,7 +17,7 @@ import (
 
 func instanceStaffRepository(t *testing.T, db *bun.DB) instanceStaffQueryRepository {
 	t.Helper()
-	factory := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return factory.InstanceStaff.(instanceStaffQueryRepository)
 }
 
@@ -27,7 +26,7 @@ func createInstanceFixture(t *testing.T, db *bun.DB, prefix string, date schedul
 
 	fx := newActivityInstanceFixtures(t, db, prefix)
 
-	repo := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	repo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
 	ctx := testpkg.Ctx(t)
 
 	inst := buildInstance(testpkg.Tenant(t), fx.roomID, &fx.activityID, date,
@@ -547,7 +546,7 @@ func buildInstance(tenantID, roomID int64, activityID *int64, date scheduleModel
 func moveInstanceTo(t *testing.T, db *bun.DB, inst *scheduleModels.ActivityInstance, status string) {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	repo := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
+	repo := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).ActivityInstance
 	if status == scheduleModels.InstanceStatusActive || status == scheduleModels.InstanceStatusCompleted {
 		require.NotNil(t, inst.ActivityGroupID, "an execution needs the block's template")
 		group := testpkg.CreateTestActiveGroup(t, db, *inst.ActivityGroupID, inst.RoomID)

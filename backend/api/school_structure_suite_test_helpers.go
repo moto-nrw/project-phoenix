@@ -23,7 +23,7 @@ import (
 
 // SchoolStructureRepositorySuiteDependencies are the owner capabilities the
 // repository factory reads through.
-type SchoolStructureRepositorySuiteDependencies = services.TimetableDependencies
+type SchoolStructureRepositorySuiteDependencies = TimetableDependencies
 
 // NewSchoolStructureRepositorySuiteGraph is the legacy repository factory
 // over the unobserved timetable dependencies, with a second set of those

@@ -24,7 +24,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -941,7 +940,7 @@ func TestCheckOutStudentFromDevice_PrefersAuthenticatedStaff(t *testing.T) {
 	checkInStaff := testpkg.CreateTestStaff(t, db, "Device", "InitialStaff")
 	authenticatedStaff := testpkg.CreateTestStaff(t, db, "Device", "AuthenticatedStaff")
 	open := testpkg.CreateTestAttendance(t, db, student.ID, checkInStaff.ID, deviceRec.ID, time.Now().Add(-time.Hour), nil)
-	ctx = services.WithAttendanceStaff(ctx, authenticatedStaff.ID, authenticatedStaff.TenantID)
+	ctx = api.WithAttendanceStaff(ctx, authenticatedStaff.ID, authenticatedStaff.TenantID)
 
 	result, err := service.CheckOutStudentFromDevice(ctx, student.ID, deviceRec.ID)
 

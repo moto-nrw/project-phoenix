@@ -2,6 +2,10 @@ package services
 
 import (
 	"context"
+	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -25,4 +29,26 @@ func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, in
 }
 func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input careplanCompose.PickupWeekdayExtension) error {
 	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
+}
+
+// partialAbsenceBlocks previews the blocks of a child's day an earlier pickup
+// can still excuse.
+type partialAbsenceBlocks struct {
+	preview timetableCompose.PartialAbsencePreview
+}
+
+func newPartialAbsenceBlocks(preview timetableCompose.PartialAbsencePreview) partialAbsenceBlocks {
+	return partialAbsenceBlocks{preview: preview}
+}
+
+func (p partialAbsenceBlocks) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+	rows, err := p.preview.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
+	if err != nil {
+		return nil, err
+	}
+	blocks := make([]carerequests.Block, 0, len(rows))
+	for _, row := range rows {
+		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
+	}
+	return blocks, nil
 }

@@ -16,15 +16,15 @@ type Service struct {
 	store        ports.Store
 	tx           ports.Transaction
 	lockDeletion ports.DeletionLock
-	guard        ports.DeletionGuard
+	usage        ports.RoomUsage
 	observe      ports.Observer
 }
 
-func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, guard ports.DeletionGuard, observe ports.Observer) *Service {
-	if store == nil || tx == nil || lockDeletion == nil || guard == nil || observe == nil {
+func New(store ports.Store, tx ports.Transaction, lockDeletion ports.DeletionLock, usage ports.RoomUsage, observe ports.Observer) *Service {
+	if store == nil || tx == nil || lockDeletion == nil || usage == nil || observe == nil {
 		panic("facilities application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, lockDeletion: lockDeletion, guard: guard, observe: observe}
+	return &Service{store: store, tx: tx, lockDeletion: lockDeletion, usage: usage, observe: observe}
 }
 
 func (s *Service) Create(ctx context.Context, input domain.CreateRoom) (result domain.Room, err error) {
@@ -140,13 +140,33 @@ func (s *Service) Delete(ctx context.Context, id int64) (err error) {
 		if isSystemRoomName(existing.Name) {
 			return domain.ErrSystemProtected
 		}
-		if err := s.guard(txCtx, id); err != nil {
+		if err := s.refuseUsedRoom(txCtx, id); err != nil {
 			return err
 		}
 		queryStats, err = s.store.Delete(txCtx, id)
 		stats.Add(queryStats)
 		return err
 	})
+}
+
+// refuseUsedRoom keeps a room while a session runs in it or a care offering
+// needs it. The running session is asked first.
+func (s *Service) refuseUsedRoom(ctx context.Context, id int64) error {
+	active, err := s.usage.HasActiveSessions(ctx, id)
+	if err != nil {
+		return err
+	}
+	if active {
+		return domain.ErrInUse
+	}
+	required, err := s.usage.RequiredByCareOffering(ctx, id)
+	if err != nil {
+		return err
+	}
+	if required {
+		return domain.ErrRequiredByOffering
+	}
+	return nil
 }
 
 func isSystemRoomName(name string) bool {

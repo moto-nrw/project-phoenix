@@ -49,11 +49,11 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	logger := slog.Default()
 	cfg := services.CurrentFactoryConfig()
-	calendarSvc := services.NewCalendarPortal(services.CalendarDependencies{
+	calendarSvc := NewCalendarPortal(services.CalendarDependencies{
 		CalendarFacts: services.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
-			GuardianProfileRepo:  services.NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
+			GuardianProfileRepo:  NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),
 			StudentGuardianRepo:  repos.StudentGuardian,
 			ChildRepo:            parents.ParentChildLinks(),
 			GroupRepo:            repos.Group,
@@ -70,7 +70,7 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		Appointments:           appointments,
 		UserContext:            identity.UserContext.Caller(),
 		Runtime:                calendarCompose.NewTenantRuntime(db.Pool()),
-		CalendarRenderer:       services.SchoolCalendarRendererAdapter{Renderer: schoolCalendar},
+		CalendarRenderer:       calendarCompose.NewCalendarRenderer(schoolCalendar),
 		Outbox:                 delivery.EmailOutbox,
 		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
 		Settings:               settings.Settings,

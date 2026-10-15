@@ -98,7 +98,7 @@ func timeTrackingPorts(deps timeTrackingPortDependencies) workforceCompose.TimeT
 	ports.ScheduleTargets = workforceCompose.NewWorkScheduleTargets(deps.WorkSchedules)
 	ports.TargetModels = workforceCompose.NewWorkTimeTargetModels(deps.WorkTimeModels)
 	ports.Shifts = workforceCompose.NewTimeTrackingShifts(deps.Workforce)
-	ports.Settings = services.PresenceSettings(deps.Settings)
+	ports.Settings = settingsCompose.PresenceSettings(deps.Settings)
 	ports.Payroll = PayrollExportSettings{Source: deps.Payroll}
 	ports.RenderPDF, ports.RenderWorkbook = RenderTimeTrackingPDF, RenderTimeTrackingWorkbook
 	ports.Logger, ports.Today = deps.Logger, deps.Today

@@ -37,6 +37,10 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 
 	people, err := owners.PeopleWiring(testpkg.NewDatabase(t, db), carePlan, slog.Default())
 	require.NoError(t, err)
+	presence, err := owners.PresenceWiring(testpkg.NewDatabase(t, db), carePlan, people, slog.Default())
+	require.NoError(t, err)
+	timetable, err := owners.TimetableWiring(testpkg.NewDatabase(t, db), people, slog.Default())
+	require.NoError(t, err)
 
 	observedAppends := 0
 	factory, err := services.NewFactoryWithConfig(
@@ -72,6 +76,8 @@ func TestNewFactoryStudentConsentUsesAuditRoutedRepository(t *testing.T) {
 		services.FileStorageWiring{},
 		identity,
 		people,
+		presence,
+		timetable,
 		true,
 	)
 	require.NoError(t, err)

@@ -47,11 +47,11 @@ func NewParentRouteTestRepositories(db transactionruntime.Database, members Memb
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	bookings, err := services.NewTimetable(db.Pool(), people, rooms)
+	bookings, err := NewUnobservedTimetable(db, people, rooms)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err
 	}
-	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), bookings, services.NewUnloggedStudentPresence(db.Pool()), services.NewPartialAbsencePreview(db.Pool()))
+	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), bookings, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	care, err := NewCarePlan(db, people, slots)
 	if err != nil {
 		return ParentRouteTestRepositories{}, err

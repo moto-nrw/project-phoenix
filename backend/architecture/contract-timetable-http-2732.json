@@ -83,7 +83,7 @@
     "source": "Local runs on the #2732 branch (work/2732-contract-legacy-architecture-edges-from-api-time) on 2026-09-24 against the local postgres-test server.",
     "sources": [
       "backend/modules/timetable/http/router.go",
-      "backend/services/timetable_http_ports.go",
+      "backend/api/timetable_http_ports.go",
       "backend/api/timetable_http_test_helpers.go",
       "backend/api/testdata/route_table.golden",
       "backend/test/query_budgets.go"

@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -46,7 +47,7 @@ func NewCareLifecycleOwners(sources CareLifecycleOwnerSources, changeTrail careP
 		Bookings:    careExitBookings{capability: sources.Timetable},
 		Enrollment:  careExitEnrollment{projection: NewEnrollmentBookingProjection(enrollmentCompose.New())},
 		Presence:    careExitPresence{presence: presence},
-		Calendar:    careExitCalendarPeriods{calendar: sources.Calendar},
+		Calendar:    schoolCalendarCompose.CalendarPeriodIDs{Calendar: sources.Calendar},
 		Tags:        peopleCompose.NewStudentTagReleaser(sources.People),
 		ChangeTrail: changeTrail,
 	}

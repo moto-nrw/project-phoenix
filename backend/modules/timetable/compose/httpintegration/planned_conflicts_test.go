@@ -325,7 +325,7 @@ func (planningOnlyPresence) QueryGroupSupervisions(context.Context, studentprese
 // staffing capability over the retained repositories, the way the root does.
 func newConflictDetection(t *testing.T, repos api.TimetableTestRepositories) timetable.ConflictDetectionCapability {
 	t.Helper()
-	detection, err := services.NewTimetableConflictDetection(services.TimetableConflictReaders{
+	detection, err := api.NewTimetableConflictDetection(services.TimetableConflictReaders{
 		Instances:         repos.ActivityInstance,
 		InstanceStaff:     repos.InstanceStaff,
 		InstanceStudents:  repos.InstanceStudent,

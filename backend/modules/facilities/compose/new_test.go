@@ -39,7 +39,7 @@ func buildModule(t *testing.T, db *bun.DB, observe func(Observation)) *facilitie
 	t.Helper()
 	module, err := New(Dependencies{
 		DB: db, DeletionLock: func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil }, Observe: observe,
+		Usage: roomUsageFunc(func(context.Context) bool { return false }), Observe: observe,
 	})
 	require.NoError(t, err)
 	return module

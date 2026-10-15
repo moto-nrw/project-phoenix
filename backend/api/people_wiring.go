@@ -61,7 +61,7 @@ func NewPeopleWiring(owners PeopleWiringOwners) (services.PeopleWiring, error) {
 	personRepository := services.NewPersonRepository(db.Pool())
 	students := NewStudentRepository(db, owners.Membership, groups)
 	members := newMembershipAdapters(db, personRepository, identity, owners.Membership, owners.Rooms, owners.Workforce)
-	presence := services.NewLoggedStudentPresence(db.Pool(), logger)
+	presence := NewLoggedStudentPresence(db, logger)
 	return services.PeopleWiring{
 		Identity:             identity,
 		Persons:              personRepository,

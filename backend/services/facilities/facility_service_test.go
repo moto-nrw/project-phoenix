@@ -51,7 +51,6 @@ func TestCompatibilityServiceDelegatesWritesToOwner(t *testing.T) {
 		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
 			return nil, nil
 		},
-		ValidateDeletion: func(context.Context, int64) error { return nil },
 	})
 	room := &facilitiesModule.Room{Name: "Igelraum"}
 
@@ -73,7 +72,6 @@ func TestCompatibilityLookupsReturnNilOnOwnerFailure(t *testing.T) {
 		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
 			return nil, nil
 		},
-		ValidateDeletion: func(context.Context, int64) error { return nil },
 	})
 
 	room, err := service.GetRoom(context.Background(), time.Now().UnixNano())
@@ -96,7 +94,6 @@ func TestCompatibilityListsReturnNilOnOwnerFailure(t *testing.T) {
 		History: func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error) {
 			return nil, nil
 		},
-		ValidateDeletion: func(context.Context, int64) error { return nil },
 	})
 
 	rooms, err := service.FindRoomsByCategory(context.Background(), "Gruppenraum")

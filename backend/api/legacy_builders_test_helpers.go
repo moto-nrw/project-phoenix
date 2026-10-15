@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/services"
 )
@@ -36,18 +35,6 @@ func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(contex
 	return services.NewDeviceFleet(db.Pool(), onlineWindows...)
 }
 
-// NewSessionRecords composes the Student Presence session records over the
-// given owners.
-func NewSessionRecords(db transactionruntime.Database, owners services.SessionRecordOwners) *presenceCompose.SessionRecords {
-	return services.NewSessionRecords(db.Pool(), owners)
-}
-
-// NewRetainedTimetableRepositories builds the retained Timetable adapters over
-// the given dependencies.
-func NewRetainedTimetableRepositories(db transactionruntime.Database, deps services.TimetableDependencies) services.TimetableRepositories {
-	return services.NewTimetableRepositories(db.Pool(), deps)
-}
-
 // The enrollment flows and their sources, as the root composes them.
 type (
 	EnrollmentChangeRequestSources = services.EnrollmentChangeRequestSources
@@ -59,8 +46,6 @@ type (
 	EnrollmentIntakeSettings       = services.EnrollmentIntakeSettings
 	EnrollmentIntakeSources        = services.EnrollmentIntakeSources
 	EnrollmentRolloverSources      = services.EnrollmentRolloverSources
-	SessionRecordOwners            = services.SessionRecordOwners
-	TimetableDependencies          = services.TimetableDependencies
 )
 
 var (

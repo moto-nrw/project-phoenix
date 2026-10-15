@@ -15,7 +15,6 @@ type Service interface {
 	CreateRoom(context.Context, *facilitiesModule.Room) error
 	UpdateRoom(context.Context, *facilitiesModule.Room) error
 	DeleteRoom(context.Context, int64) error
-	ValidateRoomDeletion(context.Context, int64) error
 	ListRooms(context.Context) ([]RoomWithOccupancy, error)
 	ProjectRoomOccupancy(context.Context, []facilitiesModule.Room) ([]RoomWithOccupancy, error)
 	FindRoomByName(context.Context, string) (*facilitiesModule.Room, error)
