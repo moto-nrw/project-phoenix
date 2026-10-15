@@ -31,7 +31,7 @@ import (
 // in a non-test .go file under modules/*/http, modules/*/inbound and
 // workflows/*/http (isModuleHandlerFile) against the same threshold, with a
 // register of its own (moduleHTTPComplexityAllowlist), first measured on
-// 2026-10-15 on top of development 46c01f7234. Those functions are also in
+// 2026-10-15 on top of development c49b81c3a9. Those functions are also in
 // TestModuleComplexityRatchet; this ratchet holds them to the handler rule and
 // keeps both registers shrink-only.
 //

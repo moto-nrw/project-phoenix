@@ -4,7 +4,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 `gh issue list --search "2580 in:body" --state closed`.
 
 Stand 15.10.2026 · Ratchet 6 · Composition 1.729 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 46 ·
-2 Regeln mit `convert it to exact debt` · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`, 90.615 in `compose`
+2 Regeln mit `convert it to exact debt` · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`, 90.627 in `compose`
 
 Summenprobe: 1 + 0 + 0 + 0 + 0 + 0 + 0 + 0 + 5 = 6 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.

@@ -1043,9 +1043,9 @@ It counts:
   `services.Factory`;
 - setters, assignments to the dependency fields of a receiver or pointer
   parameter after construction;
-- since #4071, every field of every struct a `root-composition` package
-  (`.`, `api`, `cmd`, read from `policy.json`) declares that holds values of
-  several owners (ADR 0059 point 1).
+- since #4071, every field of every package-level struct a
+  `root-composition` package (`.`, `api`, `cmd`, read from `policy.json`)
+  declares that holds values of several owners (ADR 0059 point 1).
 
 A struct holds values of several owners when its fields hold values of at
 least two owners other than the root. A field holds a value of owner O when
@@ -1061,7 +1061,7 @@ and the candidate policy, and a struct counts when either sees two owners, so a
 reclassification cannot drop a struct the base counts.
 `internal/architecture/composition_owners_test.go` pins the definition.
 
-On development `46c01f7234` the surface rose from 139 to 1,729 keys when #4071
+On development `c49b81c3a9` the surface rose from 139 to 1,729 keys when #4071
 added the root structs: 191 structs with 1,681 fields, among them
 `serviceGraph` (91), `graphBuild` (46), `PeopleWiring` (40),
 `serviceGraphInputs` (38), `IdentityMaterial` (33) and the other `*Wiring`,

@@ -308,7 +308,7 @@ const modulePassthroughComposeBudgetTotal = 2394
 
 // modulePassthroughComposeBudgets is the composition register (#4071): owner
 // composition directory → pass-throughs measured below it. First measured on
-// 2026-10-15 on top of development 46c01f7234 by the scan below: 2394 in
+// 2026-10-15 on top of development c49b81c3a9 by the scan below: 2394 in
 // 34 compositions. The four largest are modules/identityaccess/compose
 // (the Module facade forwarding to its engine), modules/timetable/compose,
 // modules/workforce/compose and modules/peopledirectory/compose. #4084 carries

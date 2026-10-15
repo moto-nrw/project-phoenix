@@ -50,7 +50,7 @@ import (
 // modules/*/inbound and workflows/*/http, nested module layouts included
 // (modules/careplan/requestfeed/http). Their hits have registers of their own
 // (moduleHTTP*Allowlist), first measured on 2026-10-15 on top of development
-// 46c01f7234, with the same semantics. No file there is exempt: test hooks in
+// c49b81c3a9, with the same semantics. No file there is exempt: test hooks in
 // those trees count. R2 already scans the whole backend.
 //
 // Known limitation: R1 matches the textual "name pkg.SomethingRepository"

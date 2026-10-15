@@ -326,13 +326,12 @@ func (s *compositionSnapshot) inventory() map[string]string {
 					if !central && !root {
 						continue
 					}
-					structure, _ := s.structure(file, typ.Type, map[string]bool{})
-					if !central {
+					var structure *ast.StructType
+					if central {
+						structure, _ = s.structure(file, typ.Type, map[string]bool{})
+					} else if literal, ok := typ.Type.(*ast.StructType); ok && s.severalOwners(file, literal) {
 						// A root struct counts by what its own declaration holds.
-						structure, _ = typ.Type.(*ast.StructType)
-						if structure != nil && !s.severalOwners(file, structure) {
-							structure = nil
-						}
+						structure = literal
 					}
 					if structure == nil {
 						continue
