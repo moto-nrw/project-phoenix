@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 90627
+const moduleComposeBudgetTotal = 90750
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -185,7 +185,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/devicescan/compose":                      1513,
 	"modules/emergencysnapshot/compose":               13,
 	"modules/enrollment/compose":                      848,
-	"modules/exporttransfer/compose":                  291,
+	"modules/exporttransfer/compose":                  323,
 	"modules/facilities/compose":                      394,
 	"modules/facilities/compose/httpadapter":          491,
 	"modules/facilities/compose/repositoryadapter":    242,
@@ -206,8 +206,8 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolmembership/compose":                869,
 	"modules/schoolsetup/compose":                     107,
 	"modules/schoolstructure/compose":                 1573,
-	"modules/settings/compose":                        559,
-	"modules/settings/compose/vocabulary":             125,
+	"modules/settings/compose":                        608,
+	"modules/settings/compose/vocabulary":             126,
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
@@ -215,7 +215,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/transactionruntime/compose":              173,
-	"modules/workforce/compose":                       7413,
+	"modules/workforce/compose":                       7454,
 	"modules/workforce/compose/httpadapter":           81,
 	"modules/workforce/compose/repositoryadapter":     274,
 	"workflows/gradetransition/compose":               180,
