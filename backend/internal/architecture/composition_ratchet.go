@@ -22,7 +22,11 @@ import (
 
 // CompareCompositionSurface derives both inventories from source, never from a
 // candidate-editable manifest. Locations are evidence, not declaration identity.
-func CompareCompositionSurface(project, ref string) error {
+// The policies classify the root-composition packages and the owners of their
+// struct fields (compositionOwnership); the CLI passes the base and the
+// candidate policy.
+func CompareCompositionSurface(project, ref string, policies ...*Policy) error {
+	ownership := newCompositionOwnership(policies...)
 	root, err := gitOutput(project, "rev-parse", "--show-toplevel")
 	if err != nil {
 		return err
@@ -87,6 +91,7 @@ func CompareCompositionSurface(project, ref string) error {
 		return err
 	}
 	base.external, candidate.external = external, external
+	base.ownership, candidate.ownership = ownership, ownership
 	accepted := base.inventory()
 	var added []string
 	current := candidate.inventory()
@@ -185,6 +190,8 @@ type compositionSnapshot struct {
 	files    []*compositionFile
 	types    map[string]compositionType
 	external map[string]*types.Package
+	// ownership classifies root structs; nil counts only central aggregates.
+	ownership *compositionOwnership
 }
 
 func loadCompositionExternalTypes(project string, snapshot *compositionSnapshot) (map[string]*types.Package, error) {
@@ -296,7 +303,8 @@ func (s *compositionSnapshot) add(path string, source []byte) error {
 func (s *compositionSnapshot) inventory() map[string]string {
 	result := map[string]string{}
 	for _, file := range s.files {
-		if !compositionPackage(file.pkg) {
+		root := s.ownership.root(file.pkg)
+		if !compositionPackage(file.pkg) && !root {
 			continue
 		}
 		add := func(kind, symbol string, pos token.Pos) {
@@ -311,10 +319,21 @@ func (s *compositionSnapshot) inventory() map[string]string {
 			case *ast.GenDecl:
 				for _, spec := range declaration.Specs {
 					typ, ok := spec.(*ast.TypeSpec)
-					if !ok || !centralAggregate(file.pkg, typ.Name.Name) {
+					if !ok {
+						continue
+					}
+					central := centralAggregate(file.pkg, typ.Name.Name)
+					if !central && !root {
 						continue
 					}
 					structure, _ := s.structure(file, typ.Type, map[string]bool{})
+					if !central {
+						// A root struct counts by what its own declaration holds.
+						structure, _ = typ.Type.(*ast.StructType)
+						if structure != nil && !s.severalOwners(file, structure) {
+							structure = nil
+						}
+					}
 					if structure == nil {
 						continue
 					}
@@ -328,7 +347,9 @@ func (s *compositionSnapshot) inventory() map[string]string {
 					}
 				}
 			case *ast.FuncDecl:
-				s.collectSetters(file, declaration, add)
+				if compositionPackage(file.pkg) {
+					s.collectSetters(file, declaration, add)
+				}
 			}
 		}
 	}

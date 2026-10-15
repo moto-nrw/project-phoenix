@@ -3,8 +3,8 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 15.10.2026 · Ratchet 21 · Composition 139 · Policy-Epoche 45 · 2 Regeln mit
-`convert it to exact debt` · 3.050 LOC unter `modules/*/legacy`
+Stand 15.10.2026 · Ratchet 21 · Composition 1.729 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 45 ·
+2 Regeln mit `convert it to exact debt` · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`, 90.615 in `compose`
 
 Summenprobe: 1 + 0 + 0 + 0 + 0 + 0 + 0 + 0 + 20 = 21 = `wc -l backend/architecture/legacy.jsonl`.
 Geht sie nicht auf, ist eine Zeile hier veraltet.
@@ -16,7 +16,11 @@ Zielgraph ist azyklisch (ADR 0058), die Roots halten keinen Service-Graphen (ADR
 kommen als letzter Schritt. Die Definition of Done von #2580 ist überarbeitet. [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070)
 wandelt die Übergangsregeln in Keys um; danach steigt der Ratchet auf erwartet 300 bis 750 und die
 Summenprobe bekommt eine Zeile je Carrier. #3990: Repository-Vokabular aus `models/users` verschieben,
-ohne auf den Ersatz von `database/repositories/users` zu warten.
+ohne auf den Ersatz von `database/repositories/users` zu warten. #4071 misst, wohin Code gewandert ist:
+Composition zählt jedes Root-Struct mehrerer Owner (139 → 1.729, Messgröße für #4080), Passthrough die
+`compose`-Pakete (2.394), dazu `legacy_*.go`, LOC je `compose`-Paket (Messgröße für #4084) und die
+Handler-Ratchets unter `modules/*/http`, `*/inbound`; Budget-Erhöhungen lehnt der Check gegen die Base ab.
+Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/project-phoenix/issues/4094).
 
 - [ ] Phase 0: [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln → Keys, [#4071](https://github.com/moto-nrw/project-phoenix/issues/4071) Messlücken der Ratchets, danach #3417
 - [ ] Phase 1: #4063 (ADR 0056), #4064, #4067, #2750, #3990 → #2729

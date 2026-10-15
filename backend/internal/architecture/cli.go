@@ -140,7 +140,8 @@ func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManif
 	return errors.Join(
 		compareCandidatePolicyStrictness(options.project, options.baseRef, basePolicy, policy, baseManifest, violations, graph),
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
-		CompareCompositionSurface(options.project, options.baseRef),
+		CompareCompositionSurface(options.project, options.baseRef, basePolicy, policy),
+		CompareRatchetBudgets(options.project, options.baseRef),
 	)
 }
 

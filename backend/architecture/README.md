@@ -1031,6 +1031,59 @@ conversion rule below. Unchanged entries must keep their issue. Candidate
 policy, package classification, and ownership changes may not weaken the checks
 enforced by the base policy.
 
+### Composition surface
+
+PR mode also derives the composition surface of the base commit and of the
+candidate from source and rejects every key the candidate adds. A key is
+`scope|field|package|Struct.Field` or `scope|setter|package|Function->Target`.
+It counts:
+
+- the fields of the central aggregates: `database/repositories.Factory`,
+  `api.API` and `api.serviceGraph`, which also names the fields of the deleted
+  `services.Factory`;
+- setters, assignments to the dependency fields of a receiver or pointer
+  parameter after construction;
+- since #4071, every field of every struct a `root-composition` package
+  (`.`, `api`, `cmd`, read from `policy.json`) declares that holds values of
+  several owners (ADR 0059 point 1).
+
+A struct holds values of several owners when its fields hold values of at
+least two owners other than the root. A field holds a value of owner O when
+its type, after unwrapping pointers, slices, arrays, maps, channels and type
+arguments, names a type declared in a package `policy.json` assigns to O. The
+root's own structs, aliases and defined types are followed into their
+declaration, so wrapping owners into a local struct does not hide them. A
+function or interface type literal and a named interface the root declares are
+its own ports and hold no owner value. Owners of the `kernel` kind are shared
+vocabulary and do not count; an internal package without classification counts
+as an owner of its own. Base and candidate are classified with both the base
+and the candidate policy, and a struct counts when either sees two owners, so a
+reclassification cannot drop a struct the base counts.
+`internal/architecture/composition_owners_test.go` pins the definition.
+
+On development `46c01f7234` the surface rose from 139 to 1,729 keys when #4071
+added the root structs: 191 structs with 1,681 fields, among them
+`serviceGraph` (91), `graphBuild` (46), `PeopleWiring` (40),
+`serviceGraphInputs` (38), `IdentityMaterial` (33) and the other `*Wiring`,
+`*Sources` and `*Inputs` structs. That rise is the purpose of the measurement,
+not new debt: the fields existed and no ratchet counted them. It is the
+measure of #4080 and reaches 0 when no root struct holds values of several
+owners. From here it only falls.
+
+### Source ratchet budgets
+
+The ratchet tests in `test/*ratchet*_test.go` keep their budgets and
+allowlists as Go literals. PR mode reads them at the base commit and rejects a
+raise (ADR 0057 point 5): every top-level integer constant (a threshold or a
+register total), every value of a top-level `map[string]int` literal and its
+sum, so a new key cannot add what an existing one may not, and the entry count
+of a top-level `map[string]string` exception register. Declarations are
+compared by name across the files. A new register has no base and starts the
+measurement; other literals (selector sets, scanned directories) are not
+compared. A raise passes only when the comment on the raised entry, or on its
+declaration, cites an ADR (`ADR 0123`) whose file this change adds under
+`docs/adr/`. `internal/architecture/ratchet_budgets_test.go` pins the rules.
+
 ### Converting temporary permissions to exact debt
 
 Schema 3 gives each temporary policy rule an `issue` field containing the same

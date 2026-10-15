@@ -26,13 +26,20 @@ run_deadcode() {
 }
 
 test_output=$(run_deadcode tests)
-test_findings=$(printf '%s\n' "$test_output" | grep -v '^internal/architecture/' || true)
-if [[ -n "$test_findings" ]]; then
+if [[ -n "$test_output" ]]; then
   echo "Dead code detected with test entry points included:"
-  printf '%s\n' "$test_findings"
+  printf '%s\n' "$test_output"
   exit 1
 fi
 
+# Production mode excludes, line for line:
+# - test-support packages (test/, testutil/, testdb/, *test/) and the root's
+#   test composition hooks (*_test_helpers.go): they serve tests only. #4094
+#   takes the hooks out of the production build and deletes this exclusion.
+# - internal/architecture/: its production entry point is the architecture
+#   command in scripts/backend-architecture, a module of its own that no
+#   backend main reaches. The last run below checks the package from that
+#   command, so it is not exempt, only measured there.
 production_output=$(run_deadcode production)
 if production_findings=$(printf '%s\n' "$production_output" | grep -Ev \
   '(^|/)(test|testutil|testdb|[[:alpha:]]+test)/|^internal/architecture/|_test_helpers\.go'); then
@@ -57,9 +64,10 @@ tool_directory=$(mktemp -d)
 trap 'rm -rf -- "$tool_directory"' EXIT
 deadcode_binary="$tool_directory/deadcode"
 go build -o "$deadcode_binary" golang.org/x/tools/cmd/deadcode
+# The filter reports internal/architecture as well as the command itself.
 tool_output=$(
   cd "$repo_root/scripts/backend-architecture"
-  "$deadcode_binary" ./...
+  "$deadcode_binary" -filter '^github\.com/moto-nrw/project-phoenix/(internal/architecture|tools/architecturecmd)($|/)' ./...
 )
 tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
 if [[ -n "$tool_findings" ]]; then

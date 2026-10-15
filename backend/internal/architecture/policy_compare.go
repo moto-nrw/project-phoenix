@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// CompareCandidatePolicyStrictness applies the strict base-policy comparison
+// compareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
 // in this candidate actually creates, and for tables a reviewed epoch adopts
 // from recorded debt (adoptableDataObjects, judged against the candidate's
@@ -15,12 +15,8 @@ import (
 // before the migration that introduces it. Without the second, a live table
 // the baseline already tracks as unowned could only gain its owner through a
 // data migration. Every other ownership change remains a strict loosening.
-func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) error {
-	return compareCandidatePolicyStrictness(project, baseRef, base, candidate, baseManifest, violations, nil)
-}
-
-// The CLI already loaded this candidate's immutable graph. Standalone callers
-// retain their existing loading and error behavior through the public wrapper.
+// The CLI passes the candidate graph it already loaded; a nil graph is loaded
+// here.
 func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation, graph *Graph) error {
 	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
