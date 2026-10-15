@@ -1,269 +1,44 @@
 package test
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
 )
 
-// TestPolicyTemporaryRulesRatchet makes the second debt surface of the #2580
-// architecture migration countable and shrink-only.
+// TestPolicyTemporaryRulesRatchet keeps temporary permissions out of
+// backend/architecture/policy.json (ADR 0057, #4070).
 //
-// The known surface is backend/architecture/legacy.jsonl: a finite, shrink-only
-// baseline of exact import tuples, 682 of them at seed time, each naming its
-// open migration issue. `scripts/backend-architecture.sh check` requires exact
-// equality with it and pull requests may only remove tuples.
+// A rule states the target. Every allowance that exists only until a carrier
+// lands is an exact backend/architecture/legacy.jsonl key with an open carrier
+// issue, where `scripts/backend-architecture.sh check` counts it and pull
+// requests can only remove it. A rule that calls itself temporary, or that
+// carries an `issue` field, is debt the ratchet does not see.
 //
-// The unknown surface is backend/architecture/policy.json itself. Beside the
-// target rules it carries 603 rules whose own description declares them
-// temporary ("Compatibility permission: …" / "Compatibility binding: …"), 501
-// of them literally promising to "convert it to exact debt once the package
-// exists at a base SHA". Those rules are allow-rules: while they stand, the
-// evaluator does not report the edges they cover. Running the same evaluator
-// with the same policy minus the 557 such rules of the first seed reported
-// 1314 violations instead of 688 — roughly 626 real import edges that no
-// number tracks today.
+// Until #4070 this test counted rules by phrase and let the count fall. The
+// phrases missed most of them: on 4072c83a48 it saw 2 and 49 of the 180 rules
+// whose description declared them temporary. #4070 converted every such rule
+// into exact keys, so the test is structural now: any rule with a transition
+// marker or an `issue` field fails, and there is no seed to raise.
 //
-// That regime has no monotonicity of its own. The rule set grew from 0 when the
-// ratchet was switched on (2026-08-28) to 501 while legacy.jsonl fell from 3663
-// to 682: converting exact debt into a policy rule looks like progress in the
-// only number CI prints. The evaluator has neither an `issue` field on rules
-// nor a staleness check for them, so a temporary permission outlives its issue
-// silently — 34 of the 39 families below cite only issues that are closed
-// today. The five exceptions all hang on #2725 or #2736: communication,
-// inbound-parent, inbound-usercontext (gone with #3501), organization-tenancy,
-// settings-platform.
+// The evaluator rejects the same rules when it loads the policy
+// (internal/architecture/target_rule.go). This test reads the policy file
+// without the evaluator, so it also names an `issue` field the evaluator would
+// only reject from the target-only epoch on. The markers below must stay
+// identical to the evaluator's TransitionMarkers;
+// TestStructuralRatchetUsesTheEvaluatorMarkers in internal/architecture checks
+// that.
 //
-// This test does not fix any of that. It puts a number on the surface and lets
-// the number move one way only.
-//
-// #3416 adds per-rule cleanup issues and stale-rule detection. The account
-// above records the original seed, not the current evaluator. Its 167 stale
-// rule deletions lower these seeds to 483 conversion promises and 581 wider
-// compatibility markers. The #3351 care-schedule cutover and the seven
-// file-storage rules #3461 removed lower them to 395 and 492, and the #3226
-// identity persistence rewrite to 392 and 487, and the #2725 conversion of the
-// 46 user-context permissions to exact debt to 346 and 441, and the #3501
-// dissolution of the user-context package, which took its four Presence
-// rules along, to 342 and 437. The #3427 care-lifecycle cutover deleted the
-// 46 permissions #3350 had added and lowers them to 296 and 359. #2736
-// removed the #3232 operator permissions of Organisation & Tenancy, Settings
-// Platform and Communication and the two retained Presence and Care Plan
-// edges of the operator router, lowering them to 262 and 325. The #3422
-// statistics cutover dropped the statistics HTTP grant to the retained
-// Presence adapter, the #3422 Care Plan row handover moved the status-day and
-// excused-request rows out of the Presence nest and so dropped eleven stale
-// grants to it, the #3422 Workforce row handover left the scheduler's grant
-// to the retained Presence rows stale, and the two remaining #3422 slices
-// retired the presence services and the session rows and left 23 further
-// grants to the nest stale. Dissolving the nest also rewrote the nine
-// surviving grants of its own behaviour suites, which describe the module's
-// suites now and promise no conversion. Together with #2736 that lowers them
-// to 195 and 254. #3446 removed the 18 `identity-access.behaviour.*`
-// permissions of the Identity & Access behaviour suites: fourteen edges left
-// the suites, the four that remain (the module's own public contract, its
-// token adapter and refresh-rotation application, and the tenant runtime)
-// became exact `legacy.jsonl` debt under the same issue, lowering them to 177
-// and 236. Slice S6 of #3424 (ADR 0038) retired the three grants the School
-// Calendar handover emptied; this prose counter remains as an independent
-// guard. #3421 converted the 27 `inbound-parent.*` permissions of the
-// guardian portal HTTP adapter into 29 exact `legacy.jsonl` entries under the
-// same issue, removing the family and lowering the totals by 27 each. Slice
-// S4 of #3424 (#3550) moved conflict detection and staffing to the Timetable
-// owner and retired the four grants it emptied, one of them a conversion
-// promise (document-rendering), lowering the totals to 95 and 153. Slice S5
-// (#3551) moved the timetable reads, the operational day and the cleanup and
-// retired the seventeen grants it emptied, sixteen of them conversion promises,
-// lowering the totals to 79 and 137. Slice S2 (#3552) moved the template
-// writes, the materialization and the roster maintenance and retired the
-// thirteen grants it emptied, twelve of them conversion promises, lowering
-// the totals to 67 and 125. Slice S3 (#3553) moved the deviation writes, the
-// attendance correction and the attendance mirror and retired the two
-// compatibility grants their suites emptied, both conversion promises,
-// lowering the totals to 65 and 123. #3554 deleted the legacy SQL test
-// providers (modules/timetable/legacy/timetablesqltest) and retired the
-// fifteen grants only they used, all conversion promises, lowering the totals
-// to 50 and 108. Its lifecycle move then deleted the nest itself with every
-// grant that still named #3424 and the four stale grants that reached only
-// the nest, lowering the totals to 4 and 62. #3562 moved the parent
-// portal's care-period and offering-history reads behind its own ports and
-// retired the two parent-portal grants to the retained Enrollment
-// application, lowering the wider total to 60. #3753 moved the person and
-// student services out of services/users and retired the eight grants that
-// reached them there, three of them compatibility permissions, lowering the
-// wider total to 52. #4001 (ADR 0053) granted the typed roots their standing
-// reach into the http role of every domain owner, so the root's grant to the
-// presence route adapter became a target permission and was deleted, lowering
-// the totals to 3 and 51.
-//
-// Three shrink-only measurements, all read-only on policy.json:
-//
-//	policyTempRulesTotal        — rules whose description contains the literal
-//	                              "convert it to exact debt".
-//	policyTempRulesCompatTotal  — rules whose description mentions a
-//	                              "compatibility permission" or a
-//	                              "compatibility binding" (case-insensitive);
-//	                              the wider set, which includes the rules that
-//	                              skip the conversion promise.
-//	policyTempRulesFamilies     — the same rules as the first measurement,
-//	                              grouped by the part of the rule id before the
-//	                              first dot, i.e. the source owner.
-//
-// Failure modes, exactly like every other ratchet in this package:
-//
-//   - A number above its seed means a new temporary permission. Each one is
-//     debt that legacy.jsonl does NOT count: resolve it in the same PR, or
-//     justify the entry in the ticket. Never raise a seed.
-//   - A number below its seed is the win: ratchet the seed down so it cannot
-//     regress ("nice — lower the seed to N").
-//   - A family that is not seeded is a new rule family — add its entry together
-//     with the issue that created it ("new rule family, add the entry").
-//   - A seeded family with no hits left is the success case: the family was
-//     converted, so remove the entry ("family converted, remove the entry").
-//
-// Seed measured 2026-09-18 at merge commit ecf0003369 with a throwaway program
-// that decoded architecture/policy.json into {id, description} and grouped the
-// matches, run as:
-//
-//	cd backend && ../scripts/run-go-toolchain.sh go run ./tmp/policyTempRules
-//
-// The first seed was taken at 19feca2822 and re-measured here after the merge
-// of origin/development (a47f77b2c3): PR #3408 (issue #3350) added 46 new
-// temporary permissions for the care-exit, companion and care-document move,
-// which the ratchet cannot absorb without a fresh measurement.
-//
-// The two totals cross-check without Go:
-//
-//	grep -c 'convert it to exact debt' backend/architecture/policy.json          # 501
-//	grep -ci 'compatibility permission\|compatibility binding' \
-//	  backend/architecture/policy.json                                           # 603
-const (
-	// policyTempRulesMarker is the conversion promise the temporary rules carry
-	// in their own description. It is the marker the migration itself writes, so
-	// matching on it costs nothing to maintain.
-	policyTempRulesMarker = "convert it to exact debt"
-
-	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 2
-
-	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
-	// itself a compatibility permission or a compatibility binding, whether or
-	// not it promises the conversion.
-	policyTempRulesCompatTotal = 49
-)
-
-// policyTempRulesCompatMarkers are matched case-insensitively against the
-// description, because the phrase opens a sentence ("Compatibility permission:
-// …") as often as it sits inside one.
-var policyTempRulesCompatMarkers = []string{
-	"compatibility permission",
-	"compatibility binding",
-}
-
-// policyTempRulesFamilies seeds the per-owner breakdown of the rules carrying
-// policyTempRulesMarker, keyed by the rule id up to its first dot.
-//
-// Each entry names the issues whose descriptions the family's rules cite and
-// whether those issues are still open, checked 2026-09-18. Two are open:
-// #2725 (legacy identity models/repositories/services/inbound adapters) and
-// #2736 (api/auth and api/operator edges). Everything else below was permitted
-// by an issue that is already closed, which is precisely the stale-permission
-// problem this test surfaces: a closed issue no longer forces the conversion.
-//
-// Shrink-only. Lower an entry when rules are converted to exact debt, delete it
-// when the family is empty, and never raise one.
-var policyTempRulesFamilies = map[string]int{
-	// #3214, #3218, #3220, #3224 — all closed.
-	// #3422 removed 2 that went stale with legacy/services/active.
-
-	// #3218, #3219, #3220 — closed.
-	// #3554 removed the last one with the legacy SQL test providers.
-
-	// #3214, #3218, #3220 — closed; #3427 removed the three #3350 (PR #3408)
-	// had added.
-	// #3552 removed 2 that the template-roster move emptied.
-	// #3554 removed the last one with the legacy SQL test providers.
-
-	// #3214, #3218, #3220, #3224 — closed; #3427 removed the one #3350 added.
-	// #3422 removed 1 that went stale with legacy/services/active.
-
-	// #3214, #3218, #3220, #3224 — closed. #3427 removed the 36 that #3350
-	// (PR #3408) had added with the care-lifecycle adapter.
-	// #3422 removed 4 that went stale with legacy/services/active.
-	// #3552 removed 1 that the template-roster move emptied.
-
-	// #3218, #3220, #3214, #3224 — closed. The largest family: 90 rules, every
-	// one of them permitted by an issue that is done.
-	// #3422 removed 5 that went stale with legacy/services/active.
-	// #3552 removed 6 that the template and materialization move emptied.
-	// #3553 removed 2 that the attendance mirror and deviation move emptied.
-	// #3554 removed 12 with the legacy SQL test providers.
-
-	// #2725 (OPEN) and #3224 (closed) name most rules jointly; #3214 the rest.
-	// The only large family with a live issue behind it.
-
-	// #3214, #3218, #3219, #3220, #3224 — closed; #3427 removed the one #3350
-	// (PR #3408) added.
-	// #3422 removed 1 that went stale with legacy/services/active.
-
-	// #3214, #3218 — closed; #3427 removed the one #3350 (PR #3408) added.
-	// #3422 removed 1 that went stale with legacy/services/active.
-	// #3552 removed the last one with the template-roster move.
-
-	// #3214, #3218, #3220 — closed.
-	// #3422 removed 1 that went stale with legacy/services/active.
-
-	// #3207, #3214, #3217, #3218, #3219, #3220, #3224, #3229 — all closed.
-	// #3422 removed 2 that went stale with legacy/services/active.
-	// #3552 removed 1 that the template composition move emptied.
-	// #4001 removed 1 that the standing root reach of ADR 0053 covers.
-	"root-composition": 2,
-
-	// #3214, #3218, #3220 — closed.
-	// #3422 removed 3 that went stale with legacy/services/active.
-	// #3554 removed 1 with the legacy SQL test providers.
-
-	// #3214, #3218 — closed. #3552 removed the last one with the
-	// template-roster move.
-
-	// #3214, #3218, #3229 — closed. #2748 removed the last one: the calendar
-	// end-to-end suite mounts the guardian portal through the typed root.
-
-	// #3214, #3218, #3220, #3224 — closed.
-}
-
-// policyTempRulesFamilyFix is the guidance ratchetViolations prints for a family
-// that is new or has grown. Its stale-entry branch ("Remove the entry") covers
-// the success case, a family converted to exact debt. The helper says "file"
-// where the key here is a rule family — it is the shared ratchet helper and
-// worth more than a bespoke wording.
-const policyTempRulesFamilyFix = "that is at least one new temporary permission. Every one of them is debt " +
-	"that legacy.jsonl does NOT count. Resolve it in the same PR or justify the entry in the ticket; " +
-	"if the family is new, add its entry together with the issue that created it (new rule family, add the entry)"
-
-// policyTempRulesRule is the minimal shape this test needs. policy.json is
-// ~960 KB, so it is decoded into these two fields rather than into
-// map[string]any; encoding/json drops every other field on its own.
-type policyTempRulesRule struct {
-	ID          string `json:"id"`
-	Description string `json:"description"`
-}
-
-type policyTempRulesPolicy struct {
-	Rules []policyTempRulesRule `json:"rules"`
-}
-
-// policyTempRulesCounts carries the three measurements of one policy read.
-type policyTempRulesCounts struct {
-	total    int
-	compat   int
-	families map[string]int
-}
-
+// Failure mode: remove the rule and record each import it allowed as an exact
+// legacy.jsonl key with its open carrier issue (backend/architecture/README.md,
+// "Converting temporary permissions to exact debt"). If the rule is target,
+// describe it without a transition marker.
 func TestPolicyTemporaryRulesRatchet(t *testing.T) {
 	t.Parallel()
 
@@ -273,83 +48,106 @@ func TestPolicyTemporaryRulesRatchet(t *testing.T) {
 		return
 	}
 
-	counts, err := policyTempRulesScan(filepath.Join(backendRoot, "architecture", "policy.json"))
+	violations, err := policyTemporaryRules(filepath.Join(backendRoot, "architecture", "policy.json"))
 	if err != nil {
 		t.Fatalf("policy scan failed: %v", err)
 	}
-
-	violations := policyTempRulesCountViolations(
-		"temporary rules carrying \""+policyTempRulesMarker+"\"", counts.total, policyTempRulesTotal)
-	violations = append(violations, policyTempRulesCountViolations(
-		"compatibility permission/binding", counts.compat, policyTempRulesCompatTotal)...)
-	violations = append(violations, ratchetViolations(
-		"rule families", counts.families, policyTempRulesFamilies, policyTempRulesFamilyFix)...)
-
 	if len(violations) > 0 {
-		sort.Strings(violations)
-		t.Errorf("Policy temporary-rules ratchet check failed (%d issue(s)):\n\n%s",
-			len(violations), strings.Join(violations, "\n\n"))
+		t.Errorf("policy.json carries %d temporary rule(s); a temporary allowance is an exact legacy.jsonl key with an open carrier, never a rule (ADR 0057):\n\n%s",
+			len(violations), strings.Join(violations, "\n"))
 	}
 }
 
-// policyTempRulesCountViolations compares one aggregate against its seed. It
-// cannot reuse ratchetViolations: that helper compares per-key maps, while
-// these two measurements are single numbers with no key to report.
-func policyTempRulesCountViolations(check string, got, seed int) []string {
-	switch {
-	case got > seed:
-		return []string{fmt.Sprintf(
-			"[%s] %d rule(s), seed %d: %d more, so at least one new temporary permission. "+
-				"Every one of them is debt that legacy.jsonl does NOT count. "+
-				"Resolve it in the same PR or justify the entry in the ticket. Never raise a seed.",
-			check, got, seed, got-seed)}
-	case got < seed:
-		return []string{fmt.Sprintf(
-			"[%s] %d rule(s), seed %d: nice — lower the seed to %d so the progress cannot regress.",
-			check, got, seed, got)}
-	}
-	return nil
+// policyTransitionMarkers mirror TransitionMarkers in
+// internal/architecture/target_rule.go: the phrases by which a description
+// declares its rule temporary.
+var policyTransitionMarkers = []struct {
+	name    string
+	pattern *regexp.Regexp
+}{
+	{name: "convert to exact debt", pattern: regexp.MustCompile(`(?i)\bconvert\b[^.]*\bto exact debt\b`)},
+	{name: "compatibility permission", pattern: regexp.MustCompile(`(?i)\bcompatibility permissions?\b`)},
+	{name: "compatibility binding", pattern: regexp.MustCompile(`(?i)\bcompatibility bindings?\b`)},
+	{name: "compatibility adapter", pattern: regexp.MustCompile(`(?i)\bcompatibility adapters?\b`)},
+	{name: "temporary", pattern: regexp.MustCompile(`(?i)\btemporar(?:y|ily)\b`)},
+	{name: "until #", pattern: regexp.MustCompile(`(?i)\buntil #\d+`)},
+	{name: "tracked by #", pattern: regexp.MustCompile(`(?i)\btracked by #\d+`)},
 }
 
-// policyTempRulesScan reads policy.json and returns the three measurements.
-// It only reads: nothing in this test writes to the policy.
-func policyTempRulesScan(path string) (policyTempRulesCounts, error) {
-	counts := policyTempRulesCounts{families: make(map[string]int)}
+// policyTemporaryRule is the shape this test needs. policy.json is large, so
+// it is decoded into these fields; encoding/json drops every other one.
+type policyTemporaryRule struct {
+	ID          string          `json:"id"`
+	Description string          `json:"description"`
+	Issue       json.RawMessage `json:"issue"`
+}
 
+// policyTemporaryRules returns one line per rule that carries an issue field
+// or a transition marker. It only reads the policy.
+func policyTemporaryRules(path string) ([]string, error) {
 	raw, err := os.ReadFile(path) // #nosec G304 -- test reads a repo-local policy file
 	if err != nil {
-		return counts, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
-
-	var policy policyTempRulesPolicy
-	if err := json.Unmarshal(raw, &policy); err != nil {
-		return counts, fmt.Errorf("decode %s: %w", path, err)
+	var policy struct {
+		Rules []policyTemporaryRule `json:"rules"`
+	}
+	if err := json.NewDecoder(bytes.NewReader(raw)).Decode(&policy); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", path, err)
 	}
 	if len(policy.Rules) == 0 {
-		return counts, fmt.Errorf("no rules decoded from %s", path)
+		return nil, fmt.Errorf("no rules decoded from %s", path)
 	}
-
+	var violations []string
 	for _, rule := range policy.Rules {
-		if strings.Contains(rule.Description, policyTempRulesMarker) {
-			counts.total++
-			counts.families[policyTempRulesFamily(rule.ID)]++
+		var reasons []string
+		if rule.Issue != nil {
+			reasons = append(reasons, "issue field")
 		}
-		lowered := strings.ToLower(rule.Description)
-		for _, marker := range policyTempRulesCompatMarkers {
-			if strings.Contains(lowered, marker) {
-				counts.compat++
-				break
+		for _, marker := range policyTransitionMarkers {
+			if marker.pattern.MatchString(rule.Description) {
+				reasons = append(reasons, "marker \""+marker.name+"\"")
 			}
 		}
+		if len(reasons) > 0 {
+			violations = append(violations, fmt.Sprintf("  %s: %s", rule.ID, strings.Join(reasons, ", ")))
+		}
 	}
-	return counts, nil
+	sort.Strings(violations)
+	return violations, nil
 }
 
-// policyTempRulesFamily returns the part of a rule id before the first dot —
-// the source owner that the permission was granted to.
-func policyTempRulesFamily(id string) string {
-	if i := strings.Index(id, "."); i >= 0 {
-		return id[:i]
+func TestPolicyTemporaryRulesDetectsMarkersAndIssues(t *testing.T) {
+	t.Parallel()
+	path := filepath.Join(t.TempDir(), "policy.json")
+	policy := `{"rules":[
+		{"id":"target","description":"Alpha decides through Beta's public capability."},
+		{"id":"contemporary","description":"The contemporary roster is compatible with the adapter."},
+		{"id":"issue","description":"Owner reach.","issue":"https://github.com/moto-nrw/project-phoenix/issues/2729"},
+		{"id":"convert","description":"Compatibility permission: convert it to exact debt once the package exists at a base SHA."},
+		{"id":"binding","description":"Compatibility binding of the retained coordinator."},
+		{"id":"adapter","description":"The live-group compatibility adapters return the public capability."},
+		{"id":"temporary","description":"Temporarily reached by the retained composition."},
+		{"id":"until","description":"Joins the tenant transaction until #2675."},
+		{"id":"tracked","description":"Owner HTTP adapter, tracked by #2706."}
+	]}`
+	if err := os.WriteFile(path, []byte(policy), 0o600); err != nil {
+		t.Fatal(err)
 	}
-	return id
+	got, err := policyTemporaryRules(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{
+		`  adapter: marker "compatibility adapter"`,
+		`  binding: marker "compatibility binding"`,
+		`  convert: marker "convert to exact debt", marker "compatibility permission"`,
+		`  issue: issue field`,
+		`  temporary: marker "temporary"`,
+		`  tracked: marker "tracked by #"`,
+		`  until: marker "until #"`,
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Fatalf("temporary rules = %q, want %q", got, want)
+	}
 }

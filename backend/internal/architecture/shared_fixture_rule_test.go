@@ -16,14 +16,15 @@ func TestReviewedSharedFixtureRuleShape(t *testing.T) {
 	}{
 		{"own tooling", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "test-support", TargetRole: "test-support", Scopes: []string{"production"}}, true},
 		{"tenant runtime", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}}, true},
-		{"calendar date for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "legacy-shared", TargetRole: "domain", Scopes: []string{"internal_test"}}, true},
+		{"calendar-date wrapper for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "legacy-shared", TargetRole: "domain", Scopes: []string{"internal_test"}}, false},
 		{"permission constants", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "security-runtime", TargetRole: "contract", Scopes: []string{"internal_test", "external_test"}}, true},
 		{"security contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}}, true},
 		{"settings contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "settings-platform", TargetRole: "public", Scopes: []string{"production"}}, true},
 		{"settings contract for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "settings-platform", TargetRole: "public", Scopes: []string{"internal_test"}}, true},
 		{"transaction runtime bootstrap", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "transaction-runtime", TargetRole: "compose", Scopes: []string{"production"}}, true},
-		{"session token adapter", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"production"}}, true},
-		{"session token adapter for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"internal_test", "external_test"}}, true},
+		{"session token runtime", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "identity-access", TargetRole: "http", Scopes: []string{"production"}}, true},
+		{"session token runtime for the e2e role", Rule{SourceOwner: "test-support", SourceRole: "e2e-test", TargetOwner: "identity-access", TargetRole: "http", Scopes: []string{"internal_test", "external_test"}}, true},
+		{"identity adapter", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"production"}}, false},
 		{"identity application", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "identity-access", TargetRole: "application", Scopes: []string{"production"}}, false},
 		{"identity contract", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "identity-access", TargetRole: "public", Scopes: []string{"production"}}, false},
 		{"another owner's adapter", Rule{SourceOwner: "test-support", SourceRole: "test-support", TargetOwner: "workforce", TargetRole: "adapter", Scopes: []string{"production"}}, false},
@@ -79,8 +80,6 @@ func sharedFixturePolicies(t *testing.T) (*Policy, *Policy) {
 // owner-suite shapes of ADR 0047.
 var ownerSuiteRuleIDs = map[string]bool{
 	"settings-platform.internal-test.security-runtime-public": true,
-	"audit-platform.adapter-test.enrollment-support":          true,
-	"audit-platform.adapter-test.care-plan-support":           true,
 }
 
 func TestReviewedOwnerSuiteRuleShape(t *testing.T) {
@@ -91,8 +90,8 @@ func TestReviewedOwnerSuiteRuleShape(t *testing.T) {
 		want bool
 	}{
 		{"settings suite decides through the security contract", Rule{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"internal_test"}}, true},
-		{"audit suite composes Enrollment", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{"external_test"}}, true},
-		{"audit suite composes Care Plan", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{"external_test"}}, true},
+		{"audit suite composes Enrollment (platform into a domain, ADR 0057)", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{"external_test"}}, false},
+		{"audit suite composes Care Plan (platform into a domain, ADR 0057)", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{"external_test"}}, false},
 		{"wider scope", Rule{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{"internal_test", "external_test"}}, false},
 		{"production scope", Rule{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}}, false},
 		{"another source role", Rule{SourceOwner: "settings-platform", SourceRole: "application", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"internal_test"}}, false},

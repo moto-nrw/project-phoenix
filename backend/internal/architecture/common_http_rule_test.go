@@ -65,7 +65,12 @@ func TestCommonHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 			t.Fatalf("accepted broadened rule: %+v", broadened)
 		}
 	}
-	sessionTest := Rule{SourceOwner: "inbound-common", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"internal_test", "external_test"}}
+	sessionTest := Rule{SourceOwner: "inbound-common", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "http", Scopes: []string{"internal_test", "external_test"}}
+	privateSession := sessionTest
+	privateSession.TargetRole = "adapter"
+	if reviewedCommonHTTPRule(privateSession) {
+		t.Fatal("accepted the session runtime in Identity's private adapter role")
+	}
 	if !reviewedCommonHTTPRule(original) || !reviewedCommonHTTPRule(sessionTest) {
 		t.Fatal("standing HTTP or session-test contract was rejected")
 	}

@@ -366,7 +366,7 @@ testpkg.AssertQueryBudget(t, "api.students.list", counter.Queries())
 
 **RULE: Size, complexity, facade width, and layering are measured under `backend/modules/` and `backend/workflows/` too, not only up to the `api/` and `models/` boundaries.** Migration #2580 moved 228,306 of 638,717 production LOC into those trees, where no gate in this document reached them: a file could pass every threshold above by being moved rather than by being written.
 
-Eight ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**. The first seed was taken at `19feca2822`; five of the eight were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases.
+Eight ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**; the eighth is structural since #4070. The first seed was taken at `19feca2822`; five of the eight were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases.
 
 | Rule | Threshold | Test — `backend/test/…` | Seed on 2026-09-18 |
 |---|---|---|---|
@@ -377,11 +377,11 @@ Eight ratchets freeze the state measured on **2026-09-18 at merge commit `ecf000
 | Pass-through methods (Rule 8) | budget per module, application layer only | `TestModulePassthroughRatchet` — `module_passthrough_ratchet_test.go` | 704 methods in 21 modules |
 | ORM in the inbound role | zero `github.com/uptrace/bun` imports under `*/http`, `*/inbound` | `TestModuleHTTPORMRatchet` — `module_http_orm_ratchet_test.go` | 23 files; target is 0 |
 | Legacy LOC budget | per topmost `legacy/` tree, plus a total | `TestModuleLegacyBudgetRatchet` — `module_legacy_budget_ratchet_test.go` | 12 trees, 92,928 LOC |
-| Temporary policy rules | per rule family in `architecture/policy.json` | `TestPolicyTemporaryRulesRatchet` — `policy_temporary_rules_ratchet_test.go` | 501 conversion-marked rules in 39 families; 603 compatibility rules |
+| Temporary policy rules | none: a rule with a transition marker or an `issue` field fails | `TestPolicyTemporaryRulesRatchet` — `policy_temporary_rules_ratchet_test.go` | structural since #4070 (ADR 0057); 0 rules |
 
 Scope for the first seven: non-test `.go` files under `modules/` and `workflows/`, **`legacy/` subtrees included** — a migration must not be able to silence a gate by moving code into `legacy/`. The pass-through ratchet is the deliberate exception and scans `*/internal/application/**` only, the surface the module boundary is supposed to make deep.
 
-The last one watches a surface `scripts/backend-architecture.sh check` cannot report on. The 603 compatibility rules in `backend/architecture/policy.json` are allow-rules, so the import edges they cover never reach the 682 exact tuples in `backend/architecture/legacy.jsonl`; re-running the evaluator at the first seed (19feca2822) without the 557 such rules it had then reported 1,314 violations instead of 688. Converting exact debt into a policy rule therefore looks like progress in the only number CI prints, and a rule outlives its issue silently — 34 of the 39 seeded families cite only issues that are closed today; the five exceptions all hang on #2725 or #2736.
+The last one keeps temporary allow-rules out of `backend/architecture/policy.json`. Such a rule hides the import edges it covers from the exact tuples in `backend/architecture/legacy.jsonl`, so converting debt into a rule looked like progress in the only number CI prints. #4070 (ADR 0057) converted every rule that was not target into exact keys with open carriers; the test is structural since then and has no seed. The evaluator rejects the same rules when it loads the policy.
 
 ---
 

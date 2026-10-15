@@ -1,0 +1,121 @@
+package architecture
+
+import (
+	"fmt"
+	"regexp"
+	"strings"
+)
+
+// targetOnlyRulesEpoch is the policy epoch from which a rule may only state
+// the target (ADR 0057, #4070). Older epochs stay loadable as immutable PR
+// bases; every candidate from this epoch on is validated against the rule.
+const targetOnlyRulesEpoch = 46
+
+// privateRoles are the roles no other owner may import (ADR 0057 point 1).
+// legacy-model is the role of the retained models/* ORM packages (point 4).
+var privateRoles = map[string]bool{
+	"application": true, "domain": true, "adapter": true, "postgres": true, "cli": true,
+	legacyModelRole: true,
+}
+
+// legacyModelRole classifies the retained models/* packages until their
+// owners dissolve them. Only the owning owner may reach it.
+const legacyModelRole = "legacy-model"
+
+// legacyModelPath is the tree whose packages carry legacyModelRole.
+const legacyModelPath = "models"
+
+// platformForbiddenTargetKinds are the owner kinds a platform may not import
+// (ADR 0057 point 1, ADR 0058 point 2).
+var platformForbiddenTargetKinds = map[string]bool{"domain": true, "projection": true, "workflow": true}
+
+// TransitionMarker is one phrase by which a rule description declares the
+// rule temporary. A temporary allowance is an exact legacy.jsonl key with an
+// open carrier issue, never a rule (ADR 0057 point 2).
+type TransitionMarker struct {
+	Name    string
+	Pattern *regexp.Regexp
+}
+
+// TransitionMarkers is the fixed list of transition phrases. Matching is
+// case-insensitive and only reads the description.
+var TransitionMarkers = []TransitionMarker{
+	{Name: "convert to exact debt", Pattern: regexp.MustCompile(`(?i)\bconvert\b[^.]*\bto exact debt\b`)},
+	{Name: "compatibility permission", Pattern: regexp.MustCompile(`(?i)\bcompatibility permissions?\b`)},
+	{Name: "compatibility binding", Pattern: regexp.MustCompile(`(?i)\bcompatibility bindings?\b`)},
+	{Name: "compatibility adapter", Pattern: regexp.MustCompile(`(?i)\bcompatibility adapters?\b`)},
+	{Name: "temporary", Pattern: regexp.MustCompile(`(?i)\btemporar(?:y|ily)\b`)},
+	{Name: "until #", Pattern: regexp.MustCompile(`(?i)\buntil #\d+`)},
+	{Name: "tracked by #", Pattern: regexp.MustCompile(`(?i)\btracked by #\d+`)},
+}
+
+// RuleTransitionMarkers returns the names of the transition markers in a rule
+// description, in TransitionMarkers order.
+func RuleTransitionMarkers(description string) []string {
+	var names []string
+	for _, marker := range TransitionMarkers {
+		if marker.Pattern.MatchString(description) {
+			names = append(names, marker.Name)
+		}
+	}
+	return names
+}
+
+// validateTargetOnlyRule rejects a rule the end state of #2580 does not keep
+// (ADR 0057 point 1). Cycle-closing rules (ADR 0058) are judged by #3417.
+func validateTargetOnlyRule(rule Rule, owners map[string]Owner) error {
+	if rule.Issue != "" {
+		return fmt.Errorf("rule %q carries issue %s: a temporary allowance is an exact legacy.jsonl key, not a rule (ADR 0057)", rule.ID, rule.Issue)
+	}
+	if markers := RuleTransitionMarkers(rule.Description); len(markers) > 0 {
+		return fmt.Errorf("rule %q describes itself as temporary (%s): convert it to exact legacy.jsonl keys (ADR 0057)", rule.ID, strings.Join(markers, ", "))
+	}
+	if rule.TargetClass != "" {
+		return nil
+	}
+	sources := selectedOwners(rule.SourceOwner, rule.SourceOwnerKind, owners)
+	targets := selectedOwners(rule.TargetOwner, rule.TargetOwnerKind, owners)
+	for _, source := range sources {
+		for _, target := range targets {
+			if source.ID == target.ID {
+				continue
+			}
+			if rule.SameOwner {
+				continue
+			}
+			if privateRoles[rule.TargetRole] {
+				return fmt.Errorf("rule %q lets %s import the %s role of %s: another owner's private role is never target (ADR 0057)", rule.ID, source.ID, rule.TargetRole, target.ID)
+			}
+			if source.Kind == "platform" && platformForbiddenTargetKinds[target.Kind] {
+				return fmt.Errorf("rule %q lets platform %s import %s owner %s: a platform depends on platforms and the shared kernel only (ADR 0057, ADR 0058)", rule.ID, source.ID, target.Kind, target.ID)
+			}
+		}
+	}
+	return nil
+}
+
+// validateLegacyModelPackages pins legacyModelRole to the models tree: a
+// models package is a legacy model unless it is test support, and no other
+// package may hide behind the role (ADR 0057 point 4).
+func (p *Policy) validateLegacyModelPackages() error {
+	for _, pkg := range p.Packages {
+		inTree := pkg.Path == legacyModelPath || strings.HasPrefix(pkg.Path, legacyModelPath+"/")
+		switch {
+		case inTree && pkg.Role != legacyModelRole && pkg.Role != "test-support":
+			return fmt.Errorf("package %q must have role %q or %q (ADR 0057)", pkg.Path, legacyModelRole, "test-support")
+		case !inTree && pkg.Role == legacyModelRole:
+			return fmt.Errorf("package %q is outside %s/ and may not have role %q (ADR 0057)", pkg.Path, legacyModelPath, legacyModelRole)
+		}
+	}
+	return nil
+}
+
+func selectedOwners(id, kind string, owners map[string]Owner) []Owner {
+	var selected []Owner
+	for _, owner := range owners {
+		if ownerMatches(id, kind, owner) {
+			selected = append(selected, owner)
+		}
+	}
+	return selected
+}

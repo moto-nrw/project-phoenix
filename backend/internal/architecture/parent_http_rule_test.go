@@ -67,7 +67,12 @@ func TestParentHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 			t.Fatalf("accepted broadened rule: %+v", broadened)
 		}
 	}
-	sessionTest := Rule{SourceOwner: "inbound-parent", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"internal_test", "external_test"}}
+	sessionTest := Rule{SourceOwner: "inbound-parent", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "http", Scopes: []string{"internal_test", "external_test"}}
+	privateSession := sessionTest
+	privateSession.TargetRole = "adapter"
+	if reviewedParentHTTPRule(privateSession) {
+		t.Fatal("accepted the session runtime in Identity's private adapter role")
+	}
 	if !reviewedParentHTTPRule(original) || !reviewedParentHTTPRule(sessionTest) {
 		t.Fatal("standing guardian portal HTTP or session-test rule was rejected")
 	}

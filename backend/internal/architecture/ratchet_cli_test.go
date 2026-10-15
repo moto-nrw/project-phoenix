@@ -13,13 +13,15 @@ import (
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
 
-func TestAuditIncludesRuleIssuesAndDeduplicatesLegacyIssues(t *testing.T) {
+// Rules carry no issue (ADR 0057): the audit requests each distinct baseline
+// issue once and ignores the issue an older-epoch rule may still carry.
+func TestAuditDeduplicatesLegacyIssuesAndIgnoresRuleIssues(t *testing.T) {
 	t.Parallel()
 	for _, tc := range []struct {
 		name, response, want string
 		valid                bool
 	}{
-		{"open", `{"state":"open"}`, "2 open migration issue(s) cover 1 legacy violation(s) and 2 temporary rule(s)", true},
+		{"open", `{"state":"open"}`, "1 open migration issue(s) cover 2 legacy violation(s)\n", true},
 		{"closed", `{"state":"closed"}`, "is closed", false},
 		{"pull request", `{"state":"open","pull_request":{}}`, "is a pull request", false},
 		{"invalid response", `{`, "decode migration issue", false},
@@ -29,26 +31,25 @@ func TestAuditIncludesRuleIssuesAndDeduplicatesLegacyIssues(t *testing.T) {
 			requests := make(chan string, 8)
 			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
 				requests <- r.URL.Path
-				if strings.HasSuffix(r.URL.Path, "/2583") {
-					_, _ = w.Write([]byte(`{"state":"open"}`))
-				} else {
-					_, _ = w.Write([]byte(tc.response))
-				}
+				_, _ = w.Write([]byte(tc.response))
 			})
 			defer server.Close()
 			policy := mutatePolicy(t, readFile(t, fixturePath(t, "rules-stale.json")), func(doc map[string]any) {
 				rules := doc["rules"].([]any)
-				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2583"
-				rules[1].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
+				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
 			})
 			path := filepath.Join(t.TempDir(), "policy.json")
 			writeFile(t, path, policy)
-			output, err := runArchitecture(t, "audit-issues", "--policy", path, "--baseline", writeManifest(t, legacyRecord(2583)), "--api-url", server.URL)
+			manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/other") + legacyRecord(2583)
+			output, err := runArchitecture(t, "audit-issues", "--policy", path, "--baseline", writeManifest(t, manifest), "--api-url", server.URL)
 			if (err == nil) != tc.valid || !strings.Contains(output, tc.want) {
 				t.Fatalf("audit result: %v\n%s; want %s", err, output, tc.want)
 			}
-			if len(requests) != 2 {
-				t.Fatalf("requests = %d, want one per distinct issue", len(requests))
+			if len(requests) != 1 {
+				t.Fatalf("requests = %d, want one for the one distinct baseline issue", len(requests))
+			}
+			if got := <-requests; !strings.HasSuffix(got, "/issues/2583") {
+				t.Fatalf("audit requested %s, want only the baseline issue 2583", got)
 			}
 		})
 	}
