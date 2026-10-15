@@ -19,14 +19,14 @@ import (
 func setupStaffStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	testpkg.RestoreStaffStorageBeforeCutover(t, db)
+	restoreStaffStorageBeforeCutover(t, db)
 	return db
 }
 
 func setupIsolatedStaffStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := testpkg.SetupIsolatedTestDB(t)
-	testpkg.RestoreStaffStorageBeforeCutover(t, db)
+	restoreStaffStorageBeforeCutover(t, db)
 	return db
 }
 
@@ -35,8 +35,25 @@ func setupIsolatedStaffStorageBeforeCutover(t *testing.T) *testpkg.DB {
 func setupPeopleStorageBeforeCutover(t *testing.T) *testpkg.DB {
 	t.Helper()
 	db := setupStudentStorageBeforeCutover(t)
-	testpkg.RestoreStaffStorageBeforeCutover(t, db)
+	restoreStaffStorageBeforeCutover(t, db)
 	return db
+}
+
+// restoreStaffStorageBeforeCutover reconstructs the staff-deletion foreign key
+// that existed when the staff owner cutover ran. The shared fixture only
+// restores storage; this migration-specific prerequisite belongs with the
+// migration tests that exercise its foreign-key repointing.
+func restoreStaffStorageBeforeCutover(t *testing.T, db *testpkg.DB) {
+	t.Helper()
+	testpkg.RestoreStaffStorageBeforeCutover(t, db)
+	_, err := db.ExecContext(t.Context(), `
+		ALTER TABLE audit.data_deletions
+			DROP CONSTRAINT IF EXISTS fk_data_deletions_staff;
+		ALTER TABLE audit.data_deletions
+			ADD CONSTRAINT fk_data_deletions_staff
+			FOREIGN KEY (staff_id) REFERENCES users.staff(id) ON DELETE CASCADE NOT VALID;
+	`)
+	require.NoError(t, err)
 }
 
 // staffOwnerCutoverFixture returns a backfilled tenant that is ready to be

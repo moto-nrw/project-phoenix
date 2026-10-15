@@ -134,7 +134,7 @@ func TestStaffContractHistoricalFixtureRestoresAfterRemoval(t *testing.T) {
 	t.Parallel()
 	db, _ := staffContractFixture(t)
 	require.NoError(t, contractStaffOwnerStorage(t.Context(), db))
-	testpkg.RestoreStaffStorageBeforeCutover(t, db)
+	restoreStaffStorageBeforeCutover(t, db)
 	// The first fixture's work-time model stays in the default school.
 	ids := staffOwnerFixture(t, db, staffOwnerSecondTenant(t, db), 2)
 	require.Len(t, ids, 2)
