@@ -239,17 +239,36 @@ func rootStructInventory(directory string, ownership *compositionOwnership) (map
 	if len(patterns) == 0 {
 		return result, nil
 	}
+	if workspace, ok := enclosingWorkspace(directory); ok {
+		return nil, fmt.Errorf("root structs are measured for a standalone module, but %s declares a Go workspace", workspace)
+	}
 	cgoEnabled := false
 	loaded, err := packages.Load(&packages.Config{
 		Dir: directory, Tests: true,
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo,
-		Env: fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled}),
+		Env: standaloneModuleEnvironment(fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled})),
 	}, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("load root packages: %w", err)
 	}
 	sort.Slice(loaded, func(i, j int) bool { return loaded[i].ID < loaded[j].ID })
+	// Every loaded package must type-check and every requested root must be
+	// among them; a load failure is never an empty inventory.
+	found := map[string]bool{}
+	for _, pkg := range loaded {
+		if len(pkg.Errors) != 0 {
+			return nil, fmt.Errorf("type-check %s: %s", pkg.ID, pkg.Errors[0])
+		}
+		if relative, internal := modulePackage(module, pkg.PkgPath); internal && pkg.ID == pkg.PkgPath {
+			found[relative] = true
+		}
+	}
+	for _, pattern := range patterns {
+		if relative := strings.TrimPrefix(pattern, "./"); !found[relative] {
+			return nil, fmt.Errorf("root package %s of module %s was not loaded", relative, module)
+		}
+	}
 	for _, pkg := range loaded {
 		if strings.HasSuffix(pkg.PkgPath, ".test") {
 			continue
@@ -257,9 +276,6 @@ func rootStructInventory(directory string, ownership *compositionOwnership) (map
 		relative, internal := modulePackage(module, pkg.PkgPath)
 		if !internal || !ownership.root(relative) {
 			continue
-		}
-		if len(pkg.Errors) != 0 {
-			return nil, fmt.Errorf("type-check %s: %s", pkg.ID, pkg.Errors[0])
 		}
 		scope := "production"
 		switch {
@@ -287,6 +303,42 @@ func rootStructInventory(directory string, ownership *compositionOwnership) (map
 		}
 	}
 	return result, nil
+}
+
+// enclosingWorkspace finds a go.work file of the repository: in directory or
+// above it, up to the directory that holds .git.
+func enclosingWorkspace(directory string) (string, bool) {
+	current, err := filepath.Abs(directory)
+	if err != nil {
+		return "", false
+	}
+	for {
+		candidate := filepath.Join(current, "go.work")
+		if _, err := os.Stat(candidate); err == nil {
+			return candidate, true
+		}
+		if _, err := os.Stat(filepath.Join(current, ".git")); err == nil {
+			return "", false
+		}
+		parent := filepath.Dir(current)
+		if parent == current {
+			return "", false
+		}
+		current = parent
+	}
+}
+
+// standaloneModuleEnvironment resolves the module on its own: an inherited
+// GOWORK must not pull the archived base, or the candidate, into a workspace
+// that lists other modules.
+func standaloneModuleEnvironment(environment []string) []string {
+	result := make([]string, 0, len(environment)+1)
+	for _, entry := range environment {
+		if !strings.HasPrefix(entry, "GOWORK=") {
+			result = append(result, entry)
+		}
+	}
+	return append(result, "GOWORK=off")
 }
 
 func moduleName(directory string) (string, error) {
@@ -420,6 +472,11 @@ func inferredFromCall(name *ast.Ident, stack []ast.Node) bool {
 		values = parent.Values
 	default:
 		return false
+	}
+	// One call with several results types every name it declares.
+	if len(values) == 1 && len(names) > 1 {
+		_, call := ast.Unparen(values[0]).(*ast.CallExpr)
+		return call
 	}
 	for index, candidate := range names {
 		if candidate == name && index < len(values) {

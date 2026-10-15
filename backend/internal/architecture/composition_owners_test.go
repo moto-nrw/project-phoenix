@@ -263,3 +263,73 @@ func TestCompositionSurfaceFailsWhenARootPackageDoesNotTypeCheck(t *testing.T) {
 		t.Fatalf("a root package without type information must fail closed: %v", err)
 	}
 }
+
+// Review of #4095, round 3, S2: a call with several results types every
+// variable it declares.
+func TestCompositionSurfaceCountsEveryResultOfACall(t *testing.T) {
+	t.Parallel()
+	const generic = "type Graph[A, B any] struct { A A; B B }\nfunc pair[A, B any](a A, b B) (int, Graph[A, B]) { return 0, Graph[A, B]{a, b} }\nvar first alpha.Port\nvar second beta.Port\n"
+	for _, tt := range []struct{ name, candidate, want string }{
+		{"short variable declaration", "func root() { _, g := pair(first, second); _ = g }", "production|field|api|root.g.A"},
+		{"variable declaration", "var _, g = pair(first, second)", "production|field|api|g.B"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo := ownerFixtureRepository(t)
+			path := filepath.Join(repo, "api", "wiring.go")
+			writeFile(t, path, compositionOwnerImports+generic)
+			runGit(t, repo, "add", ".")
+			runGit(t, repo, "commit", "-qm", "composition base")
+			base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+			writeFile(t, path, compositionOwnerImports+generic+tt.candidate+"\n")
+			policy := ownerFixturePolicy(compositionOwnerClassification)
+			if err := CompareCompositionSurface(repo, base, policy); err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Fatalf("want %q, got %v", tt.want, err)
+			}
+		})
+	}
+}
+
+// Review of #4095, round 3, S1: an inherited GOWORK neither empties the
+// base inventory nor reports unchanged fields as growth, and a load failure
+// is an error, never an empty inventory.
+func TestCompositionSurfaceIgnoresAnInheritedWorkspace(t *testing.T) {
+	repo := ownerFixtureRepository(t)
+	path := filepath.Join(repo, "api", "wiring.go")
+	writeFile(t, path, compositionOwnerImports+"type Wiring struct { A alpha.Port; B beta.Port }\n")
+	runGit(t, repo, "add", ".")
+	runGit(t, repo, "commit", "-qm", "composition base")
+	base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+	workspace := filepath.Join(t.TempDir(), "go.work")
+	writeFile(t, workspace, "go 1.25\n\nuse "+repo+"\n")
+	t.Setenv("GOWORK", workspace)
+	policy := ownerFixturePolicy(compositionOwnerClassification)
+	if err := CompareCompositionSurface(repo, base, policy); err != nil {
+		t.Fatalf("an inherited workspace changed the inventory: %v", err)
+	}
+	inventory, err := rootStructInventory(repo, newCompositionOwnership(policy))
+	if err != nil || inventory["production|field|api|Wiring.A"] == "" {
+		t.Fatalf("candidate inventory under GOWORK: %v %v", inventory, err)
+	}
+}
+
+func TestCompositionSurfaceRejectsARepositoryWorkspace(t *testing.T) {
+	t.Parallel()
+	repo := ownerFixtureRepository(t)
+	writeFile(t, filepath.Join(repo, "api", "wiring.go"), compositionOwnerImports)
+	writeFile(t, filepath.Join(repo, "go.work"), "go 1.25\n\nuse .\n")
+	policy := ownerFixturePolicy(compositionOwnerClassification)
+	if _, err := rootStructInventory(repo, newCompositionOwnership(policy)); err == nil || !strings.Contains(err.Error(), "declares a Go workspace") {
+		t.Fatalf("a repository workspace must be reported: %v", err)
+	}
+}
+
+func TestCompositionSurfaceReportsAMissingRootPackage(t *testing.T) {
+	t.Parallel()
+	repo := ownerFixtureRepository(t)
+	writeFile(t, filepath.Join(repo, "api", "wiring.go"), "//go:build ignore\n\n"+compositionOwnerImports)
+	policy := ownerFixturePolicy(compositionOwnerClassification)
+	if _, err := rootStructInventory(repo, newCompositionOwnership(policy)); err == nil {
+		t.Fatal("a root package that does not load must fail, not count as empty")
+	}
+}

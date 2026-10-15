@@ -1050,13 +1050,14 @@ It counts:
 The root-struct part is semantic (`internal/architecture/composition_owners.go`).
 PR mode loads the root packages of the candidate and of the base commit,
 whose tree it extracts with `git archive`, with full type information,
-production and test variants alike. A root package that does not type-check
-fails the comparison. Every struct the root writes down is a carrier: a struct
+production and test variants alike, as a standalone module (`GOWORK=off`; a
+`go.work` in the repository is reported as unsupported). A root package that
+does not load or type-check fails the comparison; it never counts as empty. Every struct the root writes down is a carrier: a struct
 type literal anywhere (package-level or local type, anonymous variable,
 literal, parameter or field, nested structs included), a type expression that
 instantiates a generic root struct (`type Wiring = Graph[alpha.Port,
 beta.Port]`, `var wiring Graph[...]`, `Graph[...]{}`), and a variable a call
-types as such an instance.
+types as such an instance, also as one of several results.
 
 A carrier counts when its struct holds values of at least two owners other
 than the root. A type holds a value of owner O when it is, after resolving
