@@ -47,28 +47,10 @@ func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDi
 	return peopleCompose.NewPersonDirectory(deps)
 }
 
-// The People Directory composition contracts the behavior suites outside this
-// package name (#3753), restated here because their test scopes may not import
-// modules/peopledirectory/compose. Every entry goes with the last suite that
-// uses it.
-type (
-	PeopleDirectorySuiteStudentService = peopleCompose.StudentService
-)
-
 // NewPeopleDirectorySuiteStudentAudit is the request-actor audit service over
 // recorder, the way the root composes it.
 func NewPeopleDirectorySuiteStudentAudit(actor peopleCompose.RequestAuditActor, recorder peopleCompose.StudentAuditRecorder) peopleCompose.StudentAuditService {
 	return peopleCompose.NewStudentAuditService(actor, recorder)
-}
-
-// NewPeopleDirectorySuiteStudentService is the retained student directory
-// service over the owner's directory seam.
-func NewPeopleDirectorySuiteStudentService(
-	directory peopleCompose.StudentDirectoryAccess,
-	classes peopleCompose.StudentClassReader,
-	students userModels.StudentRepository,
-) peopleCompose.StudentService {
-	return peopleCompose.NewStudentService(directory, classes, students)
 }
 
 // StaffAdministrationPermitted is the Security Runtime's staff:manage check

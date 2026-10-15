@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -68,7 +67,7 @@ func TestCheckoutRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 				if detailed {
 					presenceMode = "detailed"
 				}
-				activeService.ConfigureForTest(svc, activeService.WithSettings(services.PresenceSettings(&settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) { return presenceMode, settingsErr }})))
+				activeService.ConfigureForTest(svc, activeService.WithSettings(api.PresenceSettings(&settingsDouble{ResolveStringFn: func(context.Context, string) (string, error) { return presenceMode, settingsErr }})))
 				staff := testpkg.CreateTestStaff(t, db, "SlotCheckout", "Staff")
 				device := testpkg.CreateTestDevice(t, db, "slot-checkout-rollback")
 				room := testpkg.CreateTestRoom(t, db, "SlotCheckoutRoom")

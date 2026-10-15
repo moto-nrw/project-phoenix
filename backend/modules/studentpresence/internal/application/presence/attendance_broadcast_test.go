@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -113,25 +112,25 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := services.NewTimetableRepositories(db, owners)
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
 	broadcaster := testpkg.NewRecordingBroadcaster()
 
 	devices, err := api.NewDeviceRepository(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
 		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
-		StaffNames: services.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
+		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
+		StaffNames: api.NewAttendanceStaffNames(repos.Staff, api.NewTestPersonDirectory(testpkg.NewDatabase(t, db), api.TestPersonDirectorySources{
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
 		})),
@@ -543,7 +542,7 @@ func TestCheckin_RoomCheckinBroadcastsOnce(t *testing.T) {
 	f, cleanup := setupAbsentStudent(t, db, "RoomCheckin")
 	defer cleanup()
 
-	ctx := services.WithAttendanceStaff(testpkg.Ctx(t), f.staffID, 0)
+	ctx := api.WithAttendanceStaff(testpkg.Ctx(t), f.staffID, 0)
 	broadcaster.Reset()
 
 	visit := &studentpresence.Visit{

@@ -18,7 +18,6 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -139,7 +138,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 	corrections, err := timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
-		Trail:        services.TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
+		Trail:        TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
 		People:       r.Person,
 		Locks:        recovery,
 	})
@@ -179,7 +178,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		return nil, nil, err
 	}
 	legacyBookings := func(context.Context) (bool, error) { return false, nil }
-	arrivals, err := services.NewArrivalBaselines(carePlan, people, classArrivalQueries, approvedOfferings, legacyBookings)
+	arrivals, err := NewArrivalBaselines(carePlan, people, classArrivalQueries, approvedOfferings, legacyBookings)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -197,7 +196,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		Staff:             r.Staff,
 		CalendarPeriods:   r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException,
-		ArrivalBaselines:  services.ArrivalBaselineProjector{Reader: arrivals},
+		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},
 		Presence:          presence,
 		Sessions:          r.ActiveGroup,
 		ContentHash:       securityruntime.Fingerprint,
@@ -215,19 +214,19 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		Participants:      r.InstanceStudent,
 		PickupExceptions:  r.StudentPickupException,
 		ArrivalExceptions: r.StudentArrivalException,
-		ArrivalBaselines:  services.ArrivalBaselineProjector{Reader: arrivals},
-		PickupBaselines:   services.PickupBaselineProjector{Reader: pickups},
+		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},
+		PickupBaselines:   PickupBaselineProjector{Reader: pickups},
 		Visits:            presence,
 		Templates:         templates,
 		Groups:            r.Timetable,
 		BlockMetadata:     timetableCompose.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List),
 		Categories:        r.ActivityCategory,
 		Rooms:             rows.RoomNames(),
-		RoomOccupancy:     services.TimetableRoomOccupancy{Sessions: r.ActiveGroup},
+		RoomOccupancy:     TimetableRoomOccupancy{Sessions: r.ActiveGroup},
 		DeviationEvents:   rows.DeviationEventReader(),
 		ConflictAcks:      r.Timetable,
 		Locks:             rows.AttendanceLocks(),
-		Advisory:          services.NewTenantAdvisoryLocks(true),
+		Advisory:          timetableCompose.NewTenantAdvisoryLocks(),
 	})
 	if err != nil {
 		return nil, nil, err
@@ -243,7 +242,7 @@ func timetableHTTPTestCareOfferingChecks(options TimetableHTTPTestOptions) timet
 		ValidateSeries:         options.ValidateCareOfferingSeries,
 		ValidateOfferingSource: options.ValidateOfferingSource,
 		IsConflict: func(err error) bool {
-			return services.IsCareOfferingConfigInvalid(err)
+			return IsCareOfferingConfigInvalid(err)
 		},
 	}
 	if checks.ValidateSeries == nil {
@@ -292,7 +291,7 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // supervisions over the test database, for suites that arrange a running
 // block.
 func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) *presenceCompose.SessionRecords {
-	return services.NewPresenceSessionRecords(db.Pool())
+	return NewPresenceSessionRecords(db)
 }
 
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant
@@ -303,12 +302,12 @@ func NewTimetableHTTPTestRecurrenceLock(db transactionruntime.Database) (timetab
 
 // NewTimetableHTTPTestPeople serves the People port of the timetable routes
 // over the person, staff and student rows of the test database.
-func NewTimetableHTTPTestPeople(db transactionruntime.Database) (services.TimetablePeople, error) {
+func NewTimetableHTTPTestPeople(db transactionruntime.Database) (TimetablePeople, error) {
 	r, err := NewTimetableTestRepositories(db)
 	if err != nil {
-		return services.TimetablePeople{}, err
+		return TimetablePeople{}, err
 	}
-	return services.NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
 		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
 	})), nil
@@ -322,7 +321,7 @@ func NewTimetableHTTPTestOfferingSources(db transactionruntime.Database, unit te
 	if err != nil {
 		return nil, err
 	}
-	support := services.NewTimetableOfferingSources(module.Bookings)
+	support := NewTimetableOfferingSources(module.Bookings)
 	if support == nil {
 		return nil, errors.New("care plan serves no offering sources")
 	}

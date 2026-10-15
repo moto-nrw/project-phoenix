@@ -10,6 +10,8 @@ import (
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -66,11 +68,11 @@ func NewSessionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools org
 	groups, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	settings := NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)
 	return presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: AttendancePrincipal,
-		SchoolPresence:  NewLoggedStudentPresence(db, logger),
+		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		SchoolPresence:  newStudentPresence(db, presenceCompose.DebugLogger(logger)),
 		GroupRepo:       groups, SupervisorRepo: supervisors,
-		DeviceRepo: NewSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
-	}, presenceservice.WithPresenceTenantRuntime(runtime), presenceservice.WithPresenceSettings(PresenceSettings(settings)))
+		DeviceRepo: newSessionDeviceDirectory(repos.Device, settings, logger), TimetableBridgeCompleter: repos.TimetableBridge, DB: db, Logger: logger,
+	}, presenceservice.WithPresenceTenantRuntime(runtime), presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings)))
 }
 
 // RetentionCleanupRepositories are the Student Presence session and
@@ -85,7 +87,7 @@ type RetentionCleanupRepositories struct {
 // with the deletion ledger routed through command.
 func NewRetentionCleanupRepositories(db *bun.DB, command AuditCommand) RetentionCleanupRepositories {
 	return RetentionCleanupRepositories{
-		Sessions: NewPresenceSessionRecords(db),
+		Sessions: newPresenceSessionRecords(presenceCompose.SessionRecordDependencies{DB: db}),
 		Deletion: cleanupAuditRepositories(db, command).DataDeletion,
 	}
 }
@@ -94,14 +96,16 @@ func NewRetentionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	repos := NewRetentionCleanupRepositories(db, command)
 	_, supervisors := presenceCompose.SessionRepositories(repos.Sessions)
 	return presenceservice.NewPresenceCleanup(
-		NewLoggedStudentPresence(db, logger), supervisors, NewDeletionAudit(repos.Deletion),
-		PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)),
+		newStudentPresence(db, presenceCompose.DebugLogger(logger)), supervisors, NewDeletionAudit(repos.Deletion),
+		settingsCompose.PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)),
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) (TimetableCleanup, error) {
+// NewTimetableCleanupService binds the Timetable retention the root
+// composes to the cleanup command's deletion ledger and settings.
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand, compose TimetableCleanupComposer) (timetable.TimetableCleanup, error) {
 	audits := cleanupAuditRepositories(db, command)
-	return NewTimetableCleanup(TimetableRetentionInputs{
+	return compose(TimetableRetentionInputs{
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,
@@ -116,7 +120,7 @@ func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 func NewTimeTrackingCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, workTime workforce.Capability, logger *slog.Logger, command AuditCommand) workforceCompose.TimeTrackingCleanupService {
 	service, err := workforceCompose.NewTimeTrackingCleanup(workforceCompose.TimeTrackingCleanupDependencies{
 		Workforce: workTime, Absences: workforceCompose.NewStaffAbsenceRepository(workTime), Audit: NewTimeTrackingRetentionAudit(cleanupAuditRepositories(db, command).DataDeletion),
-		Settings: PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), Logger: logger,
+		Settings: settingsCompose.PresenceSettings(NewCleanupSettingsService(settingsCompose.NewTenantSettingsRuntime(db, &runtime), schools, logger)), Logger: logger,
 	})
 	if err != nil {
 		panic(fmt.Sprintf("time tracking cleanup: %v", err))
@@ -165,3 +169,20 @@ type TimeTrackingCleanupService = workforceCompose.TimeTrackingCleanupService
 type TimeTrackingCleanupResult = workforceCompose.TimeTrackingCleanupResult
 type TimeTrackingCleanupPreview = workforceCompose.TimeTrackingCleanupPreview
 type TimeTrackingCleanupStats = workforceCompose.TimeTrackingCleanupStats
+
+// sessionDevices binds the session device operations and the owner's online
+// window for the session cleanup. The typed root owns the binding
+// (api/session_devices.go, #4010); this private copy stays with the cleanup
+// root until #4013 moves it.
+type sessionDevices struct {
+	*devicefleetLegacy.SessionDeviceIDs
+	window func(context.Context) time.Duration
+}
+
+func newSessionDeviceDirectory(records devicefleetLegacy.SessionDeviceRecords, settings devicefleetLegacy.SettingsResolver, logger *slog.Logger) sessionDevices {
+	return sessionDevices{SessionDeviceIDs: &devicefleetLegacy.SessionDeviceIDs{SessionDeviceRecords: records}, window: devicefleetLegacy.NewOnlineWindowResolver(settings, logger)}
+}
+
+func (d sessionDevices) OnlineWindow(ctx context.Context) time.Duration {
+	return d.window(ctx)
+}

@@ -19,6 +19,7 @@ type PartialAbsencePreview = ports.PartialAbsencePreview
 type PickupExtensions = ports.PickupExtensions
 type PickupDayExtension = ports.PickupDayExtension
 type PickupWeekdayExtension = ports.PickupWeekdayExtension
+type PickupStudentLocks = ports.PickupStudentLocks
 
 // PickupExcusalRecords is the existing owner persistence capability needed by
 // the derived and manual excusal commands.
@@ -47,6 +48,14 @@ func NewPickupAutoExcusal(deps PickupExcusalDependencies) (careplan.PickupAutoEx
 	}
 	return application.NewPickupAutoExcusal(pickupExcusalRecords{deps.Records}, deps.Baselines,
 		deps.Blocks, deps.Preview, deps.Extensions, excusalTransaction{deps.DB}), nil
+}
+
+// LockWeeklyPickupStudents binds Care Plan's lock order of a weekly pickup
+// approval to the student locks of the People Directory.
+func LockWeeklyPickupStudents(students PickupStudentLocks) func(context.Context, []int64) error {
+	return func(ctx context.Context, studentIDs []int64) error {
+		return application.LockWeeklyPickupStudents(ctx, students, studentIDs)
+	}
 }
 
 func NewPartialAbsences(db *bun.DB, records PickupExcusalRecords, blocks PartialAbsenceBlocks, syncer careplan.PickupAutoExcusal) (careplan.PartialAbsenceService, error) {

@@ -37,6 +37,24 @@ func (s deletionStore) Delete(context.Context, int64) (domain.OperationStats, er
 
 type deletionTransaction struct{ ports.Transaction }
 
+// roomUsage answers the deletion's usage questions and records each one.
+type roomUsage struct {
+	steps            *[]string
+	active, required bool
+	activeErr        error
+	requiredErr      error
+}
+
+func (u roomUsage) HasActiveSessions(context.Context, int64) (bool, error) {
+	*u.steps = append(*u.steps, "sessions")
+	return u.active, u.activeErr
+}
+
+func (u roomUsage) RequiredByCareOffering(context.Context, int64) (bool, error) {
+	*u.steps = append(*u.steps, "offerings")
+	return u.required, u.requiredErr
+}
+
 func (deletionTransaction) RunWrite(ctx context.Context, callback func(context.Context) error) error {
 	return callback(ctx)
 }
@@ -47,14 +65,44 @@ func TestDeleteTakesRecurrenceLockBeforeRoomLock(t *testing.T) {
 	service := New(
 		deletionStore{steps: &steps}, deletionTransaction{},
 		func(context.Context) error { steps = append(steps, "recurrence"); return nil },
-		func(context.Context, int64) error { steps = append(steps, "guard"); return nil },
+		roomUsage{steps: &steps},
 		func(ports.Observation) {},
 	)
 
 	err := service.Delete(context.Background(), time.Now().UnixNano())
 
 	require.NoError(t, err)
-	require.Equal(t, []string{"recurrence", "room", "guard", "delete"}, steps)
+	require.Equal(t, []string{"recurrence", "room", "sessions", "offerings", "delete"}, steps)
+}
+
+func TestDeleteKeepsARoomSomeoneStillNeeds(t *testing.T) {
+	t.Parallel()
+	failure := errors.New("usage unavailable")
+	cases := []struct {
+		name  string
+		usage roomUsage
+		err   error
+		steps []string
+	}{
+		{name: "running session", usage: roomUsage{active: true}, err: domain.ErrInUse, steps: []string{"room", "sessions"}},
+		{name: "care offering", usage: roomUsage{required: true}, err: domain.ErrRequiredByOffering, steps: []string{"room", "sessions", "offerings"}},
+		{name: "session read fails", usage: roomUsage{activeErr: failure}, err: failure, steps: []string{"room", "sessions"}},
+		{name: "offering read fails", usage: roomUsage{requiredErr: failure}, err: failure, steps: []string{"room", "sessions", "offerings"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			steps := []string{}
+			usage := tc.usage
+			usage.steps = &steps
+			service := New(deletionStore{steps: &steps}, deletionTransaction{}, func(context.Context) error { return nil }, usage, func(ports.Observation) {})
+
+			err := service.Delete(context.Background(), time.Now().UnixNano())
+
+			require.ErrorIs(t, err, tc.err)
+			require.Equal(t, tc.steps, steps, "the room is not deleted")
+		})
+	}
 }
 
 func TestFindByIDPreservesStoreFailure(t *testing.T) {
@@ -63,7 +111,7 @@ func TestFindByIDPreservesStoreFailure(t *testing.T) {
 	var observed ports.Observation
 	service := New(
 		failingReadStore{err: failure}, deletionTransaction{},
-		func(context.Context) error { return nil }, func(context.Context, int64) error { return nil },
+		func(context.Context) error { return nil }, roomUsage{steps: &[]string{}},
 		func(value ports.Observation) { observed = value },
 	)
 

@@ -14,16 +14,15 @@ type OccupancyProjection func(context.Context, []facilitiesModule.Room) ([]RoomW
 type RoomHistoryProjection func(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionEntry, error)
 
 type ServiceConfig struct {
-	Rooms            facilitiesModule.Capability
-	Occupancy        OccupancyProjection
-	History          RoomHistoryProjection
-	ValidateDeletion func(context.Context, int64) error
+	Rooms     facilitiesModule.Capability
+	Occupancy OccupancyProjection
+	History   RoomHistoryProjection
 }
 
 type service struct{ config ServiceConfig }
 
 func NewServiceWithConfig(config ServiceConfig) Service {
-	if config.Rooms == nil || config.Occupancy == nil || config.History == nil || config.ValidateDeletion == nil {
+	if config.Rooms == nil || config.Occupancy == nil || config.History == nil {
 		panic("facilities compatibility service: all dependencies are required")
 	}
 	return &service{config: config}
@@ -90,10 +89,6 @@ func (s *service) UpdateRoom(ctx context.Context, room *facilitiesModule.Room) e
 
 func (s *service) DeleteRoom(ctx context.Context, id int64) error {
 	return wrap("delete room", s.config.Rooms.DeleteRoom(ctx, id))
-}
-
-func (s *service) ValidateRoomDeletion(ctx context.Context, id int64) error {
-	return wrap("delete room", s.config.ValidateDeletion(ctx, id))
 }
 
 func (s *service) ListRooms(ctx context.Context) ([]RoomWithOccupancy, error) {

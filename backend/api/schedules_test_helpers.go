@@ -5,7 +5,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -39,6 +38,6 @@ func NewScheduleTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return ScheduleTestModule{}, err
 	}
-	guard := services.TimeframeChangeGuard(lock, offerings.ValidateTimeframeChange)
+	guard := TimeframeChangeGuard(lock, offerings.ValidateTimeframeChange)
 	return ScheduleTestModule{Calendar: r.SchoolCalendar(), Timetable: r.Timetable, TimeframeGuard: guard}, nil
 }

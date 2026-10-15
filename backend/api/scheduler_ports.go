@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
@@ -11,7 +12,6 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -186,7 +186,7 @@ func carePlanQuery(module *carePlanModule.Module) carePlanModule.Query {
 
 // schedulerExistingRooms binds the overdue tick's room check.
 func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.ExistingRoomReader {
-	rooms := services.NewRoomRepository(capability)
+	rooms := facilitiesCompose.NewRoomRepository(capability)
 	return func(ctx context.Context, roomIDs []int64) ([]int64, error) {
 		found, err := rooms.FindByIDs(ctx, roomIDs)
 		if err != nil {

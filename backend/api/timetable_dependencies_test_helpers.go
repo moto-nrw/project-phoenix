@@ -12,7 +12,7 @@ import (
 // retained repositories read through, unobserved, for test graphs and CLI
 // roots. The People Directory is composed here since its construction left
 // the repository composition (#2743).
-func NewUnobservedTimetableDependencies(db transactionruntime.Database) services.TimetableDependencies {
+func NewUnobservedTimetableDependencies(db transactionruntime.Database) TimetableDependencies {
 	students, err := NewPeopleDirectory(db)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable students: %v", err))
@@ -21,7 +21,7 @@ func NewUnobservedTimetableDependencies(db transactionruntime.Database) services
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable rooms: %v", err))
 	}
-	capability, err := services.NewTimetable(db.Pool(), students, rooms)
+	capability, err := NewUnobservedTimetable(db, students, rooms)
 	if err != nil {
 		panic(fmt.Sprintf("compose timetable: %v", err))
 	}
@@ -41,5 +41,5 @@ func NewUnobservedTimetableDependencies(db transactionruntime.Database) services
 	if err != nil {
 		panic(fmt.Sprintf("compose workforce work-time: %v", err))
 	}
-	return services.TimetableDependencies{Capability: capability, Students: students, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime}
+	return TimetableDependencies{Capability: capability, Students: students, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime}
 }

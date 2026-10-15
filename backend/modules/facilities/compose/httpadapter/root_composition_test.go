@@ -24,6 +24,7 @@ func init() {
 				Facilities: svc.Facilities, Settings: svc.Settings, UserContext: svc.UserContext,
 				Active: svc.Active, Users: api.NewRoomSnapshotPeople(svc.Users), Education: svc.Education, ListExport: svc.ListExport,
 			},
+			Usage: svc.RoomUsage,
 		}
 	}
 }

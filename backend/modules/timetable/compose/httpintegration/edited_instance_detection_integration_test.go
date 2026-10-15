@@ -13,7 +13,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -118,7 +117,7 @@ func replaceScenarioTarget(t *testing.T, s *scenarioSetup, targetType string) {
 			Exec(s.ctx)
 		require.NoError(t, err)
 	}
-	targetRepo, ok := services.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{target}))
 }
@@ -538,6 +537,6 @@ func setInstanceStaffAbsent(t *testing.T, s *scenarioSetup, instanceID, staffID 
 }
 
 func testInstanceStudents(db *bun.DB) scheduleModels.InstanceStudentRepository {
-	factory := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
+	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)))
 	return factory.InstanceStudent
 }

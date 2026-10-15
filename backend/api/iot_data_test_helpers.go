@@ -1,13 +1,9 @@
 package api
 
 import (
-	"context"
-	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -23,6 +19,9 @@ type IoTDataTestModule struct {
 	ActivitiesTestModule
 	DeviceTestModule
 	Facilities facilitiesCompose.RoomService
+	// RoomUsage answers the room deletion's usage port over the same
+	// sessions and care offerings, as the root binds it.
+	RoomUsage facilitiesCompose.RoomUsage
 }
 
 func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) (IoTDataTestModule, error) {
@@ -59,24 +58,8 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return IoTDataTestModule{}, err
 	}
 	facility := facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
-		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(services.RoomOccupancyPresence{Source: services.NewLoggedStudentPresence(db.Pool(), slog.Default())}, r.ActivityGroup, membership, people),
-		History: facilitiesLegacy.HistoryProjection(services.RoomHistoryPresence{Source: services.NewLoggedStudentPresence(db.Pool(), slog.Default())}, r.ActivityGroup, membership, people),
-		ValidateDeletion: func(ctx context.Context, roomID int64) error {
-			groups, err := r.ActiveGroup.FindActiveByRoomID(ctx, roomID)
-			if err != nil {
-				return err
-			}
-			if len(groups) > 0 {
-				return facilitiesModule.ErrRoomInUse
-			}
-			if err := offerings.ValidateRoomDeletion(ctx, roomID); err != nil {
-				if errors.Is(err, careplan.ErrCareOfferingConfigInvalid) {
-					return facilitiesModule.ErrRoomRequiredByOffering
-				}
-				return err
-			}
-			return nil
-		},
+		Rooms: rooms, Occupancy: facilitiesLegacy.OccupancyProjection(RoomOccupancyPresence{Source: NewLoggedStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
+		History: facilitiesLegacy.HistoryProjection(RoomHistoryPresence{Source: NewLoggedStudentPresence(db, slog.Default())}, r.ActivityGroup, membership, people),
 	})
 	// Data routes also resolve people and RFID tags, beyond activity staff reads.
 	identity, err := NewRFIDTestModule(db)
@@ -84,5 +67,5 @@ func NewIoTDataTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return IoTDataTestModule{}, err
 	}
 	activities.Users = identity.Users
-	return IoTDataTestModule{ActivitiesTestModule: activities, DeviceTestModule: devices, Facilities: facility, Configuration: devicescanCompose.NewConfiguration(settings.Settings), RoomAvailability: devicescanCompose.NewRoomAvailability(facility), Directory: devicescanCompose.NewDirectory(identity.Users, activities.Activities, nil), TagAssignments: identity.TagAssignments}, nil
+	return IoTDataTestModule{ActivitiesTestModule: activities, DeviceTestModule: devices, Facilities: facility, RoomUsage: &RoomUsage{Sessions: NewLoggedStudentPresence(db, slog.Default()), Offerings: offerings}, Configuration: devicescanCompose.NewConfiguration(settings.Settings), RoomAvailability: devicescanCompose.NewRoomAvailability(facility), Directory: devicescanCompose.NewDirectory(identity.Users, activities.Activities, nil), TagAssignments: identity.TagAssignments}, nil
 }

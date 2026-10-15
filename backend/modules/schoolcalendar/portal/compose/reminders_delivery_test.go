@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +68,7 @@ func TestCalendarServiceIntegration_ReminderPushSurvivesAnEditBeforeDispatch(t *
 	cfg.Preferences = reminderPreferences{}
 	baseRepo := cfg.Appointments
 	cfg.Appointments = &revisingCandidateLock{Capability: baseRepo, db: db, on: 2}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Revised")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -158,7 +157,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.Contains(t, reminder.Payload, "student_ids")
 
 	row := &emailoutbox.Intent{TenantID: parentChain.TenantID, Kind: reminder.Kind, Payload: reminder.Payload}
-	render := calendarRuntime.NewCalendarAppointmentRenderer(calendarRuntime.CalendarEmailDependencies{
+	render := api.NewCalendarAppointmentRenderer(api.CalendarEmailDependencies{
 		DefaultFrom: email.NewEmail("moto", "no-reply@example.com"),
 		Runtime:     calendarCompose.NewTenantRuntime(db),
 		Guardians:   calendarTestRepositories(t, db).StudentGuardian,

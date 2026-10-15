@@ -45,7 +45,7 @@ type offboardingIdentity interface {
 type offboardingScenario struct {
 	db        *bun.DB
 	repos     *api.RepositoryTestFactory
-	timetable services.TimetableRepositories
+	timetable api.TimetableRepositories
 	workTime  workforce.Capability
 	rows      api.TimetableTestRepositories
 	authSvc   offboardingIdentity
@@ -93,7 +93,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	return &offboardingScenario{
 		db:        db,
 		repos:     repos,
-		timetable: services.NewTimetableRepositories(db, owners),
+		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), owners),
 		workTime:  owners.Workforce,
 		rows:      rows,
 		authSvc:   authService,

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -47,7 +47,7 @@ func TestSessionDeviceDirectoryOnlineWindow(t *testing.T) {
 		{name: "valid override", settings: &sessionWindowSettings{has: true, intVal: 2}, want: 2 * time.Minute},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			directory := services.NewSessionDeviceDirectory(nil, tc.settings, nil)
+			directory := api.NewSessionDeviceDirectory(nil, tc.settings, nil)
 			assert.Equal(t, tc.want, directory.OnlineWindow(context.Background()))
 		})
 	}

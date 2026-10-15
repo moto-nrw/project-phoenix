@@ -12,7 +12,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -159,7 +158,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -202,7 +201,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -257,7 +256,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterDispatchF
 	cfg.Notifier = notifier
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Retry")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -335,7 +334,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 	cfg.Preferences = reminderPreferences{}
 
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
-	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), calendarRuntime.NewCalendarPortal(cfg)).
+	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), api.NewCalendarPortal(cfg)).
 		EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
 	require.NoError(t, err)
 	assert.Zero(t, queued, "without an outbox there is no e-mail to queue")
@@ -360,7 +359,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	cfg.ParentsURL = "https://parents.test"
 	cfg.ReminderNotifier = notifier
 	cfg.Preferences = reminderPreferences{}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "NoPush")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -403,7 +402,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
 	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointment}
-	service := calendarRuntime.NewCalendarPortal(cfg)
+	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
 

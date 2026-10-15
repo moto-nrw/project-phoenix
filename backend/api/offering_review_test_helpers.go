@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -92,7 +91,7 @@ func (d offeringReviewTestDirectory) SearchStudentIDs(_ context.Context, _ strin
 }
 
 type offeringReviewTestEnrollment struct {
-	enrollment services.EnrollmentBookingProjection
+	enrollment EnrollmentBookingProjection
 	bookings   careplan.OfferingBookingQueries
 }
 

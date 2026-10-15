@@ -12,7 +12,6 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,7 +26,7 @@ func classArrivalBaseline(t *testing.T, repos *api.RepositoryTestFactory) carepl
 	if err != nil {
 		panic(err)
 	}
-	baselines, err := services.NewArrivalBaselines(repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(testpkg.SetupTestDB(t))), classArrivalQueries, approvedOfferingProjection(t), func(context.Context) (bool, error) { return false, nil })
+	baselines, err := api.NewArrivalBaselines(repos.CarePlan(), api.MustNewPeopleDirectory(testpkg.MustDatabase(testpkg.SetupTestDB(t))), classArrivalQueries, approvedOfferingProjection(t), func(context.Context) (bool, error) { return false, nil })
 	if err != nil {
 		panic(err)
 	}

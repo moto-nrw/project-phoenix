@@ -57,8 +57,8 @@ type PeopleRepositorySuiteFactory struct {
 
 	CareWithdrawal           usersModels.CareWithdrawalCompletionRepository
 	StudentDataChangeRequest usersModels.StudentDataChangeRequestRepository
-	StudentStatusDay         *services.StudentStatusDayRepository
-	ExcusedAbsenceRequest    *services.ExcusedAbsenceRequestRepository
+	StudentStatusDay         *StudentStatusDayRepository
+	ExcusedAbsenceRequest    *ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
 	GroupSupervisor          studentpresence.SupervisionRecords
 	CrossTenant              CrossTenantQuery
@@ -83,8 +83,8 @@ func (f *PeopleRepositorySuiteFactory) SchoolMembership() schoolmembership.Capab
 func (f *PeopleRepositorySuiteFactory) CarePlan() careplan.Capability { return f.carePlan }
 
 // Enrollment is the Enrollment booking projection of the graph.
-func (f *PeopleRepositorySuiteFactory) Enrollment() services.EnrollmentBookingProjection {
-	return services.NewEnrollmentBookingProjection(newEnrollmentBookings(f.enrollment))
+func (f *PeopleRepositorySuiteFactory) Enrollment() EnrollmentBookingProjection {
+	return NewEnrollmentBookingProjection(newEnrollmentBookings(f.enrollment))
 }
 
 // SchoolCalendar is the calendar owner the period, closing day and dateframe
@@ -108,7 +108,7 @@ func NewPeopleRepositorySuiteFactory(db transactionruntime.Database, clocks ...f
 	return newPeopleRepositorySuiteFactory(db, NewUnobservedTimetableDependencies(db), clocks...)
 }
 
-func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps services.TimetableDependencies, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
+func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps TimetableDependencies, clocks ...func() time.Time) *PeopleRepositorySuiteFactory {
 	if deps.Capability == nil || deps.Students == nil || deps.Groups == nil || deps.Rooms == nil || deps.Calendar == nil || deps.Membership == nil || deps.Workforce == nil {
 		panic("repository test factory: timetable and projection dependencies are required")
 	}
@@ -137,7 +137,7 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 	}
 	presence := NewStudentPresenceForTests(db)
 	enrollment := enrollmentCompose.New()
-	sessions := services.NewSessionRecords(db.Pool(), services.SessionRecordOwners{
+	sessions := NewSessionRecords(db, SessionRecordOwners{
 		Now: now, Devices: devices, Rooms: deps.Rooms, Timetable: deps.Capability, Membership: deps.Membership, Persons: deps.Students,
 	})
 	return &PeopleRepositorySuiteFactory{
@@ -157,10 +157,10 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps servic
 		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
-		CareWithdrawal:           services.NewCareWithdrawalCompletionRepository(carePlan),
-		StudentDataChangeRequest: services.NewStudentDataChangeRequestRepository(carePlan),
-		StudentStatusDay:         services.NewStudentStatusDayRepository(carePlan),
-		ExcusedAbsenceRequest:    services.NewExcusedAbsenceRequestRepository(carePlan),
+		CareWithdrawal:           NewCareWithdrawalCompletionRepository(carePlan),
+		StudentDataChangeRequest: NewStudentDataChangeRequestRepository(carePlan),
+		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
+		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
 		ActiveGroup:              sessions,
 		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
 		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
@@ -203,7 +203,7 @@ func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Databa
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
 func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) usersModels.StudentCompanionRepository {
-	return services.NewStudentCompanionRepository(capability)
+	return NewStudentCompanionRepository(capability)
 }
 
 // NewPeopleRepositorySuiteCompanionEdge validates one companion edge.
@@ -269,13 +269,13 @@ func PeopleRepositorySuiteWithDefaultRole() peopleCompose.RetainedGuardianRelati
 type RepositoryTestFactory = PeopleRepositorySuiteFactory
 
 // NewRepositoryTestFactory composes the test graph over deps.
-func NewRepositoryTestFactory(db transactionruntime.Database, deps services.TimetableDependencies, clocks ...func() time.Time) *RepositoryTestFactory {
+func NewRepositoryTestFactory(db transactionruntime.Database, deps TimetableDependencies, clocks ...func() time.Time) *RepositoryTestFactory {
 	return newPeopleRepositorySuiteFactory(db, deps, clocks...)
 }
 
 // NewRepositoryTestFactoryWithPeopleDirectory is NewRepositoryTestFactory for
 // suites that handle a composition error.
-func NewRepositoryTestFactoryWithPeopleDirectory(db transactionruntime.Database, deps services.TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
+func NewRepositoryTestFactoryWithPeopleDirectory(db transactionruntime.Database, deps TimetableDependencies, clocks ...func() time.Time) (*RepositoryTestFactory, error) {
 	return newPeopleRepositorySuiteFactory(db, deps, clocks...), nil
 }
 

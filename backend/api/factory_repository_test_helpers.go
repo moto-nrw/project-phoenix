@@ -4,12 +4,11 @@ import (
 	"fmt"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewStudentScheduleRepositories composes only the student schedule adapters
 // needed by legacy service integration tests, over an unobserved Care Plan.
-func NewStudentScheduleRepositories(db transactionruntime.Database, dependencies services.TimetableDependencies) StudentScheduleRepositories {
+func NewStudentScheduleRepositories(db transactionruntime.Database, dependencies TimetableDependencies) StudentScheduleRepositories {
 	carePlan, err := NewUnobservedCarePlan(db, dependencies)
 	if err != nil {
 		panic(fmt.Sprintf("student schedule repositories: compose care plan: %v", err))
@@ -21,6 +20,6 @@ func NewStudentScheduleRepositories(db transactionruntime.Database, dependencies
 		PickupSchedule:   NewPickupScheduleRepository(carePlan),
 		PickupException:  NewPickupExceptionRepository(carePlan),
 		PickupNote:       NewPickupNoteRepository(carePlan),
-		StatusDay:        services.NewStudentStatusDayRepository(carePlan),
+		StatusDay:        NewStudentStatusDayRepository(carePlan),
 	}
 }

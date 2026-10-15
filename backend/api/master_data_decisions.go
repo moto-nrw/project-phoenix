@@ -36,13 +36,13 @@ func NewMasterDataDecisions(wiring services.MasterDataDecisionWiring) (*carePlan
 		deps.Today = func() careplan.Date { return careplan.Date(wiring.Today()) }
 	}
 	if wiring.Emitter != nil {
-		deps.Messenger = services.NewExcusedRequestMessenger(wiring.Emitter)
+		deps.Messenger = NewExcusedRequestMessenger(wiring.Emitter)
 	}
 	if wiring.Broadcaster != nil {
 		deps.Broadcaster = masterDataBroadcaster{broadcaster: wiring.Broadcaster}
 	}
 	if wiring.Events != nil {
-		deps.Ledger = services.NewParentRequestLedger(wiring.Events)
+		deps.Ledger = NewParentRequestLedger(wiring.Events)
 	}
 	return carePlanCompose.NewMasterDataDecisions(deps)
 }
@@ -57,7 +57,7 @@ func NewParentRequestCoordinator(wiring services.ParentRequestCoordinatorWiring)
 		Care: care, Offering: wiring.Offering,
 	}
 	if wiring.Events != nil {
-		deps.Ledger = services.NewParentRequestLedger(wiring.Events)
+		deps.Ledger = NewParentRequestLedger(wiring.Events)
 	}
 	return carePlanCompose.NewParentRequestCoordinator(deps)
 }

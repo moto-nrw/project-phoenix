@@ -151,10 +151,3 @@ func (l enrollmentExportAccessLog) RecordStudentExport(ctx context.Context, stud
 		Metadata:       entry.Metadata,
 	})
 }
-
-func stringValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return *value
-}

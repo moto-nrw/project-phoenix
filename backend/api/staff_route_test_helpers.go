@@ -64,8 +64,8 @@ func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return BirthdayTestModule{}, err
 	}
-	birthdays := services.NewBirthdays(
-		services.BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
+	birthdays := NewBirthdays(
+		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
 		settings.Settings, slog.Default(), services.OptionalClock(clocks))
 	return BirthdayTestModule{Birthdays: birthdays, UserContext: identity, Settings: settings.Settings, ListExport: lists.NewRendererService()}, nil
 }
@@ -73,13 +73,13 @@ func NewBirthdayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 // NewBirthdayCapabilityForTests composes the birthday capability over the
 // retained repositories the way the factory does, with caller-supplied
 // settings and clock.
-func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings services.BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
+func NewBirthdayCapabilityForTests(db transactionruntime.Database, settings BirthdaySettingsSource, now func() time.Time) peopledirectory.Birthdays {
 	members, err := NewMembershipTestRepositories(db)
 	if err != nil {
 		panic(err)
 	}
-	return services.NewBirthdays(
-		services.BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
+	return NewBirthdays(
+		BirthdayRepositories{Students: NewStudentLookupTestRepository(db), Staff: members.Staff, Persons: members.Person},
 		settings, slog.Default(), now)
 }
 

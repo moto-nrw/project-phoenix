@@ -6,7 +6,6 @@ import (
 
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // statusDayStudentSource is the slice of the student service the status-day
@@ -85,7 +84,7 @@ func (s *statusDayStudents) LockForStatusWrite(ctx context.Context, studentID in
 	if err != nil {
 		return nil, err
 	}
-	record := services.StudentRecord(fresh)
+	record := StudentRecord(fresh)
 	if !s.authorize(ctx, record, status) {
 		return nil, studentpresence.ErrStudentStatusDayReassigned
 	}
