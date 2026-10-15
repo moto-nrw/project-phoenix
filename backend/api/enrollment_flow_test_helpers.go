@@ -12,7 +12,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // Test bindings of the enrollment flow suites (#3565): the ports their
@@ -75,7 +74,7 @@ func NewEnrollmentFlowStudentAudit(db transactionruntime.Database, actor peopleC
 // way the root binds it; extensions also records the pickup extensions the
 // Timetable owner keeps.
 func NewEnrollmentFlowPickupExcusal(db transactionruntime.Database, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) (careplan.PickupAutoExcusal, error) {
-	adapter := services.NewPickupExcusalTimetable(tt, NewPartialAbsencePreview(db))
+	adapter := NewPickupExcusalTimetable(tt, NewPartialAbsencePreview(db))
 	deps := careplanCompose.PickupExcusalDependencies{
 		DB: db.Pool(), Records: records, Baselines: baselines, Blocks: NewLoggedStudentPresence(db, slog.Default()), Preview: adapter,
 	}

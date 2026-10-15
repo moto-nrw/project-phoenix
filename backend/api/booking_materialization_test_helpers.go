@@ -88,7 +88,7 @@ func NewBookingMaterializationTestModule(db transactionruntime.Database, unit te
 	if err != nil {
 		return BookingMaterializationTestModule{}, err
 	}
-	bookings, err := services.NewBookingMaterialization(services.BookingMaterializationInputs{
+	bookings, err := newBookingMaterialization(bookingMaterializationInputs{
 		Catalog: catalog, Timetable: repos.Timetable, Rosters: repos.RosterMaintenance(slog.Default(), nil),
 		Students: people, Periods: repos.SchoolCalendar(), Enrollment: repos.Enrollment(), Approved: approved,
 		Settings: settings, Bookings: repos.CarePlan, Withdrawals: options.Withdrawals,

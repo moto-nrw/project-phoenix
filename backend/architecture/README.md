@@ -307,7 +307,7 @@ the document file sweep is `StudentDocumentCommands.SweepStudentDocumentFiles`.
 Every read that takes a set of foreign ids pages it by
 `careplan.MaxCareExitBatchSize`. The People Directory, Enrollment, Timetable,
 Presence, School Calendar and change-history owners reach the lifecycle as
-consumer-owned ports bound in `services/care_lifecycle_owners.go`.
+consumer-owned ports bound in `api/care_lifecycle_owners.go` (in `services` until #4011).
 The 46 compatibility permissions and the `care-exit-view` owner are gone; the
 two consumers that could only reach the adapter and the moved behavior suites
 use the one-time replacement path of
@@ -609,6 +609,18 @@ and `StudentStatusDays` are gone, and the composition surface fell from 236 to
 234 (measured after #4049, which retired the unregistered tag scan adapter and
 its field).
 
+#4011 moved the Care Plan wiring out of `services` without a key or a policy
+rule: `services` keeps 82 of its 126 production files (12,603 of 18,049 LOC,
+measured after #4049 and #4009).
+The root binds Care Plan to the other owners (`api.newCarePlanWiring`) and
+hands the result to `NewFactoryWithModules` as `services.CarePlanWiring`. The
+two decisions the Factory still held now live in Care Plan: the pickup
+auto-excusal resync runs in Care Plan's own unit of work, and the student lock
+order of the weekly pickup approval sits behind a consumer-owned port. The
+Factory fields `Students` and `RequestReviewPolicy` are gone, so the
+composition surface fell from 235 to 233 (see
+[Care Plan wiring out of services](#care-plan-wiring-out-of-services-4011)).
+
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
 root's `api -> api/enrollment` key (#2750) and three parent-portal keys of
 #3421 (the production and internal-test import of `api/enrollment`, and the
@@ -655,7 +667,7 @@ byte-identical, and the composition surface stays at 591.
   routes' own decoded values over Enrollment's public `Request` and
   `CareOffering`; the catalog administration reaches Care Plan through the new
   `enrollmentCompose.CareOfferingValues` (bound by the free function
-  `services.NewEnrollmentCareOfferingValues`), which serves the same row
+  `api.NewEnrollmentCareOfferingValues`), which serves the same row
   translation as `CareOfferingRows` in the public values. The status, consent
   and phase constants come from the public package.
 - The autofill profile is Enrollment's consumer-owned `GuardianAutofillReader`
@@ -1875,7 +1887,7 @@ statements and transaction boundaries are unchanged; the key count stays at
 542 and no rule was added.
 
 - The catalog reads the Timetable, the School Calendar and Enrollment only
-  through its own ports; `services/care_offering_catalog_composition.go` binds
+  through its own ports; `api/care_plan_offering_catalog.go` binds
   them over the owners' public contracts, the settings service, Enrollment's
   translation rules and the Timetable owner's offering-source refusal
   (`timetable.ErrOfferingSourceInvalid`), which the catalog therefore never
@@ -1930,7 +1942,7 @@ count falls from 542 to 540 and no rule was added.
 
 - The materialization writes `activities.student_enrollments` and reconciles
   `schedule.instance_students` through ports that
-  `services/booking_materialization_composition.go` binds to the Timetable
+  `api/care_plan_booking_materialization.go` binds to the Timetable
   owner's `StudentEnrollmentCommand` and roster maintenance, the way
   `NewCareLifecycle` already works. It reads Enrollment's requests, children,
   phases, booked selections and the approved-booking projection, People
@@ -3569,12 +3581,11 @@ where ADR 0053 point 8 puts it:
 - **Callers in `services`** keep private copies of the Student Presence
   roots, the presence rules and the partial-absence preview in
   `timetable.go` (#4009), of the session directories and the session device
-  directory in `command_roots.go` and `cleanup_composition.go` (#4013), of
-  the partial-absence blocks in `pickup_excusal.go` (#4011) and of
+  directory in `command_roots.go` and `cleanup_composition.go` (#4013), and of
   `stringValue` in `enrollment_report_composition.go` (#4012). The root's
   Care Plan exception directory (`api/care_plan_exception_directory.go`)
-  duplicates `services`' `pickupExceptionDirectory` until #4011. They leave
-  with those builders.
+  is also used by Care Plan after #4011; only the command roots keep a
+  private `pickupExceptionDirectory` until #4013. They leave with those builders.
 
 The Device Fleet session device directory binds a Student Presence port, so it
 is root glue and its legacy tree keeps its budget. No key is added or removed
@@ -3636,7 +3647,7 @@ Student Presence roots directly. Their private copies in `services/timetable.go`
 and `services/student_presence_roots.go` are gone; only the session and
 retention cleanup callers retain private roots in `command_roots.go` until
 #4013. Both migrations' owner boundaries remain in place. The combined
-composition surface is 233 (236 on development), with 39 legacy keys. The
+composition surface is 231 after merging #4010 (233 before that merge), with 39 legacy keys. The
 stale `legacy-composition.module-internal-test.student-presence-public` rule
 is removed because the reminder tests now live in the root.
 
@@ -3646,6 +3657,65 @@ branding the calendar portal binds, because the root may not import an
 owner's application role. The rules `legacy-composition.reminder-compose`
 and `legacy-composition.reminder-ports` became stale and are deleted. No key
 is added or removed (39 → 39), and the policy goes from 1,431 to 1,429 rules.
+
+### Care Plan wiring out of services (#4011)
+
+None of the 45 Care Plan files of #4011 remains in `services`. Each part went
+where ADR 0053 point 8 puts it:
+
+- **The root** (`api`) holds the cross-owner glue: Care Plan's adapters over
+  the People Directory, Timetable, School Calendar, Enrollment, Student
+  Presence, Communication, Delivery, Identity & Access and the Audit Platform,
+  the parent request review policy over Identity & Access
+  (`parent_request_review_policy.go`), and `api/care_plan_wiring.go`, which
+  binds them. The adapters declare narrow ports instead of retained repository
+  types (`TestHandlerLayerRatchet` R1), and the moved care-exit restore is
+  split into helpers to stay under the complexity limit.
+- **The Factory** takes `services.CarePlanWiring` as one new constructor
+  parameter. It carries the adapters over the owners the root composes and
+  bindings the Factory calls with what only it builds: the settings, the Audit
+  trails, the realtime hub, the parent event emitter, the caller context and
+  Care Plan's own services. The Care Plan observer parameter is gone; the root
+  binds the observer into the excused-absence binding. The root builds the
+  companion graph and the review policy where it mounts them, so the Factory
+  fields `Students` and `RequestReviewPolicy` are gone (235 → 233). Without
+  `Students`, People Directory's retained `NewStudentService` was reachable
+  only from tests and is deleted. Care Plan's composition gains
+  `NewCareOfferings`, the one capability over the catalog, the booking
+  materialization, the offering changes and the pickup adjustments.
+- **Decisions** (ADR 0053 point 4). The pickup auto-excusal resync was the
+  only tenant transaction in `services`. `ResyncFutureExceptions` now takes
+  the students and opens or joins Care Plan's own unit of work. It writes Care
+  Plan's pickup exceptions, and Student Presence's attendance and Timetable's
+  pickup extensions only through Care Plan's existing ports
+  (`PartialAbsenceBlocks`, `PickupExtensions`), the same ports every Care Plan
+  excusal command writes through, so it stays in Care Plan rather than
+  becoming a workflow. The student lock order of the weekly pickup approval is
+  Care Plan's `LockWeeklyPickupStudents` behind the consumer-owned port
+  `PickupStudentLocks`; the root binds it to the People Directory and reports
+  `ErrStudentNotFound` as not found, which Care Plan skips.
+- **Callers in `services`** keep the helpers they still call:
+  `EnrollmentBookingProjection` in `enrollment_bookings.go`, the booking and
+  settings adapters, the request ledger and the request messenger in
+  `offering_change_composition.go` (#4012), the parent-portal repositories in
+  `owner_roots.go` (#4013), `pickupExceptionDirectory` in
+  `command_roots.go` (#4013), and `CareRequestStaff`
+  next to the caller context in `factory.go`. The root calls the exported
+  ones.
+
+Delivery's composition exposes `AbsenceNotifier` and `AbsenceReport`, because
+the root may not import Delivery's application role. The enrollment route
+suites no longer import `services`, so the rule
+`enrollment.http-integration-test.legacy-composition` became stale and is
+deleted (1,429 → 1,428 rules). No key is added or removed (39 → 39), and the
+Care Plan pass-through budget stays at 111.
+
+After merging #4010, both `PresenceWiring` and `CarePlanWiring` remain root
+inputs. The obsolete manual partial-absence repository is gone, and the
+command roots keep the exception adapter they still call until #4013. The
+combined composition surface is 231. The parent-portal decision tests no
+longer import `services`, so `parent-portal.decision-test.legacy-composition.compose`
+is also stale and removed (1,427 → 1,426 rules).
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

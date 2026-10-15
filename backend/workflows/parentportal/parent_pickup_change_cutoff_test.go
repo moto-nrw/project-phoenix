@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/services"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,8 +50,8 @@ type cutoffServiceDeps struct {
 func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	t.Helper()
 	var base parentportalcompose.Dependencies
-	pinToday := services.WithCareRequestToday(func() timezone.Date { return cutoffToday })
-	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []services.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
+	pinToday := api.WithCareRequestToday(func() timezone.Date { return cutoffToday })
+	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []api.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
 		base = *cfg
 	})
 	return cutoffServiceDeps{db: db, repos: repos, base: base}

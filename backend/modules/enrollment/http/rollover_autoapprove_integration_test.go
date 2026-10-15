@@ -20,7 +20,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -63,7 +62,7 @@ func setupAutoApproveIntegrationEnvWithSettings(
 		GuardianProfiles:  repoFactory.GuardianProfile,
 		GuardianAccess:    testGuardianAccess(env.db),
 		StudentEnrollment: testStudentEnrollment(env.db),
-		Companions:        services.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:        api.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:  repoFactory.CarePlan().DeleteCompanionEdges,
 		StudentAudit:      api.NewEnrollmentFlowStudentAudit(testpkg.NewDatabase(t, env.db), testpkg.RequestAuditActor),
 		FrontendURL:       "http://localhost:3000",

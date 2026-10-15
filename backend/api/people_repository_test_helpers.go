@@ -57,8 +57,8 @@ type PeopleRepositorySuiteFactory struct {
 
 	CareWithdrawal           usersModels.CareWithdrawalCompletionRepository
 	StudentDataChangeRequest usersModels.StudentDataChangeRequestRepository
-	StudentStatusDay         *services.StudentStatusDayRepository
-	ExcusedAbsenceRequest    *services.ExcusedAbsenceRequestRepository
+	StudentStatusDay         *StudentStatusDayRepository
+	ExcusedAbsenceRequest    *ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
 	GroupSupervisor          studentpresence.SupervisionRecords
 	CrossTenant              CrossTenantQuery
@@ -157,10 +157,10 @@ func newPeopleRepositorySuiteFactory(db transactionruntime.Database, deps Timeta
 		CaregiverBindingLock:     NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability),
 		RFIDCard:                 identity,
 		Profile:                  identity,
-		CareWithdrawal:           services.NewCareWithdrawalCompletionRepository(carePlan),
-		StudentDataChangeRequest: services.NewStudentDataChangeRequestRepository(carePlan),
-		StudentStatusDay:         services.NewStudentStatusDayRepository(carePlan),
-		ExcusedAbsenceRequest:    services.NewExcusedAbsenceRequestRepository(carePlan),
+		CareWithdrawal:           NewCareWithdrawalCompletionRepository(carePlan),
+		StudentDataChangeRequest: NewStudentDataChangeRequestRepository(carePlan),
+		StudentStatusDay:         NewStudentStatusDayRepository(carePlan),
+		ExcusedAbsenceRequest:    NewExcusedAbsenceRequestRepository(carePlan),
 		ActiveGroup:              sessions,
 		GroupSupervisor:          NewGroupSupervisionRecords(sessions, deps.Groups),
 		CrossTenant:              NewCrossTenantQuery(presence, deps.Students, deps.Groups),
@@ -203,7 +203,7 @@ func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Databa
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
 func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) usersModels.StudentCompanionRepository {
-	return services.NewStudentCompanionRepository(capability)
+	return NewStudentCompanionRepository(capability)
 }
 
 // NewPeopleRepositorySuiteCompanionEdge validates one companion edge.

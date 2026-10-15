@@ -34,7 +34,7 @@ type OfferingChangeInputs struct {
 	Enrollment  offeringChangeEnrollmentReads
 	Students    usersModels.StudentRepository
 	Withdrawals usersModels.CareWithdrawalCompletionRepository
-	Settings    offeringChangeSettingsReads
+	Settings    OfferingChangeSettingsReads
 	Planning    carePlanCompose.OfferingChangePlanning
 	Bookings    careplan.BookingMaterializationCapability
 	Reviews     offeringChangeReviewPolicy
@@ -57,7 +57,7 @@ func NewOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCap
 	}
 	var ledger carePlanCompose.RequestLedger
 	if inputs.Events != nil {
-		ledger = newParentRequestLedger(inputs.Events)
+		ledger = NewParentRequestLedger(inputs.Events)
 	}
 	var catalog carePlanCompose.OfferingChangeCatalog = inputs.CarePlan
 	if inputs.Catalog != nil {
@@ -68,7 +68,7 @@ func NewOfferingChanges(inputs OfferingChangeInputs) (careplan.OfferingChangeCap
 		Catalog:    catalog,
 		Enrollment: offeringChangeEnrollment{owner: inputs.Enrollment},
 		Students:   offeringChangeStudents{students: inputs.Students, withdrawals: inputs.Withdrawals},
-		Settings:   offeringChangeSettings{bookingSettings{settings: inputs.Settings}, inputs.Settings},
+		Settings:   OfferingChangeSettings{BookingSettings{Settings: inputs.Settings}, inputs.Settings},
 		Planning:   inputs.Planning,
 		Bookings:   inputs.Bookings,
 		Scope:      offeringChangeReviewScope(inputs.Reviews, inputs.Permissions),
@@ -391,12 +391,12 @@ func (e offeringChangeEnrollment) Phase(ctx context.Context, id int64) (*carePla
 	if err != nil || phase == nil {
 		return nil, err
 	}
-	return &carePlanCompose.BookingPhase{OfferingPhase: bookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
+	return &carePlanCompose.BookingPhase{OfferingPhase: BookingOfferingPhase(phase), CareOfferingSelectionMode: phase.CareOfferingSelectionMode}, nil
 }
 
 func (e offeringChangeEnrollment) SelectionsAt(ctx context.Context, childID int64, on calendar.Date) ([]careplan.BookedOffering, error) {
 	values, err := e.owner.RequestChildOfferingsAtDate(ctx, childID, enrollmentOwner.Date(on))
-	return bookedOfferings(values), err
+	return BookedOfferings(values), err
 }
 
 func (e offeringChangeEnrollment) EffectiveSelectionsAt(ctx context.Context, dates map[int64]calendar.Date) ([]careplan.BookedOffering, error) {
@@ -405,7 +405,7 @@ func (e offeringChangeEnrollment) EffectiveSelectionsAt(ctx context.Context, dat
 		ownerDates[childID] = enrollmentOwner.Date(date)
 	}
 	values, err := e.owner.EffectiveOfferingSelectionsAtDates(ctx, ownerDates)
-	return bookedOfferings(values), err
+	return BookedOfferings(values), err
 }
 
 func (e offeringChangeEnrollment) CatalogState(ctx context.Context, phaseID, childID int64, on, until calendar.Date) (carePlanCompose.OfferingCatalogState, error) {
@@ -413,7 +413,7 @@ func (e offeringChangeEnrollment) CatalogState(ctx context.Context, phaseID, chi
 	if err != nil || state == nil {
 		return carePlanCompose.OfferingCatalogState{}, err
 	}
-	return carePlanCompose.OfferingCatalogState{Current: bookedOfferings(state.Current), CapacityPeaks: state.CapacityPeaks}, nil
+	return carePlanCompose.OfferingCatalogState{Current: BookedOfferings(state.Current), CapacityPeaks: state.CapacityPeaks}, nil
 }
 
 func (e offeringChangeEnrollment) CapacityPeak(ctx context.Context, offeringID int64, excludeChildIDs []int64, from, until calendar.Date) (int, error) {
@@ -461,36 +461,208 @@ func offeringReviewStudent(row *usersModels.Student) *carePlanCompose.ReviewStud
 	return student
 }
 
-type offeringChangeSettingsReads interface {
+type OfferingChangeSettingsReads interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ResolveString(ctx context.Context, key string) (string, error)
 }
 
-// offeringChangeSettings resolves the tenant settings offering changes and
+// OfferingChangeSettings resolves the tenant settings offering changes and
 // pickup adjustments obey.
-type offeringChangeSettings struct {
-	bookingSettings
-	reads offeringChangeSettingsReads
+type OfferingChangeSettings struct {
+	BookingSettings
+	Reads OfferingChangeSettingsReads
 }
 
-func (s offeringChangeSettings) OfferingChangesEnabled(ctx context.Context) (bool, error) {
-	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentOfferingChangesEnabled)
+func (s OfferingChangeSettings) OfferingChangesEnabled(ctx context.Context) (bool, error) {
+	return s.Reads.ResolveBool(ctx, configModels.KeyEnrollmentOfferingChangesEnabled)
 }
 
-func (s offeringChangeSettings) CourseRequestsEnabled(ctx context.Context) (bool, error) {
-	return s.reads.ResolveBool(ctx, configModels.KeyEnrollmentParentCourseRequestsEnabled)
+func (s OfferingChangeSettings) CourseRequestsEnabled(ctx context.Context) (bool, error) {
+	return s.Reads.ResolveBool(ctx, configModels.KeyEnrollmentParentCourseRequestsEnabled)
 }
 
-func (s offeringChangeSettings) OfferingChangeLeadDays(ctx context.Context) (string, error) {
-	return s.reads.ResolveString(ctx, configModels.KeyEnrollmentOfferingChangesLeadDays)
+func (s OfferingChangeSettings) OfferingChangeLeadDays(ctx context.Context) (string, error) {
+	return s.Reads.ResolveString(ctx, configModels.KeyEnrollmentOfferingChangesLeadDays)
 }
 
-func (s offeringChangeSettings) PickupOfferingReviewRequired(ctx context.Context) (bool, error) {
-	return s.reads.ResolveBool(ctx, configModels.KeyRequirePickupOfferingReview)
+func (s OfferingChangeSettings) PickupOfferingReviewRequired(ctx context.Context) (bool, error) {
+	return s.Reads.ResolveBool(ctx, configModels.KeyRequirePickupOfferingReview)
 }
 
 // offeringChangeDatabaseError keeps the error text of the retained request
 // repository.
 func offeringChangeDatabaseError(op string, err error) error {
 	return fmt.Errorf("database error during %s: %w", op, err)
+}
+
+// errParentRequestEventIncomplete refuses a ledger entry that cannot name its
+// request.
+var errParentRequestEventIncomplete = errors.New("parent request event: student, request and event type are required")
+
+// ParentRequestLedger is the one append-only history of every parent request
+// (#2267), shared by all four queues so a request's history survives the
+// edits, decisions and corrections that overwrite the request rows. People
+// Directory owns users.parent_request_events; the queues record through
+// their consumer-owned ledger ports, inside the ambient transaction of the
+// change an entry describes, so an event can never survive a rolled-back
+// write and a committed write can never miss its event.
+//
+// A nil ledger records nothing, which is what graphs without a ledger need.
+type ParentRequestLedger struct {
+	repo ParentRequestEvents
+}
+
+// ParentRequestEvents is People Directory's users.parent_request_events
+// trail the ledger appends to and reads a request's history from.
+type ParentRequestEvents interface {
+	Create(ctx context.Context, event *usersModels.ParentRequestEvent) error
+	ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*usersModels.ParentRequestEvent, error)
+}
+
+var _ carePlanCompose.RequestLedger = (*ParentRequestLedger)(nil)
+
+// Record appends one entry. The entry's version is the request row's
+// updated_at AFTER the event, so a reader can tell which version was acted
+// on.
+func (l *ParentRequestLedger) Record(ctx context.Context, entry carePlanCompose.RequestLedgerEntry) error {
+	if l == nil {
+		return nil
+	}
+	if entry.StudentID <= 0 || entry.RequestID <= 0 || entry.RequestType == "" || entry.EventType == "" {
+		return errParentRequestEventIncomplete
+	}
+	event := &usersModels.ParentRequestEvent{
+		StudentID:   entry.StudentID,
+		RequestType: entry.RequestType,
+		RequestID:   entry.RequestID,
+		EventType:   entry.EventType,
+		Version:     careplan.ParentRequestVersion(entry.UpdatedAt),
+		Payload:     entry.Payload,
+	}
+	if entry.ActorAccountID > 0 {
+		actor := entry.ActorAccountID
+		event.ActorAccountID = &actor
+	}
+	return l.repo.Create(ctx, event)
+}
+
+// ListForRequest returns one request's history oldest first.
+func (l *ParentRequestLedger) ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*usersModels.ParentRequestEvent, error) {
+	if l == nil {
+		return nil, nil
+	}
+	return l.repo.ListForRequest(ctx, requestType, requestID)
+}
+
+// NewParentRequestLedger is the request ledger over repo; a nil repo
+// records nothing.
+func NewParentRequestLedger(repo ParentRequestEvents) *ParentRequestLedger {
+	if repo == nil {
+		return nil
+	}
+	return &ParentRequestLedger{repo: repo}
+}
+
+// excusedRequestMessenger maps the workflow's request events onto the
+// Communication parent-event emitter.
+type excusedRequestMessenger struct {
+	emitter *communicationCompose.ParentEventEmitter
+}
+
+func (m excusedRequestMessenger) EnqueueRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, event carePlanCompose.RequestEvent) error {
+	return m.emitter.EnqueueRequestDecision(ctx, tenantID, studentID, guardianAccountID, childEvent(event))
+}
+
+func (m excusedRequestMessenger) EmitChildEvent(tenantID, studentID, guardianAccountID int64, event carePlanCompose.RequestEvent) {
+	m.emitter.EmitChildEvent(tenantID, studentID, guardianAccountID, childEvent(event))
+}
+
+func (m excusedRequestMessenger) BroadcastChildUpdateToGuardians(tenantID, studentID int64) {
+	m.emitter.BroadcastChildUpdateToGuardians(tenantID, studentID)
+}
+
+func (m excusedRequestMessenger) GuardianHasChildAccess(ctx context.Context, studentID, guardianAccountID int64) (bool, error) {
+	return m.emitter.GuardianHasChildAccess(ctx, studentID, guardianAccountID)
+}
+
+func (m excusedRequestMessenger) ResolveDecisionAudience(ctx context.Context, studentID, submitterAccountID int64, sharedAccountIDs []int64) (carePlanCompose.DecisionAudience, error) {
+	audience, err := m.emitter.ResolveDecisionAudience(ctx, studentID, submitterAccountID, sharedAccountIDs)
+	return carePlanCompose.DecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, err
+}
+
+func (m excusedRequestMessenger) EmitDecisionAudience(tenantID, studentID int64, audience carePlanCompose.DecisionAudience, full, neutral carePlanCompose.RequestEvent) {
+	m.emitter.EmitDecisionAudience(tenantID, studentID, communicationCompose.ParentDecisionAudience{Full: audience.Full, Neutral: audience.Neutral}, childEvent(full), childEvent(neutral))
+}
+
+func childEvent(event carePlanCompose.RequestEvent) communicationCompose.ParentChildEvent {
+	result := communicationCompose.ParentChildEvent{
+		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID, Body: event.Body,
+		RequestType: event.RequestType, RequestStatus: event.RequestStatus, DecisionReason: event.DecisionReason,
+		RefTable: event.RefTable, Payload: event.Payload,
+	}
+	if event.RefID > 0 {
+		refID := event.RefID
+		result.RefID = &refID
+	}
+	return result
+}
+
+// NewExcusedRequestMessenger maps Care Plan's request events onto the
+// Communication parent-event emitter, for the root's Stammdaten decision.
+func NewExcusedRequestMessenger(emitter *communicationCompose.ParentEventEmitter) carePlanCompose.RequestMessenger {
+	return excusedRequestMessenger{emitter: emitter}
+}
+
+func BookingOfferingPhase(phase *enrollmentOwner.Phase) careplan.OfferingPhase {
+	return careplan.OfferingPhase{
+		ID: phase.ID, Name: phase.Name,
+		ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate),
+	}
+}
+
+func BookedOfferings(values []*enrollmentOwner.RequestChildOffering) []careplan.BookedOffering {
+	if values == nil {
+		return nil
+	}
+	links := make([]careplan.BookedOffering, 0, len(values))
+	for _, value := range values {
+		if value == nil {
+			continue
+		}
+		link := careplan.BookedOffering{
+			RequestChildID: value.RequestChildID, CareOfferingID: value.CareOfferingID,
+			SelectedDays: value.SelectedDays, ManualSelectedDays: value.ManualSelectedDays,
+			AutomaticSelectedDays: value.AutomaticSelectedDays,
+		}
+		if value.ValidFrom != nil {
+			link.ValidFrom = new(calendar.Date(*value.ValidFrom))
+		}
+		if value.ValidUntil != nil {
+			link.ValidUntil = new(calendar.Date(*value.ValidUntil))
+		}
+		links = append(links, link)
+	}
+	return links
+}
+
+type BookingSettingsReads interface {
+	ResolveBool(ctx context.Context, key string) (bool, error)
+}
+
+// BookingSettings resolves the tenant settings; without a settings service
+// the registry defaults apply.
+type BookingSettings struct{ Settings BookingSettingsReads }
+
+func (s BookingSettings) CareOfferingsEnabled(ctx context.Context) (bool, error) {
+	if s.Settings == nil {
+		return true, nil
+	}
+	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentCareOfferingsEnabled)
+}
+
+func (s BookingSettings) BookingsAuthoritative(ctx context.Context) (bool, error) {
+	if s.Settings == nil {
+		return false, nil
+	}
+	return s.Settings.ResolveBool(ctx, configModels.KeyEnrollmentBookingsAuthoritative)
 }

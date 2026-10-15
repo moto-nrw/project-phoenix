@@ -9,7 +9,6 @@ import (
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -62,7 +61,7 @@ func newCompanionSyncApplier(
 		ArrivalSchedules:    repoFactory.EnrollmentArrivalSchedules(),
 		GuardianAccess:      testGuardianAccess(env.db),
 		StudentEnrollment:   testStudentEnrollment(env.db),
-		Companions:          services.NewStudentCompanionRepository(repoFactory.CarePlan()),
+		Companions:          api.NewStudentCompanionRepository(repoFactory.CarePlan()),
 		DeleteCompanions:    repoFactory.CarePlan().DeleteCompanionEdges,
 		Broadcaster:         bc,
 		FrontendURL:         "http://localhost:3000",
@@ -160,7 +159,7 @@ func linkCompanionPartnerOnTuesday(t *testing.T, env *decisionTestEnv, studentID
 
 	edge, err := api.NewStudentCompanionEdge(studentID, partner.ID, 2)
 	require.NoError(t, err)
-	require.NoError(t, api.ReplaceStudentCompanions(ctx, services.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
+	require.NoError(t, api.ReplaceStudentCompanions(ctx, api.NewStudentCompanionRepository(env.repos.CarePlan()), studentID,
 		[]*usersModels.StudentCompanion{edge}))
 
 	if !withOwnNote {
@@ -240,7 +239,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionRefusalSurfacesWithoutRe
 	require.NoError(t, ferr)
 	assert.True(t, usersModels.AccompaniedWeekdays(student.AllowedDepartureModes, student.DepartureDays)[usersModels.PickupDayTuesday],
 		"the refused correction must roll back, leaving the accompanied Tuesday in place")
-	edges, eerr := services.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(ctx, studentID)
+	edges, eerr := api.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(ctx, studentID)
 	require.NoError(t, eerr)
 	require.Len(t, edges, 1, "the refused correction must not drop the link")
 	far, ok := edges[0].Other(studentID)
@@ -291,7 +290,7 @@ func TestDecisionService_SyncApprovedChildData_CompanionEventOnlyOnEffectiveTrim
 		assert.True(t, bc.HasEventType(realtime.EventStudentCompanionsChanged),
 			"Tuesday no longer allows 'Anderes Kind', so the link is gone from the partner's card too")
 
-		edges, err := services.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(testpkg.Ctx(t), studentID)
+		edges, err := api.NewStudentCompanionRepository(env.repos.CarePlan()).ListForStudent(testpkg.Ctx(t), studentID)
 		require.NoError(t, err)
 		assert.Empty(t, edges, "the announced sync must actually have trimmed the link")
 	})

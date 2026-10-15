@@ -652,3 +652,13 @@ func (s *PersonDirectory) FindActiveCaregiverByAccountID(ctx context.Context, ac
 func IsPersonNotFound(err error) bool {
 	return errors.Is(err, userscontract.ErrPersonNotFound)
 }
+
+// translateMissingStudent restates the owner's missing child in the error shape
+// the retained callers branch on: a DatabaseError wrapping base.ErrNotFound and
+// sql.ErrNoRows (userModels.MissingStudentError).
+func translateMissingStudent(op string, err error) error {
+	if !errors.Is(err, userModels.ErrStudentRowMissing) {
+		return err
+	}
+	return userModels.MissingStudentError(op, sql.ErrNoRows)
+}
