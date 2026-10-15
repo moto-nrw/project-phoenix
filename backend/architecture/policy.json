@@ -17390,18 +17390,6 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2750"
     },
     {
-      "id": "test-support.e2e-test.inbound-parent-http",
-      "description": "The calendar end-to-end test drives the staff-to-parent flow through the guardian portal route adapter (#3229). Compatibility permission: convert it to exact debt once the package exists at a base SHA.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-parent",
-      "target_role": "http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2748"
-    },
-    {
       "id": "identity-access.http.public",
       "description": "The operator identity routes call the public Identity & Access capability (#3252).",
       "scopes": [

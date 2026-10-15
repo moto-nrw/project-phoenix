@@ -148,12 +148,12 @@ const (
 	policyTempRulesMarker = "convert it to exact debt"
 
 	// policyTempRulesTotal seeds the count of rules carrying that marker.
-	policyTempRulesTotal = 3
+	policyTempRulesTotal = 2
 
 	// policyTempRulesCompatTotal seeds the wider count: every rule that calls
 	// itself a compatibility permission or a compatibility binding, whether or
 	// not it promises the conversion.
-	policyTempRulesCompatTotal = 50
+	policyTempRulesCompatTotal = 49
 )
 
 // policyTempRulesCompatMarkers are matched case-insensitively against the
@@ -230,8 +230,8 @@ var policyTempRulesFamilies = map[string]int{
 	// #3214, #3218 — closed. #3552 removed the last one with the
 	// template-roster move.
 
-	// #3214, #3218, #3229 — closed.
-	"test-support": 1,
+	// #3214, #3218, #3229 — closed. #2748 removed the last one: the calendar
+	// end-to-end suite mounts the guardian portal through the typed root.
 
 	// #3214, #3218, #3220, #3224 — closed.
 }

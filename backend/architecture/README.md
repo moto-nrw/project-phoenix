@@ -2894,10 +2894,11 @@ reaches of every HTTP point, so [ADR 0051](../../docs/adr/0051-guardian-portal-h
 grants them in epoch 39 as four rules (`inbound-parent.http.inbound-common`,
 `inbound-parent.http.identity-adapter`, `inbound-parent.http.tenant-runtime`,
 `inbound-parent.adapter-test.identity-adapter`), and the module HTTP ORM
-ratchet loses both of the package's entries. `root-composition.to.inbound-parent-http` (#2750) and
-`test-support.e2e-test.inbound-parent-http` (#2748) are still compatibility
-permissions; convert them to exact debt with the rule above under their
-issues. The move replaced
+ratchet loses both of the package's entries. `root-composition.to.inbound-parent-http` (#2750) is
+still a compatibility permission; convert it to exact debt with the rule
+above under its issue. `test-support.e2e-test.inbound-parent-http` is gone
+(#2748): the calendar end-to-end suite mounts the guardian portal through
+`api.CalendarTestModule.ParentCalendarRouter` and no longer names the adapter. The move replaced
 the calendar, push, notification-preference and PWA-usage setters with a
 construction-time `ResourceConfig`, and the auth rate-limiter setter with
 `RouterWithAuthRateLimiter` (the school portal shape), because the
