@@ -154,7 +154,7 @@ func newServiceGraph(in serviceGraphInputs) (*serviceGraph, error) {
 		return nil, err
 	}
 	b := graphBuild{serviceGraphInputs: in, late: &graphLate{}}
-	b.graph.database = in.DB
+	b.graph.settingsRuntimeDB = in.DB
 	stages := []func(graphBuild) (graphBuild, error){
 		composeFoundation, composeMail, composeSettings, composeIdentity, composePeople, composeStudentPhotos,
 		composeTimeTracking, composeCareDays, composePresence, composeActivities,
@@ -178,10 +178,13 @@ func newServiceGraph(in serviceGraphInputs) (*serviceGraph, error) {
 
 // graphBuild carries one composition of the service graph: the inputs, the
 // graph it fills and the values the stages hand on that the graph does not
-// hold. Each stage takes the build so far and returns it extended; nothing
-// is set on a composed service after construction. late holds the values a
-// service composed early reads at call time although a later stage binds
-// them.
+// hold. Each stage takes the build so far and returns it extended instead of
+// setting fields on the graph through a receiver. The binding calls the
+// Factory made on composed services (the decision notices of the parent event
+// emitter, the attachment purger, the care participation, the guardian
+// provider, the class-list audit, the settings guards) stay where they were.
+// late holds the values a service composed early reads at call time although
+// a later stage binds them.
 type graphBuild struct {
 	serviceGraphInputs
 	graph serviceGraph
@@ -473,7 +476,7 @@ func composeIdentity(b graphBuild) (graphBuild, error) {
 		Dispatcher: b.dispatcher, DefaultFrom: b.graph.DefaultFrom, MailIdentity: b.tenantMailIdentity,
 		FrontendURL: b.frontendURL, ParentsURL: b.parentsURL, SchoolURL: b.schoolURL,
 		InvitationExpiry: b.graph.InvitationTokenExpiry, PasswordResetExpiry: b.graph.PasswordResetTokenExpiry,
-		Outbox:      func() platformModels.OutboxResultEnqueuer { return OutboxEnqueuer{Outbox: b.late.emailOutbox} },
+		Outbox:      func() platformModels.OutboxResultEnqueuer { return b.outbox() },
 		EmailStatus: b.late.emailStatus,
 		PersonRows:  people.Persons, StaffRows: people.Staff, TeacherRows: people.Teachers, StudentRows: people.Students,
 		GuardianProfiles: people.GuardianProfiles, StudentGuardians: people.StudentGuardians,

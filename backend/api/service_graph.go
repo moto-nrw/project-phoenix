@@ -94,12 +94,12 @@ func expectedMissingSubstitutionIdentity(err error) bool {
 // serviceGraph holds the retained services the root composes over its owners
 // (#2747). The serving root mounts them; test graphs drive them by name.
 type serviceGraph struct {
-	// database is the root database the settings runtime binds the unit of
-	// work over.
-	database      transactionruntime.Database
-	Audit         *auditCompose.Command
-	Active        studentpresence.Presence
-	ActiveCleanup studentpresence.PresenceCleanup
+	// settingsRuntimeDB is the root database the settings runtime binds the
+	// unit of work over.
+	settingsRuntimeDB transactionruntime.Database
+	Audit             *auditCompose.Command
+	Active            studentpresence.Presence
+	ActiveCleanup     studentpresence.PresenceCleanup
 	// WorkSession is the composed time-tracking side of Workforce (#3413):
 	// the public stamp, session, absence, month, ledger, month-close,
 	// overview, audit-log and export contracts. It replaces the eight

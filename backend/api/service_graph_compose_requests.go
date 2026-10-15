@@ -70,15 +70,16 @@ func composeDelivery(b graphBuild) (graphBuild, error) {
 		return b, fmt.Errorf("invalid VAPID configuration: %w", err)
 	}
 	pushSubscriptions := deliveryCompose.NewPushSubscriptionRepository(b.DB.Pool())
+	tenants := deliveryCompose.NewTenantTransactions(b.DB.Pool())
 	runtime, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: b.DB.Pool(), People: b.Platform.GuardianDisplays(b.graph.Guardian),
 		Provider: &deliveryCompose.MailPushProvider{
 			Registry: deliveryCompose.NewEmailTemplateRegistry(renderers), Mailer: b.mailer, MailIdentity: b.tenantMailIdentity,
 			Push: deliveryCompose.NewWebPushSender(deliveryModule.WebPushConfig{
 				Subscriber: b.vapid.Subscriber, PublicKey: b.vapid.PublicKey, PrivateKey: b.vapid.PrivateKey,
-			}, deliveryCompose.NewExpiredPushSubscriptionCleaner(deliveryCompose.NewTenantTransactions(b.DB.Pool()), pushSubscriptions)),
-			Logger: b.Logger.With("service", "delivery"), Tenants: deliveryCompose.NewTenantTransactions(b.DB.Pool()),
-			PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(deliveryCompose.NewTenantTransactions(b.DB.Pool()), pushSubscriptions),
+			}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, pushSubscriptions)),
+			Logger: b.Logger.With("service", "delivery"), Tenants: tenants,
+			PushAuthorized: deliveryCompose.NewPushAuthorizationChecker(tenants, pushSubscriptions),
 		},
 		Observe: func(observation deliveryModule.Observation) {
 			b.ObserveDurableDelivery(string(observation.Transport), observation.Template, observation.Operation, observation.Duration, observation.Count, observation.Err)
@@ -500,8 +501,8 @@ func (b *graphBuild) calendarDependencies() CalendarDependencies {
 
 // composeParentPortal binds the parents portal workflow and the parent
 // announcements, whose cancellation notices the instance lifecycle
-// publishes (#2601). The photo lifecycle exists only once the root enables
-// it after the graph, so the portal resolves it on use.
+// publishes (#2601). A graph composed without the photo lifecycle hands the
+// portal none.
 func composeParentPortal(b graphBuild) (graphBuild, error) {
 	profiles, err := careplanCompose.NewStudentProfiles(b.DB.Pool(), func(careplanCompose.Observation) {})
 	if err != nil {

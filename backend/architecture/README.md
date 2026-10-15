@@ -3866,8 +3866,11 @@ classified packages below `services/` stay with their owners. The root
   binds the services over the owners the root composed and the wiring it built
   for them (`PeopleWiring`, `PresenceWiring`, `TimetableWiring`,
   `PlatformWiring`, `CarePlanWiring`, `EnrollmentWiring`, `WorkforceWiring`).
-  Each stage takes the build so far and returns it extended, so no service is
-  changed after construction and the composition ratchet reports no setter. A
+  Each stage takes the build so far and returns it extended instead of setting
+  graph fields through a receiver; the binding calls the Factory made on
+  composed services (`WithDecisionNotifications`, `SetAttachmentPurger`,
+  `WireCareParticipation`, `BindGuardianDirectory`, `BindClassListEntries`,
+  `BindSettingsGuards`) stay as they were. A
   value a later stage binds (Delivery's outbox and state, Care Plan's
   participation, the sick cascade, the booking materialization, the
   cancellation notice, the parents portal's sharing rules) sits in one slot the
@@ -3907,8 +3910,10 @@ entry `services.Factory` and the 69 rules only `services` used (1,415 → 1,346
 rules); the epoch stays 44. The baseline goes from 39 to 34: `services -> bun`
 and `services -> tenant` (#2747) and `api -> services`, `cmd -> services` and
 the composition reference `api -> services.Factory` (#2750). The composition
-surface goes from 219 to 127, because `services.Factory` was the last guarded
-central aggregate with fields. `cycles --graph target` is unchanged at 58
+ratchet counts `api.serviceGraph` as a central aggregate and compares a base's
+`services.Factory` fields with it (`relocatedAggregate`), so the moved fields
+stay shrink-only and a new one fails the check. The surface goes from 219 to
+218: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
 owners, 335 edges and one component of 32 members. The caller inventory
 `callers/service-factory-2747.json` (`scripts/backend-service-factory-callers`)
 lists no Go file and no importer of `services` and no declaration or reference

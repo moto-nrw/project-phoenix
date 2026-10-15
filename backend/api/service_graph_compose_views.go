@@ -250,8 +250,8 @@ func composeSettingsWrites(b graphBuild) (graphBuild, error) {
 
 // composeLateWorkflows binds what needs the assembled graph: the #1843 sick
 // cascade, the People Directory's guardian provider (#2663) and the
-// permanent child deletion (#2710), whose photo unlink resolves the photo
-// lifecycle the root enables later.
+// permanent child deletion (#2710), which unlinks a deleted child's photo
+// through the photo lifecycle.
 func composeLateWorkflows(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	cascade, err := shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{

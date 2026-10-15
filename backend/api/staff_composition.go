@@ -112,15 +112,15 @@ func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse 
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *serviceGraph, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
-	exportTransfer, err := newExportTransferModule(svc, db, logger)
+func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, graph *serviceGraph, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+	exportTransfer, err := newExportTransferModule(graph, db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
-	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
-	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
-		return NewStaffMembershipRuntime(svc, db, identity, logger, hooks)
+	capabilities := NewWorkforceAdminCapabilities(graph.Users, graph.StaffDocuments, graph.WorkSession)
+	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(graph.RealtimeHub), exportTransfer, db, logger)
+	return newStaffResource(module, graph.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+		return NewStaffMembershipRuntime(graph, db, identity, logger, hooks)
 	}, staffAdmin, logger), staffAdmin, nil
 }
 
@@ -128,10 +128,10 @@ func newStaffComposition(module schoolMembershipModule.Capability, workforce wor
 // the tenant settings. It is composed HERE rather than alongside the other
 // modules because it needs the settings service, which only exists once the
 // service graph is built.
-func newExportTransferModule(svc *serviceGraph, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
+func newExportTransferModule(graph *serviceGraph, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
-	resolvers, keys := settingsCompose.NewSFTPExportSettings(svc.Settings)
+	resolvers, keys := settingsCompose.NewSFTPExportSettings(graph.Settings)
 	return exportTransferCompose.New(exportTransferCompose.Dependencies{
 		DB: db.Pool(),
 		Settings: exportTransferCompose.Settings{

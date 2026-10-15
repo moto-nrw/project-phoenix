@@ -28,7 +28,7 @@ func (f *serviceGraph) bindTenantRuntime(runtime any) error {
 	if setter, ok := f.Settings.(interface {
 		SetRuntime(settingsCompose.SettingsRuntime)
 	}); ok {
-		settingsRuntime, err := settingsCompose.BindTenantSettingsRuntime(f.database.Pool(), runtime)
+		settingsRuntime, err := settingsCompose.BindTenantSettingsRuntime(f.settingsRuntimeDB.Pool(), runtime)
 		if err != nil {
 			return fmt.Errorf("bind tenant runtime into Settings: %w", err)
 		}
