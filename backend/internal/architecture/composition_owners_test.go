@@ -133,3 +133,56 @@ func TestCompositionSurfaceWithoutPolicyCountsCentralAggregatesOnly(t *testing.T
 		t.Fatalf("no policy names a root package: %v", err)
 	}
 }
+
+// Review of #4095, C3 to C5: a graph of several owners counts whatever form
+// the root gives it — a generic instance, wrapped owner ports, or a struct
+// without a package-level type name.
+func TestCompositionSurfaceCountsEveryFormOfARootGraph(t *testing.T) {
+	t.Parallel()
+	for _, tt := range []struct{ name, candidate, want string }{
+		{"generic instance alias", "type Graph[A, B any] struct { A A; B B }; type Wiring = Graph[alpha.Port, beta.Port]", "production|field|api|Wiring.A"},
+		{"generic instance type", "type Graph[A, B any] struct { A A; B B }; type Wiring Graph[alpha.Port, beta.Port]", "production|field|api|Wiring.B"},
+		{"generic declaration alone", "type A struct { P alpha.Port; Q beta.Port }; type Graph[A, B any] struct { A A; B B }", "production|field|api|A.P"},
+		{"type parameters shadow package types", "type A struct { P alpha.Port; Q beta.Port }; type Graph[A any] struct { First A; Second alpha.Port }", "!production|field|api|Graph.First"},
+		{"embedded owner interfaces", "type A interface { alpha.Port }; type B interface { beta.Port }; type Wiring struct { A A; B B }", "production|field|api|Wiring.A"},
+		{"embedded interface literals", "type Wiring struct { A interface { alpha.Port }; B interface { beta.Port } }", "production|field|api|Wiring.B"},
+		{"port that also embeds an owner port", "type P interface { alpha.Port; Extra() }; type Wiring struct { P P; B beta.Port }", "production|field|api|Wiring.P"},
+		{"anonymous package variable", "var wiring = struct { A alpha.Port; B beta.Port }{}", "production|field|api|wiring.A"},
+		{"typed package variable", "var wiring struct { A alpha.Port; B beta.Port }", "production|field|api|wiring.B"},
+		{"local type", "func root() { type Wiring struct { A alpha.Port; B beta.Port }; _ = Wiring{} }", "production|field|api|root.Wiring.A"},
+		{"local literal", "func root() { w := &struct { A alpha.Port; B beta.Port }{}; _ = w }", "production|field|api|root.w.A"},
+		{"unnamed literal", "func root() any { return struct { A alpha.Port; B beta.Port }{} }", "production|field|api|root.struct1.B"},
+		{"method", "type Root struct{}; func (r *Root) build() { type Wiring struct { A alpha.Port; B beta.Port }; _ = Wiring{} }", "production|field|api|Root.build.Wiring.A"},
+		{"local generic instance", "type Graph[A, B any] struct { A A; B B }; func root() { type Wiring = Graph[alpha.Port, beta.Port]; _ = Wiring{} }", "production|field|api|root.Wiring.A"},
+		{"anonymous struct in a named type", "type registry map[string]struct { A alpha.Port; B beta.Port }", "production|field|api|registry.struct1.A"},
+		{"single-owner local graph", "func root() { type Wiring struct { A alpha.Port; B alpha.Service }; _ = Wiring{} }", ""},
+		{"function type parameter", "func root[T any]() { type Wiring struct { A alpha.Port; T T }; _ = Wiring{} }", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo, _ := ratchetRepository(t, legacyRecord(2583))
+			path := filepath.Join(repo, "api", "wiring.go")
+			writeFile(t, path, compositionOwnerImports)
+			runGit(t, repo, "add", ".")
+			runGit(t, repo, "commit", "-qm", "composition base")
+			base := strings.TrimSpace(runGit(t, repo, "rev-parse", "HEAD"))
+			writeFile(t, path, compositionOwnerImports+tt.candidate+"\n")
+			policy := ownerFixturePolicy(compositionOwnerClassification)
+			err := CompareCompositionSurface(repo, base, policy, policy)
+			switch {
+			case tt.want == "":
+				if err != nil {
+					t.Fatal(err)
+				}
+			case strings.HasPrefix(tt.want, "!"):
+				if err != nil && strings.Contains(err.Error(), tt.want[1:]) {
+					t.Fatalf("unexpected %q in %v", tt.want[1:], err)
+				}
+			default:
+				if err == nil || !strings.Contains(err.Error(), tt.want) {
+					t.Fatalf("want %q, got %v", tt.want, err)
+				}
+			}
+		})
+	}
+}

@@ -1043,9 +1043,14 @@ It counts:
   `services.Factory`;
 - setters, assignments to the dependency fields of a receiver or pointer
   parameter after construction;
-- since #4071, every field of every package-level struct a
-  `root-composition` package (`.`, `api`, `cmd`, read from `policy.json`)
-  declares that holds values of several owners (ADR 0059 point 1).
+- since #4071, every field of every struct a `root-composition` package
+  (`.`, `api`, `cmd`, read from `policy.json`) declares that holds values of
+  several owners (ADR 0059 point 1): package-level struct types, instances of
+  a generic root struct (`type Wiring = Graph[alpha.Port, beta.Port]`), and
+  structs without a package-level name, that is anonymous struct variables and
+  literals and types declared in a function. Those are keyed by the enclosing
+  declaration and their local name or position (`root.Wiring.A`,
+  `root.struct1.A`).
 
 A struct holds values of several owners when its fields hold values of at
 least two owners other than the root. A field holds a value of owner O when
@@ -1053,16 +1058,19 @@ its type, after unwrapping pointers, slices, arrays, maps, channels and type
 arguments, names a type declared in a package `policy.json` assigns to O. The
 root's own structs, aliases and defined types are followed into their
 declaration, so wrapping owners into a local struct does not hide them. A
-function or interface type literal and a named interface the root declares are
-its own ports and hold no owner value. Owners of the `kernel` kind are shared
-vocabulary and do not count; an internal package without classification counts
-as an owner of its own. Base and candidate are classified with both the base
-and the candidate policy, and a struct counts when either sees two owners, so a
-reclassification cannot drop a struct the base counts.
-`internal/architecture/composition_owners_test.go` pins the definition.
+type argument is a value its instance holds; type parameters hold none. A
+function type and the own methods of an interface are ports of the root and
+hold no owner value, but an interface that embeds a named interface holds what
+that one holds: a wrapper around another owner's port keeps its origin. Owners
+of the `kernel` kind are shared vocabulary and do not count; an internal
+package without classification counts as an owner of its own. Base and
+candidate are classified with both the base and the candidate policy, and a
+struct counts when either sees two owners, so a reclassification cannot drop a
+struct the base counts. `internal/architecture/composition_owners_test.go`
+pins the definition.
 
-On development `c49b81c3a9` the surface rose from 139 to 1,729 keys when #4071
-added the root structs: 191 structs with 1,681 fields, among them
+On development `c49b81c3a9` the surface rose from 139 to 1,732 keys when #4071
+added the root structs: 192 structs with 1,684 fields, among them
 `serviceGraph` (91), `graphBuild` (46), `PeopleWiring` (40),
 `serviceGraphInputs` (38), `IdentityMaterial` (33) and the other `*Wiring`,
 `*Sources` and `*Inputs` structs. That rise is the purpose of the measurement,
@@ -1073,16 +1081,30 @@ owners. From here it only falls.
 ### Source ratchet budgets
 
 The ratchet tests in `test/*ratchet*_test.go` keep their budgets and
-allowlists as Go literals. PR mode reads them at the base commit and rejects a
-raise (ADR 0057 point 5): every top-level integer constant (a threshold or a
-register total), every value of a top-level `map[string]int` literal and its
-sum, so a new key cannot add what an existing one may not, and the entry count
-of a top-level `map[string]string` exception register. Declarations are
-compared by name across the files. A new register has no base and starts the
-measurement; other literals (selector sets, scanned directories) are not
-compared. A raise passes only when the comment on the raised entry, or on its
-declaration, cites an ADR (`ADR 0123`) whose file this change adds under
-`docs/adr/`. `internal/architecture/ratchet_budgets_test.go` pins the rules.
+allowlists in Go declarations. PR mode reads them at the base commit and
+rejects a raise (ADR 0057 point 5). The measurements, compared by name across
+the files of the package:
+
+- every top-level integer constant (a threshold or a register total);
+- every value of a top-level `map[string]int` register and its sum, so a new
+  key cannot add what an existing one may not;
+- the entry count of a top-level `map[string]string` exception register.
+
+Values are Go constant expressions, evaluated with `go/constant`: literals,
+parentheses, operators, conversions, `iota` and references to other constants;
+a register may have a named map type. A base measurement whose candidate
+declaration cannot be evaluated is an error. A base measurement may not
+disappear either, also not by moving it out of the ratchet files: it stays,
+its register was empty, or the candidate declaration of the same kind that
+replaces it says `renamed from <old name>` in its comment and is compared with
+the old values. A new declaration has no base and starts a measurement; other
+literals (selector sets, scanned directories) are not compared.
+
+A raise or a disappearance passes only under an ADR the change adds: the
+comment on the raised entry or its declaration, or for a disappearance any
+comment naming the old declaration, cites `ADR 0123`, and the base has no ADR
+with that number. Renaming or copying an existing ADR file authorizes nothing.
+`internal/architecture/ratchet_budgets_test.go` pins the rules.
 
 ### Converting temporary permissions to exact debt
 
