@@ -32,11 +32,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
-	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
-	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
@@ -50,6 +47,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
 	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
+	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
@@ -98,6 +96,7 @@ import (
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
@@ -115,6 +114,7 @@ import (
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
+	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 )
 
 // recordHTTPRuntimeEvent turns one runtime event into a metric and, for
@@ -1806,11 +1806,11 @@ func mountCommunicationRoutes(tenant chi.Router, in routeInputs) {
 	tenant.Mount("/messages", messagingAPI.NewResource(svc.Messaging).Router())
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(svc.ParentAnnouncement, newDeclarationReports()).Router())
 	// Visual-only staff reminders (#1457).
-	tenant.Mount("/reminders", remindersAPI.NewResource(svc.Reminders, reminderCompose.HTTPRuntime()).Router())
+	tenant.Mount("/reminders", remindersHTTP.NewResource(svc.Reminders, reminderCompose.HTTPRuntime()).Router())
 	// PWA standalone-usage reporting (#2189).
 	tenant.Mount("/pwa", pwaUsageRouter(svc.PWAUsage))
 	// User-facing platform announcements.
-	tenant.Mount("/platform", platformAPI.NewResource(platformAPI.ResourceConfig{
+	tenant.Mount("/platform", platformAnnouncementsHTTP.NewResource(platformAnnouncementsHTTP.ResourceConfig{
 		AnnouncementsService: in.modules.communication,
 		Runtime:              newPlatformRuntime(),
 	}).Router())
@@ -1974,8 +1974,8 @@ func newParentResource(in routeInputs) *parentAPI.Resource {
 	})
 }
 
-func newPlatformRuntime() platformAPI.Runtime {
-	return platformAPI.Runtime{
+func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
+	return platformAnnouncementsHTTP.Runtime{
 		// TenantMiddleware supplies the scope guard: parent- and school-scope
 		// tokens are rejected with 401 (#2207) — before it, this group was the
 		// only /api mount without a scope check, so a portal-bound token could
@@ -1990,20 +1990,20 @@ func newPlatformRuntime() platformAPI.Runtime {
 				register(r)
 			})
 		},
-		Viewer: func(r *http.Request) platformAPI.Viewer {
+		Viewer: func(r *http.Request) platformAnnouncementsHTTP.Viewer {
 			claims := sessiontoken.ClaimsFromCtx(r.Context())
-			return platformAPI.Viewer{AccountID: int64(claims.ID), Roles: claims.Roles, TenantID: claims.TenantID, OrgID: claims.OrgID}
+			return platformAnnouncementsHTTP.Viewer{AccountID: int64(claims.ID), Roles: claims.Roles, TenantID: claims.TenantID, OrgID: claims.OrgID}
 		},
 		IDParam: apiCommon.ParseInt64IDWithError,
 		Success: apiCommon.Respond,
-		Failure: func(w http.ResponseWriter, r *http.Request, failure platformAPI.Failure) {
+		Failure: func(w http.ResponseWriter, r *http.Request, failure platformAnnouncementsHTTP.Failure) {
 			apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap(failure.Message, failure.Err))
 		},
 	}
 }
 
-func requireHomeLayoutOperations(settings any) configAPI.HomeLayoutOperations {
-	homeLayouts, ok := settings.(configAPI.HomeLayoutOperations)
+func requireHomeLayoutOperations(settings any) settingsHTTP.HomeLayoutOperations {
+	homeLayouts, ok := settings.(settingsHTTP.HomeLayoutOperations)
 	if !ok {
 		panic("settings platform does not provide home layout operations")
 	}
@@ -2226,15 +2226,12 @@ func newMealPlanExportRenderer() SimpleListRenderer {
 	return NewSimpleListRenderer()
 }
 
-// newSessionTokenAuth resolves the signing configuration once for the API root.
+// newSessionTokenAuth hands the signing configuration to Identity's
+// composition, which builds the HTTP session runtime (ADR 0053 point 6).
 func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
-	tokenAuth, err := sessiontoken.NewTokenAuthWithDurations(
+	return identityaccessCompose.NewConfiguredSessionAuth(
 		viper.GetString("auth_jwt_secret"),
 		viper.GetDuration("auth_jwt_expiry"),
 		viper.GetDuration("auth_jwt_refresh_expiry"),
 	)
-	if err != nil {
-		return nil, fmt.Errorf("invalid auth JWT configuration: %w", err)
-	}
-	return tokenAuth, nil
 }

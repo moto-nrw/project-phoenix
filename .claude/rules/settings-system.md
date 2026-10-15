@@ -34,7 +34,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 | `services/config/settings_service.go` | Resolve, SetValue, ResetValue, validation |
 | `services/config/schema_builder.go` | Builds schema response for frontend (tabs are dynamic — built from whatever definitions declare) |
 | `database/repositories/config/` | DB access (setting_values + setting_audit) |
-| `api/config/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}, GET /values/{key}/reveal for passwords) |
+| `modules/settings/http/settings_api.go` | HTTP handlers (GET /schema, PUT/DELETE /values/{key}, GET /values/{key}/reveal for passwords) |
 | `frontend/src/lib/settings-api.ts` | Frontend API client + TypeScript types |
 | `frontend/src/components/settings/` | Settings page, field components, auto-save (plus hand-written exceptions: `personalization-tab.tsx`, `enrollment-link-panel.tsx`) |
 | `frontend/src/app/api/settings/` | Next.js proxy routes to backend (key regex `/^[a-z0-9_.]{1,255}$/`) |

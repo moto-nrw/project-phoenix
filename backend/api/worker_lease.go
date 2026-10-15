@@ -7,10 +7,10 @@ import (
 	"sync/atomic"
 	"time"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The Worker lease (#2726). A crashed leader is replaced after at most
@@ -26,7 +26,7 @@ const (
 // newWorkerLease binds the Worker's leadership to platform.worker_leases.
 // Every process gets a holder ID of its own, so a restarted process never
 // resumes the term of its predecessor.
-func newWorkerLease(runtime apiCommon.TenantRuntime) (scheduler.WorkerLease, error) {
+func newWorkerLease(runtime tenant.UnitOfWork) (scheduler.WorkerLease, error) {
 	store, err := schedulerRuntimeCompose.NewWorkerLeaseStore(runtime)
 	if err != nil {
 		return scheduler.WorkerLease{}, err

@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 44,
+  "policy_epoch": 46,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -167,10 +167,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-config",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-database",
       "kind": "inbound"
     },
@@ -236,18 +232,6 @@
     },
     {
       "id": "inbound-parent",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-platform",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-pwa",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-reminders",
       "kind": "inbound"
     },
     {
@@ -753,7 +737,7 @@
     {
       "path": "analytics",
       "owner": "observability",
-      "role": "adapter",
+      "role": "http",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -828,8 +812,8 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/config",
-      "owner": "inbound-config",
+      "path": "modules/settings/http",
+      "owner": "settings-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -954,22 +938,22 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/platform",
-      "owner": "inbound-platform",
+      "path": "modules/communication/http/platformannouncements",
+      "owner": "communication",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/pwa",
-      "owner": "inbound-pwa",
+      "path": "modules/delivery/http/pwa",
+      "owner": "delivery-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/reminders",
-      "owner": "inbound-reminders",
+      "path": "workflows/reminderdelivery/http",
+      "owner": "reminder-delivery",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -1425,7 +1409,7 @@
     {
       "path": "middleware",
       "owner": "tenant-runtime",
-      "role": "adapter",
+      "role": "http",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -7045,13 +7029,13 @@
     },
     {
       "id": "reminder-delivery.compose.http",
-      "description": "Reminder composition binds its inbound HTTP adapter.",
+      "description": "Reminder composition binds its own HTTP adapter (#4064).",
       "scopes": [
         "production"
       ],
       "source_owner": "reminder-delivery",
       "source_role": "compose",
-      "target_owner": "inbound-reminders",
+      "target_owner": "reminder-delivery",
       "target_role": "http"
     },
     {
@@ -7095,17 +7079,6 @@
       "source_owner": "reminder-delivery",
       "source_role": "compose",
       "target_class": "http-router"
-    },
-    {
-      "id": "reminder-delivery.adapter-test.http",
-      "description": "Reminder contract tests exercise the production HTTP adapter.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "reminder-delivery",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-reminders",
-      "target_role": "http"
     },
     {
       "id": "reminder-delivery.adapter-test.identity",
@@ -8666,12 +8639,12 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-reminders.to.reminder-delivery",
-      "description": "inbound-reminders calls exactly one public capability.",
+      "id": "reminder-delivery.http.public",
+      "description": "The staff reminder route calls the public reminder query of its own workflow (#4064).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-reminders",
+      "source_owner": "reminder-delivery",
       "source_role": "http",
       "target_owner": "reminder-delivery",
       "target_role": "public"
@@ -11581,17 +11554,6 @@
         "production"
       ],
       "source_owner": "inbound-operator",
-      "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-platform.to.communication",
-      "description": "Staff platform-announcement HTTP handlers call the Communication facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-platform",
       "source_role": "http",
       "target_owner": "communication",
       "target_role": "public"
@@ -16871,7 +16833,7 @@
     },
     {
       "id": "communication.http.public",
-      "description": "The operator announcement routes call the public Communication capability (#3232).",
+      "description": "The operator announcement routes (#3232) and the user-facing platform announcement routes (#4064) call the public Communication capability.",
       "scopes": [
         "production"
       ],
@@ -19168,6 +19130,18 @@
       "target_role": "contract"
     },
     {
+      "id": "root-composition.reach.platform.http",
+      "description": "ADR 0053 point 2: the typed roots import the http role of every platform owner.",
+      "scopes": [
+        "production",
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "http"
+    },
+    {
       "id": "root-composition.reach.internal-test.platform.contract",
       "description": "ADR 0053 point 2: the internal tests of the typed roots import the contract role of every platform owner.",
       "scopes": [
@@ -19322,6 +19296,70 @@
       "source_role": "module-internal-test",
       "target_owner": "root-composition",
       "target_role": "compose"
+    },
+    {
+      "id": "root-composition.compose.http-router",
+      "description": "ADR 0056: the server root is the HTTP host. It builds the router, sets CORS and runs the HTTP server.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "root-composition.http-host.inbound-common",
+      "description": "ADR 0056: the HTTP host builds the global middleware chain and binds owner failure kinds from the shared HTTP runtime (ADR 0046).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "root-composition.http-host.session-adapter",
+      "description": "ADR 0056: the HTTP host mounts the session middleware and reads claims through the session token adapter, the HTTP session runtime (ADR 0031, ADR 0054).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.internal-test.session-adapter",
+      "description": "ADR 0056: the internal tests of the typed roots put claims on requests through the session token adapter.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_owner": "identity-access",
+      "target_role": "adapter"
+    },
+    {
+      "id": "root-composition.internal-test.cli-config",
+      "description": "ADR 0056: the internal tests of the typed roots drive the commands through the CLI class the commands root uses.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
+      "target_class": "cli-config"
+    },
+    {
+      "id": "root-composition.cli.dev-tools",
+      "description": "ADR 0056: the commands root starts the seeder, the demo and the simulator. Runtime guards keep them off non-dev targets.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "cli",
+      "target_owner": "dev-tools",
+      "target_role": "cli"
     },
     {
       "id": "owner-compose.domain.adapter",

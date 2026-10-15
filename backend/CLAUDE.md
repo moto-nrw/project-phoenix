@@ -40,19 +40,23 @@ Before backend design, implementation, or review:
 2. Put new behavior behind an existing target owner's public capability.
    Dependencies use consumer-owned ports; cross-module writes use application
    workflows; cross-module reads use named tenant-safe projections.
-3. Treat the root's service graph (`api/service_graph*.go`) and broad legacy
-   composition as shrink-only. The Worker receives every dependency in its
-   constructor literal (#2749); API tests build route-sized routers. The root
-   mounts each route resource where it builds it; only the Worker's document
-   sweeps outlive the mount (#2745). The repository Factory and the service
-   Factory are deleted (#2743, #2747): build a retained repository where it is
-   used, in its owner composition.
-   Do not add fields, stages, setters, callers, or wrappers that widen the
-   service graph.
+3. The root holds no service graph (ADR 0059): `api/service_graph*.go` is
+   being dissolved (#4080). Add no fields, stages, setters, late-bound slots or
+   wrappers to it; build what a mount or job needs as local values from owner
+   compositions, in the build order of the acyclic owner graph (ADR 0058). The
+   root mounts each route resource where it builds it (#2745). The Worker
+   receives every dependency in its constructor literal (#2749); API tests
+   build route-sized routers. The repository and service Factories are
+   deleted (#2743, #2747): build a retained repository where it is used, in its
+   owner composition.
 4. Assign new writable data objects to existing target owners in the same diff.
    A new owner requires an architecture decision linked from #2580 first.
-5. Keep temporary dependencies out of target-allowed rules. Remove each legacy
-   edge in the cutover or track that exact edge in an open #2580 subissue.
+5. A policy rule states the target only (ADR 0057). Never write a rule into
+   another owner's `application`, `domain`, `adapter`, `postgres` or `cli`
+   role, onto a foreign `models/*` package, from a platform onto a domain,
+   projection or workflow owner, or one that closes a cycle (ADR 0058). Such a
+   dependency is removed in the cutover or stays an exact `legacy.jsonl` key
+   with an open carrier. Open consolidation work: #4069.
 
 Before completing a backend code change:
 
@@ -74,9 +78,9 @@ legacy damage; they do not define the target module boundary.
 
 **Query budgets (#2940)**: every list endpoint has a scenario in `test/query_budgets.go` and a test that counts its statements with `testpkg.CaptureQueries` and calls `testpkg.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
 
-## Calendar Dates: timezone.Date (MANDATORY)
+## Calendar Dates: calendar.Date (MANDATORY)
 
-Every model field mapped to a `DATE` column MUST be `timezone.Date` (or `*timezone.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
+Every model field mapped to a `DATE` column MUST be `calendar.Date` from `sharedkernel/calendar` (or `*calendar.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `internal/timezone` is only an alias of the same package and is being removed (#4081); new code imports `sharedkernel/calendar`. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
 
 Clock values mapped to PostgreSQL `TIME` must pass through
 `timezone.NormalizeWallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw

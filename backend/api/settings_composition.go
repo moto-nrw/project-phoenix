@@ -7,22 +7,22 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	configAPI "github.com/moto-nrw/project-phoenix/api/config"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
 
-func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *configAPI.SettingsResource {
-	settingsRuntime := configAPI.NewRuntime(configAPI.RuntimeDependencies{
-		Protected: func(r chi.Router, fn func(chi.Router, configAPI.Middleware)) {
+func newSettingsResource(operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
+	settingsRuntime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
+		Protected: func(r chi.Router, fn func(chi.Router, settingsHTTP.Middleware)) {
 			apiCommon.ProtectedTenantRoutes(r, fn)
 		},
-		Permission: func(access configAPI.Access) configAPI.Middleware {
+		Permission: func(access settingsHTTP.Access) settingsHTTP.Middleware {
 			switch access {
-			case configAPI.AccessRead:
+			case settingsHTTP.AccessRead:
 				return apiCommon.RequireConfigRead()
-			case configAPI.AccessManage:
+			case settingsHTTP.AccessManage:
 				return apiCommon.RequireConfigManage()
-			case configAPI.AccessReadOrWrite:
+			case settingsHTTP.AccessReadOrWrite:
 				return apiCommon.RequireConfigReadOrWrite()
 			default:
 				return apiCommon.RequireConfigWrite()
@@ -51,19 +51,19 @@ func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.
 				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServer(err))
 			}
 		},
-		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*configAPI.UploadedFile, error) {
+		ImageUpload: func(w http.ResponseWriter, r *http.Request, field string, maxBody int64) (*settingsHTTP.UploadedFile, error) {
 			file, err := apiCommon.ParseImage(w, r, field, maxBody)
 			if err != nil {
 				return nil, err
 			}
-			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+			return &settingsHTTP.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
 		},
-		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*configAPI.UploadedFile, error) {
+		PDFUpload: func(w http.ResponseWriter, r *http.Request, field string, maxFile, maxBody int64) (*settingsHTTP.UploadedFile, error) {
 			file, err := apiCommon.ParsePDFWithLimits(w, r, field, maxFile, maxBody)
 			if err != nil {
 				return nil, err
 			}
-			return &configAPI.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
+			return &settingsHTTP.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
 		},
 		ImageSave:  apiCommon.SaveImage,
 		PDFSave:    apiCommon.SavePDF,
@@ -78,5 +78,5 @@ func newSettingsResource(operations configAPI.Operations, homeLayouts configAPI.
 			return referenced, nil
 		},
 	})
-	return configAPI.NewSettingsResource(operations, homeLayouts, settingsRuntime)
+	return settingsHTTP.NewSettingsResource(operations, homeLayouts, settingsRuntime)
 }

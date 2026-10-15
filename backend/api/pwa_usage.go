@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	pwaAPI "github.com/moto-nrw/project-phoenix/api/pwa"
+	pwaHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -18,7 +18,7 @@ type staffPWAUsage interface {
 func pwaUsageRouter(usage staffPWAUsage) chi.Router {
 	router := chi.NewRouter()
 	apiCommon.ProtectedTenantRoutes(router, func(r chi.Router, withTx apiCommon.Middleware) {
-		pwaAPI.NewResource(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		pwaHTTP.NewResource(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reportPWAUsage(w, r, usage)
 		}), withTx).Register(r)
 	})

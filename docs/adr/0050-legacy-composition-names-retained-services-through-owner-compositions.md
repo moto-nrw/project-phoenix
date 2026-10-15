@@ -4,6 +4,10 @@ status: accepted
 
 # The legacy composition names retained services through owner compositions
 
+> Amended on 2026-10-15 by [ADR 0057](0057-only-the-target-is-a-rule.md): the
+> `compose/vocabulary` and `retained` aliases this decision left in place are
+> debt, not target. #4085 removes them.
+
 Accepted for [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747)
 under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), following
 the precedent of ADR 0049. The pull request review is where it can still be

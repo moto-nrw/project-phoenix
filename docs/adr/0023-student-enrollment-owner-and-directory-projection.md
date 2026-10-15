@@ -4,6 +4,12 @@ status: accepted
 
 # Student enrollment is School Membership's, the directory read is a projection
 
+> Amended on 2026-10-15: the reversibility criterion in "The care exit is a
+> port, not a workflow" is withdrawn. A write across owners belongs in a
+> workflow whether or not it can be undone (#2580; ADR 0017 itself applies
+> and reverts a grade transition). Where the care exit coordinates writes of
+> several owners it is reviewed under #4076.
+
 [#3386](https://github.com/moto-nrw/project-phoenix/issues/3386) asks where the
 student enrollment queries and commands live after
 [#2759](https://github.com/moto-nrw/project-phoenix/issues/2759) split

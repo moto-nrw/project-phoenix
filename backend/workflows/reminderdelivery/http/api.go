@@ -1,5 +1,5 @@
-// Package reminders exposes the staff reminder query over HTTP.
-package reminders
+// Package reminderdeliveryhttp exposes the staff reminder query over HTTP.
+package reminderdeliveryhttp
 
 import (
 	"context"

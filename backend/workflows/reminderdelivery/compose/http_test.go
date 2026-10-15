@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/api/reminders"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
+	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
