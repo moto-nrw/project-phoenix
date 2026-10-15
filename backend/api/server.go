@@ -236,6 +236,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
 		settledEnrollments:   graph.services.EnrollmentRejectedCleanup,
+		staffSickNotes:       workforceCompose.NewSickNoteRetention(graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
 		deliveries:           deliveryCompose.NewRetention(),
 		fileCleanups:         filestorageCompose.NewCleanupRetention(),
