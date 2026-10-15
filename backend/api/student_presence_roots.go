@@ -13,14 +13,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The roots below compose Student Presence, its session records and the
 // joined Timetable presence reads from the database (#4010). Most bind
 // several owners' compositions over the same database (Student Presence,
 // Timetable, Care Plan, People Directory, Facilities), so the root builds
-// them where it mounts them. The retained builders of #4009 and #4013 keep
+// them where it mounts them. The retained cleanup builders of #4013 keep
 // private copies in services until they move.
 
 // NewStudentPresence composes the Student Presence owner with its attendance
@@ -36,7 +35,7 @@ func NewStudentPresence(db transactionruntime.Database, observe func(presenceCom
 	if err != nil {
 		return nil, err
 	}
-	capability, err := services.NewTimetable(pool, students, rooms)
+	capability, err := NewUnobservedTimetable(db, students, rooms)
 	if err != nil {
 		return nil, err
 	}

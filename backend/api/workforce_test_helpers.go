@@ -69,12 +69,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	calendarAdministration := services.SchoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
+	calendarAdministration := SchoolCalendarAdministration(settingsService, func(context.Context) error { return nil }, nil)
 	calendar, err := NewSchoolCalendarWithAdministration(db, func() schoolCalendarCompose.AdministrationRuntime { return calendarAdministration })
 	if err != nil {
 		return WorkforceTestModule{}, err
 	}
-	nonWorkingDayService := services.NonWorkingDays{Calendar: calendar}
+	nonWorkingDayService := schoolCalendarCompose.NonWorkingDays{Calendar: calendar}
 	today := timezone.CalendarDateClock(services.OptionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
 	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{

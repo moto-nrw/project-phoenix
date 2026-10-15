@@ -7,6 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -44,8 +45,8 @@ func newStatisticsReports(owners statisticsOwners) func(services.StatisticsSourc
 			DB:          owners.DB.Pool(),
 			StatusDays:  StatisticsStatusDays{owners.CarePlan},
 			Courses:     NewCourseStatistics(MustPresenceReads(owners.DB)),
-			Holidays:    services.TenantHolidays{Calendar: owners.Calendar},
-			ClosingDays: services.TenantClosingDays{Calendar: owners.Calendar},
+			Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: owners.Calendar},
+			ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: owners.Calendar},
 			Periods:     StatisticsReportPeriods{owners.Calendar},
 			Students:    StatisticsReportStudents{owners.Students},
 			Rooms:       StatisticsReportRooms{owners.Rooms},

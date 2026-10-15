@@ -25,7 +25,7 @@ type SchoolTestModule struct {
 	SchoolMFA  schoolportal.MFARuntime
 	// TimetableSupervisionSheets serves the per-child sheet of the
 	// supervision surface from the enrollment report, as the root binds it.
-	TimetableSupervisionSheets services.TimetableSupervisionSheets
+	TimetableSupervisionSheets TimetableSupervisionSheets
 }
 
 func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, clocks ...func() time.Time) (SchoolTestModule, error) {
@@ -46,7 +46,7 @@ func NewSchoolTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		Auth: auth.Auth, MFA: auth.MFA,
 		SchoolAuth:                 SchoolPortalAuth(auth.Auth),
 		SchoolMFA:                  SchoolPortalMFA(auth.MFA),
-		TimetableSupervisionSheets: services.NewTimetableSupervisionSheets(classday.ClassDay),
+		TimetableSupervisionSheets: NewTimetableSupervisionSheets(classday.ClassDay),
 	}, nil
 }
 

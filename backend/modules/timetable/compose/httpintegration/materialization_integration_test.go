@@ -15,7 +15,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -75,7 +74,7 @@ func makeScenario(t *testing.T, weekday int, materializeDate calendar.Date) *sce
 	})
 	require.NoError(t, err)
 
-	svc := newTestMaterialization(t, db, repoFactory, services.NewTimetableRepositories(db, timetableDependencies))
+	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
@@ -283,7 +282,7 @@ func TestMaterializeForTenant_MultipleDynamicTargetsFollowClassChanges(t *testin
 
 	class3a := "3a"
 	class4a := "4a"
-	targetRepo, ok := services.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
+	targetRepo, ok := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.(activitiesModels.GroupTargetRepository)
 	require.True(t, ok)
 	require.NoError(t, targetRepo.ReplaceTargets(s.ctx, s.template.ID, []*activitiesModels.GroupTarget{
 		{TargetGroupType: activitiesModels.TargetGroupTypeKlasse, TargetSchoolClass: &class3a},
@@ -372,7 +371,7 @@ func TestMaterializeForTenant_NoActivePeriod_ReturnsGracefully(t *testing.T) {
 
 	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	svc := newTestMaterialization(t, db, repoFactory, services.NewTimetableRepositories(db, timetableDependencies))
+	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
 
 	// Use a fresh tenant id that we know has no active periods.
 	//
@@ -404,7 +403,7 @@ func TestMaterializeForTenant_NoTemplates_ReturnsWarning(t *testing.T) {
 
 	timetableDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDependencies)
-	svc := newTestMaterialization(t, db, repoFactory, services.NewTimetableRepositories(db, timetableDependencies))
+	svc := newTestMaterialization(t, db, repoFactory, api.NewTimetableRepositories(testpkg.MustDatabase(db), timetableDependencies))
 
 	emptyTemplateTenantID := testpkg.UniqueTestTenantID(t)
 	ctx := testpkg.TenantContext(emptyTemplateTenantID)
@@ -666,7 +665,7 @@ func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, peri
 // newTestMaterialization composes the Timetable owner's materialization over
 // the retained repositories, the way the composition root does, without the
 // per-date care filter and the staffing announcement.
-func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, timetableRepos services.TimetableRepositories) timetable.MaterializationCapability {
+func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
 	svc, err := compose.NewMaterialization(compose.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,

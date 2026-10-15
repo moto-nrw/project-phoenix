@@ -101,9 +101,11 @@ func NewRetentionCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools o
 	)
 }
 
-func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand) (TimetableCleanup, error) {
+// NewTimetableCleanupService binds the Timetable retention the root
+// composes to the cleanup command's deletion ledger and settings.
+func NewTimetableCleanupService(db *bun.DB, runtime tenant.UnitOfWork, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command AuditCommand, compose TimetableCleanupComposer) (timetable.TimetableCleanup, error) {
 	audits := cleanupAuditRepositories(db, command)
-	return NewTimetableCleanup(TimetableRetentionInputs{
+	return compose(TimetableRetentionInputs{
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,

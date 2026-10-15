@@ -590,6 +590,14 @@ pattern does not cover. Code that other slices still call stays with those calle
 `services` until they move. Two stale offboarding rules of the legacy
 composition are gone, and the composition surface fell from 250 to 248.
 
+#4009 moved the Timetable, School Calendar and reminder wiring: single-owner
+code into the Timetable and School Calendar compositions, the cross-owner
+glue into the root, which hands it to `NewFactoryWithModules` as
+`services.TimetableWiring` and builds the planning tracks it mounts itself.
+`services` keeps 127 of its 156 production files (18,141 of 21,330 LOC), and
+the composition surface goes from 237 to 236 (see
+[Timetable, School Calendar and reminder wiring out of services](#timetable-school-calendar-and-reminder-wiring-out-of-services-4009)).
+
 #4010 moved the Student Presence, Facilities, Device Fleet and class-day
 wiring out of `services` without a key or a policy rule (see
 [Student Presence wiring out of services](#student-presence-wiring-out-of-services-4010)).
@@ -3572,6 +3580,72 @@ The Device Fleet session device directory binds a Student Presence port, so it
 is root glue and its legacy tree keeps its budget. No key is added or removed
 (39 → 39), and the policy keeps its rules. Measured after #4049, `services`
 shrinks from 155 to 119 production files and from 21,238 to 19,506 LOC.
+
+### Timetable, School Calendar and reminder wiring out of services (#4009)
+
+The 29 files of #4009 left `services` (measured on `030716737b`, after #4006,
+#4007 and #4008: 156 → 127 production files, 21,330 → 18,141 LOC). Each part
+went where ADR 0053 point 8 puts it:
+
+- **The owners' compositions** build what binds an owner to itself. School
+  Calendar: the non-working-day, statutory-holiday and closing-day date sets
+  and the period ids (`modules/schoolcalendar/compose/non_working_days.go`),
+  and the portal's iCalendar renderer over the calendar's renderer
+  (`modules/schoolcalendar/portal/compose/calendar_renderer.go`). Timetable:
+  the planning bundle the routes mount (`Planning`), the auto start and auto
+  end over the lifecycle, and the substitute conflicts over the owner rows
+  (`modules/timetable/compose/planning.go`).
+- **The root** (`api`) holds the cross-owner glue: the retained Timetable
+  repositories and their owner directories, the Timetable bindings to Care
+  Plan, Communication, Audit, Settings, Student Presence, School Structure,
+  Security Runtime and the realtime hub, the calendar portal and its fact
+  ports, the reminder readers and the reminder delivery, the timetable route
+  ports, the birthday display, the period administration, the planning
+  calendar and the plan export's non-working days. The retained Timetable
+  repositories take the Transaction Runtime value instead of `*bun.DB`.
+  The root's adapters declare narrow ports instead of naming repositories,
+  as `TestHandlerLayerRatchet` R1 requires of non-hook files in `api`.
+- **The Factory** takes `services.TimetableWiring` as one new constructor
+  parameter, beside `PeopleWiring` (#4007). It carries the values the root
+  builds (the Timetable repositories, the group names, the planning tracks,
+  the class-day and history reads, the plan export's calendar readers, the
+  calendar's guardian directory) and the constructors the Factory calls with
+  what only it builds. Their input types (`TimetableLifecycleInputs`,
+  `CalendarDependencies` and the rest) sit with the Factory in `factory.go`,
+  because both the Factory and the root name them. The root builds the
+  planning-track administration and mounts it, so the Factory field
+  `PlanningTracks` is gone and the composition surface goes from 237 to 236.
+  The root also builds the tenant recurrence gate the Factory's recurrence
+  writers serialize on and hands it in. The Factory method
+  `SchoolCalendarAdministration` is the root function
+  `api.GuardedCalendarAdministration`, which takes the settings, the gate and
+  the care-offering guard instead of the Factory.
+- **Callers in `services`** keep what no other code uses, because a function
+  leaves `services` only when no `services` code calls it. The unobserved
+  Timetable the presence rules read moved into `student_presence_roots.go`
+  (#4010), and the cleanup command hands `api.NewTimetableCleanup` to
+  `services.NewTimetableCleanupService` (`cleanup_composition.go`, #4013).
+  Until #4010 moves the presence roots, the unobserved Timetable is composed
+  twice: `services`' `newPresenceTimetable` and the root's
+  `NewUnobservedTimetable`, with their own student and room mappings. #4010
+  deletes the `services` copy.
+
+After merging #4009 and #4010, the root passes both `PresenceWiring` and
+`TimetableWiring` to the Factory. The root's Timetable builders use its
+Student Presence roots directly. Their private copies in `services/timetable.go`
+and `services/student_presence_roots.go` are gone; only the session and
+retention cleanup callers retain private roots in `command_roots.go` until
+#4013. Both migrations' owner boundaries remain in place. The combined
+composition surface is 233 (236 on development), with 39 legacy keys. The
+stale `legacy-composition.module-internal-test.student-presence-public` rule
+is removed because the reminder tests now live in the root.
+
+Delivery's composition exposes the outbox request, the notification event,
+its audience, the push sentinels, the parent appointment copy and the mail
+branding the calendar portal binds, because the root may not import an
+owner's application role. The rules `legacy-composition.reminder-compose`
+and `legacy-composition.reminder-ports` became stale and are deleted. No key
+is added or removed (39 → 39), and the policy goes from 1,431 to 1,429 rules.
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

@@ -10,7 +10,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -75,7 +74,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	staff, err := repos.Staff.FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
 	require.NoError(t, err)
-	timetableRepos := services.NewTimetableRepositories(db, owners)
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
 	stand := newTimetableOpsDeps()
 	stand.personService.accountPerson = staff.Person
 	stand.personService.staffByPersonID[staff.PersonID] = staff
@@ -91,7 +90,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 		Participants:    timetableRepos.InstanceStudent,
 		Templates:       timetableRepos.ActivityGroup,
 		Students:        repos.Student,
-		EducationGroups: services.TimetableEducationGroupNames(repos.Group),
+		EducationGroups: api.TimetableEducationGroupNames(repos.Group),
 		Rooms:           api.NewTimetableRoomNames(owners.Rooms),
 	}
 	templates, err := rows.OperationTemplates()

@@ -23,7 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	bookingFixtures "github.com/moto-nrw/project-phoenix/services"
+	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -343,7 +343,7 @@ func TestTemplateMutations_RejectCareOfferingSeriesConflictsWithoutPersisting(t 
 		require.ErrorIs(t, err, timetable.ErrSplitInvalidInput)
 
 		assert.Nil(t, reloadSplitSchedule(t, s, s.schedule.ID).ValidUntil)
-		series, seriesErr := bookingFixtures.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
+		series, seriesErr := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, s.template.ID)
 		require.NoError(t, seriesErr)
 		require.Len(t, series, 1)
 		assert.Equal(t, s.template.ID, series[0].ID)
@@ -781,6 +781,13 @@ func TestTemplateSplit_HappyPath_CarriesRosterAndProtectsHistory(t *testing.T) {
 	assert.Len(t, listInstancesForDate(t, s.db, res.NewTemplateID, secondMonday), 1)
 }
 
+// scenarioPlanningTracks administers the scenario tenant's planning tracks,
+// the rows the template writes assign through.
+func scenarioPlanningTracks(t *testing.T, db *bun.DB) timetable.PlanningTrackAdministration {
+	t.Helper()
+	return timetableCompose.NewPlanningTrackAdministration(api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Capability, db)
+}
+
 func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 	t.Parallel()
 
@@ -788,7 +795,7 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 	s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 	defer s.runCleanup(t)
 
-	track, err := s.factory.PlanningTracks.AddPlanningTrack(s.ctx, timetable.PlanningTrackDraft{
+	track, err := scenarioPlanningTracks(t, s.db).AddPlanningTrack(s.ctx, timetable.PlanningTrackDraft{
 		Name: "Bestehende Spur", Color: "#5080D8", SortOrder: 0,
 	})
 	require.NoError(t, err)
@@ -798,7 +805,7 @@ func TestTemplateSplitKeepsArchivedPlanningTrackAssignment(t *testing.T) {
 		Where("id = ?", s.template.ID).
 		Exec(s.ctx)
 	require.NoError(t, err)
-	_, err = s.factory.PlanningTracks.ArchivePlanningTrack(s.ctx, track.ID)
+	_, err = scenarioPlanningTracks(t, s.db).ArchivePlanningTrack(s.ctx, track.ID)
 	require.NoError(t, err)
 
 	in := baseSplitInput(s, effective, fmt.Sprintf("Split-Track-%d", time.Now().UnixNano()))
@@ -832,7 +839,7 @@ func TestTemplateSplitPlanningTrackPresence(t *testing.T) {
 			s := makeScenario(t, activitiesModels.WeekdayMonday, effective)
 			defer s.runCleanup(t)
 
-			track, err := s.factory.PlanningTracks.AddPlanningTrack(s.ctx, timetable.PlanningTrackDraft{
+			track, err := scenarioPlanningTracks(t, s.db).AddPlanningTrack(s.ctx, timetable.PlanningTrackDraft{
 				Name: fmt.Sprintf("Spur-%d", time.Now().UnixNano()), Color: "#5080D8", SortOrder: 0,
 			})
 			require.NoError(t, err)
@@ -2073,7 +2080,7 @@ func TestTemplateSplit_SecondSuccessorKeepsOriginalSeriesRoot(t *testing.T) {
 	secondSuccessor := reloadSplitGroup(t, s, second.NewTemplateID)
 	require.NotNil(t, secondSuccessor.SeriesRootID)
 	assert.Equal(t, s.template.ID, *secondSuccessor.SeriesRootID)
-	series, err := bookingFixtures.NewTimetableRepositories(s.db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
+	series, err := api.NewTimetableRepositories(testpkg.MustDatabase(s.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, s.db))).ActivityGroup.FindTemplateSeries(s.ctx, second.NewTemplateID)
 	require.NoError(t, err)
 	assert.Len(t, series, 3)
 }

@@ -145,11 +145,11 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return ActiveTestModule{}, err
 	}
 	careplanCompose.WireCareParticipation(careDay, care.CareLifecycle)
-	bridge, err := services.NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
+	bridge, err := NewTimetableEndedSessionCompletion(r.OwnerRows(), careDay)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	attendanceMirror, err := services.NewTimetableAttendanceMirror(r.OwnerRows(), logger)
+	attendanceMirror, err := NewTimetableAttendanceMirror(r.OwnerRows(), logger)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
@@ -211,17 +211,17 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	operationRows := r.OwnerRows()
 	operationRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
-	operations, err := services.NewTimetableOperations(services.TimetableOperationInputs{
+	operations, err := NewTimetableOperations(services.TimetableOperationInputs{
 		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
 		Sessions: r.ActiveGroup, Presence: presence,
 		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: NewLoggedStudentPresence(db, logger),
-		People: services.TimetableOperationPeople{OperationPeople: data.Users, Membership: membership}, PlanningTracks: r.Timetable,
+		People: TimetableOperationPeople{OperationPeople: data.Users, Membership: membership}, PlanningTracks: r.Timetable,
 		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: services.OptionalClock(clocks),
 	})
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	timetableOwner, err := services.NewTimetable(db.Pool(), students, rooms)
+	timetableOwner, err := NewUnobservedTimetable(db, students, rooms)
 	if err != nil {
 		return ActiveTestModule{}, err
 	}

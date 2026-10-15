@@ -21,6 +21,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/services"
 )
 
+// TimetableOwnerRows are the retained rows the Timetable owner's reads run
+// over (#3551), named for the suites of other owners that bind them.
+type TimetableOwnerRows = timetableCompose.OwnerRows
+
 type TimetableTestRepositories struct {
 	enrollment          *enrollmentCapability.Module
 	schoolCalendar      schoolcalendar.Calendar
@@ -68,7 +72,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	bookings, err := services.NewTimetable(db.Pool(), persons, timetableRooms)
+	bookings, err := NewUnobservedTimetable(db, persons, timetableRooms)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
@@ -92,7 +96,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	adapters := services.NewTimetableRepositoriesWithPresence(db.Pool(), services.TimetableDependencies{
+	adapters := NewTimetableRepositoriesWithPresence(db, TimetableDependencies{
 		Capability: bookings, Students: persons, Groups: groups, Rooms: rooms, Calendar: calendar, Membership: membership, Workforce: workTime,
 	}, NewUnloggedStudentPresence(db))
 	sessions := NewSessionRecords(db, SessionRecordOwners{
@@ -151,10 +155,10 @@ func (r TimetableTestRepositories) OwnerRows() timetableCompose.OwnerRows {
 	rows := timetableCompose.OwnerRows{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, Participants: r.InstanceStudent,
 		Templates: r.ActivityGroup, Categories: r.ActivityCategory, Students: r.Student,
-		EducationGroups: services.TimetableEducationGroupNames(r.Group), Rooms: facilitiesCompose.NewRoomNameDirectory(r.Room),
+		EducationGroups: TimetableEducationGroupNames(r.Group), Rooms: facilitiesCompose.NewRoomNameDirectory(r.Room),
 		PickupExceptions: r.StudentPickupException, ArrivalExceptions: r.StudentArrivalException,
 	}
-	rows.DeviationEvents, rows.Deviations = services.TimetableDeviationPorts(r.DeviationEvent)
+	rows.DeviationEvents, rows.Deviations = TimetableDeviationPorts(r.DeviationEvent)
 	return rows
 }
 

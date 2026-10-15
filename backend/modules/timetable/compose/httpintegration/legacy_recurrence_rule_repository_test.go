@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -16,7 +15,7 @@ import (
 
 func recurrenceRuleRepository(t *testing.T, db *bun.DB) recurrenceRuleQueryRepository {
 	t.Helper()
-	factory := services.NewTimetableRepositories(db, api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
+	factory := api.NewTimetableRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return factory.RecurrenceRule.(recurrenceRuleQueryRepository)
 }
 

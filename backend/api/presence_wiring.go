@@ -36,7 +36,7 @@ type PresenceWiringOwners struct {
 	Timetable  timetable.Capability
 	// TimetableRows are the retained Timetable adapters the attendance and
 	// room reads project activities from.
-	TimetableRows services.TimetableRepositories
+	TimetableRows TimetableRepositories
 	// People are the retained People Directory, School Membership and School
 	// Structure rows the attendance reads.
 	People services.PeopleWiring

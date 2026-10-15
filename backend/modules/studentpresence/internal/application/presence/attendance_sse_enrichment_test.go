@@ -22,7 +22,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
@@ -48,7 +47,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := services.NewTimetableRepositories(db, owners)
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
 	ctx := testpkg.Ctx(t)
 	suffix := time.Now().UnixNano()
 
@@ -211,7 +210,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	timetableRepos := services.NewTimetableRepositories(db, owners)
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
 	suffix := time.Now().UnixNano()
 	syncer := newAttendanceMirror(t,
 		timetableRepos.ActivityInstance,

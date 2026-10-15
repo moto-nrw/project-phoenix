@@ -98,8 +98,12 @@ func NewFactoryForTestsWithConfig(repos *RepositoryTestFactory, db transactionru
 	if err != nil {
 		return nil, err
 	}
+	timetable, err := owners.TimetableWiring(db, people, logger)
+	if err != nil {
+		return nil, err
+	}
 	wiring, identity := newIdentityRoot(db, tokens)
-	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, presence, true, clocks...))
+	factory, err := owners.factory(services.NewFactoryWithConfig(repos.CarePlan(), db.Pool(), logger, cfg, tenant.UnitOfWork{}, owners.Organizations, owners.Persons, owners.Groups, owners.Rooms, owners.Membership, owners.Calendar, owners.Timetable, owners.Appointments, nil, nil, nil, nil, nil, nil, nil, func(string, time.Duration, int, error) {}, func(string, string, string, time.Duration, error) {}, func(string, string, string, time.Duration, int, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, func(string, time.Duration, int64, int64, time.Duration, string, error) {}, owners.Workforce, owners.WorkforceWiring(db), func(services.DataImportObservation) {}, nil, services.FileStorageWiring{}, wiring, people, presence, timetable, true, clocks...))
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +131,7 @@ func (owners OwnerCapabilities) PeopleWiring(db transactionruntime.Database, car
 // class-day wiring over the test owners, the given Care Plan and People
 // wiring, as the serving root does (#4010).
 func (owners OwnerCapabilities) PresenceWiring(db transactionruntime.Database, carePlan careplan.Capability, people services.PeopleWiring, logger *slog.Logger, clocks ...func() time.Time) (services.PresenceWiring, error) {
-	rows := services.NewTimetableRepositories(db.Pool(), services.TimetableDependencies{
+	rows := NewTimetableRepositories(db, TimetableDependencies{
 		Capability: owners.Timetable, Students: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
 		Calendar: owners.Calendar, Membership: owners.Membership, Workforce: owners.Workforce,
 	})
@@ -135,6 +139,20 @@ func (owners OwnerCapabilities) PresenceWiring(db transactionruntime.Database, c
 		DB: db, Logger: logger, Persons: owners.Persons, Rooms: owners.Rooms, Membership: owners.Membership,
 		CarePlan: carePlan, Calendar: owners.Calendar, Timetable: owners.Timetable, TimetableRows: rows,
 		People: people, Now: services.OptionalClock(clocks),
+	})
+}
+
+// TimetableWiring builds the Timetable, School Calendar and reminder wiring
+// over the test owners and the given People wiring, as the serving root does
+// (#4009).
+func (owners OwnerCapabilities) TimetableWiring(db transactionruntime.Database, people services.PeopleWiring, logger *slog.Logger) (services.TimetableWiring, error) {
+	repositories := NewTimetableRepositories(db, TimetableDependencies{
+		Capability: owners.Timetable, Students: owners.Persons, Groups: owners.Groups, Rooms: owners.Rooms,
+		Calendar: owners.Calendar, Membership: owners.Membership, Workforce: owners.Workforce,
+	})
+	return NewTimetableWiring(TimetableWiringOwners{
+		DB: db, Logger: logger, Repositories: repositories, Timetable: owners.Timetable, Calendar: owners.Calendar,
+		Rooms: owners.Rooms, Membership: owners.Membership, Persons: owners.Persons, People: people,
 	})
 }
 
@@ -186,7 +204,7 @@ func NewOwnerCapabilitiesForTests(db transactionruntime.Database) (OwnerCapabili
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}
-	timetableCapability, err := services.NewTimetable(db.Pool(), persons, rooms)
+	timetableCapability, err := NewUnobservedTimetable(db, persons, rooms)
 	if err != nil {
 		return OwnerCapabilities{}, err
 	}
@@ -218,7 +236,7 @@ func (o OwnerCapabilities) factory(factory *services.Factory, err error) (*servi
 	if err != nil {
 		return nil, err
 	}
-	o.bindCalendarAdministration(factory.SchoolCalendarAdministration())
+	o.bindCalendarAdministration(GuardedCalendarAdministration(factory.Settings, factory.TimetableData.RecurrenceLock, factory.EnrollmentCareOffering))
 	return factory, nil
 }
 

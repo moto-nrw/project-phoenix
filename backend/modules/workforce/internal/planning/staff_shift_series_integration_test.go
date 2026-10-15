@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -806,7 +805,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	countedDB := env.db.WithQueryHook(queryCounter)
 	countedDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, countedDB))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, countedDB), countedDependencies)
-	timetableRepos := services.NewTimetableRepositories(countedDB, countedDependencies)
+	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(countedDB), countedDependencies)
 	countedShifts := workforceCompose.NewShiftRows(countedDependencies.Workforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,

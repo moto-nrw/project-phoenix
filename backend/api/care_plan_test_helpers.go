@@ -52,7 +52,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 // NewUnobservedCarePlan composes Care Plan over the People Directory of
 // dependencies, reading the participant slots through the Timetable adapter
 // over an unobserved Student Presence owner, as the test graphs need it.
-func NewUnobservedCarePlan(db transactionruntime.Database, dependencies services.TimetableDependencies) (careplan.Capability, error) {
+func NewUnobservedCarePlan(db transactionruntime.Database, dependencies TimetableDependencies) (careplan.Capability, error) {
 	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), dependencies.Capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	return NewCarePlan(db, dependencies.Students, slots)
 }
