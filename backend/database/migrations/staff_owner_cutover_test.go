@@ -48,6 +48,8 @@ func restoreStaffStorageBeforeCutover(t *testing.T, db *testpkg.DB) {
 	testpkg.RestoreStaffStorageBeforeCutover(t, db)
 	_, err := db.ExecContext(t.Context(), `
 		ALTER TABLE audit.data_deletions
+			DROP CONSTRAINT IF EXISTS fk_data_deletions_staff;
+		ALTER TABLE audit.data_deletions
 			ADD CONSTRAINT fk_data_deletions_staff
 			FOREIGN KEY (staff_id) REFERENCES users.staff(id) ON DELETE CASCADE NOT VALID;
 	`)
