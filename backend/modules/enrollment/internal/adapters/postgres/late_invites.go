@@ -141,8 +141,6 @@ func (r *Store) MarkLateInviteUsed(ctx context.Context, inviteID, requestID int6
 	return nil
 }
 
-// DeleteByUsedRequestID removes late-invite PII linked to a request before the
-// request deletion can clear used_request_id through ON DELETE SET NULL.
 // DeleteLateInvitesSettledBefore deletes the invitations settled before
 // cutoff (#3960): an unused one settles when it expires, a used one whose
 // request is gone when it was used. An invitation of a living request goes
@@ -169,6 +167,8 @@ func (r *Store) DeleteLateInvitesSettledBefore(ctx context.Context, cutoff time.
 	return res.RowsAffected()
 }
 
+// DeleteByUsedRequestID removes late-invite PII linked to a request before the
+// request deletion can clear used_request_id through ON DELETE SET NULL.
 func (r *Store) DeleteLateInvitesByUsedRequestID(ctx context.Context, requestID int64) (int64, error) {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {

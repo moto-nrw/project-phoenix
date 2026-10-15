@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (r *Store) SetRequestWithdrawal(ctx context.Context, id int64, at *time.Time) error {
@@ -87,7 +89,9 @@ func (r *Store) DeleteRequest(ctx context.Context, id int64) error {
 // (#3960). A withdrawal settles at its latest stamp: the parent's withdrawal
 // stamps reviewed_at, the rollover deadline only updated_at. A rejection
 // keeps the window of rejected enrollments; fully rejected requests stay
-// with FullyRejectedRequestsBefore.
+// with FullyRejectedRequestsBefore. A lapsed or declined renewal stays while
+// the care of its source phase runs: the end-of-year warning counts the
+// child as decided only through it (PhaseExpirySnapshots).
 func (r *Store) SettledRequestsBefore(ctx context.Context, withdrawnCutoff, rejectedCutoff time.Time) ([]int64, error) {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {
@@ -100,7 +104,15 @@ func (r *Store) SettledRequestsBefore(ctx context.Context, withdrawnCutoff, reje
 	var ids []int64
 	err = db.NewSelect().TableExpr("enrollment.requests AS request").ColumnExpr("request.id").
 		Join("JOIN enrollment.request_children AS rc ON rc.request_id = request.id AND rc.tenant_id = request.tenant_id").
-		Where("request.tenant_id = ?", tenantID).GroupExpr("request.id").
+		Where("request.tenant_id = ?", tenantID).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM enrollment.request_children AS renewal
+			JOIN enrollment.request_children AS source ON source.id = renewal.rollover_source_child_id AND source.tenant_id = renewal.tenant_id
+			JOIN enrollment.requests AS source_request ON source_request.id = source.request_id AND source_request.tenant_id = source.tenant_id
+			JOIN enrollment.phases AS source_phase ON source_phase.id = source_request.phase_id AND source_phase.tenant_id = source_request.tenant_id
+			WHERE renewal.request_id = request.id AND renewal.tenant_id = request.tenant_id
+			  AND source_phase.service_end_date >= ?)`, calendar.TodayDate()).
+		GroupExpr("request.id").
 		Having("BOOL_OR(rc.status = ?)", "withdrawn").
 		Having("BOOL_AND(rc.created_student_id IS NULL)").
 		Having(`BOOL_AND(CASE rc.status

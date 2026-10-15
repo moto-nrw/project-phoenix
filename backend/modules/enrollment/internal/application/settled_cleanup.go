@@ -46,7 +46,7 @@ func (s *RejectedCleanup) CleanupSettledEnrollments(ctx context.Context) (enroll
 		}
 		for _, requestID := range requestIDs {
 			if err := s.cleanupRequest(txCtx, requestID, settled, &deleted); err != nil {
-				return err
+				return fmt.Errorf("settled enrollment cleanup of request %d: %w", requestID, err)
 			}
 		}
 		var inviteErr error

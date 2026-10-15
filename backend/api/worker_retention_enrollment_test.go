@@ -53,13 +53,36 @@ type settledChild struct {
 	daysAgo int
 	lapsed  bool
 	student int64
+	// source is the child of an earlier phase a renewal rolls forward.
+	source int64
 }
 
 // request stores a request with the children and returns its ID.
 func (f enrollmentFixture) request(t *testing.T, label string, children ...settledChild) int64 {
 	t.Helper()
+	id, _ := f.requestIn(t, f.phaseID, label, children...)
+	return id
+}
+
+// phase stores a school-year phase of the school.
+func (f enrollmentFixture) phase(t *testing.T, name string, start, end calendar.Date) int64 {
+	t.Helper()
+	phase := &enrollment.Phase{
+		Name: fmt.Sprintf("%s-%d", name, f.tenantID), Kind: enrollment.PhaseKindSchoolYear,
+		ServiceStartDate: enrollment.Date(start), ServiceEndDate: enrollment.Date(end),
+		CareOverflowMode:          enrollment.PhaseCareOverflowWaitlist,
+		CareOfferingSelectionMode: enrollment.PhaseCareOfferingSelectionOptional,
+	}
+	require.NoError(t, f.owner.InsertPhase(f.ctx, phase))
+	return phase.ID
+}
+
+// requestIn stores a request in the phase and returns its ID and the IDs of
+// its children.
+func (f enrollmentFixture) requestIn(t *testing.T, phaseID int64, label string, children ...settledChild) (int64, []int64) {
+	t.Helper()
 	request := &enrollment.Request{
-		PhaseID:           f.phaseID,
+		PhaseID:           phaseID,
 		GuardianFirstName: "Erledigt",
 		GuardianLastName:  label,
 		GuardianEmail:     fmt.Sprintf("%s-%d@example.invalid", label, f.tenantID),
@@ -71,6 +94,7 @@ func (f enrollmentFixture) request(t *testing.T, label string, children ...settl
 		SubmittedAt:       time.Now(),
 	}
 	require.NoError(t, f.owner.InsertRequest(f.ctx, request))
+	childIDs := make([]int64, 0, len(children))
 	for i, settled := range children {
 		child := &enrollment.RequestChild{
 			RequestID:      request.ID,
@@ -85,14 +109,18 @@ func (f enrollmentFixture) request(t *testing.T, label string, children ...settl
 		if settled.student > 0 {
 			child.CreatedStudentID = &settled.student
 		}
+		if settled.source > 0 {
+			child.RolloverSourceChildID = &settled.source
+		}
 		require.NoError(t, f.owner.InsertChild(f.ctx, child))
+		childIDs = append(childIDs, child.ID)
 		_, err := f.suite.admin.ExecContext(context.Background(), `UPDATE enrollment.request_children
 			SET reviewed_at = CASE WHEN ? THEN NULL ELSE CURRENT_TIMESTAMP - make_interval(days => ?) END,
 				updated_at = CURRENT_TIMESTAMP - make_interval(days => ?)
 			WHERE id = ?`, settled.lapsed, settled.daysAgo, settled.daysAgo, child.ID)
 		require.NoError(t, err)
 	}
-	return request.ID
+	return request.ID, childIDs
 }
 
 // lateInvite stores an invitation to enroll late that expired daysAgo days
@@ -151,6 +179,14 @@ func TestNightlyRetentionDeletesSettledEnrollmentsWithoutAChild(t *testing.T) {
 	keptOpen := f.request(t, "offen", settledChild{status: enrollment.ChildStatusSubmitted, daysAgo: 200})
 	keptWaitlisted := f.request(t, "warteliste", settledChild{status: enrollment.ChildStatusWaitlisted, daysAgo: 200})
 	otherExpired := other.request(t, "andere-schule", settledChild{status: withdrawn, daysAgo: 200})
+	// A lapsed renewal is the family's decline. While the care of its source
+	// phase still runs, the end-of-year warning counts the child as decided
+	// only through it.
+	ended := f.phase(t, "Abgelaufen", calendar.NewDate(2024, 8, 1), calendar.NewDate(2025, 7, 31))
+	_, endedSources := f.requestIn(t, ended, "quelle-beendet", settledChild{status: enrollment.ChildStatusApproved, daysAgo: 400, student: enrolled})
+	_, runningSources := f.requestIn(t, f.phaseID, "quelle-laufend", settledChild{status: enrollment.ChildStatusApproved, daysAgo: 400, student: enrolled})
+	expiredRenewal := f.request(t, "verlaengerung-beendet", settledChild{status: withdrawn, daysAgo: 100, lapsed: true, source: endedSources[0]})
+	keptRenewal := f.request(t, "verlaengerung-laufend", settledChild{status: withdrawn, daysAgo: 100, lapsed: true, source: runningSources[0]})
 
 	queued := f.mail(t, expiredWithdrawn)
 	usedInvite := f.lateInvite(t, "eingeloest", 120, expiredLapsed)
@@ -161,7 +197,7 @@ func TestNightlyRetentionDeletesSettledEnrollmentsWithoutAChild(t *testing.T) {
 	suite.run(t, school)
 	suite.run(t, school)
 
-	for _, id := range []int64{expiredWithdrawn, expiredLapsed, expiredMixed} {
+	for _, id := range []int64{expiredWithdrawn, expiredLapsed, expiredMixed, expiredRenewal} {
 		assert.False(t, suite.exists(t, "enrollment.requests", id), "a settled request without a child goes after its window")
 		assert.Equal(t, 1, suite.count(t, `SELECT COUNT(*) FROM audit.enrollment_deletions
 			WHERE tenant_id = ? AND request_id = ? AND actor_type = 'system'`, school, id), "each deleted request keeps its deletion record")
@@ -173,6 +209,7 @@ func TestNightlyRetentionDeletesSettledEnrollmentsWithoutAChild(t *testing.T) {
 	assert.True(t, suite.exists(t, "enrollment.requests", keptOpen), "an open enrollment stays")
 	assert.True(t, suite.exists(t, "enrollment.requests", keptWaitlisted), "a waitlisted enrollment stays")
 	assert.True(t, suite.exists(t, "enrollment.requests", otherExpired), "the run of one school never touches another")
+	assert.True(t, suite.exists(t, "enrollment.requests", keptRenewal), "a lapsed renewal stays while the care of its source phase runs")
 
 	assert.Equal(t, 1, suite.count(t, `SELECT COUNT(*) FROM platform.email_outbox WHERE id = ? AND status = 'cancelled'`, queued),
 		"the queued mail of a deleted request is cancelled")
@@ -181,8 +218,8 @@ func TestNightlyRetentionDeletesSettledEnrollmentsWithoutAChild(t *testing.T) {
 	assert.True(t, suite.exists(t, "enrollment.late_invites", keptInvite))
 	assert.True(t, suite.exists(t, "enrollment.late_invites", otherInvite))
 
-	assert.Equal(t, []int{5}, suite.loggedDeletions(t, school, retentionSettledEnrollments),
-		"one entry counting three requests and two invitations; the second run deletes nothing")
+	assert.Equal(t, []int{6}, suite.loggedDeletions(t, school, retentionSettledEnrollments),
+		"one entry counting four requests and two invitations; the second run deletes nothing")
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionSettledEnrollments))
 }
 
