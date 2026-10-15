@@ -5,6 +5,10 @@ import (
 	"log/slog"
 	"time"
 
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
@@ -102,15 +106,15 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	// Retain its real transaction, visit sync, supervision and SSE paths.
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(r.ActiveGroup)
 	ender := presenceservice.NewPresence(presenceservice.PresenceDependencies{
-		PrincipalReader: services.AttendancePrincipal,
-		SchoolPresence:  services.NewLoggedStudentPresence(db.Pool(), logger),
+		PrincipalReader: devicescanCompose.AttendancePrincipal,
+		SchoolPresence:  NewLoggedStudentPresence(db, logger),
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
-		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: services.NewAttendanceRooms(r.Room), ActivityGroupRepo: services.NewSessionActivities(r.GroupReads()),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: services.NewAttendanceStaffDirectory(r.Staff),
+		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: facilitiesLegacy.NewAttendanceRooms(r.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
+		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
 		DB: db.Pool(), Broadcaster: hub, Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,
-	}, presenceservice.WithPresenceSettings(services.PresenceSettings(settings.Settings)))
+	}, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
 	offerings, err := newTestCareOfferingCatalog(r, settings.Settings, CareOfferingCatalogTestOptions{
 		LockRecurrence: recurrenceLock.LockRecurrenceWrites, Today: today,
 	})
@@ -138,7 +142,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
 		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: r.Staff, CalendarPeriods: r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException, Sessions: r.ActiveGroup, Shifts: r.StaffShift,
-		Presence: services.NewLoggedStudentPresence(db.Pool(), logger), ArrivalBaselines: arrival, Logger: logger,
+		Presence: NewLoggedStudentPresence(db, logger), ArrivalBaselines: arrival, Logger: logger,
 	})
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -154,7 +158,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db.Pool(),
 		},
 		Staff: r.Staff, Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
-		Presence: services.NewLoggedStudentPresence(db.Pool(), logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
+		Presence: NewLoggedStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
 		Settings: settings.Settings, Materialization: materialization, RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Broadcaster: hub, Logger: logger, Now: now,
 	})
@@ -164,7 +168,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	dataRows := r.OwnerRows()
 	dataRows.Locks = recovery
 	timetableData, err := services.NewTimetableData(services.TimetableDataInputs{
-		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: services.NewLoggedStudentPresence(db.Pool(), logger),
+		Rows: dataRows, ArrivalBaselines: arrival, PickupBaselines: pickup, Visits: NewLoggedStudentPresence(db, logger),
 		Groups: r.Timetable, Sessions: r.ActiveGroup,
 		ConflictAcks: r.Timetable, BlockMetadata: arrivalTimetable.NewBlockDisplayMetadata(db.Pool(), blockDisplayCompose.List), Transactional: true, Logger: logger,
 	})

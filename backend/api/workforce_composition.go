@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -102,7 +103,7 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 // school's subdomain.
 func timeTrackingAbsenceEmail(sources services.WorkforceTimeTrackingSources, organizations organizationtenancy.Query) *workforceCompose.AbsenceEmailDeps {
 	return &workforceCompose.AbsenceEmailDeps{
-		Settings: services.PresenceSettings(sources.Settings),
+		Settings: settingsCompose.PresenceSettings(sources.Settings),
 		Dispatcher: absenceEmailDispatcher{
 			dispatcher: sources.Mail.Dispatcher, from: sources.Mail.From, identity: sources.Mail.ReplyTo, logger: sources.Logger,
 		},

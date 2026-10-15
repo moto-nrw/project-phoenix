@@ -317,15 +317,5 @@ func legacyScheduleQueryFilter(filter userModels.QueryFilter) *careplan.StudentS
 	return result
 }
 
-// legacyScheduleError keeps the retained repository error shape: a missing
-// schedule row classifies as not found, everything else is wrapped with its
-// operation.
-func legacyScheduleError(op string, err error) error {
-	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
-		return retainedNotFound(op)
-	}
-	return WrapRetainedError(op, err)
-}
-
 // noRowsError is the bare not-found sentinel pair without an operation.
 func noRowsError() error { return errors.Unwrap(retainedNotFound("")) }

@@ -9,7 +9,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -41,7 +40,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}
-	scans, err := services.NewUnregisteredTagScans(fleet)
+	scans, err := NewUnregisteredTagScans(fleet)
 	if err != nil {
 		return RetentionTestOwners{}, err
 	}

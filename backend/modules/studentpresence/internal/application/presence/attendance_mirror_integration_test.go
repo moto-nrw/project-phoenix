@@ -100,7 +100,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		instRepo:    timetableRepos.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   services.NewPresenceSessionRecords(db),
+		groupRepo:   api.NewPresenceSessionRecords(testpkg.MustDatabase(db)),
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,

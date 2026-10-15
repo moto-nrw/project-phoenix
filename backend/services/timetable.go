@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -10,11 +11,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 
+	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -52,7 +56,7 @@ func NewTimetable(db *bun.DB, students peopledirectory.StudentQuery, rooms facil
 		DB:       db,
 		Students: repositoryTimetableStudents{students: students},
 		Rooms:    repositoryTimetableRooms{rooms: rooms},
-		Sessions: NewPresenceFacts(db),
+		Sessions: newPresenceFacts(db),
 		Observe:  func(timetableCompose.Observation) {},
 	})
 }
@@ -93,12 +97,12 @@ type TimetableRepositories = timetableCompose.Repositories
 // reach the adapters through the directories bound here; the instance and
 // participant adapters compose an unobserved Student Presence owner.
 func NewTimetableRepositories(db *bun.DB, deps TimetableDependencies) TimetableRepositories {
-	return NewTimetableRepositoriesWithPresence(db, deps, NewUnloggedStudentPresence(db))
+	return NewTimetableRepositoriesWithPresence(db, deps, newStudentPresence(db, presenceCompose.FailureLogger()))
 }
 
 func NewTimetableRepositoriesWithPresence(db *bun.DB, deps TimetableDependencies, presence *studentpresence.Module) timetableCompose.Repositories {
 	return timetableCompose.NewRepositories(timetableCompose.RepositoryDependencies{
-		DB: db, Timetable: deps.Capability, Presence: presence, PartialAbsences: NewPartialAbsencePreview(db),
+		DB: db, Timetable: deps.Capability, Presence: presence, PartialAbsences: newPartialAbsencePreview(db),
 		Calendar: deps.Calendar, Directories: timetableDirectories(deps),
 	})
 }
@@ -212,4 +216,147 @@ func timetableStudentFacts(students peopledirectory.StudentQuery) (
 		return result, nil
 	}
 	return alumni, names
+}
+
+// The Student Presence roots the retained Timetable builders, the session
+// cleanup and the retention cleanup compose over one database. The typed root
+// owns them (api/student_presence_roots.go, #4010); these private copies stay
+// with their callers here, in command_roots.go and in cleanup_composition.go
+// until #4009 and #4013 move those callers.
+
+// newStudentPresence composes Student Presence with its attendance rules bound
+// to an unobserved Timetable owner over the same database.
+func newStudentPresence(db *bun.DB, observe func(presenceCompose.Observation)) *studentpresence.Module {
+	students := peopleCompose.MustNewReads(db)
+	rooms, err := facilitiesCompose.NewUnobserved(db)
+	if err != nil {
+		panic(err)
+	}
+	capability, err := NewTimetable(db, students, rooms)
+	if err != nil {
+		panic(err)
+	}
+	queries, err := carePlanCompose.NewExceptionQueries(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		panic(err)
+	}
+	locks, err := carePlanCompose.NewDayLocks(db, students.LockStudent, peopledirectory.ErrStudentNotFound)
+	if err != nil {
+		panic(err)
+	}
+	module, err := presenceCompose.New(presenceCompose.Dependencies{
+		DB: db, Observe: observe, Roster: timetablePlannedRoster{timetable: capability},
+		CarePlan: presenceCarePlanDirectory{query: queries}, CareDays: locks,
+	})
+	if err != nil {
+		panic(err)
+	}
+	return module
+}
+
+// newPresenceFacts composes the Student Presence queries Timetable's session
+// facts read; they need no roster.
+func newPresenceFacts(db *bun.DB) timetable.SessionFacts {
+	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: presenceCompose.FailureLogger()})
+	if err != nil {
+		panic(err)
+	}
+	return timetableCompose.NewPresenceSessionFacts(module)
+}
+
+// newPartialAbsencePreview composes the Timetable partial-absence preview over
+// the People Directory, the Care Plan pickup exceptions and the joined plan
+// reads of the database.
+func newPartialAbsencePreview(db *bun.DB) timetableCompose.PartialAbsencePreview {
+	exceptions, err := carePlanCompose.NewExceptionQueries(db, func(carePlanCompose.Observation) {})
+	if err != nil {
+		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
+	}
+	reads, err := timetableCompose.NewPresenceReads(db)
+	if err != nil {
+		panic(err)
+	}
+	students := peopleCompose.MustNewReads(db)
+	enrolled := func(ctx context.Context, studentID int64) (bool, error) {
+		values, err := students.ListStudentsByID(ctx, []int64{studentID})
+		if err != nil {
+			return false, err
+		}
+		for _, student := range values {
+			if student.ID == studentID && !student.IsAlumnus() {
+				return true, nil
+			}
+		}
+		return false, nil
+	}
+	return timetableCompose.NewPartialAbsencePreview(reads, enrolled, pickupExceptionDirectory{query: exceptions})
+}
+
+// timetablePlannedRoster serves Student Presence's PlannedRoster port from the
+// Timetable owner.
+type timetablePlannedRoster struct {
+	timetable timetable.InstanceStudentQuery
+}
+
+func (r timetablePlannedRoster) ListPlannedParticipants(ctx context.Context, filter studentpresence.PlannedRosterFilter) ([]studentpresence.PlannedParticipant, error) {
+	query := timetable.InstanceStudentFilter{IDs: filter.IDs, InstanceIDs: filter.InstanceIDs, StudentIDs: filter.StudentIDs, ExcludeCancelled: filter.ExcludeCancelled}
+	if filter.Date != "" {
+		date := filter.Date
+		query.Date = &date
+	}
+	if filter.FromClock != "" {
+		clock := filter.FromClock
+		query.FromClock = &clock
+	}
+	rows, err := r.timetable.ListPlannedInstanceStudents(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]studentpresence.PlannedParticipant, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, studentpresence.PlannedParticipant(row))
+	}
+	return result, nil
+}
+
+// presenceCarePlanDirectory serves Student Presence's care-plan port from the
+// Care Plan exception queries.
+type presenceCarePlanDirectory struct {
+	query carePlanCompose.ExceptionQueries
+}
+
+func (d presenceCarePlanDirectory) FindPickupException(ctx context.Context, id int64) (*studentpresence.SessionPickupException, error) {
+	value, err := pickupExceptionDirectory(d).FindPickupException(ctx, id)
+	if value == nil || err != nil {
+		return nil, err
+	}
+	result := studentpresence.SessionPickupException(*value)
+	return &result, nil
+}
+
+func (d presenceCarePlanDirectory) ListPickupExceptions(ctx context.Context, filter studentpresence.SessionPickupExceptionFilter) ([]studentpresence.SessionPickupException, error) {
+	values, err := pickupExceptionDirectory(d).ListPickupExceptions(ctx, timetableCompose.PickupExceptionFilter(filter))
+	result := make([]studentpresence.SessionPickupException, 0, len(values))
+	for _, value := range values {
+		result = append(result, studentpresence.SessionPickupException(value))
+	}
+	return result, err
+}
+
+func (d presenceCarePlanDirectory) FindStudentStatusDay(ctx context.Context, id int64, activeOnly bool) (*studentpresence.SessionStudentStatusDay, error) {
+	value, err := pickupExceptionDirectory(d).FindStudentStatusDay(ctx, id, activeOnly)
+	if value == nil || err != nil {
+		return nil, err
+	}
+	result := studentpresence.SessionStudentStatusDay(*value)
+	return &result, nil
+}
+
+func (d presenceCarePlanDirectory) ListStudentStatusDays(ctx context.Context, filter studentpresence.SessionStudentStatusDayFilter) ([]studentpresence.SessionStudentStatusDay, error) {
+	values, err := pickupExceptionDirectory(d).ListStudentStatusDays(ctx, timetableCompose.StudentStatusDayFilter(filter))
+	result := make([]studentpresence.SessionStudentStatusDay, 0, len(values))
+	for _, value := range values {
+		result = append(result, studentpresence.SessionStudentStatusDay(value))
+	}
+	return result, err
 }

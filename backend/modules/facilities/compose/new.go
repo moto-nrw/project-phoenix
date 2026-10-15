@@ -17,18 +17,24 @@ import (
 
 type Observation = ports.Observation
 
+// RoomUsage is the Facilities port the root binds to the owners that can
+// still need a room: Student Presence for running sessions, Care Plan for
+// care offerings.
+type RoomUsage = ports.RoomUsage
+
 type Dependencies struct {
-	DB            *bun.DB
-	DeletionLock  func(context.Context) error
-	DeletionGuard func(context.Context, int64) error
-	Observe       func(Observation)
+	DB           *bun.DB
+	DeletionLock func(context.Context) error
+	// Usage decides whether a room may be deleted.
+	Usage   RoomUsage
+	Observe func(Observation)
 }
 
 // New composes the Facilities module. Every operation requires an explicit
 // caller tenant, including operations using an ambient transaction. The store
 // also applies that tenant as a defense-in-depth predicate.
 func New(dependencies Dependencies) (*facilities.Module, error) {
-	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.DeletionGuard == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -36,7 +42,7 @@ func New(dependencies Dependencies) (*facilities.Module, error) {
 		observation.Err = mapError(observation.Err)
 		dependencies.Observe(observation)
 	}
-	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.DeletionGuard, observe)
+	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
 	return facilities.NewModule(engine{service: service, observe: observe}), nil
 }
 
@@ -194,6 +200,10 @@ func mapError(err error) error {
 		return facilities.ErrSystemRoomProtected
 	case errors.Is(err, domain.ErrSystemNameReserved):
 		return facilities.ErrSystemRoomNameReserved
+	case errors.Is(err, domain.ErrInUse):
+		return facilities.ErrRoomInUse
+	case errors.Is(err, domain.ErrRequiredByOffering):
+		return facilities.ErrRoomRequiredByOffering
 	default:
 		return err
 	}

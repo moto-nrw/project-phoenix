@@ -292,7 +292,7 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // supervisions over the test database, for suites that arrange a running
 // block.
 func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) *presenceCompose.SessionRecords {
-	return services.NewPresenceSessionRecords(db.Pool())
+	return NewPresenceSessionRecords(db)
 }
 
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant

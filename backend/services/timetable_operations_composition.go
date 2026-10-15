@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -112,11 +113,11 @@ type timetableOperationAttendance struct {
 }
 
 func (a timetableOperationAttendance) CreateVisitAs(ctx context.Context, staffID int64, visit *studentpresence.Visit) error {
-	return a.presence.CreateVisit(WithAttendanceStaff(ctx, staffID, visit.TenantID), visit)
+	return a.presence.CreateVisit(devicescanCompose.WithAttendanceStaff(ctx, staffID, visit.TenantID), visit)
 }
 
 func (a timetableOperationAttendance) EndVisitAs(ctx context.Context, staffID, tenantID, visitID int64) error {
-	return a.presence.EndVisit(WithAttendanceStaff(ctx, staffID, tenantID), visitID)
+	return a.presence.EndVisit(devicescanCompose.WithAttendanceStaff(ctx, staffID, tenantID), visitID)
 }
 
 func (a timetableOperationAttendance) MoveStudentsToActiveGroupAuthorized(ctx context.Context, studentIDs []int64, activeGroupID int64, auth studentpresence.StudentMoveAuthorization) (*studentpresence.StudentMoveResult, error) {

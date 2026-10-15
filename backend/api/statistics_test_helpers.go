@@ -53,12 +53,12 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	if err != nil {
 		return StatisticsTestModule{}, err
 	}
-	service := services.NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
+	service := NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		DB:         db.Pool(),
-		StatusDays: services.StatisticsStatusDays{Query: r.CarePlan}, Courses: services.NewCourseStatistics(services.MustPresenceReads(db.Pool())),
+		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(MustPresenceReads(db)),
 		Holidays:    services.TenantHolidays{Calendar: calendar},
-		ClosingDays: services.TenantClosingDays{Calendar: calendar}, Periods: services.StatisticsReportPeriods{Periods: calendar}, Students: services.StatisticsReportStudents{Students: students}, Rooms: services.StatisticsReportRooms{Rooms: rooms},
-		AccessLog: services.StatisticsAuditLog{Log: r.AccessLog}, Retention: services.StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: services.OptionalClock(clocks),
+		ClosingDays: services.TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{Periods: calendar}, Students: StatisticsReportStudents{Students: students}, Rooms: StatisticsReportRooms{Rooms: rooms},
+		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: services.OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {
 		_, err := calendar.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

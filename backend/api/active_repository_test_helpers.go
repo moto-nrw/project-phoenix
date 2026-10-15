@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type ActiveTestRepositories struct {
@@ -31,6 +30,6 @@ func NewActiveTestRepositories(db transactionruntime.Database, members Membershi
 		return ActiveTestRepositories{}, err
 	}
 	return ActiveTestRepositories{TimetableTestRepositories: tt,
-		SessionStartLock: services.NewUnloggedStudentPresence(db.Pool()), GroupMapping: services.NewUnloggedStudentPresence(db.Pool()),
-		CrossTenant: NewCrossTenantQuery(services.NewUnloggedStudentPresence(db.Pool()), people, groups)}, nil
+		SessionStartLock: NewUnloggedStudentPresence(db), GroupMapping: NewUnloggedStudentPresence(db),
+		CrossTenant: NewCrossTenantQuery(NewUnloggedStudentPresence(db), people, groups)}, nil
 }

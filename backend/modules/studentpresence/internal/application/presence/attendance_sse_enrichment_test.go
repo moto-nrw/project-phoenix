@@ -64,17 +64,17 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
 		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
+		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		AttendanceSyncer:   syncer,
@@ -116,7 +116,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 	require.NoError(t, isRepo.Create(ctx, row))
 
 	// ACT: drive a check-in through the service.
-	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{
@@ -224,17 +224,17 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	require.NoError(t, err)
 	rooms, err := api.NewFacilities(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	svc := active.NewService(active.ServiceDependencies{PrincipalReader: services.AttendancePrincipal,
+	svc := active.NewService(active.ServiceDependencies{PrincipalReader: api.AttendancePrincipal,
 		GroupRepo:          sessionGroups(repos.ActiveGroup),
 		SupervisorRepo:     sessionSupervisors(repos.ActiveGroup),
 		SchoolPresence:     testSchoolPresence(t, db),
 		StudentRepo:        api.PresenceStudents(testpkg.MustDatabase(db), repos.Student),
-		StaffRepo:          services.NewAttendanceStaffDirectory(repos.Staff),
-		RoomRepo:           services.NewAttendanceRooms(services.NewRoomRepository(rooms)),
-		ActivityGroupRepo:  services.NewSessionActivities(timetableRepos.GroupReads()),
-		ActivityCatRepo:    services.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
-		EducationGroupRepo: services.NewAttendanceEducationGroups(repos.Group, repos.Student),
-		DeviceRepo:         services.NewSessionDeviceDirectory(devices, nil, nil),
+		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
+		RoomRepo:           api.NewAttendanceRooms(api.NewRoomRepository(rooms)),
+		ActivityGroupRepo:  api.NewSessionActivities(timetableRepos.GroupReads()),
+		ActivityCatRepo:    api.NewAttendanceActivityCategories(timetableRepos.ActivityCategory),
+		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
+		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
 		Broadcaster:        broadcaster,
 		AttendanceSyncer:   syncer,
@@ -251,7 +251,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 	iotDevice := testpkg.CreateTestDevice(t, db, fmt.Sprintf("e2e-walk-%d", suffix))
 
 	ctx := testpkg.Ctx(t)
-	staffCtx := services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	deviceCtx := api.WithAttendanceDevice(staffCtx, iotDevice.ID, iotDevice.TenantID)
 
 	visit := &studentpresence.Visit{

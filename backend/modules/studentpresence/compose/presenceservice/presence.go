@@ -26,6 +26,7 @@ type (
 	AttendanceStaffNames               = presence.AttendanceStaffNames
 	AttendanceRooms                    = presence.AttendanceRooms
 	SessionRoom                        = ports.SessionRoom
+	AttendanceActivityGroups           = presence.AttendanceActivityGroups
 	AttendanceActivityCategories       = presence.AttendanceActivityCategories
 	AttendanceEducationGroups          = presence.AttendanceEducationGroups
 	EducationGroupRoom                 = presence.EducationGroupRoom

@@ -58,7 +58,7 @@ func TestVisitRevisionRollsBackAfterSlotWriteAndRetries(t *testing.T) {
 	})
 	testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, scheduleModels.AttendanceStatusExpected)
 	ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-	ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 	visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 	require.NoError(t, svc.CreateVisit(ctx, visit))
 	original, err := module.FindVisit(ctx, visit.ID)
@@ -130,7 +130,7 @@ func TestVisitRevisionRollsBackAfterEachWriteAndRetries(t *testing.T) {
 			device := testpkg.CreateTestDevice(t, db, "visit-revise-rollback")
 			group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
 			ctx := api.WithAttendanceDevice(testpkg.Ctx(t), device.ID, device.TenantID)
-			ctx = services.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+			ctx = api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
 			visit := &studentpresence.Visit{StudentID: student.ID, ActiveGroupID: group.ID, EntryTime: time.Now().Add(-time.Hour)}
 			require.NoError(t, svc.CreateVisit(ctx, visit))
 			original, err := module.FindVisit(ctx, visit.ID)

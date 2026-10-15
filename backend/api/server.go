@@ -13,6 +13,7 @@ import (
 	"time"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/analytics"
@@ -223,10 +224,20 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
+	// The unregistered tag scans of the retention sweep are the Device Fleet
+	// owner's, unobserved like the review the operator routes mount.
+	devices, err := services.NewDeviceFleet(graph.db.Pool())
+	if err != nil {
+		return nil, fmt.Errorf("compose worker device fleet: %w", err)
+	}
+	tagScans, err := NewUnregisteredTagScans(devices)
+	if err != nil {
+		return nil, fmt.Errorf("compose worker unregistered tag scans: %w", err)
+	}
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          graph.services.Audit,
 		settings:             graph.services.Settings,
-		unregisteredTagScans: graph.services.UnregisteredTagScans,
+		unregisteredTagScans: tagScans,
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
