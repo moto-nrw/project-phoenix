@@ -57,7 +57,7 @@ var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 5
-	openGapTables = 24
+	openGapTables = 12
 )
 
 // tableRetentions classifies every table of the schema.
@@ -95,26 +95,26 @@ var tableRetentions = map[string]tableRetention{
 	"activities.supervisors":                                parent("users.staff_school_memberships"),
 	"audit.attendance_corrections":                          parent("users.student_profiles"),
 	"audit.auth_events":                                     own("nightly retention step auth_event_retention, DeleteExpiredAuthEvents -> SQL audit.delete_expired_auth_events"),
-	"audit.class_list_entry_changes":                        undecided("matched_student_id of class-list matches; only platform.schools cascade"),
+	"audit.class_list_entry_changes":                        own("nightly retention step class_list_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.data_access_log":                                 own("nightly retention step data_access_log_retention, DeleteExpiredDataAccessLog -> SQL audit.delete_expired_data_access_log"),
 	"audit.data_deletions":                                  own("nightly retention step deletion_log_retention, DeleteExpiredDeletionLog -> SQL audit.delete_expired_data_deletions"),
 	"audit.data_imports":                                    parent("auth.accounts"),
 	"audit.deviation_events":                                own("nightly timetable-cleanup, DeleteDeviationEventsBefore -> SQL audit.delete_expired_deviation_events"),
-	"audit.enrollment_deletions":                            undecided("actor_account_id (SET NULL on account delete) and deletion counts; only platform.schools cascade"),
+	"audit.enrollment_deletions":                            own("nightly retention step enrollment_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.enrollment_offering_adjustments":                 parent("users.student_profiles"),
-	"audit.enrollment_restorations":                         undecided("actor_account_id (SET NULL); only platform.schools cascade"),
-	"audit.export_transfers":                                undecided("actor_account_id, actor_name, filename; only platform.schools cascade"),
-	"audit.file_events":                                     undecided("actor_account_id, actor_name; only platform.schools cascade"),
+	"audit.enrollment_restorations":                         own("nightly retention step enrollment_restoration_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
+	"audit.export_transfers":                                own("nightly retention step export_transfer_retention, JournalRetention.DeleteExpiredTransfers -> SQL audit.delete_expired_export_transfers (end of the following year)"),
+	"audit.file_events":                                     own("nightly retention step file_event_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
 	"audit.guardian_changes":                                parent("users.student_profiles"),
-	"audit.guardian_financial_changes":                      undecided("guardian_profile_id, student_id, note (no FK to subject); only platform.schools cascade"),
-	"audit.personnel_number_changes":                        undecided("staff_id, note (no FK to subject); only platform.schools cascade"),
+	"audit.guardian_financial_changes":                      own("nightly retention step guardian_financial_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
+	"audit.personnel_number_changes":                        own("nightly retention step personnel_number_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.room_color_migration_backup":                     notPersonal("one-off migration backup of room names"),
-	"audit.staff_master_data_changes":                       undecided("staff_id, field_name, note (no FK to subject); only platform.schools cascade"),
+	"audit.staff_master_data_changes":                       own("nightly retention step staff_master_data_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.student_consent_changes":                         parent("users.student_profiles"),
-	"audit.student_deletions":                               undecided("student_id and actor_account_id of deleted children (append-only deletion record); only platform.schools cascade"),
+	"audit.student_deletions":                               own("nightly retention step student_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years, like the deletion log)"),
 	"audit.student_field_edits":                             own("nightly student-change-log-cleanup, CleanupExpiredChangeLog -> DeleteOlderThan -> SQL audit.delete_expired_student_field_edits"),
-	"audit.substitution_changes":                            undecided("target_staff_id, actor_account_id (no FK to subject); only platform.schools cascade"),
-	"audit.time_tracking_deletions":                         undecided("staff_id, note (no FK to subject); only platform.schools cascade"),
+	"audit.substitution_changes":                            own("nightly retention step substitution_change_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (end of the following year)"),
+	"audit.time_tracking_deletions":                         own("nightly retention step time_tracking_deletion_log_retention, Command.DeleteExpiredProtocol -> SQL audit.delete_expired_protocol (3 years)"),
 	"audit.unregistered_tag_scans":                          own("nightly retention step unregistered_tag_scan_retention, unregisteredTagScanService.DeleteExpired -> SQL audit.delete_expired_unregistered_tag_scans"),
 	"audit.wc_alias_migration_backup":                       notPersonal("one-off migration backup of alias names"),
 	"audit.work_session_edits":                              parent("active.work_sessions"),
@@ -152,7 +152,7 @@ var tableRetentions = map[string]tableRetention{
 	"config.home_layouts":                                   parent("auth.accounts"),
 	"config.school_setup_dismissals":                        parent("auth.accounts"),
 	"config.school_setups":                                  notPersonal("school setup wizard state"),
-	"config.setting_audit":                                  undecided("actor account id of setting changes (FK NO ACTION); no automated deletion"),
+	"config.setting_audit":                                  own("nightly retention step setting_audit_retention, AuditRetention.DeleteExpiredSettingChanges -> SettingAuditRetention.DeleteChangedBefore (3 years); changed_by SET NULL on account delete"),
 	"config.setting_values":                                 notPersonal("tenant setting values (only updated-by account reference, FK NO ACTION)"),
 	"config.staff_onboardings":                              parent("auth.accounts"),
 	"config.staff_target_overrides":                         parent("users.staff_school_memberships"),

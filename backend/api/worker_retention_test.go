@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -46,6 +47,8 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		staffCleanups:        owners.StaffCleanups,
 		carePlanCleanups:     owners.CarePlanCleanups,
 		submissionLimits:     owners.SubmissionLimits,
+		settingAudit:         owners.SettingAudit,
+		exportTransfers:      owners.ExportTransfers,
 	}, nil)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
@@ -614,4 +617,76 @@ func TestNightlyRetentionDeletesSubmissionRateLimitsAfterTheirWindow(t *testing.
 	assert.True(t, suite.exists(t, "enrollment.submission_rate_limits", otherSchoolExpired), "the run of one school never touches another")
 	assert.Equal(t, []int{2}, suite.loggedDeletions(t, school, retentionSubmissionRateLimits))
 	assert.Empty(t, suite.loggedDeletions(t, otherSchool, retentionSubmissionRateLimits))
+}
+
+// retentionProtocol is one protocol of #4044 with a seed of one row for the
+// school ?0 that names the account ?1, dated by the SQL it is formatted with.
+type retentionProtocol struct {
+	kind          string
+	table         string
+	seed          string
+	followingYear bool
+}
+
+var retentionProtocols = []retentionProtocol{
+	{"student_deletion_log_retention", "audit.student_deletions", `INSERT INTO audit.student_deletions (tenant_id, student_id, actor_account_id, reason, counts, deleted_at)
+		VALUES (?0, ?1, ?1, 'privacy_request', '{}'::jsonb, %s) RETURNING id`, false},
+	{"enrollment_deletion_log_retention", "audit.enrollment_deletions", `INSERT INTO audit.enrollment_deletions (tenant_id, request_id, actor_account_id, actor_type, scope, reason, counts, deleted_at)
+		VALUES (?0, ?1, ?1, 'admin', 'request', 'Doppelte Anmeldung', '{}'::jsonb, %s) RETURNING id`, false},
+	{"enrollment_restoration_log_retention", "audit.enrollment_restorations", `INSERT INTO audit.enrollment_restorations (tenant_id, request_id, child_ids, actor_account_id, restored_at)
+		VALUES (?0, ?1, '[]'::jsonb, ?1, %s) RETURNING id`, false},
+	{"time_tracking_deletion_log_retention", "audit.time_tracking_deletions", `INSERT INTO audit.time_tracking_deletions (tenant_id, staff_id, source, source_id, deleted_by, payload, note, occurred_at)
+		VALUES (?0, ?1, 'balance_adjustment', ?1, ?1, '{}'::jsonb, 'Korrektur', %s) RETURNING id`, false},
+	{"staff_master_data_change_retention", "audit.staff_master_data_changes", `INSERT INTO audit.staff_master_data_changes (tenant_id, staff_id, changed_by, section, field_name, note, occurred_at)
+		VALUES (?0, ?1, ?1, 'contact', 'phone', 'Neue Nummer', %s) RETURNING id`, false},
+	{"personnel_number_change_retention", "audit.personnel_number_changes", `INSERT INTO audit.personnel_number_changes (tenant_id, staff_id, changed_by, new_value, occurred_at)
+		VALUES (?0, ?1, ?1, '4711', %s) RETURNING id`, false},
+	{"guardian_financial_change_retention", "audit.guardian_financial_changes", `INSERT INTO audit.guardian_financial_changes (tenant_id, guardian_profile_id, student_id, changed_by, field_name, occurred_at)
+		VALUES (?0, ?1, ?1, ?1, 'iban', %s) RETURNING id`, false},
+	{"class_list_change_retention", "audit.class_list_entry_changes", `INSERT INTO audit.class_list_entry_changes (tenant_id, entry_id, action, matched_student_id, changed_by, occurred_at)
+		VALUES (?0, ?1, 'assigned', ?1, ?1, %s) RETURNING id`, true},
+	{"substitution_change_retention", "audit.substitution_changes", `INSERT INTO audit.substitution_changes (tenant_id, substitution_id, target_type, action, group_id, target_staff_id, actor_account_id, start_date, end_date, created_at)
+		VALUES (?0, ?1, 'group_handover', 'assigned', ?1, ?1, ?1, CURRENT_DATE, CURRENT_DATE, %s) RETURNING id`, true},
+	{"file_event_retention", "audit.file_events", `INSERT INTO audit.file_events (tenant_id, action, actor_account_id, actor_name, detail, created_at)
+		VALUES (?0, 'file_uploaded', ?1, 'Testkraft', 'elternbrief.pdf', %s) RETURNING id`, true},
+	{"export_transfer_retention", "audit.export_transfers", `INSERT INTO audit.export_transfers (tenant_id, actor_account_id, actor_name, export_kind, export_format, filename,
+			byte_size, target_host, target_port, target_directory, status, created_at)
+		VALUES (?0, ?1, 'Testkraft', 'staff_time_tracking', 'csv', 'zeiten.csv', 1, 'sftp.example.org', 22, '/', 'success', %s) RETURNING id`, true},
+	{"setting_audit_retention", "config.setting_audit", `INSERT INTO config.setting_audit (tenant_id, setting_key, new_value, action, changed_by, changed_at)
+		VALUES (?0, 'gdpr.data_cleanup_time', '"03:00"'::jsonb, 'set', ?1, %s) RETURNING id`, false},
+}
+
+func TestNightlyRetentionDeletesExpiredProtocolRows(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	otherSchool, _ := testpkg.CreateTestTenant(t, suite.admin)
+	account := testpkg.CreateTestAccount(t, suite.admin, "retention-protocol@example.com").ID
+
+	const lastYearStart = `((date_trunc('year', CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Berlin') - INTERVAL '1 year') AT TIME ZONE 'Europe/Berlin')`
+	type seeded struct{ expired, kept, other int64 }
+	rows := map[string]seeded{}
+	for _, protocol := range retentionProtocols {
+		expired, kept := "CURRENT_TIMESTAMP - INTERVAL '3 years 1 day'", "CURRENT_TIMESTAMP - INTERVAL '3 years' + INTERVAL '1 day'"
+		if protocol.followingYear {
+			expired, kept = lastYearStart+" - INTERVAL '1 day'", lastYearStart+" + INTERVAL '1 day'"
+		}
+		rows[protocol.kind] = seeded{
+			expired: suite.insertID(t, fmt.Sprintf(protocol.seed, expired), school, account),
+			kept:    suite.insertID(t, fmt.Sprintf(protocol.seed, kept), school, account),
+			other:   suite.insertID(t, fmt.Sprintf(protocol.seed, expired), otherSchool, account),
+		}
+	}
+
+	suite.run(t, school)
+
+	for _, protocol := range retentionProtocols {
+		row := rows[protocol.kind]
+		assert.False(t, suite.exists(t, protocol.table, row.expired), "%s: a row past its window is deleted", protocol.table)
+		assert.True(t, suite.exists(t, protocol.table, row.kept), "%s: a row inside its window stays", protocol.table)
+		assert.True(t, suite.exists(t, protocol.table, row.other), "%s: the run of one school never touches another", protocol.table)
+		assert.Equal(t, []int{1}, suite.loggedDeletions(t, school, protocol.kind), "%s logs its own data kind", protocol.table)
+		assert.Empty(t, suite.loggedDeletions(t, otherSchool, protocol.kind))
+	}
+	assert.Len(t, retentionProtocols, len(auditProtocols)+2, "every protocol of #4044 is covered")
 }

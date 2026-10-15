@@ -10,6 +10,7 @@ import (
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -45,7 +46,26 @@ const (
 	retentionStudentDocumentCleanup = "student_document_cleanup_retention"
 	retentionCareWithdrawals        = "care_withdrawal_retention"
 	retentionSubmissionRateLimits   = "submission_rate_limit_retention"
+	// The protocols of #4044: the setting protocol and the export journal
+	// of their owners; the rest are the Audit Platform's (auditProtocols).
+	retentionSettingAudit    = "setting_audit_retention"
+	retentionExportTransfers = "export_transfer_retention"
 )
+
+// auditProtocols are the protocols of #4044 the Audit Platform deletes, each
+// after its fixed window and logged as its own data kind.
+var auditProtocols = []string{
+	"student_deletion_log_retention",
+	"enrollment_deletion_log_retention",
+	"enrollment_restoration_log_retention",
+	"time_tracking_deletion_log_retention",
+	"staff_master_data_change_retention",
+	"personnel_number_change_retention",
+	"guardian_financial_change_retention",
+	"class_list_change_retention",
+	"substitution_change_retention",
+	"file_event_retention",
+}
 
 var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRStatusDayRetentionDays,
@@ -79,6 +99,9 @@ type retentionOwners struct {
 		DeleteExpiredAuthEvents(ctx context.Context) (deleted, retentionDays int, err error)
 		DeleteExpiredDataAccessLog(ctx context.Context) (deleted, retentionDays int, err error)
 		DeleteExpiredDeletionLog(ctx context.Context) (deleted, retentionDays int, err error)
+		// DeleteExpiredProtocol deletes the protocol of one of
+		// auditProtocols after its fixed window (#4044).
+		DeleteExpiredProtocol(ctx context.Context, kind string) (deleted, retentionDays int, err error)
 	}
 	// deliveries deletes the delivered mail and push intents and the mail
 	// delivery logs after their fixed window (#3955).
@@ -89,6 +112,10 @@ type retentionOwners struct {
 	staffCleanups    workforceModule.CleanupRetention
 	carePlanCleanups carePlanModule.CleanupRetention
 	submissionLimits enrollmentModule.SubmissionRateLimitRetention
+	// The setting protocol and the export journal of their owners, each
+	// after its fixed window (#4044).
+	settingAudit    settingsModule.AuditRetention
+	exportTransfers exportTransferModule.JournalRetention
 }
 
 func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
@@ -164,7 +191,29 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	if owners.deliveries != nil {
 		steps = append(steps, ownerRetentionStep(retentionDeliveries, owners.deliveries.DeleteExpiredDeliveries))
 	}
+	steps = append(steps, protocolRetentionSteps(owners)...)
 	return append(steps, cleanupJobRetentionSteps(owners)...)
+}
+
+// protocolRetentionSteps are the fixed-window deletions of the protocols of
+// #4044: one step per protocol, so each logs its own data kind.
+func protocolRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
+	var steps []scheduler.RetentionStep
+	if owners.auditLedgers != nil {
+		ledgers := owners.auditLedgers
+		for _, kind := range auditProtocols {
+			steps = append(steps, ownerRetentionStep(kind, func(ctx context.Context) (int, int, error) {
+				return ledgers.DeleteExpiredProtocol(ctx, kind)
+			}))
+		}
+	}
+	if owners.settingAudit != nil {
+		steps = append(steps, ownerRetentionStep(retentionSettingAudit, owners.settingAudit.DeleteExpiredSettingChanges))
+	}
+	if owners.exportTransfers != nil {
+		steps = append(steps, ownerRetentionStep(retentionExportTransfers, owners.exportTransfers.DeleteExpiredTransfers))
+	}
+	return steps
 }
 
 // cleanupJobRetentionSteps are the fixed-window deletions of the technical

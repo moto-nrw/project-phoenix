@@ -24,9 +24,11 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
@@ -243,6 +245,8 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		staffCleanups:        workforceCompose.NewCleanupRetention(),
 		carePlanCleanups:     carePlanCompose.NewCleanupRetention(),
 		submissionLimits:     enrollmentCompose.New(),
+		settingAudit:         settingsCompose.NewAuditRetention(),
+		exportTransfers:      exportTransferCompose.NewJournalRetention(),
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err
