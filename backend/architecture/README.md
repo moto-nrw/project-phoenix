@@ -3940,6 +3940,48 @@ owners, 335 edges and one component of 32 members. The caller inventory
 lists no Go file and no importer of `services` and no declaration or reference
 of the retired symbols; at the merge base it lists 29 Go files and 109 imports.
 
+### Root without foreign implementation roles, first cut (#2750)
+
+Nine #2750 keys fall without a policy change (34 -> 25). Each import of an
+implementation role of another owner moves behind a seam this slice adds to
+a contract the root may already reach, or into the owner that holds the code:
+
+- **Shared kernel and the settings contract.** `cmd` reads calendar dates
+  from `sharedkernel/calendar` instead of `internal/timezone` (production and
+  internal test). `cmd settings overrides` and the two root suites that seed
+  settings name their keys through `modules/settings`, whose contract gains
+  the seven keys they use. The CLI reads stored overrides through
+  `settingsCompose.NewStoredOverrideReader`, which returns the stored JSON and
+  whether a row exists. It replaces `NewSettingsCommandRepository`, whose only
+  caller was the CLI, so `cmd` names no `models/config` type.
+- **The Database value.** `transactionruntime.Database` gains `LogQueries` (the
+  `db_debug` hook) and `Capacity` (the pool statistics of the metrics endpoint
+  and the capacity log). `api` no longer imports `database`; `Capacity` still
+  returns `database.CapacityStats`, whose fields the root reads.
+- **Owner compositions.** The startup check of the students table runs through
+  `peopleCompose.VerifyRetainedStudentSchema`, which leaves the composition's
+  test hooks because production calls it now. `observability/compose.InstallProcessLogger`
+  builds and installs the process logger for `serve` and the migration
+  commands (`cmd -> applog`).
+- **Session token adapter.** The rate-limit key derived from verified claims
+  (#2064) is `sessiontoken.TokenAuth.RateLimitKey`. Its JWT decoding sits
+  with the codec, so `api` no longer imports `jwx/jwt` or `jwx/transform`. The
+  twelve key tests moved with it, and one more pins the IP fallback without a
+  codec; the two limiter tests stay in `api`.
+
+The other 21 keys keep #2750 as carrier. Sixteen need a decision
+([#4063](https://github.com/moto-nrw/project-phoenix/issues/4063)): the
+`http-router` class in the server root, `cli-config` in the internal tests of
+`cmd`, the shared HTTP runtime `api/common`, the `dev-tools` seeder and
+simulator, and four implementation roles whose use would otherwise need
+aliases: Tenant Runtime's `middleware`, the session token adapter, the
+Worker's application `services/scheduler` (37 symbols) and the analytics
+adapter. Five need a move into their owners
+([#4064](https://github.com/moto-nrw/project-phoenix/issues/4064)):
+`api/config`, `api/operator`, `api/platform`, `api/pwa` and `api/reminders`.
+The composition surface stays at 139. The evidence record is
+`root-implementation-roles-2750.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.

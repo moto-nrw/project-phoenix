@@ -12,8 +12,8 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/applog"
 	appmiddleware "github.com/moto-nrw/project-phoenix/middleware"
+	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -47,17 +47,7 @@ func runServeRoot(cmd *cobra.Command, process api.ServeProcess) error {
 		return fmt.Errorf("invalid server configuration: %w", err)
 	}
 
-	logFormat := "json"
-	if config.LogTextLogging {
-		logFormat = "text"
-	}
-
-	logger := applog.New(applog.Config{
-		Level:  config.LogLevel,
-		Format: logFormat,
-		Env:    config.AppEnv,
-	})
-	applog.ConfigureDefault(logger)
+	logger := observabilityCompose.InstallProcessLogger(config.LogLevel, config.LogTextLogging, config.AppEnv)
 
 	if strings.TrimSpace(config.SentryDSN) != "" {
 		if err := sentry.Init(sentryClientOptions(config)); err != nil {

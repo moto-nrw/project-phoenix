@@ -1,6 +1,9 @@
 package compose
 
 import (
+	"context"
+	"encoding/json"
+
 	configRepo "github.com/moto-nrw/project-phoenix/database/repositories/config"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/uptrace/bun"
@@ -30,8 +33,24 @@ func NewHomeLayoutRepository(runtime PersistenceRuntime) configModel.HomeLayoutR
 	return configRepo.NewHomeLayoutRepository(runtime)
 }
 
-// NewSettingsCommandRepository builds the setting value store for the
-// privileged settings CLI, which runs outside a tenant transaction.
-func NewSettingsCommandRepository(db *bun.DB) configModel.SettingValueRepository {
-	return configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))
+// StoredOverrideReader reads the overrides a school stored, without registry
+// defaults. The privileged settings CLI lists them outside a tenant
+// transaction.
+type StoredOverrideReader struct {
+	values configModel.SettingValueRepository
+}
+
+// NewStoredOverrideReader builds the reader over the CLI's superuser pool.
+func NewStoredOverrideReader(db *bun.DB) StoredOverrideReader {
+	return StoredOverrideReader{values: configRepo.NewSettingValueRepository(configRepo.NewRuntime(db))}
+}
+
+// StoredOverride returns the stored JSON value of key for the school, and
+// false when the school stored none.
+func (r StoredOverrideReader) StoredOverride(ctx context.Context, tenantID int64, key string) (json.RawMessage, bool, error) {
+	value, err := r.values.FindByTenantAndKey(ctx, tenantID, key)
+	if err != nil || value == nil {
+		return nil, false, err
+	}
+	return value.Value, true, nil
 }

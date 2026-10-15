@@ -1,7 +1,9 @@
 package compose_test
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,6 +56,23 @@ func TestDatabaseRegistersQueryHooksAndClosesItsPool(t *testing.T) {
 
 	require.NoError(t, database.Close())
 	require.Error(t, database.Pool().PingContext(context.Background()), "closing the value closes its pool")
+}
+
+// The server root logs the pool's statements under db_debug and reads its
+// connection statistics for the metrics endpoint, through the value alone.
+func TestDatabaseLogsQueriesAndReportsCapacity(t *testing.T) {
+	t.Parallel()
+	database, err := compose.NewDatabase(testpkg.SetupClosableTestDB(t))
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = database.Close() })
+
+	var logged bytes.Buffer
+	database.LogQueries(slog.New(slog.NewJSONHandler(&logged, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	var one int
+	require.NoError(t, database.Pool().NewSelect().ColumnExpr("1").Scan(context.Background(), &one))
+	assert.Contains(t, logged.String(), `"operation":"SELECT"`, "the logger sees the statements of the pool")
+
+	assert.GreaterOrEqual(t, database.Capacity().OpenConnections, 1, "the snapshot counts the connection the query opened")
 }
 
 func TestDatabaseRequiresAPool(t *testing.T) {
