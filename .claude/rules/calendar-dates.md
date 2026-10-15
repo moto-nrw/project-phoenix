@@ -8,6 +8,12 @@ paths:
 
 **RULE: A calendar day (no clock, no timezone) is represented as `timezone.Date` everywhere in the backend** — model fields for `DATE` columns, repository signatures, query parameters compared against `DATE` columns, and API payloads (`YYYY-MM-DD`). `time.Time` is for instants only. On the frontend, calendar dates travel as `"YYYY-MM-DD"` strings and are never derived via `.toISOString()`.
 
+> **Package:** the type and helpers live in `backend/sharedkernel/calendar`
+> (`calendar.Date`, `calendar.TodayDate()`, `calendar.NormalizeWallClock()`, …).
+> `backend/internal/timezone` only aliases them and is being removed (#4081).
+> New code imports `sharedkernel/calendar`; the names below are identical in
+> both packages.
+
 ## Why
 
 bun converts EVERY `time.Time` parameter to UTC before binding
@@ -127,7 +133,7 @@ rg -n '\.toISOString\(\)\s*\.\s*(split|slice)' frontend/src/                  # 
 
 TIME WITHOUT TIME ZONE columns (wall-clock times like `11:30`) are a separate
 concern: normalize via `timezone.NormalizeWallClock()` (see
-[backend date/time invariants](../../backend/CLAUDE.md#calendar-dates-timezonedate-mandatory)).
+[backend date/time invariants](../../backend/CLAUDE.md#calendar-dates-calendardate-mandatory)).
 `ActivityInstance` writes have a source ratchet; other TIME-backed models still
 rely on their repository/service normalization and code review. Instants
 (TIMESTAMPTZ) stay `time.Time` everywhere.
