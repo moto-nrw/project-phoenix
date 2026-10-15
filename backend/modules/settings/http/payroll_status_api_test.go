@@ -2,7 +2,7 @@
 // payroll configuration state sits behind config:manage — the same tier that
 // writes the payroll settings. config:read/config:update never see it (the
 // response carries a staff-without-Personalnummer count).
-package config_test
+package settingshttp_test
 
 import (
 	"testing"

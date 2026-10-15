@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/api/reminders"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 )
 
 // HTTPRuntime preserves tenant transactions, permission checks, and responses.
