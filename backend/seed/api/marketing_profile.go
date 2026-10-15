@@ -104,7 +104,7 @@ func marketingStaff() []marketingStaffMember {
 
 // marketingFamilies lists one contact per family. The first family has two
 // children, so one parent account shows two children in the parents portal.
-// Fixed selection: six German and six migrant-background child names familiar
+// Fixed selection: five German and seven migrant-background child names familiar
 // in Germany. These are fictional families, not inferred personal attributes.
 // Sources: https://gfds.de/ausfuehrliche-auswertung-vornamen-2018/
 // https://gfds.de/vornamen/familiennamen/
@@ -128,8 +128,8 @@ func marketingFamilies() []marketingFamily {
 		{firstName: "Marta", lastName: "Nowak", phone: "+49 151 23450105", children: []marketingChild{
 			{firstName: "Adam", lastName: "Nowak", class: "Klasse 2b", birthday: "2018-04-17", group: "eulennest", presence: marketingPresent},
 		}},
-		{firstName: "Nadine", lastName: "Fink", phone: "+49 151 23450106", children: []marketingChild{
-			{firstName: "Emma", lastName: "Fink", class: "Klasse 3b", birthday: "2017-07-25", group: "fuchsbau", presence: marketingPresent},
+		{firstName: "Derya", lastName: "Aydin", phone: "+49 151 23450106", children: []marketingChild{
+			{firstName: "Zeynep", lastName: "Aydin", class: "Klasse 3b", birthday: "2017-07-25", group: "fuchsbau", presence: marketingPresent},
 		}},
 		{firstName: "Esra", lastName: "Kaya", phone: "+49 151 23450107", children: []marketingChild{
 			{firstName: "Yusuf", lastName: "Kaya", class: "Klasse 1a", birthday: "2019-02-11", group: "eulennest", presence: marketingPresent},
