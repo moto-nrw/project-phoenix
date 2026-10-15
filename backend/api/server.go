@@ -23,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -245,30 +246,92 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
-	deps := workerRuntimeDependencies(graph, reads, logger, billing)
-	deps.Retention = retention.run
-	deps.CleanupRuns = retention.runs
-	deps.TenantRuntime = runtime
-	deps.Settings = settings
-	deps.Lease = lease
-	addWorkerServiceDependencies(&deps, graph, reads)
-	if err := addWorkerRepositoryDependencies(&deps, graph, reads); err != nil {
+	bookings, err := schedulerBookingConsistency(graph, reads)
+	if err != nil {
 		return nil, err
 	}
-	return scheduler.NewWorker(deps)
+	return scheduler.NewWorker(workerDependencies(graph, reads, workerRoots{
+		logger:    logger.With("service", "scheduler"),
+		billing:   billing,
+		lease:     lease,
+		runtime:   runtime,
+		settings:  settings,
+		retention: retention,
+		bookings:  bookings,
+	}))
 }
 
-func workerRuntimeDependencies(graph *serveGraph, reads workerReads, logger *slog.Logger, billing organizationModule.BillingReport) scheduler.WorkerDependencies {
+// workerRoots are the Worker inputs newWorker composes before the literal.
+type workerRoots struct {
+	logger    *slog.Logger
+	billing   organizationModule.BillingReport
+	lease     scheduler.WorkerLease
+	runtime   scheduler.TenantRuntime
+	settings  scheduler.SettingsResolver
+	retention workerRetention
+	bookings  scheduler.BookingConsistencyAudit
+}
+
+// workerDependencies builds the Worker's complete typed input in one literal;
+// no dependency is filled in after construction (#2749).
+func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots) scheduler.WorkerDependencies {
+	services, identity := graph.services, reads.identity
 	return scheduler.WorkerDependencies{
-		Logger:                 logger.With("service", "scheduler"),
-		Getenv:                 os.Getenv,
-		SchoolRepo:             schedulerTenantDirectory{schools: reads.schools, billing: billing},
-		TenantRuntimeObserver:  observability.RecordTenantRuntimeEvent,
-		UnitOfWorkObserver:     observability.RecordUnitOfWorkEvent,
-		Tracer:                 workerTracer(graph),
-		StaffDocumentCleaner:   graph.documents.staff,
-		StudentDocumentCleaner: graph.documents.student,
-		FileStoreCleaner:       fileStoreCleaner(graph),
+		Logger:                    roots.logger,
+		Getenv:                    os.Getenv,
+		SchoolRepo:                schedulerTenantDirectory{schools: reads.schools, billing: roots.billing},
+		TenantRuntime:             roots.runtime,
+		TenantRuntimeObserver:     observability.RecordTenantRuntimeEvent,
+		UnitOfWorkObserver:        observability.RecordUnitOfWorkEvent,
+		Tracer:                    workerTracer(graph),
+		Settings:                  roots.settings,
+		Lease:                     roots.lease,
+		Retention:                 roots.retention.run,
+		CleanupRuns:               roots.retention.runs,
+		StaffDocumentCleaner:      graph.documents.staff,
+		StudentDocumentCleaner:    graph.documents.student,
+		FileStoreCleaner:          fileStoreCleaner(graph),
+		Active:                    services.Active,
+		ActiveCleanup:             services.ActiveCleanup,
+		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
+		InvitationCleanup:         identity,
+		EmailChangeCleanup:        identity,
+		OperatorInvitationCleanup: identity,
+		WorkSessionCleanup:        services.WorkSession.Jobs,
+		BreakAutoEnder:            services.WorkSession.Jobs,
+		AutoCheckouter:            services.WorkSession.Jobs,
+		FeedbackCleaner:           graph.feedback,
+		Materializer:              services.Materialization,
+		TimetableCleanup:          services.TimetableCleanup,
+		CalendarFeedCleanup:       services.CalendarFeedCleanup,
+		TimeTrackingCleanup:       schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup),
+		StudentChangeLogCleanup:   schedulerStudentChangeLogCleanup(graph),
+		PWAUsageCleanup:           services.PWAUsage,
+		StaffMessageCleanup:       staffMessageCleanup(services.StaffMessaging),
+		EnrollmentRejectedCleanup: enrollmentRejectedCleanup{cleaner: services.EnrollmentRejectedCleanup},
+		AutoStart:                 services.AutoStart,
+		AutoEnd:                   services.AutoEnd,
+		TimetableBridge:           services.TimetableBridge,
+		StudentLifecycleAudit:     schedulerStudentAudit(graph),
+		CareExitEffector:          services.CareLifecycle,
+		OutboxWorker:              services.EmailOutboxWorker,
+		AppointmentReminders:      services.Reminders,
+		RolloverDeadlineRunner:    rolloverDeadlineRunner(services.EnrollmentRollover),
+		BookingConsistency:        roots.bookings,
+		InstanceRepo:              schedulerDayInstances(reads.timetable),
+		InstanceRoomRepo:          reads.existingRooms,
+		InstanceStudentRepo:       reads.timetable.InstanceStudent,
+		StudentStatusDayRepo:      reads.studentStatusDays,
+		OverdueBroadcaster:        services.RealtimeHub,
+		StudentLifecycleRepo:      schedulerStudentLifecycle(reads),
+		ReminderNotifications: scheduler.ReminderNotificationDeps{
+			Computer:     services.Reminders,
+			Notifier:     services.Notifications,
+			Preferences:  services.NotificationPreferences,
+			Staff:        reads.staff,
+			Accounts:     identity,
+			WorkSessions: reads.workSessions,
+		},
 	}
 }
 
@@ -282,41 +345,16 @@ func fileStoreCleaner(graph *serveGraph) scheduler.FileStoreCleaner {
 	return graph.services.FileStore
 }
 
-func addWorkerServiceDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) {
-	services := graph.services
-	deps.Active = services.Active
-	deps.ActiveCleanup = services.ActiveCleanup
-	identity := reads.identity
-	deps.AuthCleanup = &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity}
-	deps.InvitationCleanup = identity
-	deps.EmailChangeCleanup = identity
-	deps.OperatorInvitationCleanup = identity
-	deps.WorkSessionCleanup = services.WorkSession.Jobs
-	deps.BreakAutoEnder = services.WorkSession.Jobs
-	deps.AutoCheckouter = services.WorkSession.Jobs
-	deps.FeedbackCleaner = graph.feedback
-	deps.Materializer = services.Materialization
-	deps.TimetableCleanup = services.TimetableCleanup
-	deps.CalendarFeedCleanup = services.CalendarFeedCleanup
-	deps.TimeTrackingCleanup = schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup)
-	deps.StudentChangeLogCleanup = schedulerStudentChangeLogCleanup(graph)
-	deps.PWAUsageCleanup = services.PWAUsage
-	deps.StaffMessageCleanup = staffMessageCleanup(services.StaffMessaging)
-	deps.EnrollmentRejectedCleanup = enrollmentRejectedCleanup{cleaner: services.EnrollmentRejectedCleanup}
-	deps.AutoStart = services.AutoStart
-	deps.AutoEnd = services.AutoEnd
-	deps.TimetableBridge = services.TimetableBridge
-	deps.StudentLifecycleAudit = schedulerStudentAudit(graph)
-	deps.CareExitEffector = services.CareLifecycle
-	deps.OutboxWorker = services.EmailOutboxWorker
-	deps.AppointmentReminders = services.Reminders
-	var rollover scheduler.RolloverDeadlineRunner
-	if services.EnrollmentRollover != nil {
-		rollover = scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {
-			return services.EnrollmentRollover.RunDeadlineWorker(ctx, asOf)
-		})
+// rolloverDeadlineRunner hands the rollover deadline job to the worker only
+// when the module was composed, so a nil module never hides behind a non-nil
+// runner.
+func rolloverDeadlineRunner(rollovers enrollmentOwner.Rollovers) scheduler.RolloverDeadlineRunner {
+	if rollovers == nil {
+		return nil
 	}
-	deps.RolloverDeadlineRunner = rollover
+	return scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {
+		return rollovers.RunDeadlineWorker(ctx, asOf)
+	})
 }
 
 func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.StaffMessageCleanup {
@@ -331,29 +369,6 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 			RetentionDays:   result.RetentionDays,
 		}, err
 	}
-}
-
-func addWorkerRepositoryDependencies(deps *scheduler.WorkerDependencies, graph *serveGraph, reads workerReads) error {
-	bookings, err := schedulerBookingConsistency(graph, reads)
-	if err != nil {
-		return err
-	}
-	deps.BookingConsistency = bookings
-	deps.InstanceRepo = schedulerDayInstances(reads.timetable)
-	deps.InstanceRoomRepo = reads.existingRooms
-	deps.InstanceStudentRepo = reads.timetable.InstanceStudent
-	deps.StudentStatusDayRepo = reads.studentStatusDays
-	deps.OverdueBroadcaster = graph.services.RealtimeHub
-	deps.StudentLifecycleRepo = schedulerStudentLifecycle(reads)
-	deps.ReminderNotifications = scheduler.ReminderNotificationDeps{
-		Computer:     graph.services.Reminders,
-		Notifier:     graph.services.Notifications,
-		Preferences:  graph.services.NotificationPreferences,
-		Staff:        reads.staff,
-		Accounts:     reads.identity,
-		WorkSessions: reads.workSessions,
-	}
-	return nil
 }
 
 func workerTracer(graph *serveGraph) scheduler.WorkerTracer {

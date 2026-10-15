@@ -541,6 +541,27 @@ rows; their seams `CarePlanRecords` and `WorkforceShiftRecords` carry only the
 methods the remaining callers reach (50 -> 40 and 15 -> 9). The evidence
 record is `contract-repository-factory-2743.json`.
 
+#2749 deletes the last post-construction wiring of the Worker. Its blockers
+had already removed the `Scheduler.Set*` methods and `SetupAPITest`;
+`newScheduler` still filled the Scheduler through three pointer-parameter
+functions, and the root filled `WorkerDependencies` through two. Both are now
+one literal (`scheduler.newScheduler`, `api.workerDependencies`). The
+session-cleanup interval and threshold fields, which only tests read, are
+deleted; the break auto-end interval is computed where the task is
+registered instead of being stored on the Scheduler. The generated inventory
+`architecture/callers/scheduler-setters-2749.json`
+(`scripts/backend-scheduler-setter-callers`) shows no declaration or
+reference of the deleted functions and fields, of a `Scheduler.Set*` method or
+of `SetupAPITest`; at the evidence commit the same generator finds 31 `Set*`
+methods and `SetupAPITest` with 73 references. The composition surface drops
+from 219 to 140 field/setter targets (45 in `services/scheduler`, 34 in
+`api`); no ratchet key changes. The Worker keeps its job set: `NewWorker`
+still refuses a graph without every required job. What remains are the two
+day-rollover caches of the overdue and reminder re-fire guards (task state)
+and the internal test builder `unitScheduler`. The Worker still reads the
+retained service Factory through `serveGraph`; that read falls with the
+Factory (#2747). The evidence record is `contract-scheduler-setters-2749.json`.
+
 #2747 contracts the service Factory in part (ADR 0050, policy epoch raised to 38).
 `services` names the retained activity, facility, IoT, staff-clock, import,
 audit, settings, parent-event, list-export and database-statistics services
@@ -3912,8 +3933,8 @@ and `services -> tenant` (#2747) and `api -> services`, `cmd -> services` and
 the composition reference `api -> services.Factory` (#2750). The composition
 ratchet counts `api.serviceGraph` as a central aggregate and compares a base's
 `services.Factory` fields with it (`relocatedAggregate`), so the moved fields
-stay shrink-only and a new one fails the check. The surface goes from 219 to
-218: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
+stay shrink-only and a new one fails the check. Measured after merging #2749,
+the surface goes from 140 to 139: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
 owners, 335 edges and one component of 32 members. The caller inventory
 `callers/service-factory-2747.json` (`scripts/backend-service-factory-callers`)
 lists no Go file and no importer of `services` and no declaration or reference
