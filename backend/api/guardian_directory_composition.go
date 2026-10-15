@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -140,7 +138,7 @@ type GuardianDirectoryInvitations interface {
 // serves the invitation writes, verifiedStaff tells a verified staff caller.
 // runtime is the People Directory's tenant runtime the invitation writes run
 // in.
-func NewGuardianDirectoryRuntime(f *services.Factory, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
+func NewGuardianDirectoryRuntime(f *serviceGraph, renderer *lists.RendererService, invitations GuardianDirectoryInvitations, verifiedStaff func(context.Context) (bool, error), runtime peopleCompose.LegacyRepositoryRuntime) GuardianDirectoryRuntime {
 	sendInvitation, inviteGuardian, bulkInvite := guardianInvitationFlows(invitations, runtime)
 	listApprovals, approve, reject := guardianApprovalFlows(invitations, runtime)
 	return GuardianDirectoryRuntime{
@@ -212,7 +210,7 @@ func guardianInvitationFlows(invitations GuardianDirectoryInvitations, runtime p
 }
 
 // pendingGuardianInvitations lists the tenant's open invitations.
-func pendingGuardianInvitations(f *services.Factory) func(context.Context) ([]PendingGuardianInvitation, error) {
+func pendingGuardianInvitations(f *serviceGraph) func(context.Context) ([]PendingGuardianInvitation, error) {
 	return func(ctx context.Context) ([]PendingGuardianInvitation, error) {
 		invitations, err := f.Guardian.GetPendingInvitations(ctx)
 		if err != nil {

@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
@@ -36,27 +35,27 @@ type TimetableWiringOwners struct {
 	Persons      peopledirectory.GuardianPortalContacts
 	// People are the retained People Directory and School Structure rows the
 	// root built for the service graph (#4007).
-	People services.PeopleWiring
+	People PeopleWiring
 }
 
 // NewTimetableWiring builds what the root binds of Timetable & Activities,
 // the School Calendar and Reminder Delivery into the service graph (#4009,
 // ADR 0053 point 8): the adapters over the owners the root composes, and the
 // constructors the graph calls with the values only it composes.
-func NewTimetableWiring(owners TimetableWiringOwners) (services.TimetableWiring, error) {
+func NewTimetableWiring(owners TimetableWiringOwners) (TimetableWiring, error) {
 	pool := owners.DB.Pool()
 	classDayReads, err := timetableCompose.NewPresenceReads(pool)
 	if err != nil {
-		return services.TimetableWiring{}, fmt.Errorf("compose class day timetable reads: %w", err)
+		return TimetableWiring{}, fmt.Errorf("compose class day timetable reads: %w", err)
 	}
 	recurrenceLock, err := timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
 		DB: pool, GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
 	})
 	if err != nil {
-		return services.TimetableWiring{}, fmt.Errorf("compose timetable recurrence lock: %w", err)
+		return TimetableWiring{}, fmt.Errorf("compose timetable recurrence lock: %w", err)
 	}
 	people := owners.People
-	return services.TimetableWiring{
+	return TimetableWiring{
 		Repositories:          owners.Repositories,
 		EducationGroupNames:   TimetableEducationGroupNames(people.Groups),
 		PlanningTracks:        timetableCompose.NewPlanningTrackAdministration(owners.Timetable, pool),
@@ -77,7 +76,7 @@ func NewTimetableWiring(owners TimetableWiringOwners) (services.TimetableWiring,
 		Cleanup:                NewTimetableCleanup,
 		// The operational day resolves the acting account's staff ID through
 		// School Membership alone (#2753).
-		Operations: func(in services.TimetableOperationInputs) (timetable.OperationCapability, error) {
+		Operations: func(in TimetableOperationInputs) (timetable.OperationCapability, error) {
 			in.People = TimetableOperationPeople{OperationPeople: in.People, Membership: owners.Membership}
 			return NewTimetableOperations(in)
 		},
@@ -103,9 +102,9 @@ func NewTimetableWiring(owners TimetableWiringOwners) (services.TimetableWiring,
 
 // newReminderQuery binds the reminder evaluation's readers to the owners the
 // root composed and to the values the service graph hands over.
-func newReminderQuery(owners TimetableWiringOwners) func(services.ReminderSources) reminder.Query {
+func newReminderQuery(owners TimetableWiringOwners) func(ReminderSources) reminder.Query {
 	presence := NewLoggedStudentPresence(owners.DB, owners.Logger)
-	return func(sources services.ReminderSources) reminder.Query {
+	return func(sources ReminderSources) reminder.Query {
 		return reminderCompose.NewQuery(reminderPorts.QueryDependencies{
 			Clock:        ReminderClock(),
 			CurrentStaff: ReminderStaffIdentity(sources.CurrentStaff),

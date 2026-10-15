@@ -1,7 +1,7 @@
 // Package routetest holds the request, response and router helpers of HTTP
 // adapter tests. It builds on the shared fixture catalog only, so a test that
 // needs no composed application links this package instead of api/testutil,
-// whose module builders pull in the legacy service graph. api/testutil
+// whose module builders pull in the service graph. api/testutil
 // re-exports every helper here under its old name.
 package routetest
 

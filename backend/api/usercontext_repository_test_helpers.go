@@ -5,13 +5,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type UserContextTestRepositories struct {
 	Timetable     TimetableTestRepositories
 	Profile       identityaccess.AccountProfiles
-	Substitutions services.GroupSubstitutionRepository
+	Substitutions GroupSubstitutionRepository
 	StaffGroups   schoolstructure.StaffGroupQuery
 }
 
@@ -20,7 +19,7 @@ func NewUserContextTestRepositories(db transactionruntime.Database, members Memb
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return UserContextTestRepositories{}, err
 	}

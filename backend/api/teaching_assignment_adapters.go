@@ -9,15 +9,13 @@ import (
 
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 )
 
 type classTeacherRepository struct{ membership schoolmembership.Capability }
 
-var _ services.ClassTeacherRepository = (*classTeacherRepository)(nil)
+var _ ClassTeacherRepository = (*classTeacherRepository)(nil)
 
 func (r *classTeacherRepository) Create(ctx context.Context, assignment *schoolmembership.ClassAssignment) error {
 	if assignment == nil {
@@ -105,7 +103,7 @@ type groupsByID interface {
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*educationRepo.Group, error)
 }
 
-var _ services.GroupTeacherRepository = (*groupTeacherRepository)(nil)
+var _ GroupTeacherRepository = (*groupTeacherRepository)(nil)
 
 func newGroupTeacherRepository(membership schoolmembership.Capability, groups groupsByID) *groupTeacherRepository {
 	return &groupTeacherRepository{membership: membership, groups: groups}

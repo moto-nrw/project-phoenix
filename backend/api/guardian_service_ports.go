@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
@@ -67,12 +65,12 @@ func (a guardianFinancialAudit) RecordGuardianFinancialChange(ctx context.Contex
 // guardianDataAccessLog writes the guardian bank-data reads to
 // audit.data_access_logs.
 type guardianDataAccessLog struct {
-	log services.DataAccessAppender
+	log DataAccessAppender
 }
 
 // NewGuardianDataAccessLog binds the read-trail port. A nil repository leaves
 // the port unbound, so the service serves no bank value.
-func NewGuardianDataAccessLog(log services.DataAccessAppender) peopleCompose.GuardianDataAccessLog {
+func NewGuardianDataAccessLog(log DataAccessAppender) peopleCompose.GuardianDataAccessLog {
 	if log == nil {
 		return nil
 	}

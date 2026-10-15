@@ -5,7 +5,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // InvitationPersistence is the real persistence surface for invitation behavior
@@ -40,12 +39,12 @@ func NewInvitationPersistence(db transactionruntime.Database) (*InvitationPersis
 // newInvitationMembershipRepositories composes only the staff and teacher adapters
 // over School Membership, without constructing the legacy repository graph.
 func newInvitationMembershipRepositories(db transactionruntime.Database) (userModels.StaffRepository, userModels.TeacherRepository, error) {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, nil, err
 	}
 	deps := NewStaffMembershipDeps(NewPersonRepository(db), NewPeopleIdentityAccess(db, nil), workforceCompose.MustNewStaffEmployment(db.Pool()))
 	groupTeachers := NewGroupTeacherRepository(membership, NewEducationGroupRepository(db))
-	deps.GroupTeachers = func() services.GroupTeacherRepository { return groupTeachers }
+	deps.GroupTeachers = func() GroupTeacherRepository { return groupTeachers }
 	return StaffMembershipRepository{Membership: membership, Deps: deps}, TeacherMembershipRepository{Membership: membership, Deps: deps}, nil
 }

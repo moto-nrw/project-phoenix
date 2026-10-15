@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -36,7 +35,7 @@ func NewStaffTestModule(db transactionruntime.Database, unit tenant.UnitOfWork) 
 	if err != nil {
 		return StaffTestModule{}, err
 	}
-	carrier := &services.Factory{Users: work.Users, Education: groups.Education, WorkSession: work.TimeTracking}
+	carrier := &serviceGraph{Users: work.Users, Education: groups.Education, WorkSession: work.TimeTracking}
 	membershipRuntime := func(db transactionruntime.Database, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 		return NewStaffMembershipRuntime(carrier, db, auth.Auth, logger, hooks)
 	}

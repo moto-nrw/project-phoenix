@@ -11,12 +11,11 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewCalendarPortal adapts the existing composition's dependencies to the
 // calendar's narrow fact ports. It does not build a legacy factory.
-func NewCalendarPortal(d services.CalendarDependencies) calendarCompose.Application {
+func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 	cfg := NewCalendarFacts(d.CalendarFacts)
 	cfg.MissingRecord = func(err error) bool { return errors.Is(err, transactionruntime.ErrNoRows) }
 	cfg.MissingRecordCause = transactionruntime.ErrNoRows
@@ -64,7 +63,7 @@ func NewCalendarPortal(d services.CalendarDependencies) calendarCompose.Applicat
 
 // calendarCalDAVPolicy reads whether CalDAV is enabled for the tenant.
 type calendarCalDAVPolicy struct {
-	settings services.CalendarCalDAVSettings
+	settings CalendarCalDAVSettings
 }
 
 func (p calendarCalDAVPolicy) Enabled(ctx context.Context) (bool, error) {
@@ -118,7 +117,7 @@ func (p calendarIdentityPort) MissingStaff(err error) bool {
 }
 
 type calendarOutboxPort struct {
-	services.CalendarOutbox
+	CalendarOutbox
 	tenantID func(context.Context) int64
 }
 

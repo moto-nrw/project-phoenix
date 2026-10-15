@@ -17,7 +17,7 @@ import (
 func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	cfg := api.FactoryConfig{
+	cfg := api.ServiceConfig{
 		JWTSecret:        "configured-operator-mfa-secret-at-least-32-chars",
 		JWTExpiry:        15 * time.Minute,
 		JWTRefreshExpiry: 24 * time.Hour,
@@ -29,7 +29,7 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		OperatorHostname: "operator.localhost:3000",
 	}
 
-	factory, err := api.NewFactoryForTestsWithConfig(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default(), cfg)
+	factory, err := api.NewServiceGraphForTestsWithConfig(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default(), cfg)
 	require.NoError(t, err)
 
 	operator := testpkg.CreateTestOperator(t, db)

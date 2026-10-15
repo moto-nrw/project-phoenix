@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,15 +45,15 @@ func deactivateAccountTenant(t *testing.T, db *bun.DB, accountID, tenantID int64
 	require.NoError(t, err)
 }
 
-func calendarTestConfig(t *testing.T, db *bun.DB) calendarRuntime.CalendarDependencies {
+func calendarTestConfig(t *testing.T, db *bun.DB) api.CalendarDependencies {
 	t.Helper()
 	repos := calendarTestRepositories(t, db)
 	identity, err := api.NewUserContextTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	userContext := identity.UserContext.Caller()
 
-	return calendarRuntime.CalendarDependencies{
-		CalendarFacts: calendarRuntime.CalendarFacts{
+	return api.CalendarDependencies{
+		CalendarFacts: api.CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
 			GuardianProfileRepo:  api.NewCalendarGuardianDirectory(repos.GuardianProfile, api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
@@ -78,7 +77,7 @@ func setupCalendarService(t *testing.T, db *bun.DB) calendarSvc.Service {
 	return api.NewCalendarPortal(calendarTestConfig(t, db))
 }
 
-func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox calendarRuntime.CalendarOutbox) calendarCompose.Application {
+func setupCalendarServiceWithOutbox(t *testing.T, db *bun.DB, outbox api.CalendarOutbox) calendarCompose.Application {
 	t.Helper()
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
@@ -2001,7 +2000,7 @@ func TestCalendarServiceIntegration_UpdateRollsBackRecurrenceReplacementAndRetri
 }
 
 type recurrenceUpdateRollbackFixture struct {
-	config        calendarRuntime.CalendarDependencies
+	config        api.CalendarDependencies
 	service       calendarSvc.Service
 	accountID     int64
 	appointmentID int64

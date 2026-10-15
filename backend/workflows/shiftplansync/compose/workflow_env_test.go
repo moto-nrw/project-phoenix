@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
@@ -55,7 +54,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	require.NoError(t, err)
 	timetable, err := api.NewTimetableTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), clocks...)
 	require.NoError(t, err)
-	membership, err := services.NewSchoolMembership(db)
+	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	capability, err := api.NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)

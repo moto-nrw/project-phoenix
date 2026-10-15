@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -280,21 +278,4 @@ type StudentPhotoFeatureToggle interface {
 // to the photo lifecycle service.
 func RegisterStudentPhotoSettingsSideEffects(registry *settingsCompose.SideEffectRegistry, service StudentPhotoFeatureToggle) {
 	registry.Register(configModel.KeyStudentPhotosEnabled, service.HandleFeatureToggle)
-}
-
-// enableStudentPhotos builds the photo lifecycle over the legacy graph's
-// People Directory, settings, realtime hub and consents, hands it to the
-// graph and registers its settings handler (#4007). slot is the runtime slot
-// the People Directory resolves the lifecycle's surfaces from.
-func enableStudentPhotos(svc *services.Factory, slot *peopleCompose.StudentPhotoRuntime, unlinker peopleCompose.PhotoUnlinker, logger *slog.Logger) {
-	photos := NewStudentPhotos(svc.PeopleDirectory, slot, StudentPhotoRuntimeDependencies{
-		Settings:      svc.Settings,
-		Broadcaster:   svc.RealtimeHub,
-		Unlinker:      unlinker,
-		Consents:      svc.StudentConsents,
-		Logger:        logger,
-		ActingAccount: actingAccountID,
-	})
-	svc.EnableStudentPhotos(photos)
-	RegisterStudentPhotoSettingsSideEffects(svc.SettingsSideEffects, photos)
 }

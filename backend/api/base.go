@@ -27,8 +27,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/lestrrat-go/jwx/v3/transform"
 	slogchi "github.com/samber/slog-chi"
 	"github.com/spf13/viper"
 
@@ -39,8 +37,6 @@ import (
 	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	platformAPI "github.com/moto-nrw/project-phoenix/api/platform"
 	remindersAPI "github.com/moto-nrw/project-phoenix/api/reminders"
-	"github.com/moto-nrw/project-phoenix/database"
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
@@ -115,7 +111,6 @@ import (
 	workforceHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
@@ -169,7 +164,7 @@ type moduleServices struct {
 	reviewPolicy *ParentRequestReviewPolicy
 	// timetableRepositories are the retained Timetable adapters (#2743).
 	timetableRepositories timetableCompose.Repositories
-	services              *services.Factory
+	services              *serviceGraph
 	// organizations is the Organisation & Tenancy owner the root composed;
 	// listExport renders the list documents; imports are the Data Import
 	// services; databaseStats counts the Datenverwaltung hub (#4013).
@@ -179,7 +174,7 @@ type moduleServices struct {
 	databaseStats DatabaseStatsReader
 	// presence is the Student Presence, Facilities, Device Fleet and
 	// class-day wiring the root built for the service graph (#4010).
-	presence services.PresenceWiring
+	presence PresenceWiring
 	// planningTracks is the planning-track administration the timetable
 	// routes and the service graph share (#4009).
 	planningTracks timetableModule.PlanningTrackAdministration
@@ -204,9 +199,6 @@ type moduleServices struct {
 	// in config.work_time_models, config.work_time_model_entries and
 	// config.staff_work_schedules (#2687).
 	workforce *workforceModule.Module
-	// studentPhotoRuntime is the slot the People Directory photo lifecycle
-	// resolves from; enableStudentPhotos fills it once the factory exists.
-	studentPhotoRuntime *peopleCompose.StudentPhotoRuntime
 	// students is the retained student repository over the People Directory
 	// (#2743).
 	students StudentRootReads
@@ -257,7 +249,7 @@ func newTimetable(db transactionruntime.Database, students peopleModule.StudentQ
 	})
 }
 
-func initializeModuleServices(db transactionruntime.Database, publicAPIURL string, logger *slog.Logger, productEvents services.ProductEventTracker) (moduleServices, error) {
+func initializeModuleServices(db transactionruntime.Database, publicAPIURL string, logger *slog.Logger, productEvents ProductEventTracker) (moduleServices, error) {
 	pool, tenantRuntime := db.Pool(), db.UnitOfWork()
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{
 		DB: pool,
@@ -269,9 +261,8 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		return moduleServices{}, err
 	}
 	// The photo lifecycle's runtime (feature gate, caller access, file
-	// cleanup, live refresh, consent trail) only exists once the services
-	// factory and the HTTP layer are up, so the owner resolves it from a slot
-	// that enableStudentPhotos fills.
+	// cleanup, live refresh, consent trail) only exists once the service
+	// graph is up, so the owner resolves it from a slot the graph fills.
 	persons, studentPhotoRuntime, err := NewPeopleDirectoryWithPhotosAndObserver(db, func(observation peopleCompose.Observation) {
 		observability.ObservePeopleDirectoryOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, peopleModule.ErrorCode(observation.Err), observation.Err)
 	})
@@ -301,9 +292,9 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	}
 	// The period administration resolves the recurrence gate, the
 	// care-offering guard and the federal-state setting on every call from
-	// the runtime the services factory answers with below; the guard is an
+	// the runtime the service graph answers with below; the guard is an
 	// Enrollment service that itself reads this calendar, so it cannot exist
-	// before the factory does.
+	// before the service graph does.
 	var calendarAdministration schoolCalendarCompose.AdministrationRuntime
 	calendar, err := schoolCalendarCompose.New(schoolCalendarCompose.Dependencies{
 		DB: pool,
@@ -354,18 +345,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		Organizations: organizations,
 		People:        persons,
 		Audit:         communicationCompose.NewOperatorAnnouncementAudit(NewOperatorAuditLog(db).Create),
-		Observe: func(observation communicationCompose.Observation) {
-			observability.ObserveCommunicationOperation(
-				observation.Operation,
-				observation.Duration,
-				int64(observation.Stats.Queries),
-				observation.Stats.Rows,
-				int64(observation.Stats.DuplicatePreventionConflicts),
-				observation.Stats.StatementDuration,
-				communicationModule.ErrorCode(observation.Err),
-				observation.Err,
-			)
-		},
+		Observe:       observeCommunication,
 	})
 	if err != nil {
 		return moduleServices{}, err
@@ -376,11 +356,11 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	}
 	// The retained People Directory, School Membership and School Structure
 	// repositories and their adapters are built here and handed to the
-	// legacy service graph (#4007), and so are Student Presence, its session
+	// service graph (#4007), and so are Student Presence, its session
 	// records and the room service (#4010). The meal plan's participants, the
 	// Worker's activation tick and its reminder recipients read the same
 	// student and staff repositories.
-	people, presence, timetableWiring, platform, err := newLegacyWiring(PeopleWiringOwners{
+	people, presence, timetableWiring, platform, err := newServiceGraphWiring(PeopleWiringOwners{
 		DB: db, Logger: logger, Persons: persons, Groups: groups, Rooms: rooms, Membership: membership,
 		Workforce: workTime, CarePlan: carePlan, Organizations: organizations, Timetable: timetableCapability,
 		ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
@@ -412,52 +392,30 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		return moduleServices{}, err
 	}
 	// Care Plan's bindings to the owners composed here are built by the root
-	// and handed to the legacy service graph (#4011); the student routes
+	// and handed to the service graph (#4011); the student routes
 	// mount the same companion graph.
 	carePlanOwners := carePlanWiringOwners{
 		DB: db, Logger: logger, CarePlan: carePlan, Persons: persons, Membership: membership,
 		Timetable: timetableCapability, Calendar: calendar, People: people, ObserveCarePlan: observeCarePlan,
 	}
-	factory, identity, carePlanBindings, err := withRootWiring(db, carePlanOwners, func(fileStorageWiring services.FileStorageWiring, identity services.IdentityRoot, carePlanWiring services.CarePlanWiring) (*services.Factory, error) {
-		return services.NewFactoryWithModules(
-			carePlan, pool, logger, publicAPIURL, tenantRuntime,
-			organizations, persons, groups, rooms, membership, calendar, timetableCapability, appointmentCapability,
-			communicationCapability,
-			func(observation communicationCompose.Observation) {
-				observability.ObserveCommunicationOperation(
-					observation.Operation,
-					observation.Duration,
-					int64(observation.Stats.Queries),
-					observation.Stats.Rows,
-					int64(observation.Stats.DuplicatePreventionConflicts),
-					observation.Stats.StatementDuration,
-					communicationModule.ErrorCode(observation.Err),
-					observation.Err,
-				)
-			},
-			mealPlan, mealPlanSettings.Bind,
-			feedbackCapability, feedbackSettings.Bind,
-			observability.ObserveAuditAppend,
-			observability.ObserveSynchronousDelivery,
-			observability.ObserveDurableDelivery,
-			observability.ObserveDeviceFleetOperation,
-			observability.ObserveIdentityAccessOperation,
-			workTime,
-			newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
-			productEvents,
-			fileStorageWiring,
-			identity,
-			people,
-			platform,
-			presence,
-			timetableWiring,
-			carePlanWiring,
-			newEnrollmentWiring(enrollmentWiringOwners{
-				DB: db, CarePlan: carePlan, Persons: persons, Calendar: calendar,
-				Timetable: timetableCapability, Schools: people.EnrollmentSchools,
-			}),
-		)
-	})
+	factory, identity, carePlanBindings, err := withRootWiring(db, carePlanOwners, serviceGraphInputs{
+		DB: db, TenantRuntime: tenantRuntime, Logger: logger,
+		CarePlan: carePlan, Organizations: organizations, Persons: persons, Groups: groups, Rooms: rooms,
+		Membership: membership, Calendar: calendar, Timetable: timetableCapability, Appointments: appointmentCapability,
+		WorkTime: workTime, MealPlan: mealPlan, BindMealPlanSettings: mealPlanSettings.Bind,
+		FeedbackCounter: feedbackCapability, BindFeedbackSettings: feedbackSettings.Bind, ProductEvents: productEvents,
+		ObserveCommunication: observeCommunication, ObserveAuditAppend: observability.ObserveAuditAppend,
+		ObserveDelivery: observability.ObserveSynchronousDelivery, ObserveDurableDelivery: observability.ObserveDurableDelivery,
+		ObserveDeviceFleet: observability.ObserveDeviceFleetOperation, ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
+		StudentPhotoSlot: studentPhotoRuntime,
+		PhotoUnlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
+		Workforce:        newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
+		People:           people, Platform: platform, Presence: presence, TimetableWiring: timetableWiring,
+		Enrollment: newEnrollmentWiring(enrollmentWiringOwners{
+			DB: db, CarePlan: carePlan, Persons: persons, Calendar: calendar,
+			Timetable: timetableCapability, Schools: people.EnrollmentSchools,
+		}),
+	}, publicAPIURL)
 	if err != nil {
 		return moduleServices{}, err
 	}
@@ -493,31 +451,31 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		people: people, rooms: rooms, timetable: timetableRepositories, identity: identityModule,
 		devices: platform.DeviceFleet, logger: logger,
 	})
-	return moduleServices{organizations: organizations, listExport: platform.ListExport, imports: imports, databaseStats: databaseStats, carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, studentPhotoRuntime: studentPhotoRuntime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
+	return moduleServices{organizations: organizations, listExport: platform.ListExport, imports: imports, databaseStats: databaseStats, carePlan: carePlan, studentStatusDays: studentStatusDays, presence: presence, companions: carePlanBindings.companions, reviewPolicy: reviewPolicy, timetableRepositories: timetableRepositories, planningTracks: timetableWiring.PlanningTracks, services: factory, identity: identityModule, userContext: userContext, demoAccess: authAPI.ComposedDemoAccess(identityModule.DemoAccess()), communication: communicationCapability, mealPlan: mealPlan, feedback: feedbackCapability, persons: persons, rooms: rooms, timetable: timetableCapability, calendar: calendar, membership: membership, workforce: workTime, students: students, staff: staff, guardianProfiles: guardianProfiles, birthdays: birthdays}, nil
 }
 
-// newLegacyWiring builds what the root hands the legacy service graph in
-// place of building it there: the People Directory, School Membership and
-// School Structure wiring (#4007) and, over its retained rows, the Student
-// Presence, Facilities, Device Fleet and class-day wiring (#4010), together
-// with the Timetable, School Calendar and reminder wiring (#4009) and
-// the platform, Communication and Organisation & Tenancy wiring (#4013).
-func newLegacyWiring(people PeopleWiringOwners, presence PresenceWiringOwners, organizations organizationModule.Capability) (services.PeopleWiring, services.PresenceWiring, services.TimetableWiring, services.PlatformWiring, error) {
+// newServiceGraphWiring builds the wiring the service graph composes over:
+// the People Directory, School Membership and School Structure wiring
+// (#4007) and, over its retained rows, the Student Presence, Facilities,
+// Device Fleet and class-day wiring (#4010), together with the Timetable,
+// School Calendar and reminder wiring (#4009) and the platform,
+// Communication and Organisation & Tenancy wiring (#4013).
+func newServiceGraphWiring(people PeopleWiringOwners, presence PresenceWiringOwners, organizations organizationModule.Capability) (PeopleWiring, PresenceWiring, TimetableWiring, PlatformWiring, error) {
 	peopleWiring, err := NewPeopleWiring(people)
 	if err != nil {
-		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, services.PlatformWiring{}, err
+		return PeopleWiring{}, PresenceWiring{}, TimetableWiring{}, PlatformWiring{}, err
 	}
 	presence.People = peopleWiring
 	presenceWiring, err := NewPresenceWiring(presence)
 	if err != nil {
-		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, services.PlatformWiring{}, err
+		return PeopleWiring{}, PresenceWiring{}, TimetableWiring{}, PlatformWiring{}, err
 	}
 	timetableWiring, err := NewTimetableWiring(TimetableWiringOwners{
 		DB: people.DB, Logger: people.Logger, Repositories: presence.TimetableRows, Timetable: people.Timetable,
 		Calendar: presence.Calendar, Rooms: people.Rooms, Membership: people.Membership, Persons: people.Persons, People: peopleWiring,
 	})
 	if err != nil {
-		return services.PeopleWiring{}, services.PresenceWiring{}, services.TimetableWiring{}, services.PlatformWiring{}, err
+		return PeopleWiring{}, PresenceWiring{}, TimetableWiring{}, PlatformWiring{}, err
 	}
 	platform, err := NewPlatformWiring(PlatformWiringOwners{
 		DB: people.DB, Organizations: organizations, Persons: people.Persons, Groups: people.Groups,
@@ -542,7 +500,7 @@ func composeSchoolMembership(db transactionruntime.Database) (*schoolMembershipM
 		Observe: func(observation schoolMembershipCompose.Observation) {
 			observability.ObserveSchoolMembershipOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolMembershipModule.ErrorCode(observation.Err), observation.Err)
 		},
-		Employment: services.MembershipStaffEmployment(staffEmployment),
+		Employment: MembershipStaffEmployment(staffEmployment),
 		// Every counting membership write is checked against the school's
 		// Kinderkontingent, which Organisation & Tenancy owns (#3567).
 		ChildQuota: organizationCompose.NewChildQuotaLimits(),
@@ -569,16 +527,16 @@ func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.S
 	})
 }
 
-// withRootWiring resolves what the service factory needs from the root and
+// withRootWiring resolves what the service graph needs from the root and
 // cannot compose itself. File Storage (#2707) needs the uploads object store,
 // rooted at the uploads directory every document feature shares, and the
-// metrics sink; the factory composes the module where the announcement ports
+// metrics sink; the service graph composes the module where the announcement ports
 // live. Identity & Access is composed by the root over the values the
 // factory builds, with the session codec of Identity's session token adapter
 // (#2747, #4006). Care Plan's bindings to the root's owners come built
 // (#4011); their change history names the actor through the same token
 // adapter.
-func withRootWiring(db transactionruntime.Database, carePlanOwners carePlanWiringOwners, build func(services.FileStorageWiring, services.IdentityRoot, services.CarePlanWiring) (*services.Factory, error)) (*services.Factory, composedIdentity, carePlanRoot, error) {
+func withRootWiring(db transactionruntime.Database, carePlanOwners carePlanWiringOwners, in serviceGraphInputs, publicAPIURL string) (*serviceGraph, composedIdentity, carePlanRoot, error) {
 	uploads, err := apiCommon.PrivateUploadsBackend()
 	if err != nil {
 		return nil, nil, carePlanRoot{}, fmt.Errorf("resolve uploads backend: %w", err)
@@ -593,19 +551,30 @@ func withRootWiring(db transactionruntime.Database, carePlanOwners carePlanWirin
 	if err != nil {
 		return nil, nil, carePlanRoot{}, err
 	}
-	factory, err := build(services.FileStorageWiring{
+	in.FileStorage = FileStorageWiring{
 		Objects: uploads, Observe: observeFileStorage,
 		Settings: func(settings settingsCompose.SettingsService) filestorageCompose.Settings {
 			return FileStorageSettings{Service: settings}
 		},
-		Events: func(events services.FileEventAppender) filestorageCompose.Events {
+		Events: func(events FileEventAppender) filestorageCompose.Events {
 			return FileStorageEvents{Repo: events}
 		},
-	}, wiring, carePlan.wiring)
+	}
+	in.Identity, in.CarePlanWiring = wiring, carePlan.wiring
+	graph, err := newServeServiceGraph(in, publicAPIURL)
 	if err != nil {
 		return nil, nil, carePlanRoot{}, err
 	}
-	return factory, identity, carePlan, nil
+	return graph, identity, carePlan, nil
+}
+
+// observeCommunication records one Communication operation.
+func observeCommunication(observation communicationCompose.Observation) {
+	observability.ObserveCommunicationOperation(
+		observation.Operation, observation.Duration, int64(observation.Stats.Queries), observation.Stats.Rows,
+		int64(observation.Stats.DuplicatePreventionConflicts), observation.Stats.StatementDuration,
+		communicationModule.ErrorCode(observation.Err), observation.Err,
+	)
 }
 
 func observeFileStorage(observation filestorageCompose.Observation) {
@@ -827,13 +796,14 @@ func newFeedbackResource(module *feedbackModule.Module) *feedbackAPI.Resource {
 }
 
 // serveGraph is the composed Serve root: its router, the process-scoped pool
-// and the retained composition the embedded Worker still reads (#2749). Each
-// route resource is mounted where it is built (#2745); only the two document
-// sweeps the Worker runs outlive their mount.
+// and the retained composition the embedded Worker still reads until the
+// service Factory is deleted (#2747). Each route resource is mounted where it
+// is built (#2745); only the two document sweeps the Worker runs outlive their
+// mount.
 type serveGraph struct {
 	router             chi.Router
 	db                 transactionruntime.Database
-	services           *services.Factory
+	services           *serviceGraph
 	metrics            *httpMetrics
 	tracer             *observability.Tracer
 	metricsBearerToken string
@@ -901,12 +871,12 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	// and writes its departure columns unconditionally (no per-request
 	// information_schema probes, #2059), so the server must only start against
 	// a fully migrated database.
-	if err := usersRepo.VerifyStudentSchema(context.Background(), db.Pool()); err != nil {
+	if err := peopleCompose.VerifyRetainedStudentSchema(context.Background(), db.Pool()); err != nil {
 		return nil, workerReads{}, nil, err
 	}
 
 	if viper.GetBool("db_debug") {
-		db.AddQueryHook(database.NewQueryHook(logger.With("component", "database")))
+		db.LogQueries(logger.With("component", "database"))
 	}
 
 	tracker, err = newProductAnalytics(logger)
@@ -920,16 +890,16 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	if err != nil {
 		return nil, workerReads{}, nil, err
 	}
-	serviceFactory := modules.services
-	if err := serviceFactory.SetTenantRuntime(tenantRuntime); err != nil {
+	retained := modules.services
+	if err := retained.bindTenantRuntime(tenantRuntime); err != nil {
 		return nil, workerReads{}, nil, err
 	}
 	// Identity & Access is composed by the root (#4006), so the root binds
-	// its unit of work as the factory does for its own services.
+	// its unit of work as it does for the retained services.
 	if err := modules.identity.SetTenantRuntime(tenantRuntime); err != nil {
 		return nil, workerReads{}, nil, err
 	}
-	serviceFactory.SetSettingsObservers(
+	retained.SetSettingsObservers(
 		observability.ObserveSettingsLookup,
 		observability.RecordSettingsSideEffectFailure,
 	)
@@ -940,7 +910,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	graph := &serveGraph{
 		router:             chi.NewRouter(),
 		db:                 db,
-		services:           serviceFactory,
+		services:           retained,
 		metrics:            httpMetrics,
 		tracer:             tracer,
 		metricsBearerToken: metricsBearerToken,
@@ -992,7 +962,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 	graph.router.Use(apiCommon.SentrySessionContext)
 	// Core actions of the portals reach the usage analytics once their
 	// response is 2xx (#3602). After the verifier, which names the session.
-	graph.router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(serviceFactory.Settings, logger)))
+	graph.router.Use(coreActionAnalytics(tracker, sessionAuth, settingsCompose.NewAnalyseFreigabe(retained.Settings, logger)))
 
 	documents, err := mountRoutes(graph.router, routeInputs{
 		modules:        modules,
@@ -1015,9 +985,9 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 // registerRuntimeStatsProviders hands the pool, the live streams and the PWA
 // usage to the metrics endpoint.
 func registerRuntimeStatsProviders(db transactionruntime.Database, modules moduleServices) {
-	serviceFactory := modules.services
+	retained := modules.services
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
-		stats := database.SnapshotCapacity(db.Pool())
+		stats := db.Capacity()
 		return observability.DBStats{
 			OpenConnections:   stats.OpenConnections,
 			InUse:             stats.InUse,
@@ -1028,9 +998,9 @@ func registerRuntimeStatsProviders(db transactionruntime.Database, modules modul
 			MaxLifetimeClosed: stats.MaxLifetimeClosed,
 		}
 	})
-	observability.RegisterSSEStatsProvider(serviceFactory.RealtimeHub)
+	observability.RegisterSSEStatsProvider(retained.RealtimeHub)
 	observability.RegisterPWAUsageStatsProvider(observability.PWAUsageStatsProviderFunc(func() ([]observability.PWAUsageStat, error) {
-		rows, err := serviceFactory.PWAUsage.SnapshotUsage()
+		rows, err := retained.PWAUsage.SnapshotUsage()
 		if err != nil {
 			return nil, err
 		}
@@ -1065,8 +1035,6 @@ func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // document sweeps. It refuses to start while a writing route has no
 // core-action classification.
 func mountRoutes(root chi.Router, in routeInputs, limiters authRateLimiters) (documentSweeps, error) {
-	svc := in.modules.services
-	enableStudentPhotos(svc, in.modules.studentPhotoRuntime, studentsAPI.NewPhotoUnlinker(in.logger.With("component", "student-photo-unlinker"), "public"), in.logger.With("service", "student-photo"))
 	if err := mountDemoAccess(root, in.modules.demoAccess, viper.GetString("app_env"), in.frontendURL, viper.GetString("tenant_domain")); err != nil {
 		return documentSweeps{}, err
 	}
@@ -1356,7 +1324,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		}
 	})
 	generalRateLimiter.SetRejectObserver(observability.RecordRateLimitRejection)
-	generalRateLimiter.SetKeyFunc(identityRateLimitKey(tokenAuth))
+	generalRateLimiter.SetKeyFunc(tokenAuth.RateLimitKey)
 	if exemptLoopback {
 		generalRateLimiter.ExemptLoopback()
 	}
@@ -1364,66 +1332,6 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
-}
-
-// identityRateLimitKey buckets authenticated requests by their stable quota
-// identity — account ID, scope, and tenant ID from the verified JWT claims —
-// instead of a per-token hash (#2064). Every valid session of the same
-// identity shares one budget, so a re-login or token refresh no longer
-// resets the quota. The key carries only numeric IDs and the scope label,
-// never the raw token, email, or name.
-//
-// Quota-identity rules:
-//   - Same account, same scope, same tenant → one shared budget across all
-//     sessions (browser tabs, refreshed tokens, re-logins).
-//   - A tenant switch mints a JWT with a different tenant_id and gets its
-//     own budget. Different portal scopes ("", "org", "platform", "parent")
-//     are separate budgets too — scope must be in the key because operator
-//     IDs (platform.operators) and account IDs (auth.accounts) are
-//     different ID spaces.
-//   - Requests without a verified identity — missing, expired, or
-//     manipulated JWTs, non-JWT bearer values such as IoT device API keys,
-//     and MFA challenge/enrollment tokens (no "id" claim) — return "" and
-//     the limiter falls back to the trusted client IP. Unverified bearer
-//     values must never produce token-derived buckets: an attacker could
-//     mint arbitrary values and sidestep IP limiting entirely.
-func identityRateLimitKey(tokenAuth *sessiontoken.TokenAuth) func(*http.Request) string {
-	return func(r *http.Request) string {
-		tokenString := extractBearerToken(r.Header.Get("Authorization"))
-		if tokenString == "" || tokenAuth == nil || tokenAuth.JwtAuth == nil {
-			return ""
-		}
-
-		token, err := tokenAuth.JwtAuth.Decode(tokenString)
-		if err != nil {
-			return ""
-		}
-		if err := jwxjwt.Validate(token); err != nil {
-			return ""
-		}
-
-		claims := map[string]any{}
-		if err := transform.AsMap(token, claims); err != nil {
-			return ""
-		}
-		// JSON numbers decode as float64 (same contract as AppClaims.ParseClaims).
-		accountID, ok := claims["id"].(float64)
-		if !ok || accountID <= 0 {
-			return ""
-		}
-		scope, _ := claims["scope"].(string)
-		tenantID, _ := claims["tenant_id"].(float64)
-
-		return fmt.Sprintf("acct:%d:%s:%d", int64(accountID), scope, int64(tenantID))
-	}
-}
-
-func extractBearerToken(authHeader string) string {
-	const bearerPrefix = "Bearer "
-	if len(authHeader) <= len(bearerPrefix) || !strings.HasPrefix(authHeader, bearerPrefix) {
-		return ""
-	}
-	return strings.TrimSpace(authHeader[len(bearerPrefix):])
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value
@@ -1822,7 +1730,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router())
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
-	// point: the services factory composes it and the IoT service hands it
+	// point: the service graph composes it and the IoT service hands it
 	// back here (#2676).
 	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), svc.Settings).Router())
 	// Dateframes belong to the School Calendar, timeframes and recurrence

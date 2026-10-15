@@ -14,11 +14,10 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // enrollmentWiringOwners are the owners the root has composed when it binds
-// Enrollment into the legacy composition (#4012).
+// Enrollment into the service graph (#4012).
 type enrollmentWiringOwners struct {
 	DB        transactionruntime.Database
 	CarePlan  careplan.Capability
@@ -29,15 +28,15 @@ type enrollmentWiringOwners struct {
 }
 
 // newEnrollmentWiring binds Enrollment to the owners the root composed and
-// hands the legacy composition the flows it builds over its own values
+// hands the service graph the flows it builds over the graph's own values
 // (ADR 0053 point 8): the booking projection over Care Plan's bookings, the
 // People Directory, Care Plan, Timetable and Settings Platform adapters, and
 // the builders of the decision, intake, change-request, rollover, report,
 // deletion and offering-change flows.
-func newEnrollmentWiring(owners enrollmentWiringOwners) services.EnrollmentWiring {
+func newEnrollmentWiring(owners enrollmentWiringOwners) EnrollmentWiring {
 	bookings := NewEnrollmentBookings()
 	careOfferings := enrollmentCompose.NewCareOfferingRecords(owners.CarePlan)
-	return services.EnrollmentWiring{
+	return EnrollmentWiring{
 		Bookings:              bookings,
 		ApprovedOfferings:     enrollmentCompose.NewApprovedOfferingProjection(bookings, OfferingStudents{Query: owners.Persons}),
 		CareBookings:          enrollmentCareBookings{owner: owners.CarePlan},
@@ -49,11 +48,11 @@ func newEnrollmentWiring(owners enrollmentWiringOwners) services.EnrollmentWirin
 		MailRenderers: func(defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
 			return enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom)
 		},
-		Notifications: func(settings services.EnrollmentSettings, outbox platformModels.OutboxEnqueuer) enrollmentOwner.Notifications {
+		Notifications: func(settings EnrollmentSettings, outbox platformModels.OutboxEnqueuer) enrollmentOwner.Notifications {
 			return NewEnrollmentNotifications(bookings, settings, outbox, owners.Schools)
 		},
 		Deletions: NewEnrollmentDeletionModule,
-		Phases: func(src services.EnrollmentPhaseSources) *enrollmentCompose.Phases {
+		Phases: func(src EnrollmentPhaseSources) *enrollmentCompose.Phases {
 			return enrollmentCompose.NewPhases(enrollmentCompose.PhaseDependencies{
 				Records: bookings, Offerings: enrollmentPhaseOfferings{carePlan: owners.CarePlan}, Calendar: owners.Calendar,
 				LockTemplateRecurrence: src.LockTemplateRecurrence, ValidateCareOfferingPhaseChange: src.ValidateCareOfferingPhaseChange,
@@ -63,13 +62,13 @@ func newEnrollmentWiring(owners enrollmentWiringOwners) services.EnrollmentWirin
 			})
 		},
 		Decisions: NewEnrollmentDecisions,
-		Capacity: func(settings services.EnrollmentSettings) enrollmentOwner.OfferingCapacity {
+		Capacity: func(settings EnrollmentSettings) enrollmentOwner.OfferingCapacity {
 			return NewEnrollmentOfferingCapacity(careOfferings, bookings, settings)
 		},
 		AdminSubscribers: NewEnrollmentAdminSubscribers,
 		Intake:           NewEnrollmentIntake,
 		Reports:          NewEnrollmentReports,
-		GuardianInvitations: func(invitations services.EnrollmentGuardianInvitations) enrollmentCompose.GuardianInvitationAvailability {
+		GuardianInvitations: func(invitations EnrollmentGuardianInvitations) enrollmentCompose.GuardianInvitationAvailability {
 			return enrollmentGuardianInvitationAvailability{invitations: invitations}
 		},
 		ChangeRequests:    NewEnrollmentChangeRequests,

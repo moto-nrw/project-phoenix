@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -23,7 +22,7 @@ func NewGroupRepository(runtime educationRepo.LegacyRepositoryRuntime, rooms fac
 	return NewEducationGroupStore(runtime, educationRepo.GroupRepositoryDependencies{
 		Rooms:               func() educationRepo.GroupRoomLookup { return educationRoomDirectory{rooms: rooms} },
 		TeachingAssignments: groupTeachingAssignments(membership),
-		SupervisingStaff:    services.SupervisionStaffResolver(membership, services.WorkforceSubstitutedStaff(workTime)),
+		SupervisingStaff:    SupervisionStaffResolver(membership, WorkforceSubstitutedStaff(workTime)),
 	})
 }
 

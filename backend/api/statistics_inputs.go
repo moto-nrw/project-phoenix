@@ -15,10 +15,7 @@ import (
 )
 
 type StatisticsAuditLog struct {
-	Log interface {
-		Create(context.Context, *auditModels.DataAccessLog) error
-		ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error)
-	}
+	Log accessLogLedger
 }
 
 func (a StatisticsAuditLog) RecordStatisticsAccess(ctx context.Context, event presenceCompose.StatisticsAccessEvent) error {
@@ -135,4 +132,11 @@ func (a StatisticsStatusDays) StatusDays(ctx context.Context, from, to timezone.
 		result = append(result, presenceCompose.StatusDay{StudentID: value.StudentID, Date: timezone.Date(value.Date), Status: value.Status})
 	}
 	return result, nil
+}
+
+// accessLogLedger is the Audit Platform's data access log a report appends
+// to and checks for a recent entry.
+type accessLogLedger interface {
+	Create(context.Context, *auditModels.DataAccessLog) error
+	ExistsSince(context.Context, int64, string, map[string]string, time.Time) (bool, error)
 }

@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,7 +16,7 @@ import (
 // Student Presence room occupancy and the tenant runtime's advisory locks;
 // the retained rows bind the Facilities rooms and the Audit Platform's
 // Änderungsprotokoll.
-func NewTimetableData(in services.TimetableDataInputs) (timetable.TimetableDataCapability, error) {
+func NewTimetableData(in TimetableDataInputs) (timetable.TimetableDataCapability, error) {
 	templates, err := in.Rows.DataTemplates()
 	if err != nil {
 		return nil, err

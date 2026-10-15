@@ -13,7 +13,7 @@ import (
 
 // NewEnrollmentBookings is Enrollment's booking projection over Care Plan's
 // bookings in the ambient tenant transaction (#2743, #4012). The enrollment
-// and settings routes, the legacy composition and the booking audit read it.
+// and settings routes, the service graph and the booking audit read it.
 func NewEnrollmentBookings() *enrollment.BookingProjection {
 	return newEnrollmentBookings(enrollmentCompose.New())
 }

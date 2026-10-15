@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewStatistics builds the Statistik report over the presence database of
@@ -39,8 +38,8 @@ type statisticsOwners struct {
 
 // newStatisticsReports binds the Statistik report to the owners; the service
 // graph calls the result with its access log and settings.
-func newStatisticsReports(owners statisticsOwners) func(services.StatisticsSources) studentpresence.StatisticsReports {
-	return func(sources services.StatisticsSources) studentpresence.StatisticsReports {
+func newStatisticsReports(owners statisticsOwners) func(StatisticsSources) studentpresence.StatisticsReports {
+	return func(sources StatisticsSources) studentpresence.StatisticsReports {
 		return NewStatistics(owners.Logger, presenceCompose.StatisticsDependencies{
 			DB:          owners.DB.Pool(),
 			StatusDays:  StatisticsStatusDays{owners.CarePlan},

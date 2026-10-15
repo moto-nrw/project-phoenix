@@ -22,7 +22,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The staff surface under /api/staff is composed from two adapters (#2667):
@@ -113,26 +112,26 @@ func toStaffHTTPRoleRows(rows []StaffRoleRow) []staffHTTP.StaffWithRoleResponse 
 // newStaffComposition builds both halves of the /api/staff surface: the
 // workforce admin resource of the Workforce module and the School Membership
 // adapter bound over it.
-func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, svc *services.Factory, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
-	exportTransfer, err := newExportTransferModule(svc, db, logger)
+func newStaffComposition(module schoolMembershipModule.Capability, workforce workforceModule.Capability, graph *serviceGraph, identity *identityaccess.Module, db transactionruntime.Database, logger *slog.Logger) (*staffHTTP.Resource, *timeTrackingHTTP.StaffAdminResource, error) {
+	exportTransfer, err := newExportTransferModule(graph, db, logger)
 	if err != nil {
 		return nil, nil, err
 	}
-	capabilities := NewWorkforceAdminCapabilities(svc.Users, svc.StaffDocuments, svc.WorkSession)
-	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(svc.RealtimeHub), exportTransfer, db, logger)
-	return newStaffResource(module, svc.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
-		return NewStaffMembershipRuntime(svc, db, identity, logger, hooks)
+	capabilities := NewWorkforceAdminCapabilities(graph.Users, graph.StaffDocuments, graph.WorkSession)
+	staffAdmin := newStaffAdminResource(capabilities, workforce, staffTimeTrackingNotifier(graph.RealtimeHub), exportTransfer, db, logger)
+	return newStaffResource(module, graph.PeopleDirectory, func(hooks StaffMembershipHooks) StaffMembershipRuntime {
+		return NewStaffMembershipRuntime(graph, db, identity, logger, hooks)
 	}, staffAdmin, logger), staffAdmin, nil
 }
 
 // newExportTransferModule wires the Export Transfer capability (#3050) over
 // the tenant settings. It is composed HERE rather than alongside the other
 // modules because it needs the settings service, which only exists once the
-// service factory is built.
-func newExportTransferModule(svc *services.Factory, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
+// service graph is built.
+func newExportTransferModule(graph *serviceGraph, db transactionruntime.Database, logger *slog.Logger) (*exportTransferModule.Module, error) {
 	// The setting keys stay in the settings layer next to their registry
 	// definitions; the root only passes the binding on.
-	resolvers, keys := settingsCompose.NewSFTPExportSettings(svc.Settings)
+	resolvers, keys := settingsCompose.NewSFTPExportSettings(graph.Settings)
 	return exportTransferCompose.New(exportTransferCompose.Dependencies{
 		DB: db.Pool(),
 		Settings: exportTransferCompose.Settings{

@@ -34,7 +34,7 @@ type weekdayRosterScenario struct {
 	db          *bun.DB
 	ctx         context.Context
 	tenantID    int64
-	factory     *api.TestFactory
+	factory     *api.TestServiceGraph
 	materialize timetable.MaterializationCapability
 
 	roomID     int64
@@ -1021,7 +1021,7 @@ func makeWeekdayRosterScenario(t *testing.T, anchor calendar.Date) *weekdayRoste
 	db := testpkg.SetupTestDB(t)
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	serviceFactory, err := api.NewFactoryForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
+	serviceFactory, err := api.NewServiceGraphForTests(repoFactory, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	tenantID := testpkg.UniqueTestTenantID(t)

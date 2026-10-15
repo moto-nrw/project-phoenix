@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The factory binds the School Structure query at construction; without it
+// The test repositories bind the School Structure query at construction; without it
 // the group-enriched adapters could not name a group, so it refuses.
 func TestNewFactoryRequiresSchoolStructure(t *testing.T) {
 	t.Parallel()

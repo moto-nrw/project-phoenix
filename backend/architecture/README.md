@@ -541,6 +541,27 @@ rows; their seams `CarePlanRecords` and `WorkforceShiftRecords` carry only the
 methods the remaining callers reach (50 -> 40 and 15 -> 9). The evidence
 record is `contract-repository-factory-2743.json`.
 
+#2749 deletes the last post-construction wiring of the Worker. Its blockers
+had already removed the `Scheduler.Set*` methods and `SetupAPITest`;
+`newScheduler` still filled the Scheduler through three pointer-parameter
+functions, and the root filled `WorkerDependencies` through two. Both are now
+one literal (`scheduler.newScheduler`, `api.workerDependencies`). The
+session-cleanup interval and threshold fields, which only tests read, are
+deleted; the break auto-end interval is computed where the task is
+registered instead of being stored on the Scheduler. The generated inventory
+`architecture/callers/scheduler-setters-2749.json`
+(`scripts/backend-scheduler-setter-callers`) shows no declaration or
+reference of the deleted functions and fields, of a `Scheduler.Set*` method or
+of `SetupAPITest`; at the evidence commit the same generator finds 31 `Set*`
+methods and `SetupAPITest` with 73 references. The composition surface drops
+from 219 to 140 field/setter targets (45 in `services/scheduler`, 34 in
+`api`); no ratchet key changes. The Worker keeps its job set: `NewWorker`
+still refuses a graph without every required job. What remains are the two
+day-rollover caches of the overdue and reminder re-fire guards (task state)
+and the internal test builder `unitScheduler`. The Worker still reads the
+retained service Factory through `serveGraph`; that read falls with the
+Factory (#2747). The evidence record is `contract-scheduler-setters-2749.json`.
+
 #2747 contracts the service Factory in part (ADR 0050, policy epoch raised to 38).
 `services` names the retained activity, facility, IoT, staff-clock, import,
 audit, settings, parent-event, list-export and database-statistics services
@@ -3855,6 +3876,111 @@ root took from its implementation roles:
 The baseline goes from 46 to 42 and the policy from 1,438 to 1,440 rules. The
 composition surface stays at 252, and `cycles --graph target` is unchanged at
 58 owners, 335 edges and one component of 32 members.
+
+### Service Factory deleted (#2747)
+
+The top-level package `services` and `services.Factory` are gone; the
+classified packages below `services/` stay with their owners. The root
+(`api`) composes the retained services itself, as ADR 0053 point 8 planned:
+
+- **Stages, not a Factory.** `newServiceGraph` (`api/service_graph_compose*.go`)
+  binds the services over the owners the root composed and the wiring it built
+  for them (`PeopleWiring`, `PresenceWiring`, `TimetableWiring`,
+  `PlatformWiring`, `CarePlanWiring`, `EnrollmentWiring`, `WorkforceWiring`).
+  Each stage takes the build so far and returns it extended instead of setting
+  graph fields through a receiver; the binding calls the Factory made on
+  composed services (`WithDecisionNotifications`, `SetAttachmentPurger`,
+  `WireCareParticipation`, `BindGuardianDirectory`, `BindClassListEntries`,
+  `BindSettingsGuards`) stay as they were. A
+  value a later stage binds (Delivery's outbox and state, Care Plan's
+  participation, the sick cascade, the booking materialization, the
+  cancellation notice, the parents portal's sharing rules) sits in one slot the
+  earlier services read at call time, as the Factory's local variables did.
+  `newServeServiceGraph` requires every owner, observer and wiring and reads the
+  process configuration; `NewServiceGraphForTests` (formerly
+  `NewFactoryForTests`) builds the test graphs. The graph's
+  `bindTenantRuntime` replaces `Factory.SetTenantRuntime`. The photo lifecycle
+  is composed from the root's photo slot and file unlinker instead of the
+  post-construction setter `EnableStudentPhotos`.
+- **Imports through compositions.** The root may not import Delivery's
+  application role, the projections' adapters, Observability's store or
+  Workforce's adapter. Delivery's composition names the notification, outbox
+  and PWA usage services; `modules/grouplive/compose` and
+  `modules/supervisiondashboard/compose` name the callers and the open room
+  sessions; the new `modules/emergencysnapshot/compose` and
+  `observability/compose` build the Notfallliste and the PWA usage store;
+  `modules/workforce/compose` names the group substitution row. The two new
+  packages are created packages of their owners, so PR mode accepts their
+  classification.
+- **Rule 1 and the complexity limit hold under `api/`** without an allowlist
+  entry. Source fields name the narrow ports the root's adapters already
+  declare. The Timetable composition takes consumer-owned ports for the
+  lifecycle staff, the deviation staff and the correction actor
+  (`LifecycleStaff`, `DeviationStaff`, `CorrectionPeople`). The People Directory
+  composition names the retained row stores (`Repositories`) the root hands the
+  graph. Stateless adapters such as the room, guardian phone and request event
+  stores are built where a stage uses them.
+- **Tests.** The legacy composition's suites run as internal tests of `api`.
+  `TestAPITestsUseNarrowRouteBuilders` treats `newServiceGraph` and
+  `newServeServiceGraph` as broad composition, as it treated
+  `services.NewFactory*`; only the graph's own tests (`api/service_graph*_test.go`)
+  may build it.
+
+The policy loses the package entry of `services`, the `legacy_composition`
+entry `services.Factory` and the 69 rules only `services` used (1,415 → 1,346
+rules); the epoch stays 44. The baseline goes from 39 to 34: `services -> bun`
+and `services -> tenant` (#2747) and `api -> services`, `cmd -> services` and
+the composition reference `api -> services.Factory` (#2750). The composition
+ratchet counts `api.serviceGraph` as a central aggregate and compares a base's
+`services.Factory` fields with it (`relocatedAggregate`), so the moved fields
+stay shrink-only and a new one fails the check. Measured after merging #2749,
+the surface goes from 140 to 139: the setter `EnableStudentPhotos` is gone. `cycles --graph target` is unchanged at 58
+owners, 335 edges and one component of 32 members. The caller inventory
+`callers/service-factory-2747.json` (`scripts/backend-service-factory-callers`)
+lists no Go file and no importer of `services` and no declaration or reference
+of the retired symbols; at the merge base it lists 29 Go files and 109 imports.
+
+### Root without foreign implementation roles, first cut (#2750)
+
+Nine #2750 keys fall without a policy change (34 -> 25). Each import of an
+implementation role of another owner moves behind a seam this slice adds to
+a contract the root may already reach, or into the owner that holds the code:
+
+- **Shared kernel and the settings contract.** `cmd` reads calendar dates
+  from `sharedkernel/calendar` instead of `internal/timezone` (production and
+  internal test). `cmd settings overrides` and the two root suites that seed
+  settings name their keys through `modules/settings`, whose contract gains
+  the seven keys they use. The CLI reads stored overrides through
+  `settingsCompose.NewStoredOverrideReader`, which returns the stored JSON and
+  whether a row exists. It replaces `NewSettingsCommandRepository`, whose only
+  caller was the CLI, so `cmd` names no `models/config` type.
+- **The Database value.** `transactionruntime.Database` gains `LogQueries` (the
+  `db_debug` hook) and `Capacity` (the pool statistics of the metrics endpoint
+  and the capacity log). `api` no longer imports `database`; `Capacity` still
+  returns `database.CapacityStats`, whose fields the root reads.
+- **Owner compositions.** The startup check of the students table runs through
+  `peopleCompose.VerifyRetainedStudentSchema`, which leaves the composition's
+  test hooks because production calls it now. `observability/compose.InstallProcessLogger`
+  builds and installs the process logger for `serve` and the migration
+  commands (`cmd -> applog`).
+- **Session token adapter.** The rate-limit key derived from verified claims
+  (#2064) is `sessiontoken.TokenAuth.RateLimitKey`. Its JWT decoding sits
+  with the codec, so `api` no longer imports `jwx/jwt` or `jwx/transform`. The
+  twelve key tests moved with it, and one more pins the IP fallback without a
+  codec; the two limiter tests stay in `api`.
+
+The other 21 keys keep #2750 as carrier. Sixteen need a decision
+([#4063](https://github.com/moto-nrw/project-phoenix/issues/4063)): the
+`http-router` class in the server root, `cli-config` in the internal tests of
+`cmd`, the shared HTTP runtime `api/common`, the `dev-tools` seeder and
+simulator, and four implementation roles whose use would otherwise need
+aliases: Tenant Runtime's `middleware`, the session token adapter, the
+Worker's application `services/scheduler` (37 symbols) and the analytics
+adapter. Five need a move into their owners
+([#4064](https://github.com/moto-nrw/project-phoenix/issues/4064)):
+`api/config`, `api/operator`, `api/platform`, `api/pwa` and `api/reminders`.
+The composition surface stays at 139. The evidence record is
+`root-implementation-roles-2750.json`.
 
 ## Changing the policy
 

@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -58,7 +57,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(MustPresenceReads(db)),
 		Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
 		ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{Periods: calendar}, Students: StatisticsReportStudents{Students: students}, Rooms: StatisticsReportRooms{Rooms: rooms},
-		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: services.OptionalClock(clocks),
+		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: OptionalClock(clocks),
 	})
 	createClosingDay := func(ctx context.Context, start, end timezone.Date, reason string) error {
 		_, err := calendar.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

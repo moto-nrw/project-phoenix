@@ -18,43 +18,42 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // Identity & Access is composed in the root (#4006, ADR 0053 points 1, 4 and
-// 8). The legacy composition still consumes the module, so it hands the
-// root's composition the values it builds itself: the settings, the audit
-// ledger, the mail transport, the identity chain rows. Every seam that binds
+// 8). The service graph consumes the module, so it hands the root's
+// composition the values it builds itself: the settings, the audit ledger,
+// the mail transport, the identity chain rows. Every seam that binds
 // Identity to another owner lives in the root; the module is built through
 // modules/identityaccess/compose, and the session codec comes from the root's
 // session token adapter.
 
-// identityRoot composes Identity & Access for the legacy composition.
+// identityRoot composes Identity & Access for the service graph.
 type identityRoot struct {
 	db     transactionruntime.Database
 	tokens TokenAdapter
 }
 
-// composedIdentity is what the root mounts once the legacy composition
-// composed Identity & Access: the module and its caller context with the rows
+// composedIdentity is what the root mounts once the service graph composed
+// Identity & Access: the module and its caller context with the rows
 // the retained routes read.
 type composedIdentity func() (*identityaccess.Module, *CallerRows)
 
-// newIdentityRoot returns the composition the legacy composition receives
-// and a read of what it composed.
-func newIdentityRoot(db transactionruntime.Database, tokens TokenAdapter) (services.IdentityRoot, composedIdentity) {
+// newIdentityRoot returns the composition the service graph receives and a
+// read of what it composed.
+func newIdentityRoot(db transactionruntime.Database, tokens TokenAdapter) (IdentityRoot, composedIdentity) {
 	root := identityRoot{db: db, tokens: tokens}
 	var module *identityaccess.Module
 	var userContext *CallerRows
-	compose := func(m services.IdentityMaterial) (services.IdentityComposition, error) {
+	compose := func(m IdentityMaterial) (IdentityComposition, error) {
 		composition, rows, err := root.compose(m)
 		if err != nil {
-			return services.IdentityComposition{}, err
+			return IdentityComposition{}, err
 		}
 		module, userContext = composition.Access, rows
 		return composition, nil
 	}
-	wiring := services.IdentityRoot{
+	wiring := IdentityRoot{
 		Compose:     compose,
 		Permissions: tokens.Permissions,
 		ActorScope:  tokens.actorScope,
@@ -66,17 +65,17 @@ func newIdentityRoot(db transactionruntime.Database, tokens TokenAdapter) (servi
 // compose builds Identity & Access over the material: sessions, the account
 // lifecycle, the second factor and both portals' passkey ceremonies, the
 // operator flows, the demo access, the caller context and the mails.
-func (r identityRoot) compose(m services.IdentityMaterial) (services.IdentityComposition, *CallerRows, error) {
+func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerRows, error) {
 	cfg := m.Config
 	authLogger := m.Logger.With("service", "auth")
 	platformLogger := m.Logger.With("service", "platform")
 	tenantDomain := strings.TrimSpace(cfg.TenantDomain)
 	if tenantDomain == "" {
-		return services.IdentityComposition{}, nil, fmt.Errorf("TENANT_DOMAIN is required")
+		return IdentityComposition{}, nil, fmt.Errorf("TENANT_DOMAIN is required")
 	}
 	operatorFrontendURL, err := operatorFrontendURLOf(cfg.OperatorHostname, m.FrontendURL)
 	if err != nil {
-		return services.IdentityComposition{}, nil, err
+		return IdentityComposition{}, nil, err
 	}
 	identityChain := LifecycleRepositories{
 		Persons: m.PersonRows, Staff: m.StaffRows, Teachers: m.TeacherRows, Students: m.StudentRows,
@@ -90,7 +89,7 @@ func (r identityRoot) compose(m services.IdentityMaterial) (services.IdentityCom
 		Logger:        platformLogger,
 	})
 	if err != nil {
-		return services.IdentityComposition{}, nil, err
+		return IdentityComposition{}, nil, err
 	}
 	module, err := NewIdentityAccessWithSessions(identityaccessCompose.Dependencies{DB: r.db.Pool()}, AccountAuthenticationWiring{
 		Repos:    SessionRepositoriesOf(identityChain, m.Organizations, m.AuthEvents, m.PushSubscriptions),
@@ -146,7 +145,7 @@ func (r identityRoot) compose(m services.IdentityMaterial) (services.IdentityCom
 		},
 	})
 	if err != nil {
-		return services.IdentityComposition{}, nil, err
+		return IdentityComposition{}, nil, err
 	}
 	// The caller context (#3501) resolves the caller's chain through the
 	// owners of each link; the rows serve the consumers that still speak the
@@ -167,9 +166,9 @@ func (r identityRoot) compose(m services.IdentityMaterial) (services.IdentityCom
 		Activities: m.ActivityGroups, Sessions: m.Sessions, Logger: usercontextLogger,
 	})
 	if err != nil {
-		return services.IdentityComposition{}, nil, err
+		return IdentityComposition{}, nil, err
 	}
-	return services.IdentityComposition{
+	return IdentityComposition{
 		Access:               module,
 		Caller:               rows,
 		GroupLiveCaller:      GroupLiveCaller{rows},
@@ -216,7 +215,7 @@ func emailChangeExpiry(passwordResetExpiry time.Duration, logger *slog.Logger) t
 // Delivery outbox: the guardian invitation, the guardian welcome and the
 // staff welcome. A welcome waits for the mail it follows; whether it may go
 // out is Identity's rule, the root only reports Delivery's state.
-func identityMailRenderers(module *identityaccess.Module, m services.IdentityMaterial, logger *slog.Logger) map[string]deliveryCompose.MailRenderer {
+func identityMailRenderers(module *identityaccess.Module, m IdentityMaterial, logger *slog.Logger) map[string]deliveryCompose.MailRenderer {
 	return map[string]deliveryCompose.MailRenderer{
 		platformModels.EmailKindGuardianInvitation: payloadRenderer(NewGuardianInvitationRenderer(GuardianInvitationRendererConfig{
 			DefaultFrom: m.DefaultFrom,

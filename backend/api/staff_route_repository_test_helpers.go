@@ -7,17 +7,16 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewAbsenceTypeTestCapability builds the Workforce capability for the
 // absence-type routes; an optional clock pins its calendar day.
 func NewAbsenceTypeTestCapability(db transactionruntime.Database, clocks ...func() time.Time) workforce.Capability {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(err)
 	}
-	workTime, err := NewWorkforceWithClock(db, membership, services.OptionalClock(clocks))
+	workTime, err := NewWorkforceWithClock(db, membership, OptionalClock(clocks))
 	if err != nil {
 		panic(err)
 	}

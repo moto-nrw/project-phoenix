@@ -45,7 +45,7 @@ import (
 type careFixture struct {
 	db           *bun.DB
 	svc          carerequests.Service
-	sf           *api.TestFactory
+	sf           *api.TestServiceGraph
 	repos        *api.RepositoryTestFactory
 	timetable    api.TimetableRepositories
 	chain        testpkg.ParentChain
@@ -59,7 +59,7 @@ func newCareScheduleRequestService(
 	people api.RequestPeople,
 	arrival careplan.ArrivalScheduleService,
 	pickup careplan.PickupScheduleService,
-	factory *api.TestFactory,
+	factory *api.TestServiceGraph,
 	emitter *parentmessaging.Emitter,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
@@ -102,7 +102,7 @@ func newCareFixtureWithEmitter(t *testing.T, emitter *parentmessaging.Emitter, o
 	db := testpkg.SetupTestDB(t)
 	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
-	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
+	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	require.NoError(t, sf.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 

@@ -14,7 +14,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -24,7 +23,7 @@ import (
 // and the realtime hub.
 
 // NewClassDay composes the school portal's class-day capability.
-func NewClassDay(sources services.ClassDaySources) classday.ClassDay {
+func NewClassDay(sources ClassDaySources) classday.ClassDay {
 	deps := classdayCompose.ClassDayDependencies{
 		Caller:                 sources.Caller,
 		PickupTimes:            sources.PickupTimes,
@@ -107,13 +106,23 @@ func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []i
 
 // classDaySheetStudents reads the child of a supervision sheet.
 type classDaySheetStudents struct {
-	students interface {
+	students classDayStudentRows
+	persons  classDayPersonRows
+}
+
+// classDayStudentRows, classDayPersonRows and classDayContactRows are the
+// People Directory rows the class day reads.
+type (
+	classDayStudentRows interface {
 		FindByID(ctx context.Context, id any) (*userModels.Student, error)
 	}
-	persons interface {
+	classDayPersonRows interface {
 		FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Person, error)
 	}
-}
+	classDayContactRows interface {
+		ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]userModels.GuardianEmergencyContactRow, error)
+	}
+)
 
 func (b classDaySheetStudents) FindSheetStudent(ctx context.Context, studentID int64) (*classdayCompose.SheetStudent, error) {
 	student, err := b.students.FindByID(ctx, studentID)
@@ -142,9 +151,7 @@ func (b classDaySheetStudents) PersonsByID(ctx context.Context, personIDs []int6
 
 // classDayEmergencyContacts reads the guardian contact rows of a child.
 type classDayEmergencyContacts struct {
-	repo interface {
-		ListEmergencyContactRows(ctx context.Context, studentIDs []int64) ([]userModels.GuardianEmergencyContactRow, error)
-	}
+	repo classDayContactRows
 }
 
 func (b classDayEmergencyContacts) EmergencyContactRows(ctx context.Context, studentIDs []int64) ([]classdayCompose.EmergencyContactRow, error) {
@@ -175,10 +182,7 @@ func stringValue(value *string) string {
 // classDayAccessLog appends the school portal's reads to
 // audit.data_access_log.
 type classDayAccessLog struct {
-	repo interface {
-		Create(ctx context.Context, entry *auditModels.DataAccessLog) error
-		ExistsSince(ctx context.Context, actorAccountID int64, resourceType string, metadata map[string]string, since time.Time) (bool, error)
-	}
+	repo accessLogLedger
 }
 
 func (l classDayAccessLog) ClassDayViewSeenSince(ctx context.Context, actorAccountID int64, schoolClass, date string, since time.Time) (bool, error) {

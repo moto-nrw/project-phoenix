@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 type DatabaseStatsReader func(context.Context) (*transactionruntime.DatabaseStatsResponse, error)
@@ -32,7 +31,7 @@ func DatabaseStatsPermissions() []string {
 // databaseStatsSources are the rows and owners the Datenverwaltung hub
 // counts (#4013).
 type databaseStatsSources struct {
-	people    services.PeopleWiring
+	people    PeopleWiring
 	rooms     facilitiesModule.Capability
 	timetable timetableCompose.Repositories
 	identity  *identityaccess.Module

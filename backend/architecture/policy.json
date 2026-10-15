@@ -1654,13 +1654,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "services",
-      "owner": "legacy-composition",
-      "role": "compose",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/careplan/excusedrequests",
       "owner": "care-plan",
       "role": "contract",
@@ -3535,6 +3528,20 @@
       "role": "postgres",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/emergencysnapshot/compose",
+      "owner": "emergency-snapshot",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "observability/compose",
+      "owner": "observability",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
     }
   ],
   "data_objects": [
@@ -4754,14 +4761,7 @@
       "tenant_safe": true
     }
   ],
-  "legacy_composition": [
-    {
-      "package": "services",
-      "symbols": [
-        "Factory"
-      ]
-    }
-  ],
+  "legacy_composition": [],
   "external_classes": [
     "cli-config",
     "compiler-tooling",
@@ -5301,29 +5301,6 @@
   ],
   "rules": [
     {
-      "id": "legacy-composition.to.document-rendering-compose",
-      "description": "The legacy root binds the plan export capability to the owners' public reads through the Document Rendering composition (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.document-rendering-lists",
-      "description": "The legacy composition hands the list renderer and the list vocabulary to the retained exports through the Document Rendering list contract (#2747).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "contract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
-    },
-    {
       "id": "request-review-view.compose.impact-token",
       "description": "Render the existing SHA-256 pickup-impact wire token from native facts (#3179).",
       "scopes": [
@@ -5442,17 +5419,6 @@
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
-    },
-    {
-      "id": "care-schedule-cutover.legacy-composition.compose.care-plan.contract",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "contract"
     },
     {
       "id": "care-schedule-cutover.care-plan.application.care-plan.contract",
@@ -5749,17 +5715,6 @@
       "source_owner": "legacy-composition",
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
-      "id": "student-owner-integration.legacy-composition.compose",
-      "description": "Verify the three-owner student unit of work and injected rollback at its root composition (#2759).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
       "target_role": "compose"
     },
     {
@@ -6145,17 +6100,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.compose.security-runtime.fingerprint",
-      "description": "The import composition supplies content fingerprinting through the Security Runtime capability (#2708).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "audit-platform.checkpoint-adapter-test.postgres",
       "description": "Checkpoint adapter tests exercise append, rollback and tenant isolation through the Audit persistence boundary (#2708).",
       "scopes": [
@@ -6431,17 +6375,6 @@
       "target_role": "postgres"
     },
     {
-      "id": "legacy-composition.compose.presence-cutover.student-presence.public",
-      "description": "Composition shares the Student Presence facade across legacy consumers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
       "description": "Construct and connect the Student Presence owner capability.",
       "scopes": [
@@ -6462,17 +6395,6 @@
       "source_role": "postgres",
       "target_owner": "student-presence",
       "target_role": "port"
-    },
-    {
-      "id": "legacy-composition.compose.presence-cutover.student-presence.compose",
-      "description": "Construct and connect the Student Presence owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "timetable-activities.http.student-presence-public",
@@ -6595,39 +6517,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "legacy-composition.compose.to.enrollment.public",
-      "description": "legacy-composition compose uses the Enrollment cutover's enrollment public boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.to.group-live-view.public",
-      "description": "The legacy root constructs the live-group projection and adapts its consumer-owned ports from the retained owner services (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "group-live-view",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.to.group-live-view.adapter",
-      "description": "The legacy root constructs the live-group compatibility adapters over the retained owner services (#2702).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "group-live-view",
-      "target_role": "adapter"
-    },
-    {
       "id": "group-live-view.adapter.public",
       "description": "The live-group compatibility adapters implement the projection's consumer-owned ports and return its public capability.",
       "scopes": [
@@ -6703,17 +6592,6 @@
       "source_role": "adapter",
       "target_owner": "legacy-shared",
       "target_role": "domain"
-    },
-    {
-      "id": "legacy-composition.compose.to.enrollment.compose",
-      "description": "legacy-composition compose uses the Enrollment cutover's enrollment compose boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "enrollment",
-      "target_role": "compose"
     },
     {
       "id": "enrollment.compose.to.tenant-runtime.public",
@@ -7252,17 +7130,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.reminder-public",
-      "description": "Existing composition exposes reminder queries through their owner contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "reminder-delivery",
-      "target_role": "public"
-    },
-    {
       "id": "scheduler-runtime.reminder-public",
       "description": "Scheduler tasks consume reminder queries through their public contract.",
       "scopes": [
@@ -7558,18 +7425,6 @@
       "source_role": "postgres",
       "target_role": "domain",
       "same_owner": true
-    },
-    {
-      "id": "e2e-test.compose",
-      "description": "Designated E2E roots may import the legacy composition until #2747 deletes it; the typed roots are reached through root-test.* and the root reach (ADR 0053 point 7.2).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_role": "e2e-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "e2e-test.test-support",
@@ -9540,28 +9395,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "legacy-composition.to.organization-tenancy-compose",
-      "description": "Legacy test graph composition constructs the required Organization and Tenancy capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.organization-tenancy-public",
-      "description": "Legacy composition passes the Organization and Tenancy facade to consumers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "organization-tenancy.application-public",
       "description": "The remaining Organization and Tenancy application services consume the owner facade during the school cutover.",
       "scopes": [
@@ -9669,28 +9502,6 @@
       "source_role": "adapter-test",
       "target_owner": "workforce",
       "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.school-structure-compose",
-      "description": "Legacy test graph composition constructs the required School Structure capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.school-structure-public",
-      "description": "Legacy composition passes the School Structure facade to the group-name projections.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-structure",
-      "target_role": "public"
     },
     {
       "id": "timetable-activities.port-domain",
@@ -9911,28 +9722,6 @@
       "target_role": "application"
     },
     {
-      "id": "legacy-composition.to.timetable-activities-compose",
-      "description": "Legacy composition constructs the required Timetable & Activities capability for test graphs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.timetable-activities-public",
-      "description": "Legacy composition supplies the Timetable & Activities facade to workflows still being retired.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-block-display.timetable-public",
       "description": "The block display projection returns the Timetable owner's display vocabulary.",
       "scopes": [
@@ -9942,17 +9731,6 @@
       "source_role": "postgres",
       "target_owner": "timetable-activities",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.timetable-block-display",
-      "description": "Legacy composition binds the block display projection to the Timetable data port.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "timetable-block-display",
-      "target_role": "postgres"
     },
     {
       "id": "timetable-activities.postgres.enrollment-provenance",
@@ -10393,28 +10171,6 @@
       "target_role": "application"
     },
     {
-      "id": "legacy-composition.to.facilities-compose",
-      "description": "Legacy composition constructs the default Facilities capability for repository graphs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.facilities-public",
-      "description": "Legacy composition passes the Facilities facade to the room directories.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
       "id": "workforce.port-domain",
       "description": "Workforce ports express persistence operations using their own domain values.",
       "scopes": [
@@ -10556,28 +10312,6 @@
       "target_role": "domain"
     },
     {
-      "id": "legacy-composition.to.workforce-compose",
-      "description": "Legacy composition constructs the default Workforce capability and its repository adapters.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.workforce-public",
-      "description": "Legacy composition passes the Workforce facade to the retained work-time repositories.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "workflow-decision-test.test-support",
       "description": "Workflow decision tests may import neutral test support.",
       "scopes": [
@@ -10586,28 +10320,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "legacy-composition.to.delivery-compose",
-      "description": "Legacy composition constructs the Delivery module during the root cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.delivery-contract",
-      "description": "Legacy composition wires the public Delivery capability during the root cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "contract"
     },
     {
       "id": "delivery.port-domain",
@@ -10705,17 +10417,6 @@
       "source_owner": "delivery-platform",
       "source_role": "domain",
       "target_owner": "transaction-runtime",
-      "target_role": "domain"
-    },
-    {
-      "id": "legacy-composition.to.delivery-domain",
-      "description": "Legacy composition retains the typed subscription repository while Delivery ownership is cut over.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
       "target_role": "domain"
     },
     {
@@ -10826,28 +10527,6 @@
       "source_role": "compose",
       "target_owner": "inbound-users",
       "target_role": "http"
-    },
-    {
-      "id": "legacy-composition.to.people-directory-compose",
-      "description": "Legacy test graph composition constructs the required People Directory capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.people-directory-public",
-      "description": "Legacy composition wraps person-enriched repositories over the People Directory facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
     },
     {
       "id": "delivery.application.same-owner-adapter",
@@ -11359,17 +11038,6 @@
       "target_role": "application"
     },
     {
-      "id": "delivery-cutover.037",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "delivery-platform",
-      "target_role": "application"
-    },
-    {
       "id": "delivery-cutover.038",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -11587,28 +11255,6 @@
       "source_role": "compose",
       "target_owner": "inbound-classlistentries",
       "target_role": "http"
-    },
-    {
-      "id": "legacy-composition.to.school-membership-compose",
-      "description": "Legacy composition constructs the required School Membership capability for the repository and test graphs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.school-membership-public",
-      "description": "Legacy composition wraps membership-enriched repositories over the School Membership facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "public"
     },
     {
       "id": "appointments.port-domain",
@@ -11864,17 +11510,6 @@
       "target_role": "http"
     },
     {
-      "id": "legacy-composition.to.communication-compose",
-      "description": "Legacy composition supplies retained parent-announcement dependencies at the Communication composition seam.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "communication",
-      "target_role": "compose"
-    },
-    {
       "id": "communication.port-domain",
       "description": "Communication ports express announcement persistence and projection operations using owner domain values.",
       "scopes": [
@@ -11958,17 +11593,6 @@
       ],
       "source_owner": "inbound-platform",
       "source_role": "http",
-      "target_owner": "communication",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.communication-public",
-      "description": "Legacy composition passes the Communication facade to remaining service consumers.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
       "target_owner": "communication",
       "target_role": "public"
     },
@@ -12214,17 +11838,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "legacy-composition.to.appointments-public",
-      "description": "Legacy composition shares and adapts the Appointments facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "appointments",
-      "target_role": "public"
-    },
-    {
       "id": "school-calendar.application.appointments-public",
       "description": "Calendar workflows call the Appointments facade instead of its tables.",
       "scopes": [
@@ -12301,28 +11914,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "legacy-composition.to.school-calendar-compose",
-      "description": "Legacy composition constructs the required School Calendar capability for the repository and test graphs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.school-calendar-public",
-      "description": "Legacy composition serves the calendar period, closing day and dateframe repositories over the School Calendar facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "school-calendar",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.port-domain",
       "description": "Care Plan ports express persistence operations using owner domain values.",
       "scopes": [
@@ -12386,40 +11977,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "legacy-composition.to.care-plan-compose",
-      "description": "Legacy composition constructs Care Plan for repository and test graphs.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.care-plan-public",
-      "description": "Legacy repository adapters delegate care-offering and change-request work to Care Plan.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.audit-platform-compose",
-      "description": "Legacy composition obtains Audit Platform persistence from the Audit composition while the retained services still consume it (ADR 0049).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "audit-platform",
-      "target_role": "compose",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/2747"
     },
     {
       "id": "care-plan.postgres.public",
@@ -13109,28 +12666,6 @@
       "target_role": "compose"
     },
     {
-      "id": "legacy-composition.compose.parent-portal-port",
-      "description": "Wire the guardian portal workflow (#3420): the service factory holds the composed portal.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "parent-portal",
-      "target_role": "port"
-    },
-    {
-      "id": "legacy-composition.compose.parent-portal-compose",
-      "description": "Wire the guardian portal workflow (#3420): the service factory composes the portal from the owners it coordinates.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "parent-portal",
-      "target_role": "compose"
-    },
-    {
       "id": "parent-portal.port.flows",
       "description": "Wire the guardian portal workflow (#3420): the workflow port names the vocabulary of the child and messaging flows and composes both.",
       "scopes": [
@@ -13668,17 +13203,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "legacy-composition.to.workforce-adapter",
-      "description": "Legacy composition constructs the Workforce compatibility adapters for the retained absence and substitution repository contracts.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "workforce",
-      "target_role": "adapter"
-    },
-    {
       "id": "device-fleet.port-domain",
       "description": "Device Fleet ports express persistence operations using their own domain values.",
       "scopes": [
@@ -13992,39 +13516,6 @@
       "source_role": "application",
       "target_owner": "device-fleet",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.device-fleet-public",
-      "description": "The legacy composition seam reads and writes devices through the public owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.device-fleet-compose",
-      "description": "The legacy composition seam constructs the Device Fleet owner and its retained repository shape.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.observability-postgres",
-      "description": "The legacy composition seam constructs the PWA usage adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "observability",
-      "target_role": "postgres"
     },
     {
       "id": "observability.integration-test.postgres",
@@ -14729,28 +14220,6 @@
       "target_role": "http"
     },
     {
-      "id": "legacy-composition.to.class-day-public",
-      "description": "The legacy service factory exposes the class-day projection's slot lists to the timetable endpoints (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "class-day-view",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.class-day-compose",
-      "description": "The legacy service factory composes the class-day projection's slot lists (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "class-day-view",
-      "target_role": "compose"
-    },
-    {
       "id": "process-device-scan.application.public",
       "description": "The device-scan workflow implements the public kiosk scan contract (#2698).",
       "scopes": [
@@ -14893,17 +14362,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "legacy-composition.compose.to.process-device-scan.compose",
-      "description": "The legacy test composition builds the device-scan workflow over the active test graph (#2698).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "compose"
-    },
-    {
       "id": "process-device-scan.port.calendar-date",
       "description": "Device-scan ports carry the canonical calendar-date value for pickup days and session days (#2698).",
       "scopes": [
@@ -14935,28 +14393,6 @@
       "source_role": "http",
       "target_owner": "calendar-view",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.to.calendar-view.public",
-      "description": "The legacy root constructs the supervision projection and names its public capability (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "calendar-view",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.to.calendar-view.adapter",
-      "description": "The legacy root constructs the supervision compatibility adapters over the retained owner services (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "calendar-view",
-      "target_role": "adapter"
     },
     {
       "id": "calendar-view.adapter.public",
@@ -15354,28 +14790,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.to.identity-access-compose",
-      "description": "The legacy service factory composes the Identity & Access capability the enrollment decision service consumes (#2699).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.identity-access-public",
-      "description": "The legacy service factory maps Identity & Access outcomes to stable codes for the root observer (#2699).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.public.contact",
       "description": "Enrollment student commands use the new canonical contact contract, shared with retained model consumers (#2699).",
       "scopes": [
@@ -15405,17 +14819,6 @@
       ],
       "source_owner": "inbound-parent",
       "source_role": "http",
-      "target_owner": "school-calendar",
-      "target_role": "contract"
-    },
-    {
-      "id": "calendar-portal.production.legacy-composition.compose.school-calendar.contract",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
       "target_owner": "school-calendar",
       "target_role": "contract"
     },
@@ -15912,28 +15315,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "legacy-composition.compose.to.emergency-snapshot.public",
-      "description": "The legacy root constructs the emergency snapshot projection and names its public capability (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "emergency-snapshot",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.to.emergency-snapshot.adapter",
-      "description": "The legacy root constructs the emergency snapshot compatibility adapters over the retained owner services (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "emergency-snapshot",
-      "target_role": "adapter"
-    },
-    {
       "id": "emergency-snapshot.adapter.public",
       "description": "The emergency snapshot compatibility adapters implement the projection's consumer-owned ports and return its public capability (#2704).",
       "scopes": [
@@ -16339,17 +15720,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.compose.to.document-rendering.public",
-      "description": "The legacy root names the public plan export capability it composes (#2706).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "document-rendering",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.http.file-storage-adapter",
       "description": "Named exception (https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300), not a target dependency: the student document handlers keep moving document bytes through the moved File Storage object-store adapter; re-anchored by #2731, tracked by #2706; delete this rule when the handlers move to the public File Storage capability.",
       "scopes": [
@@ -16733,28 +16103,6 @@
       "target_role": "http"
     },
     {
-      "id": "legacy-composition.to.file-storage-compose",
-      "description": "The legacy service factory composes the File Storage module where the announcement ports exist (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "compose"
-    },
-    {
-      "id": "legacy-composition.to.file-storage-public",
-      "description": "The legacy service factory holds the File Storage facade for the routes, the worker and the announcement purger (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "file-storage",
-      "target_role": "public"
-    },
-    {
       "id": "student-deletion.to.people-directory",
       "description": "Student Deletion coordinates the public owner capability required by #2710.",
       "scopes": [
@@ -16929,28 +16277,6 @@
       "source_role": "compose",
       "target_owner": "timetable-legacy-view",
       "target_role": "postgres"
-    },
-    {
-      "id": "legacy-composition.compose.deletion.student-deletion.public",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "student-deletion",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.deletion.student-deletion.compose",
-      "description": "Wire the child lifecycle owner workflow required by #2710 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "student-deletion",
-      "target_role": "compose"
     },
     {
       "id": "people-directory.http.student-deletion-public",
@@ -17178,28 +16504,6 @@
       "source_owner": "grade-transition",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "legacy-composition.compose.transition.grade-transition.public",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "grade-transition",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.transition.grade-transition.compose",
-      "description": "Wire the grade transition owner workflow required by #2711 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "grade-transition",
-      "target_role": "compose"
     },
     {
       "id": "grade-transition.http.public",
@@ -17850,17 +17154,6 @@
       "source_role": "http",
       "target_owner": "settings-platform",
       "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.compose.settings-compose",
-      "description": "The retained operator settings test module builds the operator capability through the Settings Platform composition, as the serving root does (#2736).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "settings-platform",
-      "target_role": "compose"
     },
     {
       "id": "care-plan.contract.calendar-date",
@@ -18690,28 +17983,6 @@
       "target_role": "public"
     },
     {
-      "id": "legacy-composition.to.shift-plan-sync-public",
-      "description": "The legacy factory binds the shift-plan-sync workflow contracts to the absence service and the substitution module (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "shift-plan-sync",
-      "target_role": "public"
-    },
-    {
-      "id": "legacy-composition.to.shift-plan-sync-compose",
-      "description": "The legacy factory composes the shift-plan-sync workflow (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "compose",
-      "target_owner": "shift-plan-sync",
-      "target_role": "compose"
-    },
-    {
       "id": "shift-plan-sync.public.workforce",
       "description": "The shift-plan-sync contract is the port Workforce declares for the sick cascade (#3418).",
       "scopes": [
@@ -18887,17 +18158,6 @@
       "source_role": "workflow-decision-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "shift-plan-sync.adapter-test.legacy-composition",
-      "description": "The shift-plan-sync behaviour suites build their fixtures through the legacy factory and repositories (#3418).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "shift-plan-sync",
-      "source_role": "adapter-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "shift-plan-sync.adapter-test.legacy-shared-domain",
@@ -19132,17 +18392,6 @@
       "target_owner": "people-directory",
       "target_role": "domain",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/2729"
-    },
-    {
-      "id": "timetable-activities.integration-test.legacy-composition",
-      "description": "The Tagesinformationen route suite binds the People Directory and calendar periods through the legacy repositories (#3418).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "workflow-integration-test",
-      "target_owner": "legacy-composition",
-      "target_role": "compose"
     },
     {
       "id": "workforce.integration-test.transaction-domain",
@@ -20790,17 +20039,6 @@
       "source_owner": "legacy-composition",
       "target_owner": "root-composition",
       "target_role": "compose"
-    },
-    {
-      "id": "own-test.legacy-composition.module-behavior-test.compose",
-      "description": "ADR 0053 point 7.1: the external tests of the legacy composition import its own compose role.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "legacy-composition",
-      "source_role": "module-behavior-test",
-      "target_role": "compose",
-      "same_owner": true
     },
     {
       "id": "shared-fixtures.identity-access-adapter",

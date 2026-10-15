@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -55,12 +53,12 @@ type StudentConsentCapability interface {
 // depend on them.
 type StudentConsents struct {
 	directory StudentConsentCapability
-	trail     services.StudentConsentAppender
+	trail     StudentConsentAppender
 }
 
 // NewStudentConsentsFor binds an already composed owner, so the serve root
 // keeps one observed People Directory.
-func NewStudentConsentsFor(directory StudentConsentCapability, trail services.StudentConsentAppender) *StudentConsents {
+func NewStudentConsentsFor(directory StudentConsentCapability, trail StudentConsentAppender) *StudentConsents {
 	return &StudentConsents{directory: directory, trail: trail}
 }
 

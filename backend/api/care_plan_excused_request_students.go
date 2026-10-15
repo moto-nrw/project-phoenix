@@ -11,7 +11,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
-// ExcusedRequestWiring is the legacy graph's contribution to the Care Plan
+// ExcusedRequestWiring is the service graph's contribution to the Care Plan
 // excused-absence workflow: the People Directory rows through the repository
 // contracts, plus the effect ports the root supplies. Today defaults to the
 // Berlin calendar day.

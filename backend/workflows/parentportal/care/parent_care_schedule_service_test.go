@@ -57,7 +57,7 @@ func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFa
 
 func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *care.Service {
 	t.Helper()
-	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
+	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)

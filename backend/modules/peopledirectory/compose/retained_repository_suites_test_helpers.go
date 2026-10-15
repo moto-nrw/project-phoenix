@@ -1,8 +1,6 @@
 package compose
 
 import (
-	"context"
-
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
@@ -79,9 +77,4 @@ func RetainedWithGuardianRelationshipOwners(pickup RetainedGuardianPickupCommand
 // composition root binds the authorization policy's.
 func RetainedWithGuardianDefaultRole(apply func(*usersModels.StudentGuardian)) RetainedGuardianRelationshipOption {
 	return usersRepo.WithGuardianDefaultRole(apply)
-}
-
-// VerifyRetainedStudentSchema runs the startup check of the students table.
-func VerifyRetainedStudentSchema(ctx context.Context, db *bun.DB) error {
-	return usersRepo.VerifyStudentSchema(ctx, db)
 }

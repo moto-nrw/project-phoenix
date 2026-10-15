@@ -69,7 +69,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 	db := testpkg.SetupTestDB(t)
 	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
-	sf, err := api.NewFactoryForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
+	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})

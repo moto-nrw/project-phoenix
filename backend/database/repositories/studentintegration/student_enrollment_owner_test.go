@@ -7,8 +7,6 @@ import (
 
 	api "github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -187,7 +185,7 @@ func buildStudentOwnersModule(t *testing.T, db *bun.DB, observations ...func(peo
 
 func buildStudentMembership(t *testing.T, db *bun.DB) schoolmembership.Capability {
 	t.Helper()
-	membership, err := services.NewSchoolMembership(db)
+	membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return membership
 }

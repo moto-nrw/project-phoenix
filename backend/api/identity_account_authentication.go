@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -37,7 +35,7 @@ type AccountAuthenticationWiring struct {
 	Settings      settingsCompose.SettingsService
 	Audit         auditModels.Command
 	Logger        *slog.Logger
-	observe       services.IdentityAccessObserver
+	observe       IdentityAccessObserver
 	tenantRuntime func(context.Context) context.Context
 	// Mfa composes the second factor and the passkey ceremonies (#3331);
 	// nil composes the module without them.

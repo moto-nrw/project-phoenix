@@ -7,7 +7,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below compose Enrollment's rollover, admin deletion and
@@ -16,7 +15,7 @@ import (
 // Platform's deletion trail.
 
 // NewEnrollmentRollovers composes Enrollment's rollover over the sources.
-func NewEnrollmentRollovers(src services.EnrollmentRolloverSources) enrollmentOwner.Rollovers {
+func NewEnrollmentRollovers(src EnrollmentRolloverSources) enrollmentOwner.Rollovers {
 	deps := enrollmentCompose.RolloverDependencies{
 		Bookings: src.Bookings, Phases: src.Phases, Requests: src.Requests, Children: src.Children,
 		Catalog: src.Catalog, Notifications: src.Notifications, PhaseEligibility: src.PhaseEligibility,
@@ -35,7 +34,7 @@ func NewEnrollmentRollovers(src services.EnrollmentRolloverSources) enrollmentOw
 // rollover. It never locks the class collection pair: the rollover's
 // eligibility check goes through the phase administration.
 type enrollmentRolloverSettings struct {
-	settings services.EnrollmentRolloverSettings
+	settings EnrollmentRolloverSettings
 }
 
 func (s enrollmentRolloverSettings) CollectGradeLevel(ctx context.Context) (bool, error) {

@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	calendarRuntime "github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -215,26 +214,26 @@ func TestCalendarServiceIntegration_ReminderScanReportsStoreFailures(t *testing.
 	startsAt := berlinInstant(t, appointmentDate, 18, 0)
 	from, to := startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute)
 
-	cases := map[string]func(cfg *calendarRuntime.CalendarDependencies){
-		"the candidate scan": func(cfg *calendarRuntime.CalendarDependencies) {
+	cases := map[string]func(cfg *api.CalendarDependencies){
+		"the candidate scan": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = failingCandidateScan{cfg.Appointments}
 		},
-		"loading the recurrence rules": func(cfg *calendarRuntime.CalendarDependencies) {
+		"loading the recurrence rules": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = failingRecurrenceList{cfg.Appointments}
 		},
-		"loading the moved occurrences": func(cfg *calendarRuntime.CalendarDependencies) {
+		"loading the moved occurrences": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = failingMovedOverrides{cfg.Appointments}
 		},
-		"re-locking the appointment": func(cfg *calendarRuntime.CalendarDependencies) {
+		"re-locking the appointment": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = failingCandidateLock{cfg.Appointments}
 		},
-		"re-reading the recurrence rule": func(cfg *calendarRuntime.CalendarDependencies) {
+		"re-reading the recurrence rule": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = &failingRecurrenceReload{Capability: cfg.Appointments}
 		},
-		"re-reading the occurrence override": func(cfg *calendarRuntime.CalendarDependencies) {
+		"re-reading the occurrence override": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = failingOccurrenceOverrides{cfg.Appointments}
 		},
-		"resolving the recipients": func(cfg *calendarRuntime.CalendarDependencies) {
+		"resolving the recipients": func(cfg *api.CalendarDependencies) {
 			cfg.Appointments = failingRecipientLookup{cfg.Appointments}
 		},
 	}

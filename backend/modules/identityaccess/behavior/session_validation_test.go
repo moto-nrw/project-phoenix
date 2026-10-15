@@ -24,7 +24,7 @@ func TestValidateSessionTokens(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	config := authTestFactoryConfig(false)
-	serviceFactory, err := api.NewFactoryForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), config)
+	serviceFactory, err := api.NewServiceGraphForTestsWithConfig(repoFactory, testpkg.NewDatabase(t, db), slog.Default(), config)
 	require.NoError(t, err)
 	require.NoError(t, serviceFactory.SetTenantRuntime(testpkg.TenantRuntime(t, db)))
 	service := identityaccess.AccountAuthentication(serviceFactory.Auth)

@@ -19,7 +19,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
@@ -30,7 +29,7 @@ type WorkforceTestModule struct {
 	Users      *peopleCompose.PersonDirectory
 	StaffAdmin *workforce.StaffAdmin
 	// TimeTracking is the Workforce time-tracking side composed the way
-	// the factory composes it (#3413).
+	// the service graph composes it (#3413).
 	TimeTracking *workforceCompose.TimeTracking
 	Settings     settingsCompose.SettingsService
 }
@@ -75,7 +74,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return WorkforceTestModule{}, err
 	}
 	nonWorkingDayService := schoolCalendarCompose.NonWorkingDays{Calendar: calendar}
-	today := timezone.CalendarDateClock(services.OptionalClock(clocks))
+	today := timezone.CalendarDateClock(OptionalClock(clocks))
 	var shiftPlanSyncer shiftplansync.SickCascade
 	timeTracking, err := newTimeTrackingTestModule(db, repos.WorkSessionTestRepositories, timeTrackingTestGraph{
 		Audits: timeTrackingAudits{
@@ -97,7 +96,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	// The #1843 sick cascade is the shift-plan-sync workflow over the
 	// Workforce planning composition and the timetable test module, bound
-	// the way the factory binds it (#3418).
+	// the way the service graph binds it (#3418).
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
 		Instances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),

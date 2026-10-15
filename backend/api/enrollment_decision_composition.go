@@ -11,7 +11,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The bindings below compose Enrollment's decision flow (#3564) over the
@@ -20,7 +19,7 @@ import (
 // materialization and the realtime hub.
 
 // NewEnrollmentDecisions composes Enrollment's decision flow over the sources.
-func NewEnrollmentDecisions(src services.EnrollmentDecisionSources) *enrollmentCompose.Decisions {
+func NewEnrollmentDecisions(src EnrollmentDecisionSources) *enrollmentCompose.Decisions {
 	parentsURL := strings.TrimRight(strings.TrimSpace(src.ParentsURL), "/")
 	if parentsURL == "" {
 		parentsURL = strings.TrimRight(strings.TrimSpace(src.FrontendURL), "/")
@@ -56,7 +55,7 @@ func NewEnrollmentDecisions(src services.EnrollmentDecisionSources) *enrollmentC
 
 // enrollmentPeopleDirectory binds the People Directory ports the sources
 // carry.
-func enrollmentPeopleDirectory(src services.EnrollmentDecisionSources) enrollmentCompose.PeopleDirectory {
+func enrollmentPeopleDirectory(src EnrollmentDecisionSources) enrollmentCompose.PeopleDirectory {
 	people := enrollmentCompose.PeopleDirectory{
 		Rules:                          enrollmentPeopleRules{},
 		ErrGuardianLinkNotFound:        userModels.ErrStudentGuardianNotFound,
@@ -88,42 +87,42 @@ func enrollmentPeopleDirectory(src services.EnrollmentDecisionSources) enrollmen
 // The Audit Platform trails the sources carry; an absent source leaves the
 // port unbound.
 
-func decisionAccessLog(src services.EnrollmentDecisionSources) enrollmentCompose.ExportAccessLog {
+func decisionAccessLog(src EnrollmentDecisionSources) enrollmentCompose.ExportAccessLog {
 	if src.DataAccessLog == nil {
 		return nil
 	}
 	return enrollmentExportAccessLog{repo: src.DataAccessLog}
 }
 
-func decisionAdjustmentTrail(src services.EnrollmentDecisionSources) enrollmentCompose.OfferingAdjustmentTrail {
+func decisionAdjustmentTrail(src EnrollmentDecisionSources) enrollmentCompose.OfferingAdjustmentTrail {
 	if src.OfferingAdjustments == nil {
 		return nil
 	}
 	return enrollmentOfferingAdjustmentTrail{repo: src.OfferingAdjustments}
 }
 
-func decisionRestorationAudit(src services.EnrollmentDecisionSources) enrollmentCompose.RestorationAudit {
+func decisionRestorationAudit(src EnrollmentDecisionSources) enrollmentCompose.RestorationAudit {
 	if src.Restorations == nil {
 		return nil
 	}
 	return enrollmentRestorationAudit{repo: src.Restorations}
 }
 
-func decisionPayerAudit(src services.EnrollmentDecisionSources) enrollmentCompose.PayerAudit {
+func decisionPayerAudit(src EnrollmentDecisionSources) enrollmentCompose.PayerAudit {
 	if src.GuardianFinancialAudit == nil {
 		return nil
 	}
 	return enrollmentPayerAudit{ledger: src.GuardianFinancialAudit}
 }
 
-func decisionStudentAudit(src services.EnrollmentDecisionSources) enrollmentCompose.StudentAudit {
+func decisionStudentAudit(src EnrollmentDecisionSources) enrollmentCompose.StudentAudit {
 	if src.StudentAudit == nil {
 		return nil
 	}
 	return enrollmentStudentAudit{auditor: src.StudentAudit}
 }
 
-func decisionStudentConsents(src services.EnrollmentDecisionSources) enrollmentCompose.StudentConsents {
+func decisionStudentConsents(src EnrollmentDecisionSources) enrollmentCompose.StudentConsents {
 	if src.StudentConsents == nil {
 		return nil
 	}
@@ -132,7 +131,7 @@ func decisionStudentConsents(src services.EnrollmentDecisionSources) enrollmentC
 
 // enrollmentDecisionSettings resolves the decision flow's tenant settings.
 type enrollmentDecisionSettings struct {
-	settings services.EnrollmentDecisionSettings
+	settings EnrollmentDecisionSettings
 }
 
 func (s enrollmentDecisionSettings) WaitlistEnabled(ctx context.Context) (bool, error) {
@@ -215,7 +214,7 @@ func (a enrollmentPayerAudit) RecordPayerChange(ctx context.Context, change enro
 // enrollmentStudentConsents records the consent transitions of an
 // enrollment approval.
 type enrollmentStudentConsents struct {
-	auditor services.EnrollmentConsentAuditor
+	auditor EnrollmentConsentAuditor
 }
 
 func (c enrollmentStudentConsents) RecordEnrollmentConsentTransitions(ctx context.Context, before, after *enrollmentCompose.Student, actorAccountID *int64, changedAt time.Time) error {

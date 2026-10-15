@@ -4,13 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/services"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
 // ReminderStaffIdentity adapts the request-memoized caller identity without
 // exposing its persistence models to reminder evaluation.
-func ReminderStaffIdentity(identity services.CareRequestStaff) func(context.Context) (int64, error) {
+func ReminderStaffIdentity(identity CareRequestStaff) func(context.Context) (int64, error) {
 	return func(ctx context.Context) (int64, error) {
 		if identity == nil {
 			return 0, errors.New("user context is not configured")

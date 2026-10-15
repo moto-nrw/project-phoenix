@@ -302,6 +302,10 @@ func (s *compositionSnapshot) inventory() map[string]string {
 		add := func(kind, symbol string, pos token.Pos) {
 			result[file.scope+"|"+kind+"|"+file.pkg+"|"+symbol] = s.fset.Position(pos).String()
 		}
+		addField := func(aggregate, field string, pos token.Pos) {
+			pkg, name := relocatedAggregate(file.pkg, aggregate)
+			result[file.scope+"|field|"+pkg+"|"+name+"."+field] = s.fset.Position(pos).String()
+		}
 		for _, declaration := range file.syntax.Decls {
 			switch declaration := declaration.(type) {
 			case *ast.GenDecl:
@@ -316,10 +320,10 @@ func (s *compositionSnapshot) inventory() map[string]string {
 					}
 					for _, field := range structure.Fields.List {
 						if len(field.Names) == 0 {
-							add("field", typ.Name.Name+"."+compositionTypeName(field.Type), typ.Pos())
+							addField(typ.Name.Name, compositionTypeName(field.Type), typ.Pos())
 						}
 						for _, name := range field.Names {
-							add("field", typ.Name.Name+"."+name.Name, typ.Pos())
+							addField(typ.Name.Name, name.Name, typ.Pos())
 						}
 					}
 				}
@@ -384,7 +388,18 @@ func compositionPackage(pkg string) bool {
 }
 
 func centralAggregate(pkg, name string) bool {
-	return pkg == "services" && name == "Factory" || pkg == "database/repositories" && name == "Factory" || pkg == "api" && name == "API"
+	return pkg == "services" && name == "Factory" || pkg == "database/repositories" && name == "Factory" || pkg == "api" && name == "API" || pkg == "api" && name == "serviceGraph"
+}
+
+// relocatedAggregate names a central aggregate's fields by their current
+// home. services.Factory moved into the root as api.serviceGraph (#2747), so
+// a base that still has the Factory compares its fields with the root's
+// graph: a field that moved along is no growth, a new one is.
+func relocatedAggregate(pkg, name string) (string, string) {
+	if pkg == "services" && name == "Factory" {
+		return "api", "serviceGraph"
+	}
+	return pkg, name
 }
 
 func compositionTypeName(expression ast.Expr) string {

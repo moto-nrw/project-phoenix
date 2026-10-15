@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,7 +25,7 @@ func NewSettingsTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return SettingsTestModule{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return SettingsTestModule{}, err
 	}

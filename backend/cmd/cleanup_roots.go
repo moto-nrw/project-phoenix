@@ -20,7 +20,6 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // The cleanup command composes its sweeps here (#4013). Each sweep binds the
@@ -50,7 +49,7 @@ func newRetentionCleanupService(db transactionruntime.Database, schools organiza
 
 func newTimetableCleanupService(db transactionruntime.Database, schools organizationtenancy.Capability, timetableCapability timetable.Capability, logger *slog.Logger, command auditModels.Command) (timetable.TimetableCleanup, error) {
 	audits := newCleanupAudits(db, command)
-	return api.NewTimetableCleanup(services.TimetableRetentionInputs{
+	return api.NewTimetableCleanup(api.TimetableRetentionInputs{
 		Owner:      timetableCapability,
 		Deletions:  audits.DataDeletion,
 		Deviations: audits.DeviationEvent,

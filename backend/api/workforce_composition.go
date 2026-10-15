@@ -11,7 +11,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // workforceLiveStaffIDs answers Workforce's one question to School
@@ -44,7 +43,7 @@ func workforceStaffAssignmentLock(membership schoolmembership.Query) func(contex
 // NewUnobservedWorkforce composes the Workforce owner over an unobserved
 // School Membership for the command roots, which record no runtime evidence.
 func NewUnobservedWorkforce(db transactionruntime.Database) (workforceModule.Capability, error) {
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, err
 	}
@@ -60,14 +59,13 @@ func NewUnobservedWorkforce(db transactionruntime.Database) (workforceModule.Cap
 // 0053): the adapters over the owners the root composes come built, and the
 // bindings over the staff rows, audit trails, settings and mail only the
 // service graph builds come as functions the graph calls with them.
-func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Query, organizations organizationtenancy.Query, staff staffWithPersonReader) services.WorkforceWiring {
+func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule.Capability, membership schoolmembership.Capability, persons peopledirectory.Query, organizations organizationtenancy.Query, staff staffWithPersonReader) WorkforceWiring {
 	staffAbsences := NewStaffAbsenceRepository(workTime, membership, persons)
-	return services.WorkforceWiring{
-		StaffAbsences:   staffAbsences,
+	return WorkforceWiring{
 		ShiftRows:       newWorkforceShiftRows(workTime),
 		ShiftTypeRows:   newWorkforceShiftTypeRows(workTime),
 		PlanExportStaff: planExportStaffNames{staff: staff},
-		StaffAdmin: func(sources services.WorkforceStaffAdminSources) (*workforceModule.StaffAdmin, error) {
+		StaffAdmin: func(sources WorkforceStaffAdminSources) (*workforceModule.StaffAdmin, error) {
 			return composeStaffAdmin(workforceCompose.StaffAdminDependencies{
 				DB: db.Pool(), Logger: sources.Logger, Now: sources.Now,
 			}, staffAdminOwners{
@@ -75,7 +73,7 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 				MasterDataAudit: sources.Audits.StaffMasterDataChange, PersonnelNumber: sources.Audits.PersonnelNumberChange, DataAccessLog: sources.Audits.DataAccessLog,
 			})
 		},
-		TimeTracking: func(sources services.WorkforceTimeTrackingSources) (*workforceCompose.TimeTracking, error) {
+		TimeTracking: func(sources WorkforceTimeTrackingSources) (*workforceCompose.TimeTracking, error) {
 			return newTimeTracking(timeTrackingPortDependencies{
 				Workforce: workTime,
 				Bound: workforceCompose.TimeTrackingPorts{
@@ -101,7 +99,7 @@ func newWorkforceWiring(db transactionruntime.Database, workTime workforceModule
 // timeTrackingAbsenceEmail sends the absence request mails through the
 // graph's tenant mail, to the People Directory's staff contacts, linking the
 // school's subdomain.
-func timeTrackingAbsenceEmail(sources services.WorkforceTimeTrackingSources, organizations organizationtenancy.Query) *workforceCompose.AbsenceEmailDeps {
+func timeTrackingAbsenceEmail(sources WorkforceTimeTrackingSources, organizations organizationtenancy.Query) *workforceCompose.AbsenceEmailDeps {
 	return &workforceCompose.AbsenceEmailDeps{
 		Settings: settingsCompose.PresenceSettings(sources.Settings),
 		Dispatcher: absenceEmailDispatcher{

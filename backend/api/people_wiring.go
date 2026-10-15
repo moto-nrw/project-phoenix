@@ -21,12 +21,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // PeopleWiringOwners are the owners the root has composed when it builds the
 // People Directory, School Membership and School Structure wiring of the
-// legacy service graph (#4007).
+// service graph (#4007).
 type PeopleWiringOwners struct {
 	DB            transactionruntime.Database
 	Logger        *slog.Logger
@@ -40,17 +39,17 @@ type PeopleWiringOwners struct {
 	Timetable     timetable.Capability
 	// ObserveIdentityAccess records the Identity & Access operations the
 	// retained repositories read through; nil leaves them unobserved.
-	ObserveIdentityAccess services.IdentityAccessObserver
+	ObserveIdentityAccess IdentityAccessObserver
 }
 
 // NewPeopleWiring builds the retained People Directory, School Membership and
 // School Structure repositories over the owners, and the adapters the legacy
 // service graph binds them through. The graph takes the result in place of
 // building it itself (ADR 0053 point 8).
-func NewPeopleWiring(owners PeopleWiringOwners) (services.PeopleWiring, error) {
+func NewPeopleWiring(owners PeopleWiringOwners) (PeopleWiring, error) {
 	if owners.Persons == nil || owners.Groups == nil || owners.Rooms == nil || owners.Membership == nil ||
 		owners.Workforce == nil || owners.CarePlan == nil || owners.Organizations == nil || owners.Timetable == nil {
-		return services.PeopleWiring{}, errors.New("people wiring: the People Directory, School Structure, Facilities, School Membership, Workforce, Care Plan, Organisation & Tenancy and Timetable owners are required")
+		return PeopleWiring{}, errors.New("people wiring: the People Directory, School Structure, Facilities, School Membership, Workforce, Care Plan, Organisation & Tenancy and Timetable owners are required")
 	}
 	logger := owners.Logger
 	if logger == nil {
@@ -62,14 +61,13 @@ func NewPeopleWiring(owners PeopleWiringOwners) (services.PeopleWiring, error) {
 	students := NewStudentRepository(db, owners.Membership, groups)
 	members := newMembershipAdapters(db, personRepository, identity, owners.Membership, owners.Rooms, owners.Workforce)
 	presence := NewLoggedStudentPresence(db, logger)
-	return services.PeopleWiring{
-		Identity:             identity,
-		Persons:              personRepository,
-		Students:             students,
-		StudentGuardians:     newStudentGuardianRepository(db, identity, owners.ObserveIdentityAccess),
-		GuardianProfiles:     NewGuardianProfileRepository(db),
-		Staff:                members.Staff,
-		Teachers:             members.Teacher,
+	return PeopleWiring{
+		Identity: identity,
+		Repositories: peopleCompose.Repositories{
+			Persons: personRepository, Students: students,
+			StudentGuardians: newStudentGuardianRepository(db, identity, owners.ObserveIdentityAccess),
+			GuardianProfiles: NewGuardianProfileRepository(db), Staff: members.Staff, Teachers: members.Teacher,
+		},
 		Groups:               members.Group,
 		GroupTeachers:        members.GroupTeacher,
 		ClassTeachers:        members.ClassTeacher,
@@ -117,19 +115,19 @@ func NewPeopleWiring(owners PeopleWiringOwners) (services.PeopleWiring, error) {
 		SubstitutionAudit: func(changes auditModels.SubstitutionChangeCreator) education.SubstitutionAudit {
 			return NewEducationSubstitutionAudit(changes)
 		},
-		StudentConsents: func(trail services.StudentConsentAppender) services.StudentConsentRecords {
+		StudentConsents: func(trail StudentConsentAppender) StudentConsentRecords {
 			return NewStudentConsentsFor(persons, trail)
 		},
 		StudentChangeLogCleanup: NewStudentChangeLogCleanup,
 		StatusDayPeople: func(directory *peopleCompose.PersonDirectory) presenceservice.StatusDayOverviewPeople {
 			return StatusDayOverviewPeople(directory)
 		},
-		GroupRosterPeople: func(directory *peopleCompose.PersonDirectory) services.GroupRoster {
+		GroupRosterPeople: func(directory *peopleCompose.PersonDirectory) GroupRoster {
 			return GroupRosterPeople(directory)
 		},
 		MasterDataDecisions:      NewMasterDataDecisions,
 		ParentRequestCoordinator: NewParentRequestCoordinator,
-		ParentRequestWriteScope: func(policy services.ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver {
+		ParentRequestWriteScope: func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver {
 			return ParentRequestWriteScope(policy, permissions)
 		},
 	}, nil

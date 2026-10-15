@@ -19,12 +19,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // PresenceWiringOwners are the owners the root has composed when it builds
 // the Student Presence, Facilities, Device Fleet and class-day wiring of the
-// legacy service graph (#4010).
+// service graph (#4010).
 type PresenceWiringOwners struct {
 	DB         transactionruntime.Database
 	Logger     *slog.Logger
@@ -39,7 +38,7 @@ type PresenceWiringOwners struct {
 	TimetableRows TimetableRepositories
 	// People are the retained People Directory, School Membership and School
 	// Structure rows the attendance reads.
-	People services.PeopleWiring
+	People PeopleWiring
 	// Now fixes the clock of the session records, the status days and the
 	// statistics; nil is the Berlin clock.
 	Now func() time.Time
@@ -47,12 +46,12 @@ type PresenceWiringOwners struct {
 
 // NewPresenceWiring builds Student Presence, its session records, the
 // attendance reads, the retained room service and the class-day bindings
-// over the owners. The legacy service graph takes the result in place of
+// over the owners. The service graph takes the result in place of
 // building it itself (ADR 0053 point 8).
-func NewPresenceWiring(owners PresenceWiringOwners) (services.PresenceWiring, error) {
+func NewPresenceWiring(owners PresenceWiringOwners) (PresenceWiring, error) {
 	if owners.Persons == nil || owners.Rooms == nil || owners.Membership == nil || owners.CarePlan == nil ||
 		owners.Calendar == nil || owners.Timetable == nil || owners.TimetableRows.ActivityGroup == nil || owners.People.Staff == nil {
-		return services.PresenceWiring{}, errors.New("presence wiring: the People Directory, Facilities, School Membership, Care Plan, School Calendar and Timetable owners and their retained rows are required")
+		return PresenceWiring{}, errors.New("presence wiring: the People Directory, Facilities, School Membership, Care Plan, School Calendar and Timetable owners and their retained rows are required")
 	}
 	logger := owners.Logger
 	if logger == nil {
@@ -61,12 +60,12 @@ func NewPresenceWiring(owners PresenceWiringOwners) (services.PresenceWiring, er
 	db := owners.DB
 	devices, err := NewDeviceFleet(db)
 	if err != nil {
-		return services.PresenceWiring{}, err
+		return PresenceWiring{}, err
 	}
 	presence := NewLoggedStudentPresence(db, logger)
 	staff := owners.People.Staff
 	sessionDeviceRecords := devicefleetRepositoryAdapter.NewDeviceRepository(devices)
-	return services.PresenceWiring{
+	return PresenceWiring{
 		Presence:         presence,
 		UnloggedPresence: NewUnloggedStudentPresence(db),
 		SessionRecords: NewSessionRecords(db, SessionRecordOwners{

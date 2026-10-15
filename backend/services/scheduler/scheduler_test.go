@@ -556,15 +556,6 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 	})
 }
 
-func TestScheduler_DefaultEnvValues(t *testing.T) {
-	t.Parallel()
-	s := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.Default())
-
-	// Default values should be set
-	assert.Equal(t, 0, s.sessionCleanupIntervalMinutes) // Not set until Start()
-	assert.Equal(t, 0, s.sessionAbandonedThresholdMinutes)
-}
-
 // =============================================================================
 // Interface Compliance Tests
 // =============================================================================
@@ -1319,102 +1310,6 @@ func TestCheckAndRunSessionCleanup_AlreadyRunning(t *testing.T) {
 // Configuration Parsing Tests
 // =============================================================================
 
-func TestScheduleSessionCleanupTask_CustomInterval(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&Scheduler{
-			activeService: &mockActiveService{},
-			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
-		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_CLEANUP_INTERVAL_MINUTES", "30")
-
-		// Schedule session cleanup task
-		s.scheduleSessionCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Verify config was parsed
-		assert.Equal(t, 30, s.sessionCleanupIntervalMinutes)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionCleanupTask_CustomThreshold(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&Scheduler{
-			activeService: &mockActiveService{},
-			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
-		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_ABANDONED_THRESHOLD_MINUTES", "120")
-
-		// Schedule session cleanup task
-		s.scheduleSessionCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Verify config was parsed
-		assert.Equal(t, 120, s.sessionAbandonedThresholdMinutes)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionCleanupTask_InvalidInterval(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&Scheduler{
-			activeService: &mockActiveService{},
-			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
-		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_CLEANUP_INTERVAL_MINUTES", "invalid")
-
-		// Schedule session cleanup task
-		s.scheduleSessionCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Verify default was used (invalid config should fallback to default)
-		assert.Equal(t, 15, s.sessionCleanupIntervalMinutes)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
-func TestScheduleSessionCleanupTask_NegativeInterval(t *testing.T) {
-	t.Parallel()
-	synctest.Test(t, func(t *testing.T) {
-		s := unitScheduler(&Scheduler{
-			activeService: &mockActiveService{},
-			tasks:         make(map[string]*ScheduledTask),
-			done:          make(chan struct{})})
-		s.getenv = testEnv("SESSION_CLEANUP_ENABLED", "true", "SESSION_CLEANUP_INTERVAL_MINUTES", "-5")
-
-		// Schedule session cleanup task
-		s.scheduleSessionCleanupTask()
-
-		// Wait for goroutines to be durably blocked (fake time makes sleeps instant)
-		synctest.Wait()
-
-		// Verify default was used (negative should fallback to default)
-		assert.Equal(t, 15, s.sessionCleanupIntervalMinutes)
-
-		// Stop scheduler
-		close(s.done)
-		s.wg.Wait()
-	})
-}
-
 func TestScheduleCleanupTask_CustomTime(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
@@ -2147,6 +2042,14 @@ func TestResolveIntSetting_InvalidEnv(t *testing.T) {
 	assert.Equal(t, 10, val)
 }
 
+func TestResolveIntSetting_NegativeEnv(t *testing.T) {
+	t.Parallel()
+	s := unitScheduler(&Scheduler{logger: slog.Default()})
+	s.getenv = testEnv("TEST_RESOLVE_INT_NEGATIVE", "-5")
+	val := s.resolveIntSetting(context.Background(), "key", "TEST_RESOLVE_INT_NEGATIVE", 15)
+	assert.Equal(t, 15, val)
+}
+
 func TestScheduleBreakAutoEndTask_NilBreakAutoEnder(t *testing.T) {
 	t.Parallel()
 
@@ -2171,7 +2074,8 @@ func TestScheduleBreakAutoEndTask_CustomInterval(t *testing.T) {
 
 	s.scheduleBreakAutoEndTask()
 	defer close(s.done)
-	assert.Equal(t, 30, s.breakAutoEndIntervalSeconds)
+	require.Contains(t, s.tasks, "break-auto-end")
+	assert.Equal(t, "30s-poll", s.tasks["break-auto-end"].Schedule)
 }
 
 // =============================================================================

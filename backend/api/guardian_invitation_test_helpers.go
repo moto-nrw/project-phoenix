@@ -28,7 +28,7 @@ type GuardianInvitationTestConfig struct {
 
 // lifecycleTestModule composes the Identity & Access module with the account
 // lifecycle and the guardian invitation flows bound (#2722/#3225), the way
-// the factory does it.
+// the service graph does it.
 func lifecycleTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (*identityaccess.Module, error) {
 	logger := cfg.Logger
 	if logger == nil {
@@ -123,7 +123,7 @@ func NewSchoolIdentityForTests(db transactionruntime.Database, unit tenant.UnitO
 }
 
 // NewGuardianInvitationServiceForTests composes the retained guardian
-// invitation service over the owner module, the way the factory does it: the
+// invitation service over the owner module, the way the service graph does it: the
 // invitation flows, the related-accounts flows and the mail all run against
 // the test database and the outbox the config names.
 func NewGuardianInvitationServiceForTests(db transactionruntime.Database, unit tenant.UnitOfWork, cfg GuardianInvitationTestConfig) (GuardianInvitationCapability, error) {

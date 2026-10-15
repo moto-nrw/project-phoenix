@@ -10,7 +10,6 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -58,9 +57,9 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		return CalendarTestModule{}, err
 	}
 	logger := slog.Default()
-	cfg := services.CurrentFactoryConfig()
-	calendarSvc := NewCalendarPortal(services.CalendarDependencies{
-		CalendarFacts: services.CalendarFacts{
+	cfg := CurrentServiceConfig()
+	calendarSvc := NewCalendarPortal(CalendarDependencies{
+		CalendarFacts: CalendarFacts{
 			StaffRepo:            repos.Staff,
 			StudentRepo:          repos.Student,
 			GuardianProfileRepo:  NewCalendarGuardianDirectory(repos.GuardianProfile, MustNewPeopleDirectory(db)),

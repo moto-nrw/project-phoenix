@@ -96,12 +96,21 @@ type ActivityUpdateAnnouncer interface {
 	AnnounceActivityUpdate(tenantID, activeGroupID int64, update timetable.TouchedActivity) error
 }
 
+// DeviationStaff are the staff rows the deviation writes, the staff pool and
+// the shift coverage read.
+type DeviationStaff interface {
+	FindByID(ctx context.Context, id any) (*usersModel.Staff, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*usersModel.Staff, error)
+}
+
 // StaffDeviationDependencies wires the deviation writes. Every field but
 // Logger and Now is required.
 type StaffDeviationDependencies struct {
 	Instances       scheduleModel.ActivityInstanceRepository
 	InstanceStaff   scheduleModel.InstanceStaffRepository
-	Staff           usersModel.StaffRepository
+	Staff           DeviationStaff
 	Supervisions    studentpresence.SupervisionRecords
 	Lifecycle       DeviationLifecycle
 	Protocol        DeviationProtocol

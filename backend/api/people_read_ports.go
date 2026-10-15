@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/services"
-
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
@@ -26,7 +24,7 @@ type groupRosterPeople struct{ source groupRosterSource }
 
 // GroupRosterPeople serves the live group roster's People port from the
 // person service.
-func GroupRosterPeople(source groupRosterSource) services.GroupRoster {
+func GroupRosterPeople(source groupRosterSource) GroupRoster {
 	if source == nil {
 		return nil
 	}

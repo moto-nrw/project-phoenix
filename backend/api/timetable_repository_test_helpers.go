@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // TimetableOwnerRows are the retained rows the Timetable owner's reads run
@@ -39,11 +38,11 @@ type TimetableTestRepositories struct {
 	timetableCompose.CalendarRows
 	Staff           usersModels.StaffRepository
 	Teacher         usersModels.TeacherRepository
-	ClassTeacher    services.ClassTeacherRepository
-	GroupTeacher    services.GroupTeacherRepository
+	ClassTeacher    ClassTeacherRepository
+	GroupTeacher    GroupTeacherRepository
 	Person          usersModels.PersonRepository
 	Student         usersModels.StudentRepository
-	Group           services.EducationGroupRepository
+	Group           EducationGroupRepository
 	ActiveGroup     studentpresence.SessionRecords
 	GroupSupervisor studentpresence.SupervisionRecords
 	// CareScheduleRepositories are the Care Plan schedule rows.
@@ -84,7 +83,7 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return TimetableTestRepositories{}, err
 	}

@@ -31,10 +31,10 @@ Handler -> Service -> Repository -> Database
 | Repositories | `database/repositories/{domain}/` | Data access (Bun ORM) |
 | Models | `models/{domain}/` | Domain entities, shared across layers |
 
-Legacy dependency injection: `services.NewFactoryWithModules` builds the
-retained service graph over the owner module capabilities. There is no
-repository Factory (#2743); each retained repository is built where it is
-used, in its owner composition.
+Composition: the root (`api`) builds the owners and composes the retained
+services over them in `newServiceGraph` (`api/service_graph*.go`). There is
+no service Factory (#2747) and no repository Factory (#2743); each retained
+repository is built where it is used, in its owner composition.
 
 ### Architecture checks
 

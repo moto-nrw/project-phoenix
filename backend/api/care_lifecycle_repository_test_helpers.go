@@ -12,7 +12,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // CareLifecycleTestRepositories is the repository graph the care-lifecycle
@@ -33,7 +32,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 		return CareLifecycleTestRepositories{}, err
 	}
 	people := members.People
-	membership, err := services.NewSchoolMembership(db.Pool())
+	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return CareLifecycleTestRepositories{}, err
 	}

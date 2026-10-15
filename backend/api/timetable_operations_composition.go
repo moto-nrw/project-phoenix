@@ -13,13 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewTimetableOperations composes the Timetable owner's operational day and
 // binds the collaborators it may not name itself.
-func NewTimetableOperations(in services.TimetableOperationInputs) (timetable.OperationCapability, error) {
+func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCapability, error) {
 	templates, err := in.Rows.OperationTemplates()
 	if err != nil {
 		return nil, err
@@ -64,7 +63,7 @@ func newTimetableAttendanceAnnouncer(broadcaster realtime.Broadcaster) timetable
 // check-out to the acting staff member, the way a device-authenticated
 // staff write is attributed.
 type timetableOperationAttendance struct {
-	presence services.TimetableOperationPresence
+	presence TimetableOperationPresence
 }
 
 func (a timetableOperationAttendance) CreateVisitAs(ctx context.Context, staffID int64, visit *studentpresence.Visit) error {
@@ -82,7 +81,7 @@ func (a timetableOperationAttendance) MoveStudentsToActiveGroupAuthorized(ctx co
 // timetableOperationSettings resolves the operational policies of the
 // tenant's settings.
 type timetableOperationSettings struct {
-	settings services.TimetableSettings
+	settings TimetableSettings
 }
 
 func (s timetableOperationSettings) ResolveString(ctx context.Context, key string) (string, error) {
@@ -123,7 +122,7 @@ func (s timetableOperationSettings) StudentAbsenceEditAllStaff(ctx context.Conte
 
 // timetableEffectiveArrivals serves Care Plan's effective arrivals.
 type timetableEffectiveArrivals struct {
-	times services.EffectiveArrivalTimes
+	times EffectiveArrivalTimes
 }
 
 func (a timetableEffectiveArrivals) EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*timetableCompose.ExpectedArrival, error) {
@@ -150,7 +149,7 @@ func (a timetableEffectiveArrivals) EffectiveArrivals(ctx context.Context, stude
 
 // timetableEffectivePickups serves Care Plan's effective pickup times.
 type timetableEffectivePickups struct {
-	times services.EffectivePickupTimes
+	times EffectivePickupTimes
 }
 
 func (p timetableEffectivePickups) EffectivePickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*time.Time, error) {

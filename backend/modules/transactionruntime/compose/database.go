@@ -1,6 +1,8 @@
 package compose
 
 import (
+	"log/slog"
+
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/database"
@@ -66,6 +68,18 @@ func (d Database) Close() error {
 // AddQueryHook registers hook on the pool every component already holds.
 func (d Database) AddQueryHook(hook bun.QueryHook) {
 	database.AttachQueryHook(d.pool, hook)
+}
+
+// LogQueries logs every statement of the pool through logger; the server
+// enables it with db_debug.
+func (d Database) LogQueries(logger *slog.Logger) {
+	d.AddQueryHook(database.NewQueryHook(logger))
+}
+
+// Capacity snapshots the pool's connection statistics for the metrics
+// endpoint and the capacity log.
+func (d Database) Capacity() database.CapacityStats {
+	return database.SnapshotCapacity(d.pool)
 }
 
 func bindDatabase(pool *bun.DB, bind func(*bun.DB) (tenant.UnitOfWork, error)) (Database, error) {

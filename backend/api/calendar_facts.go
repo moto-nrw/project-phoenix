@@ -16,12 +16,11 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 // NewCalendarFacts binds the calendar's fact ports to the retained rows and
 // owner reads; a nil source leaves its port unset.
-func NewCalendarFacts(d services.CalendarFacts) calendarCompose.Config {
+func NewCalendarFacts(d CalendarFacts) calendarCompose.Config {
 	cfg := calendarCompose.Config{}
 	if d.StaffRepo != nil {
 		cfg.StaffRepo = calendarStaffPort{d.StaffRepo}
@@ -197,10 +196,19 @@ func (p calendarGuardianPort) FindActivePortalProfilesByIDs(ctx context.Context,
 }
 
 type calendarRelationshipPort struct {
-	source interface {
+	source calendarRelationshipRows
+}
+
+// calendarRelationshipRows and calendarPersonRows are the guardian links
+// and the persons the calendar reads.
+type (
+	calendarRelationshipRows interface {
 		FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*userModels.StudentGuardian, error)
 	}
-}
+	calendarPersonRows interface {
+		FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
+	}
+)
 
 func (p calendarRelationshipPort) FindByGuardianProfileID(ctx context.Context, id int64) ([]*calendarCompose.StudentGuardian, error) {
 	value, err := p.source.FindByGuardianProfileID(ctx, id)
@@ -208,9 +216,7 @@ func (p calendarRelationshipPort) FindByGuardianProfileID(ctx context.Context, i
 }
 
 type calendarPersonPort struct {
-	source interface {
-		FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
-	}
+	source calendarPersonRows
 }
 
 func (p calendarPersonPort) FindByAccountID(ctx context.Context, id int64) (*calendarCompose.Person, error) {
@@ -231,7 +237,7 @@ func (p calendarSchoolPort) FindByID(ctx context.Context, id int64) (*calendarCo
 }
 
 type calendarChildPort struct {
-	source services.ParentChildLinkSource
+	source ParentChildLinkSource
 }
 
 func (p calendarChildPort) ListByAccount(ctx context.Context, id int64) ([]*calendarCompose.ChildSummary, error) {

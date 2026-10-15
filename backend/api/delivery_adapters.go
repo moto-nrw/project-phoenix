@@ -6,7 +6,6 @@ import (
 
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -16,7 +15,7 @@ import (
 // the mails of an application (#4013).
 
 // GuardianDisplayResolver names the guardians of the Delivery recipients.
-type GuardianDisplayResolver struct{ Query services.GuardianDisplayQuery }
+type GuardianDisplayResolver struct{ Query GuardianDisplayQuery }
 
 func (r GuardianDisplayResolver) ResolveGuardianDisplays(ctx context.Context, ids []int64) ([]delivery.GuardianDisplay, error) {
 	if len(ids) == 0 {

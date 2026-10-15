@@ -22,7 +22,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestFactory) {
+func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestServiceGraph) {
 	t.Helper()
 
 	db := testpkg.SetupTestDB(t)
@@ -31,10 +31,10 @@ func setupCaregiverFactory(t *testing.T) (*bun.DB, *api.TestFactory) {
 	return db, factory
 }
 
-func setupServiceFactory(t *testing.T, db *bun.DB) *api.TestFactory {
+func setupServiceFactory(t *testing.T, db *bun.DB) *api.TestServiceGraph {
 	t.Helper()
 
-	factory, err := api.NewFactoryForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default())
+	factory, err := api.NewServiceGraphForTests(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))), testpkg.NewDatabase(t, db), slog.Default())
 	require.NoError(t, err)
 	return factory
 }
