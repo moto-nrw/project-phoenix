@@ -591,14 +591,15 @@ pattern does not cover. Code that other slices still call stays with those calle
 composition are gone, and the composition surface fell from 250 to 248.
 
 #4011 moved the Care Plan wiring out of `services` without a key or a policy
-rule: `services` keeps 111 of its 156 production files (15,858 of 21,330 LOC).
+rule: `services` keeps 110 of its 155 production files (15,766 of 21,238 LOC,
+measured after #4049).
 The root binds Care Plan to the other owners (`api.newCarePlanWiring`) and
 hands the result to `NewFactoryWithModules` as `services.CarePlanWiring`. The
 two decisions the Factory still held now live in Care Plan: the pickup
 auto-excusal resync runs in Care Plan's own unit of work, and the student lock
 order of the weekly pickup approval sits behind a consumer-owned port. The
 Factory fields `Students` and `RequestReviewPolicy` are gone, so the
-composition surface fell from 237 to 235 (see
+composition surface fell from 236 to 234 (see
 [Care Plan wiring out of services](#care-plan-wiring-out-of-services-4011)).
 
 #2734 closed the carrier of `api/enrollment`: its 26 remaining keys, the
@@ -3533,7 +3534,7 @@ where ADR 0053 point 8 puts it:
   Care Plan's own services. The Care Plan observer parameter is gone; the root
   binds the observer into the excused-absence binding. The root builds the
   companion graph and the review policy where it mounts them, so the Factory
-  fields `Students` and `RequestReviewPolicy` are gone (237 → 235). Without
+  fields `Students` and `RequestReviewPolicy` are gone (236 → 234). Without
   `Students`, People Directory's retained `NewStudentService` was reachable
   only from tests and is deleted. Care Plan's composition gains
   `NewCareOfferings`, the one capability over the catalog, the booking
