@@ -70,15 +70,21 @@ func (r *Store) IncrementAttempts(ctx context.Context, tenantID int64, keyType, 
 	}, nil
 }
 
-// CleanupExpired removes rows whose window_start is older than 24h.
-// Scheduler-callable; nothing depends on the historical rows.
+// CleanupExpired removes the school's rows whose window_start is older than
+// 24h, the longest submission window, so no running window loses its count.
+// The nightly retention of the school in context calls it (#4046).
 func (r *Store) CleanupExpired(ctx context.Context) (int, error) {
 	db, err := r.resolve(ctx)
 	if err != nil {
 		return 0, err
 	}
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return 0, fmt.Errorf("cleanup enrollment submission rate limits: tenant is required: %w", err)
+	}
 	res, err := db.NewDelete().
 		Table("enrollment.submission_rate_limits").
+		Where("tenant_id = ?", tenantID).
 		Where("window_start < NOW() - INTERVAL '24 hours'").
 		Exec(ctx)
 	if err != nil {

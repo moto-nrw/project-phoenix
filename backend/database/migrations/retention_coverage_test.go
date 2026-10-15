@@ -57,7 +57,7 @@ var openSpecTickets = []string{"#3957", "#3960", "#3961", "#3962", "#3963"}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 7
-	openGapTables = 32
+	openGapTables = 24
 )
 
 // tableRetentions classifies every table of the schema.
@@ -131,7 +131,7 @@ var tableRetentions = map[string]tableRetention{
 	"auth.mfa_email_challenges":                             own("hourly token-cleanup, DeleteExpiredMFAEmailChallenges (7 days after expires_at)"),
 	"auth.mfa_overrides":                                    parent("auth.accounts"),
 	"auth.mfa_trusted_devices":                              parent("auth.accounts"),
-	"auth.parent_declaration_permission_grants":             undecided("relationship_id marker rows written by migration 1.15.428 for its rollback; no FK, never deleted"),
+	"auth.parent_declaration_permission_grants":             parent("users.student_guardian_relationships"),
 	"auth.passkey_credentials":                              parent("auth.accounts"),
 	"auth.passkey_sessions":                                 own("hourly token-cleanup, DeleteExpiredPasskeySessions (7 days after expires_at)"),
 	"auth.password_reset_rate_limits":                       own("hourly token-cleanup, DeleteStalePasswordResetWindows"),
@@ -160,9 +160,9 @@ var tableRetentions = map[string]tableRetention{
 	"config.work_time_model_entries":                        notPersonal("work time model configuration"),
 	"config.work_time_models":                               notPersonal("work time model catalog"),
 	"display.displays":                                      notPersonal("display device registry (name, token hash)"),
-	"documents.announcement_attachment_cleanup":             undecided("finished cleanup jobs keep file names"),
+	"documents.announcement_attachment_cleanup":             own("nightly retention step file_cleanup_retention, DeleteFinishedCleanups -> SQL documents.delete_finished_announcement_attachment_cleanups (30 days after cleaned_at)"),
 	"documents.announcement_attachments":                    parent("users.parent_announcements"),
-	"documents.file_cleanup":                                undecided("finished cleanup jobs keep file names"),
+	"documents.file_cleanup":                                own("nightly retention step file_cleanup_retention, DeleteFinishedCleanups -> SQL documents.delete_finished_file_cleanups (30 days after cleaned_at)"),
 	"documents.files":                                       undecided("the school's file storage; rows stay until the school deletes them"),
 	"documents.folder_accounts":                             parent("auth.accounts"),
 	"documents.folder_roles":                                notPersonal("folder audience by role"),
@@ -193,7 +193,7 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.request_guardians":                          parent("enrollment.requests"),
 	"enrollment.request_reads":                              parent("auth.accounts"),
 	"enrollment.requests":                                   gap("#3960"),
-	"enrollment.submission_rate_limits":                     undecided("key_value is an IP address or e-mail; Store.CleanupExpired exists but has no caller"),
+	"enrollment.submission_rate_limits":                     own("nightly retention step submission_rate_limit_retention, DeleteExpiredSubmissionRateLimits -> Store.CleanupExpired (24 hours after window_start)"),
 	"facilities.rooms":                                      notPersonal("room catalog"),
 	"feedback.entries":                                      own("nightly visit-cleanup run, FeedbackCleaner.DeleteExpired -> Cleanup -> DeleteOlderThan"),
 	"iot.devices":                                           notPersonal("device registry (registered_by person FK SET NULL)"),
@@ -256,7 +256,7 @@ var tableRetentions = map[string]tableRetention{
 	"schedule.student_pickup_schedules":                     parent("users.student_profiles"),
 	"schedule.timeframes":                                   notPersonal("timeframe catalog"),
 	"schedule.timetable_conflict_acks":                      parent("auth.accounts"),
-	"users.care_withdrawal_completions":                     undecided("student_id (FK SET NULL, so rows outlive child deletion); only platform.schools cascade"),
+	"users.care_withdrawal_completions":                     own("nightly retention step care_withdrawal_retention, DeleteFinishedWithdrawalCompletions (365 days after resolved_at; pending ones stay)"),
 	"users.class_list_entries":                              undecided("child first/last names from class lists; only platform.schools cascade; DeleteClassListEntry is manual"),
 	"users.guardian_financial_data":                         parent("users.guardian_profiles"),
 	"users.guardian_phone_numbers":                          parent("users.guardian_profiles"),
@@ -282,7 +282,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.privacy_consents":                                parent("users.student_profiles"),
 	"users.profiles":                                        parent("auth.accounts"),
 	"users.rfid_cards":                                      notPersonal("RFID tag registry"),
-	"users.staff_document_file_cleanup":                     undecided("finished cleanup jobs keep staff id and file names"),
+	"users.staff_document_file_cleanup":                     own("nightly retention step staff_cleanup_retention, DeleteFinishedStaffCleanups -> SQL users.delete_finished_staff_document_file_cleanups (30 days after cleaned_at)"),
 	"users.staff_documents":                                 gap("#3961"),
 	"users.staff_employment_profiles":                       parent("users.staff_school_memberships"),
 	"users.staff_financial_data":                            parent("users.staff_school_memberships"),
@@ -293,7 +293,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.staff_messages":                                  own("nightly staff-message-cleanup, CleanupExpiredMessages -> MessageStore.DeleteOlderThan"),
 	"users.staff_notice_acks":                               parent("auth.accounts"),
 	"users.staff_notices":                                   undecided("author account (FK RESTRICT) and body; manual delete only"),
-	"users.staff_offboarding_cleanup":                       undecided("finished offboarding jobs keep the staff id"),
+	"users.staff_offboarding_cleanup":                       own("nightly retention step staff_cleanup_retention, DeleteFinishedStaffCleanups -> DeleteCompletedOffboardingCleanups (30 days after completed_at)"),
 	"users.staff_qualifications":                            parent("users.staff_school_memberships"),
 	"users.staff_school_memberships":                        gap("#3963"),
 	"users.student_care_exit_removals":                      own("activate-students job, CareExitEffector.ApplyDueEffects -> discardRemovals -> DiscardCareExitRemovals when the exit takes effect"),
@@ -302,7 +302,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.student_care_profiles":                           parent("users.student_school_memberships"),
 	"users.student_companions":                              parent("users.student_profiles"),
 	"users.student_data_change_requests":                    parent("users.student_profiles"),
-	"users.student_document_file_cleanup":                   undecided("finished cleanup jobs keep file names"),
+	"users.student_document_file_cleanup":                   own("nightly retention step student_document_cleanup_retention, DeleteFinishedStudentDocumentCleanups -> SQL users.delete_finished_student_document_file_cleanups (30 days after cleaned_at)"),
 	"users.student_documents":                               parent("users.student_profiles"),
 	"users.student_family_protection_events":                parent("users.student_profiles"),
 	"users.student_guardian_pickup_permissions":             parent("users.student_guardian_relationships"),

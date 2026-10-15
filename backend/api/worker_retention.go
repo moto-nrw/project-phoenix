@@ -9,9 +9,12 @@ import (
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -34,6 +37,12 @@ const (
 	retentionDataAccessLog        = "data_access_log_retention"
 	retentionDeletionLog          = "deletion_log_retention"
 	retentionDeliveries           = "delivery_retention"
+	// The technical remains of #4046.
+	retentionFileCleanups           = "file_cleanup_retention"
+	retentionStaffCleanups          = "staff_cleanup_retention"
+	retentionStudentDocumentCleanup = "student_document_cleanup_retention"
+	retentionCareWithdrawals        = "care_withdrawal_retention"
+	retentionSubmissionRateLimits   = "submission_rate_limit_retention"
 )
 
 var retentionSettingKeys = []string{
@@ -64,6 +73,12 @@ type retentionOwners struct {
 	// deliveries deletes the delivered mail and push intents and the mail
 	// delivery logs after their fixed window (#3955).
 	deliveries deliveryModule.Retention
+	// The finished cleanup jobs, care-withdrawal completions and enrollment
+	// rate-limit buckets of their owners, each after its fixed window (#4046).
+	fileCleanups     fileStorageModule.CleanupRetention
+	staffCleanups    workforceModule.CleanupRetention
+	carePlanCleanups carePlanModule.CleanupRetention
+	submissionLimits enrollmentModule.SubmissionRateLimitRetention
 }
 
 func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
@@ -124,6 +139,28 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 	}
 	if owners.deliveries != nil {
 		steps = append(steps, fixedRetentionStep(retentionDeliveries, owners.deliveries.DeleteExpiredDeliveries))
+	}
+	return append(steps, cleanupJobRetentionSteps(owners)...)
+}
+
+// cleanupJobRetentionSteps are the fixed-window deletions of the technical
+// remains (#4046).
+func cleanupJobRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
+	var steps []scheduler.RetentionStep
+	if owners.fileCleanups != nil {
+		steps = append(steps, fixedRetentionStep(retentionFileCleanups, owners.fileCleanups.DeleteFinishedCleanups))
+	}
+	if owners.staffCleanups != nil {
+		steps = append(steps, fixedRetentionStep(retentionStaffCleanups, owners.staffCleanups.DeleteFinishedStaffCleanups))
+	}
+	if owners.carePlanCleanups != nil {
+		steps = append(steps,
+			fixedRetentionStep(retentionStudentDocumentCleanup, owners.carePlanCleanups.DeleteFinishedStudentDocumentCleanups),
+			fixedRetentionStep(retentionCareWithdrawals, owners.carePlanCleanups.DeleteFinishedWithdrawalCompletions),
+		)
+	}
+	if owners.submissionLimits != nil {
+		steps = append(steps, fixedRetentionStep(retentionSubmissionRateLimits, owners.submissionLimits.DeleteExpiredSubmissionRateLimits))
 	}
 	return steps
 }

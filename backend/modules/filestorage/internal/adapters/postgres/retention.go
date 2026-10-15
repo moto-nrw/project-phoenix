@@ -1,0 +1,45 @@
+package postgres
+
+import (
+	"context"
+	"fmt"
+	"time"
+)
+
+// CleanupRetentionStore implements ports.CleanupRetentionStore. The direct
+// DELETE on the intent tables stays revoked from the tenant role; the
+// database functions of 1.15.449 delete only finished intents of the
+// transaction's school and refuse a cutoff inside the window.
+type CleanupRetentionStore struct{ database Database }
+
+// NewCleanupRetentionStore wires the retention of the cleanup intents.
+func NewCleanupRetentionStore(database Database) *CleanupRetentionStore {
+	if database == nil {
+		panic("file storage postgres: database runtime is required")
+	}
+	return &CleanupRetentionStore{database: database}
+}
+
+func (s *CleanupRetentionStore) DeleteFinishedFileCleanups(ctx context.Context, before time.Time) (int, error) {
+	db, tenantID, err := requireTenant(s.database, ctx)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	if err := db.NewRaw(`SELECT documents.delete_finished_file_cleanups(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+		return 0, fmt.Errorf("file storage postgres: delete finished file cleanups: %w", err)
+	}
+	return int(deleted), nil
+}
+
+func (s *CleanupRetentionStore) DeleteFinishedAttachmentCleanups(ctx context.Context, before time.Time) (int, error) {
+	db, tenantID, err := requireTenant(s.database, ctx)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	if err := db.NewRaw(`SELECT documents.delete_finished_announcement_attachment_cleanups(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+		return 0, fmt.Errorf("file storage postgres: delete finished attachment cleanups: %w", err)
+	}
+	return int(deleted), nil
+}
