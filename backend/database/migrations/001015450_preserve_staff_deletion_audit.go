@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	preserveStaffDeletionAuditVersion     = "1.15.449"
+	preserveStaffDeletionAuditVersion     = "1.15.450"
 	preserveStaffDeletionAuditDescription = "Preserve data-deletion audit records after permanent staff deletion (#3953)"
 )
 
