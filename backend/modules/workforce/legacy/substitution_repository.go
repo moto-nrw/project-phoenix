@@ -140,12 +140,9 @@ func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[stri
 	return r.list(ctx, "list", filter)
 }
 
-func (r *groupSubstitutionRepository) ListWithOptions(ctx context.Context, options *modelBase.QueryOptions) ([]*GroupSubstitution, error) {
-	filter, err := groupSubstitutionFilterFromOptions(options)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
-	}
-	return r.list(ctx, "list with options", filter)
+// ListWithFilter lists the rows the typed capability filter selects.
+func (r *groupSubstitutionRepository) ListWithFilter(ctx context.Context, filter workforce.GroupSubstitutionFilter) ([]*GroupSubstitution, error) {
+	return r.list(ctx, "list with filter", filter)
 }
 
 func (r *groupSubstitutionRepository) FindByGroup(ctx context.Context, groupID int64) ([]*GroupSubstitution, error) {
@@ -215,36 +212,6 @@ func (r *groupSubstitutionRepository) loadGroups(ctx context.Context, rows []*Gr
 		return nil, &modelBase.DatabaseError{Op: "load substitution groups", Err: err}
 	}
 	return groups, nil
-}
-
-// groupSubstitutionFilterFromOptions translates the generic query options the
-// retained callers build into the typed capability filter. An unknown
-// predicate is an error rather than a silently dropped condition.
-func groupSubstitutionFilterFromOptions(options *modelBase.QueryOptions) (workforce.GroupSubstitutionFilter, error) {
-	filter := workforce.GroupSubstitutionFilter{}
-	if options == nil {
-		return filter, nil
-	}
-	if options.Filter != nil {
-		if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-			return filter, errors.New("nested group substitution filters are not supported")
-		}
-		for _, condition := range options.Filter.Conditions() {
-			if err := applyGroupSubstitutionCondition(&filter, condition); err != nil {
-				return filter, err
-			}
-		}
-	}
-	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
-		return filter, errors.New("group substitution sorting is not supported")
-	}
-	if options.Pagination != nil && options.Pagination.PageSize > 0 {
-		filter.Limit = options.Pagination.PageSize
-		if options.Pagination.Page > 1 {
-			filter.Offset = (options.Pagination.Page - 1) * options.Pagination.PageSize
-		}
-	}
-	return filter, nil
 }
 
 func applyGroupSubstitutionCondition(filter *workforce.GroupSubstitutionFilter, condition modelBase.FilterCondition) error {

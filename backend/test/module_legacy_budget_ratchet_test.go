@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 3050
+const moduleLegacyBudgetTotal = 3017
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -251,7 +251,7 @@ var moduleLegacyBudgets = map[string]int{
 	// moved the group substitution relations to the legacy root's binding,
 	// #3413 the time-tracking services and the work-session shim out, #3996
 	// the staff absence adapters.
-	"modules/workforce/legacy": 763,
+	"modules/workforce/legacy": 730,
 	// No ticket today.
 }
 
