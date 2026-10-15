@@ -26,6 +26,7 @@ type (
 	DepartureMode                      = upstream.DepartureMode
 	DeparturePlanSnapshot              = upstream.DeparturePlanSnapshot
 	FamilyProtectionEventRepository    = upstream.FamilyProtectionEventRepository
+	GuardianEmergencyContactRow        = upstream.GuardianEmergencyContactRow
 	GuardianFinancialDataRepository    = upstream.GuardianFinancialDataRepository
 	GuardianPhoneNumber                = upstream.GuardianPhoneNumber
 	GuardianPhoneNumberRepository      = upstream.GuardianPhoneNumberRepository

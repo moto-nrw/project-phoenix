@@ -32,7 +32,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -100,7 +99,7 @@ func buildAttendanceSyncSetup(t *testing.T) *attendanceSyncSetup {
 		instRepo:    timetableRepos.ActivityInstance,
 		isRepo:      instanceStudentRepo,
 		statusRepo:  repoFactory.StudentStatusDay,
-		groupRepo:   services.NewPresenceSessionRecords(db),
+		groupRepo:   api.NewPresenceSessionRecords(testpkg.MustDatabase(db)),
 		db:          db,
 		ctx:         ctx,
 		roomID:      room.ID,

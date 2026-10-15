@@ -10,7 +10,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 )
 
 func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capability, slots timetableCompose.StatusSlotRows) (careplan.Capability, error) {
@@ -53,6 +52,6 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 // dependencies, reading the participant slots through the Timetable adapter
 // over an unobserved Student Presence owner, as the test graphs need it.
 func NewUnobservedCarePlan(db transactionruntime.Database, dependencies TimetableDependencies) (careplan.Capability, error) {
-	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), dependencies.Capability, services.NewUnloggedStudentPresence(db.Pool()), services.NewPartialAbsencePreview(db.Pool()))
+	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), dependencies.Capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	return NewCarePlan(db, dependencies.Students, slots)
 }

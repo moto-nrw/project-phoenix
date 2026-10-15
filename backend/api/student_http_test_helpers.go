@@ -62,7 +62,7 @@ func NewStudentHTTPTestConsents(db transactionruntime.Database) StudentHTTPTestC
 // NewStudentHTTPTestPickupReviewBlocks are the timetable blocks a pickup
 // review shows, over the test database.
 func NewStudentHTTPTestPickupReviewBlocks(db transactionruntime.Database) carePlanCompose.PickupReviewBlocks {
-	return services.NewPickupReviewBlocks(db.Pool())
+	return NewPickupReviewBlocks(db)
 }
 
 // NewStudentHTTPTestMembership is the School Membership owner over the test

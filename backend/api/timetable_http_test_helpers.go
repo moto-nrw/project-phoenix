@@ -18,7 +18,6 @@ import (
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -292,7 +291,7 @@ func (timetableHTTPTestNoPreservedDeviations) Reapply(context.Context, int64, *i
 // supervisions over the test database, for suites that arrange a running
 // block.
 func NewTimetableHTTPTestSessionRecords(db transactionruntime.Database) *presenceCompose.SessionRecords {
-	return services.NewPresenceSessionRecords(db.Pool())
+	return NewPresenceSessionRecords(db)
 }
 
 // NewTimetableHTTPTestRecurrenceLock is the Timetable owner's tenant

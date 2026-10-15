@@ -232,12 +232,7 @@ func newTestServiceWithSettingsReader(db *bun.DB, settings compose.SettingsReade
 }
 
 func newTestRoomRepository(db *bun.DB) roomReader {
-	rooms, err := facilitiesCompose.New(facilitiesCompose.Dependencies{
-		DB:            db,
-		DeletionLock:  func(context.Context) error { return nil },
-		DeletionGuard: func(context.Context, int64) error { return nil },
-		Observe:       func(facilitiesCompose.Observation) {},
-	})
+	rooms, err := facilitiesCompose.NewUnobserved(db)
 	if err != nil {
 		panic(err)
 	}

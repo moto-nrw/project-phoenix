@@ -97,14 +97,14 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 	lifecycleOwners := NewCareLifecycleOwners(CareLifecycleOwnerSources{
 		Students: people.Students, Persons: people.Persons, Membership: owners.Membership,
 		People: persons, Timetable: owners.Timetable, Calendar: owners.Calendar,
-		Presence: services.NewUnloggedStudentPresence(pool), PlanReads: services.MustPresenceReads(pool),
+		Presence: NewUnloggedStudentPresence(owners.DB), PlanReads: MustPresenceReads(owners.DB),
 	}, NewCareEndRecorder(studentAudit))
 
 	wiring := services.CarePlanWiring{
 		StatusDays:             NewStudentStatusDayRepository(carePlan),
 		PickupStudents:         pickupStudents,
 		PickupStudentLocks:     pickupStudentLocks{students: persons},
-		PickupExcusalTimetable: NewPickupExcusalTimetable(owners.Timetable, services.NewPartialAbsencePreview(pool)),
+		PickupExcusalTimetable: NewPickupExcusalTimetable(owners.Timetable, NewPartialAbsencePreview(owners.DB)),
 		ArrivalRules:           arrivalRules,
 		ArrivalDependencies:    arrivalDependencies,
 		LifecycleOwners:        lifecycleOwners,
@@ -159,7 +159,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 		},
 		CareRequests: func(sources services.CareRequestSources) carerequests.Service {
 			return NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-				carePlan, persons, sources.Arrivals, sources.Pickups, services.NewLoggedStudentPresence(pool, logger),
+				carePlan, persons, sources.Arrivals, sources.Pickups, NewLoggedStudentPresence(owners.DB, logger),
 				sources.AutoExcusal, carePlan, sources.Staff, sources.Emitter, sources.Broadcaster,
 				sources.Reviews, sources.Permissions, sources.Events, sources.Logger, sources.Audit,
 				WithRequestShareVisibility(sources.Shares), WithCareRequestToday(sources.Today),

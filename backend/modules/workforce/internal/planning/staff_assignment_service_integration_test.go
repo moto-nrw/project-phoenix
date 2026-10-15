@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +57,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
 		ActivityInstanceRepo: timetableRepos.InstanceReads(),
-		RoomRepo:             services.NewRoomRepository(owners.Rooms),
+		RoomRepo:             api.NewRoomRepository(owners.Rooms),
 		ActivityGroupRepo:    timetableRepos.GroupReads(),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)

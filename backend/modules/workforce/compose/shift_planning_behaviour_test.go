@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -96,7 +95,7 @@ func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capabil
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
 		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},
-		InstanceStaff: planningInstanceStaff{}, Rooms: services.NewRoomRepository(owners.Rooms), ActivityGroups: planningGroups{},
+		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewRoomRepository(owners.Rooms), ActivityGroups: planningGroups{},
 		DB: db,
 	}
 }

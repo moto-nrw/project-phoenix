@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/services"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -243,7 +242,7 @@ func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReview
 		},
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil },
 		Today:                 func() careplan.Date { return "2026-09-09" },
-		Blocks:                services.NewPickupReviewBlocks(f.db),
+		Blocks:                api.NewPickupReviewBlocks(testpkg.MustDatabase(f.db)),
 		ObserveCare:           func(requestreviewcompose.CareObservation) {},
 		ObserveTimetable:      func(requestreviewcompose.TimetableObservation) {},
 	})

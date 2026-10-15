@@ -46,10 +46,10 @@ func NewClassDayTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	reports := services.NewEnrollmentReports(services.EnrollmentReportSources{
 		Owner: r.Enrollment(), Offerings: enrollmentCompose.NewCareOfferingRecords(r.CarePlan), AccessLog: r.DataAccessLog,
 		Students: r.Student, Persons: r.Person, Groups: schoolStructureCompose.NewGroupNames(r.Group), StudentGuardians: r.StudentGuardian,
-		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: services.NewClassListEntryRosterReader(r.Membership),
+		Companions: NewStudentCompanionRepository(r.CarePlan), ClassListEntries: NewClassListEntryRosterReader(r.Membership),
 		PickupSchedules: active.PickupSchedule, CareParticipation: care.CareLifecycle, Settings: active.Settings,
 	})
-	classDay := services.NewClassDay(services.ClassDaySources{
+	classDay := NewClassDay(services.ClassDaySources{
 		Caller: active.UserContext, Reports: reports, StatusDays: r.StudentStatusDay,
 		PickupTimes: active.PickupSchedule, ArrivalTimes: active.ArrivalSchedule, CareDays: active.CareDay,
 		Companions: NewStudentCompanionRepository(r.CarePlan), Students: r.Student, Persons: r.Person,

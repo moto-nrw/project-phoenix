@@ -598,6 +598,17 @@ glue into the root, which hands it to `NewFactoryWithModules` as
 the composition surface goes from 237 to 236 (see
 [Timetable, School Calendar and reminder wiring out of services](#timetable-school-calendar-and-reminder-wiring-out-of-services-4009)).
 
+#4010 moved the Student Presence, Facilities, Device Fleet and class-day
+wiring out of `services` without a key or a policy rule (see
+[Student Presence wiring out of services](#student-presence-wiring-out-of-services-4010)).
+The root builds Student Presence, its session records, the retained room
+service and the class-day bindings (`api.NewPresenceWiring`) and hands them to
+`NewFactoryWithModules` as `services.PresenceWiring`. Facilities decides the
+room deletion behind its `RoomUsage` port. The Factory fields `Facilities`
+and `StudentStatusDays` are gone, and the composition surface fell from 236 to
+234 (measured after #4049, which retired the unregistered tag scan adapter and
+its field).
+
 #4011 moved the Care Plan wiring out of `services` without a key or a policy
 rule: `services` keeps 82 of its 126 production files (12,603 of 18,049 LOC,
 measured after #4049 and #4009).
@@ -3522,6 +3533,65 @@ ports they call instead of naming whole repositories, which the
 two moved functions above the complexity limit are split into helpers. No key
 is added or removed (40 → 40), and the policy goes from 1,437 to 1,436 rules.
 
+### Student Presence wiring out of services (#4010)
+
+None of the 39 files of #4010 remains in `services`; `rfid_card_lookup.go`
+and `sse_presence.go` had already left with #4008 and #4006. Each part went
+where ADR 0053 point 8 puts it:
+
+- **Owner compositions** hold what binds one owner: Facilities builds the
+  retained room repository and the yard colour read (`NewRoomRepository`,
+  `YardRoomColor`) and names `OpenGroupCatalog`; Settings answers the named
+  presence questions (`PresenceSettings`); Student Presence logs its
+  operations (`FailureLogger`, `DebugLogger`); Delivery queues the
+  instance-started and arrival-schedule events (`QueueInstanceStarted`,
+  `QueueArrivalScheduleChanged`), because the root may not import its
+  `application` role. Six wrappers that only forwarded to an owner are
+  deleted; their callers call Timetable, Process Device Scan, Facilities,
+  Student Presence, the calendar view and Security Runtime directly.
+- **The decision of point 4.** A room cannot be deleted while a session runs
+  in it or a care offering needs it. Facilities' application asks its
+  consumer-owned port `RoomUsage` (`HasActiveSessions`,
+  `RequiredByCareOffering`) inside the delete transaction and keeps the
+  mapping to `ErrRoomInUse` and `ErrRoomRequiredByOffering`. The root binds
+  the port (`api.RoomUsage`) to Student Presence's open live groups and Care
+  Plan's `ValidateRoomDeletion` once the service graph exists. The retained
+  room service lost `ValidateDeletion`, and the root's error-code mapping is
+  gone.
+- **The root** (`api`) holds the cross-owner glue: the Student Presence roots
+  (`NewStudentPresence`, `NewLoggedStudentPresence`, `NewPresenceFacts`,
+  `NewSessionRecords`, `NewPartialAbsencePreview`, `NewPickupReviewBlocks`)
+  over the Transaction Runtime value, the session record directories, the
+  attendance reads, the session device directory, the yard's open groups, the
+  dashboard's open rooms and sessions, the statistics inputs, the class day,
+  the class list binding, the kiosk mirror and the session rosters.
+- **The Factory** takes `services.PresenceWiring` as one new constructor
+  parameter. It carries the values the root builds and five constructors the
+  Factory calls with what only it builds: the Audit command
+  (`BindClassListEntries`), the settings (`SessionDevices`), the person
+  service (`AttendanceStaffNames`), the class-day sources (`ClassDay`) and
+  the access log with the retention settings (`Statistics`). The fields
+  `Facilities` and `StudentStatusDays` are gone; the root mounts the values
+  it built, and `api.TestFactory` keeps both under their names for the
+  suites. `unregistered_tag_scans.go` had already left with #4049.
+- **Tests** move with their code. The Student Presence, Care Plan and
+  Workforce suites reach the other owners' compositions through the root's
+  test hooks (`api/presence_suite_test_helpers.go`), because a test of one
+  owner may not import another owner's composition (point 7).
+- **Callers in `services`** keep private copies of the Student Presence
+  roots, the presence rules and the partial-absence preview in
+  `timetable.go` (#4009), of the session directories and the session device
+  directory in `command_roots.go` and `cleanup_composition.go` (#4013), and of
+  `stringValue` in `enrollment_report_composition.go` (#4012). The root's
+  Care Plan exception directory (`api/care_plan_exception_directory.go`)
+  is also used by Care Plan after #4011; only the command roots keep a
+  private `pickupExceptionDirectory` until #4013. They leave with those builders.
+
+The Device Fleet session device directory binds a Student Presence port, so it
+is root glue and its legacy tree keeps its budget. No key is added or removed
+(39 → 39), and the policy keeps its rules. Measured after #4049, `services`
+shrinks from 155 to 119 production files and from 21,238 to 19,506 LOC.
+
 ### Timetable, School Calendar and reminder wiring out of services (#4009)
 
 The 29 files of #4009 left `services` (measured on `030716737b`, after #4006,
@@ -3571,6 +3641,16 @@ went where ADR 0053 point 8 puts it:
   `NewUnobservedTimetable`, with their own student and room mappings. #4010
   deletes the `services` copy.
 
+After merging #4009 and #4010, the root passes both `PresenceWiring` and
+`TimetableWiring` to the Factory. The root's Timetable builders use its
+Student Presence roots directly. Their private copies in `services/timetable.go`
+and `services/student_presence_roots.go` are gone; only the session and
+retention cleanup callers retain private roots in `command_roots.go` until
+#4013. Both migrations' owner boundaries remain in place. The combined
+composition surface is 231 after merging #4010 (233 before that merge), with 39 legacy keys. The
+stale `legacy-composition.module-internal-test.student-presence-public` rule
+is removed because the reminder tests now live in the root.
+
 Delivery's composition exposes the outbox request, the notification event,
 its audience, the push sentinels, the parent appointment copy and the mail
 branding the calendar portal binds, because the root may not import an
@@ -3619,8 +3699,7 @@ where ADR 0053 point 8 puts it:
   settings adapters, the request ledger and the request messenger in
   `offering_change_composition.go` (#4012), the parent-portal repositories in
   `owner_roots.go` (#4013), `pickupExceptionDirectory` in
-  `presence_bindings.go` and `legacyScheduleError` in
-  `manual_partial_absences_repositories.go` (#4010), and `CareRequestStaff`
+  `command_roots.go` (#4013), and `CareRequestStaff`
   next to the caller context in `factory.go`. The root calls the exported
   ones.
 
@@ -3630,6 +3709,13 @@ suites no longer import `services`, so the rule
 `enrollment.http-integration-test.legacy-composition` became stale and is
 deleted (1,429 → 1,428 rules). No key is added or removed (39 → 39), and the
 Care Plan pass-through budget stays at 111.
+
+After merging #4010, both `PresenceWiring` and `CarePlanWiring` remain root
+inputs. The obsolete manual partial-absence repository is gone, and the
+command roots keep the exception adapter they still call until #4013. The
+combined composition surface is 231. The parent-portal decision tests no
+longer import `services`, so `parent-portal.decision-test.legacy-composition.compose`
+is also stale and removed (1,427 → 1,426 rules).
 
 Twelve baseline entries fall: nine of #2750 (`. -> cmd`, `cmd -> api`,
 `cmd -> tenant`, `cmd -> database/migrations` in production and internal test,

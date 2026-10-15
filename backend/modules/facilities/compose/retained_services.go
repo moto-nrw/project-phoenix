@@ -13,6 +13,7 @@ type (
 	OpenGroup           = facilitiesService.OpenGroup
 	OpenGroupSupervisor = facilitiesService.OpenGroupSupervisor
 	OpenGroupVisit      = facilitiesService.OpenGroupVisit
+	OpenGroupCatalog    = facilitiesService.OpenGroupCatalog
 )
 
 var (

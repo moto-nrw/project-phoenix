@@ -40,7 +40,7 @@ func newCallerRowsForTests(db transactionruntime.Database, settings CallerSettin
 	return NewCallerRowsFromWiring(CallerContextWiring{
 		Accounts: r.Profile, Persons: tt.Person, Membership: membership, StaffGroups: r.StaffGroups,
 		SupervisedActivities: timetableCompose.NewCallerActivityGroups(tt.ActivityGroup).SupervisedActivityGroupIDs,
-		Presence:             services.NewLoggedStudentPresence(db.Pool(), slog.Default()),
+		Presence:             NewLoggedStudentPresence(db, slog.Default()),
 		Settings:             settings,
 		Tokens:               requestTokenReads,
 	}, CallerRowSources{
