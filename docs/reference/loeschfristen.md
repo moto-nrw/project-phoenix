@@ -14,7 +14,7 @@ Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startze
 
 ## Fachliche Daten (je Schule, operator_managed)
 
-Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellungen sind begründete Praxis nach der [Recherche](../research/aufbewahrungsfristen-2026-10-12.md) (Abschnitte 1 bis 6) und vom Verantwortlichen im Vertrag zu bestätigen. Ausnahme: Zeiterfassung mindestens 2 Jahre nach § 16 Abs. 2 ArbZG.
+Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellungen sind begründete Praxis nach der [Recherche](../research/aufbewahrungsfristen-2026-10-12.md) (Abschnitte 1 bis 6) und vom Verantwortlichen im Vertrag zu bestätigen. Ausnahme: Zeiterfassung mindestens 2 Jahre nach § 16 Abs. 2 ArbZG. AU-Bescheinigungen sind Gesundheitsdaten (Art. 9 DSGVO); ein Jahr deckt die Zwölf-Monats-Frist für eine erneute Arbeitsunfähigkeit wegen derselben Krankheit (§ 3 Abs. 1 S. 2 Nr. 2 EFZG).
 
 | Datenart | Einstellung | Voreinstellung | Rahmen | Startzeitpunkt | Owner | Stand |
 |---|---|---|---|---|---|---|
@@ -28,10 +28,10 @@ Keine dieser Fristen ist für OGS-Daten gesetzlich vorgegeben; die Voreinstellun
 | Rückmeldungen | `feedback.data_retention_days` | 90 Tage | 7 bis 365 Tage | Eingang | Feedback | umgesetzt |
 | Abgelehnte Anmeldungen | `enrollment.rejected_retention_days` | 90 Tage | 7 bis 730 Tage | Ablehnung | Enrollment | umgesetzt |
 | Zeiterfassung (Stempelzeiten, Pausen, Abwesenheiten) | `gdpr.time_tracking_retention_days` | 2 Jahre | 2 bis 8 Jahre | Arbeitstag | Workforce | umgesetzt |
+| AU-Bescheinigungen (samt Datei) | `gdpr.staff_sick_note_retention_days` | 365 Tage | 90 Tage bis 3 Jahre | Hochladen | Workforce | umgesetzt (#3961) |
 | Tagesanwesenheit | geplant | 365 Tage | 30 Tage bis 3 Jahre | Betreuungstag | Student Presence | offen (#3957) |
 | Erledigte Anmeldungen ohne Kind | geplant | 90 Tage | 30 bis 365 Tage | Erledigung | Enrollment | offen (#3960) |
 | Kinder nach Austritt (vollständig) | geplant | 365 Tage | 30 Tage bis 3 Jahre | letzter Betreuungstag | People Directory, Workflow Kinderlöschung | offen (#3962) |
-| AU-Bescheinigungen | geplant | 365 Tage | 90 Tage bis 3 Jahre | Hochladen | Workforce | offen (#3961) |
 | Ausgetretenes Personal | Zeiterfassungsfrist | wie Zeiterfassung | wie Zeiterfassung | Personalaustritt | Workforce, Workflow Personalaustritt | offen (#3963) |
 
 Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule selbst ein. Den Schalter `gdpr.data_cleanup_enabled` ändert nur das moto-Team (#3951).
@@ -67,6 +67,7 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 ## Grenzen und Sonderfälle
 
 - **Angenommene Anmeldungen** haben keine eigene Frist; sie gehen mit dem Kind (#3962).
+- **AU-Bescheinigungen** (#3961): Der nächtliche Lauf löscht die Zeile samt Dateinamen und legt die Datei in die Warteschlange `users.staff_document_file_cleanup`. Der Aufräumlauf für Personaldokumente prüft die Warteschlange alle fünf Minuten und entfernt die Datei. Eine schon von der Schule gelöschte AU-Bescheinigung verliert nach der Frist auch ihre Zeile. Die Einträge im Änderungsprotokoll der Personaldaten (`audit.staff_master_data_changes`, Dateiname beim Hochladen und Löschen) bleiben; sie sind eine offene Lücke ohne Ticket.
 - **Andere Personaldokumente** haben keine laufende Frist; sie werden beim Personalaustritt entfernt.
 - **Offene Anfragen** in Elternnachrichten bleiben, solange die OGS sie nicht entschieden hat. Danach gilt die normale Frist ab Versand, eine entschiedene alte Anfrage geht also beim nächsten Lauf.
 - **Willkommensmail für Eltern** (#3534): Sie geht je Schule nur einmal an einen Elternkontakt. Damit das nach der Löschfrist so bleibt, löscht der nächtliche Lauf diesen Eintrag der Mail-Warteschlange nicht, sondern leert die Verbindung zum Elternkontakt, Empfänger, Inhalt und Antwort des Mailservers. Übrig bleibt nur der Schlüssel `guardian_welcome:<ID des Elternkontakts>` mit Status und Zeitstempeln (#3955).

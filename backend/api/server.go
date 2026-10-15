@@ -235,6 +235,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		unregisteredTagScans: graph.services.IoT.Fleet(),
 		statusDays:           reads.statusDayRetention,
 		parentMessages:       communicationCompose.NewParentMessageRetention(graph.db.Pool(), graph.services.Settings),
+		staffSickNotes:       workforceCompose.NewSickNoteRetention(graph.services.Settings),
 		auditLedgers:         graph.services.Audit,
 		deliveries:           deliveryCompose.NewRetention(),
 		fileCleanups:         filestorageCompose.NewCleanupRetention(),

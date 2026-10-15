@@ -57,6 +57,8 @@ const (
 	DeletionTypeStudentDocumentCleanupRetention = "student_document_cleanup_retention"
 	DeletionTypeCareWithdrawalRetention         = "care_withdrawal_retention"
 	DeletionTypeSubmissionRateLimitRetention    = "submission_rate_limit_retention"
+	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
+	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
 )
 
 // IsDataKindRetention reports whether deletionType logs a whole data kind
@@ -74,7 +76,8 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeStaffCleanupRetention,
 		DeletionTypeStudentDocumentCleanupRetention,
 		DeletionTypeCareWithdrawalRetention,
-		DeletionTypeSubmissionRateLimitRetention:
+		DeletionTypeSubmissionRateLimitRetention,
+		DeletionTypeStaffSickNoteRetention:
 		return true
 	}
 	return false

@@ -27,13 +27,14 @@ import (
 // retention suite as the service graph composes them: the deletion log of
 // the Audit command, the Settings Platform, the unregistered tag scans over
 // the Device Fleet owner, the Care Plan status days, the parent messages, the
-// delivery data and the technical remains of #4046.
+// staff sick notes, the delivery data and the technical remains of #4046.
 type RetentionTestOwners struct {
 	Audit                *auditCompose.Command
 	Settings             settingsCompose.BatchSettingsService
 	UnregisteredTagScans devicefleet.UnregisteredTagScanRetention
 	StatusDays           careplan.StudentStatusDayRetention
 	ParentMessages       communication.ParentMessageCleanup
+	StaffSickNotes       workforce.SickNoteRetention
 	Deliveries           delivery.Retention
 	FileCleanups         filestorage.CleanupRetention
 	StaffCleanups        workforce.CleanupRetention
@@ -67,6 +68,7 @@ func NewRetentionTestOwners(db transactionruntime.Database, unit tenant.UnitOfWo
 	return RetentionTestOwners{
 		Audit: command, Settings: settings.Settings, UnregisteredTagScans: fleet, StatusDays: statusDays,
 		ParentMessages:   communicationCompose.NewParentMessageRetention(db.Pool(), settings.Settings),
+		StaffSickNotes:   workforceCompose.NewSickNoteRetention(settings.Settings),
 		Deliveries:       deliveryCompose.NewRetention(),
 		FileCleanups:     filestorageCompose.NewCleanupRetention(),
 		StaffCleanups:    workforceCompose.NewCleanupRetention(),
