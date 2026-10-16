@@ -1005,8 +1005,12 @@ migration graph, `after ratchet` lists what remains of a component once only
 `target` edges are kept: those cycles are in the target policy and do not go
 away when the baseline reaches zero.
 
-The command only reports. It exits non-zero when the policy, packages, or
-baseline fail to load, never because a component exists (#3417).
+The command reports. From policy epoch 48 the target graph has no cyclic
+component (ADR 0058 point 1, #3417): the policy loader rejects a policy whose
+target projection holds one (`internal/architecture/acyclic_target.go`) and
+names the component and the rules carrying its edges, so `check`, CI and
+`cycles` itself fail on it. The migration graph, which includes the exact
+debt, may stay cyclic until its keys are gone.
 
 ## Exact legacy ratchet
 
@@ -1031,17 +1035,174 @@ conversion rule below. Unchanged entries must keep their issue. Candidate
 policy, package classification, and ownership changes may not weaken the checks
 enforced by the base policy.
 
+### Composition surface
+
+PR mode also derives the composition surface of the base commit and of the
+candidate from source and rejects every key the candidate adds. A key is
+`scope|field|package|Struct.Field` or `scope|setter|package|Function->Target`.
+It counts:
+
+- the fields of the central aggregates: `database/repositories.Factory`,
+  `api.API` and `api.serviceGraph`, which also names the fields of the deleted
+  `services.Factory`;
+- setters, assignments to the dependency fields of a receiver or pointer
+  parameter after construction;
+- since #4071, every field of every struct a `root-composition` package
+  (`.`, `api`, `cmd`, read from `policy.json`) writes down that holds values
+  of several owners (ADR 0059 point 1).
+
+The root-struct part is semantic (`internal/architecture/composition_owners.go`).
+PR mode loads the root packages of the candidate and of the base commit,
+whose tree it extracts with `git archive`, with full type information,
+production and test variants alike, as a standalone module (`GOWORK=off`; a
+`go.work` in the repository is reported as unsupported). A root package that
+does not load or type-check fails the comparison; it never counts as empty. Every struct the root writes down is a carrier: a struct
+type literal anywhere (package-level or local type, anonymous variable,
+literal, parameter or field, nested structs included), a type expression that
+instantiates a generic root struct (`type Wiring = Graph[alpha.Port,
+beta.Port]`, `var wiring Graph[...]`, `Graph[...]{}`), and a variable a call
+types as such an instance, also as one of several results.
+
+A carrier counts when its struct holds values of at least two owners other
+than the root. A type holds a value of owner O when it is, after resolving
+aliases and unwrapping pointers, slices, arrays, maps and channels, a named
+type declared in a package `policy.json` assigns to O; the type arguments of a
+foreign generic type count as well. The root's own named types, local ones
+included, are followed into their underlying type, so wrapper structs, local
+aliases and generic instances resolve to what they hold. A function type and
+the own methods of an interface are ports of the root and hold no owner value;
+an interface that embeds a named interface holds what that one holds. Owners
+of the `kernel` kind are shared vocabulary and do not count; an internal
+package without classification counts as an owner of its own. Base and
+candidate are classified with both policies, and a struct counts when either
+sees two owners, so a reclassification cannot drop a struct the base counts.
+
+The carrier name is lexical: the type or variable name, prefixed with the
+enclosing function or method when it is local (`root.Wiring.A`), the parent
+carrier and field for a nested struct (`wiring.Inner.More`), or `struct<n>`
+for the n-th counted unnamed struct of a declaration (`root.struct1.A`). A name
+that repeats within a package scope gets `#2`, `#3` in source order; only
+counted carriers take part in the numbering. Known limits, which only
+deliberate code reaches: a generic instance a call infers and passes on
+without a variable or written type, and structs built by reflection.
+`internal/architecture/composition_owners_test.go` pins the definition.
+
+On development `c49b81c3a9` the surface rose from 139 to 1,732 keys when #4071
+added the root structs: 192 structs with 1,684 fields, among them
+`serviceGraph` (91), `graphBuild` (46), `PeopleWiring` (40),
+`serviceGraphInputs` (38), `IdentityMaterial` (33) and the other `*Wiring`,
+`*Sources` and `*Inputs` structs. That rise is the purpose of the measurement,
+not new debt: the fields existed and no ratchet counted them. It is the
+measure of #4080 and reaches 0 when no root struct holds values of several
+owners. From here it only falls.
+
+### Source ratchet budgets
+
+The ratchet tests in `test/*ratchet*_test.go` keep their budgets and
+allowlists in Go declarations. PR mode reads them at the base commit and
+rejects a raise (ADR 0057 point 5). The measurements, compared by name across
+the files of the package:
+
+- every top-level integer constant (a threshold or a register total);
+- every value of a top-level `map[string]int` register and its sum, so a new
+  key cannot add what an existing one may not;
+- the entry count of a top-level `map[string]string` exception register.
+
+The ratchet files are type-checked together with `go/types`, so every value
+is the compiler's: typed conversions and complements (`^uint8(0)` is 255),
+`iota` and references to other constants included, and a register may have a
+named map type. Imports resolve to empty packages; a value that depends on one
+or on a declaration outside the ratchet files has no value. A base
+measurement whose candidate declaration has no integer value is an error. A
+base measurement may not disappear either, also not by moving it out of the
+ratchet files: it stays, its register was empty, or exactly one candidate
+declaration of the same kind says `renamed from <old name>` in its comment
+and is compared with the old values. Two successors for one name, or one
+declaration naming two predecessors, fail. A new declaration has no base and
+starts a measurement; other literals (selector sets, scanned directories) are
+not compared.
+
+A raise passes only under an ADR the change adds: the comment on the raised
+entry or its declaration cites `ADR 0123`, and the base has no ADR with that
+number. Renaming or copying an existing ADR file authorizes nothing. A
+measurement that disappears needs the same: a comment naming it that cites an
+ADR the change adds. The only exception is a closed, one-time list bound to ADR
+0057 (`retiredByADR0057`): the three temporary-rule registers of
+`test/policy_temporary_rules_ratchet_test.go` that #4070 replaced by a
+structural check.
+`internal/architecture/ratchet_budgets_test.go` pins the rules.
+
 ### Converting temporary permissions to exact debt
 
-Schema 3 gives each temporary policy rule an `issue` field containing the same
-canonical GitHub issue URL as a legacy entry. Presence of this field defines a
-temporary permission; descriptions are not parsed by the evaluator. Omit it
-for ordinary target permissions. An explicit empty, null, malformed, query,
-fragment or pull-request URL is invalid. The issue identifies the open cleanup
-ticket, not the relocation that originally introduced the permission.
-`audit-issues` checks the union of rule and legacy issues, with one request per
-distinct URL. Closed issues, pull requests and failed requests fail the audit.
-Issue metadata does not change a rule's permission or policy strictness.
+A rule states the target
+([ADR 0057](../../docs/adr/0057-only-the-target-is-a-rule.md), #4070). From
+policy epoch 47 the loader rejects these rules
+(`internal/architecture/target_rule.go`):
+
+- a rule that lets one owner import another owner's `application`, `domain`,
+  `adapter`, `postgres`, `cli` or `legacy-model` role, for any pair of owners
+  its source and target selectors can match; `same_owner` rules and rules
+  whose source and target name the same owner are the owner's own reach;
+- a rule that lets a `platform` owner import a `domain`, `projection` or
+  `workflow` owner, again for any pair its selectors can match, so an
+  owner-agnostic rule into a domain role must name its source kinds;
+- a rule that lets the composition of a `domain`, `workflow`, `projection` or
+  `platform` owner (source role `compose`, or no source role) import another
+  owner's `compose` or `http` role: cross-owner glue belongs in the root
+  ([ADR 0059](../../docs/adr/0059-the-roots-hold-no-service-graph.md) point
+  6, #4004). The typed roots, the legacy composition and `inbound` owners are
+  not owner compositions. A target in a composition owner stays allowed in
+  the test scopes only (the roots' standing test reach); no owner imports a
+  root in production (ADR 0058);
+- a rule with an `issue` field;
+- a rule whose description contains a transition marker. The markers are a
+  fixed list, matched case-insensitively: "convert … to exact debt",
+  "compatibility permission", "compatibility binding", "compatibility
+  adapter", "temporary"/"temporarily", "until #N" and "tracked by #N".
+
+From epoch 48 a policy whose target graph closes a cycle is rejected too
+([ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md), #3417); a
+second direction between two domains is rejected as part of a cycle. The
+loader does not judge a platform rule into an `inbound` owner: `inbound`
+owners are outside the target graph, so `settings-platform.http.inbound-common`
+closes no cycle and stays a rule. A temporary allowance is an exact `legacy.jsonl` key
+with its open carrier issue, never a rule. Older epochs stay loadable as
+immutable PR bases: there an `issue` field still marks a temporary
+permission, and an explicit empty, null, malformed, query, fragment or
+pull-request URL stays invalid. Keep that read path while a supported base
+predates epoch 47. `audit-issues` reads only the baseline's issues, with one
+request per distinct URL; it still loads the policy, so an invalid policy
+fails it. Closed issues, pull requests and failed requests fail the audit.
+
+The retained `models` and `models/*` packages carry their own role,
+`legacy-model`, which only their owner may import (ADR 0057 point 4). From
+epoch 47 every non-test-support package under `models/` has that role and no
+other package has it. The session token runtime
+`modules/identityaccess/sessiontoken` is classified as Identity & Access's
+`http` role (point 3): every HTTP adapter, composition and suite that
+verifies or mints sessions reaches it through a rule into that role, and the
+typed roots reach it through `root-composition.reach.domain.http`. `http`
+rather than `contract`: the package holds the signing and verification
+runtime, not a pure contract, and the roots' standing reach into every
+domain's `http` role already covers them.
+
+The comparison carries exactly these two decided reclassifications over, bound
+to their packages and to epoch 47, the epoch that makes them
+(`internal/architecture/role_reclassification.go`):
+`modules/identityaccess/sessiontoken` from `adapter` to `http` and `models`
+and `models/*` from `domain` to `legacy-model`, each with unchanged owner and
+test roles and only while the base still has the old role. A rule or import
+into the new role of the owner counts as covered when the base let the same
+source into the old role or into the new role; so the owner's other packages
+in the new role become reachable for those sources too. Out of a package the
+old role's reach carries over only for the reclassified package itself; a
+rule out of an owner's role counts as covered only when every package of the
+owner in that role was reclassified into it. An unchanged package keeps its
+own base permissions. A role the base gives no package (`legacy-model`)
+takes the old role's permissions for every owner, so `same_owner` rules
+selected by kind keep their reach. Any other package, role change, later
+epoch, owner change or test-role change stays under the ordinary guards. The
+epoch may not decrease, so the epoch-gated validation cannot be switched off.
 
 `rules.stale` reports a rule that allows no edge across the union of production,
 internal-test and external-test scopes in the fixed build context. A rule used
@@ -1076,6 +1237,122 @@ Once recorded, the tuple follows the ordinary shrink-only and issue-audit
 rules. Restoring its target permission is still policy loosening. Removing the
 import requires removing its debt entry in the same change. No schema change
 or second allowlist is needed for the final contract step.
+
+The three conditions hold per tuple, so one change may delete any number of
+rules and record exactly the imports they allowed. A key without a deleted
+rule behind it describes an allowed import and is a stale entry.
+
+#4070 (ADR 0057, policy epoch 46 → 47) applied the target-only validation to
+the whole policy. It deleted 405 rules and recorded the imports they allowed as
+514 exact keys, one carrier per family (6 → 520 keys, 1,351 → 976 rules):
+
+| Carrier | Family | Keys added | Keys now |
+|---|---|---:|---:|
+| #4076 | domains, workflows, platforms and test support in another owner's private role, `models/*` | 102 | 102 |
+| #4004 | owner compositions in another owner's private, `compose` or `http` role | 97 | 97 |
+| #4081 | `internal/timezone` wrapper | 87 | 87 |
+| #4073 | Parent Portal and `inbound-parent` | 61 | 61 |
+| #4077 | projections, compatibility adapters | 49 | 49 |
+| #4074 | Communication parent compatibility | 44 | 44 |
+| #4072 | platform into a domain, projection or workflow owner | 34 | 34 |
+| #4075 | `delivery-cutover.*` | 16 | 16 |
+| #4078 | `inbound` owners | 12 | 12 |
+| #2729 | rules with `issue` (`models/users`) | 8 | 9 |
+| #2750 | rules with `issue` (root) | 2 | 4 |
+| #2751 | legacy composition | 0 | 3 |
+| #4096 | dev tools of the commands root (ADR 0056) | 2 | 2 |
+| | total | 514 | 520 |
+
+The audit's rule list per carrier decides the family of a deleted rule; a rule
+outside it follows the same order: imports of `internal/timezone` go to #4081,
+the nine rules with an `issue` field keep #2729 or #2750, `delivery-cutover.*`
+goes to #4075, `communication.parent-compatibility.*` to #4074, Parent Portal
+and `inbound-parent` sources to #4073, platform sources to #4072 (into a
+domain, projection or workflow owner) or #4076, an owner composition into
+another owner's private role, or into its `compose` or `http` role, to #4004, and the remaining sources by kind:
+projections #4077, `inbound` owners #4078, domains, workflows and test support
+#4076, the roots #2750, the legacy composition #2751.
+
+The same epoch also:
+
+- classifies `models` and `models/*` as `legacy-model` and gives the owners'
+  own rules into or out of them a `legacy-model` twin, or retargets a rule
+  that only reached them;
+- classifies `modules/identityaccess/sessiontoken` as `identity-access`/`http`
+  and retargets the 55 rules into `identity-access`/`adapter` to that role.
+  The settings platform's two session rules are platform rules into a domain
+  owner and became keys (#4072); the compositions of Facilities, Timetable
+  and Device Fleet reach the runtime from their `compose` role, which is
+  glue, and became keys too (#4004). The root's two session rules of ADR 0056
+  are deleted: `root-composition.reach.domain.http` covers the root's
+  imports. Identity's own composition and suites reach the runtime through
+  `identity-access.{compose,e2e-test,module-behavior-test}.session-runtime`;
+- splits the eight owner-agnostic test rules into a domain, projection or
+  workflow role (`adapter-test.{domain,projection,workflow}.*`,
+  `external-test.{domain,projection,workflow}.*`) by the source kinds that use
+  them, `<kind>.<rule>`, without the platform kind; the platform imports they
+  allowed are keys (#4072);
+- renames the target-shaped `care-schedule-cutover.*`,
+  `timetable-planning-cutover.*` and `delivery-cutover.*` rules without
+  changing a selector: the cutover prefix goes, a numbered delivery rule is
+  named `<source owner>.<source role>.<target owner>-<target role>`;
+- deletes the epoch-gated acceptors of the finished cutovers (ADR 0030, 0035,
+  0036, 0037, 0038, 0049, 0050, 0052 and the Enrollment application move):
+  each needs a base that classifies a package development no longer has
+  (`modules/careplan/legacy/careschedule`, `…/carelifecycle`,
+  `modules/studentpresence/legacy/*`, `modules/workforce/legacy/shiftplanning`,
+  `…/timetracking`, `modules/timetable/legacy/timetableplanning`,
+  `services/enrollment`, `database/repositories`, `services`), so none can
+  fire again.
+
+Kept after review: rules into another owner's `public`, `contract`, `port` or
+`test-support` role, and into its `compose` or `http` role from a source that
+is not an owner composition (the roots, `inbound` owners, HTTP adapters and
+tests). That is not a claim that all of them are target: the cycle criterion
+of ADR 0058 came with #3417 below.
+
+#3417 (policy epoch 47 → 48) made the target graph acyclic. After the
+domain → projection and domain → workflow rules ADR 0058 point 2 already
+excludes, six domains still formed one cyclic component. The layering
+recorded in the addendum to ADR 0058 decides their directions: People
+Directory lowest, Care Plan above it, Enrollment above Care Plan, Workforce
+above Student Presence. The 14 rules that closed the cycle are deleted and
+the 18 imports they allowed are exact keys, a one-time rise of 480 → 498
+approved only for this conversion:
+
+| Rules | Carrier | Keys |
+|---|---|---:|
+| `people-directory.http.*` into Care Plan, Enrollment, Student Presence, `group-live-view`, `request-review-view`, `student-deletion`; `student-presence.http.calendar-view`, `student-presence.http.to.open-room-move`, `timetable-activities.http.class-day-view` | #4079 | 15 |
+| `care-plan.application.native-enrollment-selection`, `care-plan.postgres.enrollment-query`, `student-presence.application.workforce-public` | #4076 | 3 |
+
+`cycles --graph target` reports 0 components (58 nodes, 219 edges).
+
+#4072 removed 25 of the 34 platform keys (519 → 494) without a rule. Each
+platform declares what it needs in its own vocabulary and the root binds the
+owner:
+
+- Settings Platform: the operator routes take the operator and the school
+  slug through ports (`OperatorIdentity`, `SchoolLookup`); Care Plan's
+  review before booking-led care moved to Care Plan's own HTTP adapter
+  `modules/careplan/http`, which the operator router mounts; the root wraps
+  Care Plan's refusal of the switch in `settings.BookingAuthorityBlockedError`.
+  The wizard tables stay Settings Platform's: their repositories are generic
+  over the state shape, School Setup instantiates them with its own types.
+- Document Rendering: the plan export's translations of Workforce, Timetable
+  and Facilities records moved from `modules/planexport/compose` into the root
+  (`api/plan_export.go`); the package is deleted. `lists` names the plan columns the root's suites read.
+- Audit Platform: the booking consistency audit reads approved bookings in
+  `auditlog.ApprovedBooking` and `auditlog.ApprovedBookingOfferingLink`; the
+  root binds Enrollment. Its suite runs in the root over the real owners.
+- Delivery Platform: the staff recipient resolver reads groups, accounts,
+  thread claims and the staff on duty through its own ports;
+  `workforce.OnDutyStaffIDs` keeps the on-duty rule in Workforce. The strings
+  Delivery shares with Care Plan's status days and the reminder workflow are
+  pinned where they are handed over.
+
+The nine `services/scheduler` keys remain with the Worker track (#4067). The
+cut of `organization-tenancy -> delivery-platform` that ADR 0058 point 6
+assigns to #4072 is still open; its keys are carried by #4075 and #4076.
 
 ### Relocating a package without losing its debt
 
@@ -3446,6 +3723,9 @@ Three constraints shape the rules:
    own owner's `public` and `contract`. The rules into `public` and
    `contract` therefore name a source role, both for the root's test scopes
    and for an owner's own tests; the rules into the other roles do not.
+   #4070 split the rules into a domain, projection or workflow role by
+   source kind (`<kind>.adapter-test.domain.public` and so on), without
+   the platform kind (ADR 0057).
 2. The rules of points 3, 7.1 and 7.2 name a non-composition source owner
    kind, so they cannot overlap the root's rules: the roots reach their own
    packages through point 2. `reviewedOwnerCompositionRule` also rejects a
@@ -4021,6 +4301,100 @@ of [#4063](https://github.com/moto-nrw/project-phoenix/issues/4063). The
 composition surface stays at 139. The evidence record is
 `relocate-inbound-packages-4064.json`.
 
+### The operator router moves into the HTTP host (#4064)
+
+`api/operator` mounted the operator routes of Identity & Access,
+Organisation & Tenancy, Settings Platform, Communication and Device Fleet.
+That is cross-owner glue, which ADR 0056 lets the HTTP host mount, so the
+router moves into the server root as `api/operator_routes.go`. Routes,
+status codes, error bodies and the route and middleware goldens are
+unchanged.
+
+- `operator.Resource` and `operator.ResourceConfig` held values of several
+  owners, which a root may not (ADR 0059 point 1). `operatorRouter` takes
+  each owner's part as its own value instead: the Identity & Access inputs
+  (`operatorIdentity`), Organisation & Tenancy's `ProvisioningConfig` and
+  billing routes, Settings Platform's school settings routes, the
+  Communication capability and the Device Fleet handler. The rate limiters
+  come as the root's `authRateLimiters` instead of three setters.
+- `IdentityResponses` becomes `operatorIdentityResponses` in `api`.
+- The router's suites move into `api` (`api/operator_*_test.go`) with their
+  assertions; only the router construction changes, and the panic for
+  missing session chains no longer names the deleted `ResourceConfig`.
+- The owner `inbound-operator`, its package entry and its eight rules are
+  deleted. The root reaches every import through the standing reaches of
+  ADR 0053 point 2 (`root-composition.reach.domain.{http,public}`,
+  `reach.platform.{http,public}` and the internal-test reaches); no rule is
+  added.
+
+`api -> api/operator` (#2750) leaves `legacy.jsonl`, 520 -> 519. The
+composition surface falls from 1,746 to 1,743. The evidence record is
+`relocate-operator-router-4064.json`.
+
+### The Worker contract names no other owner (#4067)
+
+ADR 0056 point 4 moves the contract the root fills into a
+`scheduler-runtime`/`contract` package. The contract may not name another
+owner's types: a platform importing a domain, a workflow or another owner's
+`application` role is never a rule (ADR 0057). Each Worker dependency typed
+by another owner therefore becomes a port the Worker declares and the root
+binds (ADR 0058 point 2) before the contract moves. #4067 carries every key
+with source `services/scheduler`, whichever carrier names it (#4072, #4075).
+
+Step 1, the personal reminder notifications. The producer that turns the
+reminder list into notifications joins the reminder batch with the
+notification audience, so it moves into Reminder Delivery as
+`workflows/reminderdelivery.PersonalReminderNotifications`. Its notices and
+ports use the workflow's own vocabulary; the root binds the notification
+service, the consent of the notification preferences, the staff and admin
+accounts and the on-duty staff, which Workforce answers
+(`workforce.OnDutyStaffIDs`). The Worker keeps the minute tick, the
+notification feature flag gate and the on-duty setting, and calls the
+producer through `scheduler.ReminderNotificationTick`. Construction refuses
+an incomplete producer instead of silently not registering the tick.
+`services/scheduler -> modules/delivery/application/notifications` and
+`-> modules/workforce` in production and internal test, and
+`-> workflows/reminderdelivery` in internal test leave `legacy.jsonl`,
+519 -> 514. The composition surface falls from 1,743 to 1,742. The evidence
+record is `scheduler-reminder-notifications-4067.json`.
+
+Step 2, Student Presence, Care Plan and the Delivery Platform. The Worker
+declares its own ports for the session end and the abandoned-session sweep
+(`SessionMaintenance`, `DailySessionsEnded`), the nightly presence cleanup
+(`PresenceCleanup` and its three results), the end-of-day status flag archive
+(`StudentStatusFlagArchiver.ArchiveEndOfDayStatusFlag`), the standalone usage
+sweep (`PWAUsageCleanup`) and the overdue announcements
+(`InstanceOverdueBroadcaster`). The root binds them in
+`api/scheduler_presence_ports.go`. Care Plan's vocabulary moves with the
+binding: the root archives the sick flag as a sick day and the excused flag
+as an excused day from the end-of-day source. The overdue event envelopes
+become the Delivery Platform's `realtime.NewInstanceOverdueEvent` and
+`NewInstanceOverdueRefreshEvent`, which the root broadcasts tenant-wide;
+`realtimeevents.PublishInstanceOverdue` and `PublishInstanceOverdueRefresh`
+had no other caller and are deleted. Seven keys leave `legacy.jsonl`
+(512 -> 505): `services/scheduler -> modules/studentpresence`,
+`-> modules/delivery/application/pwa` and
+`-> modules/delivery/application/realtimeevents` in production and internal
+test, and `-> modules/careplan/absencerecords` in production. The
+composition surface stays at 1,740. The evidence record is
+`scheduler-presence-delivery-ports-4067.json`.
+
+Step 3, Timetable and Reminder Delivery. The Worker declares its own ports
+for the weekly materialization (`TimetableMaterializer`,
+`MaterializationRun`), the timetable retention sweep (`TimetableCleanup`,
+`TimetableCleanupRun`), the automatic start and end (`InstanceAutoStart`,
+`InstanceAutoEnd` and their runs) and the scheduled reminders
+(`AppointmentReminderCommand`, `ParentAnnouncementReminderCommand`,
+`ReminderCommands`, which name the methods the Worker calls). The root binds
+them in `api/scheduler_timetable_ports.go` and tags the Worker's
+materializations as the scheduler's; the overdue tick reads
+`DayInstance.Planned`, which the root derives from Timetable's status. Three
+keys leave `legacy.jsonl` (498 -> 495): `services/scheduler ->
+modules/timetable` in production and internal test and `->
+workflows/reminderdelivery` in production. `services/scheduler` carries no
+key any more, and #4072 has none left. The composition surface stays at
+1,740. The evidence record is `scheduler-timetable-reminder-ports-4067.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
@@ -4044,8 +4418,9 @@ logically overlapping rules. Change
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
-Policy candidates must use `schema_version: 3` because rules now carry optional
-issue metadata. Only `LoadBasePolicyAndManifest`, reading an immutable Git base,
+Policy candidates must use `schema_version: 3`. Schema 3 added the optional rule
+`issue`, which epoch 47 forbids again (ADR 0057); the JSON shape still
+accepts it for older bases. Only `LoadBasePolicyAndManifest`, reading an immutable Git base,
 accepts schema 2 during the schema-3 rollout and normalizes it to 3 before full
 validation. Candidates never use that compatibility path. Schema 1, future
 schemas, unknown fields and invalid metadata still fail. Keep this bounded
@@ -4059,83 +4434,14 @@ and must not unlock the epoch-gated strictness exceptions. Add positive and
 negative fixtures when changing these contracts, and remove every `rules.stale`
 finding before committing a policy change.
 
-The Care Schedule retirement has one scoped permission-replacement path
-([ADR 0030](../../docs/adr/0030-care-schedule-cutover-replaces-legacy-permissions.md),
-#3351). In a reviewed epoch, consumers may replace their existing, same-scope
-access to `inbound-schedules/adapter` with Care Plan's public or contract role.
-Tests with that same prior permission may instead construct the replacement
-through Care Plan's compose role, in their existing test scope only.
-The candidate must remove the legacy package and every `inbound-schedules`
-package. The exception also covers the exact canonical-calendar replacement
-and the four native owner-internal contract bindings described in the ADR.
-Four pinned consumer points may also replace the retired adapter's Timetable
-contracts and Presence capacity-error alias with their actual public owners;
-each requires its own same-scope historical adapter permission. The ADR lists
-these points. Other owners and non-public target roles remain forbidden.
-Two retained arrival-integration fixture points may construct Timetable's
-class projections, only in their historical test scopes, and bind them through
-Care Plan composition themselves. The ADR pins both source points and the
-single `timetable-activities/compose` target. Root composition is not a target:
-its role also covers `database/repositories`, so the repository imports of
-these tests stay tracked debt. No production access is authorized.
-Those bindings apply only to Care Plan's composition, application, and port
-roles in production scope, not to test helpers or new cross-owner access.
-It does not allow new debt, ownership changes, private
-implementation access, or reuse after retirement reaches the comparison base.
-Intermediate states with the legacy service still present remain invalid.
-
-The Care Lifecycle retirement has the same kind of one-time path
-([ADR 0035](../../docs/adr/0035-care-lifecycle-cutover-replaces-legacy-permissions.md),
-#3427). In a reviewed epoch that no longer classifies
-`modules/careplan/legacy/carelifecycle`, a consumer may replace its existing,
-same-scope access to that `inbound-students/adapter` with Care Plan's public or
-contract role, and its tests may construct the replacement through Care Plan's
-compose role. Care Plan's contract suite may keep, in `external_test` scope,
-the reach the retired adapter's own behavior suites had, except the retired
-owner. The ADR lists the seven rules epoch 20 adds under it.
-
-The Student Presence nest has the third and widest such path
-([ADR 0036](../../docs/adr/0036-student-presence-cutover-replaces-legacy-permissions.md),
-#3422). In a reviewed epoch that classifies no package under
-`modules/studentpresence/legacy` and whose base classifies all four retired
-packages exactly, a consumer may replace its existing, same-scope access to
-one of them with Student Presence's `public` role, Care Plan's `contract`
-role or Workforce's `public` and row-holding `adapter` role, and its tests may
-instead construct the replacement through Student Presence's `compose` role.
-Care Plan's `test-support` role is reachable from a `test-support` source
-only; `facilities`/`compose` is the single pinned production point allowed to
-name `student-presence`/`compose`, for the attendance-room port whose filter
-map keeps it off the public contract. The roles that received the retired code
-keep exactly that code's reach in the same scope, the nest's own suites keep
-theirs on the role the candidate gives their new package, the two row packages
-inherit only the canonical calendar-date value, and two pinned production
-bindings carry the handed-back rows into the contracts that name them. The ADR
-lists the 57 rules epoch 21 adds under it. Everything else — other owners,
-other roles, other scopes, production composition access — stays forbidden.
-
-The shift-planning compatibility package has the fourth such path
-([ADR 0037](../../docs/adr/0037-shift-planning-cutover-replaces-legacy-permissions.md),
-#3418). In a reviewed epoch that no longer classifies
-`modules/workforce/legacy/shiftplanning` and whose base classifies it as
-`inbound-staff-shifts`/`adapter`, a consumer may replace its existing,
-same-scope access to that package with Workforce's or Timetable's `public`
-role, and its tests may instead construct the replacement through that
-owner's `compose` role. The roles that received the retired code, Workforce's
-`application` and `compose` and Timetable's `compose` with the test roles of
-their suites, keep exactly that code's reach in the same scope. The
-shift-plan-sync workflow's points are created by the candidate and need no
-exception. Everything else stays forbidden.
-
-The time-tracking compatibility package has the fifth such path
-([ADR 0052](../../docs/adr/0052-time-tracking-dissolution-replaces-legacy-permissions.md),
-#3413). In a reviewed epoch that no longer classifies
-`modules/workforce/legacy/timetracking` and whose base classifies it as
-`workforce`/`adapter` with `adapter-test` in both test scopes, the Workforce
-roles that received the retired code (`application`, `compose`,
-`module-internal-test`, `module-behavior-test`) keep exactly that code's reach
-in the same scope. No consumer replacement is needed: every consumer already
-reached Workforce's `public` and `compose` roles. Everything else stays
-forbidden.
+The finished cutovers of ADR 0030 (Care Schedule), 0035 (Care Lifecycle),
+0036 (Student Presence nest), 0037 (shift planning), 0038 (timetable
+planning), 0052 (time tracking) and the Enrollment application move had
+epoch-gated paths that let the successors keep the retired packages' reach.
+Each path required a base that classifies the retired package. Development
+classifies none of them since those cutovers, and ADR 0057 makes such reach
+exact debt instead of a rule, so #4070 deleted the paths and their tests. A
+future cutover converts the retired reach into keys or removes it.
 
 The guardian portal HTTP composition has a four-rule path
 ([ADR 0051](../../docs/adr/0051-guardian-portal-http-reaches-the-standing-http-runtimes.md),
@@ -4147,7 +4453,10 @@ reaches every other HTTP point holds. Epoch 39 registers them as
 `inbound-parent.http.inbound-common`, `inbound-parent.http.identity-adapter`,
 `inbound-parent.http.tenant-runtime` and
 `inbound-parent.adapter-test.identity-adapter`. Other owners, roles, targets,
-external classes and scopes stay forbidden.
+external classes and scopes stay forbidden. Since epoch 47 the session runtime
+is `identity-access`/`http` (ADR 0057 point 3); both acceptors, this one and
+the shared HTTP runtime's of ADR 0046, name that role instead of the adapter
+role.
 
 The standing composition and test reaches of
 [ADR 0053](../../docs/adr/0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
@@ -4171,7 +4480,12 @@ imply. Epoch 46 registers them as `root-composition.compose.http-router`,
 `root-composition.cli.dev-tools`, and reclassifies `middleware` and
 `analytics` from `adapter` to their owners' `http` role, which
 `root-composition.reach.platform.http` (#4064) covers. Another source owner,
-role, target, class or scope stays forbidden.
+role, target, class or scope stays forbidden. Epoch 47 (ADR 0057, #4070)
+keeps three of the six: the session token runtime is
+`identity-access`/`http`, so `root-composition.reach.domain.http` covers the
+root's session imports and both session rules are deleted; `dev-tools`/`cli`
+is another owner's private role, so `root-composition.cli.dev-tools` is
+deleted and `cmd -> seed/api` and `cmd -> simulate` are keys (#4096).
 
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),
@@ -4188,6 +4502,9 @@ composition only for the People Directory's audit seams until #2743
 dissolved it and removed its policy entry, so the anchor no longer holds in
 any later base and the exception cannot authorize another addition; the two
 registered rules stay. Other roles, owners and scopes stay forbidden.
+#4070 deleted the acceptor with the other finished cutover paths: its base
+condition, `database/repositories` as `legacy-composition`/`compose`, no
+longer holds in any base.
 
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),
@@ -4311,7 +4628,13 @@ point 7.3 (#4001) adds `identity-access/adapter` to the standing targets in
 the same shape: the session token adapter is the HTTP session runtime (ADR
 0031, ADR 0046), and the fixtures reach it for the same reason they reach the
 tenant runtime. Epoch 41 registers `shared-fixtures.identity-access-adapter`,
-and `test -> modules/identityaccess/legacy/jwt` falls (#2748).
+and `test -> modules/identityaccess/legacy/jwt` falls (#2748). Epoch 47 (ADR
+0057) names the runtime's new role, `identity-access`/`http`, among the
+targets and drops `legacy-shared`/`domain`: the wrapper is another owner's
+private role, so the fixtures' `internal/timezone` imports are keys (#4081).
+ADR 0047's two pinned Audit suite reaches into Enrollment and Care Plan test
+support leave the owner-suite shapes for the same reason (platform into a
+domain owner, #4072).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),

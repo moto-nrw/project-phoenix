@@ -139,7 +139,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 		Participants: r.InstanceStudent,
 		Instances:    r.ActivityInstance,
 		Trail:        TimetableAttendanceCorrectionTrail(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{Reads: trail}).AttendanceCorrection),
-		People:       r.Person,
+		People:       timetableCorrectionPeople{rows: r.Person},
 		Locks:        recovery,
 	})
 	if err != nil {
@@ -193,7 +193,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		Exceptions:        r.ActivityException,
 		Schedules:         r.ActivitySchedule,
 		Shifts:            r.StaffShift,
-		Staff:             r.Staff,
+		Staff:             NewTimetableStaff(r.Staff),
 		CalendarPeriods:   r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException,
 		ArrivalBaselines:  ArrivalBaselineProjector{Reader: arrivals},

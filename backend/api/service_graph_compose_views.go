@@ -11,7 +11,6 @@ import (
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	planexportCompose "github.com/moto-nrw/project-phoenix/modules/planexport/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -67,7 +66,7 @@ func composeViews(b graphBuild) (graphBuild, error) {
 // the reads the two planning screens use. It renders, it never writes.
 func composePlanExport(b graphBuild) graphBuild {
 	repos := b.TimetableWiring.Repositories
-	b.graph.PlanExport = planexportCompose.New(planexportCompose.Sources{
+	b.graph.PlanExport = newPlanExport(planExportSources{
 		Overview: b.shiftPlanning.Overview, ShiftTypes: b.WorkTime,
 		Instances:     arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff: arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
@@ -162,7 +161,7 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.InstanceSeriesConverter = converter
 	corrections, err := b.TimetableWiring.AttendanceCorrections(TimetableCorrectionInputs{
-		Rows: b.timetableRows, Trail: b.audits.AttendanceCorrection, People: b.People.Persons,
+		Rows: b.timetableRows, Trail: b.audits.AttendanceCorrection, People: timetableCorrectionPeople{rows: b.People.Persons},
 		Logger: b.Logger.With("service", "attendance-correction"),
 	})
 	if err != nil {

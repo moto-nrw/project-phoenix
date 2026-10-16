@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -67,7 +68,7 @@ func (p *GuardianDirectoryProvider) FindGuardianByEmail(ctx context.Context, ema
 }
 
 func (p *GuardianDirectoryProvider) ListGuardians(ctx context.Context, page, pageSize int) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.Guardians.ListGuardiansPage(ctx, page, pageSize)
+	profiles, err := p.Guardians.ListGuardians(ctx, usersRepo.NewQueryOptions().WithPagination(page, pageSize))
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}
@@ -355,7 +356,7 @@ func mapGuardianError(err error) error {
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
 	case errors.Is(err, users.ErrStudentGuardianNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkNotFound, err)
-	case IsGuardianLinkConstraintViolation(err):
+	case usersRepo.IsConstraintViolation(err): // a child link still references the profile
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianLinkConflict, err)
 	case strings.Contains(err.Error(), "not found"):
 		// The legacy service reports missing rows through wrapped messages

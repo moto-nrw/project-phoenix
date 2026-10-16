@@ -10,9 +10,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -896,7 +893,7 @@ func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
 type mockActiveService struct {
 	mu                       sync.Mutex
 	endDailySessionsCalls    int
-	endDailySessionsResult   *studentpresence.DailySessionCleanupResult
+	endDailySessionsResult   *DailySessionsEnded
 	endDailySessionsErr      error
 	cleanupAbandonedCalls    int
 	cleanupAbandonedResult   int
@@ -904,7 +901,7 @@ type mockActiveService struct {
 	cleanupAbandonedDuration time.Duration
 }
 
-func (m *mockActiveService) EndDailySessions(_ context.Context) (*studentpresence.DailySessionCleanupResult, error) {
+func (m *mockActiveService) EndDailySessions(_ context.Context) (*DailySessionsEnded, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.endDailySessionsCalls++
@@ -924,71 +921,31 @@ func (m *mockActiveService) CleanupAbandonedSessions(_ context.Context, olderTha
 // =============================================================================
 
 type mockCleanupService struct {
-	mu                     sync.Mutex
-	cleanupCalls           int
-	cleanupResult          *studentpresence.CleanupResult
-	cleanupErr             error
-	studentCalls           int
-	studentErr             error
-	retentionCalls         int
-	retentionErr           error
-	previewCalls           int
-	previewErr             error
-	attendanceCalls        int
-	attendanceResult       *studentpresence.AttendanceCleanupResult
-	attendanceErr          error
-	attendancePreviewCalls int
-	attendancePreviewErr   error
+	mu               sync.Mutex
+	cleanupCalls     int
+	cleanupResult    *ExpiredVisitCleanup
+	cleanupErr       error
+	attendanceCalls  int
+	attendanceResult *StaleAttendanceCleanup
+	attendanceErr    error
 }
 
-func (m *mockCleanupService) CleanupExpiredVisits(_ context.Context) (*studentpresence.CleanupResult, error) {
+func (m *mockCleanupService) CleanupExpiredVisits(_ context.Context) (*ExpiredVisitCleanup, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cleanupCalls++
 	return m.cleanupResult, m.cleanupErr
 }
 
-func (m *mockCleanupService) CleanupVisitsForStudent(_ context.Context, _ int64) (int64, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.studentCalls++
-	return 0, m.studentErr
-}
-
-func (m *mockCleanupService) GetRetentionStatistics(_ context.Context) (*studentpresence.RetentionStats, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.retentionCalls++
-	return nil, m.retentionErr
-}
-
-func (m *mockCleanupService) PreviewCleanup(_ context.Context) (*studentpresence.CleanupPreview, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.previewCalls++
-	return nil, m.previewErr
-}
-
-func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*studentpresence.AttendanceCleanupResult, error) {
+func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*StaleAttendanceCleanup, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attendanceCalls++
 	return m.attendanceResult, m.attendanceErr
 }
 
-func (m *mockCleanupService) PreviewAttendanceCleanup(_ context.Context) (*studentpresence.AttendanceCleanupPreview, error) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.attendancePreviewCalls++
-	return nil, m.attendancePreviewErr
-}
-
-func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*studentpresence.SupervisorCleanupResult, error) {
-	return &studentpresence.SupervisorCleanupResult{Success: true}, nil
-}
-
-func (m *mockCleanupService) PreviewSupervisorCleanup(_ context.Context) (*studentpresence.SupervisorCleanupPreview, error) {
-	return &studentpresence.SupervisorCleanupPreview{}, nil
+func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*StaleSupervisorCleanup, error) {
+	return &StaleSupervisorCleanup{Success: true}, nil
 }
 
 // =============================================================================
@@ -999,7 +956,7 @@ func TestExecuteSessionEndForTenant_Success(t *testing.T) {
 	t.Parallel()
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
+		endDailySessionsResult: &DailySessionsEnded{
 			SessionsEnded:    5,
 			VisitsEnded:      20,
 			SupervisorsEnded: 3,
@@ -1048,7 +1005,7 @@ func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
 	t.Parallel()
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
+		endDailySessionsResult: &DailySessionsEnded{
 			SessionsEnded:    5,
 			VisitsEnded:      20,
 			SupervisorsEnded: 3,
@@ -1080,7 +1037,7 @@ func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
 	}
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
+		endDailySessionsResult: &DailySessionsEnded{
 			SessionsEnded: 5,
 			Success:       true,
 			Errors:        errors,
@@ -1124,7 +1081,7 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 	t.Parallel()
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
+		endDailySessionsResult: &DailySessionsEnded{
 			SessionsEnded: 5,
 			Success:       true,
 		},
@@ -1423,12 +1380,12 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 
 func TestMockActiveService_ImplementsInterface(t *testing.T) {
 	t.Parallel()
-	var _ studentpresence.SessionMaintenance = &mockActiveService{}
+	var _ SessionMaintenance = &mockActiveService{}
 }
 
 func TestMockCleanupService_ImplementsInterface(t *testing.T) {
 	t.Parallel()
-	var _ studentpresence.PresenceCleanup = &mockCleanupService{}
+	var _ PresenceCleanup = &mockCleanupService{}
 }
 
 // =============================================================================
@@ -1439,7 +1396,7 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{
+			cleanupResult: &ExpiredVisitCleanup{
 				StudentsProcessed: 5,
 				RecordsDeleted:    25,
 				Success:           true,
@@ -1473,7 +1430,7 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{
+			cleanupResult: &ExpiredVisitCleanup{
 				StudentsProcessed: 10,
 				RecordsDeleted:    100,
 				Success:           true,
@@ -1515,7 +1472,7 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{Success: true},
+			cleanupResult: &ExpiredVisitCleanup{Success: true},
 		}
 
 		s := unitScheduler(&Scheduler{
@@ -1550,7 +1507,7 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
-			endDailySessionsResult: &studentpresence.DailySessionCleanupResult{
+			endDailySessionsResult: &DailySessionsEnded{
 				SessionsEnded:    5,
 				VisitsEnded:      20,
 				SupervisorsEnded: 3,
@@ -1590,7 +1547,7 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
-			endDailySessionsResult: &studentpresence.DailySessionCleanupResult{Success: true},
+			endDailySessionsResult: &DailySessionsEnded{Success: true},
 		}
 
 		s := unitScheduler(&Scheduler{
@@ -1828,7 +1785,7 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{},
+			cleanupResult: &ExpiredVisitCleanup{},
 		},
 		logger: slog.Default()})
 
@@ -1840,7 +1797,7 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
 	t.Parallel()
 	wantErr := errors.New("feedback database unavailable")
 	s := unitScheduler(&Scheduler{
-		cleanupService:  &mockCleanupService{cleanupResult: &studentpresence.CleanupResult{}},
+		cleanupService:  &mockCleanupService{cleanupResult: &ExpiredVisitCleanup{}},
 		feedbackCleaner: &fakeFeedbackCleaner{err: wantErr},
 		logger:          slog.Default(),
 	})
@@ -1853,7 +1810,7 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{},
+			cleanupResult: &ExpiredVisitCleanup{},
 			attendanceErr: errors.New("attendance db error"),
 		},
 		logger: slog.Default()})
@@ -1868,8 +1825,8 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{},
-			attendanceResult: &studentpresence.AttendanceCleanupResult{
+			cleanupResult: &ExpiredVisitCleanup{},
+			attendanceResult: &StaleAttendanceCleanup{
 				Success:       false,
 				RecordsClosed: 3,
 				Errors:        []string{"record 1 failed", "record 2 failed"},
@@ -1886,8 +1843,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{},
-			attendanceResult: &studentpresence.AttendanceCleanupResult{
+			cleanupResult: &ExpiredVisitCleanup{},
+			attendanceResult: &StaleAttendanceCleanup{
 				Success:          true,
 				RecordsClosed:    5,
 				StudentsAffected: 3,
@@ -1904,8 +1861,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &studentpresence.CleanupResult{},
-			attendanceResult: &studentpresence.AttendanceCleanupResult{
+			cleanupResult: &ExpiredVisitCleanup{},
+			attendanceResult: &StaleAttendanceCleanup{
 				Success:       true,
 				RecordsClosed: 0,
 			},
@@ -1921,7 +1878,7 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult:    &studentpresence.CleanupResult{},
+			cleanupResult:    &ExpiredVisitCleanup{},
 			attendanceResult: nil,
 		},
 		logger: slog.Default()})
@@ -2143,25 +2100,23 @@ type fakeMaterializer struct {
 	lastFrom         calendar.Date
 	lastTo           calendar.Date
 	lastWeeksAhead   int
-	lastSource       timetable.MaterializationSource
 	returnErr        error
-	returnResult     *timetable.MaterializationResult
+	returnResult     *MaterializationRun
 }
 
-func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to calendar.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
+func (f *fakeMaterializer) MaterializeScheduledWindow(_ context.Context, from, to calendar.Date) (*MaterializationRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
 	f.lastFrom = from
 	f.lastTo = to
-	f.lastSource = source
 	if f.returnErr != nil {
 		return nil, f.returnErr
 	}
 	if f.returnResult != nil {
 		return f.returnResult, nil
 	}
-	return &timetable.MaterializationResult{From: from, To: to}, nil
+	return &MaterializationRun{}, nil
 }
 
 func (f *fakeMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int) (calendar.Date, calendar.Date) {
@@ -2173,10 +2128,6 @@ func (f *fakeMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int)
 	from := baseDate.AddDays(7)
 	to := from.AddDays(weeksAhead*7 - 1)
 	return from, to
-}
-
-func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ calendar.Date, _ bool) ([]timetable.EditedOccurrence, error) {
-	return nil, nil
 }
 
 // fakeSettingsResolver implements SettingsResolver for deterministic tests.
@@ -2374,7 +2325,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{
-		returnResult: &timetable.MaterializationResult{
+		returnResult: &MaterializationRun{
 			InstancesCreated: 7,
 			CandidatesRaced:  2,
 			DurationMS:       123,
@@ -2401,8 +2352,6 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
 	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
 	assert.Equal(t, 3, m.lastWeeksAhead, "weeks-ahead setting must propagate to ResolveWindow")
-	assert.Equal(t, timetable.MaterializationSourceScheduler, m.lastSource,
-		"source tag must be scheduler (not manual) for scheduled runs")
 
 	// Verify lastMaterialization was stamped so the next poll skips.
 	_, ok := s.lastMaterialization.Load(schedulerUnitTenantID)
@@ -2415,7 +2364,7 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 	// When the result has zero created and zero raced, the success info log
 	// is suppressed — but the call still counts and the today-mark is set.
 	m := &fakeMaterializer{
-		returnResult: &timetable.MaterializationResult{
+		returnResult: &MaterializationRun{
 			InstancesCreated: 0,
 			CandidatesRaced:  0,
 		},
@@ -2473,7 +2422,7 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 	// Triggers the "successful completion" info log branch where
 	// InstancesCreated==0 but CandidatesRaced>0.
 	m := &fakeMaterializer{
-		returnResult: &timetable.MaterializationResult{
+		returnResult: &MaterializationRun{
 			CandidatesRaced: 4,
 			DurationMS:      55,
 		},

@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-// CompareCandidatePolicyStrictness applies the strict base-policy comparison
+// compareCandidatePolicyStrictness applies the strict base-policy comparison
 // while allowing ownership declarations for tables that a new migration file
 // in this candidate actually creates, and for tables a reviewed epoch adopts
 // from recorded debt (adoptableDataObjects, judged against the candidate's
@@ -15,12 +15,8 @@ import (
 // before the migration that introduces it. Without the second, a live table
 // the baseline already tracks as unowned could only gain its owner through a
 // data migration. Every other ownership change remains a strict loosening.
-func CompareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation) error {
-	return compareCandidatePolicyStrictness(project, baseRef, base, candidate, baseManifest, violations, nil)
-}
-
-// The CLI already loaded this candidate's immutable graph. Standalone callers
-// retain their existing loading and error behavior through the public wrapper.
+// The CLI passes the candidate graph it already loaded; a nil graph is loaded
+// here.
 func compareCandidatePolicyStrictness(project, baseRef string, base, candidate *Policy, baseManifest *LegacyManifest, violations []Violation, graph *Graph) error {
 	createdDataObjects, err := candidateMigrationDataObjects(project, baseRef)
 	if err != nil {
@@ -238,6 +234,7 @@ func tableAccessBySource(violations []Violation) (map[[2]string]struct{}, map[st
 
 func comparePolicyStrictness(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages, candidateOnlyExternal, deletedLegacySymbols map[string]struct{}) error {
 	problems := modulePathLoosenings(base, candidate)
+	problems = append(problems, epochLoosenings(base, candidate)...)
 	problems = append(problems, ownershipLoosenings(base, candidate, createdDataObjects, adoptedDataObjects, createdPackages)...)
 	problems = append(problems, classificationLoosenings(base, candidate, createdPackages, candidateOnlyExternal)...)
 	problems = append(problems, readProjectionLoosenings(base, candidate, createdPackages)...)
@@ -256,6 +253,15 @@ func modulePathLoosenings(base, candidate *Policy) []string {
 		return nil
 	}
 	return []string{fmt.Sprintf("module_path changed from %s to %s", base.ModulePath, candidate.ModulePath)}
+}
+
+// epochLoosenings rejects a lower epoch: epoch-gated validation such as the
+// target-only rule check (ADR 0057) must not be switched off by stepping back.
+func epochLoosenings(base, candidate *Policy) []string {
+	if candidate.PolicyEpoch >= base.PolicyEpoch {
+		return nil
+	}
+	return []string{fmt.Sprintf("policy_epoch decreased from %d to %d", base.PolicyEpoch, candidate.PolicyEpoch)}
 }
 
 func ownershipLoosenings(base, candidate *Policy, createdDataObjects, adoptedDataObjects, createdPackages map[string]struct{}) []string {
@@ -319,7 +325,11 @@ func classificationLoosenings(base, candidate *Policy, createdPackages, candidat
 			continue
 		}
 		if current.Owner != previous.Owner {
-			problems = append(problems, fmt.Sprintf("package %s changed owner from %s to %s", path, previous.Owner, current.Owner))
+			if !inboundOwnerTransition(base, candidate, previous, current) {
+				problems = append(problems, fmt.Sprintf("package %s changed owner from %s to %s", path, previous.Owner, current.Owner))
+			} else if len(candidate.Rules) > len(base.Rules) {
+				problems = append(problems, fmt.Sprintf("package %s inbound-owner transition increased rule count from %d to %d", path, len(base.Rules), len(candidate.Rules)))
+			}
 		}
 		for _, roles := range []struct {
 			scope     string
@@ -347,6 +357,97 @@ func classificationLoosenings(base, candidate *Policy, createdPackages, candidat
 		}
 	}
 	return problems
+}
+
+// transition for #4078; delete when no inbound owners remain.
+// Only a deleted inbound owner may hand an existing package to its real HTTP
+// owner, or to the root that composes several owners. Test roles stay intact;
+// semantic checks, exact debt and budgets remain subject to the normal guards.
+func inboundOwnerTransition(base, candidate *Policy, previous, current Package) bool {
+	if previous.Path == "" || previous.Path != current.Path || previous.Owner == current.Owner ||
+		previous.InternalTestRole != current.InternalTestRole || previous.ExternalTestRole != current.ExternalTestRole {
+		return false
+	}
+	baseOwners, candidateOwners := ownersByID(base), ownersByID(candidate)
+	if baseOwners[previous.Owner].Kind != "inbound" {
+		return false
+	}
+	if _, retained := candidateOwners[previous.Owner]; retained {
+		return false
+	}
+	switch candidateOwners[current.Owner].Kind {
+	case "domain", "platform", "projection", "workflow":
+		return current.Role == "http"
+	case "composition":
+		return current.Owner == rootCompositionOwner && current.Role == "compose"
+	default:
+		return false
+	}
+}
+
+// inboundSuccessorRule admits only an exact selector replacement (or fewer
+// scopes) of a deleted rule at the same reclassified package. It does not
+// anchor arbitrary rules to an owner change. Target validation and the rule
+// count bound apply even when called outside the policy loader by tests.
+func inboundSuccessorRule(base, candidate *Policy, rule Rule) bool {
+	if len(candidate.Rules) > len(base.Rules) || len(rule.Scopes) == 0 ||
+		candidate.PolicyEpoch < targetOnlyRulesEpoch || validateTargetOnlyRule(rule, ownersByID(candidate)) != nil {
+		return false
+	}
+	basePackages := base.packageMap()
+	for _, deleted := range base.Rules {
+		retained := false
+		for _, current := range candidate.Rules {
+			if current.ID == deleted.ID {
+				retained = true
+				break
+			}
+		}
+		if retained || !scopesContain(deleted.Scopes, rule.Scopes) || deleted.SameOwner {
+			continue
+		}
+		covered := true
+		for _, rawScope := range rule.Scopes {
+			scope := Scope(rawScope)
+			replacement, changed := deleted, false
+			for path, current := range candidate.packageMap() {
+				previous, exists := basePackages[path]
+				if !exists || !inboundOwnerTransition(base, candidate, previous, current) {
+					continue
+				}
+				if deleted.SourceOwner == previous.Owner && deleted.SourceRole == previous.inScope(scope).Role &&
+					rule.SourceOwner == current.Owner && rule.SourceRole == current.inScope(scope).Role {
+					replacement.SourceOwner, replacement.SourceRole = rule.SourceOwner, rule.SourceRole
+					changed = true
+				}
+				if deleted.TargetOwner == previous.Owner && deleted.TargetRole == previous.Role &&
+					rule.TargetOwner == current.Owner && rule.TargetRole == current.Role {
+					replacement.TargetOwner, replacement.TargetRole = rule.TargetOwner, rule.TargetRole
+					changed = true
+				}
+			}
+			if !changed || !sameRulePermission(rule, replacement) {
+				covered = false
+				break
+			}
+		}
+		if covered {
+			return true
+		}
+	}
+	return false
+}
+
+// inboundTransitionPermission lets a reclassified endpoint use a standing
+// base rule under its real owner, or its narrowly replaced rule. Unchanged
+// packages cannot use this exception to acquire a successor's reach.
+func inboundTransitionPermission(base, candidate *Policy, scope Scope, baseSource, source, baseTarget, target Package) bool {
+	if !inboundOwnerTransition(base, candidate, baseSource, source) && !inboundOwnerTransition(base, candidate, baseTarget, target) {
+		return false
+	}
+	decision := decideRules(candidate.firstPartyRules(scope, source.inScope(scope), target))
+	return decision.Allowed != nil && len(decision.Overlaps) == 0 &&
+		(candidateRuleCoveredDirectly(*decision.Allowed, base.Rules) || inboundSuccessorRule(base, candidate, *decision.Allowed))
 }
 
 func semanticRoleLoosens(base, candidate string) bool {
@@ -436,7 +537,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 	candidateOwners := ownersByID(candidate)
 	var problems []string
 	for _, rule := range candidate.Rules {
-		if candidateRuleCoveredDirectly(rule, base.Rules) {
+		if candidateRuleCoveredDirectly(rule, base.Rules) || inboundSuccessorRule(base, candidate, rule) {
 			continue
 		}
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
@@ -491,23 +592,23 @@ const sharedFixtureOwner = "test-support"
 
 // sharedFixtureTargets are the owner/role points the shared fixture owner may
 // reach in a reviewed epoch (ADR 0039, #2748): its own tooling, the tenant
-// runtime rows are created under, the calendar-date type DATE columns are
-// mandated to use, and the permission constants tokens carry. ADR 0047
+// runtime rows are created under and the permission constants tokens carry.
+// ADR 0057 removed the calendar-date wrapper: legacy-shared is another
+// owner's private role, so the fixtures' imports of it are keys (#4081). ADR 0047
 // (#3944) adds the security and settings contracts the guardian presets,
 // student access decisions and settings double are served through. ADR 0053
 // point 7.3 (#4001) adds Identity's session token adapter: it is the HTTP
 // session runtime (ADR 0031, ADR 0046), reached for the same reason as the
-// tenant runtime. No other implementation role of another owner is among
-// them; the Transaction Runtime bootstrap of sharedFixtureBootstrapTargets is
-// the one composition point.
+// tenant runtime, and carries Identity's http role (ADR 0057 point 3). No
+// implementation role of another owner is among them; the Transaction Runtime
+// bootstrap of sharedFixtureBootstrapTargets is the one composition point.
 var sharedFixtureTargets = map[[2]string]bool{
 	{sharedFixtureOwner, "test-support"}: true,
 	{"tenant-runtime", "public"}:         true,
-	{"legacy-shared", "domain"}:          true,
 	{"security-runtime", "contract"}:     true,
 	{"security-runtime", "public"}:       true,
 	{"settings-platform", "public"}:      true,
-	{"identity-access", "adapter"}:       true,
+	{"identity-access", "http"}:          true,
 }
 
 // sharedFixtureBootstrapTargets are the composition points the fixture package
@@ -553,16 +654,15 @@ func reviewedSharedFixtureRule(rule Rule) bool {
 	return sharedFixtureTargets[target] || rule.SourceRole == "test-support" && sharedFixtureBootstrapTargets[target]
 }
 
-// ownerSuiteRules are the three owner-suite reaches ADR 0047 (#3944) pins for
-// the tests that leave the shared fixture package: the settings suite decides
-// the overview scope through the security contract, and the Audit
-// integration suite composes Enrollment and Care Plan through their test
-// support. Each is exact: source owner and role, target owner and role, and
-// the one scope the suite runs in.
+// ownerSuiteRules are the owner-suite reaches ADR 0047 (#3944) pins for the
+// tests that leave the shared fixture package: the settings suite decides the
+// overview scope through the security contract. It is exact: source owner and
+// role, target owner and role, and the one scope the suite runs in. ADR 0047
+// also pinned the Audit integration suite's reach into Enrollment and Care
+// Plan test support; a platform importing a domain owner is not target (ADR
+// 0057), so those imports are keys (#4072).
 var ownerSuiteRules = []Rule{
 	{SourceOwner: "settings-platform", SourceRole: "module-internal-test", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{string(ScopeInternalTest)}},
-	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "enrollment", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
-	{SourceOwner: "audit-platform", SourceRole: "adapter-test", TargetOwner: "care-plan", TargetRole: "test-support", Scopes: []string{string(ScopeExternalTest)}},
 }
 
 // reviewedOwnerSuiteRule reports whether a rule is one of the pinned
@@ -755,15 +855,8 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
-		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) && !careScheduleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!careLifecycleCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!studentPresenceCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!timetablePlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!shiftPlanningCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!enrollmentApplicationCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!repositoryFactoryCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!serviceFactoryCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) &&
-			!timeTrackingCutoverPermission(base, candidate, scope, sourcePackage, targetPackage) {
+		if !policyAllowsFirstParty(base, scope, sourcePackage, targetPackage) &&
+			!reclassifiedRolePermission(base, candidate, scope, sourcePackage, targetPackage) {
 			return fmt.Sprintf("rule %s newly allows %s %s/%s -> %s/%s", rule.ID, scope, source.Owner.ID, source.Role, target.ID, rule.TargetRole)
 		}
 	}
@@ -820,14 +913,8 @@ func firstPartyImportLoosenings(basePermissions, candidatePermissions *policyPer
 		}
 		for _, scope := range allScopes() {
 			if candidatePermissions.allowsFirstParty(scope, source, target) && !basePermissions.allowsFirstParty(scope, baseSource, baseTarget) &&
-				!careScheduleCutoverPermission(base, candidate, scope, baseSource, target) && !careLifecycleCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!studentPresenceCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!timetablePlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!shiftPlanningCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!enrollmentApplicationCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!repositoryFactoryCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!serviceFactoryCutoverPermission(base, candidate, scope, baseSource, target) &&
-				!timeTrackingCutoverPermission(base, candidate, scope, baseSource, target) &&
+				!reclassifiedRolePermission(base, candidate, scope, baseSource, target) &&
+				!inboundTransitionPermission(base, candidate, scope, baseSource, source, baseTarget, target) &&
 				!firstPartyAllowedByReviewedFixtureRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedSharedKernelRule(base, candidate, scope, source, target) &&
 				!firstPartyAllowedByReviewedCommonHTTPRule(base, candidate, scope, source, target) &&

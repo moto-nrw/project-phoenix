@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 )
 
 const (
@@ -29,23 +27,44 @@ type schoolSetupRow struct {
 	UpdatedAt    time.Time  `bun:"updated_at,notnull,default:now()"`
 }
 
-// SchoolSetupRepository implements schoolsetup.Store. Both tables belong to
-// Settings Platform, which is why the wizard's storage lives here.
+// schoolSetup is one school's stored wizard state.
+type schoolSetup struct {
+	TenantID     int64
+	SkippedSteps []string
+	CompletedAt  *time.Time
+	UpdatedBy    *int64
+}
+
+// SchoolSetupState is the shape of one school's stored wizard state. The
+// wizard names its own type of that shape and instantiates the repository
+// with it, so Settings Platform stores the state without importing School
+// Setup (#4072).
+type SchoolSetupState interface {
+	~struct {
+		TenantID     int64
+		SkippedSteps []string
+		CompletedAt  *time.Time
+		UpdatedBy    *int64
+	}
+}
+
+// SchoolSetupRepository stores the school setup wizard's state. Both tables
+// belong to Settings Platform, which is why the wizard's storage lives here.
 //
 // Tenant scoping comes from the runtime's tenant transaction and the RLS
 // policy on both tables; the account is the only key this package supplies
 // itself.
-type SchoolSetupRepository struct {
+type SchoolSetupRepository[S SchoolSetupState] struct {
 	runtime Runtime
 }
 
 // NewSchoolSetupRepository creates a new SchoolSetupRepository.
-func NewSchoolSetupRepository(runtime Runtime) schoolsetup.Store {
-	return &SchoolSetupRepository{runtime: runtime}
+func NewSchoolSetupRepository[S SchoolSetupState](runtime Runtime) *SchoolSetupRepository[S] {
+	return &SchoolSetupRepository[S]{runtime: runtime}
 }
 
 // Find returns the school's wizard state, or (nil, nil) for a new school.
-func (r *SchoolSetupRepository) SetupOfSchool(ctx context.Context) (*schoolsetup.State, error) {
+func (r *SchoolSetupRepository[S]) SetupOfSchool(ctx context.Context) (*S, error) {
 	stored := new(schoolSetupRow)
 	err := r.runtime.DB(ctx).NewSelect().
 		Model(stored).
@@ -58,19 +77,21 @@ func (r *SchoolSetupRepository) SetupOfSchool(ctx context.Context) (*schoolsetup
 		}
 		return nil, fmt.Errorf("find school setup: %w", err)
 	}
-	return &schoolsetup.State{
+	state := S(schoolSetup{
 		TenantID:     stored.TenantID,
 		SkippedSteps: stored.SkippedSteps,
 		CompletedAt:  stored.CompletedAt,
 		UpdatedBy:    stored.UpdatedBy,
-	}, nil
+	})
+	return &state, nil
 }
 
 // Upsert replaces the school's wizard state wholesale.
-func (r *SchoolSetupRepository) StoreSetup(ctx context.Context, state *schoolsetup.State) error {
-	if state == nil {
+func (r *SchoolSetupRepository[S]) StoreSetup(ctx context.Context, stored *S) error {
+	if stored == nil {
 		return errors.New("school setup cannot be nil")
 	}
+	state := schoolSetup(*stored)
 	if state.TenantID <= 0 {
 		return errors.New("tenant ID is required")
 	}
@@ -100,7 +121,7 @@ func (r *SchoolSetupRepository) StoreSetup(ctx context.Context, state *schoolset
 }
 
 // IsDismissed reports whether the account hid the wizard.
-func (r *SchoolSetupRepository) IsDismissed(ctx context.Context, accountID int64) (bool, error) {
+func (r *SchoolSetupRepository[S]) IsDismissed(ctx context.Context, accountID int64) (bool, error) {
 	if accountID <= 0 {
 		return false, errors.New("account ID is required")
 	}
@@ -116,7 +137,7 @@ func (r *SchoolSetupRepository) IsDismissed(ctx context.Context, accountID int64
 
 // SetDismissed hides or shows the wizard for the account. Both directions are
 // idempotent.
-func (r *SchoolSetupRepository) SetDismissed(ctx context.Context, tenantID, accountID int64, dismissed bool) error {
+func (r *SchoolSetupRepository[S]) SetDismissed(ctx context.Context, tenantID, accountID int64, dismissed bool) error {
 	if tenantID <= 0 || accountID <= 0 {
 		return errors.New("tenant ID and account ID are required")
 	}

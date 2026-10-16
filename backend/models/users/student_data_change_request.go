@@ -1,7 +1,6 @@
 package users
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"time"
@@ -82,63 +81,4 @@ func (c *StudentDataChangeRequest) IsTerminal() bool {
 	default:
 		return false
 	}
-}
-
-// StudentDataChangeRequestRepository is the tenant-scoped data-access contract.
-// All methods MUST run inside a tenant transaction (the parent service resolves
-// the child's tenant first, then wraps the call in tenant.WithTenantTx); the
-// staff review queue runs under the request's tenant middleware.
-type StudentDataChangeRequestRepository interface {
-	Create(ctx context.Context, req *StudentDataChangeRequest) error
-	// FindByID takes `any` to match the embedded generic base.Repository.
-	FindByID(ctx context.Context, id any) (*StudentDataChangeRequest, error)
-
-	// ListByStudent returns the student's change rows newest-first. When
-	// statuses is non-empty the result is filtered to that set; limit <= 0
-	// returns all matching rows.
-	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*StudentDataChangeRequest, error)
-
-	// ListParentVisibleByStudent returns only child-level Track B request rows
-	// that may be shown in the parent portal. It deliberately excludes Track A
-	// guardian contact audit rows because those can contain another guardian's
-	// private email, phone, or address values.
-	ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*StudentDataChangeRequest, error)
-
-	// ListPendingForTenant returns every pending Track B row for the current
-	// tenant, newest-first — the staff review queue.
-	ListPendingForTenant(ctx context.Context, filters RequestQueueFilters) ([]*StudentDataChangeRequest, error)
-
-	// ListDecidedForTenant returns the tenant's decided rows (auto-applied,
-	// approved, rejected) newest-decision-first via keyset pagination on
-	// (updated_at, id); a zero beforeUpdatedAt returns the first page.
-	ListDecidedForTenant(ctx context.Context, filters RequestQueueFilters) ([]*StudentDataChangeRequest, error)
-
-	// HasPendingForField reports whether an undecided pending row already
-	// exists for the same student/target/field, so the parent flow can reject
-	// duplicate requests instead of stacking them.
-	HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error)
-
-	// FindPendingByIDForUpdate locks a request row for staff decision
-	// processing. It returns ErrChangeRequestNotFound when the row is missing
-	// in the current tenant and ErrChangeRequestNotPending when it exists but
-	// is already decided / audit-only.
-	FindPendingByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
-
-	// UpdatePending rewrites a still-pending row's proposed value — the
-	// guardian edit path (#2267). old_value stays untouched: it is the
-	// baseline the request was filed against.
-	UpdatePending(ctx context.Context, id int64, newValue json.RawMessage) error
-
-	// Decide moves a pending row to approved/rejected, stamping review_reason,
-	// reviewed_by, reviewed_at and (for approvals) applied_at.
-	Decide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
-
-	// FindByIDForUpdate locks a request row whatever its status — the
-	// correction path (#2267), which starts from a DECIDED row.
-	FindByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
-
-	// Redecide rewrites an already decided row. Separate from Decide on
-	// purpose: Decide only ever touches pending rows, and a correction must
-	// not be able to slip past that guard by accident.
-	Redecide(ctx context.Context, id int64, newStatus string, reason *string, reviewedBy int64, applied bool) error
 }

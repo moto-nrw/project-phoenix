@@ -7,6 +7,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,14 +64,14 @@ func TestGuardianProfileRepositoryListWithOptionsPreservesDefaultOrderAndEmptySl
 	require.NoError(t, repo.Update(ctx, zulu))
 	require.NoError(t, repo.Update(ctx, alpha))
 
-	options := userModels.NewQueryOptions().WithPagination(1, 1)
+	options := peopleVocabulary.NewQueryOptions().WithPagination(1, 1)
 	options.Filter.In("id", zulu.ID, alpha.ID)
 	rows, err := repo.ListWithOptions(ctx, options)
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, alpha.ID, rows[0].ID)
 
-	emptyOptions := userModels.NewQueryOptions()
+	emptyOptions := peopleVocabulary.NewQueryOptions()
 	emptyOptions.Filter.Equal("last_name", "Missing guardian")
 	empty, err := repo.ListWithOptions(ctx, emptyOptions)
 	require.NoError(t, err)

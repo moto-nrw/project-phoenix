@@ -16,18 +16,18 @@ const (
 	sqlSetIsPrimary          = "is_primary = ?"
 )
 
-// GuardianPhoneNumberRepository implements the users.GuardianPhoneNumberRepository interface
-type GuardianPhoneNumberRepository struct {
+// guardianPhoneNumberRepository implements the GuardianPhoneNumberRepository interface.
+type guardianPhoneNumberRepository struct {
 	runtime Runtime
 }
 
 // NewGuardianPhoneNumberRepository creates a new GuardianPhoneNumberRepository instance
-func NewGuardianPhoneNumberRepository(runtime Runtime) users.GuardianPhoneNumberRepository {
-	return &GuardianPhoneNumberRepository{runtime: requireRuntime(runtime)}
+func NewGuardianPhoneNumberRepository(runtime Runtime) GuardianPhoneNumberRepository {
+	return &guardianPhoneNumberRepository{runtime: requireRuntime(runtime)}
 }
 
 // Create inserts a new phone number into the database
-func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users.GuardianPhoneNumber) error {
+func (r *guardianPhoneNumberRepository) Create(ctx context.Context, phone *users.GuardianPhoneNumber) error {
 	if err := phone.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -50,7 +50,7 @@ func (r *GuardianPhoneNumberRepository) Create(ctx context.Context, phone *users
 }
 
 // FindByID retrieves a phone number by its ID
-func (r *GuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) (*users.GuardianPhoneNumber, error) {
+func (r *guardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) (*users.GuardianPhoneNumber, error) {
 	phone := new(users.GuardianPhoneNumber)
 
 	err := r.runtime.DB(ctx).NewSelect().
@@ -70,7 +70,7 @@ func (r *GuardianPhoneNumberRepository) FindByID(ctx context.Context, id int64) 
 }
 
 // FindByGuardianID retrieves all phone numbers for a guardian profile
-func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*users.GuardianPhoneNumber, error) {
+func (r *guardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*users.GuardianPhoneNumber, error) {
 	var phones []*users.GuardianPhoneNumber
 
 	err := r.runtime.DB(ctx).NewSelect().
@@ -92,7 +92,7 @@ func (r *GuardianPhoneNumberRepository) FindByGuardianID(ctx context.Context, gu
 // way FindByGuardianID orders a single guardian's phones (primary first), so
 // callers can treat the two interchangeably. Profiles with no phones are absent
 // from the map.
-func (r *GuardianPhoneNumberRepository) FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*users.GuardianPhoneNumber, error) {
+func (r *guardianPhoneNumberRepository) FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*users.GuardianPhoneNumber, error) {
 	if len(guardianProfileIDs) == 0 {
 		return make(map[int64][]*users.GuardianPhoneNumber), nil
 	}
@@ -116,7 +116,7 @@ func (r *GuardianPhoneNumberRepository) FindByGuardianIDs(ctx context.Context, g
 }
 
 // Update updates an existing phone number
-func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users.GuardianPhoneNumber) error {
+func (r *guardianPhoneNumberRepository) Update(ctx context.Context, phone *users.GuardianPhoneNumber) error {
 	if err := phone.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -144,7 +144,7 @@ func (r *GuardianPhoneNumberRepository) Update(ctx context.Context, phone *users
 }
 
 // Delete removes a phone number
-func (r *GuardianPhoneNumberRepository) Delete(ctx context.Context, id int64) error {
+func (r *guardianPhoneNumberRepository) Delete(ctx context.Context, id int64) error {
 	result, err := r.runtime.DB(ctx).NewDelete().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
@@ -171,7 +171,7 @@ func (r *GuardianPhoneNumberRepository) Delete(ctx context.Context, id int64) er
 // Uses the tenant transaction from context (via GetDB) for RLS compliance.
 // If no ambient transaction exists, creates one to ensure both updates are atomic —
 // without this, a failure on the second update would leave the guardian with no primary number.
-func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error {
+func (r *guardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64, guardianProfileID int64) error {
 	// If already in a transaction (from middleware or service), reuse it.
 	// Otherwise start one to keep both updates atomic.
 	if r.runtime.InTransaction(ctx) {
@@ -183,7 +183,7 @@ func (r *GuardianPhoneNumberRepository) SetPrimary(ctx context.Context, id int64
 }
 
 // setPrimaryInTx performs the two-step primary flag update within the current transaction.
-func (r *GuardianPhoneNumberRepository) setPrimaryInTx(ctx context.Context, id int64, guardianProfileID int64) error {
+func (r *guardianPhoneNumberRepository) setPrimaryInTx(ctx context.Context, id int64, guardianProfileID int64) error {
 	db := r.runtime.DB(ctx)
 
 	// First, unset all primary flags for this guardian
@@ -224,7 +224,7 @@ func (r *GuardianPhoneNumberRepository) setPrimaryInTx(ctx context.Context, id i
 }
 
 // UnsetAllPrimary unsets primary flag for all phone numbers of a guardian
-func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error {
+func (r *guardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, guardianProfileID int64) error {
 	_, err := r.runtime.DB(ctx).NewUpdate().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
@@ -240,7 +240,7 @@ func (r *GuardianPhoneNumberRepository) UnsetAllPrimary(ctx context.Context, gua
 }
 
 // CountByGuardianID returns the number of phone numbers for a guardian
-func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error) {
+func (r *guardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, guardianProfileID int64) (int, error) {
 	count, err := r.runtime.DB(ctx).NewSelect().
 		Model((*users.GuardianPhoneNumber)(nil)).
 		ModelTableExpr(`users.guardian_phone_numbers AS "guardian_phone_number"`).
@@ -255,7 +255,7 @@ func (r *GuardianPhoneNumberRepository) CountByGuardianID(ctx context.Context, g
 }
 
 // GetNextPriority returns the next priority value for a guardian's phone numbers
-func (r *GuardianPhoneNumberRepository) GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error) {
+func (r *guardianPhoneNumberRepository) GetNextPriority(ctx context.Context, guardianProfileID int64) (int, error) {
 	var maxPriority int
 
 	err := r.runtime.DB(ctx).NewSelect().

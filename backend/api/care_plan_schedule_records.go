@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // NewCarePlanRows binds the Timetable composition's retained schedule and
@@ -19,7 +19,7 @@ import (
 func NewCarePlanRows(capability careplan.Capability) timetableCompose.CarePlanRows {
 	return timetableCompose.CarePlanRows{
 		Records: carePlanRecords{capability: capability},
-		Errors:  peopleCompose.RetainedRecordErrors{},
+		Errors:  transactionruntime.RecordErrors{},
 		Today:   func() timetableCompose.CareDate { return timetableCompose.CareDate(carePlanCompose.Today()) },
 	}
 }
@@ -55,8 +55,21 @@ func carePlanScheduleFilter(filter timetableCompose.CareScheduleFilter) careplan
 		StudentIDs: filter.StudentIDs, Weekday: filter.Weekday,
 		Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), To: careplan.Date(filter.To),
 		UpcomingFrom: careplan.Date(filter.UpcomingFrom),
-		Options:      legacyScheduleQueryOptions(filter.Options),
+		Options:      carePlanSchedulePage(filter),
 	}
+}
+
+// carePlanSchedulePage pages and orders a retained listing; a filter without
+// either keeps the owner's order and every row.
+func carePlanSchedulePage(filter timetableCompose.CareScheduleFilter) *careplan.StudentScheduleQueryOptions {
+	if filter.Limit == 0 && filter.Offset == 0 && len(filter.Sort) == 0 {
+		return nil
+	}
+	options := &careplan.StudentScheduleQueryOptions{Limit: filter.Limit, Offset: filter.Offset}
+	for _, field := range filter.Sort {
+		options.Sorting = append(options.Sorting, careplan.StudentScheduleSortField(field))
+	}
+	return options
 }
 
 func carePlanSlice[T any, R any](values []T, convert func(T) R) []R {
@@ -321,10 +334,10 @@ func noRowsError() error { return errors.Unwrap(retainedNotFound("")) }
 
 // retainedNotFound is the retained repository's not-found error for op.
 func retainedNotFound(op string) error {
-	return peopleCompose.RetainedRecordErrors{}.MissingRecordError(op)
+	return transactionruntime.RecordErrors{}.MissingRecordError(op)
 }
 
 // WrapRetainedError preserves the retained repository error shape.
 func WrapRetainedError(op string, err error) error {
-	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(op, err)
+	return transactionruntime.RecordErrors{}.WrapRecordError(op, err)
 }

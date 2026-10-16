@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
@@ -267,29 +268,42 @@ func ActivityExceptionBefore(options *ActivityExceptionQueryOptions) (*string, e
 	return &date, nil
 }
 
-func ActivityInstanceListOptions(options *ActivityInstanceQueryOptions) (ActivityInstanceListFilter, error) {
-	result := ActivityInstanceListFilter{}
+// narrowListOptions reads the retained listing options into a typed filter:
+// the page through page, each sort field through sort, and each plain
+// condition through apply. A nil sort refuses any order; compound filters are
+// refused, never dropped.
+func narrowListOptions[F any](options *modelBase.QueryOptions, subject string, page func(*F, int, int), sort func(*F, modelBase.SortField), apply func(*F, modelBase.FilterCondition) error) (F, error) {
+	var result, none F
 	if options == nil {
 		return result, nil
 	}
 	if options.Pagination != nil {
-		result.Limit, result.Offset = options.Pagination.PageSize, options.Pagination.Offset()
+		page(&result, options.Pagination.PageSize, options.Pagination.Offset())
 	}
 	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
-		return ActivityInstanceListFilter{}, errors.New("activity instance sorting is unsupported")
+		if sort == nil {
+			return none, fmt.Errorf("%s sorting is unsupported", subject)
+		}
+		for _, field := range options.Sorting.Fields {
+			sort(&result, field)
+		}
 	}
 	if options.Filter == nil {
 		return result, nil
 	}
 	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-		return ActivityInstanceListFilter{}, errors.New("compound activity instance filters are unsupported")
+		return none, fmt.Errorf("compound %s filters are unsupported", subject)
 	}
 	for _, condition := range options.Filter.Conditions() {
-		if err := applyActivityInstanceCondition(&result, condition); err != nil {
-			return ActivityInstanceListFilter{}, err
+		if err := apply(&result, condition); err != nil {
+			return none, err
 		}
 	}
 	return result, nil
+}
+
+func ActivityInstanceListOptions(options *ActivityInstanceQueryOptions) (ActivityInstanceListFilter, error) {
+	return narrowListOptions(options, "activity instance", func(f *ActivityInstanceListFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyActivityInstanceCondition)
 }
 
 func applyActivityInstanceCondition(result *ActivityInstanceListFilter, condition modelBase.FilterCondition) error {
@@ -402,53 +416,11 @@ func ActivityInstanceBefore(options *ActivityInstanceQueryOptions) (*string, err
 }
 
 func InstanceStaffListOptions(options *InstanceStaffQueryOptions) (InstanceStaffListFilter, error) {
-	result := InstanceStaffListFilter{}
-	if options == nil {
-		return result, nil
-	}
-	if options.Pagination != nil {
-		result.Limit, result.Offset = options.Pagination.PageSize, options.Pagination.Offset()
-	}
-	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
-		return InstanceStaffListFilter{}, errors.New("instance staff sorting is unsupported")
-	}
-	if options.Filter == nil {
-		return result, nil
-	}
-	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-		return InstanceStaffListFilter{}, errors.New("compound instance staff filters are unsupported")
-	}
-	for _, condition := range options.Filter.Conditions() {
-		if err := applyInstanceStaffCondition(&result, condition); err != nil {
-			return InstanceStaffListFilter{}, err
-		}
-	}
-	return result, nil
+	return narrowListOptions(options, "instance staff", func(f *InstanceStaffListFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyInstanceStaffCondition)
 }
 
 func InstanceStudentListOptions(options *InstanceStudentQueryOptions) (InstanceStudentListFilter, error) {
-	result := InstanceStudentListFilter{}
-	if options == nil {
-		return result, nil
-	}
-	if options.Pagination != nil {
-		result.Limit, result.Offset = options.Pagination.PageSize, options.Pagination.Offset()
-	}
-	if options.Sorting != nil && len(options.Sorting.Fields) > 0 {
-		return InstanceStudentListFilter{}, errors.New("instance student sorting is unsupported")
-	}
-	if options.Filter == nil {
-		return result, nil
-	}
-	if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-		return InstanceStudentListFilter{}, errors.New("compound instance student filters are unsupported")
-	}
-	for _, condition := range options.Filter.Conditions() {
-		if err := applyInstanceStudentCondition(&result, condition); err != nil {
-			return InstanceStudentListFilter{}, err
-		}
-	}
-	return result, nil
+	return narrowListOptions(options, "instance student", func(f *InstanceStudentListFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyInstanceStudentCondition)
 }
 
 func applyInstanceStudentCondition(result *InstanceStudentListFilter, condition modelBase.FilterCondition) error {

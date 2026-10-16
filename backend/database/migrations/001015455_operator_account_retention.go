@@ -19,7 +19,7 @@ func init() {
 		Version:     operatorAccountRetentionVersion,
 		Description: operatorAccountRetentionDescription,
 		DependsOn: []string{
-			staffSickNoteRetentionVersion,           // previous migration
+			protocolRetentionVersion,                // previous migration
 			remediateLostCollisionMigrationsVersion, // last change to platform.announcements
 		},
 	})

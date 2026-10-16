@@ -330,7 +330,7 @@ func newConflictDetection(t *testing.T, repos api.TimetableTestRepositories) tim
 		InstanceStudents:  repos.InstanceStudent,
 		Exceptions:        repos.ActivityException,
 		Schedules:         repos.ActivitySchedule,
-		Staff:             repos.Staff,
+		Staff:             api.NewTimetableStaff(repos.Staff),
 		CalendarPeriods:   repos.CalendarPeriod,
 		ArrivalExceptions: repos.StudentArrivalException,
 		Sessions:          repos.ActiveGroup,

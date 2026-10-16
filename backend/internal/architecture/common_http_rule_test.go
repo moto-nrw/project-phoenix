@@ -30,10 +30,12 @@ func TestCommonHTTPEpochGrantsOnlyTheNamedContracts(t *testing.T) {
 	for _, rule := range []Rule{
 		{ID: "common.application", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "application", Scopes: []string{"production"}},
 		{ID: "common.orm", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetClass: "orm-sql", Scopes: []string{"production"}},
-		{ID: "other.http", Description: "test", SourceOwner: "inbound-mealplan", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}},
+		{ID: "other.http", Description: "test", SourceOwner: "other-inbound", SourceRole: "http", TargetOwner: "security-runtime", TargetRole: "public", Scopes: []string{"production"}},
 		{ID: "common.models", Description: "test", SourceOwner: "inbound-common", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "domain", Scopes: []string{"production"}},
 	} {
 		candidate := repositoryPolicy(t)
+		// Keep the unrelated owner independent of production inbound retirements.
+		candidate.Owners = append(candidate.Owners, Owner{ID: "other-inbound", Kind: "inbound"})
 		base := *candidate
 		base.PolicyEpoch--
 		widened := *candidate
@@ -65,7 +67,12 @@ func TestCommonHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 			t.Fatalf("accepted broadened rule: %+v", broadened)
 		}
 	}
-	sessionTest := Rule{SourceOwner: "inbound-common", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"internal_test", "external_test"}}
+	sessionTest := Rule{SourceOwner: "inbound-common", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "http", Scopes: []string{"internal_test", "external_test"}}
+	privateSession := sessionTest
+	privateSession.TargetRole = "adapter"
+	if reviewedCommonHTTPRule(privateSession) {
+		t.Fatal("accepted the session runtime in Identity's private adapter role")
+	}
 	if !reviewedCommonHTTPRule(original) || !reviewedCommonHTTPRule(sessionTest) {
 		t.Fatal("standing HTTP or session-test contract was rejected")
 	}

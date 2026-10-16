@@ -6,6 +6,7 @@ import (
 	"time"
 
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -19,7 +20,7 @@ import (
 
 func newPresenceSessionRecords(deps presenceCompose.SessionRecordDependencies) *presenceCompose.SessionRecords {
 	deps.Observe = presenceCompose.FailureLogger()
-	deps.Errors = peopleCompose.RetainedRecordErrors{}
+	deps.Errors = transactionruntime.RecordErrors{}
 	records, err := presenceCompose.NewSessionRecords(deps)
 	if err != nil {
 		panic(fmt.Sprintf("compose presence session records: %v", err))

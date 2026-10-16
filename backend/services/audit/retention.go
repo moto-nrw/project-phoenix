@@ -3,6 +3,7 @@ package audit
 import (
 	"context"
 	"fmt"
+	"slices"
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
@@ -35,6 +36,7 @@ type ledgerRetentionStore interface {
 	DeleteExpiredAuthEvents(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteExpiredDataAccessLog(ctx context.Context, cutoff time.Time) (int64, error)
 	DeleteExpiredDataDeletions(ctx context.Context, cutoff time.Time) (int64, error)
+	DeleteExpiredProtocol(ctx context.Context, kind string, cutoff time.Time) (int64, error)
 }
 
 func (c *Command) ledgerRetention() (ledgerRetentionStore, error) {
@@ -65,15 +67,16 @@ func (c *Command) DeleteExpiredDataAccessLog(ctx context.Context) (int, int, err
 	if err != nil {
 		return 0, 0, err
 	}
-	now := time.Now().In(calendar.Berlin)
-	cutoff := endOfFollowingYearCutoff(now)
+	now := time.Now()
+	cutoff := followingYearCutoff(now)
 	deleted, err := store.DeleteExpiredDataAccessLog(ctx, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
 }
 
-// endOfFollowingYearCutoff is 1 January of last year (Berlin): a row written
-// before it has outlived the end of the year after it was written.
-func endOfFollowingYearCutoff(now time.Time) time.Time {
+// followingYearCutoff keeps everything of last year and this year: rows
+// before 1 January of last year (Berlin) are past the end of the year after
+// their event.
+func followingYearCutoff(now time.Time) time.Time {
 	// The year is read a margin earlier: right after New Year a database
 	// clock still in the old year would refuse the new cutoff.
 	year := now.In(calendar.Berlin).Add(-retentionClockMargin).Year()
@@ -95,7 +98,7 @@ func (c *Command) DeleteExpiredOperatorAuditLog(ctx context.Context) (int, error
 	if !ok {
 		return 0, fmt.Errorf("audit command: operator ledger retention store is required")
 	}
-	deleted, err := store.DeleteExpiredOperatorAuditLog(ctx, endOfFollowingYearCutoff(time.Now()))
+	deleted, err := store.DeleteExpiredOperatorAuditLog(ctx, followingYearCutoff(time.Now()))
 	return int(deleted), err
 }
 
@@ -109,5 +112,51 @@ func (c *Command) DeleteExpiredDeletionLog(ctx context.Context) (int, int, error
 	now := time.Now()
 	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-retentionClockMargin)
 	deleted, err := store.DeleteExpiredDataDeletions(ctx, cutoff)
+	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
+}
+
+// ProtocolRetentionKinds are the protocols of #4044 the Audit Platform owns,
+// each logged as its own data kind. Migration 1.15.454 enforces the same
+// windows in the database.
+var ProtocolRetentionKinds = []string{
+	auditModels.DeletionTypeStudentDeletionLogRetention,
+	auditModels.DeletionTypeEnrollmentDeletionLogRetention,
+	auditModels.DeletionTypeEnrollmentRestorationLogRetention,
+	auditModels.DeletionTypeTimeTrackingDeletionLogRetention,
+	auditModels.DeletionTypeStaffMasterDataChangeRetention,
+	auditModels.DeletionTypePersonnelNumberChangeRetention,
+	auditModels.DeletionTypeGuardianFinancialChangeRetention,
+	auditModels.DeletionTypeClassListChangeRetention,
+	auditModels.DeletionTypeSubstitutionChangeRetention,
+	auditModels.DeletionTypeFileEventRetention,
+}
+
+// followingYearProtocols keep their rows until the end of the year after the
+// event, like the access log: the protocols of daily operation. Every other
+// protocol proves a deletion or a change and keeps its rows three years,
+// like the deletion log.
+var followingYearProtocols = map[string]bool{
+	auditModels.DeletionTypeClassListChangeRetention:    true,
+	auditModels.DeletionTypeSubstitutionChangeRetention: true,
+	auditModels.DeletionTypeFileEventRetention:          true,
+}
+
+// DeleteExpiredProtocol removes the school's rows of the protocol of kind
+// past its fixed window and reports how many went and the age of the cutoff
+// in days.
+func (c *Command) DeleteExpiredProtocol(ctx context.Context, kind string) (int, int, error) {
+	if !slices.Contains(ProtocolRetentionKinds, kind) {
+		return 0, 0, fmt.Errorf("audit retention: unknown protocol %q", kind)
+	}
+	store, err := c.ledgerRetention()
+	if err != nil {
+		return 0, 0, err
+	}
+	now := time.Now()
+	cutoff := now.AddDate(-DeletionLogRetentionYears, 0, 0).Add(-retentionClockMargin)
+	if followingYearProtocols[kind] {
+		cutoff = followingYearCutoff(now)
+	}
+	deleted, err := store.DeleteExpiredProtocol(ctx, kind, cutoff)
 	return int(deleted), int(now.Sub(cutoff).Hours() / 24), err
 }

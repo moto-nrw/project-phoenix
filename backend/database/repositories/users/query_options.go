@@ -1,31 +1,10 @@
 package users
 
-import (
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/uptrace/bun"
-)
-
-// Filter operators of users.QueryFilter, by value (models/base.Operator).
-const (
-	opEqual              = "="
-	opGreaterThan        = ">"
-	opGreaterThanOrEqual = ">="
-	opLessThan           = "<"
-	opLessThanOrEqual    = "<="
-	opLike               = "LIKE"
-	opILike              = "ILIKE"
-	opTrimEqual          = "TRIM_EQUALS"
-	opTrimIn             = "TRIM_IN"
-	opFirstNumberIn      = "FIRST_NUMBER_IN"
-	opIsNull             = "IS NULL"
-	opIsNotNull          = "IS NOT NULL"
-	opIn                 = "IN"
-	opNotIn              = "NOT IN"
-)
+import "github.com/uptrace/bun"
 
 // applyQueryOptions translates the persistence-neutral query specification
 // to Bun, as database/repositories/base.ApplyQueryOptions does.
-func applyQueryOptions(query *bun.SelectQuery, options *users.QueryOptions) *bun.SelectQuery {
+func applyQueryOptions(query *bun.SelectQuery, options *QueryOptions) *bun.SelectQuery {
 	if options == nil {
 		return query
 	}
@@ -34,7 +13,7 @@ func applyQueryOptions(query *bun.SelectQuery, options *users.QueryOptions) *bun
 	}
 	if options.Sorting != nil {
 		for _, field := range options.Sorting.Fields {
-			if field.Direction == users.SortDesc {
+			if field.Direction == SortDesc {
 				query = query.OrderExpr("? DESC", bun.Ident(field.Field))
 			} else {
 				query = query.OrderExpr("? ASC", bun.Ident(field.Field))
@@ -47,7 +26,7 @@ func applyQueryOptions(query *bun.SelectQuery, options *users.QueryOptions) *bun
 	return query
 }
 
-func applyFilter(query *bun.SelectQuery, filter *users.QueryFilter) *bun.SelectQuery {
+func applyFilter(query *bun.SelectQuery, filter *QueryFilter) *bun.SelectQuery {
 	if filter == nil {
 		return query
 	}
@@ -62,18 +41,18 @@ func applyFilter(query *bun.SelectQuery, filter *users.QueryFilter) *bun.SelectQ
 	return applyLogical(query, filter.AndFilters(), " AND ")
 }
 
-func applyConditions(query *bun.SelectQuery, filter *users.QueryFilter) *bun.SelectQuery {
+func applyConditions(query *bun.SelectQuery, filter *QueryFilter) *bun.SelectQuery {
 	for _, condition := range filter.Conditions() {
 		field := condition.Field
 		if alias := filter.TableAlias(); alias != "" {
 			field = alias + "." + field
 		}
-		query = applyCondition(query, bun.Ident(field), string(condition.Operator), condition.Value)
+		query = applyCondition(query, bun.Ident(field), condition.Operator, condition.Value)
 	}
 	return query
 }
 
-func applyCondition(query *bun.SelectQuery, identifier bun.Ident, operator string, value any) *bun.SelectQuery {
+func applyCondition(query *bun.SelectQuery, identifier bun.Ident, operator FilterOperator, value any) *bun.SelectQuery {
 	switch operator {
 	case opEqual:
 		return query.Where("? = ?", identifier, value)
@@ -120,7 +99,7 @@ func applyCondition(query *bun.SelectQuery, identifier bun.Ident, operator strin
 	return query
 }
 
-func applyLogical(query *bun.SelectQuery, filters []users.QueryFilter, operator string) *bun.SelectQuery {
+func applyLogical(query *bun.SelectQuery, filters []QueryFilter, operator string) *bun.SelectQuery {
 	for i := range filters {
 		filter := &filters[i]
 		query = query.WhereGroup(operator, func(group *bun.SelectQuery) *bun.SelectQuery {

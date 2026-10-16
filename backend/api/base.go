@@ -33,7 +33,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
-	operatorAPI "github.com/moto-nrw/project-phoenix/api/operator"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
@@ -81,6 +80,7 @@ import (
 	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
@@ -89,6 +89,7 @@ import (
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -97,8 +98,8 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
-	calendarAPI "github.com/moto-nrw/project-phoenix/modules/staffcalendar/http"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -1871,11 +1872,11 @@ func mountPortalRoutes(root chi.Router, in routeInputs, limiters authRateLimiter
 	// RouterWithAuthRateLimiter applies the limiter only to the public login,
 	// password-reset, MFA and passkey-login routes.
 	root.Mount("/auth", newAccountResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware()))
-	operator, err := newOperatorResource(in)
+	operator, err := newOperatorRouter(in, limiters)
 	if err != nil {
 		return err
 	}
-	root.Mount("/operator", operatorRouter(operator, limiters))
+	root.Mount("/operator", operator)
 	root.Mount("/parent", newParentResource(in).RouterWithAuthRateLimiter(limiters.authMiddleware()))
 	return nil
 }
@@ -1901,9 +1902,9 @@ func newAccountResource(in routeInputs) *authAPI.Resource {
 	return resource
 }
 
-// newOperatorResource composes the operator dashboard. The Device Fleet review
+// newOperatorRouter composes the operator dashboard. The Device Fleet review
 // of unregistered RFID scans answers in the operator surface's format (#3232).
-func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
+func newOperatorRouter(in routeInputs, limiters authRateLimiters) (chi.Router, error) {
 	svc := in.modules.services
 	tagScanReview := tagScanOperatorAPI.NewResource(tagScanOperatorAPI.Config{
 		Scans:     svc.IoT.Fleet(),
@@ -1913,9 +1914,7 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 			Internal:       apiCommon.OperatorInternal,
 			RenderError:    apiCommon.RenderError,
 			Respond:        apiCommon.Respond,
-			OperatorID: func(ctx context.Context) int64 {
-				return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
-			},
+			OperatorID:     operatorIDFromSession,
 		},
 	})
 	billing, err := newOperatorBilling(in.logger)
@@ -1927,32 +1926,44 @@ func newOperatorResource(in routeInputs) (*operatorAPI.Resource, error) {
 		DB:             in.db.Pool(),
 		Notify:         settingsChangedNotifier(svc.RealtimeHub),
 		OpenAttendance: OpenAttendanceChecker{Service: svc.Active},
-		CareLifecycle:  svc.CareLifecycle,
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
 		// the corresponding checkout toggle flips on).
 		OnValueSet: svc.SettingsSideEffects.Dispatch,
 	})
-	return operatorAPI.NewResource(operatorAPI.ResourceConfig{
-		AppEnv:      viper.GetString("app_env"),
-		AuthService: in.modules.identity,
-		IsLocalSeedRequest: func(r *http.Request) bool {
-			return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
+	identity := operatorIdentity{
+		sessions:    identityOperatorAPI.NewSessions(in.sessionAuth, in.modules.identity),
+		account:     identityOperatorAPI.NewResource(in.modules.identity, operatorIdentityResponses()),
+		access:      in.modules.identity,
+		passkeys:    in.modules.identity,
+		mfa:         in.modules.identity,
+		invitations: in.modules.identity,
+		accountMFA:  in.modules.identity,
+	}
+	provisioning := provisioningOperatorAPI.ProvisioningConfig{
+		Service:             svc.OperatorProvisioning,
+		CaregiverCapability: caregiverCapabilityViews(in),
+		AppEnv:              viper.GetString("app_env"),
+	}
+	isLocalSeedRequest := func(r *http.Request) bool {
+		return apiCommon.IsLocalSeedRequest(r, viper.GetString("app_env"))
+	}
+	return operatorRouter(
+		identity,
+		provisioning,
+		provisioningOperatorAPI.NewBillingResource(billing, nil, isLocalSeedRequest),
+		&operatorSchoolSettings{
+			values: settingsOperatorAPI.NewSettingsResource(settingsOperatorAPI.SettingsConfig{
+				Settings:   schoolSettings,
+				Schools:    operatorSettingsSchools{schools: in.modules.organizations},
+				OperatorID: operatorIDFromSession,
+			}),
+			bookingAuthorityImpact: newBookingAuthorityImpact(svc.CareLifecycle),
 		},
-		Identity:             identityOperatorAPI.NewResource(in.modules.identity, operatorAPI.IdentityResponses()),
-		PasskeyService:       in.modules.identity,
-		MFAService:           in.modules.identity,
-		InvitationService:    in.modules.identity,
-		ProvisioningService:  svc.OperatorProvisioning,
-		Caregivers:           caregiverCapabilityViews(in),
-		AnnouncementsService: in.modules.communication,
-		UnregisteredTagScans: tagScanReview.Router(),
-		SchoolSettings:       schoolSettings,
-		SchoolService:        in.modules.organizations,
-		Billing:              billing,
-		TenantMFAService:     in.modules.identity,
-		Sessions:             identityOperatorAPI.NewSessions(in.sessionAuth, in.modules.identity),
-	}), nil
+		in.modules.communication,
+		tagScanReview.Router(),
+		limiters,
+	), nil
 }
 
 // newParentResource composes the cross-tenant guardian portal: public
@@ -2107,22 +2118,6 @@ func (limiters authRateLimiters) authMiddleware() func(http.Handler) http.Handle
 		return nil
 	}
 	return limiters.auth.Middleware()
-}
-
-// operatorRouter applies the auth limiter to operator login for brute-force
-// protection and the dedicated limiters to e-mail confirmation and
-// invitations, then builds the operator routes.
-func operatorRouter(operator *operatorAPI.Resource, limiters authRateLimiters) chi.Router {
-	if limiters.auth != nil {
-		operator.SetAuthRateLimiter(limiters.auth.Middleware())
-	}
-	if limiters.emailConfirm != nil {
-		operator.SetEmailConfirmRateLimiter(limiters.emailConfirm.Middleware())
-	}
-	if limiters.invitation != nil {
-		operator.SetInvitationRateLimiter(limiters.invitation.Middleware())
-	}
-	return operator.Router()
 }
 
 // mountPublicRoutes registers unauthenticated root-level routes: the

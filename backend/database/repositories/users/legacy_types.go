@@ -8,7 +8,6 @@ import (
 // repository boundary instead of its internal model package.
 type StudentCompanion = userModels.StudentCompanion
 type CompanionLink = userModels.CompanionLink
-type StudentCompanionRepository = userModels.StudentCompanionRepository
 type CareExit = userModels.CareExit
 
 var CompanionWeekdayKeys = userModels.CompanionWeekdayKeys

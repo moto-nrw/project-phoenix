@@ -45,6 +45,14 @@ import (
 //   - When refactoring removes hits, the test fails until the entry is
 //     lowered/removed — the ratchet only turns one way. Never raise a number.
 //
+// The handlers #2580 moved out of api/ are scanned too (#4071): R1, R3, R4
+// and R5 apply to every non-test .go file under modules/*/http,
+// modules/*/inbound and workflows/*/http, nested module layouts included
+// (modules/careplan/requestfeed/http). Their hits have registers of their own
+// (moduleHTTP*Allowlist), first measured on 2026-10-15 on top of development
+// c49b81c3a9, with the same semantics. No file there is exempt: test hooks in
+// those trees count. R2 already scans the whole backend.
+//
 // Known limitation: R1 matches the textual "name pkg.SomethingRepository"
 // declaration shape, so it is bypassable via type aliases and embedded
 // fields. The ratchet catches the realistic copy-paste case, which is its
@@ -91,6 +99,15 @@ var apiRepoImportAllowlist = map[string]int{}
 // tests use the resource's public Router() per backend-conventions.md Rule 5.
 var apiHandlerAccessorAllowlist = map[string]int{}
 
+// R1, R3, R4 and R5 under modules/*/http, modules/*/inbound and
+// workflows/*/http (#4071). Shrink-only; no new entry.
+var (
+	moduleHTTPRepoDeclAllowlist          = map[string]int{}
+	moduleHTTPQueryConstructionAllowlist = map[string]int{}
+	moduleHTTPRepoImportAllowlist        = map[string]int{}
+	moduleHTTPHandlerAccessorAllowlist   = map[string]int{}
+)
+
 func TestHandlerLayerRatchet(t *testing.T) {
 	t.Parallel()
 
@@ -135,6 +152,34 @@ func TestHandlerLayerRatchet(t *testing.T) {
 			scan:      scanAPIHandlerAccessors,
 			allowlist: apiHandlerAccessorAllowlist,
 			fix:       "delete the wrapper and test through the resource's public Router() (Rule 5) — internal-package tests may call the private handler directly",
+		},
+		{
+			name:      "R1 repository-typed declarations in module handlers",
+			scan:      moduleHTTPScan(apiRepoDeclPattern),
+			allowlist: moduleHTTPRepoDeclAllowlist,
+			fix:       "handlers depend on their owner's capability, never on repositories (Rule 1)",
+		},
+		{
+			name: "R3 query construction in module handlers",
+			scan: func(backendRoot string) (map[string]int, error) {
+				return scanModuleHTTPTrees(backendRoot, func(line string) int {
+					return len(queryBuilderPattern.FindAllString(line, -1)) + len(driverExecPattern.FindAllString(line, -1))
+				})
+			},
+			allowlist: moduleHTTPQueryConstructionAllowlist,
+			fix:       "queries belong in the owner's postgres adapter, orchestration in its application layer (Rules 1+11)",
+		},
+		{
+			name:      "R4 database/repositories imports in module handlers",
+			scan:      moduleHTTPScan(repoImportPattern),
+			allowlist: moduleHTTPRepoImportAllowlist,
+			fix:       "a module handler reaches data through its owner's capability, never through database/repositories",
+		},
+		{
+			name:      "R5 test-export handler accessors in module handlers",
+			scan:      moduleHTTPScan(handlerAccessorPattern),
+			allowlist: moduleHTTPHandlerAccessorAllowlist,
+			fix:       "delete the wrapper and test through the resource's public Router() (Rule 5)",
 		},
 	}
 
@@ -198,7 +243,8 @@ func scanAPIRepoDecls(backendRoot string) (map[string]int, error) {
 // isAPITestHookFile reports whether a backend-relative path is one of the
 // root's test composition hooks: the api/*_test_helpers.go files that moved
 // out of the legacy composition (#4005). They compose the graph tests run
-// against and are no request handlers.
+// against and are no request handlers. #4094 takes them out of the production
+// build; this exemption goes with it.
 func isAPITestHookFile(rel string) bool {
 	return strings.HasPrefix(rel, "api/") && !strings.Contains(strings.TrimPrefix(rel, "api/"), "/") &&
 		strings.HasSuffix(rel, "_test_helpers.go")
@@ -238,6 +284,50 @@ func scanAPIRepoImports(backendRoot string) (map[string]int, error) {
 		}
 	}
 	return counts, nil
+}
+
+// moduleHTTPScan counts the hits of one pattern per file under the module
+// handler trees.
+func moduleHTTPScan(pattern *regexp.Regexp) func(string) (map[string]int, error) {
+	return func(backendRoot string) (map[string]int, error) {
+		return scanModuleHTTPTrees(backendRoot, func(line string) int {
+			return len(pattern.FindAllString(line, -1))
+		})
+	}
+}
+
+// scanModuleHTTPTrees counts hits per non-test .go file below modules/*/http,
+// modules/*/inbound and workflows/*/http.
+func scanModuleHTTPTrees(backendRoot string, countLine func(string) int) (map[string]int, error) {
+	counts := map[string]int{}
+	for _, top := range []string{"modules", "workflows"} {
+		tree, err := scanTree(backendRoot, filepath.Join(backendRoot, top), nil, countLine)
+		if err != nil {
+			return nil, err
+		}
+		for file, hits := range tree {
+			if isModuleHandlerFile(file) {
+				counts[file] = hits
+			}
+		}
+	}
+	return counts, nil
+}
+
+// isModuleHandlerFile reports whether a backend-relative path lies below a
+// handler tree #2580 moved out of api/: a directory named http below a module
+// or workflow, or one named inbound below a module, at any nesting depth.
+func isModuleHandlerFile(rel string) bool {
+	parts := strings.Split(rel, "/")
+	if len(parts) < 4 || parts[0] != "modules" && parts[0] != "workflows" {
+		return false
+	}
+	for _, part := range parts[2 : len(parts)-1] {
+		if part == "http" || part == "inbound" && parts[0] == "modules" {
+			return true
+		}
+	}
+	return false
 }
 
 // scanTree counts pattern hits per non-test .go file under root, skipping the

@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +45,7 @@ func TestCompleteTimetableInstancesForEndedSessions(t *testing.T) {
 		timetableBridge:     rows,
 		logger:              slog.Default()})
 
-	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &studentpresence.DailySessionCleanupResult{
+	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &DailySessionsEnded{
 		EndedActiveGroupIDs: []int64{811, 812},
 	})
 
@@ -68,7 +67,7 @@ func TestCompleteTimetableInstancesForEndedSessionsPropagatesFailures(t *testing
 		t.Run(name, func(t *testing.T) {
 			s := unitScheduler(&Scheduler{instanceStudentRepo: rows, timetableBridge: rows, logger: slog.Default()})
 
-			_, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &studentpresence.DailySessionCleanupResult{
+			_, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &DailySessionsEnded{
 				EndedActiveGroupIDs: []int64{821},
 			})
 
@@ -82,7 +81,7 @@ func TestCompleteTimetableInstancesForEndedSessionsSkipsWithoutEndedGroups(t *te
 	rows := &endedSessionSteps{}
 	s := unitScheduler(&Scheduler{instanceStudentRepo: rows, timetableBridge: rows, logger: slog.Default()})
 
-	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &studentpresence.DailySessionCleanupResult{})
+	completed, err := s.completeTimetableInstancesForEndedSessions(context.Background(), &DailySessionsEnded{})
 
 	require.NoError(t, err)
 	assert.Zero(t, completed)

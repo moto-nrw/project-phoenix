@@ -6,7 +6,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -25,7 +24,7 @@ type OwnerRows struct {
 	Participants      scheduleModels.InstanceStudentRepository
 	Templates         activitiesModels.GroupRepository
 	Categories        activitiesModels.CategoryRepository
-	Students          usersModels.StudentRepository
+	Students          RosterStudents
 	EducationGroups   EducationGroupNames
 	Rooms             OwnerRooms
 	PickupExceptions  scheduleModels.StudentPickupExceptionRepository

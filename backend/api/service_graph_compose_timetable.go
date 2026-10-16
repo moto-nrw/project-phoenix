@@ -132,7 +132,7 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	activities, err := arrivalTimetable.NewService(
 		b.Timetable, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
-		b.Presence.SessionRecords, b.People.Staff, b.People.Students,
+		b.Presence.SessionRecords, NewTimetableStaff(b.People.Staff), b.People.Students,
 	)
 	if err != nil {
 		return b, err
@@ -169,7 +169,7 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 func composeShiftPlanning(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: b.WorkTime, Staff: b.People.Staff, CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
+		Workforce: b.WorkTime, Staff: NewPlanStaffDirectory(b.People.Staff), CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
 		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms:          facilitiesCompose.NewRoomRepository(b.Rooms),
@@ -277,7 +277,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 	b.timetableRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(b.DB.Pool(), repos.InstanceStudent)
 	conflicts, err := b.TimetableWiring.ConflictDetection(TimetableConflictReaders{
 		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, InstanceStudents: repos.InstanceStudent,
-		Exceptions: repos.ActivityException, Schedules: repos.ActivitySchedule, Staff: b.People.Staff,
+		Exceptions: repos.ActivityException, Schedules: repos.ActivitySchedule, Staff: NewTimetableStaff(b.People.Staff),
 		CalendarPeriods: b.templateRows.CalendarPeriods, ArrivalExceptions: b.People.ArrivalExceptions,
 		Sessions: b.Presence.SessionRecords, Shifts: b.Workforce.ShiftRows, Presence: b.Presence.Presence,
 		ArrivalBaselines: b.arrivalBaselines, Logger: b.Logger.With("service", "timetable-conflicts"),
@@ -296,7 +296,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
 			CalendarPeriodRepo: b.templateRows.CalendarPeriods, DB: b.DB.Pool(),
 		},
-		Staff: b.People.Staff, Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
+		Staff: NewTimetableStaff(b.People.Staff), Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
 		Presence: b.Presence.Presence, SessionEnder: b.graph.Active, CareDays: b.graph.CareDay, CareDayLocks: b.CarePlan,
 		// The cancellation notice (#2601) rides on the announcement service,
 		// which is composed later.
@@ -323,7 +323,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 // acknowledgement hand over to the lifecycle.
 func composeDeviations(b graphBuild) (graphBuild, error) {
 	deps, err := b.TimetableWiring.StaffDeviations(TimetableDeviationInputs{
-		Rows: b.timetableRows, Staff: b.People.Staff, Supervisions: b.groupSupervisions,
+		Rows: b.timetableRows, Staff: NewTimetableStaff(b.People.Staff), Supervisions: b.groupSupervisions,
 		Lifecycle: b.instances.DeviationLifecycle(), Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "timetable-deviations"), Now: b.now,
 	})
@@ -383,7 +383,7 @@ func composeOperations(b graphBuild) (graphBuild, error) {
 	operations, err := b.TimetableWiring.Operations(TimetableOperationInputs{
 		Rows: b.timetableRows, PlanningTracks: b.Timetable, Sessions: b.Presence.SessionRecords,
 		Supervisions: b.groupSupervisions, Visits: b.Presence.Presence, Presence: b.graph.Active,
-		People: b.graph.Users, Settings: b.settingsService, CareDays: b.graph.CareDay,
+		People: newTimetableOperationPeople(b.graph.Users), Settings: b.settingsService, CareDays: b.graph.CareDay,
 		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: b.instances.OperationLifecycle(),
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "timetable-operations"), Now: b.now,
 	})

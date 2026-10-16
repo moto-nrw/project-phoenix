@@ -60,7 +60,7 @@ func formatMonthDay(day users.MonthDay) string {
 // check), which is what makes the display degrade gracefully when a school has
 // not maintained every date — the card simply shows fewer names instead of
 // failing (#1542).
-func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error) {
+func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []users.MonthDay) ([]users.BirthdayEntry, error) {
 	if len(days) == 0 {
 		return nil, nil
 	}
@@ -91,7 +91,7 @@ func (r *StudentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	query = withTenantFilter(ctx, r.runtime, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &users.DatabaseError{Op: "find student birthdays", Err: translateNotFound(err)}
+		return nil, &DatabaseError{Op: "find student birthdays", Err: translateNotFound(err)}
 	}
 
 	return mapBirthdayRows(rows, users.BirthdayKindStudent), nil

@@ -24,9 +24,11 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
@@ -243,6 +245,8 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		staffCleanups:        workforceCompose.NewCleanupRetention(),
 		carePlanCleanups:     carePlanCompose.NewCleanupRetention(),
 		submissionLimits:     enrollmentCompose.New(),
+		settingAudit:         settingsCompose.NewAuditRetention(),
+		exportTransfers:      exportTransferCompose.NewJournalRetention(),
 	}, logger.With("service", "scheduler"))
 	if err != nil {
 		return nil, err
@@ -251,7 +255,11 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
-	return scheduler.NewWorker(workerDependencies(graph, reads, workerRoots{
+	reminderNotifications, err := newPersonalReminderTick(graph, reads, runtime, logger.With("service", "scheduler"))
+	if err != nil {
+		return nil, fmt.Errorf("compose personal reminder notifications: %w", err)
+	}
+	return scheduler.NewWorker(workerDependencies(graph, reads, reminderNotifications, workerRoots{
 		logger:    logger.With("service", "scheduler"),
 		billing:   billing,
 		lease:     lease,
@@ -275,7 +283,7 @@ type workerRoots struct {
 
 // workerDependencies builds the Worker's complete typed input in one literal;
 // no dependency is filled in after construction (#2749).
-func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots) scheduler.WorkerDependencies {
+func workerDependencies(graph *serveGraph, reads workerReads, reminderNotifications scheduler.ReminderNotificationTick, roots workerRoots) scheduler.WorkerDependencies {
 	services, identity := graph.services, reads.identity
 	return scheduler.WorkerDependencies{
 		Logger:                    roots.logger,
@@ -292,8 +300,8 @@ func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots)
 		StaffDocumentCleaner:      graph.documents.staff,
 		StudentDocumentCleaner:    graph.documents.student,
 		FileStoreCleaner:          fileStoreCleaner(graph),
-		Active:                    services.Active,
-		ActiveCleanup:             services.ActiveCleanup,
+		Active:                    newSchedulerSessionMaintenance(services.Active),
+		ActiveCleanup:             newSchedulerPresenceCleanup(services.ActiveCleanup),
 		AuthCleanup:               &identityaccessCompose.SessionMaintenance{AccountSessionMaintenance: identity, PasswordResets: identity},
 		InvitationCleanup:         identity,
 		EmailChangeCleanup:        identity,
@@ -303,16 +311,16 @@ func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots)
 		BreakAutoEnder:            services.WorkSession.Jobs,
 		AutoCheckouter:            services.WorkSession.Jobs,
 		FeedbackCleaner:           graph.feedback,
-		Materializer:              services.Materialization,
-		TimetableCleanup:          services.TimetableCleanup,
+		Materializer:              newSchedulerMaterializer(services.Materialization),
+		TimetableCleanup:          newSchedulerTimetableCleanup(services.TimetableCleanup),
 		CalendarFeedCleanup:       services.CalendarFeedCleanup,
 		TimeTrackingCleanup:       schedulerTimeTrackingCleanupPort(services.TimeTrackingCleanup),
 		StudentChangeLogCleanup:   schedulerStudentChangeLogCleanup(graph),
-		PWAUsageCleanup:           services.PWAUsage,
+		PWAUsageCleanup:           pwaUsageCleanup(services.PWAUsage),
 		StaffMessageCleanup:       staffMessageCleanup(services.StaffMessaging),
 		EnrollmentRejectedCleanup: enrollmentRejectedCleanup{cleaner: services.EnrollmentRejectedCleanup},
-		AutoStart:                 services.AutoStart,
-		AutoEnd:                   services.AutoEnd,
+		AutoStart:                 newSchedulerAutoStart(services.AutoStart),
+		AutoEnd:                   newSchedulerAutoEnd(services.AutoEnd),
 		TimetableBridge:           services.TimetableBridge,
 		StudentLifecycleAudit:     schedulerStudentAudit(graph),
 		CareExitEffector:          services.CareLifecycle,
@@ -324,16 +332,9 @@ func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots)
 		InstanceRoomRepo:          reads.existingRooms,
 		InstanceStudentRepo:       reads.timetable.InstanceStudent,
 		StudentStatusDayRepo:      reads.studentStatusDays,
-		OverdueBroadcaster:        services.RealtimeHub,
+		OverdueBroadcaster:        newSchedulerOverdueBroadcaster(services.RealtimeHub),
 		StudentLifecycleRepo:      schedulerStudentLifecycle(reads),
-		ReminderNotifications: scheduler.ReminderNotificationDeps{
-			Computer:     services.Reminders,
-			Notifier:     services.Notifications,
-			Preferences:  services.NotificationPreferences,
-			Staff:        reads.staff,
-			Accounts:     identity,
-			WorkSessions: reads.workSessions,
-		},
+		ReminderNotifications:     reminderNotifications,
 	}
 }
 

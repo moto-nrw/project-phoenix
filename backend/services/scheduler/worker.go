@@ -4,12 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
-
-	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
 // WorkerDependencies is the complete typed input to the embedded Worker root.
@@ -23,8 +17,8 @@ type WorkerDependencies struct {
 	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
 	Tracer                    WorkerTracer
 	Settings                  SettingsResolver
-	Active                    studentpresence.SessionMaintenance
-	ActiveCleanup             studentpresence.PresenceCleanup
+	Active                    SessionMaintenance
+	ActiveCleanup             PresenceCleanup
 	AuthCleanup               AuthCleanup
 	InvitationCleanup         InvitationCleaner
 	EmailChangeCleanup        EmailChangeTokenCleaner
@@ -44,36 +38,36 @@ type WorkerDependencies struct {
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
-	Materializer              timetable.MaterializationCapability
-	TimetableCleanup          timetable.TimetableCleanup
+	Materializer              TimetableMaterializer
+	TimetableCleanup          TimetableCleanup
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   StudentChangeLogCleanup
-	PWAUsageCleanup           pwaSvc.UsageService
+	PWAUsageCleanup           PWAUsageCleanup
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        BookingConsistencyAudit
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
-	AutoStart                 timetable.InstanceAutoStart
-	AutoEnd                   timetable.InstanceAutoEnd
+	AutoStart                 InstanceAutoStart
+	AutoEnd                   InstanceAutoEnd
 	InstanceRepo              DayInstanceReader
 	InstanceRoomRepo          ExistingRoomReader
 	InstanceStudentRepo       InstanceCheckoutCloser
 	TimetableBridge           TimetableBridgeCompleter
 	StudentStatusDayRepo      StudentStatusFlagArchiver
-	OverdueBroadcaster        realtimeevents.Publisher
+	OverdueBroadcaster        InstanceOverdueBroadcaster
 	StudentLifecycleRepo      StudentLifecycleRepository
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
-	ReminderNotifications     ReminderNotificationDeps
+	ReminderNotifications     ReminderNotificationTick
 	// Lease elects the single Worker that runs jobs (#2726). Every Worker
 	// process, embedded in Serve or standalone, runs under it.
 	Lease WorkerLease
 	// AppointmentReminders is the established reminder capability consumed by
 	// the scheduler. It also exposes scheduled parent-announcement delivery,
 	// avoiding a second dependency in this shrink-only worker composition.
-	AppointmentReminders reminder.Capability
+	AppointmentReminders ReminderCommands
 }
 
 // NewWorker constructs and validates the complete embedded worker before the
@@ -175,7 +169,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.studentStatusDayRepo), "status-flag-clear", s.scheduleStatusFlagClearTask)
 	add(!isNilDependency(s.materializer), "timetable-materialization", s.scheduleMaterializationTask)
 	add(!isNilDependency(s.instanceRepo) && !isNilDependency(s.instanceRoomRepo) && !isNilDependency(s.overdueBroadcaster), "instance-overdue", s.scheduleInstanceOverdueTask)
-	add(s.reminderNotifications.complete(), "reminder-notifications", s.scheduleReminderNotificationTask)
+	add(s.reminderNotifications != nil, "reminder-notifications", s.scheduleReminderNotificationTask)
 	add(!isNilDependency(s.autoStart), "timetable-auto-start", s.scheduleAutoStartTask)
 	add(!isNilDependency(s.autoEnd), "timetable-auto-end", s.scheduleAutoEndTask)
 	add(!isNilDependency(s.studentLifecycleRepo), "activate-students", s.scheduleActivateStudentsTask)

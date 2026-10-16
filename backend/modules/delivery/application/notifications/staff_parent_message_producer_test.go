@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +22,6 @@ func (s *stubStaffRecipients) Resolve(_ context.Context, request notifications.S
 }
 
 type stubParentMessageThreadClaims struct {
-	userModel.ParentMessageThreadRepository
 	claimed  bool
 	threadID int64
 }

@@ -53,15 +53,6 @@ var ErrDepartureCompanionNoteRequired = departure.ErrDepartureCompanionNoteRequi
 // other (#3349).
 var ErrStudentRowMissing = errors.New("student row not found")
 
-// MissingStudentError is the error a lookup returns for a child that is not
-// there: a DatabaseError wrapping both ErrRepositoryNotFound and noRows, which is
-// the shape the retained callers branch on. The persistence callers pass
-// sql.ErrNoRows as noRows, because retained consumers still match that
-// sentinel and this package stays free of database/sql.
-func MissingStudentError(op string, noRows error) error {
-	return &DatabaseError{Op: op, Err: errors.Join(ErrRepositoryNotFound, noRows, ErrStudentRowMissing)}
-}
-
 // Student is the joined student DTO consumed by the retained API and service
 // interfaces. It has no owned storage table: writes go through People
 // Directory, School Membership and Care Plan. The column tags support scans

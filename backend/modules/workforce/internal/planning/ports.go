@@ -4,9 +4,9 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // The persistence ports of the Dienstplan services. They are consumer-owned:
@@ -98,9 +98,9 @@ type shiftTypeRows interface {
 // roster the Dienstplan grid lists. FindByID takes an untyped id because the
 // bound repository is the generic one.
 type staffDirectory interface {
-	FindByID(ctx context.Context, id any) (*usersModels.Staff, error)
-	ListAllWithPerson(ctx context.Context) ([]*usersModels.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Staff, error)
+	FindByID(ctx context.Context, id any) (*workforce.PlanStaff, error)
+	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
 
 // SeriesPeriod is the part of a School Calendar period a series is bounded

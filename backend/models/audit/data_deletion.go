@@ -62,6 +62,20 @@ const (
 	DeletionTypeSettledEnrollmentRetention = "settled_enrollment_retention"
 	// Staff sick notes (AU-Bescheinigungen) after the school's window (#3961).
 	DeletionTypeStaffSickNoteRetention = "staff_sick_note_retention"
+	// The protocols of #4044 and the setting protocol, each after its fixed
+	// window.
+	DeletionTypeStudentDeletionLogRetention       = "student_deletion_log_retention"
+	DeletionTypeEnrollmentDeletionLogRetention    = "enrollment_deletion_log_retention"
+	DeletionTypeEnrollmentRestorationLogRetention = "enrollment_restoration_log_retention"
+	DeletionTypeTimeTrackingDeletionLogRetention  = "time_tracking_deletion_log_retention"
+	DeletionTypeStaffMasterDataChangeRetention    = "staff_master_data_change_retention"
+	DeletionTypePersonnelNumberChangeRetention    = "personnel_number_change_retention"
+	DeletionTypeGuardianFinancialChangeRetention  = "guardian_financial_change_retention"
+	DeletionTypeClassListChangeRetention          = "class_list_change_retention"
+	DeletionTypeSubstitutionChangeRetention       = "substitution_change_retention"
+	DeletionTypeFileEventRetention                = "file_event_retention"
+	DeletionTypeExportTransferRetention           = "export_transfer_retention"
+	DeletionTypeSettingAuditRetention             = "setting_audit_retention"
 )
 
 // IsDataKindRetention reports whether deletionType logs a whole data kind
@@ -81,7 +95,19 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeCareWithdrawalRetention,
 		DeletionTypeSubmissionRateLimitRetention,
 		DeletionTypeSettledEnrollmentRetention,
-		DeletionTypeStaffSickNoteRetention:
+		DeletionTypeStaffSickNoteRetention,
+		DeletionTypeStudentDeletionLogRetention,
+		DeletionTypeEnrollmentDeletionLogRetention,
+		DeletionTypeEnrollmentRestorationLogRetention,
+		DeletionTypeTimeTrackingDeletionLogRetention,
+		DeletionTypeStaffMasterDataChangeRetention,
+		DeletionTypePersonnelNumberChangeRetention,
+		DeletionTypeGuardianFinancialChangeRetention,
+		DeletionTypeClassListChangeRetention,
+		DeletionTypeSubstitutionChangeRetention,
+		DeletionTypeFileEventRetention,
+		DeletionTypeExportTransferRetention,
+		DeletionTypeSettingAuditRetention:
 		return true
 	}
 	return false

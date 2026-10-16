@@ -32,9 +32,11 @@ func TestParentHTTPEpochGrantsOnlyTheNamedRuntimes(t *testing.T) {
 		{ID: "parent.orm", Description: "test", SourceOwner: "inbound-parent", SourceRole: "http", TargetClass: "orm-sql", Scopes: []string{"production"}},
 		{ID: "parent.models", Description: "test", SourceOwner: "inbound-parent", SourceRole: "http", TargetOwner: "people-directory", TargetRole: "domain", Scopes: []string{"production"}},
 		{ID: "parent.composition", Description: "test", SourceOwner: "inbound-parent", SourceRole: "adapter-test", TargetOwner: "legacy-composition", TargetRole: "compose", Scopes: []string{"external_test"}},
-		{ID: "other.http", Description: "test", SourceOwner: "inbound-mealplan", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}},
+		{ID: "other.http", Description: "test", SourceOwner: "other-inbound", SourceRole: "http", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"production"}},
 	} {
 		candidate := repositoryPolicy(t)
+		// Keep the unrelated owner independent of production inbound retirements.
+		candidate.Owners = append(candidate.Owners, Owner{ID: "other-inbound", Kind: "inbound"})
 		base := *candidate
 		base.PolicyEpoch--
 		widened := *candidate
@@ -67,7 +69,12 @@ func TestParentHTTPRuleRejectsBroadenedSelectors(t *testing.T) {
 			t.Fatalf("accepted broadened rule: %+v", broadened)
 		}
 	}
-	sessionTest := Rule{SourceOwner: "inbound-parent", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "adapter", Scopes: []string{"internal_test", "external_test"}}
+	sessionTest := Rule{SourceOwner: "inbound-parent", SourceRole: "adapter-test", TargetOwner: "identity-access", TargetRole: "http", Scopes: []string{"internal_test", "external_test"}}
+	privateSession := sessionTest
+	privateSession.TargetRole = "adapter"
+	if reviewedParentHTTPRule(privateSession) {
+		t.Fatal("accepted the session runtime in Identity's private adapter role")
+	}
 	if !reviewedParentHTTPRule(original) || !reviewedParentHTTPRule(sessionTest) {
 		t.Fatal("standing guardian portal HTTP or session-test rule was rejected")
 	}

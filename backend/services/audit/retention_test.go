@@ -36,6 +36,10 @@ func (s *ledgerStore) DeleteExpiredDataDeletions(_ context.Context, cutoff time.
 	return s.record("deletions", cutoff)
 }
 
+func (s *ledgerStore) DeleteExpiredProtocol(_ context.Context, kind string, cutoff time.Time) (int64, error) {
+	return s.record(kind, cutoff)
+}
+
 func TestCommandDeletesTheAuditLedgersInsideTheirFixedWindows(t *testing.T) {
 	t.Parallel()
 	store := &ledgerStore{}
@@ -89,15 +93,15 @@ func TestCommandLogsRetentionWithoutSubject(t *testing.T) {
 // The access log and the operator ledger keep a row until the end of the
 // year after it (#3956, #4047): the cutoff is 1 January of last year
 // (Berlin), read a minute early so a lagging database clock agrees.
-func TestEndOfFollowingYearCutoffIsNewYearOfLastYear(t *testing.T) {
+func TestFollowingYearCutoffIsNewYearOfLastYear(t *testing.T) {
 	t.Parallel()
 	newYear := func(year int) time.Time { return time.Date(year, time.January, 1, 0, 0, 0, 0, calendar.Berlin) }
 	at := func(year int, month time.Month, day, hour, minute, second int) time.Time {
 		return time.Date(year, month, day, hour, minute, second, 0, calendar.Berlin)
 	}
-	assert.Equal(t, newYear(2025), endOfFollowingYearCutoff(at(2026, time.October, 15, 12, 0, 0)))
-	assert.Equal(t, newYear(2025), endOfFollowingYearCutoff(at(2027, time.January, 1, 0, 0, 30)), "within the margin")
-	assert.Equal(t, newYear(2026), endOfFollowingYearCutoff(at(2027, time.January, 1, 0, 1, 30)))
+	assert.Equal(t, newYear(2025), followingYearCutoff(at(2026, time.October, 15, 12, 0, 0)))
+	assert.Equal(t, newYear(2025), followingYearCutoff(at(2027, time.January, 1, 0, 0, 30)), "within the margin")
+	assert.Equal(t, newYear(2026), followingYearCutoff(at(2027, time.January, 1, 0, 1, 30)))
 }
 
 type operatorLedgerStore struct {
@@ -126,4 +130,42 @@ func TestCommandDeletesTheOperatorLedgerAtTheFollowingYearCutoff(t *testing.T) {
 	require.NoError(t, err)
 	_, err = plain.DeleteExpiredOperatorAuditLog(context.Background())
 	require.ErrorContains(t, err, "operator ledger retention store")
+}
+
+func TestCommandDeletesTheProtocolsInsideTheirFixedWindows(t *testing.T) {
+	t.Parallel()
+	store := &ledgerStore{}
+	command, err := NewCommand(store, func(AppendObservation) {})
+	require.NoError(t, err)
+	before := time.Now()
+
+	for _, kind := range ProtocolRetentionKinds {
+		deleted, _, err := command.DeleteExpiredProtocol(context.Background(), kind)
+		require.NoError(t, err)
+		assert.Equal(t, 2, deleted)
+	}
+
+	berlin := time.Now().In(calendar.Berlin)
+	lastYearStart := time.Date(berlin.Year()-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
+	for _, kind := range []string{
+		auditModels.DeletionTypeClassListChangeRetention,
+		auditModels.DeletionTypeSubstitutionChangeRetention,
+		auditModels.DeletionTypeFileEventRetention,
+	} {
+		assert.Equal(t, lastYearStart, store.cutoffs[kind], "%s stays until the end of the following year", kind)
+	}
+	for _, kind := range []string{
+		auditModels.DeletionTypeStudentDeletionLogRetention,
+		auditModels.DeletionTypeEnrollmentDeletionLogRetention,
+		auditModels.DeletionTypeEnrollmentRestorationLogRetention,
+		auditModels.DeletionTypeTimeTrackingDeletionLogRetention,
+		auditModels.DeletionTypeStaffMasterDataChangeRetention,
+		auditModels.DeletionTypePersonnelNumberChangeRetention,
+		auditModels.DeletionTypeGuardianFinancialChangeRetention,
+	} {
+		assert.False(t, store.cutoffs[kind].After(before.AddDate(-3, 0, 0)), "%s is never deleted before three years", kind)
+	}
+
+	_, _, err = command.DeleteExpiredProtocol(context.Background(), auditModels.DeletionTypeAuthEventRetention)
+	require.ErrorContains(t, err, "unknown protocol", "only the protocols of #4044 go through this path")
 }

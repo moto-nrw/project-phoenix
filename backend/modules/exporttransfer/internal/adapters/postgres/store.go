@@ -5,6 +5,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
 	"github.com/uptrace/bun"
@@ -84,4 +85,20 @@ func (s *Store) Record(ctx context.Context, entry domain.JournalEntry) error {
 		return fmt.Errorf("export transfer postgres: record attempt: %w", err)
 	}
 	return nil
+}
+
+// DeleteExpired removes the school's journal entries before the instant
+// through the database function of 1.15.454: the direct DELETE on
+// audit.export_transfers stays revoked from the tenant role, and the
+// function refuses a cutoff inside the fixed window.
+func (s *Store) DeleteExpired(ctx context.Context, before time.Time) (int, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return 0, err
+	}
+	var deleted int64
+	if err := db.NewRaw(`SELECT audit.delete_expired_export_transfers(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+		return 0, fmt.Errorf("export transfer postgres: delete expired attempts: %w", err)
+	}
+	return int(deleted), nil
 }

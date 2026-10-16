@@ -16,6 +16,8 @@ type (
 	StatusDayOverviewEntry        = studentpresence.StatusDayOverviewEntry
 	StatusDayOverviewFilters      = studentpresence.StatusDayOverviewFilters
 	StatusDayOverview             = studentpresence.StatusDayOverview
+	StatusDayOverviewQuery        = studentpresence.StatusDayOverviewQuery
+	StatusDayWindow               = studentpresence.StatusDayWindow
 	HistorySlot                   = studentpresence.HistorySlot
 	HistorySlotInstance           = studentpresence.HistorySlotInstance
 	HistorySlotAttendance         = studentpresence.HistorySlotAttendance

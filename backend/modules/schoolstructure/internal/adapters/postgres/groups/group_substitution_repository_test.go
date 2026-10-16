@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -255,10 +256,7 @@ func TestGroupSubstitutionRepository_ListWithOptions(t *testing.T) {
 		endDate := startDate.AddDays(7)
 		testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute.ID, startDate, endDate)
 
-		options := api.NewSchoolStructureSuiteQueryOptions()
-		options.WithPagination(1, 10)
-
-		subs, err := repo.ListWithOptions(ctx, options)
+		subs, err := repo.ListWithFilter(ctx, api.SchoolStructureSuiteSubstitutionPage(10))
 		require.NoError(t, err)
 		assert.LessOrEqual(t, len(subs), 10)
 	})
@@ -456,12 +454,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 		sub2 := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, substitute2.ID, startDate, endDate)
 
 		// List with relations
-		options := api.NewSchoolStructureSuiteQueryOptions()
-		filter := api.NewSchoolStructureSuiteQueryFilter()
-		filter.Equal("group_id", group.ID)
-		options.Filter = filter
-
-		subs, err := repo.ListWithRelations(ctx, options)
+		subs, err := repo.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{GroupID: group.ID})
 		require.NoError(t, err)
 		assert.NotEmpty(t, subs)
 
@@ -477,12 +470,7 @@ func TestGroupSubstitutionRepository_ListWithRelations(t *testing.T) {
 	})
 
 	t.Run("handles empty result set", func(t *testing.T) {
-		options := api.NewSchoolStructureSuiteQueryOptions()
-		filter := api.NewSchoolStructureSuiteQueryFilter()
-		filter.Equal("group_id", int64(999999)) // Non-existent
-		options.Filter = filter
-
-		subs, err := repo.ListWithRelations(ctx, options)
+		subs, err := repo.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{GroupID: 999999}) // Non-existent
 		require.NoError(t, err)
 		assert.Empty(t, subs)
 	})

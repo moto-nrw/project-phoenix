@@ -9,7 +9,6 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -53,7 +52,7 @@ type AttendanceCorrectionTrail interface {
 // CorrectionPeople resolves the person of the correcting account for the
 // trail's name snapshot.
 type CorrectionPeople interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModel.Person, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*timetable.Person, error)
 }
 
 // AttendanceCorrectionDependencies wires the correction. Participants and
@@ -330,7 +329,7 @@ func (s *attendanceCorrections) resolveActorName(ctx context.Context, accountID 
 	if err != nil || person == nil {
 		return nil
 	}
-	name := strings.TrimSpace(person.GetFullName())
+	name := strings.TrimSpace(person.FullName())
 	if name == "" {
 		return nil
 	}

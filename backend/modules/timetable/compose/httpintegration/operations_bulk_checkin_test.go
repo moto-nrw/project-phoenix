@@ -31,9 +31,9 @@ func TestTimetableOperationsCheckInStudentsChecksInTheWholeSelection(t *testing.
 	wireAssignedStaff(deps, 615, 616, 617, instanceID)
 	deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 	deps.students.byID[freshStudentID] = &usersModels.Student{PersonID: 618, SchoolClass: "2a"}
-	deps.personService.people[618] = &usersModels.Person{FirstName: "Lena", LastName: "Muster"}
+	deps.personService.people[618] = &timetable.Person{FirstName: "Lena", LastName: "Muster"}
 	deps.students.byID[movedStudentID] = &usersModels.Student{PersonID: 619, SchoolClass: "3b"}
-	deps.personService.people[619] = &usersModels.Person{FirstName: "Tom", LastName: "Muster"}
+	deps.personService.people[619] = &timetable.Person{FirstName: "Tom", LastName: "Muster"}
 	deps.visitRepo.currentByStudent[movedStudentID] = &studentpresence.Visit{StudentID: movedStudentID, ActiveGroupID: originActiveGroupID, EntryTime: opsNow}
 	deps.activeService.moveResult = &studentpresence.StudentMoveResult{
 		Moved:                  []int64{movedStudentID},

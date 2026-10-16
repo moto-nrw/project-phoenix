@@ -116,7 +116,7 @@ func composeCaregivers(b graphBuild) (graphBuild, error) {
 	// and Timetable line: the shift-plan-sync workflow serves the
 	// substitution module's schedule port (#3418).
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: b.staffDeviations, Staff: people.Staff, Broadcaster: b.graph.RealtimeHub,
+		Deviations: b.staffDeviations, Staff: NewPlanStaffDirectory(people.Staff), Broadcaster: b.graph.RealtimeHub,
 		Logger:            b.Logger.With("service", "schedule-substitution"),
 		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
@@ -427,8 +427,9 @@ func composeNotifications(b graphBuild) (graphBuild, error) {
 	b.graph.Notifications = notifier
 	preferences := deliveryCompose.NewPreferenceService(b.notificationConsent, b.settingsService, b.DB.Pool(), b.identityAccess)
 	b.graph.NotificationPreferences = preferences
-	recipients := deliveryCompose.NewStaffRecipientResolver(preferences, b.People.Students, b.People.Groups, b.People.Staff,
-		b.identityAccess, b.settingsService, workforceCompose.WorkPresence(b.WorkTime))
+	recipients := deliveryCompose.NewStaffRecipientResolver(preferences, deliveryStudentGroups{students: b.People.Students},
+		b.People.Groups, b.People.Staff, b.identityAccess, b.settingsService,
+		deliveryOnDutyStaff{presence: workforceCompose.WorkPresence(b.WorkTime)})
 	b.staffParentMessages = deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
 		b.Platform.ParentPortal.ParentMessageThread, b.DB.Pool(), b.Logger.With("producer", "staff_parent_message_notifications"))
 	b.graph.ParentEventEmitter.WithDecisionNotifications(notifier, preferences)

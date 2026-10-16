@@ -56,7 +56,7 @@ func NewMessageableStaffRepository(runtime Runtime, staffAccounts StaffAccountsF
 // so a misconfigured graph cannot widen who may be written to.
 func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) ([]int64, error) {
 	if r.staffAccounts == nil {
-		return nil, &users.DatabaseError{Op: "resolve staff accounts", Err: errors.New("staff account resolver is required")}
+		return nil, &DatabaseError{Op: "resolve staff accounts", Err: errors.New("staff account resolver is required")}
 	}
 	return r.staffAccounts(ctx)
 }
@@ -88,7 +88,7 @@ func (r *MessageableStaffRepository) resolveStaffAccounts(ctx context.Context) (
 // queries addresses nobody.
 func (r *MessageableStaffRepository) colleagueQuery(ctx context.Context, query *bun.SelectQuery) (*bun.SelectQuery, error) {
 	if r.identity.ActiveSchoolAccounts == nil {
-		return nil, &users.DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
+		return nil, &DatabaseError{Op: "resolve colleague relation", Err: errors.New("active school account lookup is required")}
 	}
 	staffAccountIDs, err := r.resolveStaffAccounts(ctx)
 	if err != nil {
@@ -133,7 +133,7 @@ func (r *MessageableStaffRepository) ListMessageableStaff(ctx context.Context, v
 	}
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &users.DatabaseError{Op: "list messageable staff", Err: translateNotFound(err)}
+		return nil, &DatabaseError{Op: "list messageable staff", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -165,7 +165,7 @@ func (r *MessageableStaffRepository) IsMessageableStaff(ctx context.Context, acc
 	exists, existsErr := query.Exists(ctx)
 	err = existsErr
 	if err != nil {
-		return false, &users.DatabaseError{Op: "check messageable staff", Err: translateNotFound(err)}
+		return false, &DatabaseError{Op: "check messageable staff", Err: translateNotFound(err)}
 	}
 	return exists, nil
 }
@@ -186,7 +186,7 @@ func (r *MessageableStaffRepository) StaffRoleKinds(ctx context.Context, account
 		return out, nil
 	}
 	if r.identity.RoleClasses == nil {
-		return nil, &users.DatabaseError{Op: "resolve staff role kinds", Err: errors.New("role class query is required")}
+		return nil, &DatabaseError{Op: "resolve staff role kinds", Err: errors.New("role class query is required")}
 	}
 
 	rows, err := r.identity.RoleClasses(ctx, r.runtime.TenantID(ctx), accountIDs)

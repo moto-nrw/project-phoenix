@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -77,7 +78,7 @@ func TestGroupSubstitutionsCarryTheirStaffMembers(t *testing.T) {
 
 	// This test owns its tenant, so the substitution above is the only row
 	// the listing can see.
-	listed, err := factory.GroupSubstitution.ListWithRelations(ctx, nil)
+	listed, err := factory.GroupSubstitution.ListWithRelations(ctx, schoolStructureCompose.HandoverQuery{})
 	require.NoError(t, err)
 	require.Len(t, listed, 1)
 	require.NotNil(t, listed[0].Group)

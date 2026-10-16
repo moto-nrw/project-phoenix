@@ -116,28 +116,3 @@ func TestImportPermissionMemoKeepsPolicyAndScopeBoundaries(t *testing.T) {
 		})
 	}
 }
-
-func TestImportPermissionMemoKeepsMovedSuitePathException(t *testing.T) {
-	t.Parallel()
-	historical := studentPresenceHistoricalConsumer(ScopeExternalTest, "student-presence", "e2e-test", "postgres")
-	base, candidate := studentPresenceCutoverPolicies(t, historical)
-	other := Package{Path: "modules/studentpresence/internal/other", Owner: "student-presence", Role: "postgres", InternalTestRole: "module-internal-test", ExternalTestRole: "module-behavior-test"}
-	base.Packages = append(base.Packages, other)
-	other.ExternalTestRole = "workflow-integration-test"
-	candidate.Packages = append(candidate.Packages, other)
-	// ADR 0053 grants public imports to every own-owner test package. Use an
-	// application target instead, which still needs the moved-suite exception.
-	targetPackage := Package{Path: "modules/studentpresence/internal/application", Owner: "student-presence", Role: "application"}
-	base.Packages = append(base.Packages, targetPackage)
-	candidate.Packages = append(candidate.Packages, targetPackage)
-	candidate.Rules = append(slices.Clone(base.Rules), Rule{
-		ID: "candidate.suite", Scopes: []string{"external_test"}, SourceOwner: "student-presence", TargetOwner: "student-presence", TargetRole: "application",
-	})
-	problems := importLoosenings(base, candidate)
-	target := base.absolutePackage(targetPackage.Path)
-	allowed := Violation{Scope: ScopeExternalTest, Rule: "imports.forbidden", Source: base.absolutePackage("modules/studentpresence/internal/adapters/postgres"), Target: target}.Key()
-	denied := Violation{Scope: ScopeExternalTest, Rule: "imports.forbidden", Source: base.absolutePackage(other.Path), Target: target}.Key()
-	if slices.Contains(problems, allowed) || !slices.Contains(problems, denied) {
-		t.Fatalf("reviewed moved-suite path permission leaked: allowed=%s, denied=%s, got %v", allowed, denied, problems)
-	}
-}

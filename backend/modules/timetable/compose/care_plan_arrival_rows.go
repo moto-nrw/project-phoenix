@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func (r CareArrivalScheduleRows) Create(ctx context.Context, row *scheduleModels.StudentArrivalSchedule) error {
@@ -42,12 +42,8 @@ func (r CareArrivalScheduleRows) Update(ctx context.Context, row *scheduleModels
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalSchedule(ctx, arrivalScheduleToPublic(row)))
 }
-func (r CareArrivalScheduleRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
-	values, err := r.rows.Records.ListArrivalSchedules(ctx, CareScheduleFilter{Options: options})
-	if err != nil {
-		return nil, r.rows.scheduleError("list with options", err)
-	}
-	return mapRows(values, arrivalScheduleToLegacy), nil
+func (r CareArrivalScheduleRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentArrivalSchedule, error) {
+	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListArrivalSchedules, arrivalScheduleToLegacy)
 }
 func (r CareArrivalScheduleRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalSchedule, error) {
 	values, err := r.rows.Records.ListArrivalSchedules(ctx, CareScheduleFilter{StudentIDs: []int64{id}})
@@ -125,12 +121,8 @@ func (r CareArrivalExceptionRows) Update(ctx context.Context, row *scheduleModel
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalException(ctx, arrivalExceptionToPublic(row)))
 }
-func (r CareArrivalExceptionRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
-	values, err := r.rows.Records.ListArrivalExceptions(ctx, CareScheduleFilter{Options: options})
-	if err != nil {
-		return nil, r.rows.scheduleError("list with options", err)
-	}
-	return mapRows(values, arrivalExceptionToLegacy), nil
+func (r CareArrivalExceptionRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentArrivalException, error) {
+	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListArrivalExceptions, arrivalExceptionToLegacy)
 }
 func (r CareArrivalExceptionRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalException, error) {
 	return r.list(ctx, CareScheduleFilter{StudentIDs: []int64{id}}, "find by student id")

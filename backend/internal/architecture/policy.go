@@ -74,6 +74,9 @@ type ExternalPackage struct {
 }
 
 type Rule struct {
+	// Issue is accepted only in immutable base policies before
+	// targetOnlyRulesEpoch. From that epoch a rule states the target and a
+	// temporary allowance is an exact legacy.jsonl key (ADR 0057).
 	Issue           string   `json:"issue,omitempty"`
 	ID              string   `json:"id"`
 	Description     string   `json:"description"`
@@ -88,8 +91,9 @@ type Rule struct {
 	SameOwner       bool     `json:"same_owner"`
 }
 
-// Presence marks a temporary permission, so an explicit empty/null issue is
-// invalid, while an omitted issue denotes an ordinary target permission.
+// Older bases mark a temporary permission by the presence of issue, so an
+// explicit empty/null issue stays invalid there; validation rejects the field
+// from targetOnlyRulesEpoch on.
 func (r *Rule) UnmarshalJSON(data []byte) error {
 	type ruleJSON Rule
 	var decoded ruleJSON
@@ -123,7 +127,7 @@ var (
 	allowedRoles = map[string]bool{
 		"public": true, "contract": true, "domain": true, "application": true,
 		"port": true, "adapter": true, "postgres": true, "compose": true,
-		"http": true, "worker": true, "cli": true, "migration": true, "test-support": true,
+		"http": true, "worker": true, "cli": true, "migration": true, "test-support": true, legacyModelRole: true,
 		"module-internal-test": true, "module-behavior-test": true,
 		"workflow-decision-test": true, "workflow-integration-test": true,
 		"adapter-test": true, "e2e-test": true,
@@ -188,6 +192,11 @@ func (p *Policy) Validate() error {
 	if err := p.validatePackages(owners, roles); err != nil {
 		return err
 	}
+	if p.PolicyEpoch >= targetOnlyRulesEpoch {
+		if err := p.validateLegacyModelPackages(); err != nil {
+			return err
+		}
+	}
 	dataObjects, err := p.validateDataObjects(owners)
 	if err != nil {
 		return err
@@ -204,7 +213,13 @@ func (p *Policy) Validate() error {
 	if err := p.validateRelocations(); err != nil {
 		return err
 	}
-	return p.validateRules(owners, roles, classes)
+	if err := p.validateRules(owners, roles, classes); err != nil {
+		return err
+	}
+	if p.PolicyEpoch >= acyclicTargetEpoch {
+		return p.validateAcyclicTarget()
+	}
+	return nil
 }
 
 func (p *Policy) validateHeader() error {
@@ -481,6 +496,11 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 	for _, rule := range p.Rules {
 		if err := validateRule(rule, seenIDs, owners, roles, classes); err != nil {
 			return err
+		}
+		if p.PolicyEpoch >= targetOnlyRulesEpoch {
+			if err := validateTargetOnlyRule(rule, owners); err != nil {
+				return err
+			}
 		}
 		for _, previous := range validated {
 			if scope, overlaps := overlappingScope(previous, rule, owners); overlaps {
