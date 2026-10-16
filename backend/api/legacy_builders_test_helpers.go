@@ -7,8 +7,6 @@ import (
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 )
 
-// The owner builders that test graphs call through the typed root.
-
 var (
 	// NewRoomSnapshotPeople reads the room snapshot's students through the
 	// People Directory.
