@@ -58,6 +58,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, parent.ID, guardian.ID).Exec(ctx)
 	require.NoError(t, err)
+	testpkg.CreateTestStudentGuardianLinkForTenant(t, db, schoolID, student.ID, guardian.ID, "primary_guardian")
 	for _, statement := range []string{
 		`WITH phase AS (
 			INSERT INTO enrollment.phases (tenant_id, name, service_start_date, service_end_date)
@@ -360,6 +361,9 @@ func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
 	assert.Zero(t, remaining, "roles must not retain an erased visitor")
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.tokens WHERE account_id IN (?, ?)`, accounts.caregiver, accounts.parent).Scan(ctx, &remaining))
 	assert.Zero(t, remaining, "sessions must not retain an erased visitor")
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.guardian_student_access
+		WHERE account_id = ? AND tenant_id = ?`, accounts.parent, schoolID).Scan(ctx, &remaining))
+	assert.Zero(t, remaining, "guardian permissions must not retain an erased visitor")
 	var retainedCredentials int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.accounts
 		WHERE id IN (?, ?) AND (active OR password_hash IS NOT NULL OR username IS NOT NULL OR avatar IS NOT NULL OR calendar_feed_token IS NOT NULL

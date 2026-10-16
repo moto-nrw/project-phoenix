@@ -32,9 +32,9 @@ workflow for this deletion. It may run only as `phoenix_demo`, has a fixed
 `pg_catalog` search path, and has no table grants for its caller. It uses the
 stored caregiver and parent account IDs and the school-ID history, including
 abandoned seed attempts, never a visitor name. It changes only the hidden
-Demo-Schulen recorded for the order. It removes sessions, roles, credentials
-and school mappings, then tombstones an account only when it has no reference
-outside those recorded schools.
+Demo-Schulen recorded for the order. It removes sessions, roles, relationship
+permissions, credentials and school mappings, then tombstones an account only
+when it has no reference outside those recorded schools.
 
 The existing `data_objects` policy entries remain the authority for table
 ownership. This workflow is not a new owner and does not permit Organisation

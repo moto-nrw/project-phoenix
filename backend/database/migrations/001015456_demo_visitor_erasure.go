@@ -58,9 +58,10 @@ func init() {
 // The function runs as its owner (SECURITY DEFINER, the pattern of the audit
 // retention functions of 1.15.454), so the demo role gets no write grant on
 // any of the tables; only phoenix_demo may call it. Unlike those functions it
-// writes tables of other owners (People Directory, Enrollment, Audit
-// Platform, Communication, Delivery Platform). ADR 0062 records this narrow
-// demo-only workflow; it does not transfer ownership of those tables.
+// writes tables of other owners (Identity & Access, People Directory,
+// Enrollment, Audit Platform, Communication, Delivery Platform). ADR 0062
+// records this narrow demo-only workflow; it does not transfer ownership of
+// those tables.
 const demoVisitorErasureUpSQL = `
 		ALTER TABLE platform.demo_school_states
 			ADD COLUMN IF NOT EXISTS visitor_account_ids BIGINT[] NOT NULL DEFAULT '{}',
@@ -223,6 +224,9 @@ const demoVisitorErasureUpSQL = `
 						AND tenant_id = ANY (visitor.visitor_school_ids);
 					DELETE FROM auth.account_permissions
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids);
+					DELETE FROM auth.guardian_student_access
+					WHERE account_id = ANY (visitor.visitor_parent_account_ids)
 						AND tenant_id = ANY (visitor.visitor_school_ids);
 					DELETE FROM auth.account_tenants
 					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
