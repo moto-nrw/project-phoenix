@@ -71,6 +71,17 @@ func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state D
 	return d.engine.UpdateDemoSchool(ctx, name, state)
 }
 
+// RememberDemoSchoolFields and UpdateDemoSchoolFields save the state from its
+// fields, for callers that hold this capability through the owner's
+// composition but not the state type (the dev tools, ADR 0060).
+func (d *DemoSchools) RememberDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte) error {
+	return d.RememberDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON})
+}
+
+func (d *DemoSchools) UpdateDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte) error {
+	return d.UpdateDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON})
+}
+
 func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
 	if name == "" || run == nil {
 		return fmt.Errorf("demo lease name and callback are required")

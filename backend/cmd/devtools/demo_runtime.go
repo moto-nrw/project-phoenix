@@ -94,9 +94,9 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 		},
 		storeSchool: func(ctx context.Context, name string, record DemoSchoolRecord, update bool) error {
 			if update {
-				return organizationcompose.UpdateDemoSchoolFields(ctx, schools, name, record.SchoolID, record.SeedJSON)
+				return schools.UpdateDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
 			}
-			return organizationcompose.RememberDemoSchoolFields(ctx, schools, name, record.SchoolID, record.SeedJSON)
+			return schools.RememberDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
 		},
 		claimOrder: func(ctx context.Context) (*DemoSchoolOrder, error) {
 			order, err := queue.ClaimDemoSchoolOrder(ctx)
