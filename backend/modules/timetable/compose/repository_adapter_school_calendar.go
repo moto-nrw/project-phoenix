@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // The retained calendar period, closing day and dateframe repositories serve
@@ -272,7 +272,7 @@ func (r calendarPeriodCalendarRepository) UsageCounts(ctx context.Context) (map[
 // calendarNotFoundError is the retained not-found shape: a repository error
 // that matches both the base not-found sentinel and sql.ErrNoRows.
 func calendarNotFoundError(op string) error {
-	return &modelBase.DatabaseError{Op: op, Err: translateNotFound(sql.ErrNoRows)}
+	return &domain.StoreError{Op: op, Err: translateNotFound(sql.ErrNoRows)}
 }
 
 // calendarWrapError wraps err in the retained repository error shape,
@@ -281,7 +281,7 @@ func calendarWrapError(op string, err error) error {
 	if err == nil {
 		return nil
 	}
-	return &modelBase.DatabaseError{Op: op, Err: err}
+	return &domain.StoreError{Op: op, Err: err}
 }
 
 func membershipID(id any) (int64, error) {

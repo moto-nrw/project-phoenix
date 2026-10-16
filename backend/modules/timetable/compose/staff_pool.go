@@ -6,9 +6,9 @@ import (
 	"slices"
 	"sort"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -23,7 +23,7 @@ import (
 func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID int64) (timetable.StaffPool, error) {
 	instance, err := d.deps.Instances.FindByID(ctx, instanceID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return timetable.StaffPool{}, fmt.Errorf("%w: %w", timetable.ErrActivityInstanceNotFound, err)
 		}
 		return timetable.StaffPool{}, err

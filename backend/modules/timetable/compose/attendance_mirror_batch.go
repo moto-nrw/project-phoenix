@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -21,7 +21,7 @@ import (
 // instanceLister is the list read the retained instance repository serves
 // beside its model interface.
 type instanceLister interface {
-	List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModel.ActivityInstance, error)
+	List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModel.ActivityInstance, error)
 }
 
 // MirrorCheckOutAt closes the latest open slot attendance for roomless binary
@@ -246,8 +246,8 @@ func (s *attendanceMirror) instancesByActiveGroup(ctx context.Context, groupIDs 
 	for i, id := range groupIDs {
 		args[i] = id
 	}
-	instances, err := lister.List(ctx, &modelBase.QueryOptions{
-		Filter: modelBase.NewFilter().In("active_group_id", args...),
+	instances, err := lister.List(ctx, &domain.ListOptions{
+		Filter: domain.NewListFilter().In("active_group_id", args...),
 	})
 	if err != nil {
 		return nil, err

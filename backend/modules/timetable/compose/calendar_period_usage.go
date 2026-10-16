@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // CalendarPeriodReferences mirrors the Timetable owner's per-period reference
@@ -76,11 +76,11 @@ type CalendarPeriodUsage struct {
 func (r *CalendarPeriodUsageRepository) Usage(ctx context.Context) (map[int64]CalendarPeriodUsage, error) {
 	phaseCounts, err := r.enrollment.PhaseCountsByCalendarPeriod(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "usage counts", Err: err}
+		return nil, &domain.StoreError{Op: "usage counts", Err: err}
 	}
 	references, err := r.countReferences(ctx)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "usage counts", Err: err}
+		return nil, &domain.StoreError{Op: "usage counts", Err: err}
 	}
 
 	usage := make(map[int64]CalendarPeriodUsage, len(phaseCounts)+len(references))

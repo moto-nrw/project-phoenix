@@ -48,16 +48,6 @@ type Filter struct {
 	tableAlias string
 }
 
-// NewFilter creates a new filter
-func NewFilter() *Filter {
-	return &Filter{
-		conditions: make([]FilterCondition, 0),
-		or:         make([]Filter, 0),
-		and:        make([]Filter, 0),
-		tableAlias: "",
-	}
-}
-
 // WithTableAlias sets the table alias for the filter
 func (f *Filter) WithTableAlias(alias string) *Filter {
 	f.tableAlias = alias
@@ -298,13 +288,6 @@ type QueryOptions struct {
 	Filter     *Filter
 	Pagination *Pagination
 	Sorting    *Sorting
-}
-
-// NewQueryOptions creates a new QueryOptions instance
-func NewQueryOptions() *QueryOptions {
-	return &QueryOptions{
-		Filter: NewFilter(),
-	}
 }
 
 // WithPagination adds pagination to query options
