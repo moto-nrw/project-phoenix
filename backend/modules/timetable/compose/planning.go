@@ -35,7 +35,7 @@ func NewLifecycleSchedulers(rows OwnerRows, lifecycle timetable.InstanceLifecycl
 	if err != nil {
 		return nil, nil, err
 	}
-	autoEnd, err := application.NewInstanceAutoEnd(rows.Instances, lifecycle)
+	autoEnd, err := NewInstanceAutoEnd(rows.Instances, lifecycle)
 	if err != nil {
 		return nil, nil, err
 	}
