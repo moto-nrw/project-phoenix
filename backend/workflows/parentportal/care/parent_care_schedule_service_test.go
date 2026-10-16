@@ -19,21 +19,22 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
 // buildCareScheduleService wires the parent service with the full care-schedule
 // request stack (arrival/pickup read services + the schedule-domain request
 // service), so the Stammdaten read view and request lifecycle run for real.
-func buildCareScheduleService(t *testing.T, notesEnabled bool) (*care.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildCareScheduleService(t *testing.T, notesEnabled bool) (*parentportal.ChildFlows, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
@@ -44,18 +45,18 @@ func buildCareScheduleService(t *testing.T, notesEnabled bool) (*care.Service, *
 // db/repos, so a test can rebuild the service with a different messaging toggle
 // while keeping the seeded guardian chain and persisted requests. Allocating a
 // fresh SetupTestDB instead would point the rebuilt service at an empty schema.
-func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, notesEnabled bool) *care.Service {
+func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, notesEnabled bool) *parentportal.ChildFlows {
 	t.Helper()
 	return careScheduleServiceWithSettings(t, db, repos, map[string]bool{
-		configModels.KeyParentSickNoteEnabled:           true,
-		configModels.KeyParentNotesEnabled:              notesEnabled,
-		configModels.KeyParentCareArrivalRequestEnabled: true,
-		configModels.KeyParentCarePickupRequestEnabled:  true,
-		configModels.KeyParentCareModeRequestEnabled:    true,
+		parentportal.KeyParentSickNoteEnabled:           true,
+		parentportal.KeyParentNotesEnabled:              notesEnabled,
+		parentportal.KeyParentCareArrivalRequestEnabled: true,
+		parentportal.KeyParentCarePickupRequestEnabled:  true,
+		parentportal.KeyParentCareModeRequestEnabled:    true,
 	})
 }
 
-func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *care.Service {
+func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, boolValues map[string]bool, requestService ...*carerequests.Service) *parentportal.ChildFlows {
 	t.Helper()
 	sf, err := api.NewServiceGraphForTests(repos, testpkg.NewDatabase(t, db), slog.Default(), func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
@@ -64,14 +65,14 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 	if len(requestService) > 0 {
 		*requestService[0] = sf.CareRequests
 	}
-	return care.New(care.Config{
+	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		RequestSharing: unconfiguredRequestSharer{},
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		StudentRepo:    repos.Student,
 		Settings: parentSettingsStub{
 			boolValues: boolValues,
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDisabled,
 			},
 		},
 		ArrivalSchedules: sf.ArrivalSchedule,
@@ -140,7 +141,7 @@ func TestCreateCareScheduleRequest_RequiresRequestSubmit(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
-	require.ErrorIs(t, err, care.ErrGuardianPermissionDenied,
+	require.ErrorIs(t, err, parentportal.ErrGuardianPermissionDenied,
 		"submitting a care-schedule change request requires request.submit, not just notes.write")
 }
 
@@ -164,9 +165,9 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{
-		configModels.KeyParentCareArrivalRequestEnabled: true,
-		configModels.KeyParentCarePickupRequestEnabled:  true,
-		configModels.KeyParentCareModeRequestEnabled:    true,
+		parentportal.KeyParentCareArrivalRequestEnabled: true,
+		parentportal.KeyParentCarePickupRequestEnabled:  true,
+		parentportal.KeyParentCareModeRequestEnabled:    true,
 	})
 	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -178,7 +179,7 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 		"weekday": 1, "arrival": "08:00", "pickup": "16:00",
 	}}}
 	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, payload)
-	require.ErrorIs(t, err, care.ErrCareRequestFieldDisabled)
+	require.ErrorIs(t, err, parentportal.ErrCareRequestFieldDisabled)
 
 	var count int
 	require.NoError(t, db.NewRaw(`
@@ -198,10 +199,10 @@ func TestGetAndCreateCareScheduleRequest_AllFieldsDisabled(t *testing.T) {
 	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	assert.False(t, view.CanRequest)
-	assert.Equal(t, care.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
+	assert.Equal(t, parentportal.CareScheduleRequestCapabilities{}, view.RequestCapabilities)
 
 	_, err = svc.CreateCareScheduleRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, carePayload())
-	require.ErrorIs(t, err, care.ErrCareRequestFieldDisabled)
+	require.ErrorIs(t, err, parentportal.ErrCareRequestFieldDisabled)
 }
 
 func TestGetChildCareSchedule_ReadViewReflectsPendingRequest(t *testing.T) {

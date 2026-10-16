@@ -3,8 +3,6 @@ package care
 import (
 	"context"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -15,19 +13,19 @@ import (
 
 // ChildReads resolves the guardian's children across schools.
 type ChildReads interface {
-	FindForAccount(ctx context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error)
-	ListByAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error)
+	FindForAccount(ctx context.Context, accountID, studentID int64) (*ChildSummary, error)
+	ListByAccount(ctx context.Context, accountID int64) ([]*ChildSummary, error)
 }
 
 // EnrollablePhaseReads lists the schools a parent may enroll a child at.
 type EnrollablePhaseReads interface {
-	ListEnrollable(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error)
-	GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*parentModels.GuardianSubmitStatus, error)
+	ListEnrollable(ctx context.Context, accountID int64) ([]*EnrollablePhase, error)
+	GuardianSubmitStatus(ctx context.Context, accountID, tenantID int64) (*GuardianSubmitStatus, error)
 }
 
 // EnrollmentRequestReads lists the parent's enrollment requests.
 type EnrollmentRequestReads interface {
-	ListByAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error)
+	ListByAccount(ctx context.Context, accountID int64) ([]*EnrollmentRequestSummary, error)
 }
 
 // StudentReads reads and locks the child's row.
@@ -81,7 +79,7 @@ type StatusDayReads interface {
 
 // CareOfferingReads reads care offerings by ID.
 type CareOfferingReads interface {
-	ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*CareOffering, error)
 }
 
 // CarePeriod is one approved enrollment that created the child, together

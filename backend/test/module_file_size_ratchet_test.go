@@ -59,8 +59,8 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/careplan/internal/application/excused_requests.go": 1567,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the size crossed the boundary with them.
-	"modules/classday/internal/application/slotlists.go":                             2638,
-	"modules/communication/internal/adapters/parentaudience/projection.go":           948,
+	"modules/classday/internal/application/slotlists.go":                             2340,
+	"modules/communication/internal/adapters/parentaudience/projection.go":           945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
 	"modules/communication/internal/staffannouncements/service.go":                   1209,
 	"modules/enrollment/form_schema.go":                                              1015,
@@ -68,9 +68,8 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/peopledirectory/http/guardian_handlers.go":                              1004,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1993,
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
-	"modules/timetable/compose/new.go":                                               1137,
 	"modules/timetable/timetable.go":                                                 1771,
-	"modules/workforce/inbound/timetracking/api.go":                                  863,
+	"modules/workforce/http/timetracking/api.go":                                     804,
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    845,
 	"modules/workforce/internal/adapters/postgres/worksession_store.go":              1147,
 	"modules/workforce/internal/application/timetracking/staff_absence_service.go":   2125,

@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -17,8 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -37,11 +34,11 @@ type Dependencies struct {
 	Logger *slog.Logger
 	Now    func() time.Time
 
-	ChildRepo             parentModels.ChildRepository
-	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	ChildRepo             care.ChildReads
+	EnrollablePhaseRepo   care.EnrollablePhaseReads
 	EnrollmentSettings    care.EnrollmentSettings
-	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	Settings              configService.SettingsService
+	EnrollmentRequestRepo care.EnrollmentRequestReads
+	Settings              care.SettingsService
 
 	StudentRepo         care.StudentReads
 	PersonRepo          care.PersonReads
@@ -89,6 +86,7 @@ type Dependencies struct {
 	MessageRepo               usersModels.ParentMessageRepository
 	MessageReadRepo           usersModels.ParentMessageReadRepository
 	Conversations             messaging.ConversationCore
+	MessagingEnabled          messaging.MessagingGate
 	AnnouncementRepo          usersModels.ParentAnnouncementRepository
 	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
@@ -101,7 +99,7 @@ type Dependencies struct {
 	Broadcaster           realtime.Broadcaster
 	AbsenceNotifier       care.AbsenceNotifier
 	ParentMessageNotifier care.StaffParentMessageNotifier
-	Emitter               *parentmessaging.Emitter
+	Emitter               care.ChildEvents
 }
 
 // New composes the guardian portal. messaging resolves children through the
@@ -109,8 +107,8 @@ type Dependencies struct {
 // resolver reaches the child flows once both exist.
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
-	messagingFlows := messaging.New(messagingConfig(deps, children{flows: &childFlows}))
-	childFlows = care.New(careConfig(deps, messagingFlows))
+	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows}))
+	childFlows = parentportal.NewChildFlows(careConfig(deps, messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
 
@@ -156,7 +154,7 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

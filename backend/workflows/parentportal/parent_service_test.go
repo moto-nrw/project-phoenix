@@ -11,7 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -27,7 +26,7 @@ import (
 type stubEnrollmentRequestRepo struct {
 	gotAccountID int64
 
-	listResult []*parentModels.EnrollmentRequestSummary
+	listResult []*parentService.EnrollmentRequestSummary
 	listErr    error
 
 	backfillResult int
@@ -37,7 +36,7 @@ type stubEnrollmentRequestRepo struct {
 	gotBackfillEmail     string
 }
 
-func (s *stubEnrollmentRequestRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error) {
+func (s *stubEnrollmentRequestRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	s.gotAccountID = accountID
 	return s.listResult, s.listErr
 }
@@ -49,7 +48,7 @@ func (s *stubEnrollmentRequestRepo) BackfillGuardianAccountID(_ context.Context,
 }
 
 // buildService wires the parent service with stubs for the two other
-// repos (ChildRepository, EnrollablePhaseRepository) — they're not
+// repos (ChildReads, EnrollablePhaseReads) — they're not
 // exercised by these tests but the service struct requires non-nil
 // fields nowhere; the constructor only logs the missing repo at call
 // time, so leaving them nil here is fine.
@@ -66,7 +65,7 @@ func TestService_ListEnrollmentsForAccount_PassesAccountIDThrough(t *testing.T) 
 	t.Parallel()
 
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{
+		listResult: []*parentService.EnrollmentRequestSummary{
 			{RequestID: 42, TenantID: 7, SubmittedAt: time.Now()},
 		},
 	}
@@ -133,7 +132,7 @@ func TestService_ListEnrollmentsForAccount_EmptyResultPropagates(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{},
+		listResult: []*parentService.EnrollmentRequestSummary{},
 	}
 	svc := buildParentService(t, repo)
 
@@ -151,12 +150,12 @@ func TestService_ListEnrollmentsForAccount_RedactsReasonWhenPhaseDisablesIt(t *t
 
 	reason := "intern: Kapazität voll"
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{
+		listResult: []*parentService.EnrollmentRequestSummary{
 			{
 				RequestID:                42,
 				TenantID:                 7,
 				ShowStatusReasonToParent: false,
-				Children: []parentModels.EnrollmentRequestChildSummary{
+				Children: []parentService.EnrollmentRequestChildSummary{
 					{ChildID: 100, FirstName: "Lina", Status: "rejected", StatusReason: &reason},
 				},
 			},
@@ -178,12 +177,12 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 
 	reason := "Leider kein Platz"
 	repo := &stubEnrollmentRequestRepo{
-		listResult: []*parentModels.EnrollmentRequestSummary{
+		listResult: []*parentService.EnrollmentRequestSummary{
 			{
 				RequestID:                43,
 				TenantID:                 7,
 				ShowStatusReasonToParent: true,
-				Children: []parentModels.EnrollmentRequestChildSummary{
+				Children: []parentService.EnrollmentRequestChildSummary{
 					{ChildID: 101, FirstName: "Tom", Status: "rejected", StatusReason: &reason},
 				},
 			},

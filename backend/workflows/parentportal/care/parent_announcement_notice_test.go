@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/uptrace/bun"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -22,19 +22,19 @@ import (
 // buildNoticeFeedService wires the parent service with the optional news feed
 // set explicitly. The cancellation notice (#2601) has no school switch since
 // #3731: a sent notice is always visible to the family.
-func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.MessagingFlows, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	svc := messaging.New(messaging.Config{
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		Children:              childResolver(db, repos),
-		ChildRepo:             repos.ParentChild,
-		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		ChildRepo:             repos.ParentChildReads(),
+		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
 		AnnouncementRepo:      repos.ParentAnnouncement,
 		StudentRepo:           repos.Student,
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentNewsEnabled: newsEnabled,
+				parentportal.KeyParentNewsEnabled: newsEnabled,
 			},
 		},
 		Logger: slog.Default(),
@@ -93,7 +93,7 @@ func TestAnnouncementFeed_NoticeVisibleWhenNewsIsOff(t *testing.T) {
 	// The family can confirm the notice; the hand-written row stays hidden.
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, notice.ID, *notice.PublishedAt))
 	err = svc.MarkAnnouncementRead(ctx, chain.AccountID, handWritten.ID, *handWritten.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 
 	unread, err = svc.UnreadAnnouncementCount(ctx, chain.AccountID)
 	require.NoError(t, err)

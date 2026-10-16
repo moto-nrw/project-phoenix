@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -16,7 +18,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -37,7 +39,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
 		CareExceptions: repos.CarePlan(),
@@ -46,7 +48,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 			timetableDeps.Capability, false,
 		),
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+			boolValues: map[string]bool{parentportal.KeyParentPickupChangeEnabled: true},
 		},
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),

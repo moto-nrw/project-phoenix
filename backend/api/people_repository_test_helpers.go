@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
@@ -194,7 +196,7 @@ func NewPeopleRepositorySuiteParentMessaging(db transactionruntime.Database) (Pa
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
 func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
-	return parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(audience), clocks...)
+	return parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(audience), guardianLinkView.NewReader(), clocks...)
 }
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding

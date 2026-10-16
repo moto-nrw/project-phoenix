@@ -5,19 +5,8 @@ package api
 import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
-
-// StudentScheduleRepositories contains the Care Plan compatibility adapters
-// still consumed by legacy schedule services.
-type StudentScheduleRepositories struct {
-	ArrivalSchedule  timetableCompose.CareArrivalScheduleRows
-	ArrivalException timetableCompose.CareArrivalExceptionRows
-	ArrivalNote      timetableCompose.CareArrivalNoteRows
-	PickupSchedule   timetableCompose.CarePickupScheduleRows
-	PickupException  timetableCompose.CarePickupExceptionRows
-	PickupNote       timetableCompose.CarePickupNoteRows
-	StatusDay        *StudentStatusDayRepository
-}
 
 // CareScheduleRepositories are the retained schedule repositories served by
 // the Care Plan owner.
@@ -29,10 +18,6 @@ func NewCareScheduleRepositories(capability careplan.Capability) CareScheduleRep
 	return timetableCompose.NewCareScheduleRepositories(NewCarePlanRows(capability))
 }
 
-func NewArrivalNoteRepository(capability careplan.Capability) timetableCompose.CareArrivalNoteRows {
-	return timetableCompose.NewCareArrivalNoteRows(NewCarePlanRows(capability))
-}
-
-func NewPickupNoteRepository(capability careplan.Capability) timetableCompose.CarePickupNoteRows {
+func NewPickupNoteRepository(capability careplan.Capability) timetablePorts.CarePickupNoteRows {
 	return timetableCompose.NewCarePickupNoteRows(NewCarePlanRows(capability))
 }

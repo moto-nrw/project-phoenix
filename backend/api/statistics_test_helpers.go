@@ -56,7 +56,7 @@ func NewStatisticsTestModule(db transactionruntime.Database, unit tenant.UnitOfW
 	}
 	service := NewStatistics(slog.Default(), presenceCompose.StatisticsDependencies{
 		DB:         db.Pool(),
-		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(MustPresenceReads(db)),
+		StatusDays: StatisticsStatusDays{Query: r.CarePlan}, Courses: NewCourseStatistics(db),
 		Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: calendar},
 		ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: calendar}, Periods: StatisticsReportPeriods{Periods: calendar}, Students: StatisticsReportStudents{Students: students}, Rooms: StatisticsReportRooms{Rooms: rooms},
 		AccessLog: StatisticsAuditLog{Log: r.AccessLog}, Retention: StatisticsRetention{Settings: settings.Settings}, Logger: slog.Default(), Now: OptionalClock(clocks),

@@ -7,16 +7,15 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
@@ -44,7 +43,7 @@ func composeViews(b graphBuild) (graphBuild, error) {
 	// facades are its tenant-safe reads, the retained student and guardian
 	// repositories, the presence-mode read and the renderer its
 	// compatibility bindings.
-	emergency, err := emergencysnapshotCompose.New(emergencysnapshotCompose.Sources{
+	emergency, err := newEmergencySnapshot(emergencySnapshotSources{
 		Presence: b.Presence.Presence, PresenceMode: b.graph.Active, Students: b.People.Students, Persons: b.Persons,
 		Contacts: b.People.StudentGuardians, Rooms: b.Rooms, Renderer: b.Platform.ListExport, Now: b.now,
 		Logger: b.Logger.With("module", "emergency-snapshot"),
@@ -57,7 +56,8 @@ func composeViews(b graphBuild) (graphBuild, error) {
 		Timetable: b.TimetableWiring.ClassDayTimetable, Presence: b.Presence.Presence, CarePlan: b.CarePlan,
 		Students: b.Persons, Persons: b.Persons, Groups: b.Groups, Rooms: b.Rooms, CareDays: b.graph.CareDay,
 		PickupTimes: b.graph.PickupSchedule, ArrivalTimes: b.graph.ArrivalSchedule, PickupBaselines: b.pickupBaselines,
-		Settings: b.settingsService, UserContext: b.userContext, ListExport: b.Platform.ListExport,
+		Settings: b.settingsService, Access: ClassDaySlotListAccess{Staff: b.userContext},
+		ListExport: ClassDaySlotListRenderer{Renderer: b.Platform.ListExport},
 	})
 	return composeDeviceServices(composePlanExport(b)), nil
 }
@@ -103,7 +103,7 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 		ParentAnnouncementCommand: b.graph.ParentAnnouncement,
 	}
 	b.graph.AbsenceOverview = presenceservice.NewStatusDayOverviews(b.CarePlanWiring.StatusDays, b.People.StatusDayPeople(b.graph.Users))
-	live, err := groupliveCompose.New(groupliveCompose.Sources{
+	live, err := newGroupLive(groupLiveSources{
 		Presence: b.Presence.Presence, People: b.People.GroupRosterPeople(b.graph.Users), Education: b.graph.Education,
 		Substitutions: b.graph.Substitution, UserContext: b.identity.GroupLiveCaller, Active: b.graph.Active,
 		Settings: b.settingsService, Pickups: b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule,
@@ -115,11 +115,15 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 		return b, fmt.Errorf("compose OGS group live projection: %w", err)
 	}
 	b.graph.OGSGroupLive = live
-	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{
-		Active: b.graph.Active, ActiveGroups: b.Presence.OpenRoomSessions, OpenVisits: b.graph.Active,
-		Rooms: b.Presence.OpenRooms, UserContext: b.identity.SupervisionCaller, Education: b.graph.Education,
-		Schulhof: b.graph.Schulhof, Operations: b.graph.TimetableOperations, Settings: b.settingsService,
-		Pickups: b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule, Now: b.now,
+	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{
+		Access:   newSupervisionAccess(b.settingsService, b.identity.SupervisionCaller),
+		Sessions: newSupervisionSessions(b.graph.Active, b.Presence.OpenRoomSessions, b.identity.SupervisionCaller),
+		Rooms:    b.Presence.OpenRooms, Yard: newSupervisionYard(b.graph.Schulhof),
+		Groups:   newSupervisionGroups(b.graph.Education, b.identity.SupervisionCaller),
+		Schedule: newSupervisionSchedule(b.graph.TimetableOperations),
+		Presence: newSupervisionPresence(b.graph.Active, b.graph.Active),
+		Planning: newSupervisionPlanning(b.graph.PickupSchedule, b.graph.ArrivalSchedule),
+		Settings: newSupervisionSettings(b.settingsService), Calendar: supervisionCalendar{}, Now: b.now,
 	})
 	if err != nil {
 		return b, fmt.Errorf("compose supervision dashboard projection: %w", err)
@@ -152,7 +156,7 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 	if err != nil {
 		return b, err
 	}
-	converter, err := arrivalTimetable.NewInstanceSeriesConversion(arrivalTimetable.InstanceSeriesConversionDependencies{
+	converter, err := arrivalTimetable.NewInstanceSeriesConversion(timetablePorts.InstanceSeriesConversionDependencies{
 		Transactions: arrivalTimetable.NewTenantTransactions(b.DB.Pool()), InstanceRepo: b.TimetableWiring.Repositories.ActivityInstance, Lifecycle: b.instances,
 		Templates: templates, RecurrenceLock: b.TimetableWiring.RecurrenceLock,
 	})

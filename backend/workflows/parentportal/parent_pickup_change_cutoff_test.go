@@ -11,9 +11,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,10 +30,10 @@ func berlinClock(hour, minute int) func() time.Time {
 
 func cutoffStub(enabled bool, clock string) parentSettingsStub {
 	return parentSettingsStub{
-		boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: enabled},
+		boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: enabled},
 		stringValues: map[string]string{
-			configModels.KeyGuardianParentInviteMode:     configModels.ParentInviteModeDisabled,
-			configModels.KeyParentPickupChangeCutoffTime: clock,
+			parentService.KeyGuardianParentInviteMode:     parentService.ParentInviteModeDisabled,
+			parentService.KeyParentPickupChangeCutoffTime: clock,
 		},
 	}
 }
@@ -57,7 +56,7 @@ func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	return cutoffServiceDeps{db: db, repos: repos, base: base}
 }
 
-func (d cutoffServiceDeps) service(t *testing.T, settings configService.SettingsService, now func() time.Time) *parentService.Portal {
+func (d cutoffServiceDeps) service(t *testing.T, settings parentService.SettingsService, now func() time.Time) *parentService.Portal {
 	t.Helper()
 	cfg := d.base
 	cfg.CareExceptions = d.repos.CarePlan()
@@ -144,7 +143,7 @@ func TestSubmitPickupChangeRequestRechecksCutoffAtWriteBoundary(t *testing.T) {
 	now := berlinClock(10, 59)
 	settings := cutoffStub(true, "11:00")
 	settings.stringInTxFn = func(key string) (string, error) {
-		if key == configModels.KeyParentPickupChangeEnabled {
+		if key == parentService.KeyParentPickupChangeEnabled {
 			now = berlinClock(11, 1)
 			return "true", nil
 		}
@@ -173,7 +172,7 @@ func TestSubmitPickupChangeRequestRechecksEnablementAtWriteBoundary(t *testing.T
 	lockTaken := false
 	settings := cutoffStub(true, "11:00")
 	settings.stringInTxFn = func(key string) (string, error) {
-		if key == configModels.KeyParentPickupChangeEnabled {
+		if key == parentService.KeyParentPickupChangeEnabled {
 			return "false", nil
 		}
 		return settings.stringValues[key], nil
@@ -208,7 +207,7 @@ func TestSubmitCareExceptionRechecksEnablementAtWriteBoundary(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
 	settings := cutoffStub(true, "11:00")
 	settings.stringInTxFn = func(key string) (string, error) {
-		if key == configModels.KeyParentPickupChangeEnabled {
+		if key == parentService.KeyParentPickupChangeEnabled {
 			return "false", nil
 		}
 		return settings.stringValues[key], nil
@@ -352,7 +351,7 @@ func TestPickupChangeCutoffIsTenantScoped(t *testing.T) {
 	runtimeCtx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	chainA := testpkg.CreateTestParentGuardianChain(t, d.db)
-	require.NoError(t, settings.SetValue(testpkg.Ctx(t), configModels.KeyParentPickupChangeCutoffTime, "11:00", nil, nil))
+	require.NoError(t, settings.SetValue(testpkg.Ctx(t), parentService.KeyParentPickupChangeCutoffTime, "11:00", nil, nil))
 	seedGuardianPickupException(t, d, chainA, cutoffToday)
 	svc := d.service(t, settings, berlinClock(11, 1))
 

@@ -52,7 +52,7 @@ func NewCareLifecycleTestRepositoriesWithMembers(db transactionruntime.Database,
 		sources: CareLifecycleOwnerSources{
 			Students: tt.Student, Persons: tt.Person, Membership: membership,
 			People: people, Timetable: tt.Timetable, Calendar: calendar,
-			Presence: NewUnloggedStudentPresence(db), PlanReads: MustPresenceReads(db),
+			Presence: NewUnloggedStudentPresence(db), PlanReads: newPresenceProjectionReads(db),
 			Enrollment: tt.Enrollment(),
 		},
 	}, nil

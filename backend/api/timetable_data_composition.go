@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -21,7 +22,7 @@ func NewTimetableData(in TimetableDataInputs) (timetable.TimetableDataCapability
 	if err != nil {
 		return nil, err
 	}
-	return timetableCompose.NewTimetableData(timetableCompose.TimetableDataDependencies{
+	return timetableCompose.NewTimetableData(timetablePorts.TimetableDataDependencies{
 		Instances:         in.Rows.Instances,
 		InstanceStaff:     in.Rows.InstanceStaff,
 		Participants:      in.Rows.Participants,
@@ -44,21 +45,21 @@ func NewTimetableData(in TimetableDataInputs) (timetable.TimetableDataCapability
 	})
 }
 
-func newArrivalBaselineProjector(reader careplan.ArrivalBaselineReader) timetableCompose.ArrivalBaselineProjector {
+func newArrivalBaselineProjector(reader careplan.ArrivalBaselineReader) timetablePorts.ArrivalBaselineProjector {
 	if reader == nil {
 		return nil
 	}
 	return ArrivalBaselineProjector{Reader: reader}
 }
 
-func newPickupBaselineProjector(reader careplan.PickupBaselineReader) timetableCompose.PickupBaselineProjector {
+func newPickupBaselineProjector(reader careplan.PickupBaselineReader) timetablePorts.PickupBaselineProjector {
 	if reader == nil {
 		return nil
 	}
 	return PickupBaselineProjector{Reader: reader}
 }
 
-func newTenantAdvisoryLocks(transactional bool) timetableCompose.AdvisoryLocks {
+func newTenantAdvisoryLocks(transactional bool) timetablePorts.AdvisoryLocks {
 	if !transactional {
 		return nil
 	}
@@ -71,7 +72,7 @@ type PickupBaselineProjector struct {
 	Reader careplan.PickupBaselineReader
 }
 
-func (p PickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.PickupBaselines, error) {
+func (p PickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetablePorts.PickupBaselines, error) {
 	projection, err := p.Reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err

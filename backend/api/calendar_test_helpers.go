@@ -9,11 +9,11 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 type CalendarTestModule struct{ Calendar calendarCompose.Application }

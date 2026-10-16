@@ -71,6 +71,7 @@ func (s seedMasterDataStep) Run(ctx context.Context, rt *Runtime) error {
 	fixedSeeder := NewFixedSeeder(rt.Client, rt.Verbose, s.seeder.options.StaffPassword)
 	fixedSeeder.accountScope = s.seeder.accountScope()
 	fixedSeeder.visitor = visitorName{first: s.seeder.options.VisitorFirstName, last: s.seeder.options.VisitorLastName}
+	fixedSeeder.saveVisitor = s.seeder.options.SaveVisitor
 	fixedResult, err := fixedSeeder.Seed(ctx)
 	if err != nil {
 		return err

@@ -7,6 +7,7 @@ import (
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
 // Care Plan owns the offering change requests (#3561). The guardian portal's
@@ -53,6 +54,16 @@ func (r *OfferingChangeRecords) FindByID(ctx context.Context, rawID any) (*enrol
 		return nil, &offeringRecordError{op: op, err: err}
 	}
 	return row, nil
+}
+
+// OfferingChangeIdentity keeps the retained lookup and payload decoding on
+// the read path while exposing only the facts request sharing needs.
+func (r *OfferingChangeRecords) OfferingChangeIdentity(ctx context.Context, id int64) (*enrollment.OfferingChangeIdentity, error) {
+	row, err := r.FindByID(ctx, id)
+	if err != nil || row == nil {
+		return nil, err
+	}
+	return &enrollment.OfferingChangeIdentity{StudentID: row.StudentID, SubmittedBy: row.SubmittedBy}, nil
 }
 
 // offeringRecordError is the retained repository error shape, "database

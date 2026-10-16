@@ -13,37 +13,38 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // buildAnnouncementService wires the parent service with just the repositories
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
-func buildAnnouncementService(t *testing.T, newsEnabled bool) (*messaging.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.MessagingFlows, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), newsEnabled)
 }
 
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
-func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*messaging.Service, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.MessagingFlows, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	svc := messaging.New(messaging.Config{
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		Children:              childResolver(db, repos),
-		ChildRepo:             repos.ParentChild,
-		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		ChildRepo:             repos.ParentChildReads(),
+		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
 		AnnouncementRepo:      repos.ParentAnnouncement,
 		StudentRepo:           repos.Student,
 		Settings: messagingSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentNewsEnabled: newsEnabled},
+			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},
 		},
 		Logger: slog.Default(),
 	})
@@ -148,7 +149,7 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 	// stale, not silently recorded.
 	stale := ann.PublishedAt.Add(-time.Hour)
 	err := svc.MarkAnnouncementRead(ctx, chain.AccountID, ann.ID, stale)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementStale)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementStale)
 }
 
 func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
@@ -162,7 +163,7 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	err := svc.AcknowledgeAnnouncement(ctx, chain.AccountID, ann.ID, *ann.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementAckNotRequired)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementAckNotRequired)
 }
 
 func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
@@ -175,7 +176,7 @@ func TestAnnouncementFeed_UnknownAnnouncementIsNotFound(t *testing.T) {
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	// A high id that does not exist collapses to not-found (never leaks existence).
 	err := svc.MarkAnnouncementRead(ctx, chain.AccountID, 999999999, time.Now())
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 }
 
 func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
@@ -199,7 +200,7 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 	assert.Zero(t, unread)
 
 	err = svc.MarkAnnouncementRead(ctx, chain.AccountID, ann.ID, *ann.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotFound)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotFound)
 }
 
 func TestAnnouncementFeed_RejectsNonPositiveAccount(t *testing.T) {

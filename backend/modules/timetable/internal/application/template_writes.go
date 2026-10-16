@@ -11,6 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -24,36 +25,10 @@ import (
 // class
 // rules, and the realtime announcement of staffing changes.
 
-// ScheduleError wraps a failed step of the template writes, the roster
-// maintenance or the materialization with the operation that failed.
-// errors.Is and errors.As see the cause.
-type ScheduleError struct {
-	Op  string // Operation that failed
-	Err error  // Original error
-}
-
-func (e *ScheduleError) Error() string {
-	if e.Err == nil {
-		return fmt.Sprintf("schedule error during %s", e.Op)
-	}
-	return fmt.Sprintf("schedule error during %s: %v", e.Op, e.Err)
-}
-
-func (e *ScheduleError) Unwrap() error {
-	return e.Err
-}
-
-// StaffingAnnouncer wakes the tenant's planner and "Heute geplant" caches
-// after writes that bypass the instance lifecycle (#1844). The event carries
-// no payload; the composition root binds the realtime broadcaster.
-type StaffingAnnouncer interface {
-	AnnounceStaffingChanged(tenantID int64, source string) error
-}
-
 // announceStaffingChanged queues the announcement until the surrounding
 // tenant transaction commits, so subscribers that refetch see the new rows.
 // A nil announcer announces nothing.
-func announceStaffingChanged(ctx context.Context, announcer StaffingAnnouncer, logger *slog.Logger, source string) {
+func announceStaffingChanged(ctx context.Context, announcer ports.StaffingAnnouncer, logger *slog.Logger, source string) {
 	if announcer == nil {
 		return
 	}
@@ -69,49 +44,21 @@ func announceStaffingChanged(ctx context.Context, announcer StaffingAnnouncer, l
 	})
 }
 
-// EducationGroupDirectory is School Structure's existence check of an
-// education group in the caller's tenant.
-type EducationGroupDirectory interface {
-	Exists(ctx context.Context, id int64) (bool, error)
-}
-
-// SchoolClassRules are School Structure's supported grade range and the
-// identity of a free-text school class, bound at the root. The template
-// writes validate grade targets and filters against them and compare class
-// filters by their normalized name.
-type SchoolClassRules struct {
-	MinGradeLevel int
-	MaxGradeLevel int
-	Normalize     func(string) string
-}
-
-func (r SchoolClassRules) validate() error {
+func validateSchoolClassRules(r ports.SchoolClassRules) error {
 	if r.Normalize == nil || r.MinGradeLevel <= 0 || r.MaxGradeLevel < r.MinGradeLevel {
 		return errors.New("school class rules are not configured")
 	}
 	return nil
 }
 
-// CareOfferingChecks are Care Plan's guards of template mutations, bound at
-// the root. ValidateSeries rejects a mutation that makes a linked care
-// offering impossible to materialize; ValidateOfferingSource resolves the
-// offering-source references before the template row carrying them is
-// written (#2147); IsConflict tells the client-correctable verdict of
-// ValidateSeries from an operational failure.
-type CareOfferingChecks struct {
-	ValidateSeries         func(ctx context.Context, templateID int64) error
-	ValidateOfferingSource func(ctx context.Context, offeringIDs, storedOfferingIDs []int64, calendarPeriodID *int64) error
-	IsConflict             func(error) bool
-}
-
 // careOfferingValidationError classifies a failed ValidateSeries. A
 // conflict is a client-correctable 400; the ambient transaction is marked for
 // rollback because TenantTxMiddleware commits ordinary 4xx responses. Lock or
 // repository failures stay operational errors.
-func (c CareOfferingChecks) validationError(ctx context.Context, op, action string, err error) error {
+func careOfferingValidationError(ctx context.Context, c ports.CareOfferingChecks, op, action string, err error) error {
 	tenant.MarkRollback(ctx)
 	if c.IsConflict != nil && c.IsConflict(err) {
-		return &ScheduleError{
+		return &ports.ScheduleError{
 			Op: op,
 			Err: fmt.Errorf(
 				"%w: %w: %s: %w",
@@ -122,7 +69,7 @@ func (c CareOfferingChecks) validationError(ctx context.Context, op, action stri
 			),
 		}
 	}
-	return &ScheduleError{Op: op, Err: fmt.Errorf("validate linked care offerings: %w", err)}
+	return &ports.ScheduleError{Op: op, Err: fmt.Errorf("validate linked care offerings: %w", err)}
 }
 
 // validateAssignableCategory rejects missing, cross-tenant, and archived
@@ -137,12 +84,12 @@ func validateAssignableCategory(
 	category, err := repo.FindByIDForShare(ctx, categoryID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
-			return &ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
+			return &ports.ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
 		}
-		return &ScheduleError{Op: op, Err: err}
+		return &ports.ScheduleError{Op: op, Err: err}
 	}
 	if category == nil || category.IsArchived() {
-		return &ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
+		return &ports.ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
 	}
 	return nil
 }
@@ -217,17 +164,10 @@ func findOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepo
 	return tf.ID, nil
 }
 
-// PlanningTrackAssignments is the slice of the Timetable owner's
-// planning-track administration (timetable.PlanningTrackAdministration) the
-// template writes check a track assignment against.
-type PlanningTrackAssignments interface {
-	ValidatePlanningTrackAssignment(ctx context.Context, id, allowedArchivedID *int64) error
-}
-
 // validateAssignablePlanningTrack rejects a missing or archived track unless
 // it is the one the template already carries. A composition without the
 // administration can assign no track at all.
-func validateAssignablePlanningTrack(ctx context.Context, tracks PlanningTrackAssignments, id, allowedArchivedID *int64) error {
+func validateAssignablePlanningTrack(ctx context.Context, tracks ports.PlanningTrackAssignments, id, allowedArchivedID *int64) error {
 	if id == nil {
 		return nil
 	}
@@ -253,19 +193,19 @@ type TemplateServiceDependencies struct {
 	ActivityScheduleRepo   activitiesModel.ScheduleRepository
 	InstanceStaffRepo      scheduleModel.InstanceStaffRepository
 	ActivityCategoryRepo   activitiesModel.CategoryRepository
-	PlanningTracks         PlanningTrackAssignments
+	PlanningTracks         ports.PlanningTrackAssignments
 	ActivityGroupRepo      activitiesModel.GroupRepository
 	ActivitySupervisorRepo activitiesModel.SupervisorPlannedRepository
 	StudentEnrollmentRepo  activitiesModel.StudentEnrollmentRepository
 	TimeframeRepo          scheduleModel.TimeframeRepository
-	EducationGroups        EducationGroupDirectory
-	CareOfferings          CareOfferingChecks
+	EducationGroups        ports.EducationGroupDirectory
+	CareOfferings          ports.CareOfferingChecks
 	ResyncOfferingRoster   func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock         timetable.RecurrenceWriteLock
-	SchoolClasses          SchoolClassRules
-	Staffing               StaffingAnnouncer
+	SchoolClasses          ports.SchoolClassRules
+	Staffing               ports.StaffingAnnouncer
 	Logger                 *slog.Logger
-	Transactions           TenantTransactions
+	Transactions           ports.TenantTransactions
 	Today                  func() calendar.Date
 }
 
@@ -290,10 +230,10 @@ func (s *TemplateService) getLogger() *slog.Logger {
 // lockRecurrence takes the tenant recurrence gate for a template write.
 func (s *TemplateService) lockRecurrence(ctx context.Context, op string) error {
 	if s.deps.RecurrenceLock == nil {
-		return &ScheduleError{Op: op + ": lock recurrence", Err: errors.New("template recurrence lock is not configured")}
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: errors.New("template recurrence lock is not configured")}
 	}
 	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
-		return &ScheduleError{Op: op + ": lock recurrence", Err: err}
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil
 }

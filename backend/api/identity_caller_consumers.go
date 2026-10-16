@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 )
 
 // GroupLiveCaller serves the caller context to the live-group adapters in
@@ -51,14 +50,14 @@ func (c SupervisionCaller) FullStudentAccess(ctx context.Context) (bool, error) 
 	return c.HasFullStudentAccess(ctx), nil
 }
 
-func (c SupervisionCaller) MyGroups(ctx context.Context) ([]supervisiondashboardCompose.CallerGroup, error) {
+func (c SupervisionCaller) MyGroups(ctx context.Context) ([]SupervisionCallerGroup, error) {
 	groups, err := c.GetMyGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]supervisiondashboardCompose.CallerGroup, 0, len(groups))
+	result := make([]SupervisionCallerGroup, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, supervisiondashboardCompose.CallerGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID})
+		result = append(result, SupervisionCallerGroup{ID: group.ID, Name: group.Name, RoomID: group.RoomID})
 	}
 	return result, nil
 }

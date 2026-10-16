@@ -43,6 +43,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -209,7 +210,7 @@ type graphBuild struct {
 
 	groupSupervisions  studentpresence.SupervisionRecords
 	groupSubstitutions GroupSubstitutionRepository
-	rosterReconciler   *arrivalTimetable.RosterReconciler
+	rosterReconciler   timetablePorts.RosterReconciler
 	templateRows       arrivalTimetable.TemplateRows
 	timetableRows      arrivalTimetable.OwnerRows
 
@@ -225,7 +226,7 @@ type graphBuild struct {
 	vapid             deliveryCompose.VAPIDConfig
 
 	timetableConflicts timetable.ConflictDetectionCapability
-	instances          *arrivalTimetable.InstanceLifecycleService
+	instances          timetablePorts.InstanceLifecycle
 	staffDeviations    timetable.StaffDeviations
 	shiftPlanning      *workforceCompose.ShiftPlanning
 	deviceFleet        *devicefleetModule.Module

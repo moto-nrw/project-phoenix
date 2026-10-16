@@ -8,6 +8,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -26,13 +27,13 @@ type OwnerRows struct {
 	Templates         activitiesModels.GroupRepository
 	Categories        activitiesModels.CategoryRepository
 	Students          RosterStudents
-	EducationGroups   EducationGroupNames
+	EducationGroups   ports.EducationGroupNames
 	Rooms             OwnerRooms
 	PickupExceptions  scheduleModels.StudentPickupExceptionRepository
 	ArrivalExceptions scheduleModels.StudentArrivalExceptionRepository
 	// DeviationEvents reads and Deviations appends the Änderungsprotokoll.
-	DeviationEvents DeviationEventReader
-	Deviations      DeviationProtocol
+	DeviationEvents ports.DeviationEventReader
+	Deviations      ports.DeviationProtocol
 	// Locks serializes attendance writes with a completion; optional.
 	Locks scheduleModels.ActivityRecoveryRepository
 }
@@ -40,14 +41,14 @@ type OwnerRows struct {
 // OwnerRooms names and locks the Facilities rooms for the operational day
 // and the instance lifecycle.
 type OwnerRooms interface {
-	RoomNames
-	LifecycleRooms
+	ports.RoomNames
+	ports.LifecycleRooms
 }
 
 // OperationTemplates is the template read of the operational day, which the
 // retained activity group repository serves beside its model interface.
-func (r OwnerRows) OperationTemplates() (OperationTemplates, error) {
-	templates, ok := r.Templates.(OperationTemplates)
+func (r OwnerRows) OperationTemplates() (ports.OperationTemplates, error) {
+	templates, ok := r.Templates.(ports.OperationTemplates)
 	if !ok {
 		return nil, fmt.Errorf("timetable operations: %T cannot read template targets", r.Templates)
 	}
@@ -55,8 +56,8 @@ func (r OwnerRows) OperationTemplates() (OperationTemplates, error) {
 }
 
 // DataTemplates is the Vorlagen read of the planner.
-func (r OwnerRows) DataTemplates() (DataTemplates, error) {
-	templates, ok := r.Templates.(DataTemplates)
+func (r OwnerRows) DataTemplates() (ports.DataTemplates, error) {
+	templates, ok := r.Templates.(ports.DataTemplates)
 	if !ok {
 		return nil, fmt.Errorf("timetable data: %T cannot read the template list", r.Templates)
 	}
@@ -65,8 +66,8 @@ func (r OwnerRows) DataTemplates() (DataTemplates, error) {
 
 // EndedSessionInstances is the session listing of the ended-session
 // completion.
-func (r OwnerRows) EndedSessionInstances() (EndedSessionInstances, error) {
-	instances, ok := r.Instances.(EndedSessionInstances)
+func (r OwnerRows) EndedSessionInstances() (ports.EndedSessionInstances, error) {
+	instances, ok := r.Instances.(ports.EndedSessionInstances)
 	if !ok {
 		return nil, fmt.Errorf("ended session completion: %T cannot list instances by session", r.Instances)
 	}
@@ -74,7 +75,7 @@ func (r OwnerRows) EndedSessionInstances() (EndedSessionInstances, error) {
 }
 
 // AttendanceLocks is the optional completion lock; nil without Locks.
-func (r OwnerRows) AttendanceLocks() AttendanceLocks {
+func (r OwnerRows) AttendanceLocks() ports.AttendanceLocks {
 	if r.Locks == nil {
 		return nil
 	}
@@ -82,31 +83,31 @@ func (r OwnerRows) AttendanceLocks() AttendanceLocks {
 }
 
 // RoomNames names the Facilities rooms.
-func (r OwnerRows) RoomNames() RoomNames { return r.Rooms }
+func (r OwnerRows) RoomNames() ports.RoomNames { return r.Rooms }
 
 // LifecycleRooms serves the instance lifecycle's Facilities rooms: the
 // reference check, the start's room lock and the auto-start's room names.
-func (r OwnerRows) LifecycleRooms() LifecycleRooms { return r.Rooms }
+func (r OwnerRows) LifecycleRooms() ports.LifecycleRooms { return r.Rooms }
 
 // EducationGroupNames names School Structure's education groups.
-func (r OwnerRows) EducationGroupNames() EducationGroupNames { return r.EducationGroups }
+func (r OwnerRows) EducationGroupNames() ports.EducationGroupNames { return r.EducationGroups }
 
 // DeviationEventReader reads the Audit Platform's Änderungsprotokoll.
-func (r OwnerRows) DeviationEventReader() DeviationEventReader { return r.DeviationEvents }
+func (r OwnerRows) DeviationEventReader() ports.DeviationEventReader { return r.DeviationEvents }
 
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
 	return SickCascadeTimetableRows{
-		instances: NewTimetableInstanceReads(r.Instances), staff: NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
+		instances: application.NewTimetableInstanceReads(r.Instances), staff: application.NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
 	}
 }
 
 // SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
 // port from the retained rows, in the Timetable owner's public vocabulary.
 type SickCascadeTimetableRows struct {
-	instances TimetableInstanceReads
-	staff     TimetableInstanceStaffReads
+	instances application.TimetableInstanceReads
+	staff     application.TimetableInstanceStaffReads
 	dayLock   func(context.Context, calendar.Date) error
 }
 
@@ -143,5 +144,5 @@ type TemplateRows struct {
 	Timeframes      scheduleModels.TimeframeRepository
 	CalendarPeriods scheduleModels.CalendarPeriodRepository
 	Exceptions      scheduleModels.ActivityExceptionRepository
-	EducationGroups application.EducationGroupDirectory
+	EducationGroups ports.EducationGroupDirectory
 }

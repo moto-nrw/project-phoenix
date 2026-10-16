@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/uptrace/bun"
 )
@@ -144,19 +145,19 @@ type TimetableModule struct {
 type TimetableRows struct {
 	timetableCompose.Repositories
 	Timetable timetableModule.Capability
-	ShiftType *timetableCompose.WorkforceShiftTypeRows
+	ShiftType timetablePorts.WorkforceShiftTypeRows
 	Room      interface {
 		Delete(ctx context.Context, rawID any) error
 	}
 	CalendarPeriods CalendarPeriods
-	PeriodUsage     *timetableCompose.CalendarPeriodUsageRepository
+	PeriodUsage     timetablePorts.CalendarPeriodUsageRepository
 }
 
 // SchoolCalendar serves the calendar periods the template routes read.
 func (r TimetableRows) SchoolCalendar() CalendarPeriods { return r.CalendarPeriods }
 
 // CalendarPeriodUsage counts the planning owners' references per period.
-func (r TimetableRows) CalendarPeriodUsage() *timetableCompose.CalendarPeriodUsageRepository {
+func (r TimetableRows) CalendarPeriodUsage() timetablePorts.CalendarPeriodUsageRepository {
 	return r.PeriodUsage
 }
 
@@ -188,7 +189,7 @@ var RootCompositions struct {
 	OfferingSources func(t *testing.T, db *bun.DB) (timetableModule.OfferingSourceSupport, error)
 	// StaffAccountPeople is the operations' person port for an acting account
 	// that is this person and staff member.
-	StaffAccountPeople func(personID, staffID int64) timetableCompose.OperationPeople
+	StaffAccountPeople func(personID, staffID int64) timetablePorts.OperationPeople
 	// ErrCareOfferingInvalid is what Care Plan's care-offering checks return
 	// for an offering a template change would invalidate.
 	ErrCareOfferingInvalid error
@@ -228,7 +229,7 @@ var BoundTimetableRepositories = mustTimetableTestRepositories
 
 // calendarPeriodUsageFor serves the usage port from the planning owners'
 // per-period reference counts, converting by shape.
-func calendarPeriodUsageFor(usage *timetableCompose.CalendarPeriodUsageRepository) CalendarPeriodUsage {
+func calendarPeriodUsageFor(usage timetablePorts.CalendarPeriodUsageRepository) CalendarPeriodUsage {
 	return usageFunc(func(ctx context.Context) (map[int64]CalendarPeriodUsageCounts, error) {
 		values, err := usage.Usage(ctx)
 		if err != nil {

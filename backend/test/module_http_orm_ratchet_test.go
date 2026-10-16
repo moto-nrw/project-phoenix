@@ -20,9 +20,7 @@ import (
 // Why: the migration forbids ORM types in public contracts and requires the
 // HTTP layer to receive a transaction middleware / injected transaction runner
 // instead of a database handle. Today most of the offenders hold a *bun.DB
-// purely to hand it to api/common.ProtectedTenantGroup, but some already start
-// their own transactions at the request boundary
-// (modules/dataimport/inbound/compose/runtime.go). Both shapes make the inbound
+// purely to hand it to api/common.ProtectedTenantGroup. Such captures make the inbound
 // role depend on the persistence technology and put transaction control in the
 // place least able to reason about it.
 //
@@ -48,12 +46,7 @@ import (
 // group wrappers; the remaining entries perform real database work.
 // #3421 moved the guardian portal's enrollment transactions onto the tenant
 // runtime the request carries and removed both of its entries.
-var moduleHTTPORMAllowlist = map[string]int{
-	"modules/dataimport/inbound/compose/runtime.go": 1,
-	"modules/delivery/http/sse/api.go":              1,
-	"modules/delivery/http/sse/resource.go":         1,
-	"modules/workforce/inbound/timetracking/api.go": 1,
-}
+var moduleHTTPORMAllowlist = map[string]int{}
 
 // moduleHTTPORMImportPath is the ORM module path; imports of this path or of
 // any package below it (bun/dialect, bun/extra/..., ...) count.

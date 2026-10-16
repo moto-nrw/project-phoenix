@@ -68,10 +68,9 @@ const moduleFuncLenThreshold = 60
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
 	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                               117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                            211,
-	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                      67,
-	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                          159,
-	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":               83,
+	"workflows/parentportal/http/child_write_handlers.go:(*Resource).submitSickNote":                          67,
+	"workflows/parentportal/http/child_write_handlers.go:renderParentWriteError":                              159,
+	"workflows/parentportal/http/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":                   83,
 	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals": 71,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                    73,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                     154,
@@ -84,7 +83,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
-	"modules/classday/internal/application/slotlists.go:(*service).ListOptions":                                                                 296,
 	"modules/classday/internal/application/slotlists.go:(*service).RenderList":                                                                  71,
 	"modules/classday/internal/application/slotlists.go:(*service).buildList":                                                                   127,
 	"modules/classday/internal/application/slotlists.go:(*service).classifyPlannedRow":                                                          128,
@@ -114,7 +112,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/dataimport/fileformat/template_writer.go:(Decoder).Template":                                                                       62,
 	"modules/dataimport/fileformat/templates.go:writeHinweiseSheet":                                                                             145,
 	"modules/dataimport/fileformat/xlsx_parser.go:(*XLSXParser).ParseStudents":                                                                  76,
-	"modules/dataimport/inbound/api.go:(*Resource).Router":                                                                                      66,
+	"modules/dataimport/http/api.go:(*Resource).Router":                                                                                         66,
 	"modules/delivery/application/notifications/parent_copy.go:ParentAnnouncementCopy":                                                          95,
 	"modules/delivery/application/notifications/preferences.go:(*preferenceService).GetForParent":                                               63,
 	"modules/delivery/application/notifications/service.go:(*router).NotifyBatch":                                                               62,
@@ -197,8 +195,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/timetable/internal/adapters/postgres/calendar_period_references.go:(*Store).CountCalendarPeriodReferences":                         62,
 	"modules/timetable/internal/adapters/postgres/groups.go:(*Store).ListCourseGroups":                                                          71,
 	"modules/timetable/internal/adapters/postgres/pickup_extensions.go:(*Store).ListPickupExtensionWeekdayBlocks":                               70,
-	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":            70,
-	"modules/workforce/inbound/timetracking/staff_admin_documents.go:(*StaffAdminResource).uploadStaffDocument":                                 71,
+	"modules/workforce/http/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":               70,
+	"modules/workforce/http/timetracking/staff_admin_documents.go:(*StaffAdminResource).uploadStaffDocument":                                    71,
 	"modules/workforce/internal/adapters/postgres/offboarding.go:(*Store).PreviewStaffOffboarding":                                              61,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                                         63,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                                        66,

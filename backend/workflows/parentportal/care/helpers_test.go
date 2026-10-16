@@ -6,28 +6,27 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // childResolver binds messaging's ChildResolver to the real guardian-child
 // resolution, as the portal composition does in production.
-func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) messaging.ChildResolver {
-	return care.New(care.Config{
-		ChildRepo: repos.ParentChild, StudentRepo: repos.Student,
+func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) parentportal.ChildResolver {
+	return parentportal.NewChildFlows(parentportal.ChildConfig{
+		ChildRepo: repos.ParentChildReads(), StudentRepo: repos.Student,
 		RequestSharing: unusedRequestSharer{},
 	})
 }
 
-// unusedRequestSharer satisfies care.New for the child resolution these tests
+// unusedRequestSharer satisfies parentportal.NewChildFlows for the child resolution these tests
 // need; child resolution never reaches the sharing ledger.
 type unusedRequestSharer struct{}
 
@@ -35,7 +34,7 @@ func (unusedRequestSharer) ShareRequestInTx(context.Context, int64, int64, strin
 	panic("messaging tests: child resolution must not share requests")
 }
 
-func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (care.RequestShareVisibility, error) {
+func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (parentportal.RequestShareVisibility, error) {
 	panic("messaging tests: child resolution must not read request shares")
 }
 
@@ -43,7 +42,7 @@ func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (c
 // from maps; every other SettingsService method panics via the embedded nil
 // interface. Test-only copy of the workflows/parentportal behaviour-test stub.
 type messagingSettingsStub struct {
-	configService.SettingsService
+	parentportal.SettingsService
 	boolValues   map[string]bool
 	stringValues map[string]string
 }
@@ -52,7 +51,7 @@ func (s messagingSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, 
 	if v, ok := s.boolValues[key]; ok {
 		return v, nil
 	}
-	if key == configModels.KeyParentSickReportsEnabled || key == configModels.KeyParentExcusedReportsEnabled {
+	if key == parentportal.KeyParentSickReportsEnabled || key == parentportal.KeyParentExcusedReportsEnabled {
 		return true, nil
 	}
 	return false, nil

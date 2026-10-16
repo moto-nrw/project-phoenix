@@ -11,11 +11,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -26,7 +25,7 @@ import (
 // the excused-approval gate (#1845) configurable, so the approval branch can be
 // exercised both ways.
 type excusedApprovalSettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	// requiresApproval keeps older error-path fixtures focused on the original
 	// excused-only gate; new tests set the two explicit switches below.
 	requiresApproval        bool
@@ -36,11 +35,11 @@ type excusedApprovalSettings struct {
 
 func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
-	case configModels.KeyParentSickNoteEnabled, configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled:
+	case parentService.KeyParentSickNoteEnabled, parentService.KeyParentSickReportsEnabled, parentService.KeyParentExcusedReportsEnabled:
 		return true, nil
-	case configModels.KeyParentSickRequiresApproval:
+	case parentService.KeyParentSickRequiresApproval:
 		return s.sickRequiresApproval, nil
-	case configModels.KeyParentExcusedRequiresApproval:
+	case parentService.KeyParentExcusedRequiresApproval:
 		return s.requiresApproval || s.excusedRequiresApproval, nil
 	default:
 		return false, nil
@@ -48,8 +47,8 @@ func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64
 }
 
 func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
+	if key == parentService.KeyGuardianParentInviteMode {
+		return parentService.ParentInviteModeDisabled, nil
 	}
 	return "", nil
 }
@@ -75,7 +74,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
 		CareExceptions: repos.CarePlan(),

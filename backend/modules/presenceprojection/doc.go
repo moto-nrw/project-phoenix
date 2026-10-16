@@ -8,3 +8,6 @@ package presenceprojection
 import "errors"
 
 var ErrInvalidTenantID = errors.New("presence projection: tenant ID must be positive")
+
+// Reader serves the reads the roots bind to other owners' ports (ADR 0058).
+type Reader struct{}

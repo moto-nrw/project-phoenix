@@ -15,6 +15,9 @@ type DemoAccessStore interface {
 	// that has not expired at now. It serialises requests of one address.
 	FindActiveDemoAccessByEmail(ctx context.Context, email string, now time.Time) (domain.DemoAccess, bool, error)
 	FindDemoAccessByTokenHash(ctx context.Context, tokenHash string) (domain.DemoAccess, bool, error)
+	// LockDemoSchool serializes entry, expiry and replacement of one public
+	// demo school for the caller's administrative transaction.
+	LockDemoSchool(ctx context.Context, schoolSlug string) error
 	// RecordDemoAccessUse notes one redemption, the account it signed in and
 	// the school's parent of the role parent (#3468); a zero parent keeps
 	// the one noted before. expiresAt is the access's new end (#3470).

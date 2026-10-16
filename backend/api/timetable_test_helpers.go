@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -28,7 +29,7 @@ import (
 )
 
 type TimetableTestModule struct {
-	Instance       *arrivalTimetable.InstanceLifecycleService
+	Instance       timetablePorts.InstanceLifecycle
 	SchoolCalendar schoolcalendar.Calendar
 	// TimetableData carries the Timetable owner's template writes, recurrence
 	// gate, planner reads and conflict detection over the same repositories,
@@ -155,8 +156,8 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	lifecycleRows := r.OwnerRows()
 	lifecycleRows.Locks = recovery
 	instance, err := NewTimetableLifecycle(TimetableLifecycleInputs{
-		Rows: lifecycleRows, Planning: arrivalTimetable.InstanceLifecycleDependencies{
-			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db.Pool(),
+		Rows: lifecycleRows, Planning: timetablePorts.InstanceLifecycleDependencies{
+			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
 		},
 		Staff: NewTimetableStaff(r.Staff), Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
 		Presence: NewLoggedStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
@@ -196,7 +197,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	deviationDeps.DB = db.Pool()
+	deviationDeps.Locks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	deviations, err := arrivalTimetable.NewStaffDeviations(deviationDeps)
 	if err != nil {
 		return TimetableTestModule{}, err

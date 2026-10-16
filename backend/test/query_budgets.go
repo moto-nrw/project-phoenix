@@ -51,7 +51,7 @@ var queryBudgets = map[string]queryBudget{
 	// each in production. Both stay flat in the number of schools.
 	"modules.organizationtenancy.billing.key_date_counts": {max: 1, exact: true},
 	"modules.organizationtenancy.billing.capture":         {max: 3, exact: true},
-	// modules/careplan/inbound/parent — GET /me/children/{studentId}/courses resolves the catalog,
+	// workflows/parentportal/http — GET /me/children/{studentId}/courses resolves the catalog,
 	// capacity and pending-request queue through this bounded service scenario.
 	"api.parent.child_courses": {max: 14},
 	// modules/enrollment/http — GET /phases/{id}/responses: phase plus four batched
@@ -244,14 +244,14 @@ var queryBudgets = map[string]queryBudget{
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
-	// modules/workforce/inbound/timetracking — GET
+	// modules/workforce/http/timetracking — GET
 	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
 	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
 	// acknowledgement list and ONE batched People-Directory name lookup for the
 	// whole list. Flat at three acknowledgements — a per-row lookup would show
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
-	// modules/workforce/inbound/timetracking — GET
+	// modules/workforce/http/timetracking — GET
 	// /api/staff/{id}/target-overrides (#3259): the tenant-transaction
 	// statements, the two staff lookups (membership, employment profile) and
 	// ONE read of the staff member's

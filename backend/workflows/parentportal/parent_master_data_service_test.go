@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -32,12 +32,12 @@ import (
 func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled bool) parentSettingsStub {
 	return parentSettingsStub{
 		boolValues: map[string]bool{
-			configModels.KeyParentMasterDataEditEnabled:     editEnabled,
-			configModels.KeyParentMasterDataRequestEnabled:  requestEnabled,
-			configModels.KeyParentGuardianManagementEnabled: guardianManagementEnabled,
+			parentService.KeyParentMasterDataEditEnabled:     editEnabled,
+			parentService.KeyParentMasterDataRequestEnabled:  requestEnabled,
+			parentService.KeyParentGuardianManagementEnabled: guardianManagementEnabled,
 		},
 		stringValues: map[string]string{
-			configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 		},
 	}
 }
@@ -50,7 +50,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
@@ -111,7 +111,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
@@ -147,7 +147,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		ChildRepo: repos.ParentChild,
+		ChildRepo: repos.ParentChildReads(),
 		Settings:  masterDataSettings(true, true, false),
 		MealPlan:  availableMealPlan(false),
 		Logger:    slog.Default(),

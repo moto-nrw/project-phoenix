@@ -9,8 +9,6 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
@@ -53,6 +51,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -388,7 +387,7 @@ type IdentityMaterial struct {
 	// The rows the caller context's retained consumers read.
 	Groups         EducationGroupRepository
 	StaffGroups    schoolstructure.StaffGroupQuery
-	ActivityGroups arrivalTimetable.CallerActivityGroups
+	ActivityGroups timetablePorts.CallerActivityGroups
 	Sessions       *presenceCompose.SessionRecords
 	Presence       *studentpresence.Module
 }
@@ -399,8 +398,8 @@ type IdentityMaterial struct {
 type IdentityComposition struct {
 	Access               *identityaccess.Module
 	Caller               CallerRowReads
-	GroupLiveCaller      groupliveCompose.CallerContext
-	SupervisionCaller    supervisiondashboardCompose.CallerContext
+	GroupLiveCaller      GroupLiveCallerContext
+	SupervisionCaller    SupervisionCallerContext
 	GuardianInvitations  GuardianInvitationReads
 	ParentGuardianAccess parentportal.GuardianAccess
 	// MailRenderers render the Identity & Access mail kinds of the outbox.
@@ -419,7 +418,7 @@ type GuardianInvitationReads interface {
 type CallerRowReads interface {
 	Caller() identityaccess.CallerContext
 	CareRequestStaff
-	classdayCompose.StaffReader
+	ClassDaySlotListStaff
 	securityruntime.StudentAccessUserContext
 	classdayCompose.CallerReader
 	HasCurrentStaff(context.Context) (bool, error)

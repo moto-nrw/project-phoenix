@@ -14,7 +14,6 @@ import (
 	"log/slog"
 	"time"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -308,7 +307,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 	return nil
 }
 
-func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
+func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) ([]*ChildSummary, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -319,7 +318,7 @@ func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 	// has none. Admin role with BYPASSRLS sees every tenant; the
 	// account_tenants WHERE clause in the query keeps the result set
 	// scoped to the caller's own membership.
-	var children []*parentModels.ChildSummary
+	var children []*ChildSummary
 	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
@@ -343,12 +342,12 @@ func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 // parent can enroll a new child at. Same admin-tx wrap as the children
 // query — the join crosses tenant_id boundaries scoped by
 // auth.account_tenants membership for the AlreadyLinked flag.
-func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
+func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64) ([]*EnrollablePhase, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
 
-	var phases []*parentModels.EnrollablePhase
+	var phases []*EnrollablePhase
 	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.EnrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
 		if listErr != nil {
@@ -376,7 +375,7 @@ func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 
 // filterEnrollmentEnabledPhases keeps the phases whose school has enrollment
 // switched on, resolved in one cross-tenant settings query.
-func (s *Service) filterEnrollmentEnabledPhases(ctx context.Context, phases []*parentModels.EnrollablePhase) ([]*parentModels.EnrollablePhase, error) {
+func (s *Service) filterEnrollmentEnabledPhases(ctx context.Context, phases []*EnrollablePhase) ([]*EnrollablePhase, error) {
 	if s.EnrollmentSettings == nil {
 		return nil, errors.New("parent: enrollment settings queries not wired")
 	}
@@ -395,7 +394,7 @@ func (s *Service) filterEnrollmentEnabledPhases(ctx context.Context, phases []*p
 
 // enrollablePhaseSchoolIDs returns the distinct school IDs of the phases in
 // first-seen order.
-func enrollablePhaseSchoolIDs(phases []*parentModels.EnrollablePhase) []int64 {
+func enrollablePhaseSchoolIDs(phases []*EnrollablePhase) []int64 {
 	tenantIDs := make([]int64, 0, len(phases))
 	seen := make(map[int64]struct{}, len(phases))
 	for _, phase := range phases {
@@ -412,12 +411,12 @@ func enrollablePhaseSchoolIDs(phases []*parentModels.EnrollablePhase) []int64 {
 // facts for the parent enrollment path (#1663). Uses
 // WithAdminTxOrDirect so the parent submit handler's existing admin
 // transaction is reused instead of opening a nested one.
-func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*parentModels.GuardianSubmitStatus, error) {
+func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, schoolID int64) (*GuardianSubmitStatus, error) {
 	if accountID <= 0 || schoolID <= 0 {
 		return nil, fmt.Errorf("parent: account_id and school_id must be positive")
 	}
 
-	var status *parentModels.GuardianSubmitStatus
+	var status *GuardianSubmitStatus
 	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
 		if stErr != nil {
@@ -435,7 +434,7 @@ func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, scho
 // ListEnrollmentsForAccount returns the parent's enrollment.requests
 // rows joined to phase + school + child summaries. Same admin-tx wrap
 // as the other parent queries — this crosses tenant_id boundaries.
-func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*parentModels.EnrollmentRequestSummary, error) {
+func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64) ([]*EnrollmentRequestSummary, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -443,7 +442,7 @@ func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 		return nil, fmt.Errorf("parent: enrollment request repo not wired")
 	}
 
-	var requests []*parentModels.EnrollmentRequestSummary
+	var requests []*EnrollmentRequestSummary
 	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.EnrollmentRequestRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {

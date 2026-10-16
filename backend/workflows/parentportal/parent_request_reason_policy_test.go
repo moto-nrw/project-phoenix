@@ -5,11 +5,13 @@ import (
 	"log/slog"
 	"testing"
 
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -29,23 +31,23 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 		policy string
 		want   bool
 	}{
-		{configModels.ReasonPolicyNobody, false},
-		{configModels.ReasonPolicyStaff, false},
-		{configModels.ReasonPolicyGuardians, true},
-		{configModels.ReasonPolicyBoth, true},
+		{parentportal.ReasonPolicyNobody, false},
+		{parentportal.ReasonPolicyStaff, false},
+		{parentportal.ReasonPolicyGuardians, true},
+		{parentportal.ReasonPolicyBoth, true},
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
 			CarePlan:       repos.CarePlan(),
 			People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 			CareProfiles:   careProfiles(t, db),
-			ChildRepo:      repos.ParentChild,
+			ChildRepo:      repos.ParentChildReads(),
 			StatusDayRepo:  repos.StudentStatusDay,
 			StudentRepo:    repos.Student,
 			CareExceptions: repos.CarePlan(),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{
-					configModels.KeyGuardianParentInviteMode:  configModels.ParentInviteModeDisabled,
-					configModels.KeyParentRequestReasonPolicy: tc.policy,
+					parentportal.KeyGuardianParentInviteMode:  parentportal.ParentInviteModeDisabled,
+					parentportal.KeyParentRequestReasonPolicy: tc.policy,
 				},
 			},
 			MealPlan: availableMealPlan(false),

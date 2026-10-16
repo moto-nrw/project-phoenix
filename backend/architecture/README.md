@@ -3883,6 +3883,66 @@ binds it to the tenant runtime. It adds
 internal tests, `timetable-activities.module-internal-test.tenant-runtime`
 (the internal-test mirror of the reach, ADR 0058 addendum point 4).
 
+Without a new rule or epoch, #4084 then moves the instance lifecycle, its
+automatic start and end, the status slots, the staff deviation writes, the
+bulk substitution and the substitute conflicts (6,869 LOC) into
+`internal/application`. The lifecycle takes a `TenantDatabase` port (tenant
+transaction and advisory locks) and the staff deviations a
+`TransactionLocks` port instead of the database handle. The composition's
+unique-violation wrappers have no caller left, so they and
+`timetable-activities.postgres.transaction-runtime` are deleted.
+
+The operational day, the timetable data reads, the attendance corrections
+and history (3,913 LOC) follow, again without a rule. The session token and
+the shared authorization rules stay in the composition behind the
+application's `OperationCaller` port (`compose/operation_caller.go`), so the
+moved code imports neither `auth/authorize` nor the session token adapter.
+
+Epoch 57 replaces the 99 same-owner aliases of the Timetable composition
+(`compose/templates.go`, `instances.go`, `operations.go`) with defined types
+in the non-internal package `modules/timetable/ports` (role `port`). The
+roots, the HTTP tests and the Care Plan contract suite name those types
+directly; the composition only constructs. ADR 0058 addendum point 5 makes
+`port` a source role of the reach (`reviewedInternalReachRule`). The epoch
+adds `domain.port-public` (and deletes `care-plan.port.care-plan.public`,
+which it covers), `timetable-activities.port.student-presence.public`,
+`timetable-activities.port.legacy-model` (temporary until #4086 dissolves
+`models/schedule` and `models/activities`),
+`care-plan.contracttest.timetable-activities.port` (narrowing of the
+contract suite's existing compose reach) and, accepted by the ADR 0053
+composition reach, `root-composition.reach.domain.port`; 902 → 906 rules.
+
+The retained repository adapters that run on the Timetable capability alone,
+the Care Plan and Workforce row adapters, the end-of-session completion, the
+cleanup and the legacy repository vocabulary follow, again without a rule.
+`application.NewCapabilityRepositories` builds the capability-only adapters;
+the composition adds the instance and participant adapters, which also run on
+the database and Student Presence. The data and dependency types the roots
+name go to `modules/timetable/ports`; the composition builds the adapters
+through constructors that return ports interfaces, without aliases. The
+`legacy_*.go` files that move keep their names and budgets under their new
+paths; `legacy_repository_options.go` splits, the pickup exception and student
+status day values the roots name going to the ports package with their own
+entry. `legacy_errors.go` stays in the composition: only its retained activity
+service uses it.
+The same change moves the capability engine (the mapping of the public
+vocabulary onto the domain, `application.Engine`) and the attendance mirror;
+the mirror reports a recovered panic through a port the composition binds to
+Sentry (`compose/attendance_mirror_report.go`). The Timetable composition goes
+from 14,106 to 6,195 LOC.
+
+The retained instance and participant adapters, their transitions and the
+recovery's Timetable and Student Presence halves follow into
+`internal/application`; they read the joined presence projection through the
+application's `PresenceReads` port, which the composition binds over the
+database (`compose/presence_reads.go`), and the filters of those reads are
+ports values. Epoch 60 adds `test-support.to.timetable-port`, the narrowing of
+`test-support.to.timetable-compose` the Timetable test support needs to name
+the filters (ADR 0058 addendum point 5). The legacy School Calendar
+repositories (calendar periods, closing days, date frames) follow; their
+not-found shape keeps `sql.ErrNoRows` through `transactionruntime.ErrNoRows`.
+The composition goes to 4,218 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
@@ -4493,15 +4553,30 @@ logically overlapping rules. Change
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
-Policy candidates must use `schema_version: 3`. Schema 3 added the optional rule
-`issue`, which epoch 47 forbids again (ADR 0057); the JSON shape still
-accepts it for older bases. Only `LoadBasePolicyAndManifest`, reading an immutable Git base,
-accepts schema 2 during the schema-3 rollout and normalizes it to 3 before full
-validation. Candidates never use that compatibility path. Schema 1, future
-schemas, unknown fields and invalid metadata still fail. Keep this bounded
-2-to-3 allowance while supported merge bases predate the rollout; remove it
-once development and all supported comparison bases use schema 3. Existing
-projection and migration-evidence schema versions are separate contracts.
+Policy candidates must use `schema_version: 4`. Schema 4 adds optional
+`source_package` and `target_package` rule selectors (ADR 0057 addendum,
+#4078). Each is an exact, classified module-relative package path. An omitted
+selector keeps the owner/role reach; an explicitly empty, null, unknown,
+absolute, unclean or wildcard selector is rejected. Selectors intersect the
+existing owner, owner-kind, role and scope constraints; they cannot replace
+those constraints or bypass target-only validation. `source_package` also
+narrows an external-class rule; `target_package` is first-party only.
+
+Adding a selector to an otherwise unchanged rule is narrowing. Removing or
+changing it is compared as a possible permission increase, including paths
+whose owner/role pairs are identical. Exact selectors also participate in
+rule-overlap detection, permission memoization and the target owner graph.
+For a #4078 successor, restrict the reclassified source and/or target package
+when owner/role selectors alone would grant reach to unchanged packages.
+The approved transition, deleted-rule/scope checks and non-increasing rule
+count still apply. This schema change grants no owner any permission itself.
+
+Only `LoadBasePolicyAndManifest`, reading an immutable Git base, accepts
+schema 2 or 3 during the rollout and normalizes it to 4 before full validation.
+Old schemas cannot carry package selectors. Candidates never use that path.
+Schema 1, future schemas, unknown fields and invalid metadata still fail.
+Remove the older-base allowance once all supported comparison bases use
+schema 4. Evidence and projection schemas remain separate contracts.
 
 #3416 leaves `policy_epoch` at the checkout's existing value, 17. Adding issue
 metadata and deleting unused permissions grants no new architectural permission

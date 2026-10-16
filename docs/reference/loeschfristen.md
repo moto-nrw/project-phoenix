@@ -1,6 +1,6 @@
 # Löschfristen je Datenart
 
-**Stand:** 15.10.2026\
+**Stand:** 16.10.2026\
 **Quelle für:** Löschkonzept und TOM (Anlage zum AVV). Entscheidungen: [ADR 0048](../adr/0048-loeschfristen-traegt-das-moto-team-je-schule-ein.md). Begründungen der Fristen: [Recherche Aufbewahrungsfristen](../research/aufbewahrungsfristen-2026-10-12.md). Umsetzung: Spec [#3949](https://github.com/moto-nrw/project-phoenix/issues/3949).
 
 Diese Liste nennt jede Datenart mit Personenbezug, ihre Löschfrist, den Startzeitpunkt, wer die Frist einstellt und welcher Owner im Code löscht. Der Wächtertest `TestEveryTableHasARetentionPath` (`backend/database/migrations/retention_coverage_test.go`) hält die Tabellen dazu im Code fest: Jede Tabelle hat einen Löschweg, eine begründete Ausnahme oder steht als offene Lücke mit Ticket. Die Lückenliste darf nur schrumpfen.
@@ -57,15 +57,15 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 | Einstellungsprotokoll | 3 Jahre | Änderung | Settings Platform | Weist nach, wer eine Löschfrist oder andere Einstellung eingetragen hat (ADR 0048, Folgen); so lange wie das Löschprotokoll | umgesetzt (#4044) |
 | Betriebsprotokolle: Klassenlisten-Abgleich, Vertretungen, Ereignisse der Dateiablage | Ende des Folgejahres | Ereignis | Audit Platform | Wer hat wann was zugeordnet oder hochgeladen; gleiche Regel wie das Zugriffsprotokoll | umgesetzt (#4044) |
 | Exportprotokoll (Übertragung per SFTP) | Ende des Folgejahres | Übertragung | Export Transfer | Eine Übertragung ist eine Übermittlung; gleiche Regel wie das Zugriffsprotokoll | umgesetzt (#4044) |
+| Besucher der öffentlichen Demo: Demo-Zugang (E-Mail, Name), Bestellung der Demo-Schule (Name, Konto-IDs, Zugangsdaten) und der Name des Besuchers in der Demo-Schule | 14 Tage, fest für alle Demo-Schulen | letzte Nutzung | Identity Access (Zugang), Organization Tenancy (Bestellung und Name) | Die Frist der Demo aus Spec #3456: Danach ist der Zugang abgelaufen, die Schule stillgelegt und niemand kommt mehr hinein | umgesetzt (#4048) |
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 15.10.2026: 12 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 16.10.2026: 11 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
 
 - **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`), Operator-Konten des moto-Teams.
 - **Weitere Protokolle:** Operator-Protokoll mit IP-Adresse.
 - **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.
-- **Technische Reste:** Demo-Besucher.
 
 Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRetentions`.
 
@@ -84,4 +84,5 @@ Die Liste darf nur schrumpfen. Die genaue Zuordnung je Tabelle steht in `tableRe
 - **Betreuungsabmeldungen eines gelöschten Kindes** behalten bis zum Ablauf der Frist nur „Gelöschtes Kind“ und die Konten, die bestätigt und abgeschlossen haben (#2547).
 - **Fachliche Protokolle** (#4044): Jedes Protokoll steht mit eigener Datenart im Löschprotokoll. Die Audit-Tabellen bleiben für die Schule unveränderbar; gelöscht wird nur über feste Funktionen in der Datenbank (Migration 1.15.454), die eine Grenze jünger als die Frist ablehnen. Das Einstellungsprotokoll löscht die Schule über ihre normale Datenbankrolle. Wird ein Konto gelöscht, bleibt seine Einstellungsänderung stehen und verliert nur, wer sie gemacht hat; vorher verhinderte der Eintrag das Löschen des Kontos.
 - **Gelöschte Einträge der Zeiterfassung** (`audit.time_tracking_deletions`) behalten den gelöschten Eintrag als Kopie. Sie gehen nach 3 Jahren, auch wenn die Schule ihre Zeiterfassung länger aufbewahrt.
+- **Besucher der öffentlichen Demo** (#4048): Die Demo läuft in einer eigenen Umgebung mit eigener Datenbank (ADR 0029); Vertragsschulen betrifft das nicht. Der Demo-Betrieb prüft stündlich, nicht nachts: Er löscht Demo-Zugänge 14 Tage nach der letzten Nutzung und legt die Schulen ohne Zugang still (#3470). Danach löscht er jede abgeschlossene Bestellung (Schule stillgelegt oder Aufbau gescheitert), auf die kein Zugang mehr zeigt. Ein Besucher, dessen Schule nicht aufgebaut werden konnte, sieht das also, bis sein Zugang abläuft. Den Namen des Besuchers ersetzt der Lauf in den stillgelegten Schulen des Demo-Trägers durch „Demo Besuch“: bei Betreuungskraft, Elternteil, Anmeldung, Änderungsprotokoll der Sorgeberechtigten und Elternnachrichten. Erklärungen, die das Elternteil mit dem Namen unterschrieben hat, und Mails mit dem Namen löscht er. Gelöscht wird nur über die Funktion `platform.erase_closed_demo_visitors` (Migration 1.15.456), die allein die Rolle des Demo-Betriebs aufrufen darf. Das Löschprotokoll bekommt keinen Eintrag: Die stillgelegte Schule hat keinen nächtlichen Lauf mehr, und der Demo-Betrieb schreibt nur die Anzahl ins Betriebslog. Was der Besucher selbst in die Demo-Schule getippt hat, findet der Lauf nicht über den Namen. Es bleibt mit den übrigen erfundenen Daten in der stillgelegten Schule, bis ganze Mandanten gelöscht werden können (#3837) oder die Demo-Datenbank neu aufgebaut wird. Der Smoke-Test des Demo-Betriebs durchsucht nach dem Lauf jede Textspalte nach dem Besuchernamen, damit eine neue Kopie des Namens auffällt.
 - **Backups** und die Löschung einer ganzen Schule bei Vertragsende sind nicht Teil dieser Liste (#3836, #3837).

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -40,8 +41,8 @@ func newInstancePresence(t *testing.T, db *bun.DB) studentpresence.Capability {
 // lifecycleSetup bundles the wired lifecycle + common fixtures. Rows belong
 // to the test's own tenant clone; nothing is cleaned up explicitly.
 type lifecycleSetup struct {
-	presence compose.LifecyclePresence
-	svc      *compose.InstanceLifecycleService
+	presence timetablePorts.LifecyclePresence
+	svc      timetablePorts.InstanceLifecycle
 	factory  *api.TestServiceGraph
 	repos    *api.RepositoryTestFactory
 	// timetable are the retained Timetable adapters over the same owners.
@@ -109,12 +110,12 @@ func buildLifecycle(t *testing.T) *lifecycleSetup {
 	return setup
 }
 
-func instanceServiceWithBroadcaster(t *testing.T, s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) *compose.InstanceLifecycleService {
+func instanceServiceWithBroadcaster(t *testing.T, s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) timetablePorts.InstanceLifecycle {
 	t.Helper()
 	return newLifecycle(t, lifecycleDependencies(s, broadcaster, recovery...))
 }
 
-func newLifecycle(t *testing.T, deps compose.InstanceLifecycleDependencies) *compose.InstanceLifecycleService {
+func newLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) timetablePorts.InstanceLifecycle {
 	t.Helper()
 	svc, err := compose.NewInstanceLifecycle(deps)
 	require.NoError(t, err)
@@ -132,7 +133,7 @@ func newLifecycleAutoEnd(t *testing.T, instances scheduleModels.ActivityInstance
 
 // lifecycleDependencies is the dependency set instanceServiceWithBroadcaster
 // wires, for tests that add an optional collaborator before construction.
-func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) compose.InstanceLifecycleDependencies {
+func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, recovery ...scheduleModels.ActivityRecoveryRepository) timetablePorts.InstanceLifecycleDependencies {
 	recoveryRepo := compose.NewRetainedActivityRecoveryRepository(s.db, s.timetable.InstanceStudent)
 	if len(recovery) > 0 {
 		recoveryRepo = recovery[0]
@@ -147,7 +148,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 	if err != nil {
 		panic(err)
 	}
-	deps := compose.InstanceLifecycleDependencies{
+	deps := timetablePorts.InstanceLifecycleDependencies{
 		StartConflicts:      lifecycleStartConflicts(s),
 		SubstituteConflicts: s.factory.TimetableData.Deviations,
 		Presence:            s.presence,
@@ -170,7 +171,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		CareDayLocks:        s.repos.CarePlan(),
 		Protocol:            api.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
-		DB:                  s.db,
+		Database:            compose.NewTenantDatabase(s.db),
 		Logger:              slog.Default(),
 		RecoveryRepo:        recoveryRepo,
 	}
@@ -273,7 +274,7 @@ type lifecycleRealtime struct {
 	broadcaster realtime.Broadcaster
 }
 
-func lifecycleRealtimeEvent(event compose.LifecycleEvent) realtime.Event {
+func lifecycleRealtimeEvent(event timetablePorts.LifecycleEvent) realtime.Event {
 	return realtime.NewEvent(realtime.EventType(event.Type), event.ActiveGroupID, realtime.EventData{
 		InstanceID:        event.InstanceID,
 		InstanceDate:      event.InstanceDate,
@@ -289,11 +290,11 @@ func lifecycleRealtimeEvent(event compose.LifecycleEvent) realtime.Event {
 	})
 }
 
-func (b lifecycleRealtime) BroadcastToGroup(tenantID int64, topic string, event compose.LifecycleEvent) error {
+func (b lifecycleRealtime) BroadcastToGroup(tenantID int64, topic string, event timetablePorts.LifecycleEvent) error {
 	return b.broadcaster.BroadcastToGroup(tenantID, topic, lifecycleRealtimeEvent(event))
 }
 
-func (b lifecycleRealtime) BroadcastToTenant(tenantID int64, event compose.LifecycleEvent) error {
+func (b lifecycleRealtime) BroadcastToTenant(tenantID int64, event timetablePorts.LifecycleEvent) error {
 	return b.broadcaster.BroadcastToTenant(tenantID, lifecycleRealtimeEvent(event))
 }
 

@@ -28,7 +28,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
@@ -287,7 +287,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
@@ -295,7 +295,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            settings,
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
-		Emitter:             emitter,
+		Emitter:             api.BindParentChildEvents(emitter),
 		Logger:              slog.Default(),
 	})
 

@@ -22,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -62,7 +63,7 @@ func setupEventsModule(t *testing.T) *eventsTestContext {
 	resource := NewResource(
 		hub,
 		subscriptions,
-		db,
+		tenant.WithinTenant,
 		slog.Default(),
 	)
 

@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
@@ -27,7 +28,7 @@ func NewAbsenceTypeTestCapability(db transactionruntime.Database, clocks ...func
 
 type ShiftTypeTestRepositories struct {
 	Timetable timetable.Capability
-	Types     *timetableCompose.WorkforceShiftTypeRows
+	Types     timetablePorts.WorkforceShiftTypeRows
 	// Rows are the retained Timetable rows, the activity categories among them.
 	Rows timetableCompose.Repositories
 }

@@ -77,6 +77,7 @@ func identityChainOf(db transactionruntime.Database, members MembershipTestRepos
 	return LifecycleRepositories{
 		Persons: members.Person, Staff: members.Staff, Teachers: members.Teacher, Students: NewUnboundStudentRepository(db),
 		GuardianProfiles: members.GuardianProfile, StudentGuardians: members.StudentGuardian,
+		People: members.People, Membership: members.Membership,
 	}
 }
 

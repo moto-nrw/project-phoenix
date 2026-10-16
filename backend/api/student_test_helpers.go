@@ -20,7 +20,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -29,6 +28,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -360,7 +360,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		repos.CarePlan.LockExceptionDay,
 		now,
 	)
-	ogsGroupLiveService, err := groupliveCompose.New(groupliveCompose.Sources{
+	ogsGroupLiveService, err := newGroupLive(groupLiveSources{
 		Presence:          NewLoggedStudentPresence(db, logger),
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
@@ -398,6 +398,6 @@ func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOv
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
+func (m StudentTestModule) HistorySlots(records timetablePorts.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	return NewHistorySlots(records)
 }

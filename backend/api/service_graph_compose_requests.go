@@ -531,14 +531,14 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	people, portal := b.People, b.Platform.ParentPortal
 	messages := parentStore.NewParentMessageRepository(b.DB.Pool())
 	return parentportalcompose.Dependencies{
-		CareProfiles: profiles, ChildRepo: portal.ParentChild, EnrollablePhaseRepo: portal.ParentEnrollablePhase,
-		EnrollmentSettings: b.settingsService, EnrollmentRequestRepo: portal.ParentEnrollmentRequest,
+		CareProfiles: profiles, ChildRepo: NewParentChildReads(careplanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),
+		EnrollmentSettings: b.settingsService, EnrollmentRequestRepo: NewParentEnrollmentReads(careplanCompose.NewParentEnrollmentQueries(portal.ParentEnrollmentRequest)),
 		GuardianProfileRepo: people.GuardianProfiles, Attendance: BindParentAttendance(b.Presence.Presence), StatusDayRepo: b.CarePlanWiring.StatusDays,
 		MealPlan: b.MealPlan, StudentRepo: people.Students, CarePlan: b.CarePlan, People: b.Persons,
-		PickupAutoExcusal: b.pickupAutoExcusal, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub,
+		PickupAutoExcusal: b.pickupAutoExcusal, Settings: BindParentSettings(b.settingsService), Broadcaster: b.graph.RealtimeHub,
 		PersonRepo: people.Persons, ChangeRequestRepo: NewStudentDataChangeRequestRepository(b.CarePlan),
 		CareRequestRepo: b.CarePlanWiring.CareScheduleRequests, ExcusedRequestRepo: b.CarePlanWiring.ExcusedRequestRows,
-		OfferingChangeRequestRepo: enrollmentCompose.NewOfferingChangeRecords(b.CarePlan),
+		OfferingChangeRequestRepo: NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(b.CarePlan)),
 		FamilyProtectionEvents:    peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool()),
 		ParentRequestShares:       peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool()),
 		ParentRequestEvents:       peopleCompose.NewParentRequestEventRepository(b.DB.Pool()), StudentAudit: b.graph.StudentAudit,
@@ -549,12 +549,12 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		}),
 		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: b.graph.ArrivalSchedule,
 		PickupSchedules: b.graph.PickupSchedule, CareRequests: b.graph.CareRequests, ExcusedRequests: b.excusedRequests,
-		Emitter: b.graph.ParentEventEmitter, AnnouncementRepo: portal.ParentAnnouncement,
+		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: portal.ParentAnnouncement,
 		GuardianInvites: b.identity.ParentGuardianAccess, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentGuardianRepo: people.StudentGuardians, GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()),
 		StudentConsents: b.graph.StudentConsents, StudentPhotos: studentPhotoUnlinker(b.graph.StudentPhotos),
 		AbsenceNotifier: bindParentAbsenceNotifier(b.graph.AbsenceNotifier), CarePeriods: b.Enrollment.ParentCarePeriods,
-		OfferingHistory: b.Enrollment.ParentOfferingHistory, CareOfferingRepo: b.enrollmentCareOfferings,
+		OfferingHistory: b.Enrollment.ParentOfferingHistory, CareOfferingRepo: NewParentCareOfferingReads(b.enrollmentCareOfferings),
 		OfferingChanges: b.offeringChanges, Logger: b.Logger.With("service", "parent"), Now: b.now,
 	}
 }

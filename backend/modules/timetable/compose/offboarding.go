@@ -22,17 +22,17 @@ func NewOffboarding(dependencies OffboardingDependencies) (*timetable.Offboardin
 		return nil, errors.New("timetable: offboarding database, session facts and observer are required")
 	}
 	service := application.NewOffboarding(postgres.New(databaseRuntime(dependencies.DB)), transaction{}, dependencies.Sessions, func(observation Observation) {
-		observation.Err = mapError(observation.Err)
+		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	})
 	return timetable.NewOffboarding(
 		func(ctx context.Context, staffID int64, from string) (timetable.OffboardingPreview, error) {
 			result, err := service.Preview(ctx, staffID, from)
-			return timetable.OffboardingPreview{Counts: offboardingCountsToPublic(result.Counts), Revision: result.Revision}, mapError(err)
+			return timetable.OffboardingPreview{Counts: offboardingCountsToPublic(result.Counts), Revision: result.Revision}, application.MapError(err)
 		},
 		func(ctx context.Context, staffID int64, from, revision string) (timetable.OffboardingCounts, error) {
 			result, err := service.Execute(ctx, staffID, from, revision)
-			return offboardingCountsToPublic(result), mapError(err)
+			return offboardingCountsToPublic(result), application.MapError(err)
 		}), nil
 }
 

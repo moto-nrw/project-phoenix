@@ -68,6 +68,9 @@ type Dependencies struct {
 	// of a link the parents portal creates or patches. Optional on the same
 	// terms: a graph without it refuses only those link writes.
 	GuardianLinkOwners GuardianLinkOwners
+	// GuardianRolePresets is the role policy the guardian lifecycle links and
+	// promotes with. Optional on the same terms.
+	GuardianRolePresets GuardianRolePresets
 	// GuardianLinkRows is the guardian link projection the root binds; without
 	// it the link reads fail closed.
 	GuardianLinkRows postgres.GuardianLinks
@@ -145,6 +148,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		service: service, students: students, guardians: guardians,
 		studentAudit: studentAudit, studentConsents: studentConsents,
 		studentPhotos: studentPhotos, studentNotes: studentNotes, observe: observe,
+		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
 	}), nil
 }
 
@@ -188,6 +192,7 @@ func (transaction) RunAdminRead(ctx context.Context, callback func(context.Conte
 }
 
 type engine struct {
+	*application.GuardianLifecycle
 	service         *application.Service
 	students        *application.StudentService
 	guardians       *application.GuardianService

@@ -1,27 +1,11 @@
-// Package compose names the supervision dashboard for the typed root: the
-// sources it reads, its constructor and the yard view. The dashboard's
-// adapter stays inside the owner (ADR 0053 point 2).
+// Package compose names the supervision dashboard's room order for the typed
+// root, which binds the dashboard's ports (ADR 0053, ADR 0058).
 package compose
 
-import supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
+import "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
 
-// Sources are the owner capabilities the dashboard reads.
-type Sources = supervisiondashboardlegacy.Sources
-
-// CallerGroup is one of the caller's educational groups, as the root serves
-// the dashboard's caller port (#4006).
-type CallerGroup = supervisiondashboardlegacy.CallerGroup
-
-// CallerContext is the caller the dashboard resolves its groups for, and
-// OpenRoomSessions are the running sessions it shows (#4006, #4010).
-type (
-	CallerContext    = supervisiondashboardlegacy.CallerContext
-	OpenRoomSessions = supervisiondashboardlegacy.OpenRoomSessions
-)
-
-var (
-	// New builds the supervision dashboard over its sources.
-	New = supervisiondashboardlegacy.New
-	// NewYard adapts the yard service to the dashboard's yard view.
-	NewYard = supervisiondashboardlegacy.NewYard
-)
+// CompareRoomNames orders two room names in German dictionary order
+// (DIN 5007-1), the order the session port delivers its rows in.
+func CompareRoomNames(a, b string) int {
+	return legacy.CompareNames(a, b)
+}

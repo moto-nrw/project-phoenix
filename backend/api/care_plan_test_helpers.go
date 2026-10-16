@@ -13,10 +13,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
-func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capability, slots timetableCompose.StatusSlotRows) (careplan.Capability, error) {
+func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capability, slots timetablePorts.StatusSlotRows) (careplan.Capability, error) {
 	if students == nil || slots == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}

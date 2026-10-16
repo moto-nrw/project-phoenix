@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 )
 
@@ -175,14 +176,14 @@ type LegacyParticipant struct {
 // InstancesOn lists the blocks of the ISO day with their execution, ordered
 // by start time.
 func (r LegacyRows) InstancesOn(ctx context.Context, date string) ([]LegacyInstance, error) {
-	return r.instances(ctx, timetableCompose.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
+	return r.instances(ctx, timetablePorts.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
 }
 
 // InstancesBetween lists the blocks of the ISO days from through to with
 // their execution, ordered by date and start time: the tenant's date-range
 // read the composition root binds for the plan exports.
 func (r LegacyRows) InstancesBetween(ctx context.Context, from, to string) ([]LegacyInstance, error) {
-	return r.instances(ctx, timetableCompose.LegacyInstanceFilter{FromDate: &from, ToDate: &to, OrderByDateAndTime: true})
+	return r.instances(ctx, timetablePorts.LegacyInstanceFilter{FromDate: &from, ToDate: &to, OrderByDateAndTime: true})
 }
 
 // InstancesByID lists the given blocks with their execution, ordered by date
@@ -191,10 +192,10 @@ func (r LegacyRows) InstancesByID(ctx context.Context, ids []int64) ([]LegacyIns
 	if len(ids) == 0 {
 		return []LegacyInstance{}, nil
 	}
-	return r.instances(ctx, timetableCompose.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true})
+	return r.instances(ctx, timetablePorts.LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true})
 }
 
-func (r LegacyRows) instances(ctx context.Context, filter timetableCompose.LegacyInstanceFilter) ([]LegacyInstance, error) {
+func (r LegacyRows) instances(ctx context.Context, filter timetablePorts.LegacyInstanceFilter) ([]LegacyInstance, error) {
 	rows, err := r.reads.ListLegacyInstances(ctx, filter)
 	if err != nil {
 		return nil, err
@@ -214,7 +215,7 @@ func (r LegacyRows) instances(ctx context.Context, filter timetableCompose.Legac
 // Roster lists the participants of the blocks with their attendance, ordered
 // by block and participant.
 func (r LegacyRows) Roster(ctx context.Context, instanceIDs []int64) ([]LegacyParticipant, error) {
-	rows, err := r.reads.ListLegacyParticipants(ctx, timetableCompose.LegacyParticipantFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
+	rows, err := r.reads.ListLegacyParticipants(ctx, timetablePorts.LegacyParticipantFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
 	if err != nil {
 		return nil, err
 	}

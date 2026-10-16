@@ -177,7 +177,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry.
-const modulePassthroughOwnerBudgetTotal = 3092
+const modulePassthroughOwnerBudgetTotal = 3089
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -224,8 +224,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// day report is built in the projection instead of forwarded to the
 	// retained enrollment report.
 	//
-	// ADR 0061: application 6 + modules/classday/compose 15.
-	"modules/classday": 21,
+	// ADR 0061: application 6 + modules/classday/compose 14.
+	"modules/classday": 20,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
 	//
@@ -280,7 +280,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// challenge stores, permission and role administration reads.
 	//
 	// ADR 0061: application 117 + modules/identityaccess/compose 484.
-	"modules/identityaccess": 601,
+	"modules/identityaccess": 600,
 	// Menu, participation and week reads forwarded to the store.
 	//
 	// ADR 0061: application 8 + modules/mealplan/compose 7.
@@ -353,7 +353,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// s.store call.
 	//
 	// ADR 0061: application 98 + modules/timetable/compose 402.
-	"modules/timetable": 491,
+	"modules/timetable": 490,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	//

@@ -7,13 +7,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
-	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
-	devicesAPI "github.com/moto-nrw/project-phoenix/api/iot/devices"
-	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
-	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
+	devicesAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/http/devices"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
+	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
+	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
+	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

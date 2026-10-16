@@ -13,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -101,13 +101,13 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
 		CareExceptions: records,
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),
@@ -133,13 +133,13 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
 		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled},
+			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
 		},
 		Broadcaster: bc,
 		Logger:      slog.Default(),
@@ -829,12 +829,12 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
 		CareExceptions: stubArrivalRepo{CareExceptions: repos.CarePlan(), findErr: errBoom},
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),

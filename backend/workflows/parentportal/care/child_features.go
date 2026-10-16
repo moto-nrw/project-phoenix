@@ -5,9 +5,8 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -63,15 +62,15 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		PickupChangeTodayClosed:      f.pickupCutoff.Closed(calendar.DateFromTime(f.pickupCutoff.Now)),
 		PickupManageAllowed:          f.guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: f.guardianManagement && canManageGuardianContacts,
-		RelatedAccountsInviteEnabled: f.inviteMode != configModels.ParentInviteModeDisabled,
-		RelatedAccountsRemoveEnabled: f.canRemove && f.inviteMode != configModels.ParentInviteModeDisabled,
+		RelatedAccountsInviteEnabled: f.inviteMode != ParentInviteModeDisabled,
+		RelatedAccountsRemoveEnabled: f.canRemove && f.inviteMode != ParentInviteModeDisabled,
 		MasterDataEditEnabled:        canEditMasterData,
 		MasterDataContactEditEnabled: canEditMasterData && f.guardianManagement,
 		MasterDataRequestEnabled:     f.masterRequest && child.HasPermission(authorize.GuardianPermissionMasterDataRequest),
 		MealPlanEnabled:              f.mealPlan,
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(authorize.GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
-		ReasonRequired:               configService.ReasonRequiredFor(f.reasonPolicy, false),
+		ReasonRequired:               RequestReasonPolicy(f.reasonPolicy).RequiresReason(false),
 	}
 }
 

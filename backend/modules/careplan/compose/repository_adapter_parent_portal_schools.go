@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strings"
 
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
@@ -53,13 +54,13 @@ func (r schoolChildRepository) ListByAccount(ctx context.Context, accountID int6
 		return nil, err
 	}
 	slices.SortStableFunc(children, func(left, right *parentModels.ChildSummary) int {
-		if order := compareParentPortalStrings(left.SchoolName, right.SchoolName); order != 0 {
+		if order := strings.Compare(left.SchoolName, right.SchoolName); order != 0 {
 			return order
 		}
-		if order := compareParentPortalStrings(left.FirstName, right.FirstName); order != 0 {
+		if order := strings.Compare(left.FirstName, right.FirstName); order != 0 {
 			return order
 		}
-		return compareParentPortalStrings(left.LastName, right.LastName)
+		return strings.Compare(left.LastName, right.LastName)
 	})
 	return children, nil
 }
@@ -114,7 +115,7 @@ func compareEnrollablePhases(left, right *parentModels.EnrollablePhase) int {
 		}
 		return 1
 	}
-	if order := compareParentPortalStrings(left.SchoolName, right.SchoolName); order != 0 {
+	if order := strings.Compare(left.SchoolName, right.SchoolName); order != 0 {
 		return order
 	}
 	return left.ServiceStartDate.Compare(right.ServiceStartDate)

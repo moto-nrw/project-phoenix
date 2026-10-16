@@ -84,7 +84,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/classday/internal/application/slotlists.go:(*service).ListOptions":         108,
 	"modules/classday/internal/application/slotlists.go:(*service).buildList":           28,
 	"modules/classday/internal/application/slotlists.go:(*service).collectSlotContexts": 20,
 	"modules/classday/internal/application/slotlists.go:(*service).enrichEntries":       56,
@@ -257,8 +256,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/supervisiondashboard/supervisiondashboard.go:(*service).loadPresenceSections": 17,
 
-	"modules/timetable/compose/legacy_composition_support_test_helpers.go:dateframeListingFromOptions":     18,
-	"modules/timetable/compose/legacy_repository_options.go:applyInstanceStudentCondition":                 16,
 	"modules/timetable/compose/legacy_supervisor_operations.go:buildReplacementSupervisorIDs":              22,
 	"modules/timetable/internal/application/activity_instances.go:(*Service).lockOperationalInstanceStaff": 20,
 	"modules/timetable/internal/application/pickup_extensions.go:(*Service).pickupExtensionBlocks":         23,
@@ -266,7 +263,7 @@ var moduleComplexityAllowlist = map[string]int{
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.
-	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":            19,
+	"modules/workforce/http/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":               19,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                                         25,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                                        19,
 	"modules/workforce/internal/application/absence.go:(*Service).UpdateAbsenceType":                                                            23,
