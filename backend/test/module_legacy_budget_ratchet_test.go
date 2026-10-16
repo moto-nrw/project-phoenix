@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0062.
-const moduleComposeBudgetTotal = 89910
+const moduleComposeBudgetTotal = 89876
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -170,10 +170,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/auditlog/compose":                      275,
 	"modules/auditlog/compose/vocabulary":           132,
 	"modules/careplan/compose":                      4509,
-	"modules/careplan/requestfeed/compose":          101,
+	"modules/careplan/requestfeed/compose":          86,
 	"modules/classday/compose":                      535,
 	"modules/communication/composition":             1523,
-	"modules/dataimport/compose":                    299,
+	"modules/dataimport/compose":                    253,
 	"modules/dataimport/compose/retained":           34,
 	"modules/dataimport/inbound/compose":            131,
 	"modules/delivery/compose":                      816,
@@ -193,10 +193,17 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                   642,
 	"modules/grouplive/compose":                     16,
 	// Raised by ADR 0062: the operator status lifecycle (#4047).
-	"modules/identityaccess/compose":                  7356,
-	"modules/mealplan/compose":                        274,
-	"modules/organizationtenancy/compose":             744,
-	"modules/organizationtenancy/compose/vocabulary":  48,
+	"modules/identityaccess/compose":                 7356,
+	"modules/mealplan/compose":                       274,
+	"modules/organizationtenancy/compose":            744,
+	"modules/organizationtenancy/compose/vocabulary": 48,
+	// #4076: the compositions of the parent request feed, student directory
+	// and enrollment provenance projections only build their readers for the
+	// root (ADR 0058). The total did not rise: the request feed composition,
+	// the Data Import's school lookups, Care Plan's student-name adapter and
+	// Timetable's advisory locks moved into the root and gave up more than
+	// the three hold.
+	"modules/parentrequestfeedprojection/compose":     11,
 	"modules/peopledirectory/compose":                 8962,
 	"modules/peopledirectory/compose/vocabulary":      133,
 	"modules/presenceprojection/compose":              7,
@@ -209,11 +216,13 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schoolstructure/compose":                 1573,
 	"modules/settings/compose":                        587,
 	"modules/settings/compose/vocabulary":             126,
+	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
-	"modules/timetable/compose":                       36302,
+	"modules/timetable/compose":                       36299,
 	"modules/timetable/compose/httpadapter":           3964,
+	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableprojection/compose":             11,
 	"modules/transactionruntime/compose":              173,

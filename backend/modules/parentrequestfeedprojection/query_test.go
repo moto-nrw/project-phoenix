@@ -2,6 +2,7 @@ package parentrequestfeedprojection
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -177,4 +178,22 @@ func TestResolveAccessRequiresSchoolWideRightsAndActiveMembership(t *testing.T) 
 func TestMain(m *testing.M) {
 	testpkg.PerTestTenants()
 	testpkg.Run(m)
+}
+
+// The feed lists the five queues in one statement, inside the caller's
+// transaction (#2940).
+func TestListNewParentRequestsQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	counter := testpkg.CaptureQueries(t, db)
+	counter.Reset()
+
+	err := testpkg.WithTenantTx(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context, tx bun.Tx) error {
+		_, listErr := NewReader(func(context.Context) (bun.IDB, error) { return tx, nil }).ListNewParentRequests(ctx, testpkg.Tenant(t), time.Now().Add(-30*24*time.Hour), true, true)
+		return listErr
+	})
+	require.NoError(t, err)
+	testpkg.AssertQueryBudget(t, "modules.careplan.request_feed.list", counter.Matching(func(sqlLower string) bool {
+		return strings.Contains(sqlLower, "select kind, id, created_at")
+	}))
 }

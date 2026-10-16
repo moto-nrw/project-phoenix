@@ -404,14 +404,14 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 	db, svc := ComposeReviewSources(t)
 	reviewStudents, err := NewStudentDirectory(db, svc.PeopleDirectory, func(DirectoryObservation) {})
 	require.NoError(t, err)
-	masterData, err := NewMasterDataReviews(db, svc.PeopleDirectory,
+	masterData, err := NewMasterDataReviews(db, testpkg.StudentDirectory{}, svc.PeopleDirectory,
 		func(context.Context) (ReviewScope, error) {
 			return ReviewScope{SchoolWide: true}, nil
 		},
 		func() ReviewDate { return ReviewDate(reviewToday()) },
 		func(CareObservation) {})
 	require.NoError(t, err)
-	careReviews, err := NewScheduleReviews(db, ScheduleReviewDependencies{
+	careReviews, err := NewScheduleReviews(db, testpkg.StudentDirectory{}, ScheduleReviewDependencies{
 		People: svc.PeopleDirectory,
 		Scope: func(context.Context) (ReviewScope, error) {
 			return ReviewScope{SchoolWide: true}, nil

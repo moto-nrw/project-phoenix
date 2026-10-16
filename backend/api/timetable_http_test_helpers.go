@@ -226,7 +226,7 @@ func newTimetableHTTPTestReads(db transactionruntime.Database, r TimetableHTTPTe
 		DeviationEvents:   rows.DeviationEventReader(),
 		ConflictAcks:      r.Timetable,
 		Locks:             rows.AttendanceLocks(),
-		Advisory:          timetableCompose.NewTenantAdvisoryLocks(),
+		Advisory:          timetableAdvisoryLocks{},
 	})
 	if err != nil {
 		return nil, nil, err

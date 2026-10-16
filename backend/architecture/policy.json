@@ -404,6 +404,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/studentdirectoryview/compose",
+      "owner": "student-directory-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/workforce/contracttest",
       "owner": "workforce",
       "role": "test-support",
@@ -2196,10 +2203,24 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableenrollmentprovenance/compose",
+      "owner": "timetable-enrollment-provenance",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/parentrequestfeedprojection",
       "owner": "parent-request-feed-view",
       "role": "postgres",
       "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentrequestfeedprojection/compose",
+      "owner": "parent-request-feed-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -5633,17 +5654,6 @@
       "source_owner": "data-import",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "data-import.compose.school-name.organization-tenancy",
-      "description": "Bind the optional invitation school label to the native current-school query (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
       "target_role": "public"
     },
     {

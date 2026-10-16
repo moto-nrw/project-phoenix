@@ -62,7 +62,7 @@ func newTenantAdvisoryLocks(transactional bool) timetableCompose.AdvisoryLocks {
 	if !transactional {
 		return nil
 	}
-	return timetableCompose.NewTenantAdvisoryLocks()
+	return timetableAdvisoryLocks{}
 }
 
 // PickupBaselineProjector serves the Timetable pickup port from Care Plan's

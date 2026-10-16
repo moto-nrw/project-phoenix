@@ -58,7 +58,7 @@ func TestStudentOwnerWritesRollbackWhenCallerCatchesFailure(t *testing.T) {
 			person := testpkg.CreateTestPerson(t, db, "Atomic", stage)
 			membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 			require.NoError(t, err)
-			care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
+			care, err := careCompose.NewStudentProfiles(db, testpkg.StudentDirectory{}, func(careCompose.Observation) {})
 			require.NoError(t, err)
 			failure := errors.New("failure after owner write")
 			module, err := peopleCompose.New(peopleCompose.Dependencies{
@@ -91,7 +91,7 @@ func TestStudentOwnerUpdatesRollbackWhenCallerCatchesFailure(t *testing.T) {
 				student := testpkg.CreateTestStudent(t, db, "Atomic", command, "1a")
 				membership, err := api.NewSchoolMembership(testpkg.NewDatabase(t, db))
 				require.NoError(t, err)
-				care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
+				care, err := careCompose.NewStudentProfiles(db, testpkg.StudentDirectory{}, func(careCompose.Observation) {})
 				require.NoError(t, err)
 				failure := errors.New("failure after owner update")
 				module, err := peopleCompose.New(peopleCompose.Dependencies{
