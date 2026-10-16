@@ -455,7 +455,7 @@ func TestGetAdminRequestHandler_StitchesChildOfferings(t *testing.T) {
 }
 
 // #2185: valid_until goes over the wire as the INCLUSIVE last covered day,
-// the shape modules/careplan/inbound/parent/care_offerings_handlers.go has always used. One JSON
+// the shape workflows/parentportal/http/care_offerings_handlers.go has always used. One JSON
 // name must not mean two different days depending on which endpoint answered.
 func TestGetAdminRequestHandler_ReportsInclusiveOfferingEndDate(t *testing.T) {
 	t.Parallel()

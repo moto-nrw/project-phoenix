@@ -62,8 +62,8 @@
   "runtime_evidence": {
     "source": "Local runs on branch work/3421-contract-inbound-parent-legacy-imports on 2026-10-13 against a local managed postgres-test server.",
     "sources": [
-      "backend/modules/careplan/inbound/parent/enrollment_handlers.go",
-      "backend/modules/careplan/inbound/parent/api.go",
+      "backend/workflows/parentportal/http/enrollment_handlers.go",
+      "backend/workflows/parentportal/http/api.go",
       "backend/workflows/parentportal/vocabulary.go",
       "backend/workflows/parentportal/care/portal_vocabulary.go",
       "backend/workflows/parentportal/messaging/portal_vocabulary.go",

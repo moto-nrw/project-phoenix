@@ -17,13 +17,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // alwaysOnSettings enables the parent-portal features for the handler E2E
