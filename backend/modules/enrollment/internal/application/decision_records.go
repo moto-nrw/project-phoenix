@@ -196,9 +196,9 @@ func decodedChildrenOfRequest(ctx context.Context, owner interface {
 
 // schoolBrand returns the school's mail branding, or empty strings when no
 // Enrollment notifications are bound.
-func schoolBrand(ctx context.Context, notifications enrollment.Notifications, tenantID int64, baseURL string) (string, string) {
+func schoolBrand(ctx context.Context, notifications enrollment.Notifications, tenantID int64, baseURL string) (string, string, string) {
 	if notifications == nil {
-		return "", ""
+		return "", "", ""
 	}
 	return notifications.SchoolBrand(ctx, tenantID, baseURL)
 }

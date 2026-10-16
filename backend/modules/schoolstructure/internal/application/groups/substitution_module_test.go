@@ -276,7 +276,7 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
-		Broadcaster:             broadcaster,
+		Broadcaster:             api.NewGroupEvents(broadcaster, nil),
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Signals activity")
 	room := testpkg.CreateTestRoom(t, db, "Signals room")
@@ -615,7 +615,7 @@ func TestGroupHandoverSignalsOnlyAfterCommit(t *testing.T) {
 	repos := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	service := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
-		Broadcaster: broadcaster,
+		Broadcaster: api.NewGroupEvents(broadcaster, nil),
 		Now:         func() time.Time { return fixedNow },
 	})
 	group := testpkg.CreateTestEducationGroup(t, db, "Signals")

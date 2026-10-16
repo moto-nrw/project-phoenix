@@ -19,11 +19,20 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
+
+// schoolNotificationPreferences is the school portal's observed wire response.
+type schoolNotificationPreferences struct {
+	Types []schoolNotificationPreference `json:"types"`
+}
+type schoolNotificationPreference struct {
+	Key       string `json:"key"`
+	Available bool   `json:"available"`
+	Enabled   bool   `json:"enabled"`
+}
 
 func TestSchoolNotificationPreferences(t *testing.T) {
 	t.Parallel()
@@ -47,17 +56,17 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	overview := decodeData[notificationsService.PreferenceOverview](t, rec.Body.Bytes())
+	overview := decodeData[schoolNotificationPreferences](t, rec.Body.Bytes())
 	keys := make([]string, 0, len(overview.Types))
 	for _, entry := range overview.Types {
 		keys = append(keys, entry.Key)
 	}
-	assert.Equal(t, []string{notificationsService.TypeStaffMessage}, keys)
+	assert.Equal(t, []string{"staff_message"}, keys)
 	assert.True(t, overview.Types[0].Available, "the school switched the chat on")
 	assert.False(t, overview.Types[0].Enabled, "opt-in: nothing is on until the person decides")
 
 	// Opting in writes the shared (account, type) row ...
-	req = httptest.NewRequest(http.MethodPut, "/notifications/preferences/"+notificationsService.TypeStaffMessage,
+	req = httptest.NewRequest(http.MethodPut, "/notifications/preferences/"+"staff_message",
 		strings.NewReader(`{"enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
@@ -66,11 +75,11 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	overview = decodeData[notificationsService.PreferenceOverview](t, rec.Body.Bytes())
+	overview = decodeData[schoolNotificationPreferences](t, rec.Body.Bytes())
 	assert.True(t, overview.Types[0].Enabled)
 
 	// ... and only the offered types can be decided from here.
-	req = httptest.NewRequest(http.MethodPut, "/notifications/preferences/"+notificationsService.TypePickupUpcoming,
+	req = httptest.NewRequest(http.MethodPut, "/notifications/preferences/"+"pickup_upcoming",
 		strings.NewReader(`{"enabled":true}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
@@ -82,7 +91,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
-	overview = decodeData[notificationsService.PreferenceOverview](t, rec.Body.Bytes())
+	overview = decodeData[schoolNotificationPreferences](t, rec.Body.Bytes())
 	assert.False(t, overview.Types[0].Enabled)
 
 	// Scope isolation, symmetric to every other school surface.

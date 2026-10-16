@@ -4,8 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // ChildEvent describes one notification pill appended to a child's parent-OGS
@@ -93,10 +91,9 @@ type Events interface {
 type Emitter struct {
 	events Events
 
-	// notifier and preferences enqueue a staff decision for the submitting
+	// notifier enqueues a staff decision for the submitting
 	// guardian's devices in the decision transaction (#1671).
-	notifier    notifications.Service
-	preferences notifications.PreferenceService
+	notifier DecisionNotifier
 }
 
 // NewEmitter wraps Communication's event implementation. A nil events port
@@ -107,12 +104,11 @@ func NewEmitter(events Events) *Emitter {
 }
 
 // WithDecisionNotifications adds durable guardian delivery for decided requests.
-func (e *Emitter) WithDecisionNotifications(notifier notifications.Service, preferences notifications.PreferenceService) *Emitter {
+func (e *Emitter) WithDecisionNotifications(notifier DecisionNotifier) *Emitter {
 	if e == nil {
 		return nil
 	}
 	e.notifier = notifier
-	e.preferences = preferences
 	return e
 }
 
@@ -152,12 +148,11 @@ func isStaffDecisionPill(ev ChildEvent) bool {
 	}
 }
 
-// requestDecisionCopy returns the display-safe localized title and body for a
-// decided request. It names the subject area but never the child: the payload
-// is rendered on a lock screen, and which child it concerns is behind the
-// authenticated deep link.
-func requestDecisionCopy(locale, requestType, requestStatus string) (title, body string) {
-	return notifications.ParentRequestDecisionCopy(locale, requestType, requestStatus)
+// DecisionNotifier is the Delivery producer of a guardian's request decision.
+// The emitter resolves current child access before calling this port; Delivery
+// applies notification consent, locale, and the active delivery window.
+type DecisionNotifier interface {
+	NotifyRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, locale, refTable string, refID int64, requestType, requestStatus string) error
 }
 
 // EnqueueRequestDecision records a staff decision delivery for the submitting
@@ -168,7 +163,7 @@ func requestDecisionCopy(locale, requestType, requestStatus string) (title, body
 // itself. The transaction requirement prevents a request decision from
 // committing without its durable delivery intent.
 func (e *Emitter) EnqueueRequestDecision(ctx context.Context, tenantID, studentID, guardianAccountID int64, ev ChildEvent) error {
-	if e == nil || e.notifier == nil || e.preferences == nil || e.events == nil {
+	if e == nil || e.notifier == nil || e.events == nil {
 		return nil
 	}
 	if !isStaffDecisionPill(ev) {
@@ -200,33 +195,7 @@ func (e *Emitter) EnqueueRequestDecision(ctx context.Context, tenantID, studentI
 	if !hasAccess {
 		return nil
 	}
-	optedIn, err := e.preferences.FilterOptedIn(ctx, notifications.TypeParentRequestDecided, []int64{guardianAccountID})
-	if err != nil {
-		return err
-	}
-	if len(optedIn) == 0 {
-		return nil
-	}
-	title, body := requestDecisionCopy(locale, ev.RequestType, ev.RequestStatus)
-	err = e.notifier.Notify(ctx, notifications.Event{
-		Type:           notifications.TypeParentRequestDecided,
-		IdempotencyKey: fmt.Sprintf("parent-request-decision:%s:%d:%s", ev.RefTable, refID, ev.RequestStatus),
-		RelatedType:    ev.RefTable, RelatedID: refID,
-		Title:    title,
-		Body:     body,
-		DeepLink: fmt.Sprintf("/children/%d", studentID),
-		Priority: notifications.PriorityNormal,
-		Audience: notifications.Audience{
-			TenantID:           tenantID,
-			Scope:              notifications.ScopeGuardian,
-			GuardianAccountIDs: optedIn,
-			StudentIDs:         []int64{studentID},
-		},
-	})
-	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
-		return nil
-	}
-	return err
+	return e.notifier.NotifyRequestDecision(ctx, tenantID, studentID, guardianAccountID, locale, ev.RefTable, refID, ev.RequestType, ev.RequestStatus)
 }
 
 // BroadcastChildUpdateToGuardians wakes EVERY guardian of the child with a

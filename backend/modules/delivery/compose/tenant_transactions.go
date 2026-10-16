@@ -6,26 +6,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
-// TenantTransactions runs the provider steps of a claimed intent — the
-// template render, the push authorization and the expired-subscription
-// cleanup — in the tenant transaction of the intent's school, which the
-// worker's own context does not carry (#2747).
-type TenantTransactions struct{ db *bun.DB }
-
-// NewTenantTransactions binds the provider steps to the root database.
-func NewTenantTransactions(db *bun.DB) TenantTransactions {
-	return TenantTransactions{db: db}
-}
-
-// WithinTenant runs fn in the tenant transaction of tenantID.
-func (t TenantTransactions) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-	return tenant.WithTenantTx(ctx, t.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return fn(txCtx)
-	})
+// NewTenantTransactions binds provider steps to the intent school's transaction.
+func NewTenantTransactions(db *bun.DB) postgres.IntentTransactions {
+	return postgres.NewTenantTransactions(db)
 }
 
 // DurablePushOutbox serves the notification channels' durable push outbox

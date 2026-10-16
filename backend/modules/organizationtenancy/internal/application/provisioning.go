@@ -16,6 +16,7 @@ import (
 // ProvisioningDependencies are the owners operator provisioning (#3253)
 // works through. Every field is required.
 type ProvisioningDependencies struct {
+	PWAUsageWindowDays int
 	// Organizations is this module's public owner facade; provisioning
 	// creates and changes organisations and schools only through it, so the
 	// owner's normalisation and validation apply.
@@ -37,25 +38,26 @@ type ProvisioningDependencies struct {
 // operation runs in one administrative transaction; operations on one school
 // scope their owner calls to that school through the ports.
 type Provisioning struct {
-	organizations organizationtenancy.Capability
-	tx            ports.Transaction
-	dashboard     ports.OperatorDashboard
-	identity      ports.ProvisioningIdentity
-	devices       ports.ProvisioningDevices
-	people        ports.ProvisioningPeople
-	presence      ports.ProvisioningPresence
-	categories    ports.ProvisioningCategories
-	settings      ports.ProvisioningSettings
-	audit         ports.OperatorAudit
-	secrets       ports.ProvisioningSecrets
-	logger        *slog.Logger
+	pwaUsageWindowDays int
+	organizations      organizationtenancy.Capability
+	tx                 ports.Transaction
+	dashboard          ports.OperatorDashboard
+	identity           ports.ProvisioningIdentity
+	devices            ports.ProvisioningDevices
+	people             ports.ProvisioningPeople
+	presence           ports.ProvisioningPresence
+	categories         ports.ProvisioningCategories
+	settings           ports.ProvisioningSettings
+	audit              ports.OperatorAudit
+	secrets            ports.ProvisioningSecrets
+	logger             *slog.Logger
 }
 
 var _ organizationtenancy.Provisioning = (*Provisioning)(nil)
 
 // NewProvisioning builds the provisioning application.
 func NewProvisioning(deps ProvisioningDependencies) (*Provisioning, error) {
-	if deps.Organizations == nil || deps.Transaction == nil || deps.Dashboard == nil || deps.Identity == nil ||
+	if deps.PWAUsageWindowDays <= 0 || deps.Organizations == nil || deps.Transaction == nil || deps.Dashboard == nil || deps.Identity == nil ||
 		deps.Devices == nil || deps.People == nil || deps.Presence == nil || deps.Categories == nil ||
 		deps.Settings == nil || deps.Audit == nil || deps.Secrets == nil {
 		return nil, errors.New("organization tenancy provisioning: all dependencies are required")
@@ -65,7 +67,8 @@ func NewProvisioning(deps ProvisioningDependencies) (*Provisioning, error) {
 		logger = slog.Default()
 	}
 	return &Provisioning{
-		organizations: deps.Organizations, tx: deps.Transaction, dashboard: deps.Dashboard,
+		pwaUsageWindowDays: deps.PWAUsageWindowDays,
+		organizations:      deps.Organizations, tx: deps.Transaction, dashboard: deps.Dashboard,
 		identity: deps.Identity, devices: deps.Devices, people: deps.People, presence: deps.Presence,
 		categories: deps.Categories, settings: deps.Settings, audit: deps.Audit, secrets: deps.Secrets,
 		logger: logger,

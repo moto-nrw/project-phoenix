@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
@@ -239,7 +238,7 @@ type ResourceConfig struct {
 	// nil is a no-op (the guardian helper guards on it), so tests that build a
 	// bare Resource keep working.
 	ParentEventEmitter GuardianWake
-	AbsenceNotifier    notificationsService.AbsenceNotifier
+	AbsenceNotifier    AbsenceNotifier
 	StudentPhotos      StudentPhotoLifecycle
 	// StudentConsents serves the shared consent projection (People Directory)
 	// and records every effective change (Audit Platform) for the retained
