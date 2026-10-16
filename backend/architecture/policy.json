@@ -155,10 +155,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-classlistentries",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-common",
       "kind": "inbound"
     },
@@ -232,10 +228,6 @@
     },
     {
       "id": "inbound-sse",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-staff",
       "kind": "inbound"
     },
     {
@@ -2660,14 +2652,14 @@
     },
     {
       "path": "modules/schoolmembership/http",
-      "owner": "inbound-staff",
+      "owner": "school-membership",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
       "path": "modules/schoolmembership/http/classlistentries",
-      "owner": "inbound-classlistentries",
+      "owner": "school-membership",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7758,15 +7750,26 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-classlistentries.to.school-membership",
-      "description": "inbound-classlistentries calls exactly one public capability.",
+      "id": "school-membership.http.public",
+      "description": "The School Membership HTTP adapters call their own public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-classlistentries",
+      "source_owner": "school-membership",
       "source_role": "http",
       "target_owner": "school-membership",
       "target_role": "public"
+    },
+    {
+      "id": "school-membership.http.security-contract",
+      "description": "The School Membership HTTP adapters bind their established permission contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
     },
     {
       "id": "inbound-display.to.device-fleet",
@@ -8316,17 +8319,6 @@
       "source_owner": "inbound-staff-shifts",
       "source_role": "http",
       "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-staff.to.school-membership",
-      "description": "inbound-staff calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff",
-      "source_role": "http",
-      "target_owner": "school-membership",
       "target_role": "public"
     },
     {
@@ -9982,50 +9974,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "inbound-staff.http.security-contract",
-      "description": "The School Membership HTTP adapter binds its established permission contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "inbound-classlistentries.http.security-contract",
-      "description": "The School Membership class-list adapter binds its established permission contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-classlistentries",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.school-membership-http",
-      "description": "The production root constructs the School Membership HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-staff",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.school-membership-class-list-http",
-      "description": "The production root constructs the School Membership class-list HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-classlistentries",
-      "target_role": "http"
     },
     {
       "id": "appointments.port-domain",
