@@ -1,0 +1,137 @@
+package domain
+
+import "slices"
+
+// ListOptions is the list query of the retained schedule repositories: a
+// filter, a page and a sort order. The repositories narrow it to their
+// bounded filters and reject what they cannot serve. It replaces the generic
+// query options of models/base for this owner (#4084).
+type ListOptions struct {
+	Filter     *ListFilter
+	Pagination *ListPagination
+	Sorting    *ListSorting
+}
+
+// NewListOptions returns options with an empty filter.
+func NewListOptions() *ListOptions {
+	return &ListOptions{Filter: NewListFilter()}
+}
+
+// WithPagination sets the page; a page below 1 becomes 1 and a page size
+// below 1 becomes 20.
+func (o *ListOptions) WithPagination(page, pageSize int) *ListOptions {
+	if page < 1 {
+		page = 1
+	}
+	if pageSize < 1 {
+		pageSize = 20
+	}
+	o.Pagination = &ListPagination{Page: page, PageSize: pageSize}
+	return o
+}
+
+// ListOperator is the comparison of one list condition.
+type ListOperator string
+
+const (
+	ListOpEqual       ListOperator = "="
+	ListOpGreaterThan ListOperator = ">"
+	ListOpLessThan    ListOperator = "<"
+	ListOpILike       ListOperator = "ILIKE"
+	ListOpIn          ListOperator = "IN"
+)
+
+// ListCondition is one field comparison of a list filter.
+type ListCondition struct {
+	Field    string
+	Operator ListOperator
+	Value    any
+}
+
+// ListFilter holds the conditions of a list query and the alternative and
+// grouped filters the repositories reject as compound.
+type ListFilter struct {
+	conditions []ListCondition
+	or         []ListFilter
+	and        []ListFilter
+}
+
+// NewListFilter returns an empty filter.
+func NewListFilter() *ListFilter {
+	return &ListFilter{conditions: []ListCondition{}, or: []ListFilter{}, and: []ListFilter{}}
+}
+
+// Where adds a condition.
+func (f *ListFilter) Where(field string, operator ListOperator, value any) *ListFilter {
+	f.conditions = append(f.conditions, ListCondition{Field: field, Operator: operator, Value: value})
+	return f
+}
+
+func (f *ListFilter) Equal(field string, value any) *ListFilter {
+	return f.Where(field, ListOpEqual, value)
+}
+
+func (f *ListFilter) GreaterThan(field string, value any) *ListFilter {
+	return f.Where(field, ListOpGreaterThan, value)
+}
+
+func (f *ListFilter) LessThan(field string, value any) *ListFilter {
+	return f.Where(field, ListOpLessThan, value)
+}
+
+func (f *ListFilter) ILike(field, value string) *ListFilter {
+	return f.Where(field, ListOpILike, value)
+}
+
+func (f *ListFilter) In(field string, values ...any) *ListFilter {
+	return f.Where(field, ListOpIn, values)
+}
+
+// Or adds an alternative filter.
+func (f *ListFilter) Or(filter ListFilter) *ListFilter {
+	f.or = append(f.or, filter)
+	return f
+}
+
+// And adds a grouped filter.
+func (f *ListFilter) And(filter ListFilter) *ListFilter {
+	f.and = append(f.and, filter)
+	return f
+}
+
+func (f ListFilter) Conditions() []ListCondition { return slices.Clone(f.conditions) }
+func (f ListFilter) OrFilters() []ListFilter     { return slices.Clone(f.or) }
+func (f ListFilter) AndFilters() []ListFilter    { return slices.Clone(f.and) }
+
+// ListPagination is a 1-based page.
+type ListPagination struct {
+	Page     int
+	PageSize int
+}
+
+func (p ListPagination) Offset() int { return (p.Page - 1) * p.PageSize }
+
+// ListSortDirection is ascending or descending.
+type ListSortDirection string
+
+const (
+	ListSortAsc  ListSortDirection = "ASC"
+	ListSortDesc ListSortDirection = "DESC"
+)
+
+// ListSortField is one field of a sort order.
+type ListSortField struct {
+	Field     string
+	Direction ListSortDirection
+}
+
+// ListSorting is a sort order.
+type ListSorting struct {
+	Fields []ListSortField
+}
+
+// AddField appends a field to the sort order.
+func (s *ListSorting) AddField(field string, direction ListSortDirection) *ListSorting {
+	s.Fields = append(s.Fields, ListSortField{Field: field, Direction: direction})
+	return s
+}

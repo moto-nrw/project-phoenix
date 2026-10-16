@@ -6,8 +6,8 @@ import (
 	"time"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -272,7 +272,7 @@ func validateSplitMaterializationWindow(in TemplateSplitInput) error {
 func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*activitiesModel.Group, error) {
 	group, err := s.deps.GroupRepo.FindByID(ctx, id)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrSplitTemplateNotFound
 		}
 		return nil, &ScheduleError{Op: "split template: load template", Err: err}

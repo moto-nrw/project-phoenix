@@ -8,9 +8,9 @@ import (
 	"time"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -137,7 +137,7 @@ func validateAssignableCategory(
 ) error {
 	category, err := repo.FindByIDForShare(ctx, categoryID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return &ScheduleError{Op: op, Err: timetable.ErrCategoryNotAssignable}
 		}
 		return &ScheduleError{Op: op, Err: err}
