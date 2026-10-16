@@ -23,7 +23,7 @@ func TestDeactivateOperatorAnswersTheDeactivatedAccount(t *testing.T) {
 	deactivatedAt := time.Date(2026, 10, 15, 9, 0, 0, 0, time.UTC)
 	var captured identityaccess.OperatorStatusChange
 	resource := identityoperator.NewInvitationsResource(&invitationMockService{
-		deactivateOperatorFn: func(_ context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+		changeOperatorStatusFn: func(_ context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
 			captured = change
 			return identityaccess.Operator{ID: change.OperatorID, Email: "geht@example.com", DisplayName: "Geht", DeactivatedAt: &deactivatedAt}, nil
 		},
@@ -35,6 +35,7 @@ func TestDeactivateOperatorAnswersTheDeactivatedAccount(t *testing.T) {
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	assert.Equal(t, int64(7), captured.OperatorID)
 	assert.Equal(t, int64(42), captured.ActorID, "the signed-in operator is the actor")
+	assert.False(t, captured.Active)
 	var body struct {
 		Data identityoperator.OperatorListItem `json:"data"`
 	}
@@ -50,8 +51,8 @@ func TestDeactivateOperatorAnswersTheDeactivatedAccount(t *testing.T) {
 func TestReactivateOperatorAnswersTheActiveAccount(t *testing.T) {
 	t.Parallel()
 	resource := identityoperator.NewInvitationsResource(&invitationMockService{
-		reactivateOperatorFn: func(_ context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
-			return identityaccess.Operator{ID: change.OperatorID, Active: true}, nil
+		changeOperatorStatusFn: func(_ context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+			return identityaccess.Operator{ID: change.OperatorID, Active: change.Active}, nil
 		},
 	})
 	rr := httptest.NewRecorder()
@@ -81,7 +82,7 @@ func TestOperatorStatusChangeRefusals(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			resource := identityoperator.NewInvitationsResource(&invitationMockService{
-				deactivateOperatorFn: func(context.Context, identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+				changeOperatorStatusFn: func(context.Context, identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
 					return identityaccess.Operator{}, tc.err
 				},
 			})

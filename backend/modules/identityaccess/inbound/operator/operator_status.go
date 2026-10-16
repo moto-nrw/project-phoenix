@@ -1,7 +1,6 @@
 package operator
 
 import (
-	"context"
 	"errors"
 	"net/http"
 	"strconv"
@@ -16,26 +15,23 @@ import (
 // DeactivateOperator locks the account of a team member who left (#4047).
 // The signed-in operator cannot deactivate their own account.
 func (rs *InvitationsResource) DeactivateOperator(w http.ResponseWriter, r *http.Request) {
-	rs.changeOperatorStatus(w, r, rs.invitationService.DeactivateOperator)
+	rs.changeOperatorStatus(w, r, false)
 }
 
 // ReactivateOperator lets a deactivated operator sign in again.
 func (rs *InvitationsResource) ReactivateOperator(w http.ResponseWriter, r *http.Request) {
-	rs.changeOperatorStatus(w, r, rs.invitationService.ReactivateOperator)
+	rs.changeOperatorStatus(w, r, true)
 }
 
-func (rs *InvitationsResource) changeOperatorStatus(
-	w http.ResponseWriter, r *http.Request,
-	change func(context.Context, identityaccess.OperatorStatusChange) (Operator, error),
-) {
+func (rs *InvitationsResource) changeOperatorStatus(w http.ResponseWriter, r *http.Request, active bool) {
 	operatorID, err := strconv.ParseInt(chi.URLParam(r, "id"), 10, 64)
 	if err != nil || operatorID <= 0 {
 		common.RenderError(w, r, common.OperatorInvalidRequest(errors.New("invalid operator ID")))
 		return
 	}
 	claims := sessiontoken.ClaimsFromCtx(r.Context())
-	operator, err := change(r.Context(), identityaccess.OperatorStatusChange{
-		OperatorID: operatorID, ActorID: int64(claims.ID), IPAddress: clientIP(r),
+	operator, err := rs.invitationService.ChangeOperatorStatus(r.Context(), identityaccess.OperatorStatusChange{
+		OperatorID: operatorID, ActorID: int64(claims.ID), IPAddress: clientIP(r), Active: active,
 	})
 	if err != nil {
 		common.RenderError(w, r, operatorStatusErrorRenderer(err))

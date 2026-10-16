@@ -9,12 +9,14 @@ import (
 // their own account.
 var ErrOperatorSelfDeactivation = errors.New("an operator cannot deactivate their own account")
 
-// OperatorStatusChange is one deactivation or reactivation of an operator
-// account by another operator. IPAddress is recorded in the operator ledger.
+// OperatorStatusChange is one deactivation (Active false) or reactivation
+// (Active true) of an operator account by another operator. IPAddress is
+// recorded in the operator ledger.
 type OperatorStatusChange struct {
 	OperatorID int64
 	ActorID    int64
 	IPAddress  string
+	Active     bool
 }
 
 // OperatorStatus is the lifecycle of operator accounts of team members who
@@ -28,17 +30,12 @@ type OperatorStatusChange struct {
 // 1 January of last year (Berlin): by then the ledger, which keeps an entry
 // until the end of the following year, has lost every entry of the account.
 type OperatorStatus interface {
-	DeactivateOperator(ctx context.Context, change OperatorStatusChange) (Operator, error)
-	ReactivateOperator(ctx context.Context, change OperatorStatusChange) (Operator, error)
+	ChangeOperatorStatus(ctx context.Context, change OperatorStatusChange) (Operator, error)
 	DeleteDeactivatedOperators(ctx context.Context) (int, error)
 }
 
-func (m *Module) DeactivateOperator(ctx context.Context, change OperatorStatusChange) (Operator, error) {
-	return m.engine.DeactivateOperator(ctx, change)
-}
-
-func (m *Module) ReactivateOperator(ctx context.Context, change OperatorStatusChange) (Operator, error) {
-	return m.engine.ReactivateOperator(ctx, change)
+func (m *Module) ChangeOperatorStatus(ctx context.Context, change OperatorStatusChange) (Operator, error) {
+	return m.engine.ChangeOperatorStatus(ctx, change)
 }
 
 func (m *Module) DeleteDeactivatedOperators(ctx context.Context) (int, error) {

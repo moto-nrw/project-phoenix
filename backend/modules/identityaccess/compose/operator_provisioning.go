@@ -204,19 +204,11 @@ func (e engine) CleanupOperatorEmailChanges(ctx context.Context) (int, error) {
 	return cleaned, operatorProvisioningError(err)
 }
 
-func (e engine) DeactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+func (e engine) ChangeOperatorStatus(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
 	if e.operatorProvisioning == nil {
 		return identityaccess.Operator{}, errOperatorProvisioningUnavailable
 	}
-	operator, err := e.operatorProvisioning.DeactivateOperator(e.attach(ctx), domain.OperatorStatusChange(change))
-	return identityaccess.Operator(operator), operatorProvisioningError(err)
-}
-
-func (e engine) ReactivateOperator(ctx context.Context, change identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
-	if e.operatorProvisioning == nil {
-		return identityaccess.Operator{}, errOperatorProvisioningUnavailable
-	}
-	operator, err := e.operatorProvisioning.ReactivateOperator(e.attach(ctx), domain.OperatorStatusChange(change))
+	operator, err := e.operatorProvisioning.ChangeOperatorStatus(e.attach(ctx), domain.OperatorStatusChange(change))
 	return identityaccess.Operator(operator), operatorProvisioningError(err)
 }
 

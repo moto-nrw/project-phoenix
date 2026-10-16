@@ -673,11 +673,7 @@ func TestRefreshToken_InvalidRefreshSessionMapsToUnauthorized(t *testing.T) {
 	assert.NotContains(t, rr.Body.String(), "Invalid email or password")
 }
 
-func (m *mockOperatorAuthService) DeactivateOperator(context.Context, identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
-	return identityaccess.Operator{}, nil
-}
-
-func (m *mockOperatorAuthService) ReactivateOperator(context.Context, identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
+func (m *mockOperatorAuthService) ChangeOperatorStatus(context.Context, identityaccess.OperatorStatusChange) (identityaccess.Operator, error) {
 	return identityaccess.Operator{}, nil
 }
 

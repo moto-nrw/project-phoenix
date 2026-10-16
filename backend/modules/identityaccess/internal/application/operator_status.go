@@ -27,9 +27,18 @@ func operatorDeletionCutoff(now time.Time) time.Time {
 	return time.Date(year-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
 }
 
-// DeactivateOperator locks another operator's account and ends its sessions.
+// ChangeOperatorStatus deactivates or reactivates another operator's account
+// and records the change in the operator ledger.
+func (p *OperatorProvisioning) ChangeOperatorStatus(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
+	if change.Active {
+		return p.reactivateOperator(ctx, change)
+	}
+	return p.deactivateOperator(ctx, change)
+}
+
+// deactivateOperator locks another operator's account and ends its sessions.
 // Deactivating an inactive account keeps its original deactivation time.
-func (p *OperatorProvisioning) DeactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
+func (p *OperatorProvisioning) deactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
 	if change.OperatorID == change.ActorID {
 		return domain.Operator{}, domain.ErrOperatorSelfDeactivation
 	}
@@ -49,8 +58,8 @@ func (p *OperatorProvisioning) DeactivateOperator(ctx context.Context, change do
 	return operator, nil
 }
 
-// ReactivateOperator lets a deactivated operator sign in again.
-func (p *OperatorProvisioning) ReactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
+// reactivateOperator lets a deactivated operator sign in again.
+func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
 	operator, err := p.changeOperatorStatus(ctx, change.OperatorID, func(_ context.Context, operator *domain.Operator) error {
 		operator.Active = true
 		operator.DeactivatedAt = nil

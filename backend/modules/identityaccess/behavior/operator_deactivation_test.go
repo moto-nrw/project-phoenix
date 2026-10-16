@@ -40,7 +40,7 @@ func TestOperatorDeactivationLocksTheAccountAndCanBeUndone(t *testing.T) {
 	target := testpkg.CreateTestOperator(t, db)
 	insertOperatorSession(t, db, target.ID)
 
-	deactivated, err := operators.DeactivateOperator(ctx, identityaccess.OperatorStatusChange{
+	deactivated, err := operators.ChangeOperatorStatus(ctx, identityaccess.OperatorStatusChange{
 		OperatorID: target.ID, ActorID: actor.ID, IPAddress: "10.0.0.7",
 	})
 	require.NoError(t, err)
@@ -58,8 +58,8 @@ func TestOperatorDeactivationLocksTheAccountAndCanBeUndone(t *testing.T) {
 	assert.False(t, stored.Active)
 	assert.Equal(t, deactivated.DeactivatedAt.Unix(), stored.DeactivatedAt.Unix())
 
-	reactivated, err := operators.ReactivateOperator(ctx, identityaccess.OperatorStatusChange{
-		OperatorID: target.ID, ActorID: actor.ID, IPAddress: "10.0.0.7",
+	reactivated, err := operators.ChangeOperatorStatus(ctx, identityaccess.OperatorStatusChange{
+		OperatorID: target.ID, ActorID: actor.ID, IPAddress: "10.0.0.7", Active: true,
 	})
 	require.NoError(t, err)
 	assert.True(t, reactivated.Active)
@@ -76,7 +76,7 @@ func TestOperatorCannotDeactivateTheirOwnAccount(t *testing.T) {
 	ctx := context.Background()
 	actor := testpkg.CreateTestOperator(t, db)
 
-	_, err := operators.DeactivateOperator(ctx, identityaccess.OperatorStatusChange{OperatorID: actor.ID, ActorID: actor.ID})
+	_, err := operators.ChangeOperatorStatus(ctx, identityaccess.OperatorStatusChange{OperatorID: actor.ID, ActorID: actor.ID})
 	require.ErrorIs(t, err, identityaccess.ErrOperatorSelfDeactivation)
 	stored, err := operators.FindOperator(ctx, actor.ID)
 	require.NoError(t, err)
@@ -85,9 +85,9 @@ func TestOperatorCannotDeactivateTheirOwnAccount(t *testing.T) {
 	missing := testpkg.CreateTestOperator(t, db)
 	_, err = db.ExecContext(ctx, `DELETE FROM platform.operators WHERE id = ?`, missing.ID)
 	require.NoError(t, err)
-	_, err = operators.DeactivateOperator(ctx, identityaccess.OperatorStatusChange{OperatorID: missing.ID, ActorID: actor.ID})
+	_, err = operators.ChangeOperatorStatus(ctx, identityaccess.OperatorStatusChange{OperatorID: missing.ID, ActorID: actor.ID})
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
-	_, err = operators.ReactivateOperator(ctx, identityaccess.OperatorStatusChange{OperatorID: missing.ID, ActorID: actor.ID})
+	_, err = operators.ChangeOperatorStatus(ctx, identityaccess.OperatorStatusChange{OperatorID: missing.ID, ActorID: actor.ID, Active: true})
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 }
 

@@ -303,8 +303,9 @@ var modulePassthroughBudgets = map[string]int{
 }
 
 // modulePassthroughComposeBudgetTotal is the sum of
-// modulePassthroughComposeBudgets. Shrink-only, like every entry.
-const modulePassthroughComposeBudgetTotal = 2393
+// modulePassthroughComposeBudgets. Shrink-only, like every entry; raised by
+// ADR 0060.
+const modulePassthroughComposeBudgetTotal = 2395
 
 // modulePassthroughComposeBudgets is the composition register (#4071): owner
 // composition directory → pass-throughs measured below it. First measured on
@@ -315,22 +316,23 @@ const modulePassthroughComposeBudgetTotal = 2393
 // the compositions that still hold more than construction. Shrink-only — an
 // entry may fall or go, never rise, and no composition gets a new entry.
 var modulePassthroughComposeBudgets = map[string]int{
-	"modules/appointments/compose":          36,
-	"modules/auditlog/compose":              1,
-	"modules/careplan/compose":              188,
-	"modules/careplan/requestfeed/compose":  4,
-	"modules/classday/compose":              15,
-	"modules/communication/composition":     66,
-	"modules/dataimport/compose":            1,
-	"modules/delivery/compose":              14,
-	"modules/devicefleet/compose":           42,
-	"modules/devicescan/compose":            48,
-	"modules/enrollment/compose":            19,
-	"modules/exporttransfer/compose":        3,
-	"modules/facilities/compose":            15,
-	"modules/feedback/compose":              8,
-	"modules/filestorage/compose":           26,
-	"modules/identityaccess/compose":        484,
+	"modules/appointments/compose":         36,
+	"modules/auditlog/compose":             1,
+	"modules/careplan/compose":             188,
+	"modules/careplan/requestfeed/compose": 4,
+	"modules/classday/compose":             15,
+	"modules/communication/composition":    66,
+	"modules/dataimport/compose":           1,
+	"modules/delivery/compose":             14,
+	"modules/devicefleet/compose":          42,
+	"modules/devicescan/compose":           48,
+	"modules/enrollment/compose":           19,
+	"modules/exporttransfer/compose":       3,
+	"modules/facilities/compose":           15,
+	"modules/feedback/compose":             8,
+	"modules/filestorage/compose":          26,
+	// Raised by ADR 0060: the operator status lifecycle (#4047).
+	"modules/identityaccess/compose":        486,
 	"modules/mealplan/compose":              7,
 	"modules/organizationtenancy/compose":   39,
 	"modules/peopledirectory/compose":       256,

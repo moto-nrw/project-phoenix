@@ -28,6 +28,7 @@ type OperatorStatusChange struct {
 	OperatorID int64
 	ActorID    int64
 	IPAddress  string
+	Active     bool
 }
 
 // Operator is the platform-wide login identity of a moto operator. It has
