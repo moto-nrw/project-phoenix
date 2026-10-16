@@ -21,6 +21,7 @@ type Operator struct {
 	LastLogin      *time.Time `bun:"last_login"`
 	MFAAttempts    int        `bun:"mfa_attempts,default:0"`
 	MFALockedUntil *time.Time `bun:"mfa_locked_until"`
+	DeactivatedAt  *time.Time `bun:"deactivated_at"`
 }
 
 // Organization is one platform.organizations row the fixtures write.

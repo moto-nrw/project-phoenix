@@ -161,8 +161,8 @@ var moduleLegacyFileBudgets = map[string]int{
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry.
-const moduleComposeBudgetTotal = 56190
+// like every entry; raised by ADR 0063.
+const moduleComposeBudgetTotal = 56207
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -171,32 +171,33 @@ const moduleComposeBudgetTotal = 56190
 // composition starts small and is no reason to raise the total; split code
 // keeps its LOC counted.
 var moduleComposeBudgets = map[string]int{
-	"modules/appointments/compose":                   528,
-	"modules/auditlog/compose":                       275,
-	"modules/auditlog/compose/vocabulary":            132,
-	"modules/careplan/compose":                       4333,
-	"modules/careplan/requestfeed/compose":           86,
-	"modules/classday/compose":                       506,
-	"modules/communication/composition":              1518,
-	"modules/dataimport/compose":                     253,
-	"modules/dataimport/compose/retained":            34,
-	"modules/delivery/compose":                       816,
-	"modules/delivery/compose/email":                 36,
-	"modules/delivery/compose/realtime":              30,
-	"modules/devicefleet/compose":                    701,
-	"modules/devicefleet/compose/repositoryadapter":  298,
-	"modules/devicescan/compose":                     1513,
-	"modules/emergencysnapshot/compose":              13,
-	"modules/enrollment/compose":                     823,
-	"modules/exporttransfer/compose":                 323,
-	"modules/facilities/compose":                     394,
-	"modules/facilities/compose/httpadapter":         491,
-	"modules/facilities/compose/repositoryadapter":   242,
-	"modules/feedback/compose":                       219,
-	"modules/filestorage/compose":                    642,
-	"modules/grouplive/compose":                      14,
-	"modules/guardianlinkview/compose":               8, // #4076, see the parent request feed projection below
-	"modules/identityaccess/compose":                 7339,
+	"modules/appointments/compose":                  528,
+	"modules/auditlog/compose":                      275,
+	"modules/auditlog/compose/vocabulary":           132,
+	"modules/careplan/compose":                      4333,
+	"modules/careplan/requestfeed/compose":          86,
+	"modules/classday/compose":                      506,
+	"modules/communication/composition":             1518,
+	"modules/dataimport/compose":                    253,
+	"modules/dataimport/compose/retained":           34,
+	"modules/delivery/compose":                      816,
+	"modules/delivery/compose/email":                36,
+	"modules/delivery/compose/realtime":             30,
+	"modules/devicefleet/compose":                   701,
+	"modules/devicefleet/compose/repositoryadapter": 298,
+	"modules/devicescan/compose":                    1513,
+	"modules/emergencysnapshot/compose":             13,
+	"modules/enrollment/compose":                    823,
+	"modules/exporttransfer/compose":                323,
+	"modules/facilities/compose":                    394,
+	"modules/facilities/compose/httpadapter":        491,
+	"modules/facilities/compose/repositoryadapter":  242,
+	"modules/feedback/compose":                      219,
+	"modules/filestorage/compose":                   642,
+	"modules/grouplive/compose":                     14,
+	"modules/guardianlinkview/compose":              8, // #4076, see the parent request feed projection below
+	// Raised by ADR 0063: the operator status lifecycle (#4047).
+	"modules/identityaccess/compose":                 7356,
 	"modules/mealplan/compose":                       274,
 	"modules/organizationtenancy/compose":            708,
 	"modules/organizationtenancy/compose/vocabulary": 48,

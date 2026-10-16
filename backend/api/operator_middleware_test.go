@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
 
@@ -16,7 +17,8 @@ import (
 )
 
 type operatorLookupStub struct {
-	getOperatorFn func(context.Context, int64) (*identityaccess.Operator, error)
+	getOperatorFn           func(context.Context, int64) (*identityaccess.Operator, error)
+	latestOperatorSessionFn func(context.Context, string) (identityaccess.OperatorSession, error)
 }
 
 func (s operatorLookupStub) FindOperator(ctx context.Context, id int64) (identityoperator.Operator, error) {
@@ -33,6 +35,13 @@ func (s operatorLookupStub) FindOperator(ctx context.Context, id int64) (identit
 		}, err
 	}
 	return identityoperator.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (s operatorLookupStub) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (identityaccess.OperatorSession, error) {
+	if s.latestOperatorSessionFn != nil {
+		return s.latestOperatorSessionFn(ctx, familyID)
+	}
+	return identityaccess.OperatorSession{}, identityaccess.ErrOperatorSessionNotFound
 }
 
 func TestRequiresOperatorScope_ValidOperatorToken(t *testing.T) {
@@ -122,6 +131,10 @@ func TestRequiresActiveOperator_ActiveOperator(t *testing.T) {
 			op.ID = id
 			return op, nil
 		},
+		latestOperatorSessionFn: func(_ context.Context, familyID string) (identityaccess.OperatorSession, error) {
+			assert.Equal(t, "operator-test-family", familyID)
+			return identityaccess.OperatorSession{OperatorID: 42, FamilyID: familyID, Expiry: time.Now().Add(time.Hour)}, nil
+		},
 	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		nextCalled = true
 		w.WriteHeader(http.StatusOK)
@@ -133,6 +146,54 @@ func TestRequiresActiveOperator_ActiveOperator(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.True(t, nextCalled, "next handler should have been called")
+}
+
+func TestRequiresActiveOperator_RevokedSessionFamily(t *testing.T) {
+	t.Parallel()
+
+	nextCalled := false
+	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
+			return &identityaccess.Operator{ID: id, Active: true}, nil
+		},
+		latestOperatorSessionFn: func(_ context.Context, familyID string) (identityaccess.OperatorSession, error) {
+			assert.Equal(t, "operator-test-family", familyID)
+			return identityaccess.OperatorSession{}, identityaccess.ErrOperatorSessionNotFound
+		},
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, requestWithOperatorClaims(42))
+
+	assert.Equal(t, http.StatusForbidden, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Operator account is inactive")
+	assert.False(t, nextCalled, "a revoked session family must not reach protected handlers")
+}
+
+func TestRequiresActiveOperator_SessionLookupErrorFailsClosed(t *testing.T) {
+	t.Parallel()
+
+	nextCalled := false
+	handler := identityoperator.RequiresActiveOperator(operatorLookupStub{
+		getOperatorFn: func(_ context.Context, id int64) (*identityaccess.Operator, error) {
+			return &identityaccess.Operator{ID: id, Active: true}, nil
+		},
+		latestOperatorSessionFn: func(context.Context, string) (identityaccess.OperatorSession, error) {
+			return identityaccess.OperatorSession{}, errors.New("database unavailable")
+		},
+	})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		nextCalled = true
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, requestWithOperatorClaims(42))
+
+	assert.Equal(t, http.StatusServiceUnavailable, rr.Code)
+	assert.False(t, nextCalled, "session lookup failures must not reach protected handlers")
 }
 
 func TestRequiresActiveOperator_MissingLookupFailsClosed(t *testing.T) {
@@ -265,7 +326,7 @@ func TestRequiresActiveOperator_MissingOperatorID(t *testing.T) {
 
 func requestWithOperatorClaims(operatorID int) *http.Request {
 	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	claims := routetest.Claims{ID: operatorID, Scope: "platform"}
+	claims := routetest.Claims{ID: operatorID, Scope: "platform", FamilyID: "operator-test-family"}
 	ctx := routetest.WithAuthenticatedContext(req.Context(), claims, nil)
 	return req.WithContext(ctx)
 }

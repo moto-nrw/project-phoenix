@@ -5,7 +5,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 
 Stand 16.10.2026 · Ratchet 191 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-56.190 in `compose`
+56.207 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -31,7 +31,7 @@ Not-found- und JSON-Fehlerdiagnosen bleiben erhalten. Care verwendet eigene Ausn
 `time.Friday` statt Schedule-Modellen. Auswahl von Wochen- und Abholanfragen liegt in Care Plans
 Application; Compose übersetzt nur den Filter. Drei Keys fallen: 194 → 191, #4073 26 → 23.
 Regeln 865 unverändert. Care-Plan-Compose 4.334 → 4.333, Portal-Compose 506 → 505,
-Compose gesamt 56.192 → 56.190 LOC; kein Budget steigt. Keine neue Regel, Freigabe oder Alias.
+Compose gesamt 56.209 → 56.207 LOC; kein Budget steigt. Keine neue Regel, Freigabe oder Alias.
 
 #4073: Parent-HTTP deklariert eigene Push-, Benachrichtigungs- und PWA-Ports.
 Die Root übersetzt Deliverys öffentlichen Geräte- und Einwilligungsvertrag; dieselben

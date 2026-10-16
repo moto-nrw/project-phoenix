@@ -27,10 +27,13 @@ type WorkerDependencies struct {
 	InvitationCleanup         InvitationCleaner
 	EmailChangeCleanup        EmailChangeTokenCleaner
 	OperatorInvitationCleanup OperatorInvitationCleaner
-	WorkSessionCleanup        WorkSessionCleaner
-	BreakAutoEnder            BreakAutoEnder
-	AutoCheckouter            AutoCheckouter
-	FeedbackCleaner           FeedbackCleaner
+	// OperatorRetention deletes the operator ledger and the deactivated
+	// operator accounts after their window (#4047).
+	OperatorRetention  OperatorRetention
+	WorkSessionCleanup WorkSessionCleaner
+	BreakAutoEnder     BreakAutoEnder
+	AutoCheckouter     AutoCheckouter
+	FeedbackCleaner    FeedbackCleaner
 	// RetentionSteps are the owners' deletions of a school's nightly cleanup
 	// (#3950), RetentionLog records each deletion; NewWorker builds the run
 	// over them. CleanupRuns keeps each school's last successful nightly run.
