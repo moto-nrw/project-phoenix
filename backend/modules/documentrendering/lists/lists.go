@@ -131,6 +131,19 @@ const (
 	ColumnGuardianContacts  = listexport.ColumnGuardianContacts
 )
 
+// Columns of the weekly plans (Dienstplan, Betreuungsplan): the row label and
+// one column per weekday.
+const (
+	ColumnPlanRowLabel  = listexport.ColumnPlanRowLabel
+	ColumnPlanMonday    = listexport.ColumnPlanMonday
+	ColumnPlanTuesday   = listexport.ColumnPlanTuesday
+	ColumnPlanWednesday = listexport.ColumnPlanWednesday
+	ColumnPlanThursday  = listexport.ColumnPlanThursday
+	ColumnPlanFriday    = listexport.ColumnPlanFriday
+	ColumnPlanSaturday  = listexport.ColumnPlanSaturday
+	ColumnPlanSunday    = listexport.ColumnPlanSunday
+)
+
 // ResolveColumns resolves a caller-chosen column list against the catalog,
 // falling back to the preset's defaults. The health note is never in the
 // catalog; only the Gesundheitsliste prints it.

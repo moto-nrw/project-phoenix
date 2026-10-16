@@ -41,7 +41,7 @@
       "backend/test/request_review_policy.go",
       "backend/test/operational_overview_scope_test.go",
       "backend/services/config/operational_overview_scope_test.go",
-      "backend/database/repositories/audit/integration/booking_consistency_test.go",
+      "backend/api/booking_consistency_audit_test.go",
       "backend/test/booking_consistency_audit_fixture.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",

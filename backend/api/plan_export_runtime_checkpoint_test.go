@@ -1,4 +1,4 @@
-package compose
+package api
 
 import (
 	"context"
@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -36,8 +36,8 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 		staffIDs = append(staffIDs, member.ID)
 	}
 	slices.Sort(staffIDs)
-	names := staffNames(members...)
-	pdfRenderer := listexport.NewService()
+	names := planExportFixtureStaff(members...)
+	pdfRenderer := lists.NewRenderer()
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
 	counter := testpkg.CaptureQueriesForContext(t, db)
@@ -57,7 +57,7 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 			for seeded < scenario.blocks {
 				// Four spontaneous blocks per weekday with twenty distinct titles
 				// per week, so every week prints twenty offering rows.
-				date := monday.AddDays(7*(seeded/20) + (seeded%20)/4)
+				date := planExportMonday.AddDays(7*(seeded/20) + (seeded%20)/4)
 				instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 					Title:     fmt.Sprintf("Block %02d", seeded%20),
 					StartHHMM: fmt.Sprintf("%02d:00", 12+seeded%4), EndHHMM: fmt.Sprintf("%02d:00", 13+seeded%4),
@@ -65,7 +65,7 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 				testpkg.CreateTestInstanceStaff(t, db, instance.ID, staffIDs[seeded%len(staffIDs)], testpkg.InstanceStaffOpts{})
 				seeded++
 			}
-			params, err := planexport.ParseParams(monday.String(), monday.AddDays(7*scenario.weeks-3).String(), string(planexport.TemplateByOffering), "", "")
+			params, err := planexport.ParseParams(planExportMonday.String(), planExportMonday.AddDays(7*scenario.weeks-3).String(), string(planexport.TemplateByOffering), "", "")
 			require.NoError(t, err)
 			beforeDeadlocks := deadlocks()
 			stopLocks := testpkg.SampleCheckpointLocks(func(sampleCtx context.Context) (int, error) {
@@ -80,14 +80,14 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 				counter.Reset()
 				before := db.Stats()
 				start := time.Now()
-				var file listexport.File
+				var file lists.File
 				err := testpkg.WithTenantTx(t, counter.Context(ctx), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
-					var renderer planexport.Renderer = documentProbe{}
+					var renderer planexport.Renderer = planExportDocumentProbe{}
 					if scenario.pdf {
 						renderer = pdfRenderer
 					}
 					var err error
-					file, err = New(betreuungsplanSources(t, db, tx, names, renderer)).ExportBetreuungsplan(txCtx, params)
+					file, err = newPlanExport(planExportBetreuungsplanSources(t, db, tx, names, renderer)).ExportBetreuungsplan(txCtx, params)
 					return err
 				})
 				elapsed := float64(time.Since(start)) / float64(time.Millisecond)
@@ -98,7 +98,7 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 				} else {
 					var rows int
 					require.NoError(t, json.Unmarshal(file.Data, &rows))
-					require.Equal(t, expectedRows(scenario.blocks, scenario.weeks), rows)
+					require.Equal(t, planExportExpectedRows(scenario.blocks, scenario.weeks), rows)
 				}
 				require.Zero(t, counter.WriteRows(), "the plan export must not persist anything")
 				if i >= 5 {
@@ -138,10 +138,10 @@ func TestPlanExportRuntimeEvidence(t *testing.T) {
 	}
 }
 
-// expectedRows is the printed row count: one group heading per week when
+// planExportExpectedRows is the printed row count: one group heading per week when
 // several weeks print, plus one offering row per distinct block title (20
 // per week, the same titles every week) or the explicit empty-week row.
-func expectedRows(blocks, weeks int) int {
+func planExportExpectedRows(blocks, weeks int) int {
 	if blocks == 0 {
 		return 1
 	}
@@ -155,14 +155,14 @@ func expectedRows(blocks, weeks int) int {
 	return weeks + weeks*titles
 }
 
-// documentProbe reports the row count instead of rendering, so the
+// planExportDocumentProbe reports the row count instead of rendering, so the
 // document scenarios measure the reads and the layout without the PDF.
-type documentProbe struct{}
+type planExportDocumentProbe struct{}
 
-func (documentProbe) Render(doc listexport.Document, _ listexport.Format, filenameBase string) (listexport.File, error) {
+func (planExportDocumentProbe) Render(doc lists.Document, _ lists.Format, filenameBase string) (lists.File, error) {
 	data, err := json.Marshal(len(doc.Rows))
 	if err != nil {
-		return listexport.File{}, err
+		return lists.File{}, err
 	}
-	return listexport.File{Data: data, ContentType: "application/json", Filename: filenameBase + ".json"}, nil
+	return lists.File{Data: data, ContentType: "application/json", Filename: filenameBase + ".json"}, nil
 }

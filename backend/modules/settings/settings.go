@@ -8,11 +8,9 @@ package settings
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -188,9 +186,18 @@ type (
 // attendance of the day is still open.
 var ErrPresenceModeSwitchBlocked = configSvc.ErrPresenceModeSwitchBlocked
 
-// ErrBookingAuthorityImpactUnavailable reports a deployment composed without
-// the Care Plan booking authority.
-var ErrBookingAuthorityImpactUnavailable = errors.New("booking authority impact is not configured")
+// BookingAuthorityBlockedError reports that the side effect of enabling
+// booking-led care (KeyEnrollmentBookingsAuthoritative) refused the write
+// because a cared-for child has no care day. The root's side-effect binding
+// wraps the owner's refusal in it, so Settings Platform needs no domain
+// vocabulary to answer the conflict; Error is the owner's message.
+type BookingAuthorityBlockedError struct {
+	Reason error
+}
+
+func (e *BookingAuthorityBlockedError) Error() string { return e.Reason.Error() }
+
+func (e *BookingAuthorityBlockedError) Unwrap() error { return e.Reason }
 
 // OperatorSchoolSettings is the operator's management of one school's
 // settings. Operators bypass the per-setting permission checks except for
@@ -209,9 +216,6 @@ type OperatorSchoolSettings interface {
 	SetValue(ctx context.Context, schoolID int64, key string, value any, changedBy int64, force bool) error
 	// ResetValue removes a school's override.
 	ResetValue(ctx context.Context, schoolID int64, key string, changedBy int64) error
-	// BookingAuthorityImpact previews enabling booking-led care for the
-	// school today.
-	BookingAuthorityImpact(ctx context.Context, schoolID int64) (*careplan.BookingAuthorityImpact, error)
 }
 
 // WithSettingsSnapshot attaches the immutable read snapshot used by this owner's

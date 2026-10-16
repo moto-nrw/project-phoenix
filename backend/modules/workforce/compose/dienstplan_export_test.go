@@ -43,8 +43,8 @@ func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workfor
 }
 
 // dienstplanExport renders the Dienstplan over the overview. The overview
-// binding mirrors the root's (modules/planexport/compose, whose unit tests
-// pin every field); this role may not import that package.
+// binding mirrors the root's (api/plan_export.go, whose unit tests pin every
+// field); this role may not import the root.
 func dienstplanExport(overview workforce.StaffScheduleOverviewQuery, renderer planexport.Renderer) planexport.Service {
 	return planexport.NewService(planexport.Dependencies{Overview: overviewRecords{query: overview}, Renderer: renderer}, nil)
 }

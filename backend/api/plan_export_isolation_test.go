@@ -1,52 +1,52 @@
-package compose
+package api
 
 import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-// betreuungsplanSources binds the Betreuungsplan's reads to the Timetable
+// planExportBetreuungsplanSources binds the Betreuungsplan's reads to the Timetable
 // owner's presence-joined block reads and staff-assignment reads, the room
 // names and roster counts of the tenant transaction under test and the given
 // staff names. The
 // Dienstplan-only and colour reads stay empty; Workforce's behaviour suite
 // proves the Dienstplan side (#2706).
-func betreuungsplanSources(t *testing.T, db *bun.DB, tx bun.IDB, staff planexport.StaffNameReader, renderer planexport.Renderer) Sources {
+func planExportBetreuungsplanSources(t *testing.T, db *bun.DB, tx bun.IDB, staff planexport.StaffNameReader, renderer planexport.Renderer) planExportSources {
 	t.Helper()
-	return Sources{
-		Overview:       &fakeOverview{},
-		ShiftTypes:     fakeShiftTypes{},
-		Instances:      newOwnerInstances(t, db),
-		InstanceStaff:  newOwnerInstanceStaff(t, db),
-		Students:       txRosterCounts{tx: tx},
-		Rooms:          txRooms{tx: tx},
+	return planExportSources{
+		Overview:       &planExportFakeOverview{},
+		ShiftTypes:     planExportFakeShiftTypes{},
+		Instances:      newPlanExportOwnerInstances(t, db),
+		InstanceStaff:  newPlanExportOwnerInstanceStaff(t, db),
+		Students:       planExportTxRosterCounts{tx: tx},
+		Rooms:          planExportTxRooms{tx: tx},
 		Staff:          staff,
-		ActivityGroups: fakeGroups{},
-		PlanningTracks: &fakeTracks{},
-		ClosingDays:    fakeClosingDays{},
-		Holidays:       fakeHolidays{},
+		ActivityGroups: planExportFakeGroups{},
+		PlanningTracks: &planExportFakeTracks{},
+		ClosingDays:    planExportFakeClosingDays{},
+		Holidays:       planExportFakeHolidays{},
 		Renderer:       renderer,
 	}
 }
 
-// staffNames serves the staff-name port from fixture names, the way the root
+// planExportFixtureStaff serves the staff-name port from fixture names, the way the root
 // translates the retained staff rows.
-func staffNames(members ...*planexport.StaffMember) fakeStaff {
+func planExportFixtureStaff(members ...*planexport.StaffMember) planExportFakeStaff {
 	out := make(map[int64]*planexport.StaffMember, len(members))
 	for _, member := range members {
 		out[member.ID] = member
 	}
-	return fakeStaff{members: out}
+	return planExportFakeStaff{members: out}
 }
 
 // TestPlanExportInputsEnforceRLS proves the plan export capability (#2706)
@@ -74,14 +74,14 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 			staff := testpkg.CreateTestStaff(t, db, "PlanRLS", side)
 			room := testpkg.CreateTestRoom(t, db, "PlanRLS-"+side)
 			activity := testpkg.CreateTestActivityGroup(t, db, "PlanRLS-"+side)
-			instance := testpkg.CreateTestActivityInstance(t, db, monday, room.ID, testpkg.ActivityInstanceOpts{
+			instance := testpkg.CreateTestActivityInstance(t, db, planExportMonday, room.ID, testpkg.ActivityInstanceOpts{
 				Title: "Block " + side, ActivityGroupID: &activity.ID, StartHHMM: "12:00", EndHHMM: "13:00",
 			})
 			assignment := testpkg.CreateTestInstanceStaff(t, db, instance.ID, staff.ID, testpkg.InstanceStaffOpts{})
 			student := testpkg.CreateTestStudent(t, db, "PlanRLS", side, "PR1")
 			roster := testpkg.CreateTestInstanceStudent(t, db, instance.ID, student.ID, "")
-			shift := testpkg.CreateTestStaffShift(t, db, staff.ID, monday, testpkg.StaffShiftOpts{})
-			closing := testpkg.CreateTestClosingDay(t, db, monday.AddDays(1), monday.AddDays(1), "PlanRLS-"+side)
+			shift := testpkg.CreateTestStaffShift(t, db, staff.ID, planExportMonday, testpkg.StaffShiftOpts{})
+			closing := testpkg.CreateTestClosingDay(t, db, planExportMonday.AddDays(1), planExportMonday.AddDays(1), "PlanRLS-"+side)
 			var shiftTypeID, trackID int64
 			require.NoError(t, db.NewRaw("INSERT INTO schedule.shift_types (tenant_id, name, color) VALUES (?, ?, ?) RETURNING id",
 				testpkg.Tenant(t), "PlanRLS-"+side, "#83CD2D").Scan(ctx, &shiftTypeID))
@@ -122,21 +122,21 @@ func TestPlanExportInputsEnforceRLS(t *testing.T) {
 		})
 	}
 
-	names := staffNames(fixtures[0].staff, fixtures[1].staff)
+	names := planExportFixtureStaff(fixtures[0].staff, fixtures[1].staff)
 	for _, fixture := range fixtures {
 		t.Run("export-"+fixture.title, func(t *testing.T) {
-			renderer := &captureRenderer{}
-			params, err := planexport.ParseParams(monday.String(), monday.AddDays(4).String(), string(planexport.TemplateByOffering), "", "")
+			renderer := &planExportCaptureRenderer{}
+			params, err := planexport.ParseParams(planExportMonday.String(), planExportMonday.AddDays(4).String(), string(planexport.TemplateByOffering), "", "")
 			require.NoError(t, err)
 			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
-				_, err := New(betreuungsplanSources(t, db, tx, names, renderer)).ExportBetreuungsplan(txCtx, params)
+				_, err := newPlanExport(planExportBetreuungsplanSources(t, db, tx, names, renderer)).ExportBetreuungsplan(txCtx, params)
 				return err
 			}))
 			require.Len(t, renderer.doc.Rows, 1, "exactly the tenant's own block is printed")
 			row := renderer.doc.Rows[0]
-			require.Equal(t, fixture.title, listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]))
-			cell := listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanMonday])
-			require.Equal(t, "12:00–13:00 · "+fixture.room+"\n"+fixture.staff.LastName+", "+string([]rune(fixture.staff.FirstName)[:1])+".\n1 Kind", cell)
+			assertPlanCell(t, row.Values[lists.ColumnPlanRowLabel], fixture.title)
+			assertPlanCell(t, row.Values[lists.ColumnPlanMonday], "12:00–13:00 · "+fixture.room,
+				fixture.staff.LastName+", "+string([]rune(fixture.staff.FirstName)[:1])+".", "1 Kind")
 		})
 	}
 }
@@ -149,31 +149,31 @@ func TestInstanceBindingHonoursTheRequestedWindow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	room := testpkg.CreateTestRoom(t, db, "PlanWindow")
-	sunday := monday.AddDays(6)
+	sunday := planExportMonday.AddDays(6)
 	testpkg.CreateTestActivityInstance(t, db, sunday, room.ID, testpkg.ActivityInstanceOpts{Title: "Sonntag", StartHHMM: "09:00", EndHHMM: "10:00"})
-	testpkg.CreateTestActivityInstance(t, db, monday.AddDays(7), room.ID, testpkg.ActivityInstanceOpts{Title: "Nächste Woche", StartHHMM: "09:00", EndHHMM: "10:00"})
+	testpkg.CreateTestActivityInstance(t, db, planExportMonday.AddDays(7), room.ID, testpkg.ActivityInstanceOpts{Title: "Nächste Woche", StartHHMM: "09:00", EndHHMM: "10:00"})
 
-	renderer := &captureRenderer{}
-	params, err := planexport.ParseParams(monday.String(), monday.String(), string(planexport.TemplateByOffering), "", "")
+	renderer := &planExportCaptureRenderer{}
+	params, err := planexport.ParseParams(planExportMonday.String(), planExportMonday.String(), string(planexport.TemplateByOffering), "", "")
 	require.NoError(t, err)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
-		_, err := New(betreuungsplanSources(t, db, tx, fakeStaff{}, renderer)).ExportBetreuungsplan(txCtx, params)
+		_, err := newPlanExport(planExportBetreuungsplanSources(t, db, tx, planExportFakeStaff{}, renderer)).ExportBetreuungsplan(txCtx, params)
 		return err
 	}))
 	require.Len(t, renderer.doc.Rows, 1)
-	require.Equal(t, "Sonntag", listexport.StripStyleMarkers(renderer.doc.Rows[0].Values[listexport.ColumnPlanRowLabel]))
+	assertPlanCell(t, renderer.doc.Rows[0].Values[lists.ColumnPlanRowLabel], "Sonntag")
 	require.Len(t, renderer.doc.Columns, 8, "the Sunday block widens the sheet to the full week")
-	require.Contains(t, listexport.StripStyleMarkers(renderer.doc.Rows[0].Values[listexport.ColumnPlanSunday]), "09:00–10:00")
+	require.Contains(t, renderer.doc.Rows[0].Values[lists.ColumnPlanSunday], "09:00–10:00")
 }
 
-// txRooms serves the room names from the tenant transaction under test, in
+// planExportTxRooms serves the room names from the tenant transaction under test, in
 // the public Facilities shape the root's room read returns. Composing the
 // Facilities module itself is that owner's test concern.
-type txRooms struct {
+type planExportTxRooms struct {
 	tx bun.IDB
 }
 
-func (r txRooms) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
+func (r planExportTxRooms) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error) {
 	if len(ids) == 0 {
 		return []facilities.Room{}, nil
 	}
@@ -191,15 +191,15 @@ func (r txRooms) ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.R
 	return out, nil
 }
 
-// txRosterCounts serves the head count per block from the roster rows of the
+// planExportTxRosterCounts serves the head count per block from the roster rows of the
 // tenant transaction under test. The fixtures record no absence, so every
 // planned child counts; which children count as absent is Timetable's rule,
 // pinned by its own tests.
-type txRosterCounts struct {
+type planExportTxRosterCounts struct {
 	tx bun.IDB
 }
 
-func (r txRosterCounts) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
+func (r planExportTxRosterCounts) CountNonAbsentByInstanceIDs(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
 	var rows []struct {
 		InstanceID int64 `bun:"instance_id"`
 		Children   int   `bun:"children"`
@@ -215,18 +215,18 @@ func (r txRosterCounts) CountNonAbsentByInstanceIDs(ctx context.Context, instanc
 	return out, nil
 }
 
-// ownerInstances serves the block read from the Timetable owner's
+// planExportOwnerInstances serves the block read from the Timetable owner's
 // presence-joined reads, the rows the root's instance reads return.
-type ownerInstances struct {
+type planExportOwnerInstances struct {
 	rows timetabletest.LegacyRows
 }
 
-func newOwnerInstances(t *testing.T, db *bun.DB) ownerInstances {
+func newPlanExportOwnerInstances(t *testing.T, db *bun.DB) planExportOwnerInstances {
 	t.Helper()
-	return ownerInstances{rows: timetabletest.NewLegacyRows(t, db)}
+	return planExportOwnerInstances{rows: timetabletest.NewLegacyRows(t, db)}
 }
 
-func (s ownerInstances) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
+func (s planExportOwnerInstances) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
 	rows, err := s.rows.InstancesBetween(ctx, from.String(), to.String())
 	if err != nil {
 		return nil, err
@@ -243,18 +243,18 @@ func (s ownerInstances) FindByTenantAndDateRange(ctx context.Context, from, to c
 	return out, nil
 }
 
-// ownerInstanceStaff serves the staff-assignment read from the Timetable
+// planExportOwnerInstanceStaff serves the staff-assignment read from the Timetable
 // owner with the filter and order of the root's instance staff reads.
-type ownerInstanceStaff struct {
+type planExportOwnerInstanceStaff struct {
 	timetable timetable.Capability
 }
 
-func newOwnerInstanceStaff(t *testing.T, db *bun.DB) ownerInstanceStaff {
+func newPlanExportOwnerInstanceStaff(t *testing.T, db *bun.DB) planExportOwnerInstanceStaff {
 	t.Helper()
-	return ownerInstanceStaff{timetable: timetabletest.New(t, db)}
+	return planExportOwnerInstanceStaff{timetable: timetabletest.New(t, db)}
 }
 
-func (s ownerInstanceStaff) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error) {
+func (s planExportOwnerInstanceStaff) FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error) {
 	if len(instanceIDs) == 0 {
 		return []*timetable.InstanceStaff{}, nil
 	}
