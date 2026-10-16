@@ -7,10 +7,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -65,7 +65,7 @@ func normalizeShiftCoverageDates(input []calendar.Date) ([]calendar.Date, error)
 			return nil, invalidShiftCoverageProbe("dates must be valid calendar dates")
 		}
 	}
-	dates := sliceutil.Unique(input)
+	dates := domain.UniqueInOrder(input)
 	if len(dates) > maxShiftCoverageCandidateDates {
 		return nil, invalidShiftCoverageProbe("too many candidate dates")
 	}
@@ -85,7 +85,7 @@ func normalizeShiftCoverageStaffIDs(input []int64) ([]int64, error) {
 			return nil, invalidShiftCoverageProbe("staff IDs must be positive")
 		}
 	}
-	staffIDs := sliceutil.Unique(input)
+	staffIDs := domain.UniqueInOrder(input)
 	if len(staffIDs) > maxShiftCoverageStaffIDs {
 		return nil, invalidShiftCoverageProbe("too many staff IDs")
 	}
@@ -292,5 +292,5 @@ func uniqueEffectiveCoverageStaff(coverageDays map[calendar.Date]effectiveShiftC
 			all = append(all, day.staffIDs...)
 		}
 	}
-	return sliceutil.Unique(all)
+	return domain.UniqueInOrder(all)
 }

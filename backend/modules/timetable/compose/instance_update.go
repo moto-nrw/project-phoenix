@@ -9,9 +9,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -194,7 +194,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 	for _, row := range prior {
 		priorByStaff[row.StaffID] = row
 	}
-	newStaffIDs := sliceutil.UniquePositive(staffIDs)
+	newStaffIDs := domain.UniquePositiveIDs(staffIDs)
 	rosterUnchanged := sameStaffMembership(newStaffIDs, priorByStaff)
 	if !rosterUnchanged {
 		if err := s.logDroppedDeviations(ctx, instance, prior, actorAccountID); err != nil {
@@ -218,7 +218,7 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 			return &ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}
-	return s.assignInstanceStudents(ctx, instance, sliceutil.UniquePositive(studentIDs), tenantID, "update instance")
+	return s.assignInstanceStudents(ctx, instance, domain.UniquePositiveIDs(studentIDs), tenantID, "update instance")
 }
 
 // sameStaffMembership: staff_id is unique per block, so a length and
@@ -294,7 +294,7 @@ func (s *InstanceLifecycleService) lockRosterCareDays(ctx context.Context, insta
 		}
 	}
 	lockStudentIDs = append(lockStudentIDs, studentIDs...)
-	return s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), calendar.Date(instance.Date))
+	return s.lockCareExceptionDaysForStudents(ctx, domain.UniquePositiveIDs(lockStudentIDs), calendar.Date(instance.Date))
 }
 
 // lockCareExceptionDaysForStudents takes student → care-day locks for every
