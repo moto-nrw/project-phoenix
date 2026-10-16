@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 204 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
+Stand 16.10.2026 · Ratchet 204 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 60 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-59.260 in `compose`
+57.283 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -30,8 +30,8 @@ Die Root übersetzt Enrollments öffentliche Reads. Die vorhandenen Owner-Codecs
 im Leseweg: Dekodierfehler, Not-found-Marker, Katalogreihenfolge und leere ID-Filter ändern
 sich nicht. Der Kalender hält nun die bereits bestehende Wochentagsübersetzung gemeinsam;
 der Workflow delegiert an diese Implementierung; der unbenutzte Modell-Einstieg entfällt.
-Drei `models/enrollment`-Keys fallen: 207 → 204, #4073 35 → 32. Regeln 877,
-Composition 1.657, Compose 59.260 LOC und alle Budgets bleiben unverändert.
+Drei `models/enrollment`-Keys fallen: 207 → 204, #4073 35 → 32. Regeln 878,
+Composition 1.657, Compose 57.283 LOC und alle Budgets bleiben unverändert.
 Keine neue Freigabe, Rolle, Klassifizierung, Paketverschiebung oder Regel.
 
 #4073: Kind-, Phasen- und Einschreibungsleseports geben Workflow-eigene DTOs zurück.

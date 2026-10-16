@@ -24,7 +24,7 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/care|github.com/moto-nrw/project-phoenix/models/enrollment",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/models/enrollment"
   ],
-  "atomic_cutover": "Replace the Care production/internal-test and Messaging production models/enrollment edges with workflow-owned catalog values and offering-change identities. Root adapters accept only Enrollment public query interfaces. The existing owner adapters expose their already-decoded reads, preserving availability-rule, payload and decision-snapshot decode errors, retained not-found/store markers, context/IDs, no-lock identity lookups, catalog ordering and empty-ID short circuit. No new record adapter or service class. The fixed-days catalog fact is translated at the root; the workflow keeps its booking-selection and relationship authorization decisions. Extract the existing seven-day abbreviation mapping unchanged into sharedkernel/calendar; the existing workflow function delegates to it, and the now-unused legacy model entry point is deleted. No routes/responses or HTTP/package moves. Keys207->204; #4073 35->32; rules877,composition1657,compose59260 and all budget registers unchanged. No new grant/rule/classification/owner.",
+  "atomic_cutover": "Replace the Care production/internal-test and Messaging production models/enrollment edges with workflow-owned catalog values and offering-change identities. Root adapters accept only Enrollment public query interfaces. The existing owner adapters expose their already-decoded reads, preserving availability-rule, payload and decision-snapshot decode errors, retained not-found/store markers, context/IDs, no-lock identity lookups, catalog ordering and empty-ID short circuit. No new record adapter or service class. The fixed-days catalog fact is translated at the root; the workflow keeps its booking-selection and relationship authorization decisions. Extract the existing seven-day abbreviation mapping unchanged into sharedkernel/calendar; the existing workflow function delegates to it, and the now-unused legacy model entry point is deleted. No routes/responses or HTTP/package moves. Keys207->204; #4073 35->32; rules878,composition1657,compose57283 and all budget registers unchanged. No new grant/rule/classification/owner.",
   "tests": [
     "Focused seven-package portal/Care/HTTP/API, Enrollment application, model and calendar suites pass.",
     "Public owner read tests preserve empty-ID short circuit, catalog ordering/filter/context, stored decode failures and not-found/store error chains.",
@@ -33,7 +33,7 @@
     "Private-cache architecture check, immutable-base ticket validation, full non-fast scripts/test-changed.sh origin/development, unchanged passthrough/length/budget ratchets and zero-issue source lint required before push."
   ],
   "runtime_evidence": {
-    "source": "Local port/facade migration based on development e917ddb08644e1f42795d1330a78793d8d3a1a2b, assigned localhost test database. No production/staging requests or latency benchmark.",
+    "source": "Local port/facade migration based on development a1a7d6c83fac4236119709a1a1a9aba6fe7e56ce, assigned localhost test database. No production/staging requests or latency benchmark.",
     "sources": [
       "backend/modules/enrollment/parent_offering_reads.go",
       "backend/modules/enrollment/internal/application/care_offering_rows.go",

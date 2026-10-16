@@ -6,6 +6,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // NewClassDayTimetableRows binds the slot lists' block and roster reads to
@@ -22,7 +23,7 @@ type classDayTimetableRows struct {
 }
 
 func (r classDayTimetableRows) ListActivityInstancesOn(ctx context.Context, date string) ([]classdayCompose.SlotBlock, error) {
-	instances, err := r.reads.ListLegacyInstances(ctx, timetableCompose.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
+	instances, err := r.reads.ListLegacyInstances(ctx, timetablePorts.LegacyInstanceFilter{Date: &date, OrderByDateAndTime: true})
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +46,7 @@ func (r classDayTimetableRows) ListRoster(ctx context.Context, instanceIDs []int
 	if len(instanceIDs) == 0 {
 		return []classdayCompose.SlotRosterRow{}, nil
 	}
-	participants, err := r.reads.ListLegacyParticipants(ctx, timetableCompose.LegacyParticipantFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
+	participants, err := r.reads.ListLegacyParticipants(ctx, timetablePorts.LegacyParticipantFilter{InstanceIDs: instanceIDs, OrderByInstanceStudent: true})
 	if err != nil {
 		return nil, err
 	}

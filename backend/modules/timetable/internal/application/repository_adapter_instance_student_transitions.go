@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 )
 
 // The grade transition (#3424) parks and replays the planned participants of
@@ -16,7 +15,7 @@ import (
 // children: a row stays when it records an observed presence, or a hand-set
 // status on a block that already started. The attendance each parked row
 // carried travels into the archive with it.
-func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from application.InstanceStudentDate, at time.Time) (int, error) {
+func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx context.Context, transitionID int64, studentIDs []int64, from InstanceStudentDate, at time.Time) (int, error) {
 	studentIDs = positiveInstanceStudentIDs(studentIDs)
 	if len(studentIDs) == 0 {
 		return 0, nil
@@ -24,7 +23,7 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 	fromText := from.String()
 	participants, err := r.timetable.ListPlannedInstanceStudents(ctx, timetable.InstanceStudentFilter{StudentIDs: studentIDs, FromDate: &fromText, ExcludeCancelled: true})
 	if err != nil {
-		return 0, application.WrapDatabaseError("archive planned by student ids from", err)
+		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
 	if len(participants) == 0 {
 		return 0, nil
@@ -36,13 +35,13 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 	}
 	attendance, err := r.attendanceByParticipant(ctx, ids)
 	if err != nil {
-		return 0, application.WrapDatabaseError("archive planned by student ids from", err)
+		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
 	started, completed, err := r.sessionStates(ctx, uniqueInt64s(instanceIDs))
 	if err != nil {
-		return 0, application.WrapDatabaseError("archive planned by student ids from", err)
+		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
-	today, clock := application.InstanceStudentDay(at), application.InstanceStudentWallClock(at)
+	today, clock := InstanceStudentDay(at), InstanceStudentWallClock(at)
 	entries := make([]timetable.RosterArchiveEntry, 0, len(participants))
 	for _, participant := range participants {
 		row := attendance[participant.ID]
@@ -52,7 +51,7 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 	}
 	rows, err := r.timetable.ArchivePlannedInstanceStudents(ctx, transitionID, entries)
 	if err != nil {
-		return 0, application.WrapDatabaseError("archive planned by student ids from", err)
+		return 0, WrapDatabaseError("archive planned by student ids from", err)
 	}
 	return rows, nil
 }
@@ -60,10 +59,10 @@ func (r timetableInstanceStudentRepository) ArchivePlannedByStudentIDsFrom(ctx c
 // RestoreArchivedByTransition replays the parked rows: the participant comes
 // back through Timetable, a non-booking or hand-set status is restored as
 // archived, and every other row takes today's day statuses and excusals.
-func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from application.InstanceStudentDate) (int, error) {
+func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx context.Context, transitionID int64, studentIDs []int64, from InstanceStudentDate) (int, error) {
 	restored, err := r.timetable.RestoreArchivedInstanceStudents(ctx, transitionID, positiveInstanceStudentIDs(studentIDs), from.String())
 	if err != nil {
-		return 0, application.WrapDatabaseError("restore archived rows by transition", err)
+		return 0, WrapDatabaseError("restore archived rows by transition", err)
 	}
 	if len(restored) == 0 {
 		return 0, nil
@@ -81,11 +80,11 @@ func (r timetableInstanceStudentRepository) RestoreArchivedByTransition(ctx cont
 	}
 	if len(rows) > 0 {
 		if err := r.presence.RestoreSessionAttendance(ctx, rows); err != nil {
-			return 0, application.WrapDatabaseError("restore archived rows by transition", err)
+			return 0, WrapDatabaseError("restore archived rows by transition", err)
 		}
 	}
 	if err := r.reapplyDayStatuses(ctx, instances); err != nil {
-		return 0, application.WrapDatabaseError("restore archived rows by transition", err)
+		return 0, WrapDatabaseError("restore archived rows by transition", err)
 	}
 	return len(restored), nil
 }
