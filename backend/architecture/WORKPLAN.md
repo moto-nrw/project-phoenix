@@ -5,7 +5,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 
 Stand 16.10.2026 · Ratchet 217 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-67.459 in `compose`
+67.401 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -193,19 +193,24 @@ Importpfade. Epoche 58 → 59; Regeln, Legacy-Keys, Composition und Budgets
 bleiben gleich. Keine Route, Response, IoT-Zeichenkette oder Assertion ändert
 sich; die vorangehende Sessions-Owner-Übernahme muss zuerst gemergt sein.
 
-#4078: `api/absence-types` gehört zu Workforce/HTTP;
-`inbound-absence-types` entfällt. Die unveränderte Bindung von Authentifizierung,
-Actor, Berechtigungen und Fehlern liegt in Root. Die drei bisherigen
-Kompositionsfälle laufen über diese Bindung, ohne den veränderlichen
-`ComposeAbsenceTypes`-Testhook. Ihre 39 Assertions einschließlich der bisherigen
-Setup-Prüfung und die 197 Time-Tracking-Assertions bleiben unverändert.
+#4078: `api/absence-types` und `api/work-time-models` gehören zu Workforce/HTTP;
+`inbound-absence-types` und `inbound-work-time-models` entfallen. Ihre unveränderten
+Bindungen von Authentifizierung, Actor, Berechtigungen, Fehlern und
+Nachbenachrichtigung liegen in Root. Die bisherigen Kompositionsfälle laufen
+über diese Bindungen, ohne den veränderlichen `ComposeAbsenceTypes`-Testhook.
+Alle 243 Assertions bleiben unverändert: 39 für Abwesenheitsarten einschließlich
+der bisherigen Setup-Prüfung, 197 für Time Tracking und sieben für Arbeitszeitmodelle.
 Time Tracking erhält seine elf Tenant-Transaktionen über einen Root-gebundenen
 Port statt über Bun. Root validiert dieselbe Tenant-ID und bindet die öffentliche
 Unit-of-Work-API; HTTP erhält weder Pool noch Transaktionsobjekt.
-Drei Regeln entfallen ohne Nachfolger, einschließlich der breiten HTTP-ORM-Regel.
-Inbound-Owner 15 → 14, Regeln 897 → 894; Legacy-Keys und Composition
-bleiben gleich. Das Compose-Budget sinkt um zehn LOC, der Dateigrößen-Eintrag
-für Time Tracking von 863 auf 862; der ORM-Ausnahmeeintrag entfällt. Keine Route, Response oder Assertion ändert sich.
+Fünf Regeln entfallen ohne Nachfolger, einschließlich der breiten HTTP-ORM-Regel
+und der eingehenden Workflow-Test-Regel für Arbeitszeitmodell-HTTP.
+Inbound-Owner 15 → 13, Regeln 897 → 892, Legacy-Keys 217 → 215; Composition bleibt gleich.
+Zwei erledigte #4004-Kanten des bisherigen Compose-Adapters entfallen mit
+Nachweis in `workforce-configuration-http-owner-4078.json`.
+Das Compose-Budget sinkt von 67.469 auf 67.401 LOC, der HTTP-Adapter-Eintrag von
+81 auf 13. Der Dateigrößen-Eintrag für Time Tracking sinkt von 863 auf 862;
+der ORM-Ausnahmeeintrag entfällt. Keine Route, Response oder Assertion ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

@@ -183,10 +183,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-work-time-models",
-      "kind": "inbound"
-    },
-    {
       "id": "legacy-composition",
       "kind": "composition"
     },
@@ -929,7 +925,7 @@
     },
     {
       "path": "api/work-time-models",
-      "owner": "inbound-work-time-models",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -8126,17 +8122,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-work-time-models.to.workforce",
-      "description": "inbound-work-time-models calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-work-time-models",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "internal-test.same-owner.application",
       "description": "Internal tests may import their owner's application packages.",
       "scopes": [
@@ -9098,17 +9083,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "workforce.integration-test.work-time-models-http",
-      "description": "Workforce HTTP integration tests drive the work-time-model adapter directly.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-work-time-models",
-      "target_role": "http"
     },
     {
       "id": "workflow-decision-test.test-support",
