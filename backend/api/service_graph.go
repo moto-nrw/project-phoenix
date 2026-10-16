@@ -9,7 +9,6 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -399,7 +398,7 @@ type IdentityMaterial struct {
 type IdentityComposition struct {
 	Access               *identityaccess.Module
 	Caller               CallerRowReads
-	GroupLiveCaller      groupliveCompose.CallerContext
+	GroupLiveCaller      GroupLiveCallerContext
 	SupervisionCaller    supervisiondashboardCompose.CallerContext
 	GuardianInvitations  GuardianInvitationReads
 	ParentGuardianAccess parentportal.GuardianAccess

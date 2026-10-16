@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -39,6 +40,7 @@ type AtSchoolCounter interface {
 
 // Dependencies are the consumer-owned ports the projection reads through.
 // ExcusedRequests is optional: without it no pending note is attached.
+// Collate is optional: without it the groups keep the directory order.
 // Logger defaults to slog.Default; every other field is required.
 type Dependencies struct {
 	Access          Access
@@ -50,7 +52,10 @@ type Dependencies struct {
 	Settings        Settings
 	Calendar        Calendar
 	ExcusedRequests PendingExcusedReader
-	Logger          *slog.Logger
+	// Collate orders two group names in German dictionary order (DIN 5007-1),
+	// the order the group selection and the response rely on.
+	Collate func(a, b string) int
+	Logger  *slog.Logger
 }
 
 type service struct{ deps Dependencies }
@@ -300,11 +305,21 @@ func (s *service) validateAtSchoolCounterDependencies() error {
 	return nil
 }
 
+// sortGroups orders groups by name with the injected collation; the sort is
+// stable, so groups with equal names keep the directory order.
+func (s *service) sortGroups(groups []GroupRecord) {
+	if s.deps.Collate == nil {
+		return
+	}
+	slices.SortStableFunc(groups, func(a, b GroupRecord) int { return s.deps.Collate(a.Name, b.Name) })
+}
+
 func (s *service) resolveGroups(ctx context.Context, caller Caller, requestedGroupID int64, allowMissingRoomNames bool) ([]Group, *GroupRecord, error) {
 	myGroups, err := s.deps.Groups.SupervisedGroups(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load supervised groups: %w", err)
 	}
+	s.sortGroups(myGroups)
 	personalIDs := make(map[int64]bool, len(myGroups))
 	for _, group := range myGroups {
 		personalIDs[group.ID] = true
@@ -316,6 +331,7 @@ func (s *service) resolveGroups(ctx context.Context, caller Caller, requestedGro
 		if err != nil {
 			return nil, nil, fmt.Errorf("load tenant groups: %w", err)
 		}
+		s.sortGroups(visibleGroups)
 	}
 
 	if len(visibleGroups) == 0 {

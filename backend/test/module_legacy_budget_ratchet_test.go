@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 2444
+const moduleLegacyBudgetTotal = 1916
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 89853
+const moduleComposeBudgetTotal = 89851
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -191,7 +191,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/facilities/compose/repositoryadapter":   242,
 	"modules/feedback/compose":                       219,
 	"modules/filestorage/compose":                    642,
-	"modules/grouplive/compose":                      16,
+	"modules/grouplive/compose":                      14,
 	"modules/identityaccess/compose":                 7339,
 	"modules/mealplan/compose":                       274,
 	"modules/organizationtenancy/compose":            744,
@@ -251,10 +251,9 @@ var moduleLegacyBudgets = map[string]int{
 	"modules/emergencysnapshot/legacy": 11,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 517,
-	// No ticket today. Two lines under the first seed: #3427 removed the
-	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
-	// replaced the user-context service with a local CallerContext port.
-	"modules/grouplive/legacy": 539,
+	// #4077 moved the adapters into the root; the German name order stays
+	// until #4086 settles internal/collation.
+	"modules/grouplive/legacy": 11,
 	// No ticket today.
 	"modules/supervisiondashboard/legacy": 701,
 	// No ticket today — and the largest tree of the twelve.

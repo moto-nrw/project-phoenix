@@ -8,7 +8,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -102,7 +101,7 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 		ParentAnnouncementCommand: b.graph.ParentAnnouncement,
 	}
 	b.graph.AbsenceOverview = presenceservice.NewStatusDayOverviews(b.CarePlanWiring.StatusDays, b.People.StatusDayPeople(b.graph.Users))
-	live, err := groupliveCompose.New(groupliveCompose.Sources{
+	live, err := newGroupLive(groupLiveSources{
 		Presence: b.Presence.Presence, People: b.People.GroupRosterPeople(b.graph.Users), Education: b.graph.Education,
 		Substitutions: b.graph.Substitution, UserContext: b.identity.GroupLiveCaller, Active: b.graph.Active,
 		Settings: b.settingsService, Pickups: b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule,

@@ -5426,17 +5426,6 @@
       "target_role": "public"
     },
     {
-      "id": "group-live-view.adapter.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "calendar-view.adapter.care-plan.public",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -12928,17 +12917,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "group-live-view.adapter.care-plan-absence-records",
-      "description": "The live-group adapter groups the Care Plan status-day records of modules/careplan/absencerecords before the owner resolves their precedence (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "contract"
-    },
-    {
       "id": "timetable-activities.compose.student-presence.public",
       "description": "Replace the retired room-capacity sentinel alias with its public owner (#3351, ADR 0030).",
       "scopes": [
@@ -14079,17 +14057,6 @@
         "production"
       ],
       "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "contract"
-    },
-    {
-      "id": "group-live-view.adapter.school-structure-contract",
-      "description": "Consumes the storage-neutral School Structure contract (#3555).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "group-live-view",
       "source_role": "adapter",
       "target_owner": "school-structure",
       "target_role": "contract"
