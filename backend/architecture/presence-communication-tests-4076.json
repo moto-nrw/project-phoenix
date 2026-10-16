@@ -29,7 +29,7 @@
     "source": "Local verification on 2026-10-16 of this #4076 slice. No production or staging requests and no benchmark run.",
     "sources": [
       "backend/modules/communication/internal/parentmessages/message_email_test.go",
-      "backend/modules/timetable/compose/attendance_mirror_unit_internal_test.go",
+      "backend/modules/timetable/internal/application/attendance_mirror_unit_internal_test.go",
       "backend/api/timetable_attendance_mirror_internal_test.go",
       "backend/modules/studentpresence/internal/application/presence/group_supervisor_repository_test.go"
     ],

@@ -17,15 +17,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type careOfferingsChildRepoStub struct {
-	parentModels.ChildRepository
-	child *parentModels.ChildSummary
+	ChildReads
+	child *ChildSummary
 	err   error
 }
 
@@ -44,7 +43,7 @@ func (careOfferingsStudentRepoStub) FindByIDForUpdate(
 func (s careOfferingsChildRepoStub) FindForAccount(
 	_ context.Context,
 	_, _ int64,
-) (*parentModels.ChildSummary, error) {
+) (*ChildSummary, error) {
 	return s.child, s.err
 }
 
@@ -246,11 +245,11 @@ func careOfferingsTestDB(t *testing.T) *bun.DB {
 	return db
 }
 
-func permittedCareOfferingsChild(tb testing.TB) *parentModels.ChildSummary {
-	return &parentModels.ChildSummary{
+func permittedCareOfferingsChild(tb testing.TB) *ChildSummary {
+	return &ChildSummary{
 		StudentID: 22,
 		TenantID:  testpkg.Tenant(tb),
-		GuardianPermissions: map[string]interface{}{
+		GuardianPermissions: map[string]bool{
 			authorize.GuardianPermissionPortalAccess:  true,
 			authorize.GuardianPermissionRequestSubmit: true,
 		},
@@ -259,7 +258,7 @@ func permittedCareOfferingsChild(tb testing.TB) *parentModels.ChildSummary {
 
 func careOfferingsService(
 	db *bun.DB,
-	child *parentModels.ChildSummary,
+	child *ChildSummary,
 	changes *offeringChangesStub,
 ) *Service {
 	svc := &Service{Config: Config{
@@ -575,7 +574,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 	endedPeriod := &CarePeriod{ServiceEndDate: today.AddDays(-1)}
 	permitted := &Child{
 		TenantID: testpkg.Tenant(t),
-		GuardianPermissions: map[string]interface{}{
+		GuardianPermissions: map[string]bool{
 			authorize.GuardianPermissionRequestSubmit: true,
 		},
 	}
@@ -676,7 +675,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 	delegateErr := errors.New("delegate failed")
 	tests := []struct {
 		name   string
-		child  *parentModels.ChildSummary
+		child  *ChildSummary
 		change *offeringChangesStub
 		call   func(*Service) error
 		want   error
@@ -701,7 +700,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 		},
 		{
 			name:   "catalog permission denied",
-			child:  &parentModels.ChildSummary{StudentID: 22, TenantID: testpkg.Tenant(t)},
+			child:  &ChildSummary{StudentID: 22, TenantID: testpkg.Tenant(t)},
 			change: &offeringChangesStub{},
 			call: func(svc *Service) error {
 				_, err := svc.GetChildOfferingCatalog(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)

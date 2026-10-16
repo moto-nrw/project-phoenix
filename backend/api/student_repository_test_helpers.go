@@ -6,7 +6,7 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -19,7 +19,7 @@ type StudentTestRepositories struct {
 	CarePlan           careplan.Capability
 	ParentRequestShare usersModels.ParentRequestShareEventRepository
 	EnrollmentTestRepositories
-	CareScheduleChangeRequest    timetableCompose.CareScheduleRequestRows
+	CareScheduleChangeRequest    timetablePorts.CareScheduleRequestRows
 	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     usersModels.StudentDataChangeRequestRepository

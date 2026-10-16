@@ -1,7 +1,7 @@
 package api
 
 import (
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -11,7 +11,7 @@ import (
 // stores come from the Settings composition (NewDisplayTestRepositories).
 type DisplayReadRepositories struct {
 	TimetableTestRepositories
-	StudentPickupNote timetableCompose.CarePickupNoteRows
+	StudentPickupNote timetablePorts.CarePickupNoteRows
 }
 
 // NewDisplayTestRepositoriesWithMembers composes the dashboard's read dependencies.

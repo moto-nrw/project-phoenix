@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -35,10 +34,10 @@ type Dependencies struct {
 	Logger *slog.Logger
 	Now    func() time.Time
 
-	ChildRepo             parentModels.ChildRepository
-	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
+	ChildRepo             care.ChildReads
+	EnrollablePhaseRepo   care.EnrollablePhaseReads
 	EnrollmentSettings    care.EnrollmentSettings
-	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
+	EnrollmentRequestRepo care.EnrollmentRequestReads
 	Settings              care.SettingsService
 
 	StudentRepo         care.StudentReads

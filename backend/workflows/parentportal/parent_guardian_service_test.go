@@ -39,7 +39,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
+		ChildRepo:     repos.ParentChildReads(),
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
 		Settings: parentSettingsStub{
@@ -1429,7 +1429,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		CarePlan:      repos.CarePlan(),
 		People:        api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:  careProfiles(t, db),
-		ChildRepo:     repos.ParentChild,
+		ChildRepo:     repos.ParentChildReads(),
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
 		Settings: parentSettingsStub{

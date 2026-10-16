@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // ExcusedAbsenceRequestRepository serves the retained excused-absence request
@@ -23,7 +24,7 @@ func NewExcusedAbsenceRequestRepository(capability careplan.Capability) *Excused
 	return &ExcusedAbsenceRequestRepository{capability: capability}
 }
 
-func NewCareScheduleChangeRequestRepository(capability careplan.Capability) timetableCompose.CareScheduleRequestRows {
+func NewCareScheduleChangeRequestRepository(capability careplan.Capability) timetablePorts.CareScheduleRequestRows {
 	return timetableCompose.NewCareScheduleRequestRows(NewCarePlanRows(capability))
 }
 
