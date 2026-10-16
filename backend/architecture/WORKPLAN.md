@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 220 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
+Stand 16.10.2026 · Ratchet 218 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.586 in `compose`
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 88 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 42 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 40 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 7 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
@@ -21,9 +21,17 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 220 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 218 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Kind-Ereignisse und Messaging-Aktivierungsprüfung laufen über eigene Workflow-Ports.
+Die Root übersetzt Ereignisse in Communications öffentlichen, typisierten Elternvertrag und
+bindet die gemeinsame Fail-open-Policy. Assertions, Empfänger-/Akteurtrennung, Referenzzeilen,
+After-Commit-Fan-out und Beziehungsschutz bleiben gleich. Der deklarationsbezogene Zugriff
+auf die Kompatibilitätsschicht bleibt vorerst bestehen. Zwei Keys fallen: Care und Compose
+nennen keinen konkreten Emitter mehr. Keys 230 → 228, #4073 42 → 40, Regeln 902 → 902,
+Composition 1.657 unverändert, Portal-Compose 507 LOC unverändert. Keine neue Freigabe.
 
 #4078: Der Meal-Plan-HTTP-Adapter liegt bereits unter `modules/mealplan/http` und gehört jetzt
 zu `meal-plan`; `inbound-mealplan` und seine zwei Regeln sind gelöscht. Eine gleich enge
