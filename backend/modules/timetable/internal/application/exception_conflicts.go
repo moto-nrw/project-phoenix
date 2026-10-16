@@ -10,6 +10,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -174,7 +175,7 @@ func (d *conflictDetection) loadArrivalPreload(ctx context.Context, dates map[ca
 		if isWeekend(date) {
 			follows, err := calendar.WeekendFollowsFriday(ctx)
 			if err != nil {
-				return nil, &ScheduleError{Op: "exception conflicts: resolve weekend plan", Err: err}
+				return nil, &ports.ScheduleError{Op: "exception conflicts: resolve weekend plan", Err: err}
 			}
 			pre.weekendFollowsFriday = follows
 			break

@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"sync"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // Package-local doubles of the lifecycle's consumer-owned ports
@@ -15,7 +17,7 @@ type lifecycleBroadcastCall struct {
 	Method   string // "group" or "tenant"
 	TenantID int64
 	Topic    string // BroadcastToGroup only
-	Event    LifecycleEvent
+	Event    ports.LifecycleEvent
 }
 
 // lifecycleEventRecorder records every lifecycle event under a mutex.
@@ -31,11 +33,11 @@ func (r *lifecycleEventRecorder) record(call lifecycleBroadcastCall) error {
 	return nil
 }
 
-func (r *lifecycleEventRecorder) BroadcastToGroup(tenantID int64, topic string, event LifecycleEvent) error {
+func (r *lifecycleEventRecorder) BroadcastToGroup(tenantID int64, topic string, event ports.LifecycleEvent) error {
 	return r.record(lifecycleBroadcastCall{Method: "group", TenantID: tenantID, Topic: topic, Event: event})
 }
 
-func (r *lifecycleEventRecorder) BroadcastToTenant(tenantID int64, event LifecycleEvent) error {
+func (r *lifecycleEventRecorder) BroadcastToTenant(tenantID int64, event ports.LifecycleEvent) error {
 	return r.record(lifecycleBroadcastCall{Method: "tenant", TenantID: tenantID, Event: event})
 }
 
@@ -60,8 +62,8 @@ func (r *lifecycleEventRecorder) GroupCallsForTopic(topic string) []lifecycleBro
 }
 
 // EventsOfType returns the events of every recorded call with the type.
-func (r *lifecycleEventRecorder) EventsOfType(eventType string) []LifecycleEvent {
-	out := make([]LifecycleEvent, 0)
+func (r *lifecycleEventRecorder) EventsOfType(eventType string) []ports.LifecycleEvent {
+	out := make([]ports.LifecycleEvent, 0)
 	for _, call := range r.Calls() {
 		if call.Event.Type == eventType {
 			out = append(out, call.Event)
@@ -73,11 +75,11 @@ func (r *lifecycleEventRecorder) EventsOfType(eventType string) []LifecycleEvent
 // recordingDeviationProtocol captures Änderungsprotokoll writes (#1886).
 // Func-field convention: nil = zero-value default (record and succeed).
 type recordingDeviationProtocol struct {
-	events    []DeviationEventRecord
+	events    []ports.DeviationEventRecord
 	createErr error
 }
 
-func (r *recordingDeviationProtocol) RecordDeviationEvent(_ context.Context, event DeviationEventRecord) error {
+func (r *recordingDeviationProtocol) RecordDeviationEvent(_ context.Context, event ports.DeviationEventRecord) error {
 	if r.createErr != nil {
 		return r.createErr
 	}

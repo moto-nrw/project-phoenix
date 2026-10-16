@@ -21,6 +21,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -291,7 +292,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 	}
 	instances, err := b.TimetableWiring.Lifecycle(TimetableLifecycleInputs{
 		Rows: b.timetableRows,
-		Planning: arrivalTimetable.InstanceLifecycleDependencies{
+		Planning: timetablePorts.InstanceLifecycleDependencies{
 			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
 			CalendarPeriodRepo: b.templateRows.CalendarPeriods, Database: arrivalTimetable.NewTenantDatabase(b.DB.Pool()),
 		},

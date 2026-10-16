@@ -7,6 +7,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -32,7 +33,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		settings:       &helperSettings{},
 		announcer:      &helperAnnouncer{},
 	}
-	deps.service = &operations{caller: sessionlessCaller{}, deps: OperationDependencies{
+	deps.service = &operations{caller: sessionlessCaller{}, deps: ports.OperationDependencies{
 		Instances: deps.instanceRepo,
 		People:    deps.personService,
 		Templates: deps.activityGroups,
@@ -149,7 +150,7 @@ func (s *helperSettings) EnforcePlannedEnd(context.Context) (bool, error) { retu
 
 func (s *helperSettings) CompleteLeadMinutes(context.Context) (int, error) { return 0, nil }
 
-func (s *helperSettings) ActionScopeKey(ScopedAction) (string, error) {
+func (s *helperSettings) ActionScopeKey(ports.ScopedAction) (string, error) {
 	return "operations.attendance_edit_scope", nil
 }
 
@@ -230,14 +231,14 @@ func (sessionlessCaller) AssignmentBoundPortal(context.Context) bool { return fa
 func (sessionlessCaller) AdministrativeAccess(context.Context) bool  { return false }
 func (sessionlessCaller) OGSActorToken(context.Context, int64) bool  { return false }
 
-func (sessionlessCaller) SchoolWideActionScope(ctx context.Context, settings OperationSettings, scopeKey string) (bool, error) {
+func (sessionlessCaller) SchoolWideActionScope(ctx context.Context, settings ports.OperationSettings, scopeKey string) (bool, error) {
 	if _, err := settings.ResolveString(ctx, scopeKey); err != nil {
 		return false, err
 	}
 	return false, nil
 }
 
-func (sessionlessCaller) OperationalOverview(ctx context.Context, settings OperationSettings, assignmentBound, administrative, _ bool) (bool, error) {
+func (sessionlessCaller) OperationalOverview(ctx context.Context, settings ports.OperationSettings, assignmentBound, administrative, _ bool) (bool, error) {
 	if _, err := settings.ResolveString(ctx, "operations.overview_scope"); err != nil {
 		return false, err
 	}

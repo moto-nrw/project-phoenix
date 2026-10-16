@@ -8,6 +8,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -100,7 +101,7 @@ type TemplateSplitInput struct {
 
 // validateSplitInput checks the semantic rules the handler's Bind cannot:
 // dates, weekday range, week pattern, time order, activity type.
-func validateSplitInput(in *TemplateSplitInput, today calendar.Date, rules SchoolClassRules) error {
+func validateSplitInput(in *TemplateSplitInput, today calendar.Date, rules ports.SchoolClassRules) error {
 	if err := validateSplitTemplateFields(*in, rules); err != nil {
 		return err
 	}
@@ -129,7 +130,7 @@ func validateSplitWeekdayAssignments(in TemplateSplitInput) error {
 	return nil
 }
 
-func validateSplitTemplateFields(in TemplateSplitInput, rules SchoolClassRules) error {
+func validateSplitTemplateFields(in TemplateSplitInput, rules ports.SchoolClassRules) error {
 	if in.TemplateID <= 0 {
 		return fmt.Errorf("%w: template id is required", timetable.ErrSplitInvalidInput)
 	}
@@ -275,7 +276,7 @@ func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*act
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrSplitTemplateNotFound
 		}
-		return nil, &ScheduleError{Op: "split template: load template", Err: err}
+		return nil, &ports.ScheduleError{Op: "split template: load template", Err: err}
 	}
 	if group == nil || !group.IsTemplate || group.ArchivedAt != nil {
 		return nil, timetable.ErrSplitTemplateNotFound
@@ -301,11 +302,11 @@ func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
 ) (calendar.Date, *calendar.Date, error) {
 	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return calendar.Date(""), nil, &ScheduleError{Op: op + ": load schedule envelope", Err: err}
+		return calendar.Date(""), nil, &ports.ScheduleError{Op: op + ": load schedule envelope", Err: err}
 	}
 	validFrom, validUntil, err := commonScheduleValidityEnvelope(schedules)
 	if err != nil {
-		return calendar.Date(""), nil, &ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
+		return calendar.Date(""), nil, &ports.ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
 	}
 	if validFrom != nil && effectiveDate.Before(*validFrom) {
 		if !clampBeforeStart {

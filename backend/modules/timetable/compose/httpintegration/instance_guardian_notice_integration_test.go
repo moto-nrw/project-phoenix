@@ -10,7 +10,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -45,30 +45,30 @@ func (n lifecycleGuardianNotices) ValidateNoticeText(title, message string) erro
 	return err
 }
 
-func (n lifecycleGuardianNotices) NoticeReach(ctx context.Context, studentIDs []int64) (compose.GuardianNoticeAudience, error) {
+func (n lifecycleGuardianNotices) NoticeReach(ctx context.Context, studentIDs []int64) (timetablePorts.GuardianNoticeAudience, error) {
 	reach, err := n.publisher.CareCancellationReachFor(ctx, studentIDs)
 	if err != nil {
-		return compose.GuardianNoticeAudience{}, err
+		return timetablePorts.GuardianNoticeAudience{}, err
 	}
-	return compose.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
+	return timetablePorts.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
 }
 
-func (n lifecycleGuardianNotices) PublishNotice(ctx context.Context, notice compose.GuardianNoticePublication) (compose.GuardianNoticePublished, error) {
+func (n lifecycleGuardianNotices) PublishNotice(ctx context.Context, notice timetablePorts.GuardianNoticePublication) (timetablePorts.GuardianNoticePublished, error) {
 	published, err := n.publisher.PublishCareCancellation(ctx, communication.CareCancellationInput{
 		StudentIDs: notice.StudentIDs, Title: notice.Title, Body: notice.Body, CreatedBy: notice.CreatedBy,
 	})
 	switch {
 	case errors.Is(err, communication.ErrParentAnnouncementValidation):
-		return compose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
+		return timetablePorts.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
 	case err != nil:
-		return compose.GuardianNoticePublished{}, err
+		return timetablePorts.GuardianNoticePublished{}, err
 	}
-	return compose.GuardianNoticePublished{AnnouncementID: published.AnnouncementID, RecipientCount: published.RecipientCount}, nil
+	return timetablePorts.GuardianNoticePublished{AnnouncementID: published.AnnouncementID, RecipientCount: published.RecipientCount}, nil
 }
 
 // instanceServiceWithGuardianNotices builds the lifecycle service with the
 // given notice publisher, the way the composition root wires it.
-func instanceServiceWithGuardianNotices(t *testing.T, s *lifecycleSetup, publisher communication.CareCancellationPublisher) *compose.InstanceLifecycleService {
+func instanceServiceWithGuardianNotices(t *testing.T, s *lifecycleSetup, publisher communication.CareCancellationPublisher) timetablePorts.InstanceLifecycle {
 	t.Helper()
 	deps := lifecycleDependencies(s, nil)
 	deps.GuardianNotices = lifecycleGuardianNotices{publisher: publisher}

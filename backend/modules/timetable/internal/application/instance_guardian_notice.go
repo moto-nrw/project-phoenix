@@ -8,6 +8,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -21,37 +22,6 @@ import (
 // errGuardianNoticesNotWired is a composition error: a notice was requested
 // but no publisher is wired. It renders as 500, never as a user error.
 var errGuardianNoticesNotWired = errors.New("guardian notice publisher not wired")
-
-// GuardianNoticeAudience is how far a care cancellation notice reaches.
-type GuardianNoticeAudience struct {
-	FamilyCount int
-}
-
-// GuardianNoticePublication is one notice to publish.
-type GuardianNoticePublication struct {
-	StudentIDs []int64
-	Title      string
-	Body       string
-	CreatedBy  int64
-}
-
-// GuardianNoticePublished is a published notice.
-type GuardianNoticePublished struct {
-	AnnouncementID int64
-	RecipientCount int
-}
-
-// GuardianNotices is the consumer-owned port to Communication's care
-// cancellation notice. A refused publication comes back wrapped in
-// timetable.ErrGuardianNoticeInvalid.
-type GuardianNotices interface {
-	// ValidateNoticeText checks title and message before anything is written.
-	ValidateNoticeText(title, message string) error
-	// NoticeReach reports how many families the children's notice would
-	// reach.
-	NoticeReach(ctx context.Context, studentIDs []int64) (GuardianNoticeAudience, error)
-	PublishNotice(ctx context.Context, notice GuardianNoticePublication) (GuardianNoticePublished, error)
-}
 
 // GuardianNoticeReachFor resolves the dialog preview for one block: how
 // many booked children it has and how many families a notice would reach.
@@ -69,7 +39,7 @@ func (s *InstanceLifecycleService) GuardianNoticeReachFor(ctx context.Context, i
 	}
 	reach, err := s.deps.GuardianNotices.NoticeReach(ctx, studentIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: "guardian notice reach", Err: err}
+		return nil, &ports.ScheduleError{Op: "guardian notice reach", Err: err}
 	}
 	return &timetable.GuardianNoticeReach{
 		ChildCount:  len(studentIDs),
@@ -108,7 +78,7 @@ func (s *InstanceLifecycleService) CancelWithNotice(ctx context.Context, in time
 
 func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, in timetable.CancelInstanceInput) error {
 	if s.deps.GuardianNotices == nil {
-		return &ScheduleError{Op: "guardian notice", Err: errGuardianNoticesNotWired}
+		return &ports.ScheduleError{Op: "guardian notice", Err: errGuardianNoticesNotWired}
 	}
 	if in.ActorAccountID == nil || *in.ActorAccountID <= 0 {
 		return fmt.Errorf("%w: acting account is required", timetable.ErrGuardianNoticeInvalid)
@@ -145,7 +115,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 		)
 		return result, nil
 	}
-	published, err := s.deps.GuardianNotices.PublishNotice(ctx, GuardianNoticePublication{
+	published, err := s.deps.GuardianNotices.PublishNotice(ctx, ports.GuardianNoticePublication{
 		StudentIDs: studentIDs,
 		Title:      notice.Title,
 		Body:       notice.Message,
@@ -155,7 +125,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 		if errors.Is(err, timetable.ErrGuardianNoticeInvalid) {
 			return nil, err
 		}
-		return nil, &ScheduleError{Op: "publish guardian notice", Err: err}
+		return nil, &ports.ScheduleError{Op: "publish guardian notice", Err: err}
 	}
 	result.AnnouncementID = published.AnnouncementID
 	result.FamilyCount = published.RecipientCount
@@ -175,7 +145,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 func (s *InstanceLifecycleService) noticeStudentIDs(ctx context.Context, instanceID int64) ([]int64, error) {
 	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "guardian notice: load roster", Err: err}
+		return nil, &ports.ScheduleError{Op: "guardian notice: load roster", Err: err}
 	}
 	seen := make(map[int64]struct{}, len(rows))
 	ids := make([]int64, 0, len(rows))

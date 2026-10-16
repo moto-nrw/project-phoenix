@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -954,7 +955,7 @@ type fakeOperationActiveGroupRepo struct {
 // fakeOperationRooms names the Facilities rooms for the planner reads: every
 // room is called name, and without a name no room exists.
 type fakeOperationRooms struct {
-	timetableCompose.RoomNames
+	timetablePorts.RoomNames
 	name string
 	err  error
 }
@@ -965,7 +966,7 @@ type fakeOperationRooms struct {
 // tests that reach it fake it at the capability, see fakeSpontaneousActivity).
 type operationDataDeps struct {
 	ActiveGroupRepo studentpresence.SessionRecords
-	Rooms           timetableCompose.RoomNames
+	Rooms           timetablePorts.RoomNames
 }
 
 func operationTimetableData(deps operationDataDeps) timetable.TimetableDataCapability {
@@ -1022,35 +1023,35 @@ func (f *fakeSpontaneousActivity) resolve(_ context.Context, title string, reque
 // constructor and panic if wrongly called.
 type (
 	stubOpInstances struct {
-		timetableCompose.OperationInstances
+		timetablePorts.OperationInstances
 	}
 	stubOpInstanceStaff struct {
-		timetableCompose.OperationInstanceStaff
+		timetablePorts.OperationInstanceStaff
 	}
 	stubOpParticipants struct {
-		timetableCompose.OperationParticipants
+		timetablePorts.OperationParticipants
 	}
 	stubOpTemplates struct {
-		timetableCompose.OperationTemplates
+		timetablePorts.OperationTemplates
 	}
 	stubOpSessions struct {
-		timetableCompose.OperationSessions
+		timetablePorts.OperationSessions
 	}
 	stubOpSupervisions struct {
-		timetableCompose.OperationSupervisions
+		timetablePorts.OperationSupervisions
 	}
 	stubOpVisits struct {
-		timetableCompose.OperationVisits
+		timetablePorts.OperationVisits
 	}
 	stubOpAttendance struct {
-		timetableCompose.OperationAttendance
+		timetablePorts.OperationAttendance
 	}
 	stubOpStudents struct {
-		timetableCompose.OperationStudents
+		timetablePorts.OperationStudents
 	}
 	stubOpEducationGroups struct{}
-	stubOpRooms           struct{ timetableCompose.RoomNames }
-	stubOpCareDays        struct{ timetableCompose.CareDays }
+	stubOpRooms           struct{ timetablePorts.RoomNames }
+	stubOpCareDays        struct{ timetablePorts.CareDays }
 	stubOpArrivals        struct{}
 	stubOpPickups         struct{}
 )
@@ -1059,7 +1060,7 @@ func (stubOpEducationGroups) EducationGroupNames(context.Context, []int64) (map[
 	panic("unused")
 }
 
-func (stubOpArrivals) EffectiveArrivals(context.Context, []int64, calendar.Date) (map[int64]*timetableCompose.ExpectedArrival, error) {
+func (stubOpArrivals) EffectiveArrivals(context.Context, []int64, calendar.Date) (map[int64]*timetablePorts.ExpectedArrival, error) {
 	panic("unused")
 }
 
@@ -1090,7 +1091,7 @@ func (testOperationSettings) EnforcePlannedEnd(context.Context) (bool, error) { 
 
 func (testOperationSettings) CompleteLeadMinutes(context.Context) (int, error) { return 0, nil }
 
-func (testOperationSettings) ActionScopeKey(timetableCompose.ScopedAction) (string, error) {
+func (testOperationSettings) ActionScopeKey(timetablePorts.ScopedAction) (string, error) {
 	return testActionScopeKey, nil
 }
 
@@ -1140,9 +1141,9 @@ func (testOperationLifecycle) Reopen(context.Context, int64, int64, bool) (*time
 // newRealSpontaneousOpsService wires the Timetable owner's real operational
 // day so the handler exercises the real CreateAndStartSpontaneous (Create +
 // Start + MarkRollback), not a fake.
-func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc timetableCompose.OperationPeople, settings *fakeOperationSettingsService) timetable.OperationCapability {
+func newRealSpontaneousOpsService(t *testing.T, instanceSvc timetable.InstanceLifecycleCapability, personSvc timetablePorts.OperationPeople, settings *fakeOperationSettingsService) timetable.OperationCapability {
 	t.Helper()
-	operations, err := timetableCompose.NewOperations(timetableCompose.OperationDependencies{
+	operations, err := timetableCompose.NewOperations(timetablePorts.OperationDependencies{
 		Instances:            stubOpInstances{},
 		InstanceStaff:        stubOpInstanceStaff{},
 		Participants:         stubOpParticipants{},

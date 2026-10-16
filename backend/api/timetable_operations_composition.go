@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -23,7 +24,7 @@ func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCap
 	if err != nil {
 		return nil, err
 	}
-	return timetableCompose.NewOperations(timetableCompose.OperationDependencies{
+	return timetableCompose.NewOperations(timetablePorts.OperationDependencies{
 		Instances:            in.Rows.Instances,
 		InstanceStaff:        in.Rows.InstanceStaff,
 		Participants:         in.Rows.Participants,
@@ -52,7 +53,7 @@ func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCap
 
 // newTimetableAttendanceAnnouncer wakes the tenant's clients after an
 // attendance patch; nil without a broadcaster.
-func newTimetableAttendanceAnnouncer(broadcaster realtime.Broadcaster) timetableCompose.AttendanceAnnouncer {
+func newTimetableAttendanceAnnouncer(broadcaster realtime.Broadcaster) timetablePorts.AttendanceAnnouncer {
 	if broadcaster == nil {
 		return nil
 	}
@@ -101,13 +102,13 @@ func (s timetableOperationSettings) CompleteLeadMinutes(ctx context.Context) (in
 }
 
 // timetableScopedActionKeys names the scope setting of each scoped action.
-var timetableScopedActionKeys = map[timetableCompose.ScopedAction]string{
-	timetableCompose.ScopedAttendance:    configModels.KeyAttendanceEditScope,
-	timetableCompose.ScopedBlockStart:    configModels.KeyBlockStartScope,
-	timetableCompose.ScopedBlockComplete: configModels.KeyBlockCompleteScope,
+var timetableScopedActionKeys = map[timetablePorts.ScopedAction]string{
+	timetablePorts.ScopedAttendance:    configModels.KeyAttendanceEditScope,
+	timetablePorts.ScopedBlockStart:    configModels.KeyBlockStartScope,
+	timetablePorts.ScopedBlockComplete: configModels.KeyBlockCompleteScope,
 }
 
-func (timetableOperationSettings) ActionScopeKey(action timetableCompose.ScopedAction) (string, error) {
+func (timetableOperationSettings) ActionScopeKey(action timetablePorts.ScopedAction) (string, error) {
 	key, ok := timetableScopedActionKeys[action]
 	if !ok {
 		return "", fmt.Errorf("timetable operations: unknown scoped action %d", action)
@@ -125,20 +126,20 @@ type timetableEffectiveArrivals struct {
 	times EffectiveArrivalTimes
 }
 
-func (a timetableEffectiveArrivals) EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*timetableCompose.ExpectedArrival, error) {
+func (a timetableEffectiveArrivals) EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*timetablePorts.ExpectedArrival, error) {
 	arrivals, err := a.times.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}
-	result := make(map[int64]*timetableCompose.ExpectedArrival, len(arrivals))
+	result := make(map[int64]*timetablePorts.ExpectedArrival, len(arrivals))
 	for studentID, arrival := range arrivals {
 		if arrival == nil {
 			result[studentID] = nil
 			continue
 		}
-		expected := &timetableCompose.ExpectedArrival{ArrivalTime: arrival.ArrivalTime, IsException: arrival.IsException}
+		expected := &timetablePorts.ExpectedArrival{ArrivalTime: arrival.ArrivalTime, IsException: arrival.IsException}
 		if arrival.ClassException != nil {
-			expected.ClassException = &timetableCompose.ClassArrivalNotice{
+			expected.ClassException = &timetablePorts.ClassArrivalNotice{
 				ArrivalTime: arrival.ClassException.ArrivalTime, Label: arrival.ClassException.Label,
 			}
 		}

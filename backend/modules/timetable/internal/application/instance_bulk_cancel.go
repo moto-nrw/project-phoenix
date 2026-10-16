@@ -5,6 +5,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -35,7 +36,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 	}
 	if !opts.DryRun {
 		if err := s.acquireSubstituteDayLocks(ctx, tenant.FromContext(ctx), from, to); err != nil {
-			return nil, &ScheduleError{Op: "bulk cancel: lock days", Err: err}
+			return nil, &ports.ScheduleError{Op: "bulk cancel: lock days", Err: err}
 		}
 	}
 	candidates, err := s.bulkCancelCandidates(ctx, from, to)
@@ -64,7 +65,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, from, to calendar.Date) ([]timetable.BulkCancelCandidate, error) {
 	rows, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
-		return nil, &ScheduleError{Op: "bulk cancel: load instances", Err: err}
+		return nil, &ports.ScheduleError{Op: "bulk cancel: load instances", Err: err}
 	}
 	groupIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
@@ -76,7 +77,7 @@ func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, fro
 	if len(groupIDs) > 0 {
 		groups, err := s.deps.ActivityGroupRepo.FindByIDs(ctx, groupIDs)
 		if err != nil {
-			return nil, &ScheduleError{Op: "bulk cancel: load series", Err: err}
+			return nil, &ports.ScheduleError{Op: "bulk cancel: load series", Err: err}
 		}
 		for _, group := range groups {
 			series[group.ID] = timetable.BulkCancelCandidate{SeriesIncludesClosingDays: group.IncludeClosingDays, SeriesName: group.Name}
