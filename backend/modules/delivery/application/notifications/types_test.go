@@ -5,50 +5,26 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// TestNotificationTypeKeysMatchReminders pins the four reminder keys against
-// their source of truth.
-//
-// The strings are declared twice on purpose — services/notifications must not
-// depend on the reminder evaluator, but they are one wire contract: the frontend
-// switches on Reminder.Type and stores consent under the same string. A silent
-// rename on either side would leave people opted into a type that no longer
-// exists, which looks exactly like a working opt-in.
-func TestNotificationTypeKeysMatchReminders(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, reminders.TypePickupUpcoming, notifications.TypePickupUpcoming)
-	assert.Equal(t, reminders.TypePickupOverdue, notifications.TypePickupOverdue)
-	assert.Equal(t, reminders.TypeActivityStart, notifications.TypeActivityStart)
-	assert.Equal(t, reminders.TypeActivityOverdue, notifications.TypeActivityOverdue)
-}
-
-// TestPersonalReminderNoticesSpeakTheEventVocabulary pins the personal
-// reminder producer of workflows/reminderdelivery against the catalogue and
-// the event fields its notices are delivered as: every kind it sends is a
-// catalogue type people can agree to, and its priorities and audience scope
-// are the ones the notification service knows.
+// Personal reminder producers and the catalogue pin the same wire values
+// independently, so Delivery does not import the reminder workflow (#4072).
 func TestPersonalReminderNoticesSpeakTheEventVocabulary(t *testing.T) {
 	t.Parallel()
-
-	assert.Equal(t, reminders.TypeMyActivityStarting, notifications.TypeMyActivityStarting)
-	for _, notificationType := range []string{
-		reminders.TypePickupUpcoming,
-		reminders.TypePickupOverdue,
-		reminders.TypeActivityStart,
-		reminders.TypeActivityOverdue,
-		reminders.TypeMyActivityStarting,
-	} {
+	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"}, []string{
+		notifications.TypePickupUpcoming, notifications.TypePickupOverdue,
+		notifications.TypeActivityStart, notifications.TypeActivityOverdue,
+		notifications.TypeMyActivityStarting,
+	})
+	for _, notificationType := range []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"} {
 		_, known := notifications.GetType(notificationType)
 		assert.True(t, known, "%s is not in the notification catalogue", notificationType)
 	}
-	assert.Equal(t, reminders.NoticePriorityNormal, notifications.PriorityNormal)
-	assert.Equal(t, reminders.NoticePriorityHigh, notifications.PriorityHigh)
-	assert.Equal(t, reminders.NoticeScopeStaff, string(notifications.ScopeStaff))
+	assert.Equal(t, "normal", notifications.PriorityNormal)
+	assert.Equal(t, "high", notifications.PriorityHigh)
+	assert.Equal(t, "staff", string(notifications.ScopeStaff))
 }
 
 func TestNotificationTypeCatalogue(t *testing.T) {

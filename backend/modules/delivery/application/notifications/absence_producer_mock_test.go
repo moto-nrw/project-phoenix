@@ -10,10 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,20 +31,21 @@ const (
 	absenceActorAcct  int64 = 103
 )
 
+// fakeStudentReader names each child's group; a child missing from groups
+// has none.
 type fakeStudentReader struct {
-	userModel.StudentRepository
-	byID map[int64]*userModel.Student
-	err  error
+	groups map[int64]int64
+	err    error
 }
 
-func (f *fakeStudentReader) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*userModel.Student, error) {
+func (f *fakeStudentReader) StudentGroupIDs(_ context.Context, ids []int64) (map[int64]int64, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
-	out := make(map[int64]*userModel.Student, len(ids))
+	out := make(map[int64]int64, len(ids))
 	for _, id := range ids {
-		if s, ok := f.byID[id]; ok {
-			out[id] = s
+		if groupID, ok := f.groups[id]; ok {
+			out[id] = groupID
 		}
 	}
 	return out, nil
@@ -72,7 +70,6 @@ func (f *fakeGroupReader) ListGroupSupervisors(_ context.Context, groupIDs []int
 }
 
 type fakeStaffAccountReader struct {
-	userModel.StaffRepository
 	accounts map[int64]int64
 	err      error
 	dutyErr  error
@@ -116,15 +113,23 @@ func (f *fakeOnDutySetting) ResolveBool(_ context.Context, key string) (bool, er
 	return f.enabled, f.err
 }
 
+// fakeDutyReader names the staff on duty today.
 type fakeDutyReader struct {
-	presence map[int64]string
-	err      error
-	called   bool
+	onDuty map[int64]struct{}
+	err    error
+	called bool
 }
 
-func (f *fakeDutyReader) GetTodayPresenceMap(context.Context) (map[int64]string, error) {
+func (f *fakeDutyReader) OnDutyStaffIDs(context.Context) ([]int64, error) {
 	f.called = true
-	return f.presence, f.err
+	if f.err != nil {
+		return nil, f.err
+	}
+	ids := make([]int64, 0, len(f.onDuty))
+	for staffID := range f.onDuty {
+		ids = append(ids, staffID)
+	}
+	return ids, nil
 }
 
 // captureNotifier records what the producer decided to send.
@@ -177,13 +182,12 @@ type absenceWorld struct {
 // newAbsenceWorld wires one child in one group, supervised by one person, plus
 // one admin. Both the supervisor and the admin have agreed.
 func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
-	groupID := absenceGroupA
 	w := &absenceWorld{
 		notifier: &captureNotifier{},
 		consent:  &stubConsent{allowed: map[int64]struct{}{absenceAccountA: {}, absenceAdmin: {}}},
-		students: &fakeStudentReader{byID: map[int64]*userModel.Student{
-			absenceStudentA: {GroupID: &groupID},
-			absenceStudentB: {GroupID: &groupID},
+		students: &fakeStudentReader{groups: map[int64]int64{
+			absenceStudentA: absenceGroupA,
+			absenceStudentB: absenceGroupA,
 		}},
 		groups: &fakeGroupReader{staffByGroup: map[int64][]int64{absenceGroupA: {absenceStaffA}}},
 		staff: &fakeStaffAccountReader{accounts: map[int64]int64{
@@ -192,10 +196,7 @@ func newAbsenceWorld() (notifications.AbsenceNotifier, *absenceWorld) {
 		}},
 		admins:   &fakeAdminReader{ids: []int64{absenceAdmin}},
 		settings: &fakeOnDutySetting{enabled: true},
-		duty: &fakeDutyReader{presence: map[int64]string{
-			absenceStaffA:     workforce.WorkSessionStatusPresent,
-			absenceAdminStaff: workforce.WorkSessionStatusPresent,
-		}},
+		duty:     &fakeDutyReader{onDuty: map[int64]struct{}{absenceStaffA: {}, absenceAdminStaff: {}}},
 	}
 	recipients := notifications.NewStaffRecipientResolver(
 		w.consent, w.students, w.groups, w.staff, w.admins, w.settings, w.duty)
@@ -207,7 +208,7 @@ func sickToday(studentIDs ...int64) notifications.AbsenceReport {
 	return notifications.AbsenceReport{
 		TenantID:   absenceTenant,
 		StudentIDs: studentIDs,
-		Status:     absencerecords.StudentStatusDaySick,
+		Status:     notifications.AbsenceStatusSick,
 		Dates:      []timezone.Date{timezone.TodayDate()},
 		FromParent: true,
 	}
@@ -237,12 +238,11 @@ func TestAbsenceNotifierPartitionsCountsByRecipientScope(t *testing.T) {
 	t.Parallel()
 
 	producer, w := newAbsenceWorld()
-	groupB := absenceGroupB
-	w.students.byID[absenceStudentB] = &userModel.Student{GroupID: &groupB}
+	w.students.groups[absenceStudentB] = absenceGroupB
 	w.groups.staffByGroup[absenceGroupB] = []int64{absenceStaffB}
 	w.staff.accounts[absenceStaffB] = absenceAccountB
 	w.consent.allowed[absenceAccountB] = struct{}{}
-	w.duty.presence[absenceStaffB] = workforce.WorkSessionStatusPresent
+	w.duty.onDuty[absenceStaffB] = struct{}{}
 
 	require.NoError(t, producer.NotifyAbsenceReported(
 		context.Background(),
@@ -287,7 +287,7 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			name: "an excuse reads differently",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Status = absencerecords.StudentStatusDayExcused
+				r.Status = notifications.AbsenceStatusExcused
 				return r
 			},
 			wantBody: "Für ein Kind aus Ihrer Gruppe wurde heute eine Entschuldigung eingetragen.",
@@ -305,7 +305,7 @@ func TestAbsenceNotifierWording(t *testing.T) {
 			name: "three excused children use plural wording",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(71, 72, 73)
-				r.Status = absencerecords.StudentStatusDayExcused
+				r.Status = notifications.AbsenceStatusExcused
 				return r
 			},
 			wantBody: "3 Kinder wurden für heute entschuldigt.",
@@ -357,7 +357,7 @@ func TestAbsenceNotifierSilentCases(t *testing.T) {
 			name: "a class trip is not news",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Status = absencerecords.StudentStatusDayClassTrip
+				r.Status = "class_trip"
 				return r
 			}(),
 			why: "only sick and excused are reported",
@@ -451,7 +451,7 @@ func TestAbsenceNotifierRespectsConsent(t *testing.T) {
 
 	t.Run("a child without a group still reaches the office", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
-		w.students.byID[absenceStudentA] = &userModel.Student{}
+		delete(w.students.groups, absenceStudentA)
 
 		require.NoError(t, producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA)))
 
@@ -463,9 +463,9 @@ func TestAbsenceNotifierRespectsConsent(t *testing.T) {
 func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 	t.Parallel()
 
-	t.Run("only checked-in staff are addressed", func(t *testing.T) {
+	t.Run("only staff on duty are addressed", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
-		w.duty.presence[absenceStaffA] = "checked_out"
+		delete(w.duty.onDuty, absenceStaffA)
 
 		require.NoError(t, producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA)))
 
@@ -474,10 +474,11 @@ func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 		assert.Equal(t, configModel.KeyNotificationsOnDutyOnly, w.settings.asked)
 	})
 
-	t.Run("home office counts as on duty", func(t *testing.T) {
+	// Which work status counts as on duty is Workforce's rule
+	// (workforce.OnDutyStaffIDs); the resolver takes the staff it names.
+	t.Run("an office member off duty is skipped", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
-		w.duty.presence[absenceStaffA] = workforce.WorkSessionStatusHomeOffice
-		w.duty.presence[absenceAdminStaff] = "checked_out"
+		delete(w.duty.onDuty, absenceAdminStaff)
 
 		require.NoError(t, producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA)))
 
@@ -487,7 +488,7 @@ func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 
 	t.Run("nobody checked in fails closed", func(t *testing.T) {
 		producer, w := newAbsenceWorld()
-		w.duty.presence = nil
+		w.duty.onDuty = nil
 
 		require.NoError(t, producer.NotifyAbsenceReported(context.Background(), sickToday(absenceStudentA)))
 

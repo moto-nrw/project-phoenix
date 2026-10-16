@@ -21,6 +21,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -42,7 +43,7 @@ type deletionFixture struct {
 // companionLinks is the Care Plan record store behind the "läuft mit" edges,
 // through the repository contract the retained student services read, so the
 // deletion tests read links without driving the companion capability itself.
-func companionLinks(db *bun.DB) userModels.StudentCompanionRepository {
+func companionLinks(db *bun.DB) peopleVocabulary.StudentCompanionRepository {
 	return api.NewStudentCompanionRepository(api.NewRepositoryTestFactory(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).CarePlan())
 }
 

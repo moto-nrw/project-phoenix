@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -202,7 +203,7 @@ func TestGuardianProfileRepository_ListWithOptions(t *testing.T) {
 	t.Run("lists guardian profiles with pagination", func(t *testing.T) {
 		testpkg.CreateTestGuardianProfile(t, db, "listopt")
 
-		options := userModels.NewQueryOptions()
+		options := peopleVocabulary.NewQueryOptions()
 		options.WithPagination(1, 10)
 
 		profiles, err := repo.ListWithOptions(ctx, options)
@@ -403,7 +404,7 @@ func TestGuardianProfileRepository_LoadProfileWithChildren_FiltersPortalAccess(t
 
 // seedNamedGuardian inserts a guardian with a caller-controlled first name (so
 // search assertions can key off a unique token) and registers cleanup.
-func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo userModels.GuardianProfileRepository, firstName, lastName string) *userModels.GuardianProfile {
+func seedNamedGuardian(t *testing.T, db *bun.DB, ctx context.Context, repo peopleVocabulary.GuardianProfileRepository, firstName, lastName string) *userModels.GuardianProfile {
 	t.Helper()
 	email := fmt.Sprintf("%s-%d@search.local", firstName, time.Now().UnixNano())
 	profile := &userModels.GuardianProfile{

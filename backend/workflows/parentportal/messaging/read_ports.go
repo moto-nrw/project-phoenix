@@ -7,6 +7,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
 // The read ports below are the rows of other owners the messaging flows read.
@@ -17,6 +18,13 @@ import (
 type GuardianProfileReads interface {
 	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
 	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.GuardianProfile, error)
+}
+
+// GuardianProfiles is the guardian-profile surface the child flows and the
+// messaging flows read together; the portal composition takes one binding.
+type GuardianProfiles interface {
+	care.GuardianProfileReads
+	GuardianProfileReads
 }
 
 // CareRequestReads reads one care-schedule change request.

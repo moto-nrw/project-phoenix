@@ -34,7 +34,7 @@ type careOfferingsChildRepoStub struct {
 // careOfferingsStudentRepoStub supplies the locked, still-active child that
 // CreateOfferingChangeRequest now requires before it delegates the write.
 type careOfferingsStudentRepoStub struct {
-	usersModels.StudentRepository
+	StudentReads
 }
 
 func (careOfferingsStudentRepoStub) FindByIDForUpdate(

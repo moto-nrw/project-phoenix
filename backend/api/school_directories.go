@@ -258,3 +258,17 @@ func tagScanSchools(schools []organizationModule.School) []tagScanOperatorAPI.Sc
 	}
 	return result
 }
+
+// operatorSettingsSchools names the school slug the operator settings routes
+// return so the frontend can bust its tenant cache (#4072).
+type operatorSettingsSchools struct {
+	schools organizationModule.Query
+}
+
+func (d operatorSettingsSchools) SchoolSlug(ctx context.Context, schoolID int64) (string, error) {
+	school, err := d.schools.FindSchool(ctx, schoolID)
+	if err != nil {
+		return "", err
+	}
+	return school.Slug, nil
+}

@@ -4,9 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -26,7 +28,7 @@ func NewBookingConsistencyAudit(db transactionruntime.Database, students peopled
 	}
 	audits, err := auditCompose.NewPersistence(auditCompose.PersistenceDependencies{
 		DB:         db.Pool(),
-		Enrollment: NewEnrollmentBookings(),
+		Enrollment: auditEnrollmentBookings{bookings: NewEnrollmentBookings()},
 		Students:   auditStudentDirectory{students: students},
 		CarePlan:   auditCarePlanDirectory{query: carePlan},
 	})
@@ -71,4 +73,49 @@ func (d auditCarePlanDirectory) ListCareOfferings(ctx context.Context) ([]auditC
 		})
 	}
 	return result, nil
+}
+
+// auditEnrollmentBookings serves the Audit's approved-booking read from
+// Enrollment's booking projection in the audit's own vocabulary (#4072).
+type auditEnrollmentBookings struct{ bookings *enrollment.BookingProjection }
+
+func (b auditEnrollmentBookings) ApprovedBookings(ctx context.Context) ([]auditlog.ApprovedBooking, error) {
+	bookings, err := b.bookings.ApprovedBookings(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]auditlog.ApprovedBooking, 0, len(bookings))
+	for _, booking := range bookings {
+		result = append(result, auditlog.ApprovedBooking{
+			RequestChildID: booking.RequestChildID, StudentID: booking.StudentID,
+			PhaseID: booking.PhaseID, TenantID: booking.TenantID,
+			ServiceStartDate: string(booking.ServiceStartDate), ServiceEndDate: string(booking.ServiceEndDate),
+			CareOfferingSelectionMode: booking.CareOfferingSelectionMode,
+		})
+	}
+	return result, nil
+}
+
+func (b auditEnrollmentBookings) ApprovedBookingOfferingLinks(ctx context.Context) ([]auditlog.ApprovedBookingOfferingLink, error) {
+	links, err := b.bookings.ApprovedBookingOfferingLinks(ctx)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]auditlog.ApprovedBookingOfferingLink, 0, len(links))
+	for _, link := range links {
+		result = append(result, auditlog.ApprovedBookingOfferingLink{
+			ID: link.ID, TenantID: link.TenantID, RequestChildID: link.RequestChildID,
+			CareOfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays,
+			ValidFrom: optionalDay(link.ValidFrom), ValidUntil: optionalDay(link.ValidUntil),
+		})
+	}
+	return result, nil
+}
+
+func optionalDay(day *enrollment.Date) *string {
+	if day == nil {
+		return nil
+	}
+	value := string(*day)
+	return &value
 }

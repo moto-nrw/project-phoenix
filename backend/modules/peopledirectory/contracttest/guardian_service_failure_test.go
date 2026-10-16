@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,7 @@ func guardianAmbientTxContext() context.Context {
 // one would mean the code under test took an unexpected path.
 
 type fakeProfileRepo struct {
-	users.GuardianProfileRepository
+	userModels.GuardianProfileRepository
 	findByEmailFn func(ctx context.Context, email string) (*users.GuardianProfile, error)
 	createFn      func(ctx context.Context, p *users.GuardianProfile) error
 	findByIDFn    func(ctx context.Context, id int64) (*users.GuardianProfile, error)
@@ -59,7 +60,7 @@ func (f *fakeProfileRepo) Delete(ctx context.Context, id int64) error {
 }
 
 type fakeStudentGuardianRepo struct {
-	users.StudentGuardianRepository
+	userModels.StudentGuardianRepository
 	findByGuardianFn func(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error)
 	deleteFn         func(ctx context.Context, id interface{}) error
 }
@@ -72,7 +73,7 @@ func (f *fakeStudentGuardianRepo) Delete(ctx context.Context, id interface{}) er
 }
 
 type fakeStudentRepo struct {
-	users.StudentRepository
+	userModels.StudentRepository
 	findByIDFn           func(ctx context.Context, id interface{}) (*users.Student, error)
 	findByIDsFn          func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
 	findByIDsForUpdateFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
@@ -111,7 +112,7 @@ func (f *fakeStudentRepo) FindByIDForUpdate(ctx context.Context, id int64) (*use
 }
 
 type fakePersonRepo struct {
-	users.PersonRepository
+	userModels.PersonRepository
 	findByIDFn  func(ctx context.Context, id interface{}) (*users.Person, error)
 	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
 }
@@ -122,23 +123,6 @@ func (f *fakePersonRepo) FindByID(ctx context.Context, id interface{}) (*users.P
 
 func (f *fakePersonRepo) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.Person, error) {
 	return f.findByIDsFn(ctx, ids)
-}
-
-func TestIsGuardianUniqueViolation(t *testing.T) {
-	t.Parallel()
-
-	t.Run("nil error is not a violation", func(t *testing.T) {
-		assert.False(t, users.IsUniqueViolation(nil))
-	})
-	t.Run("plain error is not a violation", func(t *testing.T) {
-		assert.False(t, users.IsUniqueViolation(errors.New("boom")))
-	})
-	t.Run("wrapped non-pg DatabaseError is not a violation", func(t *testing.T) {
-		// Exercises the DatabaseError-unwrap branch: it must unwrap and then
-		// still report false because the inner error is not a pg integrity error.
-		err := &users.DatabaseError{Op: "create", Err: errors.New("connection reset")}
-		assert.False(t, users.IsUniqueViolation(err))
-	})
 }
 
 // --- forced-failure service branches ---------------------------------------

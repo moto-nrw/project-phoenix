@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -87,12 +88,12 @@ type GuardianInvitations interface {
 // GuardianServiceDependencies contains all dependencies required by the guardian service
 type GuardianServiceDependencies struct {
 	// Repository dependencies
-	GuardianProfileRepo     users.GuardianProfileRepository
-	GuardianPhoneNumberRepo users.GuardianPhoneNumberRepository
-	StudentGuardianRepo     users.StudentGuardianRepository
+	GuardianProfileRepo     usersRepo.GuardianProfileRepository
+	GuardianPhoneNumberRepo usersRepo.GuardianPhoneNumberRepository
+	StudentGuardianRepo     usersRepo.StudentGuardianRepository
 	GuardianInvitations     GuardianInvitations
-	StudentRepo             users.StudentRepository
-	PersonRepo              users.PersonRepository
+	StudentRepo             usersRepo.StudentRepository
+	PersonRepo              usersRepo.PersonRepository
 
 	// Payment data (#2608). Kept as separate, narrow dependencies so the
 	// guardians:financial code path is the only one holding a reference to
@@ -181,7 +182,7 @@ func (s *GuardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 		// pre-check above and then race on the UNIQUE(tenant_id, email) index.
 		// The loser gets a raw 23505 — classify it as the same bad-input
 		// ValidationError (HTTP 400) the pre-check produces, never a 500.
-		if users.IsUniqueViolation(err) && profile.Email != nil {
+		if errors.Is(err, usersRepo.ErrGuardianEmailTaken) && profile.Email != nil {
 			return nil, newEmailInUseError(*profile.Email)
 		}
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
@@ -279,7 +280,7 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
 		// the email between the check above and this Update.
-		if users.IsUniqueViolation(err) && profile.Email != nil {
+		if errors.Is(err, usersRepo.ErrGuardianEmailTaken) && profile.Email != nil {
 			return newEmailInUseError(*profile.Email)
 		}
 		return err
@@ -526,7 +527,7 @@ func (s *GuardianService) getGuardianDeleteImpact(ctx context.Context, guardianP
 }
 
 // ListGuardians retrieves guardians with pagination and filters, including phone numbers
-func (s *GuardianService) ListGuardians(ctx context.Context, options *users.QueryOptions) ([]*users.GuardianProfile, error) {
+func (s *GuardianService) ListGuardians(ctx context.Context, options *usersRepo.QueryOptions) ([]*users.GuardianProfile, error) {
 	profiles, err := s.GuardianProfileRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, err

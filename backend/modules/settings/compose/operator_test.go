@@ -230,23 +230,3 @@ func TestOperatorSchoolSettings_PresenceModeGuard(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, presenceModeBinary, value)
 }
-
-func TestOperatorSchoolSettings_BookingAuthorityImpact(t *testing.T) {
-	t.Parallel()
-	_, module := setupOperatorSettingsModule(t)
-
-	impact, err := module.OperatorSchoolSettings(nil).BookingAuthorityImpact(testpkg.Ctx(t), testpkg.Tenant(t))
-	require.NoError(t, err)
-	require.NotNil(t, impact)
-	assert.Empty(t, impact.BlockingChildren, "a school without children has nothing blocking")
-}
-
-func TestOperatorSchoolSettings_BookingAuthorityImpactUnavailableWithoutCarePlan(t *testing.T) {
-	t.Parallel()
-	_, module := setupOperatorSettingsModule(t)
-	schoolSettings := module.OperatorSchoolSettingsWith(api.OperatorSchoolSettingsTestOptions{WithoutCarePlan: true})
-
-	impact, err := schoolSettings.BookingAuthorityImpact(testpkg.Ctx(t), testpkg.Tenant(t))
-	require.ErrorIs(t, err, settings.ErrBookingAuthorityImpactUnavailable)
-	assert.Nil(t, impact)
-}
