@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
@@ -185,10 +185,10 @@ func (s *service) freezeDeclaration(ctx context.Context, a *usersModels.ParentAn
 	if !a.IsDeclaration() {
 		return nil
 	}
-	if s.attachments == nil {
+	if s.attachments == nil || s.fingerprints == nil {
 		return fmt.Errorf("announcement: attachment digests are not wired; refusing to publish declaration %d", a.ID)
 	}
-	digests, err := s.attachments.AttachmentDigests(ctx, a.ID, authorize.ReaderFingerprint)
+	digests, err := s.attachments.AttachmentDigests(ctx, a.ID, s.fingerprints.Reader)
 	if err != nil {
 		return fmt.Errorf("announcement: digest declaration attachments: %w", err)
 	}
@@ -200,7 +200,7 @@ func (s *service) freezeDeclaration(ctx context.Context, a *usersModels.ParentAn
 	for _, d := range digests {
 		version.Attachments = append(version.Attachments, usersModels.DeclarationAttachmentDigest(d))
 	}
-	version.ContentHash = DeclarationContentHash(version)
+	version.ContentHash = s.declarationContentHash(version)
 	latest, err := s.repo.LatestDeclarationVersion(ctx, a.GetTenantID(), a.ID)
 	if err != nil {
 		return fmt.Errorf("announcement: load declaration version: %w", err)
@@ -393,7 +393,7 @@ func (s *service) ParentDeclarationStatus(ctx context.Context, id int64) (*Decla
 	out.IntegrityAllGood = true
 	versionNo := map[int64]int{}
 	for _, v := range facts.versions {
-		version := publicVersion(v)
+		version := s.publicVersion(v)
 		out.IntegrityAllGood = out.IntegrityAllGood && version.IntegrityOK
 		out.Versions = append(out.Versions, version)
 		versionNo[v.ID] = v.VersionNo
@@ -412,7 +412,7 @@ func (s *service) ParentDeclarationStatus(ctx context.Context, id int64) (*Decla
 		out.Summary[c.State]++
 	}
 	for _, sub := range facts.submissions {
-		record := publicSubmission(sub, versionNo[sub.VersionID], names[sub.StudentID])
+		record := s.publicSubmission(sub, versionNo[sub.VersionID], names[sub.StudentID])
 		out.IntegrityAllGood = out.IntegrityAllGood && record.IntegrityOK
 		out.Submissions = append(out.Submissions, record)
 	}
@@ -448,12 +448,12 @@ func declarationChildStatuses(facts *declarationFacts, now time.Time) []Declarat
 	return out
 }
 
-func publicVersion(v *usersModels.DeclarationVersion) DeclarationVersionView {
+func (s *service) publicVersion(v *usersModels.DeclarationVersion) DeclarationVersionView {
 	version := DeclarationVersionView{
 		ID: v.ID, VersionNo: v.VersionNo, Title: v.Title, Body: v.Body, Kind: v.Kind,
 		ContentHash: v.ContentHash, PublishedAt: v.PublishedAt,
 		Attachments: make([]DeclarationAttachmentView, 0, len(v.Attachments)),
-		IntegrityOK: DeclarationContentHash(v) == v.ContentHash,
+		IntegrityOK: s.fingerprints != nil && s.declarationContentHash(v) == v.ContentHash,
 	}
 	for _, a := range v.Attachments {
 		version.Attachments = append(version.Attachments, DeclarationAttachmentView{
@@ -463,13 +463,13 @@ func publicVersion(v *usersModels.DeclarationVersion) DeclarationVersionView {
 	return version
 }
 
-func publicSubmission(sub *usersModels.DeclarationSubmission, versionNo int, child *usersModels.DeclarationChild) DeclarationSubmissionView {
+func (s *service) publicSubmission(sub *usersModels.DeclarationSubmission, versionNo int, child *usersModels.DeclarationChild) DeclarationSubmissionView {
 	record := DeclarationSubmissionView{
 		ID: sub.ID, StudentID: sub.StudentID, AccountID: sub.AccountID, SignerName: sub.SignerName,
 		GuardianRole: sub.GuardianRole, Action: sub.Action, Method: sub.Method,
 		PasswordConfirmed: sub.PasswordConfirmed, VersionNo: versionNo, ContentHash: sub.ContentHash,
 		RecordHash: sub.RecordHash, SubmittedAt: sub.SubmittedAt,
-		IntegrityOK: DeclarationRecordHash(sub) == sub.RecordHash,
+		IntegrityOK: s.fingerprints != nil && s.declarationRecordHash(sub) == sub.RecordHash,
 	}
 	if child != nil {
 		record.StudentFirstName, record.StudentLastName = child.FirstName, child.LastName
@@ -576,15 +576,23 @@ func berlinLocation() *time.Location {
 	return location
 }
 
-// DeclarationContentHash is the SHA-256 over a version's canonical content.
-func DeclarationContentHash(version *usersModels.DeclarationVersion) string {
-	return authorize.ContentFingerprint(version.CanonicalContent())
+// Fingerprints computes the SHA-256 content identities of an Erklärung
+// (#3430): of the canonical content and record, and of every attachment. The
+// root binds the Security Runtime; this package does not hash itself.
+type Fingerprints interface {
+	Content(content []byte) string
+	Reader(r io.Reader) (string, int64, error)
 }
 
-// DeclarationRecordHash is the SHA-256 over a submission's canonical record.
+// declarationContentHash is the SHA-256 over a version's canonical content.
+func (s *service) declarationContentHash(version *usersModels.DeclarationVersion) string {
+	return s.fingerprints.Content(version.CanonicalContent())
+}
+
+// declarationRecordHash is the SHA-256 over a submission's canonical record.
 // The parent flow computes the same value when it stores the row.
-func DeclarationRecordHash(submission *usersModels.DeclarationSubmission) string {
-	return authorize.ContentFingerprint(submission.CanonicalRecord())
+func (s *service) declarationRecordHash(submission *usersModels.DeclarationSubmission) string {
+	return s.fingerprints.Content(submission.CanonicalRecord())
 }
 
 // deadlineWithoutPoll is the deadline an announcement without a poll keeps:

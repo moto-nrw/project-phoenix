@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -136,16 +135,14 @@ func (s *service) recordCheckedInVisit(ctx context.Context, visit *studentpresen
 	return nil
 }
 
-// isDuplicateActiveVisitViolation returns true when err carries PostgreSQL
-// error code 23505 (unique_violation) on the partial unique index
-// uniq_active_visits_open_per_student, defined in migration 1.15.47 on
-// active.visits (tenant_id, student_id) WHERE exit_time IS NULL.
-//
-// We match by constraint name (Field 'n') rather than just the error code
-// so a future unrelated unique index on active.visits doesn't accidentally
-// translate into ErrStudentAlreadyActive.
+// isDuplicateActiveVisitViolation returns true when the store refused the
+// visit on the partial unique index uniq_active_visits_open_per_student,
+// defined in migration 1.15.47 on active.visits (tenant_id, student_id) WHERE
+// exit_time IS NULL. The Postgres adapter matches the constraint name rather
+// than just the error code, so a future unrelated unique index on
+// active.visits doesn't accidentally translate into ErrStudentAlreadyActive.
 func isDuplicateActiveVisitViolation(err error) bool {
-	return base.IsUniqueViolationOn(err, "uniq_active_visits_open_per_student")
+	return errors.Is(err, ports.ErrOpenVisitExists)
 }
 
 func (s *service) UpdateVisit(ctx context.Context, visit *studentpresence.Visit) error {
@@ -261,7 +258,7 @@ func (s *service) prepareVisitTransfer(
 func (s *service) lockVisitTransferTarget(ctx context.Context, groupID int64) (*ports.ActiveGroup, error) {
 	targetGroup, err := s.GroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return nil, &ActiveError{Op: "UpdateVisit", Err: ErrActiveGroupNotFound}
 		}
 		return nil, &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}

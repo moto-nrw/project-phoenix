@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // A decision made in the school portal (#2208) lands on the shared
@@ -16,7 +17,7 @@ import (
 func TestSetForPortalAccountHonoursTheSchoolCatalogue(t *testing.T) {
 	t.Parallel()
 	repo := &fakePreferenceRepo{}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 	require.NoError(t, svc.SetForPortalAccount(context.Background(), prefAccountA, notifications.PortalSchool, notifications.TypeStaffMessage, true))
 	require.Len(t, repo.upserted, 1)

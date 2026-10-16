@@ -1,4 +1,4 @@
-package presence_test
+package api
 
 import (
 	"context"
@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +24,7 @@ func TestDataAccessAuditPreservesEvidenceAndFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	now := time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC)
-	entry := &active.DataAccessEvent{
+	entry := &presenceservice.DataAccessEvent{
 		ActorAccountID: 7, ActorRole: "staff", ResourceType: "attendance_history",
 		RangeStart: now.Add(-time.Hour), RangeEnd: now, AccessedAt: now,
 		Metadata: map[string]interface{}{"format": "csv", "row_count": 3},
@@ -33,7 +32,7 @@ func TestDataAccessAuditPreservesEvidenceAndFailure(t *testing.T) {
 	entry.StudentID = &entry.ActorAccountID
 	writeErr := errors.New("audit unavailable")
 	calls := 0
-	writer := api.NewDataAccessAudit(accessEventWriter{write: func(gotCtx context.Context, got *auditModels.DataAccessLog) error {
+	writer := NewDataAccessAudit(accessEventWriter{write: func(gotCtx context.Context, got *auditModels.DataAccessLog) error {
 		calls++
 		require.Equal(t, ctx, gotCtx)
 		require.Equal(t, entry.ActorAccountID, got.ActorAccountID)
@@ -48,5 +47,5 @@ func TestDataAccessAuditPreservesEvidenceAndFailure(t *testing.T) {
 	}})
 	require.ErrorIs(t, writer.Create(ctx, entry), writeErr)
 	require.Equal(t, 1, calls)
-	require.Nil(t, api.NewDataAccessAudit(nil))
+	require.Nil(t, NewDataAccessAudit(nil))
 }

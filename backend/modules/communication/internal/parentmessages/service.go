@@ -20,7 +20,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -87,7 +86,7 @@ type Config struct {
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     PersonLookup
-	UserContext authorize.StudentAccessUserContext
+	UserContext StudentReadAccess
 	Settings    parentmessaging.SettingsResolver
 	Broadcaster realtime.Broadcaster
 	DB          *bun.DB
@@ -123,9 +122,21 @@ func NewService(cfg Config) *Service {
 	return &Service{Config: cfg}
 }
 
+// StudentReadAccess applies the Security Runtime's student read rules to the
+// caller: whether the caller reads children tenant-wide, and whether it may
+// read one child. The root binds it over the caller context. Without it the
+// service reads no child.
+type StudentReadAccess interface {
+	ReadsAllStudents(ctx context.Context, permissions []string) bool
+	CanReadStudent(ctx context.Context, permissions []string, student interface{ IsAuthorizationStudent() bool }) bool
+}
+
 func (s *Service) scope(ctx context.Context) bool {
+	if s.UserContext == nil {
+		return false
+	}
 	perms := sessiontoken.PermissionsFromCtx(ctx)
-	return authorize.ResolveStudentReadScope(ctx, perms, s.UserContext)
+	return s.UserContext.ReadsAllStudents(ctx, perms)
 }
 
 func accountIDFromCtx(ctx context.Context) int64 {
@@ -234,7 +245,7 @@ func (s *Service) canReadStudent(ctx context.Context, studentID int64) error {
 		return ErrForbidden
 	}
 	perms := sessiontoken.PermissionsFromCtx(ctx)
-	if !authorize.CanReadStudent(ctx, perms, student, s.UserContext) {
+	if s.UserContext == nil || !s.UserContext.CanReadStudent(ctx, perms, student) {
 		return ErrForbidden
 	}
 	return nil

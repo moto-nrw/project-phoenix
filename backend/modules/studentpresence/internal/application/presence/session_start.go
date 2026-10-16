@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -31,7 +31,7 @@ func (s *service) broadcastActivityStartEvent(ctx context.Context, group *ports.
 		supervisorIDStrs[i] = fmt.Sprintf("%d", id)
 	}
 
-	realtimeevents.PublishActivityStart(ctx, s.Broadcaster, s.getLogger(), realtimeevents.ActivitySession{
+	s.Broadcaster.SessionStarted(ctx, studentpresence.LiveSessionChange{
 		ActiveGroupID: activeGroupID,
 		ActivityName:  s.getActivityName(ctx, group.GroupID),
 		RoomID:        roomIDStr,

@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -437,7 +436,7 @@ func (s *service) emitVisitCreated(ctx context.Context, visit *studentpresence.V
 	activeGroupID := fmt.Sprintf("%d", visit.ActiveGroupID)
 	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	realtimeevents.PublishVisitCheckIn(ctx, s.Broadcaster, s.getLogger(), realtimeevents.VisitChange{
+	s.Broadcaster.VisitCheckedIn(ctx, studentpresence.LiveVisitChange{
 		ActiveGroupID:    activeGroupID,
 		StudentID:        fmt.Sprintf("%d", visit.StudentID),
 		EducationGroupID: educationGroupID,
