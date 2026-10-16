@@ -31,7 +31,7 @@ im Leseweg: Dekodierfehler, Not-found-Marker, Katalogreihenfolge und leere ID-Fi
 sich nicht. Der Kalender hält nun die bereits bestehende Wochentagsübersetzung gemeinsam;
 das Enrollment-Modell und der Workflow delegieren an dieselbe Implementierung.
 Drei `models/enrollment`-Keys fallen: 209 → 206, #4073 35 → 32. Regeln 893,
-Composition 1.657, Compose 67.252 LOC und alle Budgets bleiben unverändert.
+Composition 1.657, Compose 59.341 LOC und alle Budgets bleiben unverändert.
 Keine neue Freigabe, Rolle, Klassifizierung, Paketverschiebung oder Regel.
 
 #4073: Kind-, Phasen- und Einschreibungsleseports geben Workflow-eigene DTOs zurück.
