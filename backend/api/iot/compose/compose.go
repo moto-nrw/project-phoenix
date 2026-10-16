@@ -9,14 +9,14 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
-	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	devicesAPI "github.com/moto-nrw/project-phoenix/api/iot/devices"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
-	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
+	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
+	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 

@@ -25,21 +25,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		slog.Int64("device_db_id", deviceCtx.ID),
 	)
 
-	// Check if feedback is enabled for this tenant (defense in depth).
-	// Resolution failures are operational failures, not permission to write.
-	enabled, err := rs.FeedbackService.Available(r.Context())
-	if err != nil {
-		rs.Logger.ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
-		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
-		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
-		return
-	}
-	if !enabled {
-		rs.runtime.Success(w, r, http.StatusOK, map[string]interface{}{
-			"status": "skipped",
-			"reason": "feedback_disabled",
-		}, "Feedback is disabled for this tenant")
-		rs.ObserveResponse(http.StatusOK, "feedback_disabled")
+	if !rs.feedbackAvailable(w, r) {
 		return
 	}
 
@@ -60,16 +46,54 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		slog.String("value", req.Value),
 	)
 
-	// Validate student exists before creating feedback. The read takes a FOR
-	// UPDATE row lock held for this request's tenant transaction, because the
-	// alumnus refusal below is only worth as much as the window between the check
-	// and the INSERT: a grade transition apply locks exactly this row, flips it to
-	// alumnus and reconciles the child's records, so a status read without the
-	// lock is already stale when the feedback row lands. The enrollment FK is a
-	// soft-delete reference and happily accepts a graduate, so nothing downstream
-	// would catch it. Under the lock the two serialize — either graduation
-	// commits first and we see the alumnus status, or we hold the row and it
-	// waits for our entry to be visible to its own pass (#405 review).
+	if !rs.validateFeedbackStudent(w, r, req) {
+		return
+	}
+
+	rs.submitFeedback(w, r, req)
+}
+
+func (rs *FeedbackResource) feedbackAvailable(w http.ResponseWriter, r *http.Request) bool {
+	// Check if feedback is enabled for this tenant (defense in depth).
+	// Resolution failures are operational failures, not permission to write.
+	enabled, err := rs.FeedbackService.Available(r.Context())
+	if err != nil {
+		rs.Logger.ErrorContext(r.Context(), "failed to resolve feedback availability", slog.String("error", err.Error()))
+		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
+		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
+		return false
+	}
+	if !enabled {
+		rs.runtime.Success(w, r, http.StatusOK, map[string]interface{}{
+			"status": "skipped",
+			"reason": "feedback_disabled",
+		}, "Feedback is disabled for this tenant")
+		rs.ObserveResponse(http.StatusOK, "feedback_disabled")
+		return false
+	}
+	return true
+}
+
+// validateFeedbackStudent retains the row lock until the request transaction ends.
+// Validate student exists before creating feedback. The read takes a FOR
+// UPDATE row lock held for this request's tenant transaction, because the
+// alumnus refusal below is only worth as much as the window between the check
+// and the INSERT: a grade transition apply locks exactly this row, flips it to
+// alumnus and reconciles the child's records, so a status read without the
+// lock is already stale when the feedback row lands. The enrollment FK is a
+// soft-delete reference and happily accepts a graduate, so nothing downstream
+// would catch it. Under the lock the two serialize — either graduation
+// commits first and we see the alumnus status, or we hold the row and it
+// waits for our entry to be visible to its own pass (#405 review).
+//
+// Alumni (graduated, soft-deleted) are removed from every kiosk and staff
+// workflow, so a feedback submission that arrives after the graduation
+// commits — a kiosk holding a stale roster, or a scan queued before the
+// apply — must not write a new row against them. Decided on the LOCKED row
+// read above. Answered with the same "student not found" 404 the
+// unknown-student branch above returns, so PyrePortal needs no new error
+// mapping (#405).
+func (rs *FeedbackResource) validateFeedbackStudent(w http.ResponseWriter, r *http.Request, req *IoTFeedbackRequest) bool {
 	student, err := rs.Students.LockFeedbackStudent(r.Context(), req.StudentID)
 	if err != nil && !errors.Is(err, devicescan.ErrFeedbackStudentNotFound) {
 		rs.Logger.ErrorContext(r.Context(), "failed to lookup student",
@@ -78,7 +102,7 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		)
 		rs.runtime.Failure(w, r, http.StatusInternalServerError, err, "")
 		rs.ObserveResponse(http.StatusInternalServerError, "internal_error")
-		return
+		return false
 	}
 
 	if errors.Is(err, devicescan.ErrFeedbackStudentNotFound) {
@@ -87,29 +111,25 @@ func (rs *FeedbackResource) deviceSubmitFeedback(w http.ResponseWriter, r *http.
 		)
 		rs.runtime.Failure(w, r, http.StatusNotFound, errors.New("student not found"), "")
 		rs.ObserveResponse(http.StatusNotFound, "student_not_found")
-		return
+		return false
 	}
 
-	// Alumni (graduated, soft-deleted) are removed from every kiosk and staff
-	// workflow, so a feedback submission that arrives after the graduation
-	// commits — a kiosk holding a stale roster, or a scan queued before the
-	// apply — must not write a new row against them. Decided on the LOCKED row
-	// read above. Answered with the same "student not found" 404 the
-	// unknown-student branch above returns, so PyrePortal needs no new error
-	// mapping (#405).
 	if student.Alumnus {
 		rs.Logger.InfoContext(r.Context(), "feedback rejected: student graduated",
 			slog.Int64("student_id", req.StudentID),
 		)
 		rs.runtime.Failure(w, r, http.StatusNotFound, errors.New("student not found"), "")
 		rs.ObserveResponse(http.StatusNotFound, "student_not_found")
-		return
+		return false
 	}
 
 	rs.Logger.DebugContext(r.Context(), "student validated",
 		slog.Int64("student_id", student.ID),
 	)
+	return true
+}
 
+func (rs *FeedbackResource) submitFeedback(w http.ResponseWriter, r *http.Request, req *IoTFeedbackRequest) {
 	// Create feedback entry with server-side timestamps
 	now := time.Now()
 	day, feedbackTime := feedbackModule.TimestampParts(now)
