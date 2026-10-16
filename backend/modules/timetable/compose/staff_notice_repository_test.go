@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -258,14 +258,14 @@ type staffNoticeOpts struct {
 // fields a repository test needs: every day of the week, no week pattern,
 // active unless opts.Inactive. It does not touch the database — the
 // repository under test persists it, so the fixture stays out of that path.
-func newTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts staffNoticeOpts) *userModels.StaffNotice {
+func newTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts staffNoticeOpts) *scheduleModels.StaffNotice {
 	tb.Helper()
 
-	priority := userModels.StaffNoticePriorityInfo
+	priority := scheduleModels.StaffNoticePriorityInfo
 	if opts.Important {
-		priority = userModels.StaffNoticePriorityImportant
+		priority = scheduleModels.StaffNoticePriorityImportant
 	}
-	return &userModels.StaffNotice{
+	return &scheduleModels.StaffNotice{
 		Title:                   title,
 		Priority:                priority,
 		ValidFrom:               validFrom,
