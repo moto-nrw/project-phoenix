@@ -279,6 +279,13 @@ type SchoolSummary struct {
 	ChildQuotaBundleSize int
 }
 
+// PWAPortalStaff and PWAPortalParent are the portal labels the operator
+// dashboard's PWA usage query writes (the stored push portals of Delivery).
+const (
+	PWAPortalStaff  = "staff"
+	PWAPortalParent = "parent"
+)
+
 // PWAUsageRow is one (school, portal) bucket of PWA standalone usage.
 type PWAUsageRow struct {
 	TenantID        int64
