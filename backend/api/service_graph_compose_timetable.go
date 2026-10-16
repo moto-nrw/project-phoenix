@@ -383,7 +383,7 @@ func composeOperations(b graphBuild) (graphBuild, error) {
 		Rows: b.timetableRows, PlanningTracks: b.Timetable, Sessions: b.Presence.SessionRecords,
 		Supervisions: b.groupSupervisions, Visits: b.Presence.Presence, Presence: b.graph.Active,
 		People: newTimetableOperationPeople(b.graph.Users), Settings: b.settingsService, CareDays: b.graph.CareDay,
-		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: b.instances.OperationLifecycle(),
+		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: arrivalTimetable.NewOperationLifecycle(b.instances),
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "timetable-operations"), Now: b.now,
 	})
 	if err != nil {
