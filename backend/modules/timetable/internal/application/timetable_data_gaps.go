@@ -1,11 +1,10 @@
-package compose
+package application
 
 import (
 	"context"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -28,11 +27,11 @@ func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to 
 	if err != nil {
 		return nil, err
 	}
-	rowsByInstance := application.IndexInstanceStaffRows(staffRows)
+	rowsByInstance := IndexInstanceStaffRows(staffRows)
 	gaps := make([]timetable.UnderstaffedInstance, 0)
 	for _, inst := range candidates {
 		rows := rowsByInstance[inst.ID]
-		if timetable.IsUnderstaffedWithMinimum(application.StaffingRowsOf(rows), application.DutyMinimumStaff(inst)) {
+		if timetable.IsUnderstaffedWithMinimum(StaffingRowsOf(rows), DutyMinimumStaff(inst)) {
 			gaps = append(gaps, understaffedInstanceOf(inst, rows))
 		}
 	}
