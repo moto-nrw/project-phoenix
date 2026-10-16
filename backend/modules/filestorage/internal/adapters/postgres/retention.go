@@ -20,25 +20,25 @@ func NewCleanupRetentionStore(database Database) *CleanupRetentionStore {
 	return &CleanupRetentionStore{database: database}
 }
 
-func (s *CleanupRetentionStore) DeleteFinishedFileCleanups(ctx context.Context, before time.Time) (int, error) {
+func (s *CleanupRetentionStore) DeleteFinishedFileCleanups(ctx context.Context, window time.Duration) (int, error) {
 	db, tenantID, err := requireTenant(s.database, ctx)
 	if err != nil {
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT documents.delete_finished_file_cleanups(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT documents.delete_finished_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("file storage postgres: delete finished file cleanups: %w", err)
 	}
 	return int(deleted), nil
 }
 
-func (s *CleanupRetentionStore) DeleteFinishedAttachmentCleanups(ctx context.Context, before time.Time) (int, error) {
+func (s *CleanupRetentionStore) DeleteFinishedAttachmentCleanups(ctx context.Context, window time.Duration) (int, error) {
 	db, tenantID, err := requireTenant(s.database, ctx)
 	if err != nil {
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT documents.delete_finished_announcement_attachment_cleanups(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT documents.delete_finished_announcement_attachment_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("file storage postgres: delete finished attachment cleanups: %w", err)
 	}
 	return int(deleted), nil

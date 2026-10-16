@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -358,7 +357,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		captured := child.TenantID
 		capturedThread := view.ThreadID
 		if s.ParentMessageNotifier != nil {
-			if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, notificationsSvc.StaffParentMessageReport{
+			if err := s.ParentMessageNotifier.NotifyStaffParentMessage(txCtx, care.StaffParentMessageReport{
 				TenantID: captured, ThreadID: capturedThread, MessageID: message.ID,
 				StudentID: studentID, ActorAccountID: accountID,
 			}); err != nil {

@@ -14,7 +14,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -217,7 +216,7 @@ func (s *Service) childAlreadyLeftToday(ctx context.Context, studentID int64, da
 	if date != today || s.Attendance == nil {
 		return false, nil
 	}
-	rows, err := s.Attendance.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String()})
+	rows, err := s.Attendance.ListAttendance(ctx, AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: date.String(), UntilDate: date.String()})
 	if err != nil {
 		return false, err
 	}
