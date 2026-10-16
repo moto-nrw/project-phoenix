@@ -74,7 +74,7 @@
       "backend/architecture/composition.json",
       "backend/architecture/policy.json",
       "backend/api/service_graph_compose.go",
-      "backend/modules/timetable/internal/application/care_plan_records.go",
+      "backend/modules/timetable/ports/care_plan_records.go",
       "backend/modules/timetable/internal/application/workforce_shift_records.go",
       "docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md"
     ],
