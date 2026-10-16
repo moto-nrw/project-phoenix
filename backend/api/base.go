@@ -1793,7 +1793,7 @@ func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollm
 // the meal plan under /api.
 func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	svc, modules, logger := in.modules.services, in.modules, in.logger
-	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, modules.listExport, logger.With("handler", "statistics")).Router())
+	tenant.Mount("/statistics", statisticsAPI.NewResource(svc.Statistics, statisticsHTTPRuntime(modules.listExport), logger.With("handler", "statistics")).Router())
 	tenant.Mount("/guardians", newGuardiansResource(svc.PeopleDirectory, NewGuardianDirectoryRuntime(svc, modules.listExport, modules.identity, modules.userContext.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(in.db.Pool())), viper.GetString("app_env"), logger.With("handler", "guardians")).Router())
 	tenant.Mount("/feedback", newFeedbackResource(modules.feedback).Router())
 	tenant.Mount("/meal-plan", newMealPlanResource(modules.mealPlan, newMealPlanExportRenderer()).Router())

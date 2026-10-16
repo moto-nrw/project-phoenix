@@ -1,9 +1,9 @@
-// Package statisticshttp_test drives the production Resource.Router() so the
+// These Statistics tests drive the production Resource.Router() so the
 // full middleware chain (JWT → tenant → permissions → tenant tx) runs as on
 // the real server. It pins the permission pair, the range validation, the
 // care-day arithmetic with a closing day and a holiday period, the absence
 // categories, the room utilization window semantics, and the export audit.
-package statisticshttp_test
+package api
 
 import (
 	"context"
@@ -21,27 +21,25 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-type testContext struct {
+type statisticsHTTPTestContext struct {
 	db               *bun.DB
 	resource         *statisticsAPI.Resource
 	createClosingDay func(ctx context.Context, start, end calendar.Date, reason string) error
 }
 
-func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *testContext {
+func setupStatisticsRoute(t *testing.T, statisticsClocks ...func() time.Time) *statisticsHTTPTestContext {
 	t.Helper()
 	db, svc := setupStatisticsModule(t, statisticsClocks...)
-	return &testContext{
+	return &statisticsHTTPTestContext{
 		db:               db,
-		resource:         statisticsAPI.NewResource(svc.Statistics, svc.ListExport, slog.Default()),
+		resource:         statisticsAPI.NewResource(svc.Statistics, statisticsHTTPRuntime(svc.ListExport), slog.Default()),
 		createClosingDay: svc.CreateClosingDay,
 	}
 }
@@ -60,7 +58,7 @@ func claimsFor(tb testing.TB, accountID int64) sessiontoken.AppClaims {
 
 var reportPermissions = []string{permissions.ConfigRead, permissions.UsersRead}
 
-func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
+func authExec(t *testing.T, tc *statisticsHTTPTestContext, req *http.Request, claims sessiontoken.AppClaims, perms []string) *httptest.ResponseRecorder {
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
@@ -158,7 +156,7 @@ func insertStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64, date c
 		Date:       date,
 		Status:     status,
 		ReportedAt: date.BerlinMidnight().Add(7 * time.Hour),
-		Source:     absencerecords.StudentStatusSourceManual,
+		Source:     careplan.StudentStatusSourceManual,
 	}
 	row.TenantID = tenantID
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(ctx)
@@ -176,7 +174,7 @@ func insertEndOfDayStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64
 		Status:     status,
 		ReportedAt: date.BerlinMidnight().Add(7 * time.Hour),
 		ClearedAt:  &clearedAt,
-		Source:     absencerecords.StudentStatusSourceEndOfDay,
+		Source:     "end_of_day",
 	}
 	row.TenantID = tenantID
 	_, err := db.NewInsert().Model(row).ModelTableExpr(`active.student_status_days`).Exec(ctx)
@@ -186,14 +184,14 @@ func insertEndOfDayStatusDay(t *testing.T, db *bun.DB, tenantID, studentID int64
 func insertAcceptedPrivacyConsent(t *testing.T, db *bun.DB, tenantID, studentID int64, retentionDays int) {
 	t.Helper()
 	acceptedAt := time.Now()
-	consent := &userModels.PrivacyConsent{
+	consent := &testpkg.PrivacyConsent{
 		StudentID:         studentID,
 		PolicyVersion:     "statistics-test",
 		Accepted:          true,
 		AcceptedAt:        &acceptedAt,
 		DataRetentionDays: retentionDays,
 	}
-	consent.SetTenantID(tenantID)
+	consent.TenantID = tenantID
 	_, err := db.NewInsert().Model(consent).ModelTableExpr(`users.privacy_consents`).Exec(t.Context())
 	require.NoError(t, err)
 }
@@ -202,11 +200,11 @@ func insertHolidayPeriod(t *testing.T, db *bun.DB, tenantID int64, name string, 
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	row := &scheduleModels.CalendarPeriod{
+	row := &testpkg.CalendarPeriod{
 		Name:            name,
-		PeriodType:      scheduleModels.PeriodTypeHoliday,
-		StartDate:       scheduleModels.Date(from),
-		EndDate:         scheduleModels.Date(to),
+		PeriodType:      "holiday",
+		StartDate:       from,
+		EndDate:         to,
 		WeekCycleLength: 1,
 		IsActive:        true,
 	}
@@ -293,7 +291,7 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 		require.NoError(t, err)
 	}
 	_, err = tc.db.NewUpdate().TableExpr("users.student_school_memberships").
-		Set("status = ?", userModels.StudentStatusAlumnus).
+		Set("status = ?", testpkg.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -311,9 +309,9 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 10))
 	// Bert: sick Mon (sick beats an excused row on the same day), class trip
 	// Wed (counts as excused even though archived by end-of-day), present Thu.
-	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), absencerecords.StudentStatusDaySick)
-	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), absencerecords.StudentStatusDayExcused)
-	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 10), absencerecords.StudentStatusDayClassTrip)
+	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), careplan.StudentStatusDaySick)
+	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), careplan.StudentStatusDayExcused)
+	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 10), careplan.StudentStatusDayClassTrip)
 	insertAttendance(t, tc.db, tenantID, bert.ID, device.ID, calendar.NewDate(2026, 6, 11))
 
 	// Room: two overlapping visits on Monday (peak 2), one visit that
@@ -483,10 +481,10 @@ func TestStatisticsReport_CountsImmediatelyActivatedChild(t *testing.T) {
 	pending := testpkg.CreateTestStudent(t, tc.db, "Noch", "Wartend", "1a")
 	for _, row := range []struct {
 		id     int64
-		status userModels.StudentStatus
+		status string
 	}{
-		{activated.ID, userModels.StudentStatusActive},
-		{pending.ID, userModels.StudentStatusPending},
+		{activated.ID, testpkg.StudentStatusActive},
+		{pending.ID, testpkg.StudentStatusPending},
 	} {
 		_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
 			Set("status = ?", row.status).
@@ -677,7 +675,7 @@ func TestStatisticsReport_CourseParticipation(t *testing.T) {
 	bert := testpkg.CreateTestStudent(t, tc.db, "Bert", "Bummel", "1a")
 	alumnus := testpkg.CreateTestStudent(t, tc.db, "Alma", "Archiv", "1a")
 	_, err := tc.db.NewUpdate().TableExpr("users.student_school_memberships").
-		Set("status = ?", userModels.StudentStatusAlumnus).
+		Set("status = ?", testpkg.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", alumnus.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -695,19 +693,19 @@ func TestStatisticsReport_CourseParticipation(t *testing.T) {
 		return testpkg.ActivityInstanceOpts{Status: status, ActivityGroupID: &course.ID, Title: "Fußball"}
 	}
 	held1 := testpkg.CreateTestActivityInstance(t, tc.db, calendar.NewDate(2026, 6, 8), room.ID,
-		instanceOpts(scheduleModels.InstanceStatusCompleted))
+		instanceOpts(testpkg.ScheduleInstanceStatusCompleted))
 	held2 := testpkg.CreateTestActivityInstance(t, tc.db, calendar.NewDate(2026, 6, 10), room.ID,
-		instanceOpts(scheduleModels.InstanceStatusCompleted))
+		instanceOpts(testpkg.ScheduleInstanceStatusCompleted))
 	cancelled := testpkg.CreateTestActivityInstance(t, tc.db, calendar.NewDate(2026, 6, 11), room.ID,
-		instanceOpts(scheduleModels.InstanceStatusCancelled))
+		instanceOpts(testpkg.ScheduleInstanceStatusCancelled))
 	outside := testpkg.CreateTestActivityInstance(t, tc.db, calendar.NewDate(2026, 5, 20), room.ID,
-		instanceOpts(scheduleModels.InstanceStatusCompleted))
+		instanceOpts(testpkg.ScheduleInstanceStatusCompleted))
 	// Today, still planned: a date the school has not run yet.
 	futureInstance := testpkg.CreateTestActivityInstance(t, tc.db, calendar.TodayDate(), room.ID,
-		instanceOpts(scheduleModels.InstanceStatusPlanned))
+		instanceOpts(testpkg.ScheduleInstanceStatusPlanned))
 	operationalDate := testpkg.CreateTestActivityInstance(t, tc.db, calendar.NewDate(2026, 6, 9), room.ID,
 		testpkg.ActivityInstanceOpts{
-			Status:          scheduleModels.InstanceStatusCompleted,
+			Status:          testpkg.ScheduleInstanceStatusCompleted,
 			ActivityGroupID: &operational.ID,
 			Title:           "Spontane Aufsicht",
 		})
@@ -718,27 +716,27 @@ func TestStatisticsReport_CourseParticipation(t *testing.T) {
 	// Dana is booked for Wednesdays only.
 	createCourseEnrollment(t, tc.db, dana.ID, course.ID, calendar.NewDate(2026, 6, 1), []int{3})
 
-	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, bert.ID, scheduleModels.AttendanceStatusAbsent)
-	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, alumnus.ID, scheduleModels.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, anna.ID, testpkg.ScheduleAttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, bert.ID, testpkg.ScheduleAttendanceStatusAbsent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, alumnus.ID, testpkg.ScheduleAttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, anna.ID, testpkg.ScheduleAttendanceStatusPresent)
 	// Bert was not booked into the OGS that day: no participation, no absence.
-	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, bert.ID, scheduleModels.AttendanceStatusExpected,
+	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, bert.ID, testpkg.ScheduleAttendanceStatusExpected,
 		testpkg.InstanceStudentOpts{NotScheduled: true})
 	// The cancelled date and a date before the window count nowhere.
-	testpkg.CreateTestInstanceStudent(t, tc.db, cancelled.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, tc.db, outside.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, cancelled.ID, anna.ID, testpkg.ScheduleAttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, outside.ID, anna.ID, testpkg.ScheduleAttendanceStatusPresent)
 	// Outside their enrollment: before Cara joined, and on a weekday Dana is
 	// not booked for.
-	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, cara.ID, scheduleModels.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, dana.ID, scheduleModels.AttendanceStatusAbsent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, cara.ID, testpkg.ScheduleAttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held1.ID, dana.ID, testpkg.ScheduleAttendanceStatusAbsent)
 	// Inside it.
-	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, cara.ID, scheduleModels.AttendanceStatusPresent)
-	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, dana.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, cara.ID, testpkg.ScheduleAttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, held2.ID, dana.ID, testpkg.ScheduleAttendanceStatusPresent)
 	// The operational date is no course participation.
-	testpkg.CreateTestInstanceStudent(t, tc.db, operationalDate.ID, anna.ID, scheduleModels.AttendanceStatusPresent)
+	testpkg.CreateTestInstanceStudent(t, tc.db, operationalDate.ID, anna.ID, testpkg.ScheduleAttendanceStatusPresent)
 	// The future date carries an expected row; it is neither held nor decided.
-	testpkg.CreateTestInstanceStudent(t, tc.db, futureInstance.ID, anna.ID, scheduleModels.AttendanceStatusExpected)
+	testpkg.CreateTestInstanceStudent(t, tc.db, futureInstance.ID, anna.ID, testpkg.ScheduleAttendanceStatusExpected)
 
 	req := httptest.NewRequest(http.MethodGet, "/report?from="+weekFrom.String()+"&to="+weekTo.String(), nil)
 	rec := authExec(t, tc, req, claims, reportPermissions)
