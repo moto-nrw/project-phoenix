@@ -1,4 +1,4 @@
-package compose_test
+package api
 
 import (
 	"encoding/json"
@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -22,7 +21,7 @@ func TestUploadRefusalsAnswerWithRegisteredCodes(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	_, module := setupImportModule(t, db)
-	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, module.PeopleDirectory, module.Membership, nil)})
+	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(module.PeopleDirectory, module.Membership, nil)})
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Upload", "Admin")
 
 	cases := []struct {
