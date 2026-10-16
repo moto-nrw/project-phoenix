@@ -6,11 +6,11 @@ import (
 	"net"
 	"time"
 
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // The school and parents portals and the enrollment routes may not name the

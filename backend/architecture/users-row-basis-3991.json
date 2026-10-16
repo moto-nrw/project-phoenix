@@ -38,7 +38,7 @@
       "backend/models/users/care_withdrawal_completion_test.go",
       "backend/models/users/parent_message_read_receipts_test.go",
       "backend/models/users/student_data_change_request_test.go",
-      "backend/modules/careplan/inbound/parent/master_data_handlers_test.go",
+      "backend/workflows/parentportal/http/master_data_handlers_test.go",
       "https://github.com/moto-nrw/project-phoenix/actions/runs/38454973960/job/115495291785"
     ],
     "workload": "Code-only row-basis refactoring; no load benchmark or manual application smoke. Local checks use the pinned repository Go toolchain and its default cache. Retirement validation compares the exact CI base SHA with the current baseline. The affected-package test command could not bootstrap because TEST_DB_DSN is unset; no database-backed suite is claimed as passed.",

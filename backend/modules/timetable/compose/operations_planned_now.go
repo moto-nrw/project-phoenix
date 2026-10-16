@@ -7,6 +7,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -148,7 +149,7 @@ func (s *operations) plannedNowCandidates(
 	if err != nil {
 		return nil, err
 	}
-	staffByInstance := indexInstanceStaffRows(staffRows)
+	staffByInstance := application.IndexInstanceStaffRows(staffRows)
 	visible := make([]*scheduleModels.ActivityInstance, 0, len(eligible))
 	for _, inst := range eligible {
 		if !access.allOperational && !staffAssigned(staffByInstance[inst.ID], access.staffID) {
@@ -293,7 +294,7 @@ func (s *operations) plannedAttendanceCounts(inst *scheduleModels.ActivityInstan
 	var counts plannedAttendanceCounts
 	completed := inst.Status == scheduleModels.InstanceStatusCompleted
 	for _, row := range rows {
-		verdict := s.deps.CareDays.AttendanceRowCareDay(completed, careDayAttendance(row), careDay[row.StudentID])
+		verdict := s.deps.CareDays.AttendanceRowCareDay(completed, application.CareDayAttendance(row), careDay[row.StudentID])
 		switch row.Status {
 		case scheduleModels.AttendanceStatusExpected:
 			if !s.deps.CareDays.Expected(verdict) {

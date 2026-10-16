@@ -1,6 +1,6 @@
 {
-  "schema_version": 3,
-  "policy_epoch": 54,
+  "schema_version": 4,
+  "policy_epoch": 55,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -152,10 +152,6 @@
     },
     {
       "id": "inbound-display",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-import",
       "kind": "inbound"
     },
     {
@@ -457,13 +453,6 @@
       "role": "contract",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/dataimport/inbound/compose",
-      "owner": "inbound-import",
-      "role": "compose",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "e2e-test"
     },
     {
       "path": "database/repositories/audit/integration",
@@ -796,7 +785,7 @@
     },
     {
       "path": "modules/dataimport/inbound",
-      "owner": "inbound-import",
+      "owner": "data-import",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -872,7 +861,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/careplan/inbound/parent",
+      "path": "workflows/parentportal/http",
       "owner": "parent-portal",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -5704,125 +5693,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-import.e2e-test.people-directory.public",
-      "description": "Exercise composed import routes and verify native owner records (#2744).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "e2e-test",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-import.e2e-test.inbound-import.http",
-      "description": "Exercise composed import routes and verify native owner records (#2744).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-import",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.compose.import-compose",
-      "description": "Compose the import HTTP runtime over native owner queries (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-import",
-      "target_role": "compose"
-    },
-    {
-      "id": "inbound-import.compose.orm-sql",
-      "description": "Bind the import HTTP and transaction runtime (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_class": "orm-sql"
-    },
-    {
-      "id": "inbound-import.compose.http-router",
-      "description": "Bind the import HTTP and transaction runtime (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
-      "id": "inbound-import.compose.data-import.public",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "data-import",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-import.compose.school-membership.public",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-import.compose.people-directory.public",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-import.compose.tenant-runtime.public",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-import.compose.identity-access.adapter",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-import.compose.inbound-common.http",
-      "description": "Bind native import actors and the established HTTP runtime outside handlers (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
       "id": "data-import.compose.production.school-structure.public",
       "description": "Bind import reference lookups to native tenant-scoped owner queries (#2744).",
       "scopes": [
@@ -5852,16 +5722,6 @@
       ],
       "source_owner": "data-import",
       "source_role": "adapter",
-      "target_class": "rendering"
-    },
-    {
-      "id": "data-import.adapter-test.file-rendering",
-      "description": "The import file adapter decodes Excel workbooks without exposing spreadsheet types (#2744).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "data-import",
-      "source_role": "adapter-test",
       "target_class": "rendering"
     },
     {
@@ -7929,17 +7789,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-import.to.data-import",
-      "description": "inbound-import calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-import",
-      "source_role": "http",
-      "target_owner": "data-import",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-iot-checkin.to.process-device-scan",
       "description": "inbound-iot-checkin calls exactly one public capability.",
       "scopes": [
@@ -9026,17 +8875,6 @@
       "source_owner": "timetable-activities",
       "source_role": "module-internal-test",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "timetable-activities.postgres.transaction-runtime",
-      "description": "Timetable & Activities' postgres adapter classifies unique violations through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "transaction-runtime",
       "target_role": "public"
     },
     {
@@ -15428,6 +15266,17 @@
       "source_role": "http",
       "target_owner": "school-calendar",
       "target_role": "contract"
+    },
+    {
+      "id": "data-import.http.public",
+      "description": "Data Import HTTP calls its owned public capability.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "data-import",
+      "source_role": "http",
+      "target_owner": "data-import",
+      "target_role": "public"
     }
   ],
   "relocations": [
@@ -15440,6 +15289,11 @@
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "modules/careplan/inbound/parent",
+      "to": "workflows/parentportal/http",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
       "from": "modules/identityaccess/legacy/jwt",
