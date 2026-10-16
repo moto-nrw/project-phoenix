@@ -10,7 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The retained calendar period, closing day and dateframe repositories serve
@@ -21,15 +23,15 @@ import (
 // NewPlanningCalendarPeriodUsage composes the School Calendar usage read from the
 // two owners that hold calendar-period references: Enrollment (phases) and
 // Timetable (planning tables), one statement each (#3124).
-func NewPlanningCalendarPeriodUsage(enrollment EnrollmentPhaseQueries, planning timetable.Capability) *CalendarPeriodUsageRepository {
-	return NewCalendarPeriodUsageRepository(enrollment, func(ctx context.Context) (map[int64]CalendarPeriodReferences, error) {
+func NewPlanningCalendarPeriodUsage(enrollment application.EnrollmentPhaseQueries, planning timetable.Capability) ports.CalendarPeriodUsageRepository {
+	return application.NewCalendarPeriodUsageRepository(enrollment, func(ctx context.Context) (map[int64]ports.CalendarPeriodReferences, error) {
 		references, err := planning.CountCalendarPeriodReferences(ctx)
 		if err != nil {
 			return nil, err
 		}
-		counts := make(map[int64]CalendarPeriodReferences, len(references))
+		counts := make(map[int64]ports.CalendarPeriodReferences, len(references))
 		for id, entry := range references {
-			counts[id] = CalendarPeriodReferences(entry)
+			counts[id] = ports.CalendarPeriodReferences(entry)
 		}
 		return counts, nil
 	})
@@ -38,7 +40,7 @@ func NewPlanningCalendarPeriodUsage(enrollment EnrollmentPhaseQueries, planning 
 // NewCalendarPeriodRepository serves the legacy calendar period repository
 // over the School Calendar owner; the reference counts come from usage
 // (#2666, #3124).
-func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage *CalendarPeriodUsageRepository) scheduleModels.CalendarPeriodRepository {
+func NewCalendarPeriodRepository(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) scheduleModels.CalendarPeriodRepository {
 	return newCalendarPeriodCalendarRepository(calendar, usage)
 }
 
@@ -87,15 +89,15 @@ func optionalDateString[D ~string](value *D) string {
 // (#2666). schedule.calendar_periods belongs to that owner; the reference
 // counts stay with the planning owner's usage repository.
 type calendarPeriodCalendarRepository struct {
-	UnfilteredListing[*scheduleModels.CalendarPeriod]
-	CalendarPeriodOverlapListing
+	application.UnfilteredListing[*scheduleModels.CalendarPeriod]
+	application.CalendarPeriodOverlapListing
 	calendar schoolcalendar.Capability
-	usage    *CalendarPeriodUsageRepository
+	usage    ports.CalendarPeriodUsageRepository
 }
 
 var _ scheduleModels.CalendarPeriodRepository = calendarPeriodCalendarRepository{}
 
-func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage *CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
+func newCalendarPeriodCalendarRepository(capability schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) calendarPeriodCalendarRepository {
 	repo := calendarPeriodCalendarRepository{calendar: capability, usage: usage}
 	repo.UnfilteredListing.Source = repo.FindByTenantID
 	repo.CalendarPeriodOverlapListing.Source = repo.listActiveOverlapping
@@ -121,8 +123,8 @@ func applyCalendarPeriodToLegacy(target *scheduleModels.CalendarPeriod, value sc
 	target.SetTenantID(value.TenantID)
 	target.Name = value.Name
 	target.PeriodType = value.PeriodType
-	setDate(&target.StartDate, value.StartDate)
-	setDate(&target.EndDate, value.EndDate)
+	application.SetDate(&target.StartDate, value.StartDate)
+	application.SetDate(&target.EndDate, value.EndDate)
 	target.WeekCycleLength = value.WeekCycleLength
 	setOptionalDate(&target.WeekCycleAnchor, value.WeekCycleAnchor)
 	target.IsActive = value.IsActive

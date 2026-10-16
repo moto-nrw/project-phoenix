@@ -7,13 +7,15 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The retention runs against the real Timetable owner inside each test's own
@@ -29,12 +31,12 @@ func cleanupClock() time.Time { return cleanupToday.BerlinMidnight().Add(12 * ti
 // recordingDeletionAudit keeps the audit records a run appends; write, when
 // set, persists them too (the rollback test writes them in the transaction).
 type recordingDeletionAudit struct {
-	records []StudentDeletionRecord
+	records []ports.StudentDeletionRecord
 	err     error
-	write   func(context.Context, StudentDeletionRecord) error
+	write   func(context.Context, ports.StudentDeletionRecord) error
 }
 
-func (a *recordingDeletionAudit) RecordTimetableRetention(ctx context.Context, record StudentDeletionRecord) error {
+func (a *recordingDeletionAudit) RecordTimetableRetention(ctx context.Context, record ports.StudentDeletionRecord) error {
 	if a.err != nil {
 		return a.err
 	}
@@ -76,7 +78,7 @@ func newCleanupFixture(t *testing.T) cleanupFixture {
 	return cleanupFixture{db: db, ctx: testpkg.Ctx(t), owner: buildModule(t, db), roomID: room.ID}
 }
 
-func (f cleanupFixture) cleanup(t *testing.T, deps TimetableCleanupDependencies) timetable.TimetableCleanup {
+func (f cleanupFixture) cleanup(t *testing.T, deps ports.TimetableCleanupDependencies) timetable.TimetableCleanup {
 	t.Helper()
 	deps.Timetable = f.owner
 	if deps.Clock == nil {
@@ -148,7 +150,7 @@ func TestTimetableCleanupDeletesOldRowsKeepsFreshRows(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
 	deviations := &recordingDeviationRetention{}
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{DeviationEvents: deviations})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{DeviationEvents: deviations})
 
 	oldID1 := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	oldID2 := f.instance(t, 400, scheduleModels.InstanceStatusCancelled, nil)
@@ -178,7 +180,7 @@ func TestTimetableCleanupEmptyTenantRecordsNoAudit(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
 	audit := &recordingDeletionAudit{}
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{Audit: audit})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Audit: audit})
 
 	for range 2 {
 		result, err := cleanup.CleanupExpiredTimetableData(f.ctx)
@@ -193,7 +195,7 @@ func TestTimetableCleanupEmptyTenantRecordsNoAudit(t *testing.T) {
 func TestTimetableCleanupSecondRunDeletesNothing(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 
 	first, err := cleanup.CleanupExpiredTimetableData(f.ctx)
@@ -208,7 +210,7 @@ func TestTimetableCleanupSecondRunDeletesNothing(t *testing.T) {
 func TestTimetableCleanupCascadesToStaffAndParticipants(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	instanceID := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	staff := testpkg.CreateTestStaff(t, f.db, "Cascade", fmt.Sprintf("Staff-%d", time.Now().UnixNano()))
 	staffRowID := f.attachStaff(t, instanceID, staff.ID)
@@ -229,7 +231,7 @@ func TestTimetableCleanupCascadesToStaffAndParticipants(t *testing.T) {
 func TestTimetableCleanupDeletesEveryStatusPastRetention(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	for _, status := range []string{
 		scheduleModels.InstanceStatusPlanned,
 		scheduleModels.InstanceStatusActive,
@@ -247,7 +249,7 @@ func TestTimetableCleanupDeletesEveryStatusPastRetention(t *testing.T) {
 func TestTimetableCleanupLeavesTemplatesUntouched(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	template := f.template(t)
 	f.instance(t, 400, scheduleModels.InstanceStatusCompleted, &template)
 	f.exception(t, template, 400)
@@ -264,7 +266,7 @@ func TestTimetableCleanupAuditsOncePerAffectedStudent(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
 	audit := &recordingDeletionAudit{}
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{Audit: audit})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Audit: audit})
 	first := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	second := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	fresh := f.instance(t, 30, scheduleModels.InstanceStatusPlanned, nil)
@@ -279,7 +281,7 @@ func TestTimetableCleanupAuditsOncePerAffectedStudent(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 2, result.StudentsAffected)
 
-	byStudent := map[int64]StudentDeletionRecord{}
+	byStudent := map[int64]ports.StudentDeletionRecord{}
 	for _, record := range audit.records {
 		byStudent[record.StudentID] = record
 	}
@@ -298,23 +300,23 @@ func TestTimetableCleanupBoundsTheAuditSample(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
 	audit := &recordingDeletionAudit{}
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{Audit: audit})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Audit: audit})
 	student := f.student(t, "Sample")
-	for range cleanupAuditSampleCap + 2 {
+	for range ports.CleanupAuditSampleCap + 2 {
 		f.attachStudent(t, f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil), student, nil)
 	}
 
 	_, err := cleanup.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
 	require.Len(t, audit.records, 1)
-	assert.Equal(t, cleanupAuditSampleCap+2, audit.records[0].RecordsDeleted)
-	assert.Len(t, audit.records[0].InstanceIDsSample, cleanupAuditSampleCap)
+	assert.Equal(t, ports.CleanupAuditSampleCap+2, audit.records[0].RecordsDeleted)
+	assert.Len(t, audit.records[0].InstanceIDsSample, ports.CleanupAuditSampleCap)
 }
 
 func TestTimetableCleanupTenantIsolation(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 
 	otherTenantID := testpkg.UniqueTestTenantID(t)
@@ -333,7 +335,7 @@ func TestTimetableCleanupRetentionWindow(t *testing.T) {
 	t.Parallel()
 	cases := []struct {
 		name     string
-		settings RetentionSettings
+		settings ports.RetentionSettings
 		want     int
 	}{
 		{name: "tenant override narrows the window", settings: fixedRetentionSettings{days: 30}, want: 30},
@@ -345,7 +347,7 @@ func TestTimetableCleanupRetentionWindow(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			f := newCleanupFixture(t)
-			cleanup := f.cleanup(t, TimetableCleanupDependencies{Settings: tc.settings})
+			cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Settings: tc.settings})
 			preview, err := cleanup.PreviewExpiredTimetableData(f.ctx)
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, preview.RetentionDays)
@@ -357,7 +359,7 @@ func TestTimetableCleanupRetentionWindow(t *testing.T) {
 func TestTimetableCleanupRetentionOverrideDeletesInsideTheNarrowWindow(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{Settings: fixedRetentionSettings{days: 30}})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Settings: fixedRetentionSettings{days: 30}})
 	oldID := f.instance(t, 60, scheduleModels.InstanceStatusCompleted, nil)
 	freshID := f.instance(t, 10, scheduleModels.InstanceStatusCompleted, nil)
 
@@ -372,7 +374,7 @@ func TestTimetableCleanupRetentionOverrideDeletesInsideTheNarrowWindow(t *testin
 func TestTimetableCleanupRequiresTenant(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 
 	_, err := cleanup.CleanupExpiredTimetableData(context.Background())
 	require.ErrorContains(t, err, "no tenant in context")
@@ -385,7 +387,7 @@ func TestTimetableCleanupRequiresTenant(t *testing.T) {
 func TestTimetableCleanupPreviewCountsWithoutDeleting(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	oldID := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	recentID := f.instance(t, 30, scheduleModels.InstanceStatusPlanned, nil)
 	template := f.template(t)
@@ -411,7 +413,7 @@ func TestTimetableCleanupPreviewCountsWithoutDeleting(t *testing.T) {
 func TestTimetableCleanupPreviewOfEmptyTenant(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	f.instance(t, 30, scheduleModels.InstanceStatusPlanned, nil)
 
 	preview, err := cleanup.PreviewExpiredTimetableData(f.ctx)
@@ -425,7 +427,7 @@ func TestTimetableCleanupPreviewOfEmptyTenant(t *testing.T) {
 func TestTimetableCleanupStatsReportTotals(t *testing.T) {
 	t.Parallel()
 	f := newCleanupFixture(t)
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{})
 	f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	f.instance(t, 30, scheduleModels.InstanceStatusPlanned, nil)
 
@@ -445,7 +447,7 @@ func TestTimetableCleanupWithoutAuditFailsBeforeDeleting(t *testing.T) {
 	f := newCleanupFixture(t)
 	instanceID := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	f.attachStudent(t, instanceID, f.student(t, "NoAudit"), nil)
-	cleanup, err := NewTimetableCleanup(TimetableCleanupDependencies{Timetable: f.owner, Clock: cleanupClock})
+	cleanup, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: f.owner, Clock: cleanupClock})
 	require.NoError(t, err)
 
 	_, err = cleanup.CleanupExpiredTimetableData(f.ctx)
@@ -459,7 +461,7 @@ func TestTimetableCleanupAuditFailureBubblesBeforeDeleting(t *testing.T) {
 	instanceID := f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil)
 	f.attachStudent(t, instanceID, f.student(t, "AuditFail"), nil)
 	wantErr := errors.New("simulated audit failure")
-	cleanup := f.cleanup(t, TimetableCleanupDependencies{Audit: &recordingDeletionAudit{err: wantErr}})
+	cleanup := f.cleanup(t, ports.TimetableCleanupDependencies{Audit: &recordingDeletionAudit{err: wantErr}})
 
 	_, err := cleanup.CleanupExpiredTimetableData(f.ctx)
 	require.ErrorIs(t, err, wantErr, "audit failure must bubble up")
@@ -482,14 +484,14 @@ func TestTimetableCleanupRollbackUndoesEverything(t *testing.T) {
 
 	rollbackErr := errors.New("simulated caller-side failure after cleanup")
 	err := testpkg.WithTenantTx(t, f.ctx, f.db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
-		audit := &recordingDeletionAudit{write: func(ctx context.Context, record StudentDeletionRecord) error {
+		audit := &recordingDeletionAudit{write: func(ctx context.Context, record ports.StudentDeletionRecord) error {
 			_, err := tx.NewRaw(`INSERT INTO audit.data_deletions
 				(tenant_id, student_id, deletion_type, records_deleted, deleted_by)
 				VALUES (?, ?, 'timetable_retention', ?, 'system')`,
 				record.TenantID, record.StudentID, record.RecordsDeleted).Exec(ctx)
 			return err
 		}}
-		result, cleanupErr := f.cleanup(t, TimetableCleanupDependencies{Audit: audit}).CleanupExpiredTimetableData(txCtx)
+		result, cleanupErr := f.cleanup(t, ports.TimetableCleanupDependencies{Audit: audit}).CleanupExpiredTimetableData(txCtx)
 		require.NoError(t, cleanupErr, "cleanup itself must succeed")
 		require.Equal(t, 2, result.InstancesDeleted)
 		require.Equal(t, 1, result.StudentsAffected)
@@ -508,10 +510,10 @@ func TestTimetableCleanupRollbackUndoesEverything(t *testing.T) {
 
 func TestNewTimetableCleanupRequiresTheOwner(t *testing.T) {
 	t.Parallel()
-	_, err := NewTimetableCleanup(TimetableCleanupDependencies{})
+	_, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{})
 	require.EqualError(t, err, "timetable cleanup: the timetable owner is required")
 
-	cleanup, err := NewTimetableCleanup(TimetableCleanupDependencies{Timetable: buildModule(t, testpkg.SetupTestDB(t)), Audit: &recordingDeletionAudit{}})
+	cleanup, err := NewTimetableCleanup(ports.TimetableCleanupDependencies{Timetable: buildModule(t, testpkg.SetupTestDB(t)), Audit: &recordingDeletionAudit{}})
 	require.NoError(t, err, "a nil logger falls back to the default logger")
 	_, err = cleanup.CleanupExpiredTimetableData(testpkg.Ctx(t))
 	require.NoError(t, err)

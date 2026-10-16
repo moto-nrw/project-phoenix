@@ -51,6 +51,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
@@ -386,7 +387,7 @@ type IdentityMaterial struct {
 	// The rows the caller context's retained consumers read.
 	Groups         EducationGroupRepository
 	StaffGroups    schoolstructure.StaffGroupQuery
-	ActivityGroups arrivalTimetable.CallerActivityGroups
+	ActivityGroups timetablePorts.CallerActivityGroups
 	Sessions       *presenceCompose.SessionRecords
 	Presence       *studentpresence.Module
 }

@@ -16,6 +16,7 @@ import (
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // NewCalendarFacts binds the calendar's fact ports to the retained rows and
@@ -275,45 +276,45 @@ func (p calendarRoomPort) FindByIDs(ctx context.Context, ids []int64) ([]*calend
 }
 
 type calendarAssignmentPort struct {
-	source timetableCompose.CalendarAssignmentRows
+	source timetablePorts.CalendarAssignmentRows
 }
 
 func (p calendarAssignmentPort) FindByStaffAndDateRange(ctx context.Context, id int64, from, to appointmentcap.Date) ([]*calendarCompose.InstanceStaff, error) {
 	value, err := timetableCompose.FindCalendarAssignments(ctx, p.source, id, string(from), string(to))
-	return calendarMapSlice(value, func(v timetableCompose.CalendarAssignment) *calendarCompose.InstanceStaff {
+	return calendarMapSlice(value, func(v timetablePorts.CalendarAssignment) *calendarCompose.InstanceStaff {
 		return &calendarCompose.InstanceStaff{InstanceID: v.InstanceID, RoomID: v.RoomID, UpdatedAt: v.UpdatedAt}
 	}), err
 }
 
 type calendarInstancePort struct {
-	source timetableCompose.CalendarInstanceRows
+	source timetablePorts.CalendarInstanceRows
 }
 
 func (p calendarInstancePort) FindByIDs(ctx context.Context, ids []int64) ([]*calendarCompose.ActivityInstance, error) {
 	value, err := timetableCompose.FindCalendarInstances(ctx, p.source, ids)
-	return calendarMapSlice(value, func(v timetableCompose.CalendarInstance) *calendarCompose.ActivityInstance {
+	return calendarMapSlice(value, func(v timetablePorts.CalendarInstance) *calendarCompose.ActivityInstance {
 		return &calendarCompose.ActivityInstance{ID: v.ID, RoomID: v.RoomID, Title: v.Title, Status: v.Status, Description: v.Description, Date: appointmentcap.Date(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt, ActivityType: v.TemplateType}
 	}), err
 }
 
 type calendarShiftPort struct {
-	source timetableCompose.CalendarShiftRows
+	source timetablePorts.CalendarShiftRows
 }
 
 func (p calendarShiftPort) FindByStaffAndDateRange(ctx context.Context, id int64, from, to appointmentcap.Date) ([]*calendarCompose.StaffShift, error) {
 	value, err := timetableCompose.FindCalendarShifts(ctx, p.source, id, string(from), string(to))
-	return calendarMapSlice(value, func(v timetableCompose.CalendarShift) *calendarCompose.StaffShift {
+	return calendarMapSlice(value, func(v timetablePorts.CalendarShift) *calendarCompose.StaffShift {
 		return &calendarCompose.StaffShift{ID: v.ID, Date: appointmentcap.Date(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt, ShiftTypeID: v.ShiftTypeID, Cancelled: v.Cancelled, Notes: v.Notes}
 	}), err
 }
 
 type calendarShiftTypePort struct {
-	source timetableCompose.CalendarShiftTypeRows
+	source timetablePorts.CalendarShiftTypeRows
 }
 
 func (p calendarShiftTypePort) ListAll(ctx context.Context) ([]*calendarCompose.ShiftType, error) {
 	value, err := timetableCompose.ListCalendarShiftTypes(ctx, p.source)
-	return calendarMapSlice(value, func(v timetableCompose.CalendarShiftType) *calendarCompose.ShiftType {
+	return calendarMapSlice(value, func(v timetablePorts.CalendarShiftType) *calendarCompose.ShiftType {
 		return &calendarCompose.ShiftType{ID: v.ID, Name: v.Name}
 	}), err
 }

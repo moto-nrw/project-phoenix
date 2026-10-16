@@ -7,6 +7,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -65,8 +66,8 @@ func (r OwnerRows) DataTemplates() (ports.DataTemplates, error) {
 
 // EndedSessionInstances is the session listing of the ended-session
 // completion.
-func (r OwnerRows) EndedSessionInstances() (EndedSessionInstances, error) {
-	instances, ok := r.Instances.(EndedSessionInstances)
+func (r OwnerRows) EndedSessionInstances() (ports.EndedSessionInstances, error) {
+	instances, ok := r.Instances.(ports.EndedSessionInstances)
 	if !ok {
 		return nil, fmt.Errorf("ended session completion: %T cannot list instances by session", r.Instances)
 	}
@@ -98,15 +99,15 @@ func (r OwnerRows) DeviationEventReader() ports.DeviationEventReader { return r.
 // with the day-wide staffing lock (#1840) the caller supplies.
 func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) SickCascadeTimetableRows {
 	return SickCascadeTimetableRows{
-		instances: NewTimetableInstanceReads(r.Instances), staff: NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
+		instances: application.NewTimetableInstanceReads(r.Instances), staff: application.NewTimetableInstanceStaffReads(r.InstanceStaff), dayLock: dayLock,
 	}
 }
 
 // SickCascadeTimetableRows serves the shift-plan-sync workflow's timetable
 // port from the retained rows, in the Timetable owner's public vocabulary.
 type SickCascadeTimetableRows struct {
-	instances TimetableInstanceReads
-	staff     TimetableInstanceStaffReads
+	instances application.TimetableInstanceReads
+	staff     application.TimetableInstanceStaffReads
 	dayLock   func(context.Context, calendar.Date) error
 }
 

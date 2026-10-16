@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -27,7 +28,7 @@ func (q phaseCountQueries) PhaseCountsByCalendarPeriod(context.Context) (map[int
 func TestCalendarPeriodUsageRepository_EnrollmentFailurePropagates(t *testing.T) {
 	t.Parallel()
 	failure := errors.New("enrollment read failed")
-	repo := compose.NewCalendarPeriodUsageRepository(phaseCountQueries{err: failure}, func(context.Context) (map[int64]compose.CalendarPeriodReferences, error) {
+	repo := compose.NewCalendarPeriodUsageRepository(phaseCountQueries{err: failure}, func(context.Context) (map[int64]timetablePorts.CalendarPeriodReferences, error) {
 		t.Fatal("timetable must not be queried when enrollment fails")
 		return nil, nil
 	})
