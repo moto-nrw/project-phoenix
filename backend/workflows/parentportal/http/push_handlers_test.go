@@ -8,17 +8,16 @@ import (
 	"strings"
 	"testing"
 
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/stretchr/testify/assert"
 )
 
 type parentPushSubscriptionServiceStub struct {
-	notificationsService.PushSubscriptionService
+	PushSubscriptions
 	subscribeErr   error
 	unsubscribeErr error
 }
 
-func (s parentPushSubscriptionServiceStub) SubscribeParent(context.Context, int64, notificationsService.PushSubscriptionInput) error {
+func (s parentPushSubscriptionServiceStub) SubscribeParent(context.Context, int64, PushSubscriptionInput) error {
 	return s.subscribeErr
 }
 
@@ -38,7 +37,7 @@ func TestSubscribePushClassifiesServiceErrors(t *testing.T) {
 	}{
 		{
 			name:       "invalid browser subscription",
-			serviceErr: notificationsService.ErrInvalidPushSubscription,
+			serviceErr: ErrInvalidPushSubscription,
 			wantStatus: http.StatusBadRequest,
 		},
 		{
