@@ -139,10 +139,6 @@
       "kind": "domain"
     },
     {
-      "id": "inbound-absence-types",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-announcement",
       "kind": "inbound"
     },
@@ -184,10 +180,6 @@
     },
     {
       "id": "inbound-substitutions",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-work-time-models",
       "kind": "inbound"
     },
     {
@@ -667,7 +659,7 @@
     },
     {
       "path": "api/absence-types",
-      "owner": "inbound-absence-types",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -933,7 +925,7 @@
     },
     {
       "path": "api/work-time-models",
-      "owner": "inbound-work-time-models",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7414,17 +7406,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-absence-types.to.workforce",
-      "description": "inbound-absence-types calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-absence-types",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "settings-platform.test-support.domain",
       "description": "The settings test support scripts tenant values against the registry keys they are stored under. The models/* packages carry the legacy-model role (ADR 0057).",
       "scopes": [
@@ -8139,17 +8120,6 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "http"
-    },
-    {
-      "id": "inbound-work-time-models.to.workforce",
-      "description": "inbound-work-time-models calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-work-time-models",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
     },
     {
       "id": "internal-test.same-owner.application",
@@ -9113,17 +9083,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "workforce.integration-test.work-time-models-http",
-      "description": "Workforce HTTP integration tests drive the work-time-model adapter directly.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-work-time-models",
-      "target_role": "http"
     },
     {
       "id": "workflow-decision-test.test-support",
@@ -10110,17 +10069,6 @@
       "target_role": "public"
     },
     {
-      "id": "workforce.adapter.absence-types-http",
-      "description": "Workforce HTTP composition constructs the absence-type administration adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "inbound-absence-types",
-      "target_role": "http"
-    },
-    {
       "id": "workforce.adapter.substitutions-http",
       "description": "Workforce HTTP composition constructs the substitutions adapter.",
       "scopes": [
@@ -10481,16 +10429,6 @@
       "source_role": "http",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.http.orm-sql",
-      "description": "The Workforce shift-planning HTTP composition passes the concrete Bun database to the shared tenant middleware.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "device-fleet.port-domain",
