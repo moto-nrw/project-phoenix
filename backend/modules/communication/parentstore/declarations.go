@@ -6,6 +6,7 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentaudience"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 )
@@ -156,11 +157,11 @@ func (r *announcementRepository) HoldHistoricalDeclarationSigner(ctx context.Con
 	return &signer, nil
 }
 
-func declarationHistoryLinks(submissions []*domain.DeclarationSubmission) []domain.DeclarationHistoryLink {
-	links := make([]domain.DeclarationHistoryLink, 0, len(submissions))
-	seen := make(map[domain.DeclarationHistoryLink]struct{}, len(submissions))
+func declarationHistoryLinks(submissions []*domain.DeclarationSubmission) []parentaudience.DeclarationHistoryLink {
+	links := make([]parentaudience.DeclarationHistoryLink, 0, len(submissions))
+	seen := make(map[parentaudience.DeclarationHistoryLink]struct{}, len(submissions))
 	for _, submission := range submissions {
-		link := domain.DeclarationHistoryLink{
+		link := parentaudience.DeclarationHistoryLink{
 			TenantID: submission.TenantID, AnnouncementID: submission.AnnouncementID, StudentID: submission.StudentID,
 		}
 		if _, ok := seen[link]; ok {
@@ -206,7 +207,7 @@ func declarationSubmissionModels(values []*domain.DeclarationSubmission) []*user
 	return out
 }
 
-func declarationChildModels(values []*domain.DeclarationChild) []*usersModels.DeclarationChild {
+func declarationChildModels(values []*parentaudience.DeclarationChild) []*usersModels.DeclarationChild {
 	out := make([]*usersModels.DeclarationChild, 0, len(values))
 	for _, value := range values {
 		child := usersModels.DeclarationChild(*value)
@@ -215,7 +216,7 @@ func declarationChildModels(values []*domain.DeclarationChild) []*usersModels.De
 	return out
 }
 
-func declarationSignerModels(values []*domain.DeclarationSigner) []*usersModels.DeclarationSigner {
+func declarationSignerModels(values []*parentaudience.DeclarationSigner) []*usersModels.DeclarationSigner {
 	out := make([]*usersModels.DeclarationSigner, 0, len(values))
 	for _, value := range values {
 		signer := usersModels.DeclarationSigner(*value)
