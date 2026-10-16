@@ -1,4 +1,4 @@
-package compose_test
+package api
 
 import (
 	"net/http"
@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	iotcompose "github.com/moto-nrw/project-phoenix/api/iot/compose"
+	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -17,23 +16,23 @@ import (
 
 func TestSessionStartMirrorsTenantAndWallClock(t *testing.T) {
 	t.Parallel()
-	db, active := setupActiveModule(t)
-	_, timetable := setupTimetableModule(t)
+	db, active := setupIoTActiveModule(t)
+	_, timetable := setupIoTTimetableModule(t)
 	mirror, instances, err := timetable.KioskSessionMirror(testpkg.NewDatabase(t, db), active.Activities)
 	require.NoError(t, err)
-	_, auth := setupAuthModule(t)
+	_, auth := setupIoTAuthModule(t)
 	activity := testpkg.CreateTestActivityGroup(t, db, "Mirror Activity")
 	room := testpkg.CreateTestRoom(t, db, "Mirror Room")
 	staff := testpkg.CreateTestStaff(t, db, "Mirror", "Supervisor")
 	device := testpkg.CreateTestDevice(t, db, "mirror-device")
-	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	schools, err := NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	deviceAuth := testutil.NewDeviceAuthenticators(active.IoT.Fleet(), schools, auth.Settings, "1234")
-	resource := iotcompose.NewRouterTestResource()
+	resource := newIoTRouterTestResource()
 	resource.DeviceAuthenticator = deviceAuth.Device()
 	resource.DeviceOnlyAuthenticator = deviceAuth.DeviceOnly()
 	// Mirroring must survive a failure of the trailing best-effort response read.
-	resource.SessionLifecycle = iotcompose.NewSessionLifecycle(active.Active, iotcompose.UnavailableMirrorSupervisions{}, active.Users, active.IoT, mirror, nil)
+	resource.SessionLifecycle = devicescanCompose.NewSessionLifecycle(active.Active, iotUnavailableMirrorSupervisions{}, active.Users, active.IoT, mirror, nil)
 	handler := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
 	request := testutil.NewAuthenticatedRequest(t, "POST", "/session/start", map[string]any{
 		"activity_id": activity.ID, "room_id": room.ID, "supervisor_ids": []int64{staff.ID},

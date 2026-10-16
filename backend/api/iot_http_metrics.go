@@ -1,11 +1,11 @@
-package compose
+package api
 
 import (
 	"net/http"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	"github.com/moto-nrw/project-phoenix/observability"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -18,8 +18,8 @@ func iotMetricsMiddleware(next http.Handler) http.Handler {
 		next.ServeHTTP(recorder, r)
 
 		deviceType := "unknown"
-		if deviceCtx := device.DeviceFromCtx(r.Context()); deviceCtx != nil {
-			deviceType = deviceCtx.DeviceType
+		if _, _, _, nativeType, ok := deviceauth.ContextDevice(r.Context()); ok {
+			deviceType = nativeType
 		}
 		observability.ObserveIoTRequest(
 			tenant.FromContext(r.Context()),
