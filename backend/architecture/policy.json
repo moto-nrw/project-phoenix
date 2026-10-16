@@ -163,15 +163,7 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-iot-internal-shared",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-iot-sessions",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-iot-staffclock",
       "kind": "inbound"
     },
     {
@@ -823,7 +815,7 @@
     },
     {
       "path": "api/iot/internal/shared",
-      "owner": "inbound-iot-internal-shared",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -837,7 +829,7 @@
     },
     {
       "path": "api/iot/staffclock",
-      "owner": "inbound-iot-staffclock",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7807,34 +7799,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-iot-internal-shared.to.process-device-scan",
-      "description": "inbound-iot-internal-shared calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-internal-shared",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-iot-sessions.to.process-device-scan",
       "description": "inbound-iot-sessions calls exactly one public capability.",
       "scopes": [
         "production"
       ],
       "source_owner": "inbound-iot-sessions",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot-staffclock.to.process-device-scan",
-      "description": "inbound-iot-staffclock calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-staffclock",
       "source_role": "http",
       "target_owner": "process-device-scan",
       "target_role": "public"
@@ -11834,17 +11804,6 @@
       "source_owner": "inbound-iot",
       "source_role": "compose",
       "target_owner": "inbound-iot-sessions",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.inbound-iot-staffclock.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-iot-staffclock",
       "target_role": "http"
     },
     {
