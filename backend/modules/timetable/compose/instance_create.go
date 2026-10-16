@@ -11,10 +11,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -222,7 +222,7 @@ func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Conte
 		}
 	}
 	studentIDs := sliceutil.UniquePositive(req.StudentIDs)
-	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, timezone.Date(inst.Date)); err != nil {
+	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, calendar.Date(inst.Date)); err != nil {
 		return err
 	}
 	return s.assignInstanceStudents(ctx, inst, studentIDs, tenantID, "create instance")

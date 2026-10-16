@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -20,7 +20,7 @@ const bulkCancelReason = "Termine im Zeitraum abgesagt"
 // re-plan recreates it). Guardians are not notified. opts.DryRun only counts.
 // Everything runs in one tenant transaction behind the ascending day locks
 // ReplanWeek takes, so a concurrent move into the range waits.
-func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, to timezone.Date, opts timetable.BulkCancelOptions, actorAccountID *int64) (*timetable.BulkCancelResult, error) {
+func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, to calendar.Date, opts timetable.BulkCancelOptions, actorAccountID *int64) (*timetable.BulkCancelResult, error) {
 	if err := timetable.ValidateBulkCancelRange(from.String(), to.String()); err != nil {
 		return nil, err
 	}
@@ -42,7 +42,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 	if err != nil {
 		return nil, err
 	}
-	today := timezone.DateFromTime(s.now()).String()
+	today := calendar.DateFromTime(s.now()).String()
 	ids, result := timetable.SelectBulkCancel(candidates, from.String(), to.String(), today, opts)
 	if opts.DryRun {
 		return &result, nil
@@ -61,7 +61,7 @@ func (s *InstanceLifecycleService) BulkCancelPlanned(ctx context.Context, from, 
 
 // bulkCancelCandidates loads the occurrences of [from, to] with the closing
 // day flag and name of their series: one instance and one group query.
-func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, from, to timezone.Date) ([]timetable.BulkCancelCandidate, error) {
+func (s *InstanceLifecycleService) bulkCancelCandidates(ctx context.Context, from, to calendar.Date) ([]timetable.BulkCancelCandidate, error) {
 	rows, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, &ScheduleError{Op: "bulk cancel: load instances", Err: err}

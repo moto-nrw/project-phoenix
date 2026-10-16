@@ -8,10 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -25,7 +24,7 @@ func TestScheduleSubstitutionExternalInterfacePartialCoverage(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Teilvertretung")
 	absent := testpkg.CreateTestStaff(t, db, "Anna", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Bela", "Vertretung")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Erster Termin"})
 	second := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Zweiter Termin", StartHHMM: "16:00", EndHHMM: "17:00"})
 	testpkg.CreateTestInstanceStaff(t, db, first.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -65,7 +64,7 @@ func TestScheduleSubstitutionExternalInterfaceDayWideAbsence(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, db, "Tagesweite Abwesenheit")
 	absent := testpkg.CreateTestStaff(t, db, "Tara", "Ganztägig")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Früher Termin"})
 	second := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Später Termin", StartHHMM: "16:00", EndHHMM: "17:00"})
 	testpkg.CreateTestInstanceStaff(t, db, first.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -98,7 +97,7 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 	absent := testpkg.CreateTestStaff(t, db, "Alex", "Aktiv")
 	replacement := testpkg.CreateTestStaff(t, db, "Rita", "Ersatz")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
 		Title: "Laufender Termin", Status: scheduleModels.InstanceStatusActive, ActiveGroupID: &activeGroup.ID,
 	})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -132,7 +131,7 @@ func TestScheduleSubstitutionExternalInterfaceConflictRollsBack(t *testing.T) {
 	secondAbsent := testpkg.CreateTestStaff(t, db, "Zweite", "Abwesend")
 	existingReplacement := testpkg.CreateTestStaff(t, db, "Schon", "Eingetragen")
 	newReplacement := testpkg.CreateTestStaff(t, db, "Neu", "Gewählt")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Schreibbarer Termin"})
 	conflicting := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Bereits vertreten", StartHHMM: "16:00", EndHHMM: "17:00"})
 	testpkg.CreateTestInstanceStaff(t, db, first.ID, firstAbsent.ID, testpkg.InstanceStaffOpts{})
@@ -169,7 +168,7 @@ func TestScheduleSubstitutionExternalInterfaceWriteFailureRollsBack(t *testing.T
 	room := testpkg.CreateTestRoom(t, db, "Rollback")
 	absent := testpkg.CreateTestStaff(t, db, "Romy", "Rollback")
 	replacement := testpkg.CreateTestStaff(t, db, "Fritz", "Fehler")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Rollback-Termin"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -205,7 +204,7 @@ func TestScheduleSubstitutionExternalInterfacePreservesStaffingRules(t *testing.
 	absent := testpkg.CreateTestStaff(t, db, "Ulla", "Unterbesetzt")
 	present := testpkg.CreateTestStaff(t, db, "Paul", "Anwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Vera", "Vertretung")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Besetzungsregeln"})
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Besetzungsregeln"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, present.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -255,7 +254,7 @@ func TestScheduleSubstitutionExternalInterfaceReportsTimeConflicts(t *testing.T)
 	room := testpkg.CreateTestRoom(t, db, "Zeitkonflikt")
 	absent := testpkg.CreateTestStaff(t, db, "Karla", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Theo", "Doppelt")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	target := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Zieltermin"})
 	other := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Paralleler Termin", StartHHMM: "14:30", EndHHMM: "15:30"})
 	testpkg.CreateTestInstanceStaff(t, db, target.ID, absent.ID, testpkg.InstanceStaffOpts{})
@@ -285,7 +284,7 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 	room := testpkg.CreateTestRoom(t, db, "Berechtigung")
 	absent := testpkg.CreateTestStaff(t, db, "Pia", "Geplant")
 	replacement := testpkg.CreateTestStaff(t, db, "Bert", "Ersatz")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Eigener Termin"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
@@ -350,7 +349,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Sammelvertretung")
 	absent := testpkg.CreateTestStaff(t, db, "Sam", "Mehrere Tage")
 	replacement := testpkg.CreateTestStaff(t, db, "Mara", "Vertretung")
-	firstDate := timezone.TodayDate().AddDays(1)
+	firstDate := calendar.TodayDate().AddDays(1)
 	secondDate := firstDate.AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, firstDate, room.ID, testpkg.ActivityInstanceOpts{Title: "Erster Tag"})
 	second := testpkg.CreateTestActivityInstance(t, db, secondDate, room.ID, testpkg.ActivityInstanceOpts{Title: "Zweiter Tag"})
@@ -362,7 +361,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 		ScheduleSubstitution: &substitution.ScheduleSubstitutionAssignment{
 			WholeDays: &substitution.ScheduleWholeDayAssignment{
 				AbsentStaffID: absent.ID, SubstituteStaffID: &replacement.ID,
-				Dates: []timezone.Date{firstDate, secondDate},
+				Dates: []calendar.Date{firstDate, secondDate},
 			},
 		},
 	})
@@ -385,7 +384,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 	room := testpkg.CreateTestRoom(t, db, "Vertretung beenden")
 	absent := testpkg.CreateTestStaff(t, db, "Erna", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Emil", "Ersatz")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Terminvertretung"})
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate().AddDays(1), room.ID, testpkg.ActivityInstanceOpts{Title: "Terminvertretung"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}
 	caller := scheduleSubstitutionCaller(t)
@@ -429,7 +428,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	room := testpkg.CreateTestRoom(t, db, "Schmale Übersicht")
 	absent := testpkg.CreateTestStaff(t, db, "Nora", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Nils", "Vertretung")
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{Title: "Schmaler Termin"})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	selected := []int64{instance.ID}

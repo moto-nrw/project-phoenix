@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -150,7 +150,7 @@ func TestActiveService_SchoolWideAttendanceMove(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, source.ID, visit.ActiveGroupID)
 			}
-			supervisions, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
+			supervisions, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(calendar.TodayDate().String())})
 			require.NoError(t, err)
 			if tc.targetSupervised {
 				require.Len(t, supervisions, 1)
@@ -1006,7 +1006,7 @@ func TestActiveService_MoveStudentsToActiveGroupAuthorized_RejectsPushIntoTarget
 	// tomorrow, so it cannot make the target room safe for a push today.
 	testpkg.CreateTestGroupSupervisor(t, db, fx.staff, fx.sourceGroup.ID, "supervisor")
 	targetSupervision := testpkg.CreateTestGroupSupervisor(t, db, fx.colleague, fx.targetGroup.ID, "supervisor")
-	targetSupervision.StartDate = timezone.TodayDate().AddDays(1)
+	targetSupervision.StartDate = calendar.TodayDate().AddDays(1)
 	require.NoError(t, service.UpdateGroupSupervisor(ctx, supervisorOf(targetSupervision)))
 
 	result, err := service.MoveStudentsToActiveGroupAuthorized(ctx, []int64{fx.studentID}, fx.targetGroup.ID, activeSvc.StudentMoveAuthorization{StaffID: fx.staff})

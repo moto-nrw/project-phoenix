@@ -10,10 +10,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -119,12 +119,12 @@ type recordingSourcedTemplateResyncer struct {
 	err                 error
 }
 
-func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ timezone.Date) error {
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
 	return r.err
 }
 
-func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ timezone.Date) error {
+func (r *recordingSourcedTemplateResyncer) DetachTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.detachedOfferingIDs = append(r.detachedOfferingIDs, offeringID)
 	return nil
 }

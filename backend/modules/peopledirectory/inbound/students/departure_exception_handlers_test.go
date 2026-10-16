@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -28,7 +28,7 @@ func TestStudentDepartureExceptionRoundTrip(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Heimweg", "Tag", "HT1")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Heimweg", "Teacher")
 	claims := testutil.AdminTestClaims(int(account.ID))
-	date := timezone.NewDate(2026, time.June, 1)
+	date := calendar.NewDate(2026, time.June, 1)
 	path := fmt.Sprintf("/%d/departure-exceptions/%s", student.ID, date.String())
 
 	put := testutil.NewAuthenticatedRequest(t, http.MethodPut, path, map[string]any{
@@ -106,7 +106,7 @@ func TestStudentDepartureExceptionRejectsNonCareWeekend(t *testing.T) {
 }
 
 // listedDepartureModes reads the Kinderkarte projection of one child on date.
-func listedDepartureModes(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, date timezone.Date, wantException bool) []string {
+func listedDepartureModes(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, date calendar.Date, wantException bool) []string {
 	t.Helper()
 	req := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?view=slim&date="+date.String(), nil)
 	rr := authExec(t, tc, req, claims, []string{"admin:*"})

@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -22,7 +22,7 @@ type ManualPlanningOccurrence struct {
 // ListManualPlanningOccurrences lists the manually planned care blocks of a
 // child in the date range that no session has started yet and that the
 // attendance does not mark as a walk-in or as not scheduled.
-func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]ManualPlanningOccurrence, error) {
+func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to calendar.Date) ([]ManualPlanningOccurrence, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -30,7 +30,7 @@ func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, st
 		ActivityGroupID   int64
 		ActivityGroupName string
 		InstanceID        int64
-		Date              timezone.Date
+		Date              calendar.Date
 	}
 	err := db.NewRaw(`
 		SELECT activity_group.id AS activity_group_id, activity_group.name AS activity_group_name,

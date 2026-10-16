@@ -3,15 +3,15 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func intPtr(v int) *int { return &v }
 
-func capacityOccurrence(date timezone.Date, children, staff int) activities.TemplateCapacityOccurrence {
+func capacityOccurrence(date calendar.Date, children, staff int) activities.TemplateCapacityOccurrence {
 	return activities.TemplateCapacityOccurrence{
 		TemplateID:      42,
 		OccurrenceDate:  activities.Date(date),
@@ -30,12 +30,12 @@ func TestUnionCountDeduplicatesRosterAndTargetStudents(t *testing.T) {
 func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 	t.Parallel()
 
-	jan1 := timezone.NewDate(2026, 1, 1)
+	jan1 := calendar.NewDate(2026, 1, 1)
 
 	tests := []struct {
 		name        string
 		occurrences []activities.TemplateCapacityOccurrence
-		wantDate    timezone.Date
+		wantDate    calendar.Date
 	}{
 		{
 			name: "danger outranks a warning even with a smaller shortage",
@@ -102,7 +102,7 @@ func TestWorstTemplateOccurrenceRanking(t *testing.T) {
 func TestWorstTemplateOccurrence_WithOverride(t *testing.T) {
 	t.Parallel()
 
-	jan1 := timezone.NewDate(2026, 1, 1)
+	jan1 := calendar.NewDate(2026, 1, 1)
 	// A manual override of 3 applies uniformly to every occurrence. A
 	// fully-staffed 3/3 day must NOT hide a 0/3 day that only looks fine under
 	// the derived requirement (#1839).
@@ -134,8 +134,8 @@ func TestApplyWorstTemplateCapacity_OverrideParticipatesInScoring(t *testing.T) 
 		{TemplateID: 1, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 1)), EnrollmentCount: 30, SupervisorCount: 3},
-		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 2)), EnrollmentCount: 0, SupervisorCount: 0},
+		{TemplateID: 1, OccurrenceDate: activities.Date(calendar.NewDate(2026, 1, 1)), EnrollmentCount: 30, SupervisorCount: 3},
+		{TemplateID: 1, OccurrenceDate: activities.Date(calendar.NewDate(2026, 1, 2)), EnrollmentCount: 0, SupervisorCount: 0},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1}, occurrences, 10)
@@ -152,7 +152,7 @@ func TestApplyWorstTemplateCapacityClearsTemplatesWithoutOccurrences(t *testing.
 		{TemplateID: 2, CapacityEnrollmentCount: 9, CapacitySupervisorCount: 3},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
+		{TemplateID: 1, OccurrenceDate: activities.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)
@@ -175,7 +175,7 @@ func TestApplyWorstTemplateCapacity_MarksOccurrenceFound(t *testing.T) {
 		{TemplateID: 2, RequiredStaff: activities.NullInt64{Int64: 3, Valid: true}},
 	}
 	occurrences := []activities.TemplateCapacityOccurrence{
-		{TemplateID: 1, OccurrenceDate: activities.Date(timezone.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
+		{TemplateID: 1, OccurrenceDate: activities.Date(calendar.NewDate(2026, 1, 5)), EnrollmentCount: 4, SupervisorCount: 1},
 	}
 
 	applyWorstTemplateCapacity(rows, []int64{1, 2}, occurrences, 12)

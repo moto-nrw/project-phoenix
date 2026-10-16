@@ -5,10 +5,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/presenceprojection"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -63,7 +63,7 @@ func (r PresenceReads) ListParallelPresence(ctx context.Context, excludedInstanc
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListParallelPresence(ctx, db, tenantID, excludedInstanceID, timezone.Date(date), studentIDs)
+	return presenceprojection.ListParallelPresence(ctx, db, tenantID, excludedInstanceID, calendar.Date(date), studentIDs)
 }
 
 func (r PresenceReads) ListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]scheduleModels.PartialAbsenceBlock, error) {
@@ -71,7 +71,7 @@ func (r PresenceReads) ListPartialAbsenceBlocks(ctx context.Context, studentID i
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListPartialAbsenceBlocks(ctx, db, tenantID, studentID, timezone.Date(date), from, enrolled, autoExceptionIDs)
+	return presenceprojection.ListPartialAbsenceBlocks(ctx, db, tenantID, studentID, calendar.Date(date), from, enrolled, autoExceptionIDs)
 }
 
 func (r PresenceReads) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]*scheduleModels.ScheduledInstanceRow, error) {
@@ -79,7 +79,7 @@ func (r PresenceReads) ListScheduledInstancesForStudent(ctx context.Context, stu
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListScheduledInstancesForStudent(ctx, db, tenantID, studentID, timezone.Date(from), timezone.Date(to))
+	return presenceprojection.ListScheduledInstancesForStudent(ctx, db, tenantID, studentID, calendar.Date(from), calendar.Date(to))
 }
 
 func (r PresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to string) (bool, error) {
@@ -87,7 +87,7 @@ func (r PresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to stri
 	if err != nil {
 		return false, err
 	}
-	return presenceprojection.HasPlannedSlotsInRange(ctx, db, tenantID, timezone.Date(from), timezone.Date(to))
+	return presenceprojection.HasPlannedSlotsInRange(ctx, db, tenantID, calendar.Date(from), calendar.Date(to))
 }
 
 func (r PresenceReads) ListOpenParticipants(ctx context.Context, studentIDs []int64) ([]OpenParticipant, error) {
@@ -126,7 +126,7 @@ func (r PresenceReads) CourseInstances(ctx context.Context, from, to, today stri
 	if err != nil {
 		return nil, err
 	}
-	rows, err := presenceprojection.CourseInstances(ctx, db, tenantID, timezone.Date(from), timezone.Date(to), timezone.Date(today))
+	rows, err := presenceprojection.CourseInstances(ctx, db, tenantID, calendar.Date(from), calendar.Date(to), calendar.Date(today))
 	if err != nil {
 		return nil, err
 	}
@@ -142,7 +142,7 @@ func (r PresenceReads) CourseParticipation(ctx context.Context, from, to, today 
 	if err != nil {
 		return nil, err
 	}
-	rows, err := presenceprojection.CourseParticipation(ctx, db, tenantID, timezone.Date(from), timezone.Date(to), timezone.Date(today))
+	rows, err := presenceprojection.CourseParticipation(ctx, db, tenantID, calendar.Date(from), calendar.Date(to), calendar.Date(today))
 	if err != nil {
 		return nil, err
 	}

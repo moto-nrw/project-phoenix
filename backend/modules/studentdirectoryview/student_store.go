@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	calendar "github.com/moto-nrw/project-phoenix/internal/timezone"
 	domain "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 

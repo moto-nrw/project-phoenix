@@ -16,10 +16,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,7 +39,7 @@ func setupCorrectionFixture(t *testing.T, tc *testContext, studentID, tenantID i
 	// The phase has to cover the day the services see as today.
 	var phase *capability.Phase
 	if tc.clock != nil {
-		phase = testpkg.CreateTestEnrollmentPhaseAround(t, tc.db, timezone.DateFromTime(tc.clock()))
+		phase = testpkg.CreateTestEnrollmentPhaseAround(t, tc.db, calendar.DateFromTime(tc.clock()))
 	} else {
 		phase = testpkg.CreateTestEnrollmentPhase(t, tc.db)
 	}

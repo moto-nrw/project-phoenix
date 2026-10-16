@@ -20,7 +20,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
@@ -29,6 +28,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // confidentialityNote matches the wording of the other printed exports.
@@ -165,7 +165,7 @@ func (s *service) currentTime() time.Time { return s.now() }
 
 // todayDate returns the current calendar day in Berlin, derived from the
 // service clock so the date guards move with an injected test clock.
-func (s *service) todayDate() timezone.Date { return timezone.DateFromTime(s.now()) }
+func (s *service) todayDate() calendar.Date { return calendar.DateFromTime(s.now()) }
 
 func (s *service) configured() bool {
 	return s.timetable != nil && s.presence != nil && s.carePlan != nil &&
@@ -187,8 +187,8 @@ func (s *service) requireTimetableEnabled(ctx context.Context) error {
 
 // parseDate resolves the contract's calendar day. A malformed value is a
 // caller error and is refused before any read.
-func parseDate(value classday.Date) (timezone.Date, error) {
-	date, err := timezone.ParseDate(string(value))
+func parseDate(value classday.Date) (calendar.Date, error) {
+	date, err := calendar.ParseDate(string(value))
 	if err != nil {
 		return "", fmt.Errorf("invalid date %q: expected YYYY-MM-DD", value)
 	}
@@ -200,7 +200,7 @@ func parseDate(value classday.Date) (timezone.Date, error) {
 type slotInstance struct {
 	ID            int64
 	Title         string
-	Date          timezone.Date
+	Date          calendar.Date
 	StartTime     time.Time
 	EndTime       time.Time
 	RoomID        int64
@@ -211,7 +211,7 @@ type slotInstance struct {
 
 // loadInstances reads every activity instance of the date in start-time
 // order, exactly as every other reader of the day sees them.
-func (s *service) loadInstances(ctx context.Context, date timezone.Date) ([]*slotInstance, error) {
+func (s *service) loadInstances(ctx context.Context, date calendar.Date) ([]*slotInstance, error) {
 	rows, err := s.timetable.ListActivityInstancesOn(ctx, date.String())
 	if err != nil {
 		return nil, err
@@ -228,7 +228,7 @@ func (s *service) loadInstances(ctx context.Context, date timezone.Date) ([]*slo
 }
 
 func slotInstanceFromTimetable(row ports.ActivityInstance) (*slotInstance, error) {
-	date, err := timezone.ParseDate(row.Date)
+	date, err := calendar.ParseDate(row.Date)
 	if err != nil {
 		return nil, fmt.Errorf("activity instance %d: invalid date %q: %w", row.ID, row.Date, err)
 	}
@@ -276,14 +276,14 @@ func rosterFacts(row ports.InstanceStudent) ports.RosterFacts {
 func studentFacts(student *peopledirectory.Student) (ports.StudentFacts, error) {
 	facts := ports.StudentFacts{Status: student.Status}
 	if student.EnrolledFrom != "" {
-		from, err := timezone.ParseDate(student.EnrolledFrom)
+		from, err := calendar.ParseDate(student.EnrolledFrom)
 		if err != nil {
 			return ports.StudentFacts{}, fmt.Errorf("student %d: invalid enrolled_from %q: %w", student.ID, student.EnrolledFrom, err)
 		}
 		facts.EnrolledFrom = &from
 	}
 	if student.EnrolledUntil != "" {
-		until, err := timezone.ParseDate(student.EnrolledUntil)
+		until, err := calendar.ParseDate(student.EnrolledUntil)
 		if err != nil {
 			return ports.StudentFacts{}, fmt.Errorf("student %d: invalid enrolled_until %q: %w", student.ID, student.EnrolledUntil, err)
 		}
@@ -430,7 +430,7 @@ func (s *service) provenance(params listRequest, listLabel string) string {
 // resolved calendar day every read is scoped to.
 type listRequest struct {
 	classday.Params
-	date timezone.Date
+	date calendar.Date
 }
 
 func (s *service) BuildList(ctx context.Context, params classday.Params) (*classday.Result, error) {
@@ -1255,7 +1255,7 @@ func (s *service) buildSlotContext(ctx context.Context, inst *slotInstance, para
 
 // loadSlotPresence bulk-loads the rosters, the shared care-day verdict, and the
 // visit-derived presence for every instance the merge will process.
-func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, date timezone.Date) (
+func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, date calendar.Date) (
 	map[int64][]ports.InstanceStudent,
 	map[int64]ports.CareDay,
 	map[int64]map[int64]bool,
@@ -1699,7 +1699,7 @@ func (s *service) lookupRoomName(ctx context.Context, roomID int64, cache map[in
 // nil arrival time (no schedule for this weekday, or a weekend) yields false:
 // with no expected arrival to defer against, the normal merge applies and a
 // genuine no-show still surfaces.
-func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *time.Time) bool {
+func (s *service) beforeEffectiveArrival(date calendar.Date, arrival *time.Time) bool {
 	if arrival == nil {
 		return false
 	}
@@ -1707,7 +1707,7 @@ func (s *service) beforeEffectiveArrival(date timezone.Date, arrival *time.Time)
 	start := time.Date(
 		date.Year(), date.Month(), date.Day(),
 		at.Hour(), at.Minute(), at.Second(), at.Nanosecond(),
-		timezone.Berlin,
+		calendar.Berlin,
 	)
 	return s.currentTime().Before(start)
 }
@@ -1716,12 +1716,12 @@ func instanceTimeRange(inst *slotInstance) (time.Time, time.Time) {
 	start := time.Date(
 		inst.Date.Year(), inst.Date.Month(), inst.Date.Day(),
 		inst.StartTime.Hour(), inst.StartTime.Minute(), inst.StartTime.Second(), inst.StartTime.Nanosecond(),
-		timezone.Berlin,
+		calendar.Berlin,
 	)
 	end := time.Date(
 		inst.Date.Year(), inst.Date.Month(), inst.Date.Day(),
 		inst.EndTime.Hour(), inst.EndTime.Minute(), inst.EndTime.Second(), inst.EndTime.Nanosecond(),
-		timezone.Berlin,
+		calendar.Berlin,
 	)
 	return start, end
 }
@@ -1751,7 +1751,7 @@ func instanceTimeRange(inst *slotInstance) (time.Time, time.Time) {
 // time-controlled tests pin SlotListDependencies.Now, and reading the process clock
 // here instead would decide eligibility against a different "today" (#1565
 // review).
-func eligibleOn(rules ports.Rules, student *peopledirectory.Student, date, today timezone.Date, actuallyPresent bool) (bool, error) {
+func eligibleOn(rules ports.Rules, student *peopledirectory.Student, date, today calendar.Date, actuallyPresent bool) (bool, error) {
 	if student == nil {
 		return false, nil
 	}
@@ -1777,7 +1777,7 @@ func eligibleOn(rules ports.Rules, student *peopledirectory.Student, date, today
 // attendance keeps winning over the lifecycle status, exactly as before the
 // projection read the owner seams.
 func (s *service) listEligibleStudents(
-	ctx context.Context, date timezone.Date, actual map[int64]struct{},
+	ctx context.Context, date calendar.Date, actual map[int64]struct{},
 ) ([]peopledirectory.Student, error) {
 	all, err := s.students.ListEnrolledStudents(ctx)
 	if err != nil {
@@ -1827,7 +1827,7 @@ func (s *service) listEligibleStudents(
 func (s *service) regularPickupBucket(
 	ctx context.Context,
 	studentIDs []int64,
-	date timezone.Date,
+	date calendar.Date,
 ) (map[int64]string, error) {
 	out, err := s.pickupBaselines.RegularPickupTimes(ctx, studentIDs, date)
 	if err != nil {
@@ -1854,7 +1854,7 @@ func includePickupParticipant(careDay ports.CareDay, present bool) bool {
 }
 
 func (s *service) loadPickupCandidates(
-	ctx context.Context, date timezone.Date,
+	ctx context.Context, date calendar.Date,
 ) ([]peopledirectory.Student, []int64, map[int64]struct{}, error) {
 	attendanceRows, err := s.presence.ListAttendance(ctx, studentpresence.AttendanceFilter{
 		FromDate: date.String(), UntilDate: date.String(), StudentOrder: true,
@@ -1951,7 +1951,7 @@ func (s *service) loadPickupTiming(
 }
 
 func (s *service) loadPickupAbsences(
-	ctx context.Context, studentIDs []int64, date timezone.Date,
+	ctx context.Context, studentIDs []int64, date calendar.Date,
 ) (map[int64]string, map[int64]string, error) {
 	statuses := map[int64]string{}
 	partial := map[int64]string{}
@@ -1979,14 +1979,14 @@ func (s *service) loadPickupAbsences(
 	}
 	for _, exc := range exceptions {
 		if exc.ExcusedFrom != nil {
-			partial[exc.StudentID] = timezone.NormalizeWallClock(*exc.ExcusedFrom).Format(timeLayout)
+			partial[exc.StudentID] = calendar.NormalizeWallClock(*exc.ExcusedFrom).Format(timeLayout)
 		}
 	}
 	return statuses, partial, nil
 }
 
 func (s *service) loadPickupCareEvidence(
-	ctx context.Context, studentIDs []int64, date timezone.Date,
+	ctx context.Context, studentIDs []int64, date calendar.Date,
 ) (map[int64]ports.CareDay, map[int64]string, error) {
 	careDays, err := s.careDays.ResolveForDate(ctx, studentIDs, date)
 	if err != nil {
@@ -2118,7 +2118,7 @@ func pickupInAnyCohort(hhmm string, buckets pickupBucketConfig) bool {
 
 // enrichEntries filters by source/read access, resolves names/classes/groups,
 // and maps to display rows.
-func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source classday.Source, access studentReadAccess, date timezone.Date) ([]classday.Row, error) {
+func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source classday.Source, access studentReadAccess, date calendar.Date) ([]classday.Row, error) {
 	// matchesSource is the per-source selection predicate. A Plan list selects
 	// rows that are planned, an Ist list rows that are present, an Abgleich keeps
 	// everything. It is applied once to build `filtered` and re-applied after the

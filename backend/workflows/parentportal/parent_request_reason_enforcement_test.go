@@ -10,11 +10,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -94,7 +94,7 @@ func TestGuardianNoteFollowsReasonPolicy(t *testing.T) {
 			ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 			res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-				[]timezone.Date{timezone.TodayDate().AddDays(3)}, "  ", absencerecords.StudentStatusDayExcused, nil)
+				[]calendar.Date{calendar.TodayDate().AddDays(3)}, "  ", absencerecords.StudentStatusDayExcused, nil)
 			if tc.wantRefusal {
 				require.ErrorIs(t, err, parentService.ErrEmptyNote)
 				return
@@ -128,7 +128,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 			ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 			res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-				[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+				[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 			require.NoError(t, err)
 
 			decideErr := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -160,7 +160,7 @@ func TestStaffRejectionAlwaysNeedsAReason(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	decideErr := testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {

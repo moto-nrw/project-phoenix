@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // getStudentCurrentLocation handles getting a student's current location with scheduled checkout info
@@ -217,7 +217,7 @@ func (rs *Resource) getStudentVisitHistory(w http.ResponseWriter, r *http.Reques
 	}
 
 	// Filter to today's visits only
-	today := timezone.Today()
+	today := calendar.Today()
 	tomorrow := today.Add(24 * time.Hour)
 
 	var todaysVisits []studentVisitResponse

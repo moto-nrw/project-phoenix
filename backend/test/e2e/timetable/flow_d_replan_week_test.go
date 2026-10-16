@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -26,7 +26,7 @@ func TestFlowD_ReplanWeekMergeStrategy(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	target := nextWeekday(timezone.TodayDate(), 4, 7) // Thursday, >=7 days out
+	target := nextWeekday(calendar.TodayDate(), 4, 7) // Thursday, >=7 days out
 	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-D-%d", time.Now().UnixNano()), target)

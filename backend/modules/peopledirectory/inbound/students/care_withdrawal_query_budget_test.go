@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -32,7 +32,7 @@ func TestListCareWithdrawalsQueryBudget(t *testing.T) {
 		for range n {
 			student := testpkg.CreateTestStudent(t, tc.db, fmt.Sprintf("Kind%d", created), "Abmeldebudget", "QB2")
 			testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(
-				t, tc.db, student.ID, actor.ID, timezone.NewDate(2026, 9, 1+created), actor.CreatedAt,
+				t, tc.db, student.ID, actor.ID, calendar.NewDate(2026, 9, 1+created), actor.CreatedAt,
 			)
 			created++
 		}

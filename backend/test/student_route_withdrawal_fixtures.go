@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -16,7 +16,7 @@ func CreateTestBookingExpiredCareWithdrawalOn(
 	tb testing.TB,
 	db bun.IDB,
 	studentID int64,
-	firstGap timezone.Date,
+	firstGap calendar.Date,
 ) *CareWithdrawalCompletion {
 	tb.Helper()
 	return upsertTestPendingCareWithdrawal(tb, db, &CareWithdrawalCompletion{
@@ -34,7 +34,7 @@ func CreateTestCareWithdrawalCompletionConfirmedAt(
 	tb testing.TB,
 	db bun.IDB,
 	studentID, actorID int64,
-	firstGap timezone.Date,
+	firstGap calendar.Date,
 	confirmedAt time.Time,
 ) *CareWithdrawalCompletion {
 	tb.Helper()

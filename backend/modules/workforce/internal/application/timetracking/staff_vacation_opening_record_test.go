@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ func validVacationOpening() *StaffVacationOpening {
 	return &StaffVacationOpening{
 		StaffID:              42,
 		Year:                 2026,
-		EffectiveDate:        timezone.NewDate(2026, time.March, 1),
+		EffectiveDate:        calendar.NewDate(2026, time.March, 1),
 		TakenBeforeDays:      7.5,
 		EnteredRemainingDays: 22.5,
 		Note:                 "Übernahme aus Altsystem",
@@ -68,13 +68,13 @@ func TestStaffVacationOpeningValidate_Rejects(t *testing.T) {
 		},
 		{
 			name:   "missing effective date",
-			mutate: func(o *StaffVacationOpening) { o.EffectiveDate = timezone.Date("") },
+			mutate: func(o *StaffVacationOpening) { o.EffectiveDate = calendar.Date("") },
 			errMsg: "effective_date is required",
 		},
 		{
 			name: "effective date in another year",
 			mutate: func(o *StaffVacationOpening) {
-				o.EffectiveDate = timezone.NewDate(2025, time.March, 1)
+				o.EffectiveDate = calendar.NewDate(2025, time.March, 1)
 			},
 			errMsg: "effective_date must lie in the opening year",
 		},

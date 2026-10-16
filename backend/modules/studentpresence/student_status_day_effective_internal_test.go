@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ func statusRow(id int64, status string, reportedAt time.Time) *absencerecords.St
 	return &absencerecords.StudentStatusDay{
 		ID:         id,
 		StudentID:  90,
-		Date:       timezone.NewDate(2026, 5, 25),
+		Date:       calendar.NewDate(2026, 5, 25),
 		Status:     status,
 		ReportedAt: reportedAt,
 		Source:     absencerecords.StudentStatusSourcePlanned,

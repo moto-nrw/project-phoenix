@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -55,5 +55,5 @@ func TestAppendArrivalWarningsKeepsOnlyTheReasonWhenTheClassArrivesLate(t *testi
 
 func normalizedClock(t *testing.T, hhmm string) time.Time {
 	t.Helper()
-	return timezone.NormalizeWallClock(mustClock(t, hhmm))
+	return calendar.NormalizeWallClock(mustClock(t, hhmm))
 }

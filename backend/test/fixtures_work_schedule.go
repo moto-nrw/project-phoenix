@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -24,7 +24,7 @@ type StaffWorkScheduleFixture struct {
 // target minutes of one weekday (ISO: 0=Monday … 6=Sunday), valid from
 // validFrom onwards with no rotation. Callers that need a whole week create
 // one row per weekday.
-func CreateTestStaffWorkScheduleForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, dayOfWeek, targetMinutes int, validFrom timezone.Date) *StaffWorkScheduleFixture {
+func CreateTestStaffWorkScheduleForTenant(tb testing.TB, db *bun.DB, tenantID, staffID int64, dayOfWeek, targetMinutes int, validFrom calendar.Date) *StaffWorkScheduleFixture {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

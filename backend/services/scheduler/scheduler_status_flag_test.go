@@ -83,18 +83,22 @@ func (a *statusFlagArchives) flagColumns() []string {
 // with its timestamp column and today's date.
 func TestClearStatusFlag_ArchivesSickFlag(t *testing.T) {
 	t.Parallel()
-	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{studentStatusDayRepo: archives})
 
-	affected, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
+	// synctest freezes this test's clock at 2000-01-01 UTC for this call.
+	synctest.Test(t, func(t *testing.T) {
+		archives := &statusFlagArchives{}
+		s := unitScheduler(&Scheduler{studentStatusDayRepo: archives})
 
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), affected)
-	require.Len(t, archives.calls, 1)
-	call := archives.calls[0]
-	assert.Equal(t, "sick", call.flagColumn)
-	assert.Equal(t, "sick_since", call.sinceColumn)
-	assert.Equal(t, calendar.TodayDate(), call.date)
+		affected, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), affected)
+		require.Len(t, archives.calls, 1)
+		call := archives.calls[0]
+		assert.Equal(t, "sick", call.flagColumn)
+		assert.Equal(t, "sick_since", call.sinceColumn)
+		assert.Equal(t, calendar.NewDate(2000, 1, 1), call.date)
+	})
 }
 
 // TestClearStatusFlag_NilDBReturnsError — defensive guard so a misconfigured

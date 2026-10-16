@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -91,7 +91,7 @@ func parseDayLogExportFormat(r *http.Request) (lists.Format, error) {
 	return format, nil
 }
 
-func buildDayLogExportDocument(log dayLogResponse, date timezone.Date) lists.Document {
+func buildDayLogExportDocument(log dayLogResponse, date calendar.Date) lists.Document {
 	doc := lists.Document{
 		Title:       "Tagesauswertung",
 		Subtitle:    "Anwesenheit am " + date.Format("02.01.2006"),
@@ -154,7 +154,7 @@ func dayLogExportDetails(student dayLogStudent) string {
 		return student.Hint
 	}
 	if student.ReportedAt != nil {
-		return "gemeldet " + student.ReportedAt.In(timezone.Berlin).Format("02.01. 15:04") + dayLogSourceSuffix(student.Source)
+		return "gemeldet " + student.ReportedAt.In(calendar.Berlin).Format("02.01. 15:04") + dayLogSourceSuffix(student.Source)
 	}
 	if student.Source == dayLogSourceCancelledCareDay {
 		return "Abmeldung im Betreuungsplan"

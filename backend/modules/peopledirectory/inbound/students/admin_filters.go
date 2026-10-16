@@ -1,6 +1,6 @@
 package students
 
-import "github.com/moto-nrw/project-phoenix/internal/timezone"
+import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 // Administrative filters (#1492): bus / photo consent / pickup rule.
 //
@@ -14,7 +14,7 @@ import "github.com/moto-nrw/project-phoenix/internal/timezone"
 
 // matchesAdministrativeFilters reports whether a single response satisfies all
 // active administrative filters. Empty or "all" values are treated as "off".
-func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupStatus string, planningDate timezone.Date) bool {
+func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupStatus string, planningDate calendar.Date) bool {
 	if isActiveFilterValue(bus) {
 		// s.Bus is derived from bus_days.HasAny() when the response is built, so
 		// filtering on it evaluates bus_days semantics — the single source of
@@ -39,7 +39,7 @@ func matchesAdministrativeFilters(s StudentResponse, bus, photoConsent, pickupSt
 // applyAdministrativeFilters returns the subset of responses matching the
 // active administrative filters. When none is active the input is returned
 // unchanged so callers can invoke it unconditionally.
-func applyAdministrativeFilters(responses []StudentResponse, bus, photoConsent, pickupStatus string, planningDate timezone.Date) []StudentResponse {
+func applyAdministrativeFilters(responses []StudentResponse, bus, photoConsent, pickupStatus string, planningDate calendar.Date) []StudentResponse {
 	if !isActiveFilterValue(bus) && !isActiveFilterValue(photoConsent) && !isActiveFilterValue(pickupStatus) {
 		return responses
 	}

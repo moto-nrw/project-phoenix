@@ -8,16 +8,16 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
-func seriesDate(day int) timezone.Date {
-	return timezone.NewDate(2026, 8, day)
+func seriesDate(day int) calendar.Date {
+	return calendar.NewDate(2026, 8, day)
 }
 
-func datePtr(day int) *timezone.Date {
+func datePtr(day int) *calendar.Date {
 	d := seriesDate(day)
 	return &d
 }
@@ -32,8 +32,8 @@ func TestSegmentIsReconcilablePredecessor(t *testing.T) {
 		name            string
 		seg             templateSeriesSegment
 		livingID        int64
-		anchor          timezone.Date
-		livingValidFrom *timezone.Date
+		anchor          calendar.Date
+		livingValidFrom *calendar.Date
 		want            bool
 	}{
 		{

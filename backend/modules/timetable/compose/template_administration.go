@@ -8,7 +8,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -44,7 +43,7 @@ type TemplateAdministrationDependencies struct {
 	Staffing             StaffingAnnouncer
 	Logger               *slog.Logger
 	DB                   *bun.DB
-	Today                func() timezone.Date
+	Today                func() calendar.Date
 }
 
 type templateAdministration struct {
@@ -142,11 +141,11 @@ func (a *templateAdministration) FindOrCreateTimeframe(ctx context.Context, star
 	return a.templates.FindOrCreateTimeframe(ctx, start, end, descHint)
 }
 
-func (a *templateAdministration) TemplateAssignmentsOn(ctx context.Context, templateID int64, date timezone.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error) {
+func (a *templateAdministration) TemplateAssignmentsOn(ctx context.Context, templateID int64, date calendar.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error) {
 	return a.templates.templateAssignmentsOn(ctx, templateID, date, calendarPeriodID)
 }
 
-func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from timezone.Date) error {
+func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error {
 	return a.templates.reconcilePredecessorInstanceStaff(ctx, templateID, staffIDs, from, nil)
 }
 
@@ -157,7 +156,7 @@ func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, 
 func (s *TemplateService) templateAssignmentsOn(
 	ctx context.Context,
 	templateID int64,
-	date timezone.Date,
+	date calendar.Date,
 	periodID int64,
 ) (timetable.TemplateAssignments, error) {
 	if s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil || s.deps.ActivityGroupRepo == nil {
@@ -191,7 +190,7 @@ func (s *TemplateService) templateAssignmentsOn(
 
 // templateStudentsOn returns the enrolled, non-graduated children valid on
 // the date followed by the template's dynamic target students.
-func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int64, date timezone.Date, periodID int64, planWeekday int) ([]int64, error) {
+func (s *TemplateService) templateStudentsOn(ctx context.Context, templateID int64, date calendar.Date, periodID int64, planWeekday int) ([]int64, error) {
 	enrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return nil, &ScheduleError{Op: "derive template assignments: load enrollments", Err: err}

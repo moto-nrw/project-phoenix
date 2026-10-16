@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -278,8 +278,8 @@ func TestTemplateRosterMaintenanceFeeds_RejectsSourceOutsideTemplatePeriod(t *te
 
 	source := createSourceOffering(t, env, "FeedAusserhalbZeitraum", nil)
 	period := createCareOfferingTestPeriod(t, env.db, "feed-too-short",
-		timezone.Date(env.sourcePhase.ServiceStartDate),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+		calendar.Date(env.sourcePhase.ServiceStartDate),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
 	reader, ok := env.bookings.(careplan.OfferingSourceEditor)
 	require.True(t, ok)
 
@@ -308,8 +308,8 @@ func TestTemplateRosterMaintenanceFeeds_RejectsLinkedOfferingOutsideTemplatePeri
 	ctx := testpkg.Ctx(t)
 
 	period := createCareOfferingTestPeriod(t, env.db, "linked-feed-too-short",
-		timezone.Date(env.sourcePhase.ServiceStartDate),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
+		calendar.Date(env.sourcePhase.ServiceStartDate),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(-1))
 	template := createCareOfferingTemplateGroup(t, env.db, "FeedLinkedAusserhalbZeitraum")
 	template.CalendarPeriodID = &period.ID
 	require.NoError(t, env.timetable.ActivityGroup.Update(ctx, template))

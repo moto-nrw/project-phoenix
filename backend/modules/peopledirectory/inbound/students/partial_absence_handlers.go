@@ -8,9 +8,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -24,7 +24,7 @@ func (req *PartialAbsenceRequest) Bind(_ *http.Request) error {
 	req.Date = strings.TrimSpace(req.Date)
 	req.FromTime = strings.TrimSpace(req.FromTime)
 	req.Reason = strings.TrimSpace(req.Reason)
-	if _, err := timezone.ParseDate(req.Date); err != nil {
+	if _, err := calendar.ParseDate(req.Date); err != nil {
 		return errors.New("invalid date format, expected YYYY-MM-DD")
 	}
 	if _, err := time.Parse("15:04", req.FromTime); err != nil {
@@ -66,10 +66,10 @@ func mapPartialAbsenceToResponse(row *careplan.PickupException) PartialAbsenceRe
 		response.CreatedBy = *row.ExcusedCreatedBy
 	}
 	if row.ExcusedFrom != nil {
-		response.FromTime = timezone.NormalizeWallClock(*row.ExcusedFrom).Format("15:04")
+		response.FromTime = calendar.NormalizeWallClock(*row.ExcusedFrom).Format("15:04")
 	}
 	if row.PickupTime != nil {
-		pickup := timezone.NormalizeWallClock(*row.PickupTime).Format("15:04")
+		pickup := calendar.NormalizeWallClock(*row.PickupTime).Format("15:04")
 		response.PickupTime = &pickup
 	}
 	return response
@@ -189,7 +189,7 @@ func (rs *Resource) bindPartialAbsenceInput(w http.ResponseWriter, r *http.Reque
 		renderError(w, r, common.ErrorForbidden(err))
 		return careplan.PartialAbsenceInput{}, false
 	}
-	date, _ := timezone.ParseDate(req.Date)
+	date, _ := calendar.ParseDate(req.Date)
 	fromTime, _ := parseTimeOnly(req.FromTime)
 	return careplan.PartialAbsenceInput{
 		StudentID: studentID,

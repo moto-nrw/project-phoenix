@@ -8,11 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Lost-edit detection (#1875): the planned, template-backed occurrences whose
@@ -32,7 +32,7 @@ import (
 func (s *materializationService) DetectEditedInWindow(
 	ctx context.Context,
 	activityGroupID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	includeDeletions bool,
 ) ([]timetable.EditedOccurrence, error) {
 	if to.Before(from) {
@@ -104,7 +104,7 @@ func (s *materializationService) loadDetectionTemplate(ctx context.Context, temp
 func (s *materializationService) loadPlannedOccurrences(
 	ctx context.Context,
 	templateID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) ([]*schedule.ActivityInstance, []int64, error) {
 	instances, err := s.instanceRepo.FindByActivityGroupAndDateRange(ctx, templateID, schedule.Date(from), schedule.Date(to))
 	if err != nil {
@@ -190,7 +190,7 @@ func (p *templateProjection) editedOccurrences(
 ) []timetable.EditedOccurrence {
 	edited := make([]timetable.EditedOccurrence, 0)
 	for _, inst := range planned {
-		instanceDate := timezone.Date(inst.Date)
+		instanceDate := calendar.Date(inst.Date)
 		expected := p.expectedSlotsOn(tmpl, exceptionIdx[exceptionKey{tmpl.ID, instanceDate}], instanceDate)
 		expectedStudentIDs := expectedStudentIDsOn(
 			p.roster.enrollments,
@@ -241,7 +241,7 @@ func deletedOccurrences(tmpl *activities.Group, exceptions []*schedule.ActivityE
 		}
 		deleted = append(deleted, timetable.EditedOccurrence{
 			InstanceID: 0,
-			Date:       timezone.Date(exc.ExceptionDate),
+			Date:       calendar.Date(exc.ExceptionDate),
 			StartTime:  "",
 			Title:      tmpl.Name,
 			Changes:    []string{timetable.EditedChangeDeleted},
@@ -261,7 +261,7 @@ func deletedOccurrences(tmpl *activities.Group, exceptions []*schedule.ActivityE
 func (p *templateProjection) expectedSlotsOn(
 	tmpl *activities.Group,
 	exc *schedule.ActivityException,
-	date timezone.Date,
+	date calendar.Date,
 ) []materialParams {
 	if isWeekend(date) && !p.weekendFollowsFriday {
 		return nil
@@ -377,7 +377,7 @@ func staffRosterChanged(
 	weekendFollowsFriday bool,
 ) bool {
 	periodID := calendarPeriodID(inst)
-	instanceDate := timezone.Date(inst.Date)
+	instanceDate := calendar.Date(inst.Date)
 	planWeekday := planWeekday(instanceDate, weekendFollowsFriday)
 	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, instanceDate, periodID, planWeekday)
 	expectedStaff := make(map[int64]bool)

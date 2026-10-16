@@ -5,10 +5,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -46,7 +46,7 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 
 	// Past blocks are historical record; no deviation — including a cancellation
 	// — may rewrite them. Guard before the exclusive cancel branch (#1840).
-	if instance.Date.Before(timezone.TodayDate()) {
+	if instance.Date.Before(calendar.TodayDate()) {
 		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
 
@@ -116,7 +116,7 @@ func (s *staffDeviations) loadDeviationInstance(ctx context.Context, instanceID 
 // concurrent same-day saves, re-reads under the lock to catch a concurrent move,
 // then delegates to the lifecycle's cancellation.
 func (s *staffDeviations) cancelDeviation(ctx context.Context, instanceID int64, instance *scheduleModel.ActivityInstance, in timetable.ApplyDeviationsInput) (*timetable.ApplyDeviationsResult, error) {
-	if err := s.acquireSubstituteDayLock(ctx, timezone.Date(instance.Date)); err != nil {
+	if err := s.acquireSubstituteDayLock(ctx, calendar.Date(instance.Date)); err != nil {
 		return nil, timetable.DeviationInternal("lock day failed", err)
 	}
 	locked, err := s.loadDeviationInstance(ctx, instanceID)
@@ -132,7 +132,7 @@ func (s *staffDeviations) cancelDeviation(ctx context.Context, instanceID int64,
 	}
 	// A move to a past day would rewrite history; the initial guard ran against a
 	// possibly-stale read, so re-check under the lock.
-	if locked.Date.Before(timezone.TodayDate()) {
+	if locked.Date.Before(calendar.TodayDate()) {
 		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
 	cancelled, err := s.deps.Lifecycle.CancelBlock(ctx, DeviationCancellation{
@@ -280,7 +280,7 @@ func (s *staffDeviations) collectDeviationWarnings(
 	ctx context.Context,
 	subs []timetable.DeviationSubstitutionInput,
 	plan []deviationSubOp,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]timetable.SubstituteTimeConflict, error) {
 	probes := buildSubstitutionWarningProbes(subs, plan)
 	if len(probes) == 0 {

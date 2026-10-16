@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,16 +19,16 @@ func TestMergeDepartureExceptions(t *testing.T) {
 
 	pickup := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 	days := []*CareException{{
-		Date: timezone.NewDate(2026, time.September, 10), PickupTime: &pickup,
+		Date: calendar.NewDate(2026, time.September, 10), PickupTime: &pickup,
 		Source: scheduleModels.ExceptionSourceGuardian, PickupSource: scheduleModels.ExceptionSourceGuardian,
 	}}
 	merged := mergeDepartureExceptions(days, []careplan.DepartureException{
-		{ExceptionDate: careplan.Date(timezone.NewDate(2026, time.September, 10)), DepartureMode: careplan.DepartureModePickup},
-		{ExceptionDate: careplan.Date(timezone.NewDate(2026, time.September, 9)), DepartureMode: careplan.DepartureModeBus},
+		{ExceptionDate: careplan.Date(calendar.NewDate(2026, time.September, 10)), DepartureMode: careplan.DepartureModePickup},
+		{ExceptionDate: careplan.Date(calendar.NewDate(2026, time.September, 9)), DepartureMode: careplan.DepartureModeBus},
 	})
 
 	require.Len(t, merged, 2)
-	assert.Equal(t, timezone.NewDate(2026, time.September, 9), merged[0].Date, "days stay in date order")
+	assert.Equal(t, calendar.NewDate(2026, time.September, 9), merged[0].Date, "days stay in date order")
 	require.NotNil(t, merged[0].DepartureMode)
 	assert.Equal(t, "bus", *merged[0].DepartureMode)
 	assert.Nil(t, merged[0].PickupTime)

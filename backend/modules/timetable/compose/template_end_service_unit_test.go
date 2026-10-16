@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,7 +18,7 @@ import (
 func TestTemplateEndInputValidation(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	future := today.AddDays(1)
 
 	tests := []struct {
@@ -71,7 +71,7 @@ func TestValidateProtectedEnrollmentRebaseRejectsActiveScopedCollision(t *testin
 	)
 	require.ErrorIs(t, err, timetable.ErrTemplateRosterRebaseConflict)
 
-	boundedUntil := activitiesModel.Date(timezone.TodayDate().AddDays(30))
+	boundedUntil := activitiesModel.Date(calendar.TodayDate().AddDays(30))
 	activeB.ValidUntil = &boundedUntil
 	require.NoError(t, validateProtectedEnrollmentRebase(
 		[]*activitiesModel.StudentEnrollment{activeA, activeB},
@@ -90,7 +90,7 @@ func testInt64Ptr(value int64) *int64 {
 func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
 	t.Parallel()
 
-	future := timezone.TodayDate().AddDays(1)
+	future := calendar.TodayDate().AddDays(1)
 	groupRepo := &templateEndUnitGroupRepo{group: templateEndUnitGroup(201)}
 	svc := templateEndUnitService(
 		groupRepo,
@@ -113,7 +113,7 @@ func TestTemplateEndFromDate_ReturnsSummaryAndDeletesOpenEndedWindow(t *testing.
 	t.Parallel()
 
 	ctx := tenant.WithTenantID(context.Background(), 7401)
-	future := timezone.NewDate(2030, 8, 26).AddDays(1)
+	future := calendar.NewDate(2030, 8, 26).AddDays(1)
 	group := templateEndUnitGroup(202)
 	scheduleRepo := &templateEndUnitScheduleRepo{capped: 2}
 	enrollmentRepo := &templateEndUnitEnrollmentRepo{capped: 3}
@@ -155,7 +155,7 @@ func TestTemplateEndFromDate_ErrorBranches(t *testing.T) {
 	t.Parallel()
 
 	ctx := tenant.WithTenantID(context.Background(), 7402)
-	future := timezone.TodayDate().AddDays(1)
+	future := calendar.TodayDate().AddDays(1)
 	group := templateEndUnitGroup(203)
 
 	tests := []struct {
@@ -247,7 +247,7 @@ func templateEndUnitService(
 			EnrollmentRepo: enrollmentRepo,
 			SupervisorRepo: supervisorRepo,
 			InstanceRepo:   instanceRepo,
-			Today:          func() timezone.Date { return timezone.NewDate(2026, 8, 24) },
+			Today:          func() calendar.Date { return calendar.NewDate(2026, 8, 24) },
 			Logger:         slog.New(slog.DiscardHandler),
 		},
 		lockTenantRecurrence: func(context.Context) error { return nil },
@@ -295,7 +295,7 @@ type templateEndUnitScheduleRepo struct {
 	capped     int64
 	err        error
 	groupID    int64
-	validUntil timezone.Date
+	validUntil calendar.Date
 }
 
 func (r *templateEndUnitScheduleRepo) FindByGroupID(_ context.Context, _ int64) ([]*activitiesModel.Schedule, error) {
@@ -314,7 +314,7 @@ func (r *templateEndUnitScheduleRepo) FindByGroupIDs(_ context.Context, _ []int6
 
 func (r *templateEndUnitScheduleRepo) CapValidUntil(_ context.Context, groupID int64, validUntil string) (int64, error) {
 	r.groupID = groupID
-	r.validUntil = timezone.Date(validUntil)
+	r.validUntil = calendar.Date(validUntil)
 	if r.err != nil {
 		return 0, r.err
 	}

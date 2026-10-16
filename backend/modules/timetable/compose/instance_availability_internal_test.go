@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -18,14 +18,14 @@ func TestEvaluateLifecycleAvailability_PlannedBoundaries(t *testing.T) {
 		EndTime:   time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
 	}
 
-	before := evaluateLifecycleAvailability(instance, time.Date(2026, 8, 13, 13, 29, 59, 0, timezone.Berlin), 15, 0, true)
+	before := evaluateLifecycleAvailability(instance, time.Date(2026, 8, 13, 13, 29, 59, 0, calendar.Berlin), 15, 0, true)
 	assert.False(t, before.CanStart)
 	assert.False(t, before.CanComplete)
 
-	atStartBoundary := evaluateLifecycleAvailability(instance, time.Date(2026, 8, 13, 13, 30, 0, 0, timezone.Berlin), 15, 0, true)
+	atStartBoundary := evaluateLifecycleAvailability(instance, time.Date(2026, 8, 13, 13, 30, 0, 0, calendar.Berlin), 15, 0, true)
 	assert.True(t, atStartBoundary.CanStart)
 
-	atEndBoundary := evaluateLifecycleAvailability(instance, time.Date(2026, 8, 13, 14, 30, 0, 0, timezone.Berlin), 15, 0, true)
+	atEndBoundary := evaluateLifecycleAvailability(instance, time.Date(2026, 8, 13, 14, 30, 0, 0, calendar.Berlin), 15, 0, true)
 	assert.False(t, atEndBoundary.CanStart)
 	assert.True(t, atEndBoundary.CanComplete)
 }
@@ -38,7 +38,7 @@ func TestEvaluateLifecycleAvailability_SettingsAndSpontaneous(t *testing.T) {
 		StartTime: time.Date(1, 1, 1, 13, 45, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC),
 	}
-	now := time.Date(2026, 8, 13, 12, 0, 0, 0, timezone.Berlin)
+	now := time.Date(2026, 8, 13, 12, 0, 0, 0, calendar.Berlin)
 	assert.True(t, evaluateLifecycleAvailability(instance, now, 120, 0, false).CanStart)
 	assert.True(t, evaluateLifecycleAvailability(instance, now, 0, 0, false).CanComplete)
 
@@ -59,7 +59,7 @@ func TestEvaluateLifecycleAvailability_CompleteLead(t *testing.T) {
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 	}
-	completeAt := time.Date(2026, 10, 2, 15, 45, 0, 0, timezone.Berlin)
+	completeAt := time.Date(2026, 10, 2, 15, 45, 0, 0, calendar.Berlin)
 
 	before := evaluateLifecycleAvailability(instance, completeAt.Add(-time.Second), 15, 15, true)
 	assert.False(t, before.CanComplete)

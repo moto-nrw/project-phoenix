@@ -12,10 +12,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -169,7 +169,7 @@ func (f *completeWithdrawalFixture) assertCareExitCompletesSource(pending *userM
 	assert.Equal(f.t, "Mittagessen", preview.Students[0].SourceOfferings[1].Name)
 	_, err = lifecycle.ConfirmWithdrawalCareEnd(f.ctx, pending.ID, preview.Token, input, f.env.creatorID)
 	require.NoError(f.t, err)
-	var validUntil *timezone.Date
+	var validUntil *calendar.Date
 	require.NoError(f.t, f.env.db.NewRaw(`SELECT valid_until FROM enrollment.care_offering_bookings
 		WHERE tenant_id = ? AND request_child_id = ? AND care_offering_id = ?`,
 		testpkg.Tenant(f.t), f.childID, f.lunchID).Scan(f.ctx, &validUntil))
@@ -260,7 +260,7 @@ type withdrawalRaceFixture struct {
 	recurrenceGate    func(context.Context) error
 	completionWaiting chan struct{}
 	studentID, careID int64
-	originalEnd       *timezone.Date
+	originalEnd       *calendar.Date
 	input             enrollmentTest.UpdateChildOfferingsInput
 }
 

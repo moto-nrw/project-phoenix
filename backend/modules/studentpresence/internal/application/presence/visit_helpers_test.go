@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +57,7 @@ func TestCreateVisit_WithDevice(t *testing.T) {
 		assert.NotZero(t, visit.ID, "Visit should have been created with an ID")
 
 		// Verify attendance was created with RFID device
-		attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
+		attendance := getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
 		require.NotNil(t, attendance, "Attendance record should exist")
 		assert.Equal(t, rfidDevice.ID, attendance.DeviceID, "Attendance should use RFID device")
 		assert.Equal(t, staff.ID, attendance.CheckedInBy, "Attendance should have correct staff ID")
@@ -89,7 +88,7 @@ func TestCreateVisit_CompletedVisitCreatesClosedAttendance(t *testing.T) {
 	}
 	require.NoError(t, service.CreateVisit(deviceCtx, visit))
 
-	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
+	attendance := getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	require.NotNil(t, attendance.CheckOutTime)
 	require.NotNil(t, attendance.CheckedOutBy)
@@ -120,14 +119,14 @@ func TestUpdateVisit_ReconcilesMatchingAttendanceSession(t *testing.T) {
 	exitTime := entryTime.Add(time.Hour)
 	visit.ExitTime = &exitTime
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
-	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
+	attendance := getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	require.NotNil(t, attendance.CheckOutTime)
 	assert.WithinDuration(t, exitTime, *attendance.CheckOutTime, time.Second)
 
 	visit.ExitTime = nil
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
-	attendance = getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
+	attendance = getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	assert.Nil(t, attendance.CheckOutTime)
 	assert.Nil(t, attendance.CheckedOutBy)
@@ -162,7 +161,7 @@ func TestUpdateVisit_GroupMoveWithCheckoutClosesAttendanceSession(t *testing.T) 
 	visit.ExitTime = &exitTime
 	require.NoError(t, service.UpdateVisit(deviceCtx, visit))
 
-	attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
+	attendance := getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
 	require.NotNil(t, attendance)
 	require.NotNil(t, attendance.CheckOutTime,
 		"a combined group move and checkout must not leave daily attendance open")
@@ -212,7 +211,7 @@ func TestCreateVisit_ReEntry(t *testing.T) {
 		assert.NotZero(t, visit.ID, "Visit should have been created with an ID")
 
 		// The latest row is a new open session.
-		attendance := getAttendanceForStudent(t, db, student.ID, timezone.DateFromTime(visit.EntryTime))
+		attendance := getAttendanceForStudent(t, db, student.ID, calendar.DateFromTime(visit.EntryTime))
 		require.NotNil(t, attendance, "Attendance record should exist")
 		assert.NotEqual(t, existingAttendance.ID, attendance.ID)
 		assert.Nil(t, attendance.CheckOutTime)
@@ -477,7 +476,7 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since", "excused", "excused_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
 	require.NoError(t, err)
 
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
@@ -548,7 +547,7 @@ func TestCreateVisit_ClearsParentStatusForToday(t *testing.T) {
 	// No live sick flag set — this is the future-reported path the live-flag
 	// clear does not cover.
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
 		Date:       today,
@@ -582,7 +581,7 @@ func setupVisitHelperService(t *testing.T, db *testpkg.DB, clocks ...func() time
 	return composedEngine(t, serviceFactory.Active)
 }
 
-func getAttendanceForStudent(t *testing.T, db *testpkg.DB, studentID int64, date timezone.Date) *studentpresence.Attendance {
+func getAttendanceForStudent(t *testing.T, db *testpkg.DB, studentID int64, date calendar.Date) *studentpresence.Attendance {
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
@@ -602,7 +601,7 @@ func createAttendanceWithCheckout(t *testing.T, db *testpkg.DB, studentID, staff
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	attendance, err := presence.RecordAttendance(testpkg.Ctx(t), studentpresence.Attendance{
-		StudentID: studentID, Date: timezone.DateFromTime(checkoutTime).String(),
+		StudentID: studentID, Date: calendar.DateFromTime(checkoutTime).String(),
 		CheckInTime: checkoutTime.Add(-4 * time.Hour), CheckOutTime: &checkoutTime,
 		CheckedInBy: staffID, CheckedOutBy: &staffID, DeviceID: deviceID,
 	})

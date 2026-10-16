@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +15,7 @@ func validBalanceAdjustment() *StaffBalanceAdjustment {
 		StaffID:       42,
 		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -120,
-		EffectiveDate: timezone.NewDate(2026, time.March, 1),
+		EffectiveDate: calendar.NewDate(2026, time.March, 1),
 		DecidedBy:     43,
 	}
 }
@@ -53,7 +53,7 @@ func TestStaffBalanceAdjustmentValidate_Rejects(t *testing.T) {
 		},
 		{
 			name:   "missing effective date",
-			mutate: func(a *StaffBalanceAdjustment) { a.EffectiveDate = timezone.Date("") },
+			mutate: func(a *StaffBalanceAdjustment) { a.EffectiveDate = calendar.Date("") },
 			errMsg: "effective_date is required",
 		},
 		{

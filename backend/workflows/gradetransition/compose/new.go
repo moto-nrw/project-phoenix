@@ -10,11 +10,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	structurecompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
 	"github.com/uptrace/bun"
@@ -35,7 +35,7 @@ type Dependencies struct {
 	LockRecurrenceWrites func(context.Context) error
 	// ResyncOfferingRosters re-reconciles the offering-sourced timetable
 	// templates from the given calendar day after the class rewrite.
-	ResyncOfferingRosters func(context.Context, timezone.Date) error
+	ResyncOfferingRosters func(context.Context, calendar.Date) error
 	Logger                *slog.Logger
 	// Audit records the class-list rewrites; nil binds the ambient-transaction
 	// audit command.
@@ -109,7 +109,7 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 	}
 	clock := deps.Clock
 	if clock == nil {
-		clock = timezone.Now
+		clock = calendar.Now
 	}
 	audit := deps.Audit
 	if audit == nil {
@@ -149,12 +149,12 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 			return err
 		},
 		Authorize: Authorize,
-		Today:     func() string { return timezone.DateFromTime(clock()).String() },
+		Today:     func() string { return calendar.DateFromTime(clock()).String() },
 		Now:       clock,
 		Structure: structure, Directory: deps.Directory, Membership: deps.Membership, Presence: presence, Rosters: deps.Rosters,
 		LockRecurrenceWrites: deps.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(ctx context.Context, effectiveFrom string) error {
-			day, err := timezone.ParseDate(effectiveFrom)
+			day, err := calendar.ParseDate(effectiveFrom)
 			if err != nil {
 				return err
 			}

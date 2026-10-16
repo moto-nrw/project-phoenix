@@ -3,8 +3,8 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // This file holds the work-schedule vocabulary the retained work-session
@@ -52,10 +52,10 @@ var (
 // WorkSessionSchedules is the schedule capability used by work-session
 // summaries and effective-dated schedule replacement.
 type WorkSessionSchedules interface {
-	FindByStaffIDsValidInRange(context.Context, []int64, timezone.Date, timezone.Date) ([]*WorkScheduleRow, error)
+	FindByStaffIDsValidInRange(context.Context, []int64, calendar.Date, calendar.Date) ([]*WorkScheduleRow, error)
 	GetCurrentByStaffID(context.Context, int64) ([]*WorkScheduleRow, error)
-	ReplaceSchedule(context.Context, int64, []*WorkScheduleRow, timezone.Date) error
-	ReplaceScheduleWithValidFrom(context.Context, int64, []*WorkScheduleRow, timezone.Date, timezone.Date) error
+	ReplaceSchedule(context.Context, int64, []*WorkScheduleRow, calendar.Date) error
+	ReplaceScheduleWithValidFrom(context.Context, int64, []*WorkScheduleRow, calendar.Date, calendar.Date) error
 }
 
 // WorkSessionTimeModels is the work-time-template capability the work-session

@@ -9,7 +9,6 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -17,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -214,18 +214,18 @@ func (s *InstanceLifecycleService) hasTx(ctx context.Context) bool {
 
 // acquireSubstituteDayLock takes the shared (tenant, date) advisory lock that
 // serializes every same-day staffing mutation, within the caller's tx.
-func (s *InstanceLifecycleService) acquireSubstituteDayLock(ctx context.Context, date timezone.Date) error {
+func (s *InstanceLifecycleService) acquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
 	return s.acquireTenantDayLock(ctx, tenant.FromContext(ctx), date)
 }
 
-func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, tenantID int64, date timezone.Date) error {
+func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, tenantID int64, date calendar.Date) error {
 	return s.store.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, date))
 }
 
 // acquireSubstituteDayLocks takes the day lock of every date in [from, to]
 // inclusive, in ascending order, so two overlapping windows can never
 // deadlock (#1840).
-func (s *InstanceLifecycleService) acquireSubstituteDayLocks(ctx context.Context, tenantID int64, from, to timezone.Date) error {
+func (s *InstanceLifecycleService) acquireSubstituteDayLocks(ctx context.Context, tenantID int64, from, to calendar.Date) error {
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		if err := s.acquireTenantDayLock(ctx, tenantID, d); err != nil {
 			return err
@@ -238,7 +238,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLocks(ctx context.Context
 // ascending order, sharing the total order of acquireSubstituteDayLocks so
 // a planned edit that moves a block never deadlocks against a re-plan or a
 // deviation save (#1840).
-func (s *InstanceLifecycleService) acquireSubstituteDayLockPair(ctx context.Context, tenantID int64, a, b timezone.Date) error {
+func (s *InstanceLifecycleService) acquireSubstituteDayLockPair(ctx context.Context, tenantID int64, a, b calendar.Date) error {
 	first, second := a, b
 	if second.Before(first) {
 		first, second = second, first
@@ -258,7 +258,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLockPair(ctx context.Cont
 // so the transition is refused with ErrInstanceMoved (#1840).
 func (s *InstanceLifecycleService) lockDayAndReload(ctx context.Context, instance *scheduleModel.ActivityInstance, op string) (*scheduleModel.ActivityInstance, error) {
 	lockedDate := instance.Date
-	if err := s.acquireSubstituteDayLock(ctx, timezone.Date(lockedDate)); err != nil {
+	if err := s.acquireSubstituteDayLock(ctx, calendar.Date(lockedDate)); err != nil {
 		return nil, &ScheduleError{Op: op + ": lock day", Err: err}
 	}
 	reloaded, err := s.loadForTransition(ctx, instance.ID)
@@ -318,7 +318,7 @@ func (s *InstanceLifecycleService) updateLifecycleColumns(ctx context.Context, i
 
 // GetPlannedStudentIDsByDate returns which of the children have a planned
 // block on the date.
-func (s *InstanceLifecycleService) GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error) {
+func (s *InstanceLifecycleService) GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]int64, error) {
 	return s.deps.InstanceStudents.FindPlannedStudentIDsByDate(ctx, studentIDs, scheduleModel.Date(date))
 }
 
@@ -341,7 +341,7 @@ func LifecycleInstanceOf(row *scheduleModel.ActivityInstance) *timetable.Lifecyc
 		return nil
 	}
 	return &timetable.LifecycleInstance{
-		ID: row.ID, Date: timezone.Date(row.Date), StartTime: row.StartTime, EndTime: row.EndTime,
+		ID: row.ID, Date: calendar.Date(row.Date), StartTime: row.StartTime, EndTime: row.EndTime,
 		Title: row.Title, RoomID: row.RoomID, ActivityGroupID: row.ActivityGroupID, Status: row.Status,
 		IsSpontaneous: row.IsSpontaneous, UnderstaffedAck: row.UnderstaffedAck, UnderstaffedNote: row.UnderstaffedNote,
 		ActiveGroupID: row.ActiveGroupID, StartedAt: row.StartedAt, CompletedAt: row.CompletedAt, ReopenUntil: row.ReopenUntil,

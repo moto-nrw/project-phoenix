@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -36,7 +36,7 @@ func buildWorkforceAt(t *testing.T, db *bun.DB, now time.Time) workforce.Capabil
 	return capability
 }
 
-func testWorkSession(staffID int64, day timezone.Date, checkIn time.Time) workforce.WorkSession {
+func testWorkSession(staffID int64, day calendar.Date, checkIn time.Time) workforce.WorkSession {
 	return workforce.WorkSession{
 		StaffID: staffID, Date: day.String(), Status: workforce.WorkSessionStatusPresent,
 		Source: workforce.WorkSessionSourceApp, CheckInTime: checkIn, CreatedBy: staffID,
@@ -51,7 +51,7 @@ func TestWorkSessionRowRulesMatchTheLegacyRepository(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Session", "Rules")
 	capability := buildWorkforce(t, db)
 	// A fixed Berlin day: the row rules do not depend on the wall clock.
-	today := timezone.NewDate(2026, 3, 10)
+	today := calendar.NewDate(2026, 3, 10)
 	checkIn := today.BerlinMidnight().Add(8 * time.Hour)
 
 	created, err := capability.CreateWorkSession(ctx, testWorkSession(staff.ID, today, checkIn))
@@ -136,7 +136,7 @@ func TestWorkSessionHistoryAndOpenSessionsFollowTheStoredDay(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "History", "Staff")
 	capability := buildWorkforce(t, db)
 	// A fixed Berlin day: the stored-day rules do not depend on the wall clock.
-	today := timezone.NewDate(2026, 3, 10)
+	today := calendar.NewDate(2026, 3, 10)
 
 	for _, offset := range []int{-2, -1, 0} {
 		day := today.AddDays(offset)
@@ -188,7 +188,7 @@ func TestLatestOpenWorkSessionAppliesTheLiveWindow(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	capability := buildWorkforceAt(t, db, now)
 
 	night := testpkg.CreateTestStaff(t, db, "Night", "Staff")
@@ -257,7 +257,7 @@ func TestOverlappingWorkSessionsKeepEarlierStarts(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Early", "Staff")
 	capability := buildWorkforce(t, db)
 
-	from := timezone.NewDate(2026, 8, 24)
+	from := calendar.NewDate(2026, 8, 24)
 	to := from.AddDays(6)
 	start := from.AddDays(-5)
 	reaching := testWorkSession(staff.ID, start, start.BerlinMidnight().Add(8*time.Hour))
@@ -294,7 +294,7 @@ func TestWorkSessionBreaksFollowTheLegacyRowRules(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Break", "Staff")
 	capability := buildWorkforce(t, db)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	session, err := capability.CreateWorkSession(ctx, testWorkSession(staff.ID, today, time.Now().Add(-3*time.Hour)))
 	require.NoError(t, err)
@@ -523,7 +523,7 @@ func TestWorkSessionAndBreakRollBackWithTheCallerTransaction(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Rollback", "Stamp")
 	capability := buildWorkforce(t, db)
-	day := timezone.NewDate(2026, 5, 4)
+	day := calendar.NewDate(2026, 5, 4)
 	failure := errors.New("stamp aborted after an authoritative write")
 
 	stamp := func(txCtx context.Context, failAfter string) (int64, error) {
@@ -594,7 +594,7 @@ func TestWorkSessionsAreTenantIsolated(t *testing.T) {
 	local := testpkg.CreateTestStaff(t, db, "Session", "Local")
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Session", "Foreign")
 	capability := buildWorkforce(t, db)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	localSession, err := capability.CreateWorkSession(ctx, testWorkSession(local.ID, today, time.Now().Add(-time.Hour)))
 	require.NoError(t, err)

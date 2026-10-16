@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type StatusDayOverviewPeople interface {
@@ -29,7 +29,7 @@ func NewStudentStatusDayOverviewService(repo StudentStatusDayOverviewRepository,
 // GetOverview loads and assembles the absence rows for the authorized groups.
 // Enrollment is evaluated on each status-day date; lifecycle status is used
 // only for legacy students without enrollment bounds.
-func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, groups []*StatusDayOverviewGroup, from, to, today timezone.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
+func (s *StudentStatusDayOverviewService) GetOverview(ctx context.Context, groups []*StatusDayOverviewGroup, from, to, today calendar.Date, filters StatusDayOverviewFilters) (*StatusDayOverview, error) {
 	if s.people == nil || s.repo == nil {
 		return nil, errors.New("student status day overview dependencies are not configured")
 	}
@@ -98,7 +98,7 @@ func orderOverviewStudentIDs(ids []int64, students map[int64]*StudentRecord, per
 
 // statusDayOverviewQuery selects the overview page: every requested child
 // inside its enrollment window, the date range, and the optional status.
-func statusDayOverviewQuery(studentIDs []int64, students map[int64]*StudentRecord, from, to, today timezone.Date, filters StatusDayOverviewFilters) StatusDayOverviewQuery {
+func statusDayOverviewQuery(studentIDs []int64, students map[int64]*StudentRecord, from, to, today calendar.Date, filters StatusDayOverviewFilters) StatusDayOverviewQuery {
 	query := StatusDayOverviewQuery{From: from, To: to, Status: filters.Status, Page: filters.Page, PageSize: filters.PageSize}
 	for _, id := range studentIDs {
 		if window, ok := studentEnrollmentWindow(id, students[id], today); ok {
@@ -112,7 +112,7 @@ func statusDayOverviewQuery(studentIDs []int64, students map[int64]*StudentRecor
 // interval; an active student enrolled from a future date counts from today.
 // It reports false for an unknown student or an inactive one without an
 // interval.
-func studentEnrollmentWindow(id int64, student *StudentRecord, today timezone.Date) (StatusDayWindow, bool) {
+func studentEnrollmentWindow(id int64, student *StudentRecord, today calendar.Date) (StatusDayWindow, bool) {
 	if student == nil || (student.EnrolledFrom == nil && student.EnrolledUntil == nil && student.Lifecycle == StudentLifecycleInactive) {
 		return StatusDayWindow{}, false
 	}
@@ -171,7 +171,7 @@ func indexOverviewStudents(students []*StudentRecord) ([]int64, []int64, map[int
 	return studentIDs, personIDs, byID
 }
 
-func assembleStatusDayOverview(rows []*absencerecords.StudentStatusDay, students map[int64]*StudentRecord, persons map[int64]*PersonName, groups map[int64]*StatusDayOverviewGroup, today timezone.Date) []StatusDayOverviewEntry {
+func assembleStatusDayOverview(rows []*absencerecords.StudentStatusDay, students map[int64]*StudentRecord, persons map[int64]*PersonName, groups map[int64]*StatusDayOverviewGroup, today calendar.Date) []StatusDayOverviewEntry {
 	entries := make([]StatusDayOverviewEntry, 0, len(rows))
 	for _, row := range rows {
 		student := students[row.StudentID]
@@ -188,7 +188,7 @@ func assembleStatusDayOverview(rows []*absencerecords.StudentStatusDay, students
 	return entries
 }
 
-func studentEnrolledOn(student *StudentRecord, date, today timezone.Date) bool {
+func studentEnrolledOn(student *StudentRecord, date, today calendar.Date) bool {
 	if student == nil {
 		return false
 	}

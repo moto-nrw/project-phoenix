@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	roomsHTTP "github.com/moto-nrw/project-phoenix/modules/facilities/http/rooms"
@@ -19,6 +18,7 @@ import (
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Resource = roomsHTTP.Resource
@@ -190,8 +190,8 @@ func roomHistory(service facilitiesService.Service) func(context.Context, int64,
 }
 
 func todayBounds() (time.Time, time.Time) {
-	today := timezone.Today()
-	return today, timezone.EndOfDay(today)
+	today := calendar.Today()
+	return today, calendar.EndOfDay(today)
 }
 
 func snapshotExporter(dependencies Dependencies) func(context.Context, roomsHTTP.SnapshotRequest) (roomsHTTP.ExportFile, error) {

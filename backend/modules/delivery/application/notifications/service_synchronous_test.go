@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // syncChannel is a channel that also reports acceptance synchronously — the
@@ -59,7 +59,7 @@ func openWindowSettings() *settingsDouble {
 // test runs. The window check reads the real clock, so a fixed window would be
 // open for whoever runs the suite at the wrong time of day.
 func windowAfterNow(startOffset, endOffset int) (start, end string) {
-	now := timezone.Now()
+	now := calendar.Now()
 	nowMin := now.Hour()*60 + now.Minute()
 	clock := func(offset int) string {
 		minute := (nowMin + offset) % (24 * 60)

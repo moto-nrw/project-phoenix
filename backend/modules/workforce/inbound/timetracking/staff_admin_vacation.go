@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -63,7 +63,7 @@ func (rs *StaffAdminResource) setVacationOpening(w http.ResponseWriter, r *http.
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("remaining_days is required")))
 		return
 	}
-	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	effectiveDate, err := calendar.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
 		return
@@ -91,7 +91,7 @@ func (rs *StaffAdminResource) deleteVacationOpening(w http.ResponseWriter, r *ht
 	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
 		return
 	}
-	year, err := parseYearQuery(r, timezone.TodayDate())
+	year, err := parseYearQuery(r, calendar.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return

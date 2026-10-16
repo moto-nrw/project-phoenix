@@ -8,9 +8,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -84,7 +84,7 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, slices.MinFunc(dates, timezone.Date.Compare), slices.MaxFunc(dates, timezone.Date.Compare))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(r.Context(), student.ID, slices.MinFunc(dates, calendar.Date.Compare), slices.MaxFunc(dates, calendar.Date.Compare))
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to fetch student status days", err))
 		return
@@ -182,7 +182,7 @@ func (rs *Resource) newStatusDayWriteContext(r *http.Request, userPermissions []
 	}
 }
 
-func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissions []string, status string, dates []timezone.Date) studentpresence.StatusDayWriteContext {
+func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissions []string, status string, dates []calendar.Date) studentpresence.StatusDayWriteContext {
 	writeContext := rs.newStatusDayWriteContext(r, userPermissions)
 	tenantID := tenant.FromContext(r.Context())
 	actorAccountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
@@ -192,38 +192,38 @@ func (rs *Resource) newStatusDayCreateWriteContext(r *http.Request, userPermissi
 	return writeContext
 }
 
-func parseStatusDayRange(r *http.Request) (timezone.Date, timezone.Date, error) {
-	return parseStatusDayRangeAt(r, timezone.TodayDate())
+func parseStatusDayRange(r *http.Request) (calendar.Date, calendar.Date, error) {
+	return parseStatusDayRangeAt(r, calendar.TodayDate())
 }
 
-func parseStatusDayRangeAt(r *http.Request, today timezone.Date) (timezone.Date, timezone.Date, error) {
+func parseStatusDayRangeAt(r *http.Request, today calendar.Date) (calendar.Date, calendar.Date, error) {
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
 
 	from := today
 	// Two calendar months ahead, mirroring time.Time.AddDate(0, 2, 0).
-	to := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
+	to := calendar.NewDate(today.Year(), today.Month()+2, today.Day())
 	var err error
 	if fromRaw != "" {
-		if from, err = timezone.ParseDate(fromRaw); err != nil {
-			return timezone.Date(""), timezone.Date(""), errors.New("invalid from date format, expected YYYY-MM-DD")
+		if from, err = calendar.ParseDate(fromRaw); err != nil {
+			return calendar.Date(""), calendar.Date(""), errors.New("invalid from date format, expected YYYY-MM-DD")
 		}
 	}
 	if toRaw != "" {
-		if to, err = timezone.ParseDate(toRaw); err != nil {
-			return timezone.Date(""), timezone.Date(""), errors.New("invalid to date format, expected YYYY-MM-DD")
+		if to, err = calendar.ParseDate(toRaw); err != nil {
+			return calendar.Date(""), calendar.Date(""), errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
 	}
 	if to.Before(from) {
-		return timezone.Date(""), timezone.Date(""), errors.New("to must be after from")
+		return calendar.Date(""), calendar.Date(""), errors.New("to must be after from")
 	}
 	return from, to, nil
 }
 
-func parseStatusDayDates(rawDates []string) ([]timezone.Date, error) {
-	dates := make([]timezone.Date, 0, len(rawDates))
+func parseStatusDayDates(rawDates []string) ([]calendar.Date, error) {
+	dates := make([]calendar.Date, 0, len(rawDates))
 	for _, rawDate := range rawDates {
-		date, err := timezone.ParseDate(rawDate)
+		date, err := calendar.ParseDate(rawDate)
 		if err != nil {
 			return nil, errors.New("invalid date format, expected YYYY-MM-DD")
 		}
@@ -232,8 +232,8 @@ func parseStatusDayDates(rawDates []string) ([]timezone.Date, error) {
 	return dates, nil
 }
 
-func datesBetweenInclusive(from, to timezone.Date) []timezone.Date {
-	dates := make([]timezone.Date, 0, from.DaysUntil(to)+1)
+func datesBetweenInclusive(from, to calendar.Date) []calendar.Date {
+	dates := make([]calendar.Date, 0, from.DaysUntil(to)+1)
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		dates = append(dates, date)
 	}
@@ -265,12 +265,12 @@ func statusDayConflictResponse(conflictErr *studentpresence.StudentStatusDayConf
 
 // bulkStatusDayDates parses the bulk range: two calendar days, in order, at
 // most maxStudentStatusDayRangeDays apart, both included.
-func bulkStatusDayDates(fromValue, toValue string) ([]timezone.Date, error) {
-	from, err := timezone.ParseDate(fromValue)
+func bulkStatusDayDates(fromValue, toValue string) ([]calendar.Date, error) {
+	from, err := calendar.ParseDate(fromValue)
 	if err != nil {
 		return nil, errors.New("invalid from date format, expected YYYY-MM-DD")
 	}
-	to, err := timezone.ParseDate(toValue)
+	to, err := calendar.ParseDate(toValue)
 	if err != nil {
 		return nil, errors.New("invalid to date format, expected YYYY-MM-DD")
 	}

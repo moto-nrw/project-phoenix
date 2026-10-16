@@ -3,7 +3,7 @@ package test
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -19,7 +19,7 @@ const WeekdaySunday = 7
 const ActivityGroupTypeCare = "care"
 
 // ActivityDate is the calendar day of an activity row.
-type ActivityDate = timezone.Date
+type ActivityDate = calendar.Date
 
 // ActivityCategory is one activities.categories row.
 type ActivityCategory struct {

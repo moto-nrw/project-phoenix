@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -80,7 +80,7 @@ type pickupBaselineProjector struct {
 	reader careplan.PickupBaselineReader
 }
 
-func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.PickupBaselines, error) {
+func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to calendar.Date) (arrivalTimetable.PickupBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -92,7 +92,7 @@ type pickupBaselineProjection struct {
 	projection *careplan.PickupBaselineProjection
 }
 
-func (p pickupBaselineProjection) RegularPickup(studentID int64, date timezone.Date) (time.Time, bool) {
+func (p pickupBaselineProjection) RegularPickup(studentID int64, date calendar.Date) (time.Time, bool) {
 	row := p.projection.ForDate(studentID, date)
 	if row == nil {
 		return time.Time{}, false
@@ -145,7 +145,7 @@ type arrivalBaselineProjector struct {
 	reader careplan.ArrivalBaselineReader
 }
 
-func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (arrivalTimetable.ArrivalBaselines, error) {
+func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to calendar.Date) (arrivalTimetable.ArrivalBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -157,7 +157,7 @@ type arrivalBaselineProjection struct {
 	projection *careplan.ArrivalBaselineProjection
 }
 
-func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date timezone.Date) (time.Time, bool) {
+func (p arrivalBaselineProjection) ExpectedArrival(studentID int64, date calendar.Date) (time.Time, bool) {
 	row := p.projection.ForDate(studentID, date)
 	if row == nil {
 		return time.Time{}, false
@@ -305,8 +305,8 @@ func TestTimetableRead_ExceptionConflictsApplyTheBookingMode(t *testing.T) {
 	// Both days: the activity is moved to 10:00, before the 11:45 arrival.
 	room := testpkg.CreateTestRoom(t, env.db, "Konflikt-Raum")
 	activity := testpkg.CreateTestActivityGroup(t, env.db, "Konflikt-AG")
-	movedStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC))
-	for _, date := range []timezone.Date{monday, thursday} {
+	movedStart := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC))
+	for _, date := range []calendar.Date{monday, thursday} {
 		instance := testpkg.CreateTestActivityInstance(t, env.db, date, room.ID, testpkg.ActivityInstanceOpts{
 			ActivityGroupID: &activity.ID,
 		})
@@ -331,7 +331,7 @@ func createModifiedException(
 	t *testing.T,
 	env *decisionTestEnv,
 	activityGroupID int64,
-	date timezone.Date,
+	date calendar.Date,
 	staffID int64,
 	startTime time.Time,
 ) {

@@ -10,11 +10,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -28,7 +28,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 	rawDate := r.URL.Query().Get("date")
 	date := rs.todayDate()
 	if rawDate != "" {
-		parsed, err := timezone.ParseDate(rawDate)
+		parsed, err := calendar.ParseDate(rawDate)
 		if err != nil {
 			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid date: %w", err)))
 			return
@@ -45,7 +45,7 @@ func (rs *Resource) getStudentArrivalSchedules(w http.ResponseWriter, r *http.Re
 	} else if toRaw == "" {
 		data, err = rs.ArrivalScheduleService.GetStudentArrivalDataForDate(r.Context(), student.ID, date)
 	} else {
-		to, parseErr := timezone.ParseDate(toRaw)
+		to, parseErr := calendar.ParseDate(toRaw)
 		if parseErr != nil {
 			renderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("invalid to date: %w", parseErr)))
 			return
@@ -195,7 +195,7 @@ func (rs *Resource) createStudentArrivalException(w http.ResponseWriter, r *http
 		return
 	}
 
-	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
+	exceptionDate, _ := calendar.ParseDate(req.ExceptionDate)
 	var arrivalTime *time.Time
 	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
 		parsed, _ := parseTimeOnly(*req.ExpectedArrival)
@@ -250,7 +250,7 @@ func (rs *Resource) updateStudentArrivalException(w http.ResponseWriter, r *http
 
 	// existingException was the ownership pre-check; the locked re-read inside the
 	// service is authoritative for the source/author decision.
-	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
+	exceptionDate, _ := calendar.ParseDate(req.ExceptionDate)
 	var arrivalTime *time.Time
 	if req.ExpectedArrival != nil && *req.ExpectedArrival != "" {
 		parsed, _ := parseTimeOnly(*req.ExpectedArrival)
@@ -330,7 +330,7 @@ func (rs *Resource) createStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	noteDate, _ := timezone.ParseDate(req.NoteDate)
+	noteDate, _ := calendar.ParseDate(req.NoteDate)
 	note := &careplan.ArrivalNote{
 		StudentID: student.ID,
 		NoteDate:  careplan.Date(noteDate),
@@ -378,7 +378,7 @@ func (rs *Resource) updateStudentArrivalNote(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	noteDate, _ := timezone.ParseDate(req.NoteDate)
+	noteDate, _ := calendar.ParseDate(req.NoteDate)
 	note := &careplan.ArrivalNote{
 		StudentID: student.ID,
 		NoteDate:  careplan.Date(noteDate),

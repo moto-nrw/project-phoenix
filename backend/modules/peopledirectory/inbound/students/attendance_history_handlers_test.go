@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -52,8 +52,8 @@ func TestGetStudentAttendanceHistory_FeatureEnabled_ReturnsData(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, tc.db, "enabled-feat-dev")
 
 	// Create today's attendance
-	checkIn := timezone.Today().Add(8 * time.Hour)
-	checkOut := timezone.Today().Add(15 * time.Hour)
+	checkIn := calendar.Today().Add(8 * time.Hour)
+	checkOut := calendar.Today().Add(15 * time.Hour)
 	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, checkIn, &checkOut)
 
 	req := testutil.NewRequest("GET", fmt.Sprintf("/%d/attendance-history", student.ID), nil)
@@ -179,7 +179,7 @@ func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureEnd", "Student", "2c")
 
-	today := timezone.NewDate(2026, 8, 24).BerlinMidnight()
+	today := calendar.NewDate(2026, 8, 24).BerlinMidnight()
 	start := today.AddDate(0, 0, -1)
 	end := today.AddDate(0, 0, 2)
 	req := testutil.NewRequest("GET", fmt.Sprintf(
@@ -202,9 +202,9 @@ func TestGetStudentAttendanceHistory_FutureEndClampsToToday(t *testing.T) {
 	}
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.True(t, body.Data.Clamped)
-	assert.False(t, body.Data.Range.End.After(timezone.NewDate(2026, 8, 24).EndOfDay()))
+	assert.False(t, body.Data.Range.End.After(calendar.NewDate(2026, 8, 24).EndOfDay()))
 	for _, day := range body.Data.Days {
-		assert.LessOrEqual(t, day.Date, timezone.NewDate(2026, 8, 24).String())
+		assert.LessOrEqual(t, day.Date, calendar.NewDate(2026, 8, 24).String())
 	}
 }
 
@@ -215,7 +215,7 @@ func TestGetStudentAttendanceHistory_FullyFutureRangeRejected(t *testing.T) {
 	enableAttendanceLog(t, tc)
 	student := testpkg.CreateTestStudent(t, tc.db, "FutureOnly", "Student", "2c")
 
-	today := timezone.Today()
+	today := calendar.Today()
 	start := today.AddDate(0, 0, 1)
 	end := today.AddDate(0, 0, 2)
 	req := testutil.NewRequest("GET", fmt.Sprintf(

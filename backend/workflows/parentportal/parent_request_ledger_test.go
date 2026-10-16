@@ -10,10 +10,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -61,10 +61,10 @@ func TestParentRequestLedgerRecordsSubmitAndDecision(t *testing.T) {
 
 	svc, requests, events, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	day := timezone.TodayDate().AddDays(3)
+	day := calendar.TodayDate().AddDays(3)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
 	requestID := res.PendingRequest.ID
@@ -106,10 +106,10 @@ func TestParentRequestLedgerRollsBackWithItsWrite(t *testing.T) {
 
 	svc, requests, events, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	day := timezone.TodayDate().AddDays(4)
+	day := calendar.TodayDate().AddDays(4)
 
 	res, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	requestID := res.PendingRequest.ID
 

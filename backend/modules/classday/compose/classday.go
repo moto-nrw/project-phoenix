@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Ports the composition root binds for the school-portal capability.
@@ -73,7 +73,7 @@ type ClassDayDependencies struct {
 // effective times and the Abholart of single days (#3945).
 type ClassDayPickupReader interface {
 	PickupTimeReader
-	GetBulkDayDepartureModesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error)
+	GetBulkDayDepartureModesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error)
 }
 
 // NewClassDay composes the school-portal capability.
@@ -149,11 +149,11 @@ type dayTimeBinding struct {
 	arrivals ArrivalTimeReader
 }
 
-func (b dayTimeBinding) DayDepartureModes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error) {
+func (b dayTimeBinding) DayDepartureModes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error) {
 	return b.pickups.GetBulkDayDepartureModesForDate(ctx, studentIDs, date)
 }
 
-func (b dayTimeBinding) EffectivePickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]application.EffectivePickup, error) {
+func (b dayTimeBinding) EffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]application.EffectivePickup, error) {
 	effective, err := b.pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
@@ -170,7 +170,7 @@ func (b dayTimeBinding) EffectivePickups(ctx context.Context, studentIDs []int64
 	return out, nil
 }
 
-func (b dayTimeBinding) EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]application.EffectiveArrival, error) {
+func (b dayTimeBinding) EffectiveArrivals(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]application.EffectiveArrival, error) {
 	effective, err := b.arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
@@ -192,7 +192,7 @@ type classArrivalExceptionBinding struct {
 	store careplan.ClassArrivalExceptions
 }
 
-func (b classArrivalExceptionBinding) ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to timezone.Date) ([]application.ClassArrivalException, error) {
+func (b classArrivalExceptionBinding) ListClassArrivalExceptions(ctx context.Context, schoolClass string, from, to calendar.Date) ([]application.ClassArrivalException, error) {
 	rows, err := b.store.ListClassArrivalExceptions(ctx, schoolClass, from, to)
 	if err != nil {
 		return nil, mapArrivalExceptionError(err)
@@ -216,7 +216,7 @@ func (b classArrivalExceptionBinding) UpsertClassArrivalException(ctx context.Co
 	return classArrivalException(row), nil
 }
 
-func (b classArrivalExceptionBinding) DeleteClassArrivalException(ctx context.Context, schoolClass string, date timezone.Date) error {
+func (b classArrivalExceptionBinding) DeleteClassArrivalException(ctx context.Context, schoolClass string, date calendar.Date) error {
 	return mapArrivalExceptionError(b.store.DeleteClassArrivalException(ctx, schoolClass, date))
 }
 
@@ -231,7 +231,7 @@ func classArrivalException(row *careplan.ClassArrivalException) application.Clas
 // error classification as the exception writes.
 type blockStartBinding struct{ starts BlockStarts }
 
-func (b blockStartBinding) EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error) {
+func (b blockStartBinding) EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date calendar.Date) (string, error) {
 	start, err := b.starts.EarliestPlannedBlockStartForClass(ctx, schoolClass, date)
 	if err != nil {
 		return "", mapArrivalExceptionError(err)

@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Reine Logiktests mit Attrappen: geprüft wird, WAS an einem Tag gilt und was
@@ -48,7 +48,7 @@ func (f *fakeNoticeRepo) Delete(context.Context, int64) error { return nil }
 func (f *fakeNoticeRepo) List(context.Context, bool) ([]*scheduleModels.StaffNotice, error) {
 	return f.notices, nil
 }
-func (f *fakeNoticeRepo) ListValidOn(context.Context, timezone.Date, string) ([]*scheduleModels.StaffNotice, error) {
+func (f *fakeNoticeRepo) ListValidOn(context.Context, calendar.Date, string) ([]*scheduleModels.StaffNotice, error) {
 	// Bewusst ohne Zielgruppenfilter: der Service muss die Leserart selbst
 	// prüfen, siehe TestStaffNoticeTodayFiltersByReader.
 	return f.notices, nil
@@ -82,14 +82,14 @@ func (f *fakePeriodRepo) FindActiveByTenantID(context.Context) ([]*scheduleModel
 	return f.periods, nil
 }
 
-func noticeMustDate(t *testing.T, iso string) timezone.Date {
+func noticeMustDate(t *testing.T, iso string) calendar.Date {
 	t.Helper()
-	d, err := timezone.ParseDate(iso)
+	d, err := calendar.ParseDate(iso)
 	require.NoError(t, err)
 	return d
 }
 
-func noticeDatePtr(date timezone.Date) *timezone.Date { return &date }
+func noticeDatePtr(date calendar.Date) *calendar.Date { return &date }
 
 func newNotice(t *testing.T, id int64, weekdays []int16, weekPattern int) *scheduleModels.StaffNotice {
 	t.Helper()
@@ -337,7 +337,7 @@ func TestStaffNoticeAcknowledgeRejectsNoticeThatDoesNotApplyToday(t *testing.T) 
 			repo := &fakeNoticeRepo{notices: []*scheduleModels.StaffNotice{tt.notice}}
 			svc := newStaffNotices(repo, StaffNoticeDependencies{
 				Periods:     tt.periods,
-				CurrentDate: func() timezone.Date { return today },
+				CurrentDate: func() calendar.Date { return today },
 			})
 
 			err := svc.AcknowledgeStaffNotice(ctx, tt.notice.ID, 42, scheduleModels.StaffNoticeAudienceStaff)
@@ -522,7 +522,7 @@ func TestStaffNoticeAcknowledgeRejectsForeignAudience(t *testing.T) {
 	notice.RequiresAcknowledgement = true
 	repo := &fakeNoticeRepo{notices: []*scheduleModels.StaffNotice{notice}}
 	svc := newStaffNotices(repo, StaffNoticeDependencies{
-		CurrentDate: func() timezone.Date { return noticeMustDate(t, "2026-08-04") },
+		CurrentDate: func() calendar.Date { return noticeMustDate(t, "2026-08-04") },
 	})
 
 	err := svc.AcknowledgeStaffNotice(ctx, 81, 42, scheduleModels.StaffNoticeAudienceStaff)

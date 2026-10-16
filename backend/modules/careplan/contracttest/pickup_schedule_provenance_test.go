@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -27,7 +27,7 @@ func wallClock(t *testing.T, hhmm string) time.Time {
 	} else if err != nil {
 		panic(err)
 	}
-	return timezone.NormalizeWallClock(parsed)
+	return calendar.NormalizeWallClock(parsed)
 }
 
 func newProjectionWriteService(

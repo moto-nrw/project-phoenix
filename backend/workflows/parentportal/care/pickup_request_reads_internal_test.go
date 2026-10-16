@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type pickupRequestBaseline struct {
@@ -19,9 +19,9 @@ type pickupRequestBaseline struct {
 	calls int
 }
 
-func (b *pickupRequestBaseline) GetEffectivePickupTimeForDate(context.Context, int64, timezone.Date) (*careplan.EffectivePickupTime, error) {
+func (b *pickupRequestBaseline) GetEffectivePickupTimeForDate(context.Context, int64, calendar.Date) (*careplan.EffectivePickupTime, error) {
 	b.calls++
-	clock := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC))
+	clock := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC))
 	return &careplan.EffectivePickupTime{PickupTime: &clock}, nil
 }
 

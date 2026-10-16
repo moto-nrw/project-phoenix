@@ -3,9 +3,9 @@ package compose
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The validation and classification rules of Phase A. Every rule reads the
@@ -129,7 +129,7 @@ func presenceContradictsAbsence(in timetable.ApplyDeviationsInput, presence time
 
 func planSubstitutionRemovals(
 	removals []timetable.DeviationSubstitutionRemovalInput,
-	date timezone.Date,
+	date calendar.Date,
 	readSet *deviationReadSet,
 ) ([]deviationSubstitutionRemovalOp, error) {
 	plan := make([]deviationSubstitutionRemovalOp, 0)
@@ -207,7 +207,7 @@ func requireSelectedSubstitutions(scope *[]int64, selected map[int64]bool) error
 	return nil
 }
 
-func validateExplicitScopeInstances(date timezone.Date, instanceIDs *[]int64, readSet *deviationReadSet) error {
+func validateExplicitScopeInstances(date calendar.Date, instanceIDs *[]int64, readSet *deviationReadSet) error {
 	if instanceIDs == nil {
 		return nil
 	}
@@ -228,11 +228,11 @@ func validateExplicitScopeInstances(date timezone.Date, instanceIDs *[]int64, re
 }
 
 // validateScopeInstance checks one explicitly selected appointment.
-func validateScopeInstance(date timezone.Date, instance *scheduleModel.ActivityInstance) error {
+func validateScopeInstance(date calendar.Date, instance *scheduleModel.ActivityInstance) error {
 	if instance == nil {
 		return timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 	}
-	if timezone.Date(instance.Date) != date {
+	if calendar.Date(instance.Date) != date {
 		return timetable.DeviationBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen").WithCode(timetable.CodeInstancesOtherDay).OnField("instance_ids")
 	}
 	if !isPlannableInstance(instance) {
@@ -285,7 +285,7 @@ func scopeContainsInstance(instanceIDs *[]int64, instanceID int64) bool {
 
 // scopedDayRows validates a change's explicit scope and resolves the
 // person's rows it covers.
-func scopedDayRows(date timezone.Date, staffID int64, scope *[]int64, readSet *deviationReadSet) ([]*scheduleModel.InstanceStaff, error) {
+func scopedDayRows(date calendar.Date, staffID int64, scope *[]int64, readSet *deviationReadSet) ([]*scheduleModel.InstanceStaff, error) {
 	if err := validateExplicitScopeInstances(date, scope, readSet); err != nil {
 		return nil, err
 	}
@@ -295,7 +295,7 @@ func scopedDayRows(date timezone.Date, staffID int64, scope *[]int64, readSet *d
 // planAbsences resolves every absence scope and stages its currently-present
 // plannable rows. Explicit scopes reject terminal appointments rather than
 // silently widening or partially applying the request.
-func planAbsences(absences []timetable.DeviationAbsenceInput, date timezone.Date, readSet *deviationReadSet) ([]deviationAbsenceOp, error) {
+func planAbsences(absences []timetable.DeviationAbsenceInput, date calendar.Date, readSet *deviationReadSet) ([]deviationAbsenceOp, error) {
 	plan := make([]deviationAbsenceOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, absence := range absences {
@@ -323,7 +323,7 @@ func planAbsences(absences []timetable.DeviationAbsenceInput, date timezone.Date
 
 // planPresences loads every to-be-restored staff member's scoped, plannable
 // rows that are currently marked absent. A non-absent row is a no-op.
-func planPresences(presences []timetable.DeviationPresenceInput, date timezone.Date, readSet *deviationReadSet) ([]deviationPresenceOp, error) {
+func planPresences(presences []timetable.DeviationPresenceInput, date calendar.Date, readSet *deviationReadSet) ([]deviationPresenceOp, error) {
 	plan := make([]deviationPresenceOp, 0)
 	seenRows := make(map[int64]bool)
 	for _, presence := range presences {

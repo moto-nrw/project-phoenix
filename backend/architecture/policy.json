@@ -1359,13 +1359,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "internal/timezone",
-      "owner": "legacy-shared",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "localization",
       "owner": "delivery-platform",
       "role": "adapter",

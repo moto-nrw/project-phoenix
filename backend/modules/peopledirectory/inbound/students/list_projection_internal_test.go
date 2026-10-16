@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // fullyPopulatedStudentResponse sets every field of the full projection to a
@@ -89,7 +89,7 @@ func fullyPopulatedStudentResponse() StudentResponse {
 func TestSlimStudentResponseWireContract(t *testing.T) {
 	t.Parallel()
 
-	slim := slimStudentResponses([]StudentResponse{fullyPopulatedStudentResponse()}, timezone.NewDate(2026, time.June, 1))
+	slim := slimStudentResponses([]StudentResponse{fullyPopulatedStudentResponse()}, calendar.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
 
 	encoded, err := json.Marshal(slim[0])
@@ -149,7 +149,7 @@ func TestSlimStudentResponseCopiesValues(t *testing.T) {
 	t.Parallel()
 
 	full := fullyPopulatedStudentResponse()
-	slim := slimStudentResponses([]StudentResponse{full}, timezone.NewDate(2026, time.June, 1))
+	slim := slimStudentResponses([]StudentResponse{full}, calendar.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
 	got := slim[0]
 
@@ -197,7 +197,7 @@ func TestSlimStudentResponsePreservesUnknownLegacyDepartureLabel(t *testing.T) {
 		HasFullAccess:           true,
 	}
 
-	slim := slimStudentResponses([]StudentResponse{full}, timezone.NewDate(2026, time.June, 1))
+	slim := slimStudentResponses([]StudentResponse{full}, calendar.NewDate(2026, time.June, 1))
 	require.Len(t, slim, 1)
 	assert.Empty(t, slim[0].DepartureModes)
 	assert.Equal(t, "Taxi mit Begleitperson", slim[0].DepartureLabel)

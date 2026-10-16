@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -26,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
+	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CallerGroup is one of the caller's educational groups.
@@ -670,21 +670,21 @@ func (s settings) SpontaneousActivitiesEnabled(ctx context.Context) (bool, error
 type calendar struct{}
 
 func (calendar) DayOf(at time.Time) supervisiondashboard.Date {
-	return supervisiondashboard.Date(timezone.DateFromTime(at).String())
+	return supervisiondashboard.Date(calendarpkg.DateFromTime(at).String())
 }
 
 func (calendar) Weekday(date supervisiondashboard.Date) time.Weekday {
-	return timezone.Date(date).Weekday()
+	return calendarpkg.Date(date).Weekday()
 }
 
 func (calendar) Clock(at time.Time) string {
-	return *timezone.FormatBerlinClock(&at)
+	return *calendarpkg.FormatBerlinClock(&at)
 }
 
 // parseDay converts the projection's calendar day into the retained
 // signatures' date value.
-func parseDay(date supervisiondashboard.Date) (timezone.Date, error) {
-	return timezone.ParseDate(string(date))
+func parseDay(date supervisiondashboard.Date) (calendarpkg.Date, error) {
+	return calendarpkg.ParseDate(string(date))
 }
 
 // mapSlice converts every element and keeps nil as nil, so a wire field

@@ -20,7 +20,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
@@ -32,6 +31,7 @@ import (
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
 )
@@ -186,7 +186,7 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	}
 	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, svc.PeopleDirectory,
 		reviewScope, func() requestreviewcompose.ReviewDate {
-			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
 		func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
@@ -197,27 +197,27 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 			return svc.Settings.ResolveBool(ctx, reviewsettings.BookingsAuthoritative)
 		},
 		Today: func() requestreviewcompose.ReviewDate {
-			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
 		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
 		Blocks: api.NewStudentHTTPTestPickupReviewBlocks(testpkg.NewDatabase(t, db)),
 	})
 	require.NoError(t, err)
 	careQueue, err := requestreviewcompose.NewCareScheduleQueue(careReviews, func() requestreviewcompose.ReviewDate {
-		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 	})
 	require.NoError(t, err)
 	offeringReviews, err := requestreviewcompose.NewOfferingReviews(db, requestreviewcompose.OfferingReviewDependencies{
 		People: svc.PeopleDirectory,
 		Scope:  reviewScope,
 		Today: func() requestreviewcompose.ReviewDate {
-			return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
 		ObserveCare: func(requestreviewcompose.CareObservation) {}, ObserveTimetable: func(requestreviewcompose.TimetableObservation) {},
 	})
 	require.NoError(t, err)
 	offeringQueue, err := requestreviewcompose.NewOfferingQueue(offeringReviews, func() requestreviewcompose.ReviewDate {
-		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 	})
 	require.NoError(t, err)
 	corrections, err := requestreviewcompose.NewCorrectionLog(db, svc.PeopleDirectory, func(ctx context.Context) bool {
@@ -227,13 +227,13 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	masterQueue, err := requestreviewcompose.NewMasterDataQueue(masterDataReviews)
 	require.NoError(t, err)
 	excusedQueue, err := requestreviewcompose.NewExcusedQueue(svc.ExcusedRequests, func() requestreviewcompose.ReviewDate {
-		return requestreviewcompose.ReviewDate(timezone.DateFromTime(clock()))
+		return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 	})
 	require.NoError(t, err)
 	requestReview, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: masterQueue, CareSchedule: careQueue, Offering: offeringQueue, Excused: excusedQueue},
 		Access: reviewAccess, Students: reviewStudents, FamilyProtection: requestreviewcompose.NewFamilyProtection(svc.PeopleDirectory),
-		Today: func() requestreview.Date { return requestreview.Date(timezone.DateFromTime(clock())) },
+		Today: func() requestreview.Date { return requestreview.Date(calendar.DateFromTime(clock())) },
 	})
 	require.NoError(t, err)
 	// The permanent-deletion routes run the owner workflow (#2710) over the
@@ -370,7 +370,7 @@ func firstClock(clocks []func() time.Time) func() time.Time {
 	return clocks[0]
 }
 
-const studentsTestToday timezone.Date = "2026-08-24"
+const studentsTestToday calendar.Date = "2026-08-24"
 
 func fixedCalendarClock() time.Time {
 	return studentsTestToday.BerlinMidnight().Add(12 * time.Hour)
@@ -475,7 +475,7 @@ func careLifecycleFor(t *testing.T, db *bun.DB, module careplan.CareLifecycle, a
 		BookingsAuthoritative: func(context.Context) (bool, error) {
 			return bookings, nil
 		},
-		Today: func() timezone.Date { return timezone.DateFromTime(now()) },
+		Today: func() calendar.Date { return calendar.DateFromTime(now()) },
 	})
 	require.NoError(t, err)
 	return lifecycle

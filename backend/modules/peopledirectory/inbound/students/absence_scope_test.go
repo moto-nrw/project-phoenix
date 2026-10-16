@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +46,7 @@ func TestDirectAbsenceScope(t *testing.T) {
 						want = http.StatusForbidden
 					}
 					req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
-						"status": status, "dates": []string{timezone.DateFromTime(fixedCalendarClock()).AddDays(1).String()},
+						"status": status, "dates": []string{calendar.DateFromTime(fixedCalendarClock()).AddDays(1).String()},
 					})
 					rr := authExec(t, tc, req, claims, perms)
 					require.Equal(t, want, rr.Code, rr.Body.String())
@@ -74,11 +74,11 @@ func TestDirectAbsenceScopeRestrictsExistingReportsOnNextRequest(t *testing.T) {
 	claims := testutil.TeacherTestClaims(int(account.ID))
 	perms := []string{"users:read", "users:update"}
 	student := testpkg.CreateTestStudent(t, tc.db, "Existing", "Absences", "1a")
-	date := timezone.DateFromTime(fixedCalendarClock()).AddDays(2).String()
+	date := calendar.DateFromTime(fixedCalendarClock()).AddDays(2).String()
 	statusIDs := make(map[string]int64)
 	for i, status := range []string{"sick", "excused", "class_trip"} {
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
-			"status": status, "dates": []string{timezone.DateFromTime(fixedCalendarClock()).AddDays(i + 3).String()},
+			"status": status, "dates": []string{calendar.DateFromTime(fixedCalendarClock()).AddDays(i + 3).String()},
 		}), claims, perms)
 		require.Equal(t, http.StatusCreated, rr.Code, rr.Body.String())
 		var response struct {
@@ -113,7 +113,7 @@ func TestDirectAbsenceScopeRestrictsExistingReportsOnNextRequest(t *testing.T) {
 		"student_ids": []int64{student.ID, other.ID}, "status": "sick", "from": date, "to": date,
 	}), claims, perms)
 	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
-	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), other.ID, timezone.DateFromTime(fixedCalendarClock()), timezone.DateFromTime(fixedCalendarClock()).AddDays(5))
+	rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), other.ID, calendar.DateFromTime(fixedCalendarClock()), calendar.DateFromTime(fixedCalendarClock()).AddDays(5))
 	require.NoError(t, err)
 	require.Empty(t, rows, "denied bulk write must not partially commit")
 
@@ -158,10 +158,10 @@ func TestDirectAbsenceScopeFailsClosed(t *testing.T) {
 				claims.Scope = mode
 			}
 			rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
-				"status": "sick", "dates": []string{timezone.DateFromTime(fixedCalendarClock()).AddDays(1).String()},
+				"status": "sick", "dates": []string{calendar.DateFromTime(fixedCalendarClock()).AddDays(1).String()},
 			}), claims, perms)
 			require.Contains(t, []int{http.StatusForbidden, http.StatusUnauthorized}, rr.Code, rr.Body.String())
-			rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.DateFromTime(fixedCalendarClock()), timezone.DateFromTime(fixedCalendarClock()).AddDays(2))
+			rows, err := tc.resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.DateFromTime(fixedCalendarClock()), calendar.DateFromTime(fixedCalendarClock()).AddDays(2))
 			require.NoError(t, err)
 			require.Empty(t, rows)
 		})

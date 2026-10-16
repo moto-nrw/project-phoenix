@@ -9,7 +9,6 @@ import (
 
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -21,7 +20,7 @@ type dailyDeparture struct {
 	Exception bool
 }
 
-func dailyDepartureForDate(student StudentResponse, date timezone.Date) dailyDeparture {
+func dailyDepartureForDate(student StudentResponse, date calendar.Date) dailyDeparture {
 	if !student.HasFullAccess {
 		return dailyDeparture{}
 	}
@@ -115,7 +114,7 @@ func dailyDepartureMatchesFilter(daily dailyDeparture, filter string) bool {
 // departurePlanDate is the day whose weekday's departure plan applies on
 // date: the Friday before a weekend that follows Friday's plan (#3921), else
 // date itself. A weekday never reads the setting.
-func departurePlanDate(ctx context.Context, date timezone.Date) (timezone.Date, error) {
+func departurePlanDate(ctx context.Context, date calendar.Date) (calendar.Date, error) {
 	weekday, err := calendar.PlanWeekday(ctx, date)
 	if err != nil {
 		return date, err
@@ -126,7 +125,7 @@ func departurePlanDate(ctx context.Context, date timezone.Date) (timezone.Date, 
 // applyDayDepartures loads the Abholart of the listed day (#3945) for every
 // full-access row in one read, before the pickup-rule filter and the
 // pagination run, so both see the day's value and not the weekly plan's.
-func (rs *Resource) applyDayDepartures(ctx context.Context, responses []StudentResponse, date timezone.Date) error {
+func (rs *Resource) applyDayDepartures(ctx context.Context, responses []StudentResponse, date calendar.Date) error {
 	if rs.PickupScheduleService == nil {
 		return nil
 	}

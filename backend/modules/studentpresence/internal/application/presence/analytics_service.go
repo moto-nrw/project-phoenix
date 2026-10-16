@@ -3,7 +3,7 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Analytics and statistics
@@ -76,7 +76,7 @@ func applyLocationMetrics(analytics *DashboardAnalytics, locationData *locationM
 
 // applyDashboardAbsences fills the sick, excused and at-home counts. The
 // absences are optional: a failed count is logged and leaves them empty.
-func (s *service) applyDashboardAbsences(ctx context.Context, analytics *DashboardAnalytics, today timezone.Date, studentsPresent map[int64]bool) {
+func (s *service) applyDashboardAbsences(ctx context.Context, analytics *DashboardAnalytics, today calendar.Date, studentsPresent map[int64]bool) {
 	statusCounts, err := s.countEffectiveAbsencesForDate(ctx, today)
 	if err != nil {
 		s.getLogger().Warn("failed to count effective student absences for dashboard",
@@ -92,7 +92,7 @@ func (s *service) applyDashboardAbsences(ctx context.Context, analytics *Dashboa
 	analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, studentsPresent)
 }
 
-func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date timezone.Date) (studentStatusCounts, error) {
+func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date calendar.Date) (studentStatusCounts, error) {
 	if s.StudentStatusRepo == nil {
 		return studentStatusCounts{}, nil
 	}

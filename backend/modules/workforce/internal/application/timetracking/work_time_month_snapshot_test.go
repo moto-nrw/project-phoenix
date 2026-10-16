@@ -7,11 +7,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -104,7 +103,7 @@ func newSnapshotFixture(t *testing.T) *snapshotFixture {
 	checkOut := checkIn.Add(8 * time.Hour)
 	session := &timetracking.WorkSession{
 		StaffID:     staff.ID,
-		Date:        timezone.NewDate(snapshotYear, time.August, snapshotSessionDay),
+		Date:        calendar.NewDate(snapshotYear, time.August, snapshotSessionDay),
 		Status:      workforce.WorkSessionStatusPresent,
 		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
@@ -152,7 +151,7 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 
 	septemberCarryBefore, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotNextMonth)
 	require.NoError(t, err)
-	balanceBefore, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff, timezone.TodayDate())
+	balanceBefore, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff, calendar.TodayDate())
 	require.NoError(t, err)
 
 	result, err := f.closeSvc.CloseMonth(f.ctx, f.admin, snapshotYear, snapshotMonth, "Monatsabschluss August")
@@ -198,7 +197,7 @@ func TestMonthClose_FreezesBalanceAgainstRetroactiveSessionEdit(t *testing.T) {
 	require.NotNil(t, septemberAfter.CarryInFrozenFromMonth)
 	assert.Equal(t, "2025-08", *septemberAfter.CarryInFrozenFromMonth)
 
-	balanceAfter, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff, timezone.TodayDate())
+	balanceAfter, err := f.monthSvc.GetClosingBalanceAsOf(f.ctx, f.staff, calendar.TodayDate())
 	require.NoError(t, err)
 	assert.Equal(t, balanceBefore, balanceAfter, "the current Stundenkonto is unchanged")
 }
@@ -273,7 +272,7 @@ func TestMonthClose_RejectsUnfinishedMonth(t *testing.T) {
 	t.Parallel()
 
 	f := newSnapshotFixture(t)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	_, err := f.closeSvc.CloseMonth(f.ctx, f.admin, today.Year(), int(today.Month()), "zu früh")
 	require.ErrorIs(t, err, timetracking.ErrMonthNotClosable)
@@ -348,7 +347,7 @@ func TestMonthClose_RejectsAdjustmentInClosedMonth(t *testing.T) {
 	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, timetracking.CreateBalanceAdjustmentRequest{
 		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
-		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
+		EffectiveDate: calendar.NewDate(snapshotYear, time.August, 20),
 		Note:          "Auszahlung im abgeschlossenen Monat",
 	})
 	require.ErrorIs(t, err, timetracking.ErrAdjustmentInvalid)
@@ -369,7 +368,7 @@ func TestMonthClose_RejectedAdjustmentCarriesClosedMonthSentinel(t *testing.T) {
 	_, err = f.adjustSvc.CreateAdjustment(f.ctx, f.staff, f.admin, timetracking.CreateBalanceAdjustmentRequest{
 		Type:          workforce.BalanceAdjustmentTypePayout,
 		MinutesDelta:  -60,
-		EffectiveDate: timezone.NewDate(snapshotYear, time.August, 20),
+		EffectiveDate: calendar.NewDate(snapshotYear, time.August, 20),
 		Note:          "Auszahlung im abgeschlossenen Monat",
 	})
 	require.ErrorIs(t, err, timetracking.ErrAdjustmentInClosedMonth)

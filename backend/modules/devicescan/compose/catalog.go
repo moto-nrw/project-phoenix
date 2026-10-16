@@ -3,10 +3,10 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // activityCatalog binds the activity provisioning of the special rooms to
@@ -102,7 +102,7 @@ func (g groupDirectory) Find(ctx context.Context, id int64) (*ports.Group, error
 // schedule service.
 type pickupPlan struct{ pickups PickupReader }
 
-func (p pickupPlan) Effective(ctx context.Context, studentID int64, day timezone.Date) (*ports.Pickup, error) {
+func (p pickupPlan) Effective(ctx context.Context, studentID int64, day calendar.Date) (*ports.Pickup, error) {
 	effective, err := p.pickups.GetEffectivePickupTimeForDate(ctx, studentID, day)
 	if err != nil {
 		return nil, err

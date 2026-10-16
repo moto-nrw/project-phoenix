@@ -3,8 +3,8 @@ package compose_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestScheduleSubstitutionExternalInterfaceKeepsRefusalCodes(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Fehlercodes")
 	absent := testpkg.CreateTestStaff(t, db, "Ida", "Abwesend")
 	replacement := testpkg.CreateTestStaff(t, db, "Jan", "Vertretung")
-	firstDate := timezone.NewDate(2030, 8, 27)
+	firstDate := calendar.NewDate(2030, 8, 27)
 	secondDate := firstDate.AddDays(1)
 	first := testpkg.CreateTestActivityInstance(t, db, firstDate, room.ID, testpkg.ActivityInstanceOpts{Title: "Erster Tag"})
 	second := testpkg.CreateTestActivityInstance(t, db, secondDate, room.ID, testpkg.ActivityInstanceOpts{Title: "Zweiter Tag"})
@@ -49,7 +49,7 @@ func TestScheduleSubstitutionExternalInterfaceKeepsRefusalCodes(t *testing.T) {
 		ScheduleSubstitution: &substitution.ScheduleSubstitutionAssignment{
 			WholeDays: &substitution.ScheduleWholeDayAssignment{
 				AbsentStaffID: absent.ID, SubstituteStaffID: &replacement.ID,
-				Dates: []timezone.Date{firstDate, secondDate},
+				Dates: []calendar.Date{firstDate, secondDate},
 			},
 		},
 	})
