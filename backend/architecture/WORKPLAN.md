@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 303 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
+Stand 16.10.2026 · Ratchet 302 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -19,9 +19,9 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 10 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
-| [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 2 |
+| [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 1 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 303 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 302 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -77,8 +77,21 @@ Compose-LOC 89.901 → 89.899, Application-Passthroughs 718 → 717, Keys 326 �
 #4078: `modules/peopledirectory/http` gehört zu `people-directory`; `inbound-users`
 entfällt. Seine drei Regeln werden ohne neue Regel gelöscht: Die bestehenden
 People-Directory-Regeln tragen den öffentlichen Vertrag und den Berechtigungsvertrag,
-die stehende Root-Regel den Mount. Inbound-Owner 24 → 23, Regeln 937 → 934;
-Paketpfade, Go-Code, Keys (308), #4078-Keys (10) und Budgets bleiben unverändert.
+die stehende Root-Regel den Mount. Inbound-Owner 24 → 23, Regeln 940 → 937;
+Paketpfade, Go-Code, Keys (307), #4078-Keys (10) und Budgets bleiben unverändert.
+
+#4078: Der Elternportal-HTTP-Adapter gehört zu `parent-portal`; `inbound-parent` entfällt.
+Die Owner-Zuordnung kommt vor der physischen Verschiebung: ADR 0020 verlangt bei einer
+Relocation denselben Owner und dieselben Rollen. Die Verschiebung nach
+`workflows/parentportal/http` folgt als eigener, schuldenneutraler Schnitt.
+Die stehende Root-Reichweite löst den einen #2750-Key `api → parent` auf.
+Laufzeit-Code, Routen, Antworten, Assertions und offene #4073-/#4004-Keys bleiben hier unverändert.
+Der bestehende endliche Parent-HTTP-Epochenschutz folgt nur dem Owner-Namen;
+Selektoren, Scopes und Test-Assertions bleiben gleich. Zehn Regeln entfallen, acht
+gleich enge Nachfolger bleiben. Der Retirement-Nachweis liegt
+in `parent-portal-http-owner-4078.json`; Composition und Budgets bleiben unverändert.
+Nach dem Merge von #4147: Inbound-Owner 23 → 22, Regeln 936 → 934, Keys 303 → 302;
+#2750 2 → 1, #4078 10 → 10 und #4079 15 → 15, Policy-Epoche 51 unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
