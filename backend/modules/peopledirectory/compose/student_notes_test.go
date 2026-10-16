@@ -7,12 +7,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 // These exercise the note card against the real table: the audience predicate
@@ -24,12 +26,12 @@ func notesModule(t *testing.T, db *testpkg.DB) *peopledirectory.Module {
 	return notesModuleWithOwners(t, db, nil)
 }
 
-func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners StudentOwners) *peopledirectory.Module {
+func notesModuleWithOwners(t *testing.T, db *testpkg.DB, owners peoplePorts.StudentOwners) *peopledirectory.Module {
 	return notesModuleWithDeletionAudit(t, db, owners, testStudentNoteDeletionAudit{db: db})
 }
 
 func notesModuleWithDeletionAudit(
-	t *testing.T, db *testpkg.DB, owners StudentOwners, audit StudentNoteDeletionAudit,
+	t *testing.T, db *testpkg.DB, owners peoplePorts.StudentOwners, audit peoplePorts.StudentNoteDeletionAudit,
 ) *peopledirectory.Module {
 	t.Helper()
 	module, err := New(Dependencies{
