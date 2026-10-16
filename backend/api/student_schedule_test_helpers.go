@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // CareScheduleRepositories are the retained schedule repositories served by
@@ -15,6 +16,6 @@ func NewCareScheduleRepositories(capability careplan.Capability) CareScheduleRep
 	return timetableCompose.NewCareScheduleRepositories(NewCarePlanRows(capability))
 }
 
-func NewPickupNoteRepository(capability careplan.Capability) timetableCompose.CarePickupNoteRows {
+func NewPickupNoteRepository(capability careplan.Capability) timetablePorts.CarePickupNoteRows {
 	return timetableCompose.NewCarePickupNoteRows(NewCarePlanRows(capability))
 }
