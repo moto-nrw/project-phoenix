@@ -6,6 +6,7 @@ import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanPostgres "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/uptrace/bun"
 )
@@ -147,11 +148,11 @@ func (l ParentChildLinks) ListByAccount(ctx context.Context, accountID int64) ([
 // NewParentChildQueries exposes the retained projection behind the owner's
 // public read capability and the supplied security policy.
 func NewParentChildQueries(source parentModels.ChildRepository, granted func(any) bool) careplan.ParentPortalChildQueries {
-	return application.NewParentChildQueries(source, granted)
+	return careplanPostgres.NewParentChildQueries(source, granted)
 }
 func NewParentPhaseQueries(source parentModels.EnrollablePhaseRepository) careplan.ParentPortalPhaseQueries {
-	return application.NewParentPhaseQueries(source)
+	return careplanPostgres.NewParentPhaseQueries(source)
 }
 func NewParentEnrollmentQueries(source parentModels.EnrollmentRequestRepository) careplan.ParentPortalEnrollmentQueries {
-	return application.NewParentEnrollmentQueries(source)
+	return careplanPostgres.NewParentEnrollmentQueries(source)
 }

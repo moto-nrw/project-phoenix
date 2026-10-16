@@ -16,7 +16,8 @@
     "workflows/parentportal/care",
     "workflows/parentportal/messaging",
     "workflows/parentportal/compose",
-    "workflows/parentportal/http"
+    "workflows/parentportal/http",
+    "modules/careplan/internal/adapters/postgres"
   ],
   "affected_tables": [
     "None: keys, values, defaults, SQL, schema and tenant/relationship scoping are unchanged."
@@ -28,20 +29,21 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/compose|github.com/moto-nrw/project-phoenix/models/parent",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/models/parent"
   ],
-  "atomic_cutover": "Replace the five models/parent edges with workflow-owned DTOs and read ports. Care Plan public query contracts contain typed permission facts and calendar.Date, not persistence records or map[string]any. Its application adapters convert the retained projections using the required root-supplied Security Runtime predicate. The root translates public values to the consumer values; production and existing typed fixture roots assemble the same capability. Existing person-name/soft-delete and existing-student audience projection rules move from compose to the same owner application, preserving sorting, contexts and queries. No Go package relocation, new role, rule, owner or grant. Admin units of work, relationship checks, routes, JSON fields, redaction facts, nil/empty/error semantics and inclusive final care day remain. The HTTP response seam retains its existing date string type: the new calendar.Date domain values convert explicitly so an unset date stays an empty wire string rather than changing to null. A regression covers unset/valid/omitted dates. Keys218->213; #4073 40->35; rules902 unchanged; composition1657 unchanged; Care Plan compose4509->4333, Portal compose507->506, total67586->67409. The two measured compose registers and total shrink accordingly.",
+  "atomic_cutover": "Replace the five models/parent edges with workflow-owned DTOs and read ports. Care Plan public query contracts contain typed permission facts and calendar.Date, not persistence records or map[string]any. Its owned Postgres adapters convert the retained projections using the required root-supplied Security Runtime predicate. The root translates public values to the consumer values; production and existing typed fixture roots assemble the same capability. Existing person-name/soft-delete and existing-student audience projection rules move from compose to the same owner application, preserving sorting, contexts and queries. No Go package relocation, new role, rule, owner or grant. Admin units of work, relationship checks, routes, JSON fields, redaction facts, nil/empty/error semantics and inclusive final care day remain. The HTTP response seam retains its existing date string type: the new calendar.Date domain values convert explicitly so an unset date stays an empty wire string rather than changing to null. A regression covers unset/valid/omitted dates. Keys218->213; #4073 40->35; rules902 unchanged; composition1657 unchanged; Care Plan compose4509->4334, Portal compose507->506, total67586->67410. The two measured compose registers and total shrink accordingly.",
   "tests": [
     "Pinned private-cache architecture check and validate-ticket --all --base-ref 175925da89e07003a338d47d72dcd6bc21a1b7a5; five retirements require coverage.",
     "Existing full portal/Care/HTTP, Care Plan compose/integration/application and API/router suites, with only type/import/root-binding repairs to test setup and date constructors. Assertions and values preserved.",
     "New authority-delegation, real shared stored-value policy (nil, bool, non-bool, zero, typed nil), JSON/date parity, redaction fact, context/account, nil/empty/error boundary tests.",
-    "Full non-fast scripts/test-changed.sh origin/development and backend golangci-lint; no allowlist, timeout, fixture or expected-result weakening."
+    "Full non-fast scripts/test-changed.sh origin/development and backend golangci-lint; no allowlist, timeout, fixture or expected-result weakening.",
+    "TestModulePassthroughRatchet: application/compose budget stays300; record-to-public codecs live in the existing Postgres adapter, while application owns person/audience policy. No ratchet increase."
   ],
   "runtime_evidence": {
     "source": "Local port/projection migration on development 175925da89e07003a338d47d72dcd6bc21a1b7a5, owned localhost test database. No production/staging requests or latency benchmark.",
     "sources": [
       "backend/modules/careplan/parent_portal_reads.go",
       "backend/modules/careplan/internal/application/parent_portal_people.go",
-      "backend/modules/careplan/internal/application/parent_portal_reads.go",
-      "backend/modules/careplan/internal/application/parent_portal_reads_test.go",
+      "backend/modules/careplan/internal/adapters/postgres/parent_portal_reads.go",
+      "backend/modules/careplan/internal/adapters/postgres/parent_portal_reads_test.go",
       "backend/modules/careplan/integration/parent_portal_read_policy_test.go",
       "backend/api/parent_portal_read_ports.go",
       "backend/api/parent_portal_read_ports_test.go",
@@ -50,7 +52,7 @@
       "backend/workflows/parentportal/care_ended_child_test.go"
     ],
     "workload": "Existing account-scoped child/enrollment, soft-deleted-person/audience eligibility, relationship denial, care-ended write guards and redaction suites; new boundary and policy tests.",
-    "thresholds": "Five exact retirements, no new import debt, grants or composition target; identical JSON/date values and explicit relationship permissions; compose surfaces shrink177 LOC.",
+    "thresholds": "Five exact retirements, no new import debt, grants or composition target; identical JSON/date values and explicit relationship permissions; compose surfaces shrink176 LOC.",
     "affected_rows": {
       "state": "not_applicable",
       "reason": "Typed in-process projections and port bindings only. Retained SQL, tenant/admin transactions, filters, sorting, lock order, table ownership, workers and routing are unchanged. No database row rewrite or extra query is introduced."

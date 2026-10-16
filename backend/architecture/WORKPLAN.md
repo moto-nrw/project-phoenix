@@ -5,7 +5,7 @@ Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes s
 
 Stand 16.10.2026 · Ratchet 213 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-67.409 in `compose`
+67.410 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -28,11 +28,12 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 #4073: Kind-, Phasen- und Einschreibungsleseports geben Workflow-eigene DTOs zurück.
 Die Root übersetzt öffentliche Care-Plan-Projektionen; gespeicherte Berechtigungswerte
 bleiben bei Security Runtimes gemeinsamem Prädikat. Personenfilter und Audience-Regeln
-liegen nun in Care Plans Application statt in Compose. Admin-Transaktionen, Beziehungsschutz,
+liegen nun in Care Plans Application statt in Compose; Record-Codecs liegen im eigenen
+Postgres-Adapter. Admin-Transaktionen, Beziehungsschutz,
 Fehler, Nil-/Leerslices, Kalenderdaten, JSON und Statusgrund-Redaktion bleiben gleich.
 Fünf `models/parent`-Keys fallen: 218 → 213, #4073 40 → 35, Regeln 902 unverändert,
-Composition 1.657 unverändert. Compose: Care Plan 4.509 → 4.333, Parent Portal 507 → 506,
-gesamt 67.586 → 67.409 LOC; beide Register und die Summe sinken entsprechend.
+Composition 1.657 unverändert. Compose: Care Plan 4.509 → 4.334, Parent Portal 507 → 506,
+gesamt 67.586 → 67.410 LOC; beide Register und die Summe sinken entsprechend.
 Keine neue Freigabe, Klassifizierung, Rolle oder Paketverschiebung.
 
 #4073: Kind-Ereignisse und Messaging-Aktivierungsprüfung laufen über eigene Workflow-Ports.

@@ -1,4 +1,4 @@
-package application
+package postgres
 
 import (
 	"context"
@@ -8,7 +8,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// NewParentChildQueries resolves stored permission values with the policy
+// NewParentChildQueries adapts retained query records to public projections.
+// It resolves stored permission values with the policy
 // supplied by the root, never by guessing truthiness in the projection.
 func NewParentChildQueries(source parentModels.ChildRepository, granted func(any) bool) careplan.ParentPortalChildQueries {
 	if granted == nil {
