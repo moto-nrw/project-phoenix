@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 2731
+const moduleLegacyBudgetTotal = 2444
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -246,8 +246,9 @@ var moduleComposeBudgets = map[string]int{
 var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
-	// No ticket today.
-	"modules/emergencysnapshot/legacy": 298,
+	// #4077 moved the adapters into the root; the German name order stays
+	// until #4086 settles internal/collation.
+	"modules/emergencysnapshot/legacy": 11,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 517,
 	// No ticket today. Two lines under the first seed: #3427 removed the

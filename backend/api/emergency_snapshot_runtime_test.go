@@ -1,4 +1,4 @@
-package legacy
+package api
 
 import (
 	"context"
@@ -10,10 +10,9 @@ import (
 	"testing"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -34,9 +33,9 @@ func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	require.NoError(t, err)
 	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
-	query, err := New(Sources{Presence: newPresenceModule(t, db), PresenceMode: fakeMode{mode: "detailed"},
-		Students: newOwnerStudentSource(t, db), Persons: people, Contacts: usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db)),
-		Rooms: rooms, Renderer: listexport.NewService()})
+	query, err := newEmergencySnapshot(emergencySnapshotSources{Presence: emergencyPresenceModule(t, db), PresenceMode: emergencyFakeMode{mode: "detailed"},
+		Students: newEmergencyOwnerStudents(t, db), Persons: people, Contacts: peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{}),
+		Rooms: rooms, Renderer: lists.NewRendererService()})
 	require.NoError(t, err)
 	var postgres string
 	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))

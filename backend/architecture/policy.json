@@ -6049,17 +6049,6 @@
       "target_role": "compose"
     },
     {
-      "id": "emergency-snapshot.adapter-test.presence-compose",
-      "description": "Emergency snapshot adapter tests construct the Student Presence facade for migrated visit and attendance records (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
       "description": "Construct and connect the Student Presence owner capability.",
       "scopes": [
@@ -7046,39 +7035,6 @@
       "source_role": "e2e-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "emergency-snapshot.from.facilities",
-      "description": "The emergency snapshot adapter binds the room-name port to the public facilities query seam (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
-      "id": "emergency-snapshot.from.people-directory",
-      "description": "The emergency snapshot adapter binds the person port to the public people-directory query seam (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "emergency-snapshot.from.student-presence",
-      "description": "The emergency snapshot adapter binds the presence ports to the public student-presence query seam (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "composition.external-test.domain.contract",
@@ -11955,28 +11911,6 @@
       "source_owner": "staff-offboarding",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "emergency-snapshot.adapter-test.people-directory-compose",
-      "description": "Emergency snapshot adapter tests construct the People Directory facade for the two-tenant RLS proof (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "emergency-snapshot.adapter-test.facilities-compose",
-      "description": "Emergency snapshot adapter tests construct the Facilities facade for the two-tenant RLS proof (#2704).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "emergency-snapshot",
-      "source_role": "adapter-test",
-      "target_owner": "facilities",
-      "target_role": "compose"
     },
     {
       "id": "emergency-snapshot.http.common",
