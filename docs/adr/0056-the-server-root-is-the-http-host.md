@@ -144,3 +144,23 @@ adds no rule; the reclassified packages fall under the existing reach.
   `api`: they test the root's rate-limit wiring.
 - `api -> api/operator`, the last #4064 key, is no longer blocked: the
   operator router is cross-owner glue the host may mount.
+
+## Amendment of 2026-10-16
+
+Point 4 named a `scheduler-runtime`/`contract` package. [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067)
+places the Worker's contract in `modules/schedulerruntime/ports` with the
+`port` role instead. The package holds exactly what a port role is for: the
+consumer-owned ports the Worker declares onto the owners
+([ADR 0058](0058-owner-dependencies-form-a-dag.md) point 2), the results they
+report and the dependency struct the root fills. The `contract` role would
+have needed a new grant from the Worker's `application` role into its own
+`contract`, which no standing reach covers; the Worker's own `port` is
+already admitted by `platform.application-port`. Policy epoch 51 adds the
+three standing ADR 0053 reaches the `port` role was missing for platform
+owners, accepted by the existing acceptors: `root-composition.reach.platform.port`
+(point 2), `owner-compose.platform.port` (point 3) and
+`own-test.platform.port` (point 7.1). The constructors still come through
+`modules/schedulerruntime/compose`; it stays within its LOC budget because
+the retention run is built inside `NewWorker` and the root implements the
+rollover runner itself. Neither a grant into `application` nor a `public`
+reclassification is used, as point 4 requires.

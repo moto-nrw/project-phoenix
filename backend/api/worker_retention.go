@@ -3,7 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -13,19 +12,20 @@ import (
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // workerRetention is the retention capability of the nightly cleanup (#3950):
-// the run over the owners' deletion steps and their deletion log, and the
-// ledger of each school's last successful run.
+// the owners' deletion steps and their deletion log, which the Worker runs,
+// and the ledger of each school's last successful run.
 type workerRetention struct {
-	run  scheduler.RetentionRun
-	runs scheduler.CleanupRunLedger
+	steps []schedulerPorts.RetentionStep
+	log   schedulerPorts.RetentionLog
+	runs  schedulerPorts.CleanupRunLedger
 }
 
 // Data kinds of the nightly retention steps. Each one is the deletion type
@@ -118,7 +118,7 @@ type retentionOwners struct {
 	exportTransfers exportTransferModule.JournalRetention
 }
 
-func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRetention, error) {
+func newWorkerRetention(owners retentionOwners) (workerRetention, error) {
 	if owners.deletionLog == nil || owners.settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
@@ -126,54 +126,54 @@ func newWorkerRetention(owners retentionOwners, logger *slog.Logger) (workerRete
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
 	deletions := owners.deletionLog
-	run, err := scheduler.NewRetentionRun(retentionSteps(owners), func(ctx context.Context, kind string, outcome scheduler.RetentionOutcome) error {
-		return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
-	}, logger)
-	if err != nil {
-		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
-	}
-	return workerRetention{run: run, runs: schedulerRuntimeCompose.NewCleanupRunLedger()}, nil
+	return workerRetention{
+		steps: retentionSteps(owners),
+		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
+			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
+		},
+		runs: schedulerRuntimeCompose.NewCleanupRunLedger(),
+	}, nil
 }
 
 // retentionSteps lists the deletions of the nightly cleanup of one school.
 // A missing owner leaves its step out.
-func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
-	var steps []scheduler.RetentionStep
+func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
+	var steps []schedulerPorts.RetentionStep
 	if owners.unregisteredTagScans != nil {
 		steps = append(steps, ownerRetentionStep(retentionUnregisteredTagScans, owners.unregisteredTagScans.DeleteUnregisteredTagScansAfterRetention))
 	}
 	if owners.statusDays != nil {
 		statusDays := owners.statusDays
-		steps = append(steps, scheduler.RetentionStep{
+		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: retentionStatusDays,
-			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 				days, err := retentionDays(ctx, owners.settings, settingsModule.KeyGDPRStatusDayRetentionDays)
 				if err != nil {
-					return scheduler.RetentionOutcome{}, err
+					return schedulerPorts.RetentionOutcome{}, err
 				}
 				deleted, err := statusDays.DeleteStudentStatusDaysBefore(ctx, carePlanModule.Date(retentionCutoff(days)))
-				return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 			},
 		})
 	}
 	if owners.parentMessages != nil {
 		messages := owners.parentMessages
-		steps = append(steps, scheduler.RetentionStep{
+		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: retentionParentMessages,
-			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 				result, err := messages.CleanupExpiredParentMessages(ctx)
-				return scheduler.RetentionOutcome{Deleted: result.MessagesDeleted + result.ThreadsDeleted, RetentionDays: result.RetentionDays}, err
+				return schedulerPorts.RetentionOutcome{Deleted: result.MessagesDeleted + result.ThreadsDeleted, RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}
 	if owners.settledEnrollments != nil {
 		enrollments := owners.settledEnrollments
-		steps = append(steps, scheduler.RetentionStep{
+		steps = append(steps, schedulerPorts.RetentionStep{
 			Kind: retentionSettledEnrollments,
-			Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+			Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 				result, err := enrollments.CleanupSettledEnrollments(ctx)
 				deleted := result.DeletedRequests + int(result.DeletedLateInvites)
-				return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: result.RetentionDays}, err
+				return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: result.RetentionDays}, err
 			},
 		})
 	}
@@ -197,8 +197,8 @@ func retentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 
 // protocolRetentionSteps are the fixed-window deletions of the protocols of
 // #4044: one step per protocol, so each logs its own data kind.
-func protocolRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
-	var steps []scheduler.RetentionStep
+func protocolRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
+	var steps []schedulerPorts.RetentionStep
 	if owners.auditLedgers != nil {
 		ledgers := owners.auditLedgers
 		for _, kind := range auditProtocols {
@@ -218,8 +218,8 @@ func protocolRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
 
 // cleanupJobRetentionSteps are the fixed-window deletions of the technical
 // remains (#4046).
-func cleanupJobRetentionSteps(owners retentionOwners) []scheduler.RetentionStep {
-	var steps []scheduler.RetentionStep
+func cleanupJobRetentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
+	var steps []schedulerPorts.RetentionStep
 	if owners.fileCleanups != nil {
 		steps = append(steps, ownerRetentionStep(retentionFileCleanups, owners.fileCleanups.DeleteFinishedCleanups))
 	}
@@ -241,12 +241,12 @@ func cleanupJobRetentionSteps(owners retentionOwners) []scheduler.RetentionStep 
 // ownerRetentionStep runs an owner deletion that reports its deleted rows and
 // the window it applied: the same for every school, or the school's window
 // the owner resolves itself.
-func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, int, error)) scheduler.RetentionStep {
-	return scheduler.RetentionStep{
+func ownerRetentionStep(kind string, deleteExpired func(context.Context) (int, int, error)) schedulerPorts.RetentionStep {
+	return schedulerPorts.RetentionStep{
 		Kind: kind,
-		Run: func(ctx context.Context) (scheduler.RetentionOutcome, error) {
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
 			deleted, days, err := deleteExpired(ctx)
-			return scheduler.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
+			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 		},
 	}
 }

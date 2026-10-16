@@ -10,6 +10,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -280,7 +282,7 @@ func TestRunCleanupJobsRejectsMissingRuntime(t *testing.T) {
 
 	auth := &fakeAuthCleanup{}
 	var outcomes []string
-	s := newScheduler(WorkerDependencies{
+	s := newScheduler(ports.WorkerDependencies{
 		Logger:      slog.Default(),
 		AuthCleanup: auth,
 		TenantRuntimeObserver: func(entryPoint, outcome string) {
@@ -560,13 +562,13 @@ func TestScheduler_DisabledByEnvVars(t *testing.T) {
 func TestAuthCleanup_InterfaceCompliance(t *testing.T) {
 	t.Parallel()
 	// Verify fakeAuthCleanup implements AuthCleanup
-	var _ AuthCleanup = &fakeAuthCleanup{}
+	var _ ports.AuthCleanup = &fakeAuthCleanup{}
 }
 
 func TestInvitationCleaner_InterfaceCompliance(t *testing.T) {
 	t.Parallel()
 	// Verify fakeInvitationCleaner implements InvitationCleaner
-	var _ InvitationCleaner = &fakeInvitationCleaner{}
+	var _ ports.InvitationCleaner = &fakeInvitationCleaner{}
 }
 
 // =============================================================================
@@ -893,7 +895,7 @@ func TestScheduleSessionCleanupTask_Disabled(t *testing.T) {
 type mockActiveService struct {
 	mu                       sync.Mutex
 	endDailySessionsCalls    int
-	endDailySessionsResult   *DailySessionsEnded
+	endDailySessionsResult   *ports.DailySessionsEnded
 	endDailySessionsErr      error
 	cleanupAbandonedCalls    int
 	cleanupAbandonedResult   int
@@ -901,7 +903,7 @@ type mockActiveService struct {
 	cleanupAbandonedDuration time.Duration
 }
 
-func (m *mockActiveService) EndDailySessions(_ context.Context) (*DailySessionsEnded, error) {
+func (m *mockActiveService) EndDailySessions(_ context.Context) (*ports.DailySessionsEnded, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.endDailySessionsCalls++
@@ -923,29 +925,29 @@ func (m *mockActiveService) CleanupAbandonedSessions(_ context.Context, olderTha
 type mockCleanupService struct {
 	mu               sync.Mutex
 	cleanupCalls     int
-	cleanupResult    *ExpiredVisitCleanup
+	cleanupResult    *ports.ExpiredVisitCleanup
 	cleanupErr       error
 	attendanceCalls  int
-	attendanceResult *StaleAttendanceCleanup
+	attendanceResult *ports.StaleAttendanceCleanup
 	attendanceErr    error
 }
 
-func (m *mockCleanupService) CleanupExpiredVisits(_ context.Context) (*ExpiredVisitCleanup, error) {
+func (m *mockCleanupService) CleanupExpiredVisits(_ context.Context) (*ports.ExpiredVisitCleanup, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.cleanupCalls++
 	return m.cleanupResult, m.cleanupErr
 }
 
-func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*StaleAttendanceCleanup, error) {
+func (m *mockCleanupService) CleanupStaleAttendance(_ context.Context) (*ports.StaleAttendanceCleanup, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.attendanceCalls++
 	return m.attendanceResult, m.attendanceErr
 }
 
-func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*StaleSupervisorCleanup, error) {
-	return &StaleSupervisorCleanup{Success: true}, nil
+func (m *mockCleanupService) CleanupStaleSupervisors(_ context.Context) (*ports.StaleSupervisorCleanup, error) {
+	return &ports.StaleSupervisorCleanup{Success: true}, nil
 }
 
 // =============================================================================
@@ -956,7 +958,7 @@ func TestExecuteSessionEndForTenant_Success(t *testing.T) {
 	t.Parallel()
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &DailySessionsEnded{
+		endDailySessionsResult: &ports.DailySessionsEnded{
 			SessionsEnded:    5,
 			VisitsEnded:      20,
 			SupervisorsEnded: 3,
@@ -1005,7 +1007,7 @@ func TestExecuteSessionEndForTenant_WithErrors(t *testing.T) {
 	t.Parallel()
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &DailySessionsEnded{
+		endDailySessionsResult: &ports.DailySessionsEnded{
 			SessionsEnded:    5,
 			VisitsEnded:      20,
 			SupervisorsEnded: 3,
@@ -1037,7 +1039,7 @@ func TestExecuteSessionEndForTenant_WithManyErrors(t *testing.T) {
 	}
 
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &DailySessionsEnded{
+		endDailySessionsResult: &ports.DailySessionsEnded{
 			SessionsEnded: 5,
 			Success:       true,
 			Errors:        errors,
@@ -1081,7 +1083,7 @@ func TestCheckAndRunSessionEnd_AlreadyRunning(t *testing.T) {
 func TestExecuteSessionEndForTenant_CustomTimeout(t *testing.T) {
 	t.Parallel()
 	activeSvc := &mockActiveService{
-		endDailySessionsResult: &DailySessionsEnded{
+		endDailySessionsResult: &ports.DailySessionsEnded{
 			SessionsEnded: 5,
 			Success:       true,
 		},
@@ -1380,12 +1382,12 @@ func TestScheduleSessionCleanupTask_DefaultEnabled(t *testing.T) {
 
 func TestMockActiveService_ImplementsInterface(t *testing.T) {
 	t.Parallel()
-	var _ SessionMaintenance = &mockActiveService{}
+	var _ ports.SessionMaintenance = &mockActiveService{}
 }
 
 func TestMockCleanupService_ImplementsInterface(t *testing.T) {
 	t.Parallel()
-	var _ PresenceCleanup = &mockCleanupService{}
+	var _ ports.PresenceCleanup = &mockCleanupService{}
 }
 
 // =============================================================================
@@ -1396,7 +1398,7 @@ func TestRunCleanupTask_DefaultScheduleTime(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{
+			cleanupResult: &ports.ExpiredVisitCleanup{
 				StudentsProcessed: 5,
 				RecordsDeleted:    25,
 				Success:           true,
@@ -1430,7 +1432,7 @@ func TestRunCleanupTask_ExecutesOnSchedule(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{
+			cleanupResult: &ports.ExpiredVisitCleanup{
 				StudentsProcessed: 10,
 				RecordsDeleted:    100,
 				Success:           true,
@@ -1472,7 +1474,7 @@ func TestRunCleanupTask_StopsOnDone(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		cleanupSvc := &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{Success: true},
+			cleanupResult: &ports.ExpiredVisitCleanup{Success: true},
 		}
 
 		s := unitScheduler(&Scheduler{
@@ -1507,7 +1509,7 @@ func TestRunSessionEndTask_ExecutesOnSchedule(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
-			endDailySessionsResult: &DailySessionsEnded{
+			endDailySessionsResult: &ports.DailySessionsEnded{
 				SessionsEnded:    5,
 				VisitsEnded:      20,
 				SupervisorsEnded: 3,
@@ -1547,7 +1549,7 @@ func TestRunSessionEndTask_StopsOnDone(t *testing.T) {
 	t.Parallel()
 	synctest.Test(t, func(t *testing.T) {
 		activeSvc := &mockActiveService{
-			endDailySessionsResult: &DailySessionsEnded{Success: true},
+			endDailySessionsResult: &ports.DailySessionsEnded{Success: true},
 		}
 
 		s := unitScheduler(&Scheduler{
@@ -1785,7 +1787,7 @@ func TestExecuteCleanupForTenant_ReturnsTrueOnSuccess(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{},
 		},
 		logger: slog.Default()})
 
@@ -1797,7 +1799,7 @@ func TestExecuteCleanupForTenant_ReturnsFalseOnFeedbackFailure(t *testing.T) {
 	t.Parallel()
 	wantErr := errors.New("feedback database unavailable")
 	s := unitScheduler(&Scheduler{
-		cleanupService:  &mockCleanupService{cleanupResult: &ExpiredVisitCleanup{}},
+		cleanupService:  &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{}},
 		feedbackCleaner: &fakeFeedbackCleaner{err: wantErr},
 		logger:          slog.Default(),
 	})
@@ -1810,7 +1812,7 @@ func TestExecuteCleanupForTenant_AttendanceError(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{},
+			cleanupResult: &ports.ExpiredVisitCleanup{},
 			attendanceErr: errors.New("attendance db error"),
 		},
 		logger: slog.Default()})
@@ -1825,8 +1827,8 @@ func TestExecuteCleanupForTenant_AttendancePartialFailure(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{},
-			attendanceResult: &StaleAttendanceCleanup{
+			cleanupResult: &ports.ExpiredVisitCleanup{},
+			attendanceResult: &ports.StaleAttendanceCleanup{
 				Success:       false,
 				RecordsClosed: 3,
 				Errors:        []string{"record 1 failed", "record 2 failed"},
@@ -1843,8 +1845,8 @@ func TestExecuteCleanupForTenant_AttendanceSuccess(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{},
-			attendanceResult: &StaleAttendanceCleanup{
+			cleanupResult: &ports.ExpiredVisitCleanup{},
+			attendanceResult: &ports.StaleAttendanceCleanup{
 				Success:          true,
 				RecordsClosed:    5,
 				StudentsAffected: 3,
@@ -1861,8 +1863,8 @@ func TestExecuteCleanupForTenant_AttendanceNoRecords(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult: &ExpiredVisitCleanup{},
-			attendanceResult: &StaleAttendanceCleanup{
+			cleanupResult: &ports.ExpiredVisitCleanup{},
+			attendanceResult: &ports.StaleAttendanceCleanup{
 				Success:       true,
 				RecordsClosed: 0,
 			},
@@ -1878,7 +1880,7 @@ func TestExecuteCleanupForTenant_AttendanceNilResult(t *testing.T) {
 
 	s := unitScheduler(&Scheduler{
 		cleanupService: &mockCleanupService{
-			cleanupResult:    &ExpiredVisitCleanup{},
+			cleanupResult:    &ports.ExpiredVisitCleanup{},
 			attendanceResult: nil,
 		},
 		logger: slog.Default()})
@@ -2052,7 +2054,7 @@ func (f *fakeEmailChangeCleaner) CleanupOperatorEmailChanges(ctx context.Context
 
 func TestEmailChangeTokenCleaner_InterfaceCompliance(t *testing.T) {
 	t.Parallel()
-	var _ EmailChangeTokenCleaner = &fakeEmailChangeCleaner{}
+	var _ ports.EmailChangeTokenCleaner = &fakeEmailChangeCleaner{}
 }
 
 func TestBuildCleanupJobs_WithEmailChangeCleaner(t *testing.T) {
@@ -2101,10 +2103,10 @@ type fakeMaterializer struct {
 	lastTo           calendar.Date
 	lastWeeksAhead   int
 	returnErr        error
-	returnResult     *MaterializationRun
+	returnResult     *ports.MaterializationRun
 }
 
-func (f *fakeMaterializer) MaterializeScheduledWindow(_ context.Context, from, to calendar.Date) (*MaterializationRun, error) {
+func (f *fakeMaterializer) MaterializeScheduledWindow(_ context.Context, from, to calendar.Date) (*ports.MaterializationRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
@@ -2116,7 +2118,7 @@ func (f *fakeMaterializer) MaterializeScheduledWindow(_ context.Context, from, t
 	if f.returnResult != nil {
 		return f.returnResult, nil
 	}
-	return &MaterializationRun{}, nil
+	return &ports.MaterializationRun{}, nil
 }
 
 func (f *fakeMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int) (calendar.Date, calendar.Date) {
@@ -2325,7 +2327,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{
-		returnResult: &MaterializationRun{
+		returnResult: &ports.MaterializationRun{
 			InstancesCreated: 7,
 			CandidatesRaced:  2,
 			DurationMS:       123,
@@ -2364,7 +2366,7 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 	// When the result has zero created and zero raced, the success info log
 	// is suppressed — but the call still counts and the today-mark is set.
 	m := &fakeMaterializer{
-		returnResult: &MaterializationRun{
+		returnResult: &ports.MaterializationRun{
 			InstancesCreated: 0,
 			CandidatesRaced:  0,
 		},
@@ -2422,7 +2424,7 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 	// Triggers the "successful completion" info log branch where
 	// InstancesCreated==0 but CandidatesRaced>0.
 	m := &fakeMaterializer{
-		returnResult: &MaterializationRun{
+		returnResult: &ports.MaterializationRun{
 			CandidatesRaced: 4,
 			DurationMS:      55,
 		},

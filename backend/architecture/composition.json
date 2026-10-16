@@ -46,16 +46,6 @@
   "constructor_calls": [
     {
       "scope": "production",
-      "file": "api/server.go",
-      "declaration": "newWorker",
-      "target": "services/scheduler.NewWorker",
-      "lines": [
-        262
-      ],
-      "tables": []
-    },
-    {
-      "scope": "production",
       "file": "cmd/serve.go",
       "declaration": "runServeRoot",
       "target": "api.WithRuntime",
@@ -91,7 +81,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        53
+        55
       ],
       "tables": []
     },
@@ -101,7 +91,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        45
+        47
       ],
       "tables": []
     },
@@ -111,7 +101,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        76
+        78
       ],
       "tables": []
     },
@@ -121,8 +111,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        92,
-        103
+        94,
+        105
       ],
       "tables": []
     }

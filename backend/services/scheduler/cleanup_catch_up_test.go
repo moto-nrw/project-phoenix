@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -76,7 +78,7 @@ func (c *cleanupClock) Set(now time.Time) {
 
 // catchUpScheduler is one Worker process whose timetable cleanup runs at
 // 02:00 and whose last successful runs live in runs.
-func catchUpScheduler(runs CleanupRunLedger, clock *cleanupClock, cleanup *fakeTimetableCleanup) *Scheduler {
+func catchUpScheduler(runs ports.CleanupRunLedger, clock *cleanupClock, cleanup *fakeTimetableCleanup) *Scheduler {
 	return unitScheduler(&Scheduler{
 		logger:           slog.Default(),
 		timetableCleanup: cleanup,
@@ -320,7 +322,7 @@ func TestNightlyCleanupWithoutAStoredRunWaitsForItsMinute(t *testing.T) {
 
 type recordedRetention struct {
 	kind    string
-	outcome RetentionOutcome
+	outcome ports.RetentionOutcome
 }
 
 func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T) {
@@ -330,7 +332,7 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 	runs := newFakeCleanupRuns()
 	s := unitScheduler(&Scheduler{
 		logger:         slog.Default(),
-		cleanupService: &mockCleanupService{cleanupResult: &ExpiredVisitCleanup{Success: true}},
+		cleanupService: &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
 		cleanupRuns:    runs,
 		cleanupClock:   func() time.Time { return berlin(14, 2, 0) },
 		settings: &fakeSettingsResolver{
@@ -338,14 +340,14 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 			stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
 		},
-		retention: mustRetentionRun(t, []RetentionStep{
-			{Kind: "first_retention", Run: func(context.Context) (RetentionOutcome, error) {
-				return RetentionOutcome{Deleted: 3, RetentionDays: 90}, nil
+		retention: mustRetentionRun(t, []ports.RetentionStep{
+			{Kind: "first_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
+				return ports.RetentionOutcome{Deleted: 3, RetentionDays: 90}, nil
 			}},
-			{Kind: "second_retention", Run: func(context.Context) (RetentionOutcome, error) {
-				return RetentionOutcome{RetentionDays: 365}, nil
+			{Kind: "second_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
+				return ports.RetentionOutcome{RetentionDays: 365}, nil
 			}},
-		}, func(_ context.Context, kind string, outcome RetentionOutcome) error {
+		}, func(_ context.Context, kind string, outcome ports.RetentionOutcome) error {
 			logged = append(logged, recordedRetention{kind: kind, outcome: outcome})
 			return nil
 		}),
@@ -353,7 +355,7 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 
 	s.checkAndRunCleanup(context.Background(), &ScheduledTask{Name: "visit-cleanup"})
 
-	assert.Equal(t, []recordedRetention{{kind: "first_retention", outcome: RetentionOutcome{Deleted: 3, RetentionDays: 90}}}, logged,
+	assert.Equal(t, []recordedRetention{{kind: "first_retention", outcome: ports.RetentionOutcome{Deleted: 3, RetentionDays: 90}}}, logged,
 		"only a step that deleted something writes a deletion-log entry")
 	_, ok := runs.last("visit-cleanup")
 	assert.True(t, ok)
@@ -366,7 +368,7 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 	laterStepRan := false
 	s := unitScheduler(&Scheduler{
 		logger:         slog.Default(),
-		cleanupService: &mockCleanupService{cleanupResult: &ExpiredVisitCleanup{Success: true}},
+		cleanupService: &mockCleanupService{cleanupResult: &ports.ExpiredVisitCleanup{Success: true}},
 		cleanupRuns:    runs,
 		cleanupClock:   func() time.Time { return berlin(14, 2, 0) },
 		settings: &fakeSettingsResolver{
@@ -374,15 +376,15 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 			stringValues: map[string]string{settingDataCleanupTime: "02:00"},
 			intValues:    map[string]int{settingDataCleanupTimeoutMinutes: 30},
 		},
-		retention: mustRetentionRun(t, []RetentionStep{
-			{Kind: "failing_retention", Run: func(context.Context) (RetentionOutcome, error) {
-				return RetentionOutcome{}, errors.New("delete failed")
+		retention: mustRetentionRun(t, []ports.RetentionStep{
+			{Kind: "failing_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
+				return ports.RetentionOutcome{}, errors.New("delete failed")
 			}},
-			{Kind: "later_retention", Run: func(context.Context) (RetentionOutcome, error) {
+			{Kind: "later_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
 				laterStepRan = true
-				return RetentionOutcome{}, nil
+				return ports.RetentionOutcome{}, nil
 			}},
-		}, func(context.Context, string, RetentionOutcome) error { return nil }),
+		}, func(context.Context, string, ports.RetentionOutcome) error { return nil }),
 	})
 
 	s.checkAndRunCleanup(context.Background(), &ScheduledTask{Name: "visit-cleanup"})
@@ -392,9 +394,9 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 	assert.False(t, ok, "a run with a failing step must stay due")
 }
 
-func mustRetentionRun(t *testing.T, steps []RetentionStep, log RetentionLog) RetentionRun {
+func mustRetentionRun(t *testing.T, steps []ports.RetentionStep, log ports.RetentionLog) RetentionRun {
 	t.Helper()
-	run, err := NewRetentionRun(steps, log, slog.Default())
+	run, err := newRetentionRun(steps, log, slog.Default())
 	require.NoError(t, err)
 	return run
 }
@@ -402,13 +404,13 @@ func mustRetentionRun(t *testing.T, steps []RetentionStep, log RetentionLog) Ret
 func TestRetentionRunRefusesStepsWithoutADeletionLog(t *testing.T) {
 	t.Parallel()
 
-	step := RetentionStep{Kind: "some_retention", Run: func(context.Context) (RetentionOutcome, error) {
-		return RetentionOutcome{}, nil
+	step := ports.RetentionStep{Kind: "some_retention", Run: func(context.Context) (ports.RetentionOutcome, error) {
+		return ports.RetentionOutcome{}, nil
 	}}
 
-	_, err := NewRetentionRun([]RetentionStep{step}, nil, nil)
+	_, err := newRetentionRun([]ports.RetentionStep{step}, nil, nil)
 	require.ErrorContains(t, err, "deletion log")
-	_, err = NewRetentionRun([]RetentionStep{{Kind: "no_run"}}, func(context.Context, string, RetentionOutcome) error { return nil }, nil)
+	_, err = newRetentionRun([]ports.RetentionStep{{Kind: "no_run"}}, func(context.Context, string, ports.RetentionOutcome) error { return nil }, nil)
 	require.ErrorContains(t, err, "kind and a run")
 }
 

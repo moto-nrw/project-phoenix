@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -73,7 +75,7 @@ func SettingKeys() []string {
 // Resolve*OrDefault helpers: a school's override wins, everything else
 // answers fallback, and a failed read is logged and answers fallback too.
 
-func settingOverride(ctx context.Context, settings SettingsResolver, key string, logger *slog.Logger) bool {
+func settingOverride(ctx context.Context, settings ports.SettingsResolver, key string, logger *slog.Logger) bool {
 	if settings == nil {
 		return false
 	}
@@ -85,7 +87,7 @@ func settingOverride(ctx context.Context, settings SettingsResolver, key string,
 	return has
 }
 
-func resolveStringOrDefault(ctx context.Context, settings SettingsResolver, key, fallback string, logger *slog.Logger) string {
+func resolveStringOrDefault(ctx context.Context, settings ports.SettingsResolver, key, fallback string, logger *slog.Logger) string {
 	if !settingOverride(ctx, settings, key, logger) {
 		return fallback
 	}
@@ -100,7 +102,7 @@ func resolveStringOrDefault(ctx context.Context, settings SettingsResolver, key,
 	return value
 }
 
-func resolveBoolOrDefault(ctx context.Context, settings SettingsResolver, key string, fallback bool, logger *slog.Logger) bool {
+func resolveBoolOrDefault(ctx context.Context, settings ports.SettingsResolver, key string, fallback bool, logger *slog.Logger) bool {
 	if !settingOverride(ctx, settings, key, logger) {
 		return fallback
 	}
@@ -112,7 +114,7 @@ func resolveBoolOrDefault(ctx context.Context, settings SettingsResolver, key st
 	return value
 }
 
-func resolveIntOrDefault(ctx context.Context, settings SettingsResolver, key string, fallback int, logger *slog.Logger) int {
+func resolveIntOrDefault(ctx context.Context, settings ports.SettingsResolver, key string, fallback int, logger *slog.Logger) int {
 	if !settingOverride(ctx, settings, key, logger) {
 		return fallback
 	}
