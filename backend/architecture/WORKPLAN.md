@@ -12,7 +12,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 34 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 96 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -22,7 +22,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 328 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 325 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -64,7 +64,7 @@ Die Root-Reichweite steht bereits. Inbound-Owner 28 → 27, Regeln 945 → 943; 
 Owner `inbound-activities` und `inbound-database` entfallen. Fünf gleich enge
 Nachfolger ersetzen sechs Regeln; die Root-Reichweite steht bereits. Die Upload-Suite
 setzt denselben registrierten Schlüssel als Testwert statt über das fremde Modell.
-Inbound-Owner 27 → 24, Regeln 945 → 944, Keys 329 → 328, #4078 11 → 10; Budgets unverändert.
+Inbound-Owner 27 → 24, Regeln 945 → 944, Keys 326 → 325, #4078 11 → 10; Budgets unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
