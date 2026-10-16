@@ -2203,6 +2203,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetable/ports",
+      "owner": "timetable-activities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/timetable/timetabletest",
       "owner": "test-support",
       "role": "test-support",
