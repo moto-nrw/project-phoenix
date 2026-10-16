@@ -4,6 +4,7 @@ package api
 
 import (
 	"context"
+	"log/slog"
 
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -31,6 +32,17 @@ func NewSettingsTestRepositories(runtime settingsCompose.PersistenceRuntime) Set
 		GradeRestriction: phases.HasActiveGradeRestrictedPhase,
 		GradeCap:         phases.MaxActivePhaseGrade,
 	}
+}
+
+// NewSettingsTestService composes the tenant settings service over the
+// caller's settings runtime without a school store, for suites that switch a
+// tenant setting the way an admin does.
+func NewSettingsTestService(runtime interface {
+	settingsCompose.PersistenceRuntime
+	settingsCompose.SettingsRuntime
+}) settingsCompose.SettingsService {
+	repos := NewSettingsTestRepositories(runtime)
+	return settingsCompose.NewSettingsService(repos.Values, repos.Audit, nil, runtime, slog.Default())
 }
 
 // DisplayTestRepositories bundles the readers the info-point dashboard
