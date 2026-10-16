@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import "github.com/moto-nrw/project-phoenix/modules/workforce"

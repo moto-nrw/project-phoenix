@@ -320,7 +320,7 @@ jobs:
       - name: Verify source ratchets
         if: matrix.suite == 'ratchets'
         working-directory: backend
-        run: go test -count=1 -run Ratchet ./test
+        run: go test -tags=testhooks -count=1 -run Ratchet ./test
 
       # The selector suite also pins contracts in main.yml and lint.yml. A
       # lint.yml-only change does not start test-backend, which runs it too.

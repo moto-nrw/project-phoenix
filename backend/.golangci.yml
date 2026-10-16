@@ -2,6 +2,7 @@ version: "2"
 
 run:
   timeout: 10m
+  build-tags: [testhooks]
 
 linters:
   default: standard

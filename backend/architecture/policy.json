@@ -11,7 +11,8 @@
   "build": {
     "goos": "linux",
     "goarch": "amd64",
-    "cgo_enabled": false
+    "cgo_enabled": false,
+    "tags": ["testhooks"]
   },
   "owners": [
     {

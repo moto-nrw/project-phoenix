@@ -148,7 +148,7 @@ while read -r os cpus ram workers; do
     else
       run_wrapper "$wrapper" 0 origin/development
     fi
-    assert_calls "$(printf 'bootstrap\ntest:phoenix_test_template_regression:test -p %s -parallel 8 ./probe\nsweep' "$workers")"
+    assert_calls "$(printf 'bootstrap\ntest:phoenix_test_template_regression:test -p %s -parallel 8 -tags=testhooks ./probe\nsweep' "$workers")"
   done
 done <<'EOF'
 Darwin 32 8 1
@@ -165,7 +165,7 @@ EOF
 
 export PHX_FIXTURE_OS=Darwin PHX_FIXTURE_CPUS=16 PHX_FIXTURE_RAM_GB=16
 run_wrapper test-backend.sh 0
-assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 ./...\nsweep'
+assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./...\nsweep'
 
 # Defaults precede explicit CLI flags so users retain their existing override.
 for gotestsum_status in 0 1; do
@@ -173,7 +173,7 @@ for gotestsum_status in 0 1; do
   run_wrapper test-backend.sh 0 -p 3 ./probe
   expected=$'bootstrap\n'
   if [ "$gotestsum_status" -eq 0 ]; then expected+=$'gotestsum\n'; fi
-  expected+=$'test:phoenix_test_template_regression:test -p 2 -parallel 8 -p 3 ./probe\nsweep'
+  expected+=$'test:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks -p 3 ./probe\nsweep'
   assert_calls "$expected"
 done
 unset PHX_FIXTURE_GOTESTSUM_STATUS
@@ -191,7 +191,7 @@ for wrapper in test-backend.sh test-changed.sh; do
 
   export PHX_FIXTURE_TEST_STATUS=7 PHX_FIXTURE_SWEEP_STATUS=9
   run_wrapper "$wrapper" 7 "${args[@]}"
-  assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 ./probe\nsweep'
+  assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe\nsweep'
   if [ "$wrapper" = test-changed.sh ]; then
     grep -q 'go test failure summary' "$output_log"
     grep -q '^FAIL github.com/moto-nrw/project-phoenix/probe$' "$output_log"
@@ -200,7 +200,7 @@ for wrapper in test-backend.sh test-changed.sh; do
 
   export PHX_FIXTURE_SWEEP_STATUS=9
   run_wrapper "$wrapper" 1 "${args[@]}"
-  assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 ./probe\nsweep'
+  assert_calls $'bootstrap\ntest:phoenix_test_template_regression:test -p 2 -parallel 8 -tags=testhooks ./probe\nsweep'
   unset PHX_FIXTURE_SWEEP_STATUS
 done
 
