@@ -32,7 +32,7 @@
       "backend/modules/timetable/internal/domain/list_options.go",
       "backend/modules/timetable/internal/domain/store_errors.go",
       "backend/modules/timetable/internal/domain/ids.go",
-      "backend/modules/timetable/internal/adapters/postgres/unique_violation.go",
+      "backend/modules/timetable/internal/application/instance_create.go",
       "backend/modules/timetable/internal/domain/store_errors_test.go",
       "https://github.com/moto-nrw/project-phoenix/actions/runs/38898384410/job/116964340184"
     ],
