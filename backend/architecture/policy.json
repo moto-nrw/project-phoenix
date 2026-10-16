@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 56,
+  "policy_epoch": 57,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -792,7 +792,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/iot/devices",
+      "path": "modules/devicefleet/http/devices",
       "owner": "device-fleet",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -813,7 +813,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/sessions",
+      "path": "modules/devicescan/http/sessions",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -15051,8 +15051,18 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "api/iot/devices",
+      "to": "modules/devicefleet/http/devices",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
       "from": "api/iot/internal/shared",
       "to": "modules/devicescan/http/internal/shared",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/sessions",
+      "to": "modules/devicescan/http/sessions",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
