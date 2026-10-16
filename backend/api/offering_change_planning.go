@@ -41,7 +41,7 @@ func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studen
 		return nil, errors.New("valid planning date range is required")
 	}
 	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
-	rows, err := presenceProjection.ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
+	rows, err := presenceProjection.Reader{}.ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
 	if err != nil {
 		return nil, err
 	}
@@ -61,11 +61,7 @@ func (q PlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) (
 	}
 	result := make([]carePlanCompose.CourseGroup, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, carePlanCompose.CourseGroup{
-			ID: group.ID, Active: group.Active, ParticipantLimit: group.ParticipantLimit,
-			ScheduledWeekdays: group.ScheduledWeekdays, SourceGradeLevels: group.SourceGradeLevels,
-			SourceSchoolClasses: group.SourceSchoolClasses,
-		})
+		result = append(result, carePlanCompose.CourseGroup{ID: group.ID, Active: group.Active, ParticipantLimit: group.ParticipantLimit})
 	}
 	return result, nil
 }

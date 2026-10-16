@@ -23,12 +23,13 @@ type ParentMessageReads struct {
 	inbox   *parentinbox.Projection
 }
 
-// NewParentMessageReadRepository builds the read-side store.
-func NewParentMessageReadRepository(db *bun.DB) *ParentMessageReads {
+// NewParentMessageReadRepository builds the read-side store over the
+// guardian-link row source.
+func NewParentMessageReadRepository(db *bun.DB, links GuardianLinkRows) *ParentMessageReads {
 	return &ParentMessageReads{
 		cursors: parentpostgres.NewReadCursorStore(postgresDatabase(db)),
 		threads: parentpostgres.NewThreadStore(postgresDatabase(db)),
-		inbox:   parentinbox.New(inboxDatabase(db)),
+		inbox:   parentinbox.New(inboxDatabase(db), links),
 	}
 }
 
@@ -111,14 +112,14 @@ func (r *ParentMessageReads) GuardianReadCursor(ctx context.Context, threadID in
 	return cursorModel(cursor), err
 }
 
-func cursorModel(cursor *domain.ParentReadCursor) *usersModels.ReadCursor {
+func cursorModel(cursor *parentinbox.ParentReadCursor) *usersModels.ReadCursor {
 	if cursor == nil {
 		return nil
 	}
 	return &usersModels.ReadCursor{LastReadAt: cursor.LastReadAt, LastReadMessageID: cursor.LastReadMessageID}
 }
 
-func inboxModels(rows []*domain.ParentInboxThread) []*usersModels.InboxThread {
+func inboxModels(rows []*parentinbox.ParentInboxThread) []*usersModels.InboxThread {
 	if rows == nil {
 		return nil
 	}

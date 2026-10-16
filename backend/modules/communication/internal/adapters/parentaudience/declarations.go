@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -48,10 +47,10 @@ type declarationChildRow struct {
 	SchoolClass    string `bun:"school_class"`
 }
 
-func declarationChildren(rows []declarationChildRow) []*domain.DeclarationChild {
-	out := make([]*domain.DeclarationChild, 0, len(rows))
+func declarationChildren(rows []declarationChildRow) []*DeclarationChild {
+	out := make([]*DeclarationChild, 0, len(rows))
 	for _, row := range rows {
-		out = append(out, &domain.DeclarationChild{
+		out = append(out, &DeclarationChild{
 			AnnouncementID: row.AnnouncementID, StudentID: row.StudentID, FirstName: row.FirstName,
 			LastName: row.LastName, SchoolClass: row.SchoolClass,
 		})
@@ -60,7 +59,7 @@ func declarationChildren(rows []declarationChildRow) []*domain.DeclarationChild 
 }
 
 // DeclarationChildren returns every child the declaration reaches.
-func (p *Projection) DeclarationChildren(ctx context.Context, schoolID, announcementID int64, history []domain.DeclarationHistoryLink) ([]*domain.DeclarationChild, error) {
+func (p *Projection) DeclarationChildren(ctx context.Context, schoolID, announcementID int64, history []DeclarationHistoryLink) ([]*DeclarationChild, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -116,31 +115,31 @@ type declarationSignerRow struct {
 
 // DeclarationSigners returns the guardians who may declare for the children
 // of one school.
-func (p *Projection) DeclarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*domain.DeclarationSigner, error) {
+func (p *Projection) DeclarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*DeclarationSigner, error) {
 	return p.declarationSigners(ctx, schoolID, studentIDs)
 }
 
 // DeclarationSignersForStudents is DeclarationSigners for children of several
 // schools; the ids come from an already authorized feed.
-func (p *Projection) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*domain.DeclarationSigner, error) {
+func (p *Projection) DeclarationSignersForStudents(ctx context.Context, studentIDs []int64) ([]*DeclarationSigner, error) {
 	return p.declarationSigners(ctx, 0, studentIDs)
 }
 
-func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*domain.DeclarationSigner, error) {
+func (p *Projection) declarationSigners(ctx context.Context, schoolID int64, studentIDs []int64) ([]*DeclarationSigner, error) {
 	if len(studentIDs) == 0 {
-		return []*domain.DeclarationSigner{}, nil
+		return []*DeclarationSigner{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []declarationSignerRow
-	if err := db.NewRaw(declarationSignersSQL, guardianLinks(db, schoolID), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(declarationSignersSQL, p.guardianLinks(db, schoolID), bun.List(studentIDs)).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration signers: %w", err)
 	}
-	out := make([]*domain.DeclarationSigner, 0, len(rows))
+	out := make([]*DeclarationSigner, 0, len(rows))
 	for _, row := range rows {
-		signer := domain.DeclarationSigner(row)
+		signer := DeclarationSigner(row)
 		out = append(out, &signer)
 	}
 	return out, nil
@@ -195,9 +194,9 @@ const declarationChildrenForAccountSQL = `
 
 // DeclarationChildrenForAccount returns the account's reached children per
 // declaration announcement.
-func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64, history []domain.DeclarationHistoryLink) ([]*domain.DeclarationChild, error) {
+func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountID int64, announcementIDs []int64, history []DeclarationHistoryLink) ([]*DeclarationChild, error) {
 	if len(announcementIDs) == 0 {
-		return []*domain.DeclarationChild{}, nil
+		return []*DeclarationChild{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -210,8 +209,8 @@ func (p *Projection) DeclarationChildrenForAccount(ctx context.Context, accountI
 	today := p.day()
 	var rows []declarationChildRow
 	if err := db.NewRaw(declarationChildrenForAccountSQL,
-		today, today, today, guardianLinks(db, 0), accountID, bun.List(announcementIDs),
-		historyJSON, guardianLinks(db, 0), accountID, bun.List(announcementIDs),
+		today, today, today, p.guardianLinks(db, 0), accountID, bun.List(announcementIDs),
+		historyJSON, p.guardianLinks(db, 0), accountID, bun.List(announcementIDs),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("parent declaration children for account: %w", err)
 	}
@@ -251,7 +250,7 @@ type declarationSignerContextRow struct {
 
 // HoldDeclarationSigner reads and share-locks the authorizing relationship,
 // or returns nil when the account may not declare for the child.
-func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*domain.DeclarationSignerContext, error) {
+func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*DeclarationSignerContext, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -259,7 +258,7 @@ func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announ
 	today := p.day()
 	var row declarationSignerContextRow
 	err = db.NewRaw(holdDeclarationSignerSQL,
-		schoolID, schoolID, today, today, today, announcementID, schoolID, guardianLinks(db, schoolID), schoolID, accountID,
+		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID, accountID,
 		studentID,
 	).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -268,7 +267,7 @@ func (p *Projection) HoldDeclarationSigner(ctx context.Context, schoolID, announ
 	if err != nil {
 		return nil, fmt.Errorf("hold parent declaration signer: %w", err)
 	}
-	signer := domain.DeclarationSignerContext(row)
+	signer := DeclarationSignerContext(row)
 	return &signer, nil
 }
 
@@ -297,14 +296,14 @@ const holdHistoricalDeclarationSignerSQL = `
 // relationship for an account's own historical declaration. It deliberately
 // does not re-evaluate the activity enrollment: that check would make a
 // recorded consent impossible to revoke after the activity has ended.
-func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, schoolID, accountID, studentID int64) (*domain.DeclarationSignerContext, error) {
+func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, schoolID, accountID, studentID int64) (*DeclarationSignerContext, error) {
 	db, _, err := p.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var row declarationSignerContextRow
 	err = db.NewRaw(holdHistoricalDeclarationSignerSQL,
-		guardianLinks(db, schoolID), schoolID, accountID, studentID,
+		p.guardianLinks(db, schoolID), schoolID, accountID, studentID,
 	).Scan(ctx, &row)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
@@ -312,11 +311,11 @@ func (p *Projection) HoldHistoricalDeclarationSigner(ctx context.Context, school
 	if err != nil {
 		return nil, fmt.Errorf("hold historical parent declaration signer: %w", err)
 	}
-	signer := domain.DeclarationSignerContext(row)
+	signer := DeclarationSignerContext(row)
 	return &signer, nil
 }
 
-func declarationHistoryJSON(history []domain.DeclarationHistoryLink) (string, error) {
+func declarationHistoryJSON(history []DeclarationHistoryLink) (string, error) {
 	encoded, err := json.Marshal(history)
 	if err != nil {
 		return "", fmt.Errorf("encode declaration history: %w", err)
@@ -343,7 +342,7 @@ const historicalDeclarationAccessSQL = `
 
 // HistoricalDeclarationAccess reports whether the account still has portal
 // access to a child from its own preserved declaration history.
-func (p *Projection) HistoricalDeclarationAccess(ctx context.Context, schoolID, accountID int64, history []domain.DeclarationHistoryLink) (bool, error) {
+func (p *Projection) HistoricalDeclarationAccess(ctx context.Context, schoolID, accountID int64, history []DeclarationHistoryLink) (bool, error) {
 	if len(history) == 0 {
 		return false, nil
 	}
@@ -356,7 +355,7 @@ func (p *Projection) HistoricalDeclarationAccess(ctx context.Context, schoolID, 
 		return false, err
 	}
 	var allowed bool
-	if err := db.NewRaw(historicalDeclarationAccessSQL, historyJSON, guardianLinks(db, schoolID), accountID, schoolID).Scan(ctx, &allowed); err != nil {
+	if err := db.NewRaw(historicalDeclarationAccessSQL, historyJSON, p.guardianLinks(db, schoolID), accountID, schoolID).Scan(ctx, &allowed); err != nil {
 		return false, fmt.Errorf("check historical parent declaration access: %w", err)
 	}
 	return allowed, nil
@@ -390,9 +389,9 @@ const historicalDeclarationFeedSQL = `
 // HistoricalDeclarationFeed returns the current, portal-accessible declaration
 // announcements the account has previously submitted for but no longer reaches
 // through an activity enrollment.
-func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID int64, scope domain.ParentAnnouncementFeedScope, history []domain.DeclarationHistoryLink) ([]*domain.ParentAnnouncementFeedItem, error) {
+func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID int64, scope ParentAnnouncementFeedScope, history []DeclarationHistoryLink) ([]*ParentAnnouncementFeedItem, error) {
 	if scope.IsEmpty() || len(history) == 0 {
-		return []*domain.ParentAnnouncementFeedItem{}, nil
+		return []*ParentAnnouncementFeedItem{}, nil
 	}
 	db, _, err := p.database(ctx)
 	if err != nil {
@@ -404,14 +403,14 @@ func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID in
 	}
 	var rows []feedRow
 	if err := db.NewRaw(historicalDeclarationFeedSQL,
-		historyJSON, accountID, guardianLinks(db, 0), accountID,
+		historyJSON, accountID, p.guardianLinks(db, 0), accountID,
 		feedScopeList(scope.TenantIDs), feedScopeList(scope.SystemOnlyTenantIDs),
 	).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("list historical parent declaration feed: %w", err)
 	}
-	items := make([]*domain.ParentAnnouncementFeedItem, 0, len(rows))
+	items := make([]*ParentAnnouncementFeedItem, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, &domain.ParentAnnouncementFeedItem{
+		items = append(items, &ParentAnnouncementFeedItem{
 			ID: row.ID, TenantID: row.TenantID, Title: row.Title, Body: row.Body, Priority: row.Priority,
 			LinkURL: row.LinkURL, RequiresAcknowledgement: row.RequiresAcknowledgement,
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,

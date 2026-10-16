@@ -55,6 +55,13 @@ func resolve(ctx context.Context, db *bun.DB) (bun.IDB, int64, error) {
 	return db, tenantID, nil
 }
 
+// GuardianLinkRows is the student-guardian relationship row source the
+// inbox and audience projections join in their own statements; the roots
+// bind the guardian-link projection (ADR 0058).
+type GuardianLinkRows interface {
+	GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery
+}
+
 func postgresDatabase(db *bun.DB) parentpostgres.Database {
 	return func(ctx context.Context) (bun.IDB, int64, error) { return resolve(ctx, db) }
 }
