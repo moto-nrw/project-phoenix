@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 218 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 57 ·
+Stand 16.10.2026 · Ratchet 218 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 58 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-67.586 in `compose`
+67.477 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -189,7 +189,7 @@ Kiosk-Sessions liegen nach ADR 0020 unter `modules/devicefleet/http/devices`
 und `modules/devicescan/http/sessions`. Alle 20 Go-Dateinamen, Owner und
 Produktions- sowie Testrollen bleiben identisch. Ein AST-Audit über alle
 24 verschobenen oder importierenden Dateien zeigt ausschließlich neue
-Importpfade. Epoche 56 → 57; Regeln, Legacy-Keys, Composition und Budgets
+Importpfade. Epoche 57 → 58; Regeln, Legacy-Keys, Composition und Budgets
 bleiben gleich. Keine Route, Response, IoT-Zeichenkette oder Assertion ändert
 sich; die vorangehende Sessions-Owner-Übernahme muss zuerst gemergt sein.
 
