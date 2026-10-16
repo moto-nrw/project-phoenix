@@ -746,7 +746,7 @@ func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profi
 	}}, mock.teamMessages, "a caregiver writes to the admin, who leaves it unread")
 	require.Len(t, mock.parentMessages, 2)
 	assert.Equal(t, strconv.FormatInt(profile.Entities.Students["emir-yilmaz"].ID, 10), mock.parentMessages[0].target)
-	assert.Equal(t, strconv.FormatInt(profile.Entities.Students["lina-becker"].ID, 10), mock.parentMessages[1].target)
+	assert.Equal(t, strconv.FormatInt(profile.Entities.Students["lina-beck"].ID, 10), mock.parentMessages[1].target)
 	require.Len(t, mock.staffReplies, 1, "the team answers one family and leaves the other message open")
 	assert.Equal(t, marketingMockAdminToken, mock.staffReplies[0].sender)
 
@@ -772,9 +772,9 @@ func assertMarketingRequests(t *testing.T, mock *marketingProfileAPIMock, profil
 	assert.Equal(t, studentID("elif-yilmaz"), pickup.student)
 	assert.Equal(t, next, pickup.body["date"])
 	assert.NotEmpty(t, pickup.body["reason"])
-	assert.Equal(t, parentToken("julia-wagner"), absence.sender)
+	assert.Equal(t, parentToken("julia-brandt"), absence.sender)
 	assert.Equal(t, "sick-note", absence.kind)
-	assert.Equal(t, studentID("mia-wagner"), absence.student)
+	assert.Equal(t, studentID("mia-brandt"), absence.student)
 	assert.Equal(t, []any{next}, absence.body["dates"])
 	assert.Equal(t, "excused", absence.body["status"])
 
