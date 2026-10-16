@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // Error message constants
@@ -43,7 +42,7 @@ type Resource struct {
 	// unset) for GET /config; nil means the setting is not wired.
 	accountStartDate func(context.Context) (string, error)
 	identity         IdentityFunc
-	db               *bun.DB
+	withinTenant     TenantTransaction
 }
 
 // Dependencies are the collaborators of the time-tracking resource.
@@ -59,13 +58,13 @@ type Dependencies struct {
 	// renders an empty start date.
 	AccountStartDate func(context.Context) (string, error)
 	Identity         IdentityFunc
-	DB               *bun.DB
+	WithinTenant     TenantTransaction
 }
 
 // NewResource creates a new time-tracking resource.
 func NewResource(deps Dependencies) *Resource {
-	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Staff == nil || deps.Identity == nil || deps.DB == nil {
-		panic("time tracking resource: work sessions, absences, staff directory, identity and db are required")
+	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Staff == nil || deps.Identity == nil || deps.WithinTenant == nil {
+		panic("time tracking resource: work sessions, absences, staff directory, identity and tenant runtime are required")
 	}
 	return &Resource{
 		WorkSessionService:     deps.WorkSessions,
@@ -77,7 +76,7 @@ func NewResource(deps Dependencies) *Resource {
 		Calendar:               deps.Calendar,
 		accountStartDate:       deps.AccountStartDate,
 		identity:               deps.Identity,
-		db:                     deps.DB,
+		withinTenant:           deps.WithinTenant,
 	}
 }
 
@@ -230,7 +229,7 @@ func (rs *Resource) checkIn(w http.ResponseWriter, r *http.Request) {
 	// Call service to check in
 	tenantID := tenant.FromContext(r.Context())
 	var session *workforce.WorkSession
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.CheckIn(ctx, staffID, req.Status, workforce.WorkSessionSourceApp, req.Reason)
 		return txErr
@@ -263,7 +262,7 @@ func (rs *Resource) checkOut(w http.ResponseWriter, r *http.Request) {
 	// Call service to check out
 	tenantID := tenant.FromContext(r.Context())
 	var session *workforce.WorkSession
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.CheckOut(ctx, staffID, req.Reason)
 		return txErr
@@ -368,7 +367,7 @@ func (rs *Resource) updateSession(w http.ResponseWriter, r *http.Request) {
 	// Call service to update session
 	tenantID := tenant.FromContext(r.Context())
 	var session *workforce.WorkSession
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.UpdateSession(ctx, staffID, sessionID, updates)
 		return txErr
@@ -407,7 +406,7 @@ func (rs *Resource) startBreak(w http.ResponseWriter, r *http.Request) {
 	// Call service to start break
 	tenantID := tenant.FromContext(r.Context())
 	var brk *workforce.WorkSessionBreak
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		brk, txErr = rs.WorkSessionService.StartBreak(ctx, staffID, req.PlannedDurationMinutes)
 		return txErr
@@ -432,7 +431,7 @@ func (rs *Resource) endBreak(w http.ResponseWriter, r *http.Request) {
 	// Call service to end break
 	tenantID := tenant.FromContext(r.Context())
 	var session *workforce.WorkSession
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		session, txErr = rs.WorkSessionService.EndBreak(ctx, staffID)
 		return txErr
@@ -593,7 +592,7 @@ func (rs *Resource) createAbsence(w http.ResponseWriter, r *http.Request) {
 	actorAccountID := userClaims.AccountID
 	tenantID := tenant.FromContext(r.Context())
 	var absence *workforce.StaffAbsenceResponse
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		absence, txErr = rs.StaffAbsenceService.CreateOwnAbsence(ctx, staffID, &actorAccountID, req)
 		return txErr
@@ -629,7 +628,7 @@ func (rs *Resource) updateAbsence(w http.ResponseWriter, r *http.Request) {
 	tenantID := tenant.FromContext(r.Context())
 	actorAccountID := userClaims.AccountID
 	var absence *workforce.StaffAbsenceResponse
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		absence, txErr = rs.StaffAbsenceService.UpdateAbsence(ctx, staffID, &actorAccountID, absenceID, req)
 		return txErr
@@ -660,7 +659,7 @@ func (rs *Resource) deleteAbsence(w http.ResponseWriter, r *http.Request) {
 	// account id stamps the sick_cleared protocol entries.
 	actorAccountID := userClaims.AccountID
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		return rs.StaffAbsenceService.DeleteOwnAbsence(ctx, staffID, &actorAccountID, absenceID)
 	}); err != nil {
 		tenant.MarkRollback(r.Context())
@@ -688,7 +687,7 @@ func (rs *Resource) requestVacation(w http.ResponseWriter, r *http.Request) {
 
 	tenantID := tenant.FromContext(r.Context())
 	var resp *workforce.StaffAbsenceResponse
-	err = tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	err = rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		resp, txErr = rs.StaffAbsenceService.RequestVacation(ctx, staffID, req)
 		return txErr
@@ -713,7 +712,7 @@ func (rs *Resource) cancelAbsence(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	tenantID := tenant.FromContext(r.Context())
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		return rs.StaffAbsenceService.CancelAbsence(ctx, staffID, userClaims.AccountID, absenceID)
 	}); err != nil {
 		common.RenderError(w, r, classifyAbsenceError(err))
@@ -744,7 +743,7 @@ func (rs *Resource) resubmitAbsence(w http.ResponseWriter, r *http.Request) {
 	}
 	tenantID := tenant.FromContext(r.Context())
 	var resp *workforce.StaffAbsenceResponse
-	if err := tenant.WithTenantTx(r.Context(), rs.db, tenantID, func(ctx context.Context, _ bun.Tx) error {
+	if err := rs.withinTenant(r.Context(), tenantID, func(ctx context.Context) error {
 		var txErr error
 		resp, txErr = rs.StaffAbsenceService.ResubmitAbsence(ctx, staffID, userClaims.AccountID, absenceID, req.Note)
 		return txErr

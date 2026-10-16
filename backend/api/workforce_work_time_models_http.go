@@ -1,9 +1,4 @@
-// Package httpadapter supplies the HTTP-platform behavior the
-// /api/work-time-models adapter must not own: authentication, tenant
-// transaction scoping, the shared response envelope, and the post-commit
-// time-tracking notification. It also builds the absence-type and
-// substitution routes for the root.
-package httpadapter
+package api
 
 import (
 	"context"
@@ -16,37 +11,35 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-type Resource = worktimemodelsHTTP.Resource
-
-// NewResource wires the /api/work-time-models adapter over the Workforce
+// newWorkTimeModelsResource wires the /api/work-time-models adapter over the Workforce
 // capability. NotifyChanged invalidates the time-account views after a
 // template edit rewrote the assigned staff schedules.
-func NewResource(models workforce.Capability, notifyChanged func(context.Context)) *Resource {
+func newWorkTimeModelsResource(models workforce.Capability, notifyChanged func(context.Context)) *worktimemodelsHTTP.Resource {
 	if models == nil || notifyChanged == nil {
 		panic("work-time-models HTTP composition: all dependencies are required")
 	}
-	return worktimemodelsHTTP.NewResource(models, runtime(notifyChanged))
+	return worktimemodelsHTTP.NewResource(models, workTimeModelsRuntime(notifyChanged))
 }
 
-func runtime(notifyChanged func(context.Context)) worktimemodelsHTTP.Runtime {
+func workTimeModelsRuntime(notifyChanged func(context.Context)) worktimemodelsHTTP.Runtime {
 	return worktimemodelsHTTP.Runtime{
-		Protected:     protectedRoutes(),
+		Protected:     workTimeModelsProtectedRoutes(),
 		Permission:    apiCommon.RequiresPermission,
 		ParseID:       apiCommon.ParseID,
 		Success:       apiCommon.Respond,
-		Failure:       renderFailure,
+		Failure:       renderWorkTimeModelsFailure,
 		Manage:        permissions.TimeTrackingManage,
 		NotifyChanged: notifyChanged,
 	}
 }
 
-func protectedRoutes() func(chi.Router, func(chi.Router, worktimemodelsHTTP.Middleware)) {
+func workTimeModelsProtectedRoutes() func(chi.Router, func(chi.Router, worktimemodelsHTTP.Middleware)) {
 	return func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
 		apiCommon.ProtectedTenantRoutes(router, routes)
 	}
 }
 
-func renderFailure(w http.ResponseWriter, r *http.Request, kind worktimemodelsHTTP.FailureKind, err error) {
+func renderWorkTimeModelsFailure(w http.ResponseWriter, r *http.Request, kind worktimemodelsHTTP.FailureKind, err error) {
 	switch kind {
 	case worktimemodelsHTTP.FailureInvalid:
 		apiCommon.RenderError(w, r, apiCommon.ErrorInvalidRequest(err))

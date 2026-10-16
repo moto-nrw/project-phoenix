@@ -300,7 +300,7 @@ func testResource(wsSvc *mockWorkSessionService, absSvc *mockStaffAbsenceService
 		StaffAbsenceService: absSvc,
 		PersonService:       pSvc,
 		identity:            func(context.Context) Identity { return Identity{AccountID: testAccountID} },
-		db:                  db,
+		withinTenant:        testWithinTenant(db),
 	}
 }
 
@@ -377,7 +377,7 @@ func TestNewResource(t *testing.T) {
 		Staff:            defaultPersonSvc(),
 		AccountStartDate: func(context.Context) (string, error) { return "", nil },
 		Identity:         func(context.Context) Identity { return Identity{AccountID: testAccountID} },
-		DB:               db,
+		WithinTenant:     testWithinTenant(db),
 	})
 	assert.NotNil(t, rs)
 	assert.NotNil(t, rs.WorkSessionService)
@@ -2177,4 +2177,10 @@ func TestResubmitAbsence_WrongStatus(t *testing.T) {
 
 	rs.resubmitAbsence(w, r)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func testWithinTenant(db *bun.DB) TenantTransaction {
+	return func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
+		return tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return run(txCtx) })
+	}
 }

@@ -1636,14 +1636,14 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDo
 		ResolveStaffID: currentStaffID(in.modules),
 		ActorAccountID: sessiontoken.ActorAccountIDFromCtx,
 	})
-	absenceTypes := workforceHTTPAdapter.AbsenceTypesRoutes(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules))
+	absenceTypes := newAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workforce, in.logger.With("service", "active")), currentStaffID(in.modules)).Router()
 	tenant.Mount("/staff", staff.Router())
-	tenant.Mount("/work-time-models", workforceHTTPAdapter.NewResource(workforce, staffTimeTrackingNotifier(svc.RealtimeHub)).Router())
+	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workforce, staffTimeTrackingNotifier(svc.RealtimeHub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
 	tenant.Mount("/shift-types", workforceShiftPlanning.NewShiftTypesResource(svc.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)
 	tenant.Mount("/substitutions", workforceHTTPAdapter.SubstitutionsRoutes(SubstitutionCapability(svc.Substitution)))
-	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar, in.db).Router())
+	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar).Router())
 	return staffAdmin, nil
 }
 
