@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 316 · Composition 1.724 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 50 ·
+Stand 16.10.2026 · Ratchet 315 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 50 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -12,16 +12,16 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 34 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 96 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 11 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 10 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 316 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 315 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -58,6 +58,12 @@ Sieben gleich enge Nachfolger ersetzen acht Regeln. Die nun ungenutzte generisch
 Regel `inbound.adapter-test.projection.public` entfällt zusätzlich. Die beiden eingehenden Schulportal-Regeln
 bleiben auf denselben Paketpfad und ihre bisherigen Produktions-/External-Test-Scopes begrenzt.
 Die Root-Reichweite steht bereits. Inbound-Owner 28 → 27, Regeln 945 → 943; Keys und Budgets unverändert.
+
+#4078: File-Storage-HTTP gehört zu `file-storage`; `inbound-filestore` und die leeren
+Owner `inbound-activities` und `inbound-database` entfallen. Fünf gleich enge
+Nachfolger ersetzen sechs Regeln; die Root-Reichweite steht bereits. Die Upload-Suite
+setzt denselben registrierten Schlüssel als Testwert statt über das fremde Modell.
+Inbound-Owner 27 → 24, Regeln 945 → 944, Keys 326 → 325, #4078 11 → 10; Budgets unverändert.
 
 #4075: Die letzten zehn Delivery-Cutover-Keys sind entfernt. Enrollment bindet Mail-Branding,
 Organisation & Tenancy das PWA-Zeitfenster, School Structure die Ereignisse und die
