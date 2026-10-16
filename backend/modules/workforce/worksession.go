@@ -3,6 +3,7 @@ package workforce
 import (
 	"context"
 	"errors"
+	"slices"
 	"time"
 )
 
@@ -24,6 +25,20 @@ const (
 	// address on work sessions.
 	WorkSessionDateColumn = "date"
 )
+
+// OnDutyStaffIDs names the staff members of a work presence map who are on
+// duty: present at school or working from home. Staff notifications that
+// only reach staff on duty filter by it (#4072).
+func OnDutyStaffIDs(presence map[int64]string) []int64 {
+	onDuty := make([]int64, 0, len(presence))
+	for staffID, status := range presence {
+		if status == WorkSessionStatusPresent || status == WorkSessionStatusHomeOffice {
+			onDuty = append(onDuty, staffID)
+		}
+	}
+	slices.Sort(onDuty)
+	return onDuty
+}
 
 // Stundenkonto correction transaction types (#1420, #2132).
 const (

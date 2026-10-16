@@ -3,6 +3,7 @@ package operator_test
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"testing"
@@ -12,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 )
@@ -23,6 +23,9 @@ import (
 
 const fakeSchoolID int64 = 4711
 
+// testOperatorID is the operator the routes record as the author of a write.
+func testOperatorID(context.Context) int64 { return 815 }
+
 type setValueCall struct {
 	schoolID  int64
 	key       string
@@ -32,10 +35,9 @@ type setValueCall struct {
 }
 
 type fakeOperatorSchoolSettings struct {
-	schema    json.RawMessage
-	setErr    error
-	impactErr error
-	setCalls  []setValueCall
+	schema   json.RawMessage
+	setErr   error
+	setCalls []setValueCall
 }
 
 func (f *fakeOperatorSchoolSettings) CheckOperatorWritable(string) error { return nil }
@@ -57,15 +59,10 @@ func (f *fakeOperatorSchoolSettings) ResetValue(context.Context, int64, string, 
 	return nil
 }
 
-func (f *fakeOperatorSchoolSettings) BookingAuthorityImpact(context.Context, int64) (*careplan.BookingAuthorityImpact, error) {
-	return nil, f.impactErr
-}
-
 func fakeSettingsRouter(fake *fakeOperatorSchoolSettings) chi.Router {
-	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{Settings: fake})
+	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{Settings: fake, OperatorID: testOperatorID})
 	router := chi.NewRouter()
 	router.Get("/schools/{id}/settings/schema", resource.GetSchoolSettingsSchema)
-	router.Get("/schools/{id}/settings/booking-authority-impact", resource.GetBookingAuthorityImpact)
 	router.Put("/schools/{id}/settings/values/{key}", resource.SetSchoolSettingValue)
 	return router
 }
@@ -86,25 +83,20 @@ func TestOperatorSettingsRoutes_SchemaRendersCapabilityJSON(t *testing.T) {
 	assert.Equal(t, map[string]any{"tabs": []any{map[string]any{"key": "operations"}}}, response["data"])
 }
 
-func TestOperatorSettingsRoutes_BookingAuthorityImpactUnavailable(t *testing.T) {
+func TestNewSettingsResourceRequiresTheOperator(t *testing.T) {
 	t.Parallel()
-	fake := &fakeOperatorSchoolSettings{impactErr: settings.ErrBookingAuthorityImpactUnavailable}
-
-	req := newOperatorRequest(t, http.MethodGet, fakeSchoolPath("/settings/booking-authority-impact"), nil)
-	rr := testutil.ExecuteRequest(fakeSettingsRouter(fake), req)
-
-	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
-	assert.Contains(t, rr.Body.String(), "Booking authority impact service is not configured")
+	assert.Panics(t, func() {
+		settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{Settings: &fakeOperatorSchoolSettings{}})
+	})
 }
 
 func TestOperatorSettingsRoutes_SetValuePassesOperatorAndForce(t *testing.T) {
 	t.Parallel()
 	fake := &fakeOperatorSchoolSettings{}
-	claims := operatorTestClaims()
 
-	req := testutil.NewAuthenticatedRequest(t, http.MethodPut,
+	req := newOperatorRequest(t, http.MethodPut,
 		fakeSchoolPath("/settings/values/")+settings.KeyPresenceMode+"?force=true",
-		map[string]any{"value": presenceModeBinary}, testutil.WithClaims(t, claims))
+		map[string]any{"value": presenceModeBinary})
 	rr := testutil.ExecuteRequest(fakeSettingsRouter(fake), req)
 
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
@@ -113,7 +105,7 @@ func TestOperatorSettingsRoutes_SetValuePassesOperatorAndForce(t *testing.T) {
 		schoolID:  fakeSchoolID,
 		key:       settings.KeyPresenceMode,
 		value:     presenceModeBinary,
-		changedBy: int64(claims.ID),
+		changedBy: testOperatorID(context.Background()),
 		force:     true,
 	}, fake.setCalls[0])
 }
@@ -125,7 +117,10 @@ func TestOperatorSettingsRoutes_SetValueConflicts(t *testing.T) {
 		code     string
 	}{
 		"presence mode switch blocked": {settings.ErrPresenceModeSwitchBlocked, "settings.presence_mode_switch_blocked"},
-		"booking authority blocked":    {careplan.ErrBookingAuthorityBlocked, "settings.booking_authority_blocked"},
+		"booking authority blocked": {
+			&settings.BookingAuthorityBlockedError{Reason: errors.New("Der Buchungsmodus kann nicht aktiviert werden.")},
+			"settings.booking_authority_blocked",
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			fake := &fakeOperatorSchoolSettings{setErr: fmt.Errorf("wrapped: %w", tc.sentinel)}

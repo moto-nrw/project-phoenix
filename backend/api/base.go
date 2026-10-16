@@ -1914,9 +1914,7 @@ func newOperatorRouter(in routeInputs, limiters authRateLimiters) (chi.Router, e
 			Internal:       apiCommon.OperatorInternal,
 			RenderError:    apiCommon.RenderError,
 			Respond:        apiCommon.Respond,
-			OperatorID: func(ctx context.Context) int64 {
-				return int64(sessiontoken.ClaimsFromCtx(ctx).ID)
-			},
+			OperatorID:     operatorIDFromSession,
 		},
 	})
 	billing, err := newOperatorBilling(in.logger)
@@ -1928,7 +1926,6 @@ func newOperatorRouter(in routeInputs, limiters authRateLimiters) (chi.Router, e
 		DB:             in.db.Pool(),
 		Notify:         settingsChangedNotifier(svc.RealtimeHub),
 		OpenAttendance: OpenAttendanceChecker{Service: svc.Active},
-		CareLifecycle:  svc.CareLifecycle,
 		// Mirror the tenant-side OnValueSet hook so operator writes also
 		// trigger side effects (e.g. auto-creating the Schulhof/WC rooms when
 		// the corresponding checkout toggle flips on).
@@ -1955,10 +1952,14 @@ func newOperatorRouter(in routeInputs, limiters authRateLimiters) (chi.Router, e
 		identity,
 		provisioning,
 		provisioningOperatorAPI.NewBillingResource(billing, nil, isLocalSeedRequest),
-		settingsOperatorAPI.NewSettingsResource(settingsOperatorAPI.SettingsConfig{
-			Settings: schoolSettings,
-			Schools:  in.modules.organizations,
-		}),
+		&operatorSchoolSettings{
+			values: settingsOperatorAPI.NewSettingsResource(settingsOperatorAPI.SettingsConfig{
+				Settings:   schoolSettings,
+				Schools:    operatorSettingsSchools{schools: in.modules.organizations},
+				OperatorID: operatorIDFromSession,
+			}),
+			bookingAuthorityImpact: newBookingAuthorityImpact(svc.CareLifecycle),
+		},
 		in.modules.communication,
 		tagScanReview.Router(),
 		limiters,

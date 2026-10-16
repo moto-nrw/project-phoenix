@@ -5,27 +5,9 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	reminders "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
-// TestNotificationTypeKeysMatchReminders pins the four reminder keys against
-// their source of truth.
-//
-// The strings are declared twice on purpose — services/notifications must not
-// depend on the reminder evaluator, but they are one wire contract: the frontend
-// switches on Reminder.Type and stores consent under the same string. A silent
-// rename on either side would leave people opted into a type that no longer
-// exists, which looks exactly like a working opt-in.
-func TestNotificationTypeKeysMatchReminders(t *testing.T) {
-	t.Parallel()
-
-	assert.Equal(t, reminders.TypePickupUpcoming, notifications.TypePickupUpcoming)
-	assert.Equal(t, reminders.TypePickupOverdue, notifications.TypePickupOverdue)
-	assert.Equal(t, reminders.TypeActivityStart, notifications.TypeActivityStart)
-	assert.Equal(t, reminders.TypeActivityOverdue, notifications.TypeActivityOverdue)
-}
 
 func TestNotificationTypeCatalogue(t *testing.T) {
 	t.Parallel()

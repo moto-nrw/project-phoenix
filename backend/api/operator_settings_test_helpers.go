@@ -10,6 +10,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -59,10 +60,16 @@ func NewOperatorSettingsTestModule(db transactionruntime.Database, unit tenant.U
 
 // OperatorSchoolSettings composes the operator's school settings the way
 // api/base.go does, over this module's services: the presence-mode guard
-// reads the module's Student Presence and the booking authority preview its
-// Care Plan. onValueSet is the write side-effect hook; the broadcast is off.
+// reads the module's Student Presence. onValueSet is the write side-effect
+// hook; the broadcast is off.
 func (m OperatorSettingsTestModule) OperatorSchoolSettings(onValueSet settingsCompose.OperatorValueSetHook) settings.OperatorSchoolSettings {
 	return m.OperatorSchoolSettingsWith(OperatorSchoolSettingsTestOptions{OnValueSet: onValueSet})
+}
+
+// SchoolSlugs binds the operator settings routes' slug lookup to this
+// module's Organisation & Tenancy, the way the root does.
+func (m OperatorSettingsTestModule) SchoolSlugs() settingsOperatorAPI.SchoolLookup {
+	return operatorSettingsSchools{schools: m.Schools}
 }
 
 // OperatorSchoolSettingsTestOptions varies the root's optional dependencies
@@ -71,9 +78,6 @@ type OperatorSchoolSettingsTestOptions struct {
 	OnValueSet settingsCompose.OperatorValueSetHook
 	// Notify receives the broadcast; nil disables it.
 	Notify settingsCompose.SettingsChangedNotifier
-	// WithoutCarePlan composes a deployment without the Care Plan booking
-	// authority.
-	WithoutCarePlan bool
 }
 
 // OperatorSchoolSettingsWith composes the operator's school settings over
@@ -84,11 +88,7 @@ func (m OperatorSettingsTestModule) OperatorSchoolSettingsWith(opts OperatorScho
 		DB:             m.db.Pool(),
 		Notify:         opts.Notify,
 		OpenAttendance: OpenAttendanceChecker{Service: m.Active},
-		CareLifecycle:  m.CareLifecycle,
 		OnValueSet:     opts.OnValueSet,
-	}
-	if opts.WithoutCarePlan {
-		deps.CareLifecycle = nil
 	}
 	return settingsCompose.NewOperatorSchoolSettings(deps)
 }

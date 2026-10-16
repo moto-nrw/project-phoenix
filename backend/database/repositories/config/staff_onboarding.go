@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
 )
 
 const (
@@ -29,24 +27,46 @@ type staffOnboardingRow struct {
 	UpdatedAt    time.Time  `bun:"updated_at,notnull,default:now()"`
 }
 
-// StaffOnboardingRepository implements schoolsetup.StaffStore. The table
-// belongs to Settings Platform, next to the school wizard's tables.
+// staffOnboarding is one person's stored first-steps progress.
+type staffOnboarding struct {
+	TenantID     int64
+	AccountID    int64
+	DoneSteps    []string
+	SkippedSteps []string
+	DismissedAt  *time.Time
+}
+
+// StaffOnboardingState is the shape of one person's stored first-steps
+// progress. School Setup names its own type of that shape and instantiates
+// the repository with it (#4072).
+type StaffOnboardingState interface {
+	~struct {
+		TenantID     int64
+		AccountID    int64
+		DoneSteps    []string
+		SkippedSteps []string
+		DismissedAt  *time.Time
+	}
+}
+
+// StaffOnboardingRepository stores the first steps of care workers. The
+// table belongs to Settings Platform, next to the school wizard's tables.
 //
 // Tenant scoping comes from the runtime's tenant transaction and the RLS
 // policy on the table; the account is the only key this package supplies
 // itself.
-type StaffOnboardingRepository struct {
+type StaffOnboardingRepository[S StaffOnboardingState] struct {
 	runtime Runtime
 }
 
 // NewStaffOnboardingRepository creates a new StaffOnboardingRepository.
-func NewStaffOnboardingRepository(runtime Runtime) schoolsetup.StaffStore {
-	return &StaffOnboardingRepository{runtime: runtime}
+func NewStaffOnboardingRepository[S StaffOnboardingState](runtime Runtime) *StaffOnboardingRepository[S] {
+	return &StaffOnboardingRepository[S]{runtime: runtime}
 }
 
 // StaffOnboardingOf returns the person's state, or (nil, nil) if the person
 // has not started.
-func (r *StaffOnboardingRepository) StaffOnboardingOf(ctx context.Context, accountID int64) (*schoolsetup.StaffState, error) {
+func (r *StaffOnboardingRepository[S]) StaffOnboardingOf(ctx context.Context, accountID int64) (*S, error) {
 	if accountID <= 0 {
 		return nil, errors.New("account ID is required")
 	}
@@ -63,20 +83,22 @@ func (r *StaffOnboardingRepository) StaffOnboardingOf(ctx context.Context, accou
 		}
 		return nil, fmt.Errorf("find staff onboarding: %w", err)
 	}
-	return &schoolsetup.StaffState{
+	state := S(staffOnboarding{
 		TenantID:     stored.TenantID,
 		AccountID:    stored.AccountID,
 		DoneSteps:    stored.DoneSteps,
 		SkippedSteps: stored.SkippedSteps,
 		DismissedAt:  stored.DismissedAt,
-	}, nil
+	})
+	return &state, nil
 }
 
 // StoreStaffOnboarding replaces the person's state wholesale.
-func (r *StaffOnboardingRepository) StoreStaffOnboarding(ctx context.Context, state *schoolsetup.StaffState) error {
-	if state == nil {
+func (r *StaffOnboardingRepository[S]) StoreStaffOnboarding(ctx context.Context, stored *S) error {
+	if stored == nil {
 		return errors.New("staff onboarding cannot be nil")
 	}
+	state := staffOnboarding(*stored)
 	if state.TenantID <= 0 || state.AccountID <= 0 {
 		return errors.New("tenant ID and account ID are required")
 	}

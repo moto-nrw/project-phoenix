@@ -824,3 +824,19 @@ func TestEveryPersonalReminderTypeHasCopy(t *testing.T) {
 		assert.True(t, known, "%s is not in the notification catalogue", notificationType)
 	}
 }
+
+// TestReminderTypesAreNotificationTypes pins the four reminder keys against
+// the notification types the job sends them as: runReminderNotificationsForTenant
+// hands a reminder's type over as its notification type. The strings are
+// declared twice on purpose, Delivery names no reminder workflow (#4072), but
+// they are one wire contract: the frontend switches on Reminder.Type and
+// stores consent under the same string. A silent rename on either side would
+// leave people opted into a type that no longer exists.
+func TestReminderTypesAreNotificationTypes(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, reminders.TypePickupUpcoming, notifications.TypePickupUpcoming)
+	assert.Equal(t, reminders.TypePickupOverdue, notifications.TypePickupOverdue)
+	assert.Equal(t, reminders.TypeActivityStart, notifications.TypeActivityStart)
+	assert.Equal(t, reminders.TypeActivityOverdue, notifications.TypeActivityOverdue)
+}

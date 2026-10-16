@@ -2412,13 +2412,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/planexport/compose",
-      "owner": "document-rendering",
-      "role": "compose",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/delivery/application/pwa",
       "owner": "delivery-platform",
       "role": "application",
@@ -2942,6 +2935,13 @@
       "role": "compose",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/careplan/http",
+      "owner": "care-plan",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
     },
     {
       "path": "modules/careplan/internal/adapters/postgres",
@@ -12605,17 +12605,6 @@
       ],
       "source_owner": "document-rendering",
       "source_role": "workflow-decision-test",
-      "target_owner": "document-rendering",
-      "target_role": "application"
-    },
-    {
-      "id": "document-rendering.adapter-test.document-rendering-application",
-      "description": "Plan export composition tests inspect the rendered Document Rendering document and render the runtime evidence through the real renderer (#2706).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "document-rendering",
-      "source_role": "adapter-test",
       "target_owner": "document-rendering",
       "target_role": "application"
     },
