@@ -12,7 +12,6 @@ import (
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -153,5 +152,5 @@ func (s *Service) GuardianReasonRequired(ctx context.Context, tenantID int64) bo
 		)
 		return true
 	}
-	return configService.ReasonRequiredFor(policy, false)
+	return guardianReasonRequired(policy)
 }

@@ -165,6 +165,8 @@ type (
 	InboxThread                      = messaging.InboxThread
 	ParentMessage                    = messaging.ParentMessage
 	SettingsService                  = care.SettingsService
+	SettingsSnapshot                 = care.SettingsSnapshot
+	BatchSettingsService             = care.BatchSettingsService
 	StudentDataChangeRequest         = care.StudentDataChangeRequest
 )
 

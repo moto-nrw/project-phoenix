@@ -23,7 +23,7 @@ import (
 // reasonPolicySettings turns the absence approval gate on and serves one
 // configured value of operations.parent_request_reason_policy.
 type reasonPolicySettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	policy string
 }
 

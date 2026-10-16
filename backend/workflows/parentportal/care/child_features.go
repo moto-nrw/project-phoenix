@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -71,7 +70,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		MealPlanEnabled:              f.mealPlan,
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(authorize.GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
-		ReasonRequired:               configService.ReasonRequiredFor(f.reasonPolicy, false),
+		ReasonRequired:               guardianReasonRequired(f.reasonPolicy),
 	}
 }
 

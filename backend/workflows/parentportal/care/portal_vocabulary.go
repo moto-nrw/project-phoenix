@@ -4,7 +4,6 @@ import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // The child-flow results and values the guardian portal HTTP composition
@@ -18,9 +17,6 @@ type (
 	EnrollablePhase          = parentModels.EnrollablePhase
 	EnrollmentRequestSummary = parentModels.EnrollmentRequestSummary
 	GuardianSubmitStatus     = parentModels.GuardianSubmitStatus
-	// SettingsService is the settings service both flows resolve the portal's
-	// school settings through; handler suites double it.
-	SettingsService          = configService.SettingsService
 	StudentDataChangeRequest = usersModels.StudentDataChangeRequest
 )
 

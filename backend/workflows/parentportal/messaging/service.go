@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -56,7 +55,7 @@ type Config struct {
 
 	ChildRepo             care.ChildReads
 	EnrollmentRequestRepo care.EnrollmentRequestReads
-	Settings              configService.SettingsService
+	Settings              care.SettingsService
 
 	StudentRepo         care.StudentReads
 	StudentGuardianRepo care.StudentGuardianReads
