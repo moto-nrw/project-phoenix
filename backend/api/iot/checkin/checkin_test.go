@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -114,7 +114,7 @@ func (k *kiosk) roomWithSession(t *testing.T, name string) (roomID, activityID, 
 
 func (k *kiosk) presence(t *testing.T) *studentpresence.Module {
 	t.Helper()
-	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: k.db, Observe: func(presenceCompose.Observation) {}})
+	module, err := api.NewCheckinTestPresence(testpkg.NewDatabase(t, k.db))
 	require.NoError(t, err)
 	return module
 }
