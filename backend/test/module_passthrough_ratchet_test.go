@@ -177,7 +177,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry.
-const modulePassthroughOwnerBudgetTotal = 3091
+const modulePassthroughOwnerBudgetTotal = 3090
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -280,7 +280,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// challenge stores, permission and role administration reads.
 	//
 	// ADR 0061: application 117 + modules/identityaccess/compose 484.
-	"modules/identityaccess": 601,
+	"modules/identityaccess": 600,
 	// Menu, participation and week reads forwarded to the store.
 	//
 	// ADR 0061: application 8 + modules/mealplan/compose 7.
