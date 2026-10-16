@@ -29,7 +29,7 @@ func TestStudentDirectoryUsesLiveMembershipIdentity(t *testing.T) {
 	require.NotEqual(t, student.ID, memberID, "membership identity must not be assumed to equal the public profile ID")
 	_, err = directory.FindStudentRecord(ctx, student.ID)
 	require.ErrorIs(t, err, peopledirectory.ErrStudentNotFound, "an incomplete membership without care is not projected")
-	care, err := careCompose.NewStudentProfiles(db, func(careCompose.Observation) {})
+	care, err := careCompose.NewStudentProfiles(db, testpkg.StudentDirectory{}, func(careCompose.Observation) {})
 	require.NoError(t, err)
 	require.NoError(t, care.SaveStudentCareProfile(ctx, careplan.StudentCareProfile{MembershipID: memberID}, nil))
 	record, err := directory.FindStudentRecord(ctx, student.ID)

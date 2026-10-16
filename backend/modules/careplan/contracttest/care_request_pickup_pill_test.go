@@ -231,7 +231,7 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 
 func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReviewQuery {
 	t.Helper()
-	query, err := requestreviewcompose.NewScheduleReviews(f.db, requestreviewcompose.ScheduleReviewDependencies{
+	query, err := requestreviewcompose.NewScheduleReviews(f.db, testpkg.StudentDirectory{}, requestreviewcompose.ScheduleReviewDependencies{
 		People: f.sf.PeopleDirectory,
 		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.

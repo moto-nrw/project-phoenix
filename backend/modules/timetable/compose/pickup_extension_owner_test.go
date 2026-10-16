@@ -38,7 +38,8 @@ func buildPickupExtensionModuleWith(t *testing.T, db *bun.DB, students StudentDi
 		observe = observers[0]
 	}
 	module, err := New(Dependencies{
-		DB: db, Students: students, Rooms: testRooms(), Sessions: sessions,
+		Provenance: testpkg.EnrollmentProvenance{},
+		DB:         db, Students: students, Rooms: testRooms(), Sessions: sessions,
 		LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe,
 	})
 	require.NoError(t, err)

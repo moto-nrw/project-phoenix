@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -79,7 +81,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	if err != nil {
 		return nil, nil, err
 	}
-	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), func(careplanCompose.Observation) {})
+	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -186,7 +188,7 @@ func NewStudentRepository(db transactionruntime.Database, membership groupAssign
 // PresenceStudents reads Directory records and writes only Care Plan's live
 // flags, over an unobserved Care Plan student profile owner.
 func PresenceStudents(db transactionruntime.Database, source presenceStudentSource) presenceservice.PresenceStudents {
-	care, err := careplanCompose.NewStudentProfiles(db.Pool(), func(careplanCompose.Observation) {})
+	care, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		panic(err)
 	}

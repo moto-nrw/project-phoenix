@@ -28,7 +28,7 @@
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/integration|github.com/moto-nrw/project-phoenix/models/enrollment",
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/careplan/integration|github.com/moto-nrw/project-phoenix/models/users"
   ],
-  "atomic_cutover": "One test-side cutover without a rule or policy epoch. Guardian roles and permissions come from securityruntime and the shared fixtures, audit rows from test/audit_rows.go, the work-time template through the Workforce capability, the time-tracking audit feed through api.ListTestTimeTrackingAuditEntries; student_consent_composition_test.go moves to package api. securityruntime names two more guardian permissions. Legacy keys fall by nine (#4076: 102 -> 93); composition and budgets unchanged.",
+  "atomic_cutover": "One test-side cutover without a rule or policy epoch. Guardian roles and permissions come from securityruntime and the shared fixtures, audit rows from test/audit_rows.go, the work-time template through the Workforce capability, the personnel-number audit feed test and student_consent_composition_test.go move to package api. securityruntime names two more guardian permissions. Legacy keys fall by nine (#4076: 102 -> 93); composition and budgets unchanged.",
   "tests": [
     "modules/careplan/integration, modules/careplan/contracttest, modules/peopledirectory/contracttest and api suites keep their assertions; one Care Plan document round trip strips the stored category prefix inline instead of through the audit helper.",
     "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast; scripts/backend-architecture.sh check; validate-ticket --all."

@@ -120,3 +120,36 @@ func ListNewParentRequests(ctx context.Context, db bun.IDB, tenantID int64, sinc
 	}
 	return rows, nil
 }
+
+// Database supplies the caller's transaction.
+type Database func(context.Context) (bun.IDB, error)
+
+// Reader is the projection the roots bind to the reader port of Care Plan's
+// request feed (ADR 0058). Every read runs in the caller's transaction.
+type Reader struct{ database Database }
+
+// NewReader binds the projection to the caller's transaction.
+func NewReader(database Database) *Reader {
+	if database == nil {
+		panic("parent request feed projection: database is required")
+	}
+	return &Reader{database: database}
+}
+
+// ResolveAccess is ResolveAccess in the caller's transaction.
+func (r *Reader) ResolveAccess(ctx context.Context, tenantID, accountID int64) (Access, bool, error) {
+	db, err := r.database(ctx)
+	if err != nil {
+		return Access{}, false, err
+	}
+	return ResolveAccess(ctx, db, tenantID, accountID)
+}
+
+// ListNewParentRequests is ListNewParentRequests in the caller's transaction.
+func (r *Reader) ListNewParentRequests(ctx context.Context, tenantID int64, since time.Time, generalRequests, enrollmentRequests bool) ([]Entry, error) {
+	db, err := r.database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return ListNewParentRequests(ctx, db, tenantID, since, generalRequests, enrollmentRequests)
+}

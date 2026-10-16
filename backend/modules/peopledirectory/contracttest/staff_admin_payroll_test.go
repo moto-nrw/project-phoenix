@@ -2,7 +2,6 @@ package contracttest_test
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"testing"
@@ -316,36 +315,4 @@ func TestUpdatePersonnelNumber_Validation(t *testing.T) {
 	unwired.PersonnelNumber = nil
 	_, err := api.NewStaffAdmin(unwired)
 	require.Error(t, err, "without the audit repository no change may happen")
-}
-
-func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
-	t.Parallel()
-
-	s := newPayrollScenario(t)
-	staff := testpkg.CreateTestStaff(t, s.db, "Payroll", "Feed")
-	actor := testpkg.CreateTestStaff(t, s.db, "Payroll", "FeedAktor")
-
-	value := "90030"
-	_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Feed-Test")
-	require.NoError(t, err)
-
-	entries, err := api.ListTestTimeTrackingAuditEntries(s.ctx, testpkg.NewDatabase(t, s.db), staff.ID, testpkg.AuditLogSourcePersonnelNumber)
-	require.NoError(t, err)
-	require.Len(t, entries, 1)
-
-	entry := entries[0]
-	assert.Equal(t, testpkg.AuditLogSourcePersonnelNumber, entry.Source)
-	require.NotNil(t, entry.StaffID)
-	assert.Equal(t, staff.ID, *entry.StaffID)
-	require.NotNil(t, entry.ActorStaffID)
-	assert.Equal(t, actor.ID, *entry.ActorStaffID)
-	assert.Equal(t, "Feed-Test", entry.Reason)
-
-	var detail struct {
-		OldValue string `json:"old_value"`
-		NewValue string `json:"new_value"`
-	}
-	require.NoError(t, json.Unmarshal(entry.Detail, &detail))
-	assert.Equal(t, "", detail.OldValue)
-	assert.Equal(t, "90030", detail.NewValue)
 }
