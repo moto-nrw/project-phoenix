@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -15,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The operational day of the Timetable owner (#3424 slice S5): the
@@ -158,13 +158,13 @@ type ExpectedArrival struct {
 // EffectiveArrivals is the consumer-owned port to Care Plan's effective
 // arrival times of a date.
 type EffectiveArrivals interface {
-	EffectiveArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*ExpectedArrival, error)
+	EffectiveArrivals(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*ExpectedArrival, error)
 }
 
 // EffectivePickups is the consumer-owned port to Care Plan's effective
 // pickup times of a date; a child without a time is absent or nil.
 type EffectivePickups interface {
-	EffectivePickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*time.Time, error)
+	EffectivePickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error)
 }
 
 // AttendanceAnnouncer wakes the tenant's clients after an attendance patch;
@@ -243,8 +243,8 @@ func (s *operations) now() time.Time {
 	return time.Now()
 }
 
-func (s *operations) today() timezone.Date {
-	return timezone.DateFromTime(s.now())
+func (s *operations) today() calendar.Date {
+	return calendar.DateFromTime(s.now())
 }
 
 func (s *operations) logger() *slog.Logger {
@@ -300,7 +300,7 @@ func (s *operations) resolveStaffID(ctx context.Context, accountID int64) (int64
 // lifecycleWindow is the planned window of a retained block.
 func lifecycleWindow(inst *scheduleModels.ActivityInstance) timetable.LifecycleWindow {
 	return timetable.LifecycleWindow{
-		Date: timezone.Date(inst.Date), StartTime: inst.StartTime, EndTime: inst.EndTime, IsSpontaneous: inst.IsSpontaneous,
+		Date: calendar.Date(inst.Date), StartTime: inst.StartTime, EndTime: inst.EndTime, IsSpontaneous: inst.IsSpontaneous,
 	}
 }
 

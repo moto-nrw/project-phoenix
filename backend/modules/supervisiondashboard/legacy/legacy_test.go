@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -17,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
+	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -100,38 +100,38 @@ func (m *mockSchulhofService) GetSchulhofStatus(_ context.Context, staffID int64
 
 type mockOperationsService struct {
 	timetable.OperationQuery
-	plannedNowFn     func(timezone.Date, time.Time, timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error)
-	activeSessionsFn func(timezone.Date) ([]timetable.OperationActiveSession, error)
-	sessionBlocksFn  func(int64, bool, timezone.Date, map[int64][]int64) ([]timetable.OperationSessionBlock, error)
+	plannedNowFn     func(calendarpkg.Date, time.Time, timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error)
+	activeSessionsFn func(calendarpkg.Date) ([]timetable.OperationActiveSession, error)
+	sessionBlocksFn  func(int64, bool, calendarpkg.Date, map[int64][]int64) ([]timetable.OperationSessionBlock, error)
 }
 
-func (m *mockOperationsService) SessionBlocks(_ context.Context, accountID int64, isAdmin bool, day timezone.Date, supervisors map[int64][]int64) ([]timetable.OperationSessionBlock, error) {
+func (m *mockOperationsService) SessionBlocks(_ context.Context, accountID int64, isAdmin bool, day calendarpkg.Date, supervisors map[int64][]int64) ([]timetable.OperationSessionBlock, error) {
 	return m.sessionBlocksFn(accountID, isAdmin, day, supervisors)
 }
 
-func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, day timezone.Date, now time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
+func (m *mockOperationsService) PlannedNow(_ context.Context, _ int64, _ bool, day calendarpkg.Date, now time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
 	return m.plannedNowFn(day, now, opts)
 }
 
-func (m *mockOperationsService) ActiveSessions(_ context.Context, day timezone.Date) ([]timetable.OperationActiveSession, error) {
+func (m *mockOperationsService) ActiveSessions(_ context.Context, day calendarpkg.Date) ([]timetable.OperationActiveSession, error) {
 	return m.activeSessionsFn(day)
 }
 
 type mockPickupService struct {
 	careplan.BulkPickupDays
-	getBulkEffectivePickupTimesForDateFn func([]int64, timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
+	getBulkEffectivePickupTimesForDateFn func([]int64, calendarpkg.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
-func (m *mockPickupService) GetBulkEffectivePickupDaysForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
+func (m *mockPickupService) GetBulkEffectivePickupDaysForDate(_ context.Context, studentIDs []int64, date calendarpkg.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	return m.getBulkEffectivePickupTimesForDateFn(studentIDs, date)
 }
 
 type mockArrivalService struct {
 	careplan.BulkArrivalTimes
-	getBulkEffectiveArrivalTimesForDateFn func([]int64, timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
+	getBulkEffectiveArrivalTimesForDateFn func([]int64, calendarpkg.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
 }
 
-func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
+func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Context, studentIDs []int64, date calendarpkg.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
@@ -447,11 +447,11 @@ func TestPlanningMapsEffectiveTimes(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	date := timezone.NewDate(2026, 8, 19)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, time.August, 19, 15, 30, 0, 0, time.UTC))
-	arrival := timezone.NormalizeWallClock(time.Date(2026, time.August, 19, 11, 45, 0, 0, time.UTC))
+	date := calendarpkg.NewDate(2026, 8, 19)
+	pickup := calendarpkg.NormalizeWallClock(time.Date(2026, time.August, 19, 15, 30, 0, 0, time.UTC))
+	arrival := calendarpkg.NormalizeWallClock(time.Date(2026, time.August, 19, 11, 45, 0, 0, time.UTC))
 	p := planning{
-		pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
+		pickups: &mockPickupService{getBulkEffectivePickupTimesForDateFn: func(studentIDs []int64, gotDate calendarpkg.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 			assert.Equal(t, []int64{42}, studentIDs)
 			assert.Equal(t, date, gotDate)
 			return map[int64]*careplan.EffectivePickupTime{
@@ -459,7 +459,7 @@ func TestPlanningMapsEffectiveTimes(t *testing.T) {
 				43: nil,
 			}, nil
 		}},
-		arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
+		arrivals: &mockArrivalService{getBulkEffectiveArrivalTimesForDateFn: func([]int64, calendarpkg.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 			return map[int64]*careplan.EffectiveArrivalTime{
 				42: {Date: date, ArrivalTime: &arrival, WeekdayName: "Mittwoch", Notes: "Bus", DayNotes: []careplan.ArrivalNoteData{{ID: 4, Content: "Verspätung"}}},
 			}, nil
@@ -491,7 +491,7 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	now := time.Date(2026, time.August, 19, 12, 0, 0, 0, timezone.Berlin)
+	now := time.Date(2026, time.August, 19, 12, 0, 0, 0, calendarpkg.Berlin)
 	pickup := "15:00"
 	note := "Nachmittag"
 	activeGroupID := int64(88)
@@ -515,20 +515,20 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 	}
 	minimal := timetable.OperationPlannedInstance{ID: 6}
 	operations := &mockOperationsService{
-		plannedNowFn: func(day timezone.Date, gotNow time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
-			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
+		plannedNowFn: func(day calendarpkg.Date, gotNow time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
+			assert.Equal(t, calendarpkg.NewDate(2026, 8, 19), day)
 			assert.Equal(t, now, gotNow)
 			assert.Equal(t, timetable.PlannedNowOptions{HorizonMinutes: 480, Limit: 5, IncludeRoster: true}, opts)
 			return []timetable.OperationPlannedInstance{retained, minimal}, nil
 		},
-		activeSessionsFn: func(day timezone.Date) ([]timetable.OperationActiveSession, error) {
-			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
+		activeSessionsFn: func(day calendarpkg.Date) ([]timetable.OperationActiveSession, error) {
+			assert.Equal(t, calendarpkg.NewDate(2026, 8, 19), day)
 			return []timetable.OperationActiveSession{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00"}}, nil
 		},
-		sessionBlocksFn: func(accountID int64, isAdmin bool, day timezone.Date, supervisors map[int64][]int64) ([]timetable.OperationSessionBlock, error) {
+		sessionBlocksFn: func(accountID int64, isAdmin bool, day calendarpkg.Date, supervisors map[int64][]int64) ([]timetable.OperationSessionBlock, error) {
 			assert.Equal(t, int64(70), accountID)
 			assert.True(t, isAdmin)
-			assert.Equal(t, timezone.NewDate(2026, 8, 19), day)
+			assert.Equal(t, calendarpkg.NewDate(2026, 8, 19), day)
 			assert.Equal(t, map[int64][]int64{88: {7}}, supervisors)
 			return []timetable.OperationSessionBlock{{ActiveGroupID: 88, InstanceID: 5, Title: "Malen", StartTime: "14:00", EndTime: "15:00", IsAssigned: true, CanOperate: true}}, nil
 		},

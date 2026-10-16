@@ -13,10 +13,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -35,7 +35,7 @@ func createPersonFromStudentRequest(req *StudentRequest) (*peopleModule.Person, 
 
 	// Set optional Birthday if provided
 	if req.Birthday != "" {
-		parsedBirthday, err := timezone.ParseDate(req.Birthday)
+		parsedBirthday, err := calendar.ParseDate(req.Birthday)
 		if err != nil {
 			return nil, fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 		}

@@ -1,10 +1,10 @@
 package timetracking
 
-import "github.com/moto-nrw/project-phoenix/internal/timezone"
+import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 // WorkTimeTargetModel exposes the target calculation without a writable model.
 type WorkTimeTargetModel struct {
 	ID                 int64
-	RotationAnchorDate timezone.Date
-	DailyTarget        func(anchor, date timezone.Date) (int, bool)
+	RotationAnchorDate calendar.Date
+	DailyTarget        func(anchor, date calendar.Date) (int, bool)
 }

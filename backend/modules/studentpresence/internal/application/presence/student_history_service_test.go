@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +29,7 @@ func TestVisitHistoryPreservesInclusiveEntryRangeAndRoomLookupErrors(t *testing.
 	room := testpkg.CreateTestRoom(t, db, "History Room")
 	activity := testpkg.CreateTestActivityGroup(t, db, "History Activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	start := time.Date(2032, 3, 2, 9, 0, 0, 0, timezone.Berlin)
+	start := time.Date(2032, 3, 2, 9, 0, 0, 0, calendar.Berlin)
 	end := start.Add(time.Hour)
 	for _, entry := range []time.Time{start.Add(-time.Minute), start, end, end.Add(time.Minute)} {
 		exit := entry.Add(time.Minute)

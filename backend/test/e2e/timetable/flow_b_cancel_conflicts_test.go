@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -30,7 +30,7 @@ func TestFlowB_CancelAndExceptionConflicts(t *testing.T) {
 	s := setupTimetableScenarioModule(t)
 
 	// --- Setup: target Monday at 13:00–14:00 -------------------------------
-	target := nextWeekday(timezone.TodayDate(), 1, 7) // Mon, >=7 days out
+	target := nextWeekday(calendar.TodayDate(), 1, 7) // Mon, >=7 days out
 	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-B-%d", time.Now().UnixNano()), target)

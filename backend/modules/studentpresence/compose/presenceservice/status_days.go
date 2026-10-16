@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewStatusDays builds the status-day reads and writes over Care Plan's
@@ -33,31 +33,31 @@ func (s statusDays) DeleteStatusDay(ctx context.Context, wc studentpresence.Stat
 
 // GetActiveByStudentIDsAndDate returns the active status rows of many
 // students for one calendar date.
-func (s statusDays) GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*presence.StatusDayRow, error) {
+func (s statusDays) GetActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*presence.StatusDayRow, error) {
 	return s.repo.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
 }
 
 // GetSignedOffByStudentIDsAndDate returns the status rows of many students
 // that count as a registered sign-off for one date: active rows plus rows the
 // end-of-day scheduler archived (see the repository doc for why those stay in).
-func (s statusDays) GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]*presence.StatusDayRow, error) {
+func (s statusDays) GetSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*presence.StatusDayRow, error) {
 	return s.repo.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 }
 
 // GetActiveByStudentAndDateRange returns a student's active status rows
 // within the date range.
-func (s statusDays) GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*presence.StatusDayRow, error) {
+func (s statusDays) GetActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*presence.StatusDayRow, error) {
 	return s.repo.FindActiveByStudentAndDateRange(ctx, studentID, startDate, endDate)
 }
 
 // GetByStudentAndDateRange returns ALL (including cleared) status rows of
 // a student within the date range.
-func (s statusDays) GetByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*presence.StatusDayRow, error) {
+func (s statusDays) GetByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*presence.StatusDayRow, error) {
 	return s.repo.FindByStudentAndDateRange(ctx, studentID, startDate, endDate)
 }
 
 // MarkCleared clears a student's status for one date.
-func (s statusDays) MarkCleared(ctx context.Context, studentID int64, status string, date timezone.Date, clearedAt time.Time, source string) error {
+func (s statusDays) MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error {
 	return s.repo.MarkCleared(ctx, studentID, status, date, clearedAt, source)
 }
 

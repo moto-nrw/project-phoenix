@@ -16,11 +16,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
@@ -31,7 +31,7 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 	student := testpkg.CreateTestStudent(t, tc.db, "Sichtbar", "Grenze", "4c")
 	endedWithoutTask := testpkg.CreateTestStudent(t, tc.db, "Ohne", "Aufgabe", "4d")
 	studentID := student.ID
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	// The gap must be a future day inside the planning horizon, which closes
 	// on the Sunday of the current week (day_planning.go: maxPlanningDate). On a Sunday there
 	// is no such day, so the scenario cannot be exercised against the real
@@ -82,7 +82,7 @@ func TestStudentList_UsesBookingParticipationButKeepsAdministrationAndLivePresen
 }
 
 func upsertNaturalCompletion(
-	t *testing.T, db bun.IDB, studentID int64, gap timezone.Date,
+	t *testing.T, db bun.IDB, studentID int64, gap calendar.Date,
 ) {
 	t.Helper()
 	testpkg.CreateTestBookingExpiredCareWithdrawalOn(t, db, studentID, gap)
@@ -112,7 +112,7 @@ func TestCareWithdrawalHandlers_StaleDeletionRollsBackCompletion(t *testing.T) {
 	repos := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "StaleDeletion", "3a")
 	_, actor := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CareWithdrawal", "StaleDelete")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, calendar.TodayDate())
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
 	previewRequest := testutil.NewAuthenticatedRequest(
@@ -156,7 +156,7 @@ func TestCareExitHandlers_RequireDeletePermission(t *testing.T) {
 	claims := testutil.AdminTestClaims(int(actor.ID))
 	body := map[string]any{
 		"student_ids":   []string{fmt.Sprintf("%d", student.ID)},
-		"last_care_day": timezone.TodayDate().String(),
+		"last_care_day": calendar.TodayDate().String(),
 		"reason":        careplan.CareExitReasonMovedAway,
 	}
 
@@ -189,7 +189,7 @@ func TestCareWithdrawalHandlers_ListAndChildWarningRequireDeletePermission(t *te
 	tc := setupStudentsRouteWithCareLifecycle(t, false)
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abmeldung", "2a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-list@example.com")
-	testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(t, tc.db, student.ID, actor.ID, timezone.TodayDate(), actor.CreatedAt)
+	testpkg.CreateTestCareWithdrawalCompletionConfirmedAt(t, tc.db, student.ID, actor.ID, calendar.TodayDate(), actor.CreatedAt)
 	claims := testutil.AdminTestClaims(int(actor.ID))
 
 	for _, path := range []string{"/care-withdrawals", fmt.Sprintf("/care-withdrawals?student_id=%d", student.ID)} {
@@ -209,10 +209,10 @@ func TestCareWithdrawalHandlers_PreviewThenConfirmOneTask(t *testing.T) {
 	repos := newStudentTestRepositories(testpkg.NewDatabase(t, tc.db))
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Abschluss", "3a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-withdrawal-confirm@example.com")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, timezone.TodayDate().AddDays(1))
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, calendar.TodayDate().AddDays(1))
 	claims := testutil.AdminTestClaims(int(actor.ID))
 	body := map[string]any{
-		"last_care_day": timezone.TodayDate().String(),
+		"last_care_day": calendar.TodayDate().String(),
 		"reason":        careplan.CareExitReasonNoCareNeed,
 	}
 	previewRequest := testutil.NewAuthenticatedRequest(
@@ -253,7 +253,7 @@ func TestCareExitHandlers_PreviewThenConfirm(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, tc.db, "Api", "Exit", "2a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-exit-happy@example.com")
 	claims := testutil.AdminTestClaims(int(actor.ID))
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 
 	body := map[string]any{
 		"student_ids":   []string{fmt.Sprintf("%d", student.ID)},
@@ -341,7 +341,7 @@ func TestCareExitHandlers_ValidateCareExitDatesAndReasonNote(t *testing.T) {
 	assert.Contains(t, missingDateResponse.Body.String(), "Bitte geben Sie den letzten Betreuungstag an.")
 
 	longNote := testutil.NewAuthenticatedRequest(t, http.MethodPost, "/care-end/preview", map[string]any{
-		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "last_care_day": timezone.TodayDate().String(),
+		"student_ids": []string{fmt.Sprintf("%d", student.ID)}, "last_care_day": calendar.TodayDate().String(),
 		"reason": careplan.CareExitReasonOther, "reason_note": strings.Repeat("x", careplan.MaxCareExitNoteLen+1),
 	})
 	longNoteResponse := authExec(t, tc, longNote, claims, []string{"admin:*"})
@@ -359,7 +359,7 @@ func TestStudentList_CareStatusDecidesWhichSideIsShown(t *testing.T) {
 	ended := testpkg.CreateTestStudent(t, tc.db, "Listed", "Ended", "3a")
 	endsToday := testpkg.CreateTestStudent(t, tc.db, "Listed", "EndsToday", "3a")
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	setEnrolledUntil(t, tc, planned.ID, today.AddDays(14))
 	setEnrolledUntil(t, tc, ended.ID, today.AddDays(-1))
 	setEnrolledUntil(t, tc, endsToday.ID, today)
@@ -500,7 +500,7 @@ func TestStudentList_MarksRecordedExitsOnly(t *testing.T) {
 	phaseEnd := testpkg.CreateTestStudent(t, tc.db, "Flagged", "PhaseEnd", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "care-flag@example.com")
 	claims := testutil.AdminTestClaims(int(actor.ID))
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 
 	// Both carry the same end date, far ahead. Only one of them was entered
 	// through "Betreuung beenden".
@@ -537,7 +537,7 @@ func TestStudentList_MarksRecordedExitsOnly(t *testing.T) {
 
 // confirmCareExitVia ends a child's care through the real HTTP surface, so the
 // exit row is written exactly the way the product writes it.
-func confirmCareExitVia(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, lastCareDay timezone.Date) {
+func confirmCareExitVia(t *testing.T, tc *testContext, claims sessiontoken.AppClaims, studentID int64, lastCareDay calendar.Date) {
 	t.Helper()
 	body := map[string]any{
 		"student_ids":   []string{fmt.Sprintf("%d", studentID)},
@@ -573,7 +573,7 @@ func flipCareExitTokenHex(t *testing.T, token string) string {
 	return string(flipped)
 }
 
-func setEnrolledUntil(t *testing.T, tc *testContext, studentID int64, day timezone.Date) {
+func setEnrolledUntil(t *testing.T, tc *testContext, studentID int64, day calendar.Date) {
 	t.Helper()
 	_, err := tc.db.NewUpdate().
 		TableExpr("users.student_school_memberships").

@@ -9,11 +9,11 @@ import (
 	"slices"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -239,7 +239,7 @@ func (s *InstanceLifecycleService) activeSupervisionsByStaff(ctx context.Context
 	if len(staffIDs) == 0 {
 		return activeByStaff, nil
 	}
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	activeRows, err := s.deps.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{ActiveOn: &day, StaffIDs: staffIDs})
 	if err != nil {
 		return nil, &ScheduleError{Op: "reopen instance: load staff supervisions", Err: err}

@@ -6,10 +6,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestIncludePickupParticipantUsesCareBoundaryAndActualPresence(t *testing.T) {
@@ -30,7 +30,7 @@ func (r *recordingRules) RowCareDay(bool, ports.RosterFacts, ports.CareDay) port
 	return ports.CareDayUnknown
 }
 
-func (r *recordingRules) EnrolledOn(student ports.StudentFacts, _, _ timezone.Date) bool {
+func (r *recordingRules) EnrolledOn(student ports.StudentFacts, _, _ calendar.Date) bool {
 	r.facts = student
 	return r.enrolled
 }
@@ -43,7 +43,7 @@ func (r *recordingRules) EnrolledOn(student ports.StudentFacts, _, _ timezone.Da
 func TestEligibleOn_CandidateRulesBeforeEnrollment(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2030, 9, 4)
+	date := calendar.NewDate(2030, 9, 4)
 
 	t.Run("nil student is never eligible", func(t *testing.T) {
 		rules := &recordingRules{enrolled: true}
@@ -75,8 +75,8 @@ func TestEligibleOn_CandidateRulesBeforeEnrollment(t *testing.T) {
 		assert.True(t, ok)
 		require.NotNil(t, rules.facts.EnrolledFrom)
 		require.NotNil(t, rules.facts.EnrolledUntil)
-		assert.Equal(t, timezone.NewDate(2030, 8, 1), *rules.facts.EnrolledFrom)
-		assert.Equal(t, timezone.NewDate(2031, 7, 31), *rules.facts.EnrolledUntil)
+		assert.Equal(t, calendar.NewDate(2030, 8, 1), *rules.facts.EnrolledFrom)
+		assert.Equal(t, calendar.NewDate(2031, 7, 31), *rules.facts.EnrolledUntil)
 		assert.Equal(t, "active", rules.facts.Status)
 	})
 

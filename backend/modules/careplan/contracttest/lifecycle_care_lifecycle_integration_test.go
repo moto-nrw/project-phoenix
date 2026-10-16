@@ -24,12 +24,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -75,7 +75,7 @@ func newActiveService(t *testing.T, db *bun.DB) studentpresence.Presence {
 // makeExitEffective moves the recorded last care day into the past, which is
 // what the calendar does overnight. The product refuses a retroactive exit, so
 // this is the only honest way to test the day AFTER one.
-func makeExitEffective(t *testing.T, db *bun.DB, studentID int64, lastCareDay timezone.Date) {
+func makeExitEffective(t *testing.T, db *bun.DB, studentID int64, lastCareDay calendar.Date) {
 	t.Helper()
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
@@ -94,7 +94,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	svc := newCareLifecycleServiceAt(t, db, today)
 	presence := newActiveService(t, db)
 	actorID := careActor(t, db)
@@ -171,7 +171,7 @@ func TestCareExit_BinarySchoolWithNfcAndGroups(t *testing.T) {
 			Persons: repos.Person, Students: repos.Student, Teachers: repos.Teacher, Staff: repos.Staff,
 			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
 		}).WithCareParticipation(func(
-			ctx context.Context, studentIDs []int64, on, today timezone.Date,
+			ctx context.Context, studentIDs []int64, on, today calendar.Date,
 		) (map[int64]bool, error) {
 			resolution, err := svc.ResolveListParticipation(ctx, studentIDs, on, today, false)
 			if err != nil {
@@ -212,7 +212,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	studentID := chain.StudentID
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	room := testpkg.CreateTestRoom(t, db, "Werkraum")
 	activityGroup := testpkg.CreateTestActivityGroup(t, db, "Töpfern")
@@ -243,7 +243,7 @@ func TestCareExit_FullSchoolWithPlanOfferingsAndParents(t *testing.T) {
 	request := &testpkg.ExcusedAbsenceRequestRow{
 		StudentID:     studentID,
 		SubmittedBy:   chain.AccountID,
-		Dates:         []timezone.Date{today.AddDays(3)},
+		Dates:         []calendar.Date{today.AddDays(3)},
 		Note:          "Arzttermin",
 		AbsenceStatus: "excused",
 		Status:        absencerecords.ExcusedRequestStatusPending,

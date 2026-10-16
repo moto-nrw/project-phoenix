@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/uptrace/bun"
@@ -132,7 +132,7 @@ func TestShiftTypeService_DeleteNullsReferencingShift(t *testing.T) {
 	// A shift that references the type.
 	shift := &planning.StaffShift{
 		StaffID:     staff.ID,
-		Date:        timezone.NewDate(2026, time.July, 6),
+		Date:        calendar.NewDate(2026, time.July, 6),
 		StartTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 		EndTime:     time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 		ShiftTypeID: &st.ID,

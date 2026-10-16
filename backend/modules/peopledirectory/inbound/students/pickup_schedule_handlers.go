@@ -12,11 +12,11 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -108,25 +108,25 @@ func (rs *Resource) getStudentPickupSchedules(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, response, "Pickup schedules retrieved successfully")
 }
 
-func pickupScheduleDateRange(r *http.Request) (timezone.Date, timezone.Date, bool, error) {
+func pickupScheduleDateRange(r *http.Request) (calendar.Date, calendar.Date, bool, error) {
 	fromRaw := strings.TrimSpace(r.URL.Query().Get("from"))
 	toRaw := strings.TrimSpace(r.URL.Query().Get("to"))
 	if fromRaw == "" && toRaw == "" {
-		return timezone.Date(""), timezone.Date(""), false, nil
+		return calendar.Date(""), calendar.Date(""), false, nil
 	}
 	if fromRaw == "" || toRaw == "" {
-		return timezone.Date(""), timezone.Date(""), false, errors.New("from and to must be provided together")
+		return calendar.Date(""), calendar.Date(""), false, errors.New("from and to must be provided together")
 	}
-	from, err := timezone.ParseDate(fromRaw)
+	from, err := calendar.ParseDate(fromRaw)
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), false, fmt.Errorf("invalid from date: %w", err)
+		return calendar.Date(""), calendar.Date(""), false, fmt.Errorf("invalid from date: %w", err)
 	}
-	to, err := timezone.ParseDate(toRaw)
+	to, err := calendar.ParseDate(toRaw)
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), false, fmt.Errorf("invalid to date: %w", err)
+		return calendar.Date(""), calendar.Date(""), false, fmt.Errorf("invalid to date: %w", err)
 	}
 	if to.Before(from) || to.After(from.AddDays(31)) {
-		return timezone.Date(""), timezone.Date(""), false, errors.New("pickup schedule date range must span at most 32 days")
+		return calendar.Date(""), calendar.Date(""), false, errors.New("pickup schedule date range must span at most 32 days")
 	}
 	return from, to, true, nil
 }
@@ -366,7 +366,7 @@ func (rs *Resource) createStudentPickupException(w http.ResponseWriter, r *http.
 		return
 	}
 
-	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
+	exceptionDate, _ := calendar.ParseDate(req.ExceptionDate)
 	var pickupTime *time.Time
 	if req.PickupTime != nil && *req.PickupTime != "" {
 		parsed, _ := parseTimeOnly(*req.PickupTime)
@@ -425,7 +425,7 @@ func (rs *Resource) updateStudentPickupException(w http.ResponseWriter, r *http.
 
 	// existingException was the ownership pre-check; the locked re-read inside the
 	// service is authoritative for the source/author decision.
-	exceptionDate, _ := timezone.ParseDate(req.ExceptionDate)
+	exceptionDate, _ := calendar.ParseDate(req.ExceptionDate)
 	var pickupTime *time.Time
 	if req.PickupTime != nil && *req.PickupTime != "" {
 		parsed, _ := parseTimeOnly(*req.PickupTime)
@@ -724,14 +724,14 @@ func (rs *Resource) filterAuthorizedStudentIDs(r *http.Request, requestedIDs []i
 type ResetOfferingPickupRequest struct {
 	Weekday int    `json:"weekday"`
 	Date    string `json:"date"`
-	date    timezone.Date
+	date    calendar.Date
 }
 
 func (r *ResetOfferingPickupRequest) Bind(_ *http.Request) error {
 	if r.Weekday < weekdayMonday || r.Weekday > weekdayFriday {
 		return errors.New("weekday must be between 1 (Monday) and 5 (Friday)")
 	}
-	date, err := timezone.ParseDate(strings.TrimSpace(r.Date))
+	date, err := calendar.ParseDate(strings.TrimSpace(r.Date))
 	if err != nil {
 		return fmt.Errorf("date must be YYYY-MM-DD: %w", err)
 	}

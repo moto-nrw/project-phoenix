@@ -12,15 +12,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -87,14 +86,14 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 
 	// June 2026 bookings for staff[0]: 2×8h work, 1 sick day, 2 vacation
 	// days, 1 training day, one payout and one comp-time booking.
-	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 1), 8*time.Hour)
-	f.addSession(t, f.staff[0], timezone.NewDate(2026, time.June, 2), 8*time.Hour)
+	f.addSession(t, f.staff[0], calendar.NewDate(2026, time.June, 1), 8*time.Hour)
+	f.addSession(t, f.staff[0], calendar.NewDate(2026, time.June, 2), 8*time.Hour)
 	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeSick, workforce.AbsenceStatusReported,
-		timezone.NewDate(2026, time.June, 3), timezone.NewDate(2026, time.June, 3))
+		calendar.NewDate(2026, time.June, 3), calendar.NewDate(2026, time.June, 3))
 	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved,
-		timezone.NewDate(2026, time.June, 4), timezone.NewDate(2026, time.June, 5))
+		calendar.NewDate(2026, time.June, 4), calendar.NewDate(2026, time.June, 5))
 	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeTraining, workforce.AbsenceStatusApproved,
-		timezone.NewDate(2026, time.June, 8), timezone.NewDate(2026, time.June, 8))
+		calendar.NewDate(2026, time.June, 8), calendar.NewDate(2026, time.June, 8))
 	for _, adj := range []struct {
 		typ   string
 		delta int
@@ -106,7 +105,7 @@ func newDatevFixture(t *testing.T) *overviewFixture {
 			StaffID:       f.staff[0],
 			Type:          adj.typ,
 			MinutesDelta:  adj.delta,
-			EffectiveDate: timezone.NewDate(2026, time.June, 10),
+			EffectiveDate: calendar.NewDate(2026, time.June, 10),
 			Note:          "Buchung",
 			DecidedBy:     f.staff[0],
 			DecidedAt:     time.Now(),

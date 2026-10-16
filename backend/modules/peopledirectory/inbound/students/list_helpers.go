@@ -17,9 +17,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // studentListParams holds all query parameters for student listing
@@ -88,8 +88,8 @@ type studentListParams struct {
 	// screen uses — hides children whose care has ended; "ended" shows only
 	// those; "all" turns the boundary off for callers that manage both.
 	careStatus      string
-	careStatusOn    timezone.Date
-	careStatusToday timezone.Date
+	careStatusOn    calendar.Date
+	careStatusToday calendar.Date
 }
 
 // Values accepted by the care_status query parameter (#2487).
@@ -237,7 +237,7 @@ func parseGradeLevelList(raw []string) []int {
 
 // parseStudentListParams extracts query parameters from the request
 func parseStudentListParams(r *http.Request) *studentListParams {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	params := &studentListParams{
 		schoolClasses:   parseMultiValueParam(r.URL.Query()["school_class"]),
 		firstName:       r.URL.Query().Get("first_name"),

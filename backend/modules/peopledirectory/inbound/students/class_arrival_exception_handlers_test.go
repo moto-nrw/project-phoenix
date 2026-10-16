@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -20,8 +20,8 @@ import (
 // staff only once operations.class_arrival_exception_editors opens it up,
 // and everybody reads the list together with a can_edit verdict.
 
-func classArrivalExceptionWorkday(offset int) timezone.Date {
-	date := timezone.TodayDate().AddDays(offset)
+func classArrivalExceptionWorkday(offset int) calendar.Date {
+	date := calendar.TodayDate().AddDays(offset)
 	for date.Weekday() == 0 || date.Weekday() == 6 {
 		date = date.AddDays(1)
 	}
@@ -90,7 +90,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	claims := testutil.AdminTestClaims(int(account.ID))
 
 	t.Run("past date", func(t *testing.T) {
-		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", timezone.TodayDate().AddDays(-1).String())
+		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", calendar.TodayDate().AddDays(-1).String())
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 		assert.Contains(t, rr.Body.String(), "classday.arrival_exception_past_date")
@@ -103,7 +103,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	})
 
 	t.Run("bad time", func(t *testing.T) {
-		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", timezone.TodayDate().String())
+		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", calendar.TodayDate().String())
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12h45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
 	})
@@ -114,7 +114,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	})
 
 	t.Run("weekend", func(t *testing.T) {
-		date := timezone.NewDate(2099, time.March, 7)
+		date := calendar.NewDate(2099, time.March, 7)
 		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", date)
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{"arrival_time": "12:45"}), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
@@ -122,7 +122,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	})
 
 	t.Run("255 multibyte characters", func(t *testing.T) {
-		date := timezone.NewDate(2099, time.March, 2)
+		date := calendar.NewDate(2099, time.March, 2)
 		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", date)
 		reason := strings.Repeat("ä", 255)
 		rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, "PUT", path, map[string]any{
@@ -133,7 +133,7 @@ func TestClassArrivalExceptionsRejectBadInput(t *testing.T) {
 	})
 
 	t.Run("delete missing", func(t *testing.T) {
-		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", timezone.TodayDate().AddDays(10).String())
+		path := fmt.Sprintf("/class-arrival-exceptions/CAE2/%s", calendar.TodayDate().AddDays(10).String())
 		rr := authExec(t, tc, testutil.NewRequest("DELETE", path, nil), claims, []string{"admin:*"})
 		assert.Equal(t, http.StatusNotFound, rr.Code, "Body: %s", rr.Body.String())
 	})

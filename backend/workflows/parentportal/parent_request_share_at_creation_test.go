@@ -10,8 +10,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -66,7 +66,7 @@ func TestShareTravelsWithTheCreation(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	res, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(3)}, "Familienfeier",
+		[]calendar.Date{calendar.TodayDate().AddDays(3)}, "Familienfeier",
 		absencerecords.StudentStatusDayExcused, []int64{co.GuardianProfileID})
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)
@@ -95,7 +95,7 @@ func TestForgedRecipientRollsTheRequestBack(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	_, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(4)}, "Familienfeier",
+		[]calendar.Date{calendar.TodayDate().AddDays(4)}, "Familienfeier",
 		absencerecords.StudentStatusDayExcused, []int64{stranger.GuardianProfileID})
 	require.ErrorIs(t, err, parentService.ErrRequestSharingInvalid)
 
@@ -115,7 +115,7 @@ func TestEmptyRecipientsWriteNoShareEvent(t *testing.T) {
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 
 	res, err := svc.SubmitSickNote(ctx, family.AccountID, family.StudentID,
-		[]timezone.Date{timezone.TodayDate().AddDays(5)}, "Familienfeier",
+		[]calendar.Date{calendar.TodayDate().AddDays(5)}, "Familienfeier",
 		absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	require.NotNil(t, res.PendingRequest)

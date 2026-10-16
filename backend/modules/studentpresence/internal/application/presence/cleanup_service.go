@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -38,14 +38,14 @@ type cleanupService struct {
 	settings         VisitRetentionSettings
 	txHandler        *tenant.TransactionRunner
 	batchSize        int
-	today            func() timezone.Date
+	today            func() calendar.Date
 }
 
-func (s *cleanupService) todayDate() timezone.Date {
+func (s *cleanupService) todayDate() calendar.Date {
 	if s.today != nil {
 		return s.today()
 	}
-	return timezone.TodayDate()
+	return calendar.TodayDate()
 }
 
 // NewCleanupService creates a new cleanup service instance
@@ -54,7 +54,7 @@ func NewCleanupService(
 	supervisorRepo ports.GroupSupervisorRepository,
 	dataDeletionRepo DeletionAudit,
 	settings VisitRetentionSettings,
-	today ...func() timezone.Date,
+	today ...func() calendar.Date,
 ) CleanupService {
 	service := &cleanupService{
 		presence:         presence,
@@ -288,8 +288,8 @@ func (s *cleanupService) processStudent(ctx context.Context, student studentpres
 // that closes it: normally 23:59:59 of the record's date, but check_in_time
 // plus one second when the check-in lies after that (a data integrity issue),
 // so the check-in-before-check-out constraint holds.
-func staleAttendanceCheckOut(record studentpresence.Attendance) (timezone.Date, time.Time, error) {
-	date, err := timezone.ParseDate(record.Date)
+func staleAttendanceCheckOut(record studentpresence.Attendance) (calendar.Date, time.Time, error) {
+	date, err := calendar.ParseDate(record.Date)
 	if err != nil {
 		return "", time.Time{}, fmt.Errorf("invalid attendance date for record %d: %w", record.ID, err)
 	}
@@ -339,7 +339,7 @@ func (s *cleanupService) CleanupStaleAttendance(ctx context.Context) (*Attendanc
 
 	// Track statistics
 	studentsAffected := make(map[int64]bool)
-	var oldestRecord *timezone.Date
+	var oldestRecord *calendar.Date
 
 	// Close each stale record by setting check-out time
 	for _, record := range staleRecords {
@@ -392,7 +392,7 @@ func (s *cleanupService) PreviewAttendanceCleanup(ctx context.Context) (*Attenda
 		preview.StudentRecords[record.StudentID]++
 
 		// Track per-date counts
-		date, err := timezone.ParseDate(record.Date)
+		date, err := calendar.ParseDate(record.Date)
 		if err != nil {
 			return nil, fmt.Errorf("invalid attendance date for record %d: %w", record.ID, err)
 		}
@@ -433,7 +433,7 @@ func (s *cleanupService) CleanupStaleSupervisors(ctx context.Context) (*Supervis
 
 	// Track statistics
 	staffAffected := make(map[int64]bool)
-	var oldestRecord *timezone.Date
+	var oldestRecord *calendar.Date
 
 	// Close each stale record by setting end_date to start_date
 	for _, record := range staleRecords {

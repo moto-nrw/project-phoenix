@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // This file turns a schedule-update request into schedule rows.
@@ -49,7 +49,7 @@ func parseScheduleStartTime(raw *string) (*time.Time, error) {
 	if err != nil {
 		return nil, scheduleValidationErrorf("start_time must be HH:MM")
 	}
-	wallClock := timezone.NormalizeWallClock(parsed)
+	wallClock := calendar.NormalizeWallClock(parsed)
 	return &wallClock, nil
 }
 

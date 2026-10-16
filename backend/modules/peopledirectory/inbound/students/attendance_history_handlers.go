@@ -12,11 +12,11 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // attendanceHistoryResponse is the shape returned by GET /students/{id}/attendance-history.
@@ -173,8 +173,8 @@ func (rs *Resource) buildAttendanceHistory(ctx context.Context, logger *slog.Log
 	attendanceCap, roomCap, clamped := window.attendanceCap, window.roomCap, window.clamped
 	// 5. Load attendance rows (DATE-keyed queries take the Berlin calendar
 	// days of the requested instant range)
-	startDay := timezone.DateFromTime(start)
-	endDay := timezone.DateFromTime(end)
+	startDay := calendar.DateFromTime(start)
+	endDay := calendar.DateFromTime(end)
 	sources, err := rs.loadAttendanceHistorySources(ctx, studentID, startDay, endDay)
 	if err != nil {
 		logger.Error("attendance history source query failed",
@@ -250,7 +250,7 @@ func (rs *Resource) resolveAttendanceHistoryWindow(r *http.Request, logger *slog
 }
 
 func (rs *Resource) loadAttendanceHistorySources(
-	ctx context.Context, studentID int64, from, to timezone.Date,
+	ctx context.Context, studentID int64, from, to calendar.Date,
 ) (attendanceHistorySources, error) {
 	sources := attendanceHistorySources{Statuses: []*absencerecords.StudentStatusDay{}}
 	var err error
@@ -292,7 +292,7 @@ func (rs *Resource) loadRoomVisitsByDate(
 		return nil, err
 	}
 	for _, v := range visits {
-		key := timezone.DateOf(v.EntryTime).Format("2006-01-02")
+		key := calendar.DateOf(v.EntryTime).Format("2006-01-02")
 		visitsByDate[key] = append(visitsByDate[key], v)
 	}
 	return visitsByDate, nil
@@ -307,7 +307,7 @@ func (rs *Resource) loadRoomVisitsByDate(
 // Walk-in rows (is_unplanned) never count as plan evidence: a spontaneous
 // drop-in also happens at schools that plan nothing.
 func (rs *Resource) resolveSlotExpectation(
-	ctx context.Context, slots []*studentpresence.HistorySlot, from, to timezone.Date,
+	ctx context.Context, slots []*studentpresence.HistorySlot, from, to calendar.Date,
 ) (bool, error) {
 	if hasPlannedSlotRow(slots) {
 		return true, nil
@@ -505,7 +505,7 @@ func assembleAttendanceHistoryDays(dayMap map[string]*attendanceHistoryDay, dayO
 		// Room detail cap: only include visits if this day is on/after the cutoff
 		// (all required visit reads have already succeeded).
 		date, _ := time.Parse("2006-01-02", dateKey)
-		if !timezone.DateOf(date).Before(timezone.DateOf(roomCutoff)) {
+		if !calendar.DateOf(date).Before(calendar.DateOf(roomCutoff)) {
 			day.RoomDetailAvailable = true
 			day.Visits = append(day.Visits, attendanceVisitEntries(visitsByDate[dateKey])...)
 		}
@@ -564,7 +564,7 @@ func attachSlotAttendance(
 	for i := range days {
 		index[days[i].Date] = i
 	}
-	cutoffDay := timezone.DateFromTime(roomCutoff)
+	cutoffDay := calendar.DateFromTime(roomCutoff)
 	for _, row := range rows {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
@@ -672,7 +672,7 @@ func slotEntryCoverages(slots []attendanceSlotEntry) []slotCoverage {
 
 func sessionCoveredBySlots(coverages []slotCoverage, checkIn time.Time) bool {
 	nano := checkIn.UnixNano()
-	clock := checkIn.In(timezone.Berlin).Format("15:04")
+	clock := checkIn.In(calendar.Berlin).Format("15:04")
 	for _, coverage := range coverages {
 		if coverage.hasCheckIn && coverage.checkInNano == nano {
 			return true
@@ -691,12 +691,12 @@ func unassignedSlotEntry(index int, session attendanceSessionRecord) attendanceS
 	// unassigned. Persisted walk-in slot rows carry is_unplanned instead.
 	entry := attendanceSlotEntry{
 		InstanceID: strconv.FormatInt(-int64(index+1), 10), Title: "Ohne Zuordnung",
-		StartTime: session.CheckInTime.In(timezone.Berlin).Format("15:04"),
+		StartTime: session.CheckInTime.In(calendar.Berlin).Format("15:04"),
 		Status:    "present", CheckedInAt: &session.CheckInTime,
 		CheckedOutAt: session.CheckOutTime,
 	}
 	if session.CheckOutTime != nil {
-		entry.EndTime = session.CheckOutTime.In(timezone.Berlin).Format("15:04")
+		entry.EndTime = session.CheckOutTime.In(calendar.Berlin).Format("15:04")
 	}
 	return entry
 }

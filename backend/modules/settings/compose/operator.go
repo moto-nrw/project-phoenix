@@ -7,10 +7,10 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -110,6 +110,6 @@ func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 }
 
 func (operatorSettingsRuntime) Today() configModel.CalendarDate {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	return configModel.NewCalendarDate(today.Year(), today.Month(), today.Day())
 }

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,15 +15,15 @@ import (
 func TestNormalizeBulkDates_DedupesAndSortsAscending(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2030, 8, 26)
+	today := calendar.NewDate(2030, 8, 26)
 	later := today.AddDays(3)
 	sooner := today.AddDays(1)
 
-	out, err := normalizeBulkDates([]timezone.Date{later, sooner, later, sooner})
+	out, err := normalizeBulkDates([]calendar.Date{later, sooner, later, sooner})
 
 	require.NoError(t, err)
 	// Ascending order is the day-lock ordering requirement, not cosmetics.
-	assert.Equal(t, []timezone.Date{sooner, later}, out)
+	assert.Equal(t, []calendar.Date{sooner, later}, out)
 }
 
 func TestNormalizeBulkDates_RejectsEmptyInput(t *testing.T) {
@@ -40,7 +40,7 @@ func TestNormalizeBulkDates_RejectsEmptyInput(t *testing.T) {
 func TestNormalizeBulkDates_RejectsPastDates(t *testing.T) {
 	t.Parallel()
 
-	_, err := normalizeBulkDates([]timezone.Date{timezone.TodayDate().AddDays(-1)})
+	_, err := normalizeBulkDates([]calendar.Date{calendar.TodayDate().AddDays(-1)})
 
 	var de *timetable.DeviationError
 	require.ErrorAs(t, err, &de)
@@ -51,8 +51,8 @@ func TestNormalizeBulkDates_RejectsPastDates(t *testing.T) {
 func TestNormalizeBulkDates_CapsAtMaxDatesAfterDedupe(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
-	dates := make([]timezone.Date, 0, timetable.MaxBulkSubstitutionDates+1)
+	today := calendar.TodayDate()
+	dates := make([]calendar.Date, 0, timetable.MaxBulkSubstitutionDates+1)
 	for i := 0; i <= timetable.MaxBulkSubstitutionDates; i++ {
 		dates = append(dates, today.AddDays(i))
 	}
@@ -75,7 +75,7 @@ func TestNormalizeBulkDates_CapsAtMaxDatesAfterDedupe(t *testing.T) {
 func TestBulkDayError_PrefixesDeviationErrorWithFailingDate(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, time.August, 18)
+	date := calendar.NewDate(2026, time.August, 18)
 	cause := errors.New("root cause")
 	inner := &timetable.DeviationError{
 		Status:    http.StatusConflict,
@@ -98,5 +98,5 @@ func TestBulkDayError_PassesNonDeviationErrorsThrough(t *testing.T) {
 	t.Parallel()
 
 	plain := errors.New("boom")
-	assert.Same(t, plain, bulkDayError(timezone.TodayDate(), plain))
+	assert.Same(t, plain, bulkDayError(calendar.TodayDate(), plain))
 }

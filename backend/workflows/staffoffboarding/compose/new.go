@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	peoplecompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -20,6 +19,7 @@ import (
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
 	"github.com/uptrace/bun"
@@ -171,7 +171,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	}
 	return staffoffboarding.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
-		Today: func() string { return timezone.TodayDate().String() }, FindStaff: membership.FindStaff,
+		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
 		Membership: retirement, Workforce: work, Timetable: timetable, People: people,
 		LockSupervision: presence.LockStaffSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {

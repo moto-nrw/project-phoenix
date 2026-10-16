@@ -6,7 +6,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
@@ -78,7 +77,7 @@ func CountNonAbsentParticipants(ctx context.Context, db bun.IDB, tenantID int64,
 // ListParallelPresence returns, for the given students, the other running
 // blocks of the day they are still present in. Ordered by the other block's
 // start time descending, then id descending.
-func ListParallelPresence(ctx context.Context, db bun.IDB, tenantID, excludedInstanceID int64, date timezone.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
+func ListParallelPresence(ctx context.Context, db bun.IDB, tenantID, excludedInstanceID int64, date calendar.Date, studentIDs []int64) ([]scheduleModels.ParallelPresence, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -111,7 +110,7 @@ func ListParallelPresence(ctx context.Context, db bun.IDB, tenantID, excludedIns
 // no non-booking, no day status, no other excusal than the automatic ones
 // named). With enrolled, blocks the child's course enrollment covers but no
 // roster lists yet are added.
-func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, studentID int64, date timezone.Date, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]scheduleModels.PartialAbsenceBlock, error) {
+func ListPartialAbsenceBlocks(ctx context.Context, db bun.IDB, tenantID, studentID int64, date calendar.Date, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]scheduleModels.PartialAbsenceBlock, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -204,7 +203,7 @@ type scheduledInstanceRow struct {
 	StudentStatusDayID *int64        `bun:"at_student_status_day_id"`
 	PickupExceptionID  *int64        `bun:"at_pickup_exception_id"`
 	ActivityInstanceID int64         `bun:"ai_id"`
-	Date               timezone.Date `bun:"ai_date"`
+	Date               calendar.Date `bun:"ai_date"`
 	ActivityGroupID    *int64        `bun:"ai_activity_group_id"`
 	CalendarPeriodID   *int64        `bun:"ai_calendar_period_id"`
 	Title              string        `bun:"ai_title"`
@@ -228,7 +227,7 @@ type scheduledInstanceRow struct {
 // inclusive date range together with the attendance each one carries,
 // ordered by date and start time. Rows that only record a non-booking the
 // care plan froze are left out.
-func ListScheduledInstancesForStudent(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to timezone.Date) ([]*scheduleModels.ScheduledInstanceRow, error) {
+func ListScheduledInstancesForStudent(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to calendar.Date) ([]*scheduleModels.ScheduledInstanceRow, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -285,7 +284,7 @@ func ListScheduledInstancesForStudent(ctx context.Context, db bun.IDB, tenantID,
 // HasPlannedSlotsInRange reports whether the tenant planned at least one
 // child onto a not cancelled block in the inclusive range. Walk-ins do not
 // count.
-func HasPlannedSlotsInRange(ctx context.Context, db bun.IDB, tenantID int64, from, to timezone.Date) (bool, error) {
+func HasPlannedSlotsInRange(ctx context.Context, db bun.IDB, tenantID int64, from, to calendar.Date) (bool, error) {
 	if tenantID <= 0 {
 		return false, ErrInvalidTenantID
 	}
@@ -333,11 +332,11 @@ func ListOpenParticipants(ctx context.Context, db bun.IDB, tenantID int64, stude
 
 // LatestAttendedBlockDate returns the date of the last block the child was
 // checked in to, or nil when there is none.
-func LatestAttendedBlockDate(ctx context.Context, db bun.IDB, tenantID, studentID int64) (*timezone.Date, error) {
+func LatestAttendedBlockDate(ctx context.Context, db bun.IDB, tenantID, studentID int64) (*calendar.Date, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
-	var day *timezone.Date
+	var day *calendar.Date
 	err := db.NewRaw(`SELECT MAX("activity_instance".date)
 	FROM schedule.instance_students AS "instance_student"
 	JOIN active.activity_session_attendance AS "attendance"
@@ -386,7 +385,7 @@ const heldInstance = `("activity_instance".status <> 'cancelled' AND ("session".
 // CourseInstances counts the occurrences of every course in [from, to],
 // separating the ones that happened from the cancelled ones. Only
 // Betreuungsplan templates are courses.
-func CourseInstances(ctx context.Context, db bun.IDB, tenantID int64, from, to, today timezone.Date) ([]CourseInstanceRow, error) {
+func CourseInstances(ctx context.Context, db bun.IDB, tenantID int64, from, to, today calendar.Date) ([]CourseInstanceRow, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -444,7 +443,7 @@ const enrolledOnInstanceDate = `(
 
 // CourseParticipation aggregates the attendance of every child per course
 // over the occurrences CourseInstances counts as held.
-func CourseParticipation(ctx context.Context, db bun.IDB, tenantID int64, from, to, today timezone.Date) ([]CourseParticipationRow, error) {
+func CourseParticipation(ctx context.Context, db bun.IDB, tenantID int64, from, to, today calendar.Date) ([]CourseParticipationRow, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -476,7 +475,7 @@ func CourseParticipation(ctx context.Context, db bun.IDB, tenantID int64, from, 
 
 // weekendFollowsFridayIn resolves the setting only when the report window
 // contains a weekend, preserving the weekday query budget.
-func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, error) {
+func weekendFollowsFridayIn(ctx context.Context, from, to calendar.Date) (bool, error) {
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		if calendar.IsWeekend(date) {
 			return calendar.WeekendFollowsFriday(ctx)

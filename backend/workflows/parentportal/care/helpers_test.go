@@ -10,9 +10,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -75,7 +75,7 @@ func endCareFor(t *testing.T, db *bun.DB, studentID int64) {
 	t.Helper()
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("enrolled_until = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
+		Set("enrolled_until = ?", calendar.NewDate(2026, 8, 24).AddDays(-1)).
 		Where("student_profile_id = ?", studentID).Where("deleted_at IS NULL").
 		Exec(testpkg.WithPackageTenantRuntime(context.Background()))
 	require.NoError(t, err)

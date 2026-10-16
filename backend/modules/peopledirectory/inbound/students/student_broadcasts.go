@@ -3,9 +3,9 @@ package students
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -126,11 +126,11 @@ func (rs *Resource) wakeChildGuardians(tenantID, studentID int64) {
 // (#1725). Only the ephemeral broadcasts run after the OUTER tx commits, so a
 // woken client never reads the pre-commit snapshot; tenantID is captured before
 // the hook fires.
-func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate timezone.Date) error {
+func (rs *Resource) scheduleStudentUpdateWakes(ctx context.Context, tenantID, studentID int64, req *UpdateStudentRequest, companionsChanged bool, reportedStatus string, reportDate calendar.Date) error {
 	statusChanged := req.Sick != nil || req.Excused != nil
 	actorAccountID := int64(sessiontoken.ClaimsFromCtx(ctx).ID)
 	if reportedStatus != "" {
-		if err := rs.notifyAbsenceReported(ctx, tenantID, []int64{studentID}, reportedStatus, []timezone.Date{reportDate}, false, actorAccountID); err != nil {
+		if err := rs.notifyAbsenceReported(ctx, tenantID, []int64{studentID}, reportedStatus, []calendar.Date{reportDate}, false, actorAccountID); err != nil {
 			return err
 		}
 	}

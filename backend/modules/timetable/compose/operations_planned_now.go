@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // plannedNowAccess is what the caller may see and do on the day plan.
@@ -31,7 +31,7 @@ type plannedNowCandidate struct {
 	canStart    bool
 }
 
-func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, now time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
+func (s *operations) PlannedNow(ctx context.Context, accountID int64, isAdmin bool, date calendar.Date, now time.Time, opts timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error) {
 	startLead, err := s.deps.Settings.StartLeadMinutes(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("%w: resolve start lead: %v", timetable.ErrLifecycleSettings, err)

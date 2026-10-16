@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -30,9 +29,9 @@ func TestValidateStartTime(t *testing.T) {
 	t.Parallel()
 
 	inst := plannedLifecycleInstance()
-	tooEarly := time.Date(2026, 8, 13, 13, 0, 0, 0, timezone.Berlin)
-	inWindow := time.Date(2026, 8, 13, 13, 50, 0, 0, timezone.Berlin)
-	afterEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
+	tooEarly := time.Date(2026, 8, 13, 13, 0, 0, 0, calendar.Berlin)
+	inWindow := time.Date(2026, 8, 13, 13, 50, 0, 0, calendar.Berlin)
+	afterEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, calendar.Berlin)
 
 	require.NoError(t, (&InstanceLifecycleService{}).validateStartTime(context.Background(), inst, tooEarly))
 
@@ -57,10 +56,10 @@ func TestValidateSpontaneousStartWorkday(t *testing.T) {
 
 	spontaneous := plannedLifecycleInstance()
 	spontaneous.IsSpontaneous = true
-	saturday := time.Date(2026, 8, 15, 0, 0, 0, 0, timezone.Berlin)
+	saturday := time.Date(2026, 8, 15, 0, 0, 0, 0, calendar.Berlin)
 	assert.ErrorIs(t, validateSpontaneousStartWorkday(context.Background(), spontaneous, saturday), timetable.ErrInstanceWeekend)
 
-	monday := time.Date(2026, 8, 17, 0, 0, 0, 0, timezone.Berlin)
+	monday := time.Date(2026, 8, 17, 0, 0, 0, 0, calendar.Berlin)
 	assert.NoError(t, validateSpontaneousStartWorkday(context.Background(), spontaneous, monday))
 
 	planned := *spontaneous
@@ -72,8 +71,8 @@ func TestValidateCompleteTime(t *testing.T) {
 	t.Parallel()
 
 	inst := plannedLifecycleInstance()
-	beforeEnd := time.Date(2026, 8, 13, 14, 30, 0, 0, timezone.Berlin)
-	atEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, timezone.Berlin)
+	beforeEnd := time.Date(2026, 8, 13, 14, 30, 0, 0, calendar.Berlin)
+	atEnd := time.Date(2026, 8, 13, 15, 0, 0, 0, calendar.Berlin)
 
 	require.NoError(t, (&InstanceLifecycleService{}).validateCompleteTime(context.Background(), inst, beforeEnd))
 
@@ -103,7 +102,7 @@ func TestValidateCompleteTimeHonorsCompleteLead(t *testing.T) {
 	t.Parallel()
 
 	inst := plannedLifecycleInstance()
-	leadBoundary := time.Date(2026, 8, 13, 14, 45, 0, 0, timezone.Berlin)
+	leadBoundary := time.Date(2026, 8, 13, 14, 45, 0, 0, calendar.Berlin)
 	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
 		EnforceTimePolicy: true,
 		Settings:          lifecycleSettingsStub{boolVal: true, completeLead: 15},
@@ -208,7 +207,7 @@ func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {
 func TestValidateLegacyWeekendInstanceDate(t *testing.T) {
 	t.Parallel()
 
-	saturday := timezone.NewDate(2026, time.May, 9)
+	saturday := calendar.NewDate(2026, time.May, 9)
 	monday := saturday.AddDays(2)
 
 	assert.NoError(t, validateLegacyWeekendInstanceDate(context.Background(), monday, monday), "weekday updates stay valid")
@@ -222,7 +221,7 @@ func TestInstanceDelete_PlannedTemplateBackedCreatesCancellationException(t *tes
 
 	ctx := tenant.WithTenantID(context.Background(), 7301)
 	groupID := int64(410)
-	date := timezone.NewDate(2026, 7, 6)
+	date := calendar.NewDate(2026, 7, 6)
 	inst := deleteUnitInstance(101, &groupID, date, scheduleModel.InstanceStatusPlanned, false)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst, sameDayRows: []*scheduleModel.ActivityInstance{inst}}
 	exceptionRepo := &deleteUnitExceptionRepo{}
@@ -247,7 +246,7 @@ func TestInstanceDelete_AmbiguousTemplateBackedDateDoesNotDelete(t *testing.T) {
 
 	ctx := tenant.WithTenantID(context.Background(), 7302)
 	groupID := int64(411)
-	date := timezone.NewDate(2026, 7, 7)
+	date := calendar.NewDate(2026, 7, 7)
 	inst := deleteUnitInstance(102, &groupID, date, scheduleModel.InstanceStatusPlanned, false)
 	otherSlot := deleteUnitInstance(103, &groupID, date, scheduleModel.InstanceStatusPlanned, false)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst, sameDayRows: []*scheduleModel.ActivityInstance{inst, nil, otherSlot}}
@@ -267,7 +266,7 @@ func TestInstanceDelete_SpontaneousTemplateLinkedSkipsException(t *testing.T) {
 
 	ctx := tenant.WithTenantID(context.Background(), 7303)
 	groupID := int64(412)
-	inst := deleteUnitInstance(104, &groupID, timezone.NewDate(2026, 7, 8), scheduleModel.InstanceStatusPlanned, true)
+	inst := deleteUnitInstance(104, &groupID, calendar.NewDate(2026, 7, 8), scheduleModel.InstanceStatusPlanned, true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	exceptionRepo := &deleteUnitExceptionRepo{}
 	svc := deleteUnitService(instanceRepo, exceptionRepo)
@@ -286,7 +285,7 @@ func TestInstanceDelete_ExistingModifiedExceptionIsConvertedToCancellation(t *te
 
 	ctx := tenant.WithTenantID(context.Background(), 7304)
 	groupID := int64(413)
-	date := timezone.NewDate(2026, 7, 9)
+	date := calendar.NewDate(2026, 7, 9)
 	inst := deleteUnitInstance(105, &groupID, date, scheduleModel.InstanceStatusCancelled, false)
 	start := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
@@ -325,7 +324,7 @@ func TestInstanceDelete_ErrorBranches(t *testing.T) {
 
 	ctx := tenant.WithTenantID(context.Background(), 7305)
 	groupID := int64(414)
-	date := timezone.NewDate(2026, 7, 10)
+	date := calendar.NewDate(2026, 7, 10)
 	inst := deleteUnitInstance(106, &groupID, date, scheduleModel.InstanceStatusPlanned, false)
 
 	tests := []struct {
@@ -380,7 +379,7 @@ func TestInstanceDelete_RejectsProtectedStatuses(t *testing.T) {
 	ctx := tenant.WithTenantID(context.Background(), 7306)
 	for _, status := range []string{scheduleModel.InstanceStatusActive, scheduleModel.InstanceStatusCompleted} {
 		t.Run(status, func(t *testing.T) {
-			inst := deleteUnitInstance(107, nil, timezone.NewDate(2026, 7, 11), status, false)
+			inst := deleteUnitInstance(107, nil, calendar.NewDate(2026, 7, 11), status, false)
 			instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 			svc := deleteUnitService(instanceRepo, &deleteUnitExceptionRepo{})
 
@@ -400,7 +399,7 @@ func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *dele
 	}}
 }
 
-func deleteUnitInstance(id int64, groupID *int64, date timezone.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
+func deleteUnitInstance(id int64, groupID *int64, date calendar.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{
 		Date:            scheduleModel.Date(date),
 		ActivityGroupID: groupID,
@@ -499,7 +498,7 @@ func TestWeekendFollowsFridayOpensTheWeekend(t *testing.T) {
 
 	spontaneous := plannedLifecycleInstance()
 	spontaneous.IsSpontaneous = true
-	saturdayNoon := time.Date(2026, 8, 15, 12, 0, 0, 0, timezone.Berlin)
+	saturdayNoon := time.Date(2026, 8, 15, 12, 0, 0, 0, calendar.Berlin)
 	assert.NoError(t, validateSpontaneousStartWorkday(weekendPlanContext(true, nil), spontaneous, saturdayNoon))
 	assert.ErrorIs(t, validateSpontaneousStartWorkday(weekendPlanContext(false, nil), spontaneous, saturdayNoon), timetable.ErrInstanceWeekend)
 	boom := errors.New("settings unavailable")
@@ -507,7 +506,7 @@ func TestWeekendFollowsFridayOpensTheWeekend(t *testing.T) {
 	require.ErrorIs(t, err, boom, "a failed read is no refusal")
 	assert.NotErrorIs(t, err, timetable.ErrInstanceWeekend)
 
-	saturday := timezone.NewDate(2026, time.May, 9)
+	saturday := calendar.NewDate(2026, time.May, 9)
 	monday := saturday.AddDays(2)
 	assert.NoError(t, validateLegacyWeekendInstanceDate(weekendPlanContext(true, nil), monday, saturday))
 	assert.ErrorIs(t, validateLegacyWeekendInstanceDate(weekendPlanContext(false, nil), monday, saturday), timetable.ErrInstanceWeekend)
@@ -524,7 +523,7 @@ func TestWeekendFollowsFridayOpensTheWeekend(t *testing.T) {
 func TestRosterWeekdayUsesFridayOnlyWhenWeekendPlanIsEnabled(t *testing.T) {
 	t.Parallel()
 
-	friday := timezone.NewDate(2026, time.May, 8)
+	friday := calendar.NewDate(2026, time.May, 8)
 	assert.Equal(t, 5, planWeekday(friday, false))
 	assert.Equal(t, 5, planWeekday(friday.AddDays(1), true))
 	assert.Equal(t, 5, planWeekday(friday.AddDays(2), true))

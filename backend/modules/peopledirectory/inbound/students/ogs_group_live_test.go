@@ -14,9 +14,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -199,7 +199,7 @@ func TestOGSGroupLive_HandoverMovesGroupIntoPersonalSection(t *testing.T) {
 	transferredGroup := testpkg.CreateTestEducationGroup(t, tc.db, "Transfer Incoming")
 	testpkg.CreateTestGroupTeacher(t, tc.db, ownedGroup.ID, substitute.ID)
 	testpkg.CreateTestGroupTeacher(t, tc.db, transferredGroup.ID, owner.ID)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	testpkg.CreateTestGroupSubstitution(t, tc.db, transferredGroup.ID, nil, substitute.Staff.ID, today, today)
 
 	req := testutil.NewRequest("GET", "/ogs-group-live", nil)
@@ -275,12 +275,12 @@ func TestOGSGroupLive_AggregatesGroupData(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroup(t, tc.db, "OGSLiveActivity")
 	activeGroup := testpkg.CreateTestActiveGroup(t, tc.db, activityGroup.ID, room.ID)
 	fixtureNow := fixedCalendarClock()
-	testpkg.CreateTestAttendanceForDate(t, tc.db, inRoom.ID, teacher.Staff.ID, device.ID, timezone.NewDate(2026, 8, 24), fixtureNow.Add(-time.Hour), nil)
+	testpkg.CreateTestAttendanceForDate(t, tc.db, inRoom.ID, teacher.Staff.ID, device.ID, calendar.NewDate(2026, 8, 24), fixtureNow.Add(-time.Hour), nil)
 	testpkg.CreateTestVisit(t, tc.db, inRoom.ID, activeGroup.ID, fixtureNow.Add(-time.Hour), nil)
 
 	// Same-day transfer: substitution with unassigned regular staff slot.
 	substitute := testpkg.CreateTestStaff(t, tc.db, "OGSLive", "Vertretung")
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	sub := testpkg.CreateTestGroupSubstitution(t, tc.db, group.ID, nil, substitute.ID, today, today)
 
 	// Tracking indicators: enable the feature with one label so the aggregate

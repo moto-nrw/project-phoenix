@@ -5,10 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // enrichWithCompanions fills CompanionStudentIDs for the given day with the
@@ -127,7 +126,7 @@ func (rs *Resource) enrichWithCompanionLinks(ctx context.Context, responses []St
 // yesterday's links and grouping the children by the wrong day's
 // Laufgemeinschaft.
 func companionWeekdayForDate(day time.Time) int {
-	switch day.In(timezone.Berlin).Weekday() {
+	switch day.In(calendar.Berlin).Weekday() {
 	case time.Tuesday:
 		return 2
 	case time.Wednesday:

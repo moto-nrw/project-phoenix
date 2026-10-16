@@ -5,15 +5,14 @@ import (
 	"testing"
 
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
 func TestScheduleTargetsKeepVersionBoundariesAndHistorySeparate(t *testing.T) {
 	t.Parallel()
-	first := timezone.NewDate(2026, 3, 23)
+	first := calendar.NewDate(2026, 3, 23)
 	boundary := first.AddDays(7)
 	reader := workforceCompose.NewWorkScheduleTargets(settingstest.Schedules(
 		settingstest.ScheduleRow{StaffID: 7, ValidFrom: first, ValidUntil: boundary, RotationLength: 1, DayOfWeek: 0, TargetMinutes: 360},
@@ -24,7 +23,7 @@ func TestScheduleTargetsKeepVersionBoundariesAndHistorySeparate(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, plan.HasEntries)
 	for _, test := range []struct {
-		date    timezone.Date
+		date    calendar.Date
 		minutes int
 		matched bool
 	}{

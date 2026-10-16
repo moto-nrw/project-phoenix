@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The note routes turn a request into an owner command. What is checked here
@@ -96,7 +96,7 @@ func TestParseNoteSubject(t *testing.T) {
 
 	t.Run("a future day is refused", func(t *testing.T) {
 		t.Parallel()
-		future := timezone.TodayDate().AddDays(1).String()
+		future := calendar.TodayDate().AddDays(1).String()
 		_, err := parseNoteSubject(studentNoteRequestBody{SubjectDate: &future})
 		require.ErrorContains(t, err, "must not be in the future")
 	})
@@ -157,7 +157,7 @@ func TestBuildNoteResponseDoesNotOfferEditingForOrphanedLeadershipNote(t *testin
 	t.Parallel()
 
 	author := int64(17)
-	date := timezone.TodayDate()
+	date := calendar.TodayDate()
 	note := peopleModule.StudentNote{
 		ID: 1, StudentID: 2, AuthorAccountID: &author, Origin: peopleModule.StudentNoteOriginStaff,
 		Kind: peopleModule.StudentNoteKindJournal, Visibility: peopleModule.StudentNoteVisibilityGroupLeads,

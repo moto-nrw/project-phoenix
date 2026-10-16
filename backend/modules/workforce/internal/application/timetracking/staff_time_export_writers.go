@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Writers for the cross-staff export (#1417 2b). They serialize MonthExportRow
@@ -62,7 +62,7 @@ func monthExportStatus(row MonthExportRow) string {
 		return "offen"
 	}
 	if row.ClosedAt != nil {
-		return "abgeschlossen am " + row.ClosedAt.In(timezone.Berlin).Format("02.01.2006")
+		return "abgeschlossen am " + row.ClosedAt.In(calendar.Berlin).Format("02.01.2006")
 	}
 	return "abgeschlossen"
 }

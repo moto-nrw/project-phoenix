@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (e engine) UnclaimedGroups(ctx context.Context, value string) ([]studentpresence.UnclaimedGroup, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil, err
 	}
@@ -26,7 +26,7 @@ func (e engine) UnclaimedGroups(ctx context.Context, value string) ([]studentpre
 }
 
 func (e engine) ClaimGroup(ctx context.Context, claim studentpresence.GroupClaim) (studentpresence.ClaimedSupervision, error) {
-	date, err := timezone.ParseDate(claim.Date)
+	date, err := calendar.ParseDate(claim.Date)
 	if err != nil {
 		return studentpresence.ClaimedSupervision{}, err
 	}

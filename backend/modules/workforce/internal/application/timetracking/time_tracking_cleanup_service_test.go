@@ -6,12 +6,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -244,7 +243,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, 
 	checkOut := createdAt.Add(8 * time.Hour)
 	s := &timetracking.WorkSession{
 		StaffID:      staffID,
-		Date:         timezone.DateFromTime(businessDate),
+		Date:         calendar.DateFromTime(businessDate),
 		Status:       workforce.WorkSessionStatusPresent,
 		Source:       workforce.WorkSessionSourceApp,
 		CheckInTime:  createdAt,
@@ -319,8 +318,8 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *testpkg.DB, staffID int64,
 	a := &timetracking.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: workforce.AbsenceTypeSick,
-		DateStart:   timezone.DateFromTime(dateStart),
-		DateEnd:     timezone.DateFromTime(dateEnd),
+		DateStart:   calendar.DateFromTime(dateStart),
+		DateEnd:     calendar.DateFromTime(dateEnd),
 		Status:      workforce.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}

@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -59,7 +59,7 @@ func TestGetStudentPickupSchedules(t *testing.T) {
 		}()
 
 		// Insert a pickup exception directly into the database
-		exceptionDate := timezone.NewDate(2026, 2, 15) // Use noon to avoid day boundary issues
+		exceptionDate := calendar.NewDate(2026, 2, 15) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		arztterminReason := "Arzttermin"
 		testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
@@ -394,7 +394,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianPickupExc")
 
-		exceptionDate := timezone.NewDate(2026, 4, 17)
+		exceptionDate := calendar.NewDate(2026, 4, 17)
 		originalReason := "Parent reason"
 		testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
 			TenantID:          chain.TenantID,
@@ -450,7 +450,7 @@ func TestCreateStudentPickupException(t *testing.T) {
 
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffPickupExc")
 
-		exceptionDate := timezone.NewDate(2026, 4, 18)
+		exceptionDate := calendar.NewDate(2026, 4, 18)
 		originalReason := "Other staff reason"
 		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
@@ -609,7 +609,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ExcTeacher2")
 
 		// Create an exception to update
-		exceptionDate := timezone.NewDate(2026, 4, 15) // Use noon to avoid day boundary issues
+		exceptionDate := calendar.NewDate(2026, 4, 15) // Use noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC)
 		originalReason := "Original reason"
 		exception := testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
@@ -644,7 +644,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianPickupExc")
 
-		exceptionDate := timezone.NewDate(2026, 4, 16)
+		exceptionDate := calendar.NewDate(2026, 4, 16)
 		originalReason := "Parent reason"
 		exception := testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
 			TenantID:          chain.TenantID,
@@ -691,7 +691,7 @@ func TestUpdateStudentPickupException(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, tc.db, "Student2", "Test", "ST2")
 
 		// Create exception for student2
-		exceptionDate := timezone.NewDate(2026, 5, 15) // Use noon to avoid day boundary issues
+		exceptionDate := calendar.NewDate(2026, 5, 15) // Use noon to avoid day boundary issues
 		testReason := "Test reason"
 		exception := testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
 			TenantID:      testpkg.Tenant(t),
@@ -779,7 +779,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ExceptionDelete", "Test", "EDT1")
 
 		// Create exception to delete
-		exceptionDate := timezone.NewDate(2026, 6, 15) // Use noon to avoid day boundary issues
+		exceptionDate := calendar.NewDate(2026, 6, 15) // Use noon to avoid day boundary issues
 		deleteReason := "To be deleted"
 		exception := testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
 			TenantID:      testpkg.Tenant(t),
@@ -801,7 +801,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianPickupExc")
 
-		exceptionDate := timezone.NewDate(2026, 6, 16)
+		exceptionDate := calendar.NewDate(2026, 6, 16)
 		pickupTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 15:30")
 		require.NoError(t, err)
 		originalReason := "Parent pickup delete reason"
@@ -835,7 +835,7 @@ func TestDeleteStudentPickupException(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt2", "Test", "DS2")
 
 		// Create exception for student2
-		exceptionDate := timezone.NewDate(2026, 7, 15) // Use noon to avoid day boundary issues
+		exceptionDate := calendar.NewDate(2026, 7, 15) // Use noon to avoid day boundary issues
 		deleteTestReason := "Test reason"
 		exception := testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
 			TenantID:      testpkg.Tenant(t),
@@ -1060,7 +1060,7 @@ func TestGetBulkPickupTimes(t *testing.T) {
 		}()
 
 		// Insert exception for specific date
-		exceptionDate := timezone.NewDate(2026, 1, 26) // Monday, noon to avoid day boundary issues
+		exceptionDate := calendar.NewDate(2026, 1, 26) // Monday, noon to avoid day boundary issues
 		exceptionTime := time.Date(2000, 1, 1, 12, 0, 0, 0, time.UTC)
 		earlyPickupReason := "Early pickup"
 		testpkg.InsertStudentPickupExceptionRow(t, tc.db, testpkg.StudentPickupExceptionRow{
@@ -1233,7 +1233,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "NoteTeacher2")
 
 		// Create a note to update
-		noteDate := timezone.NewDate(2026, 4, 15)
+		noteDate := calendar.NewDate(2026, 4, 15)
 		originalContent := "Original content"
 		note := testpkg.InsertStudentPickupNoteRow(t, tc.db, testpkg.StudentDatedNoteRow{
 			TenantID:  testpkg.Tenant(t),
@@ -1264,7 +1264,7 @@ func TestUpdateStudentPickupNote(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, tc.db, "Student2Note", "Test", "ST2N")
 
 		// Create note for student2
-		noteDate := timezone.NewDate(2026, 5, 15)
+		noteDate := calendar.NewDate(2026, 5, 15)
 		testContent := "Test content"
 		note := testpkg.InsertStudentPickupNoteRow(t, tc.db, testpkg.StudentDatedNoteRow{
 			TenantID:  testpkg.Tenant(t),
@@ -1330,7 +1330,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "NoteDelete", "Test", "NDT1")
 
 		// Create note to delete
-		noteDate := timezone.NewDate(2026, 6, 15)
+		noteDate := calendar.NewDate(2026, 6, 15)
 		deleteContent := "To be deleted"
 		note := testpkg.InsertStudentPickupNoteRow(t, tc.db, testpkg.StudentDatedNoteRow{
 			TenantID:  testpkg.Tenant(t),
@@ -1352,7 +1352,7 @@ func TestDeleteStudentPickupNote(t *testing.T) {
 		student2 := testpkg.CreateTestStudent(t, tc.db, "DeleteSt2Note", "Test", "DS2N")
 
 		// Create note for student2
-		noteDate := timezone.NewDate(2026, 7, 15)
+		noteDate := calendar.NewDate(2026, 7, 15)
 		deleteTestContent := "Test content"
 		note := testpkg.InsertStudentPickupNoteRow(t, tc.db, testpkg.StudentDatedNoteRow{
 			TenantID:  testpkg.Tenant(t),

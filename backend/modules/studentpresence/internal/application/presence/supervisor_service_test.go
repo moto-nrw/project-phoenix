@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Create", "Supervisor")
 
-		now := timezone.NewDate(2026, 8, 24)
+		now := calendar.NewDate(2026, 8, 24)
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -74,7 +74,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 		// ARRANGE
 		staff := testpkg.CreateTestStaff(t, db, "Invalid", "Group")
 
-		now := timezone.NewDate(2026, 8, 24)
+		now := calendar.NewDate(2026, 8, 24)
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   99999999, // invalid
 			StaffID:   staff.ID,
@@ -107,7 +107,7 @@ func TestActiveService_CreateGroupSupervisor(t *testing.T) {
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
-			StartDate: timezone.NewDate(2026, 8, 24),
+			StartDate: calendar.NewDate(2026, 8, 24),
 		}
 
 		// ACT
@@ -140,7 +140,7 @@ func TestActiveService_UpdateGroupSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Update", "Supervisor")
 
-		now := timezone.NewDate(2026, 8, 24)
+		now := calendar.NewDate(2026, 8, 24)
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -205,7 +205,7 @@ func TestActiveService_DeleteGroupSupervisor(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Delete", "Supervisor")
 
-		now := timezone.NewDate(2026, 8, 24)
+		now := calendar.NewDate(2026, 8, 24)
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -262,7 +262,7 @@ func TestPresence_QuerySupervisions(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "List", "Supervisor")
 
-		now := timezone.TodayDate()
+		now := calendar.TodayDate()
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -313,7 +313,7 @@ func TestPresence_QueryActiveStaffSupervisions(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByStaff")
 
-		now := timezone.TodayDate()
+		now := calendar.TodayDate()
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -341,7 +341,7 @@ func TestPresence_QueryActiveStaffSupervisions(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "No", "Supervisions")
 
 		// ACT
-		day := timezone.TodayDate().String()
+		day := calendar.TodayDate().String()
 		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: &day})
 
 		// ASSERT
@@ -369,7 +369,7 @@ func TestPresence_QueryActiveSessionSupervisions(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Find", "ByGroup")
 
-		now := timezone.TodayDate()
+		now := calendar.TodayDate()
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -380,7 +380,7 @@ func TestPresence_QueryActiveSessionSupervisions(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: new(calendar.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -398,7 +398,7 @@ func TestPresence_QueryActiveSessionSupervisions(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 
 		// ACT
-		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: new(calendar.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -427,7 +427,7 @@ func TestPresence_QueryActiveSupervisionsForSessions(t *testing.T) {
 		group2 := testpkg.CreateTestActiveGroup(t, db, activity2.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Multi", "Supervisor")
 
-		now := timezone.TodayDate()
+		now := calendar.TodayDate()
 		sup1 := &ports.GroupSupervisor{GroupID: group1.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
 		sup2 := &ports.GroupSupervisor{GroupID: group2.ID, StaffID: staff.ID, Role: "supervisor", StartDate: now}
 		err := service.CreateGroupSupervisor(ctx, sup1)
@@ -445,7 +445,7 @@ func TestPresence_QueryActiveSupervisionsForSessions(t *testing.T) {
 
 	t.Run("returns empty list for empty input", func(t *testing.T) {
 		// ACT
-		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{}, ActiveOn: new(timezone.TodayDate().String())})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{}, ActiveOn: new(calendar.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -472,7 +472,7 @@ func TestActiveService_EndSupervision(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "End", "Supervision")
 
-		now := timezone.NewDate(2026, 8, 24)
+		now := calendar.NewDate(2026, 8, 24)
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -536,7 +536,7 @@ func TestPresence_QueryCurrentStaffGroups(t *testing.T) {
 		activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
 		staff := testpkg.CreateTestStaff(t, db, "Active", "Supervisions")
 
-		now := timezone.TodayDate()
+		now := calendar.TodayDate()
 		supervisor := &ports.GroupSupervisor{
 			GroupID:   activeGroup.ID,
 			StaffID:   staff.ID,
@@ -547,7 +547,7 @@ func TestPresence_QueryCurrentStaffGroups(t *testing.T) {
 		require.NoError(t, err)
 
 		// ACT
-		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(calendar.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)
@@ -563,7 +563,7 @@ func TestPresence_QueryCurrentStaffGroups(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "No", "Active")
 
 		// ACT
-		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(timezone.TodayDate().String())})
+		result, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{StaffID: &staff.ID, ActiveOn: new(calendar.TodayDate().String())})
 
 		// ASSERT
 		require.NoError(t, err)

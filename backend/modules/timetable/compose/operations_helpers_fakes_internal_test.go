@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The operational day's internal helpers are checked here against the few
@@ -185,12 +185,12 @@ func (a *helperAnnouncer) AnnounceAttendanceChanged(tenantID, activeGroupID, ins
 // the plan verdicts come from the caller.
 type careRuleDays struct{}
 
-func (careRuleDays) ResolveForDate(context.Context, []int64, timezone.Date) (map[int64]timetable.CareDayStatus, error) {
+func (careRuleDays) ResolveForDate(context.Context, []int64, calendar.Date) (map[int64]timetable.CareDayStatus, error) {
 	return map[int64]timetable.CareDayStatus{}, nil
 }
 
-func (careRuleDays) ResolveForRange(context.Context, []int64, timezone.Date, timezone.Date) (map[int64]map[timezone.Date]timetable.CareDayStatus, error) {
-	return map[int64]map[timezone.Date]timetable.CareDayStatus{}, nil
+func (careRuleDays) ResolveForRange(context.Context, []int64, calendar.Date, calendar.Date) (map[int64]map[calendar.Date]timetable.CareDayStatus, error) {
+	return map[int64]map[calendar.Date]timetable.CareDayStatus{}, nil
 }
 
 func (careRuleDays) AttendanceRowCareDay(instanceCompleted bool, row timetable.CareDayAttendance, planVerdict timetable.CareDayStatus) timetable.CareDayStatus {

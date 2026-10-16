@@ -13,9 +13,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -25,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -168,7 +167,7 @@ func (s fixedCalDAVSettings) EnabledForTenant(context.Context, int64) (bool, err
 }
 
 func wallClock(h, m int) time.Time {
-	return timezone.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
+	return calendar.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
 }
 
 func eventDates(events []calendarSvc.Event, source string) []string {
@@ -734,8 +733,8 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Mitarbeiter")
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Teamsitzung",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(7),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(7),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(7),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(7),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -788,8 +787,8 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "CalDAV", "Mitarbeiter")
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "CalDAV Teamsitzung",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(7),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(7),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(7),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(7),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -962,7 +961,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Quellen")
-	day := calendarSvc.Date(timezone.TodayDate()).AddDays(7)
+	day := calendarSvc.Date(calendar.TodayDate()).AddDays(7)
 	privateAppointmentDescription := "Besprechung zu Kind Mia Muster"
 	appointmentLocation := "Teamraum"
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
@@ -1020,7 +1019,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Entfernt")
 	otherStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Andere", "Person")
-	day := calendarSvc.Date(timezone.TodayDate()).AddDays(7)
+	day := calendarSvc.Date(calendar.TodayDate()).AddDays(7)
 	room := testpkg.CreateTestRoom(t, db, "Tombstone-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "10:00",
@@ -1068,7 +1067,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Alte Absage")
-	day := calendarSvc.Date(timezone.TodayDate()).AddDays(-60)
+	day := calendarSvc.Date(calendar.TodayDate()).AddDays(-60)
 	room := testpkg.CreateTestRoom(t, db, "Alter Tombstone-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "10:00",
@@ -1391,7 +1390,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 
 	// A guardian-facing appointment whose date is already far beyond the feed's
 	// 30-day lookback, so the live feed query never returns it.
-	pastDate := calendarSvc.Date(timezone.TodayDate()).AddDays(-60)
+	pastDate := calendarSvc.Date(calendar.TodayDate()).AddDays(-60)
 	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Vergangener Termin",
 		StartDate:    pastDate,
@@ -2394,8 +2393,8 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 
 	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elterninfo",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(3),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(3),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(3),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(3),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -2989,7 +2988,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	// A weekly series bounded by occurrence_count=3, starting 200 days ago: all
 	// three occurrences are well before the feed's 30-day lookback.
 	count := 3
-	pastStart := calendarSvc.Date(timezone.TodayDate()).AddDays(-200)
+	pastStart := calendarSvc.Date(calendar.TodayDate()).AddDays(-200)
 	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Abgelaufene Reihe",
 		StartDate:    pastStart,
@@ -3011,8 +3010,8 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	// A current appointment inside the feed window.
 	_, err = service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Aktueller Termin",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(5),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(5),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(5),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(5),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,

@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (e engine) ListLiveGroups(ctx context.Context, ids []int64) ([]studentpresence.LiveGroup, error) {
@@ -38,7 +38,7 @@ func (e engine) QueryLiveGroups(ctx context.Context, filter studentpresence.Live
 }
 
 func (e engine) ListSupervisedLiveGroups(ctx context.Context, staffID int64) ([]studentpresence.LiveGroup, error) {
-	rows, err := e.Service.ListSupervisedLiveGroups(ctx, staffID, timezone.DateFromTime(e.now()))
+	rows, err := e.Service.ListSupervisedLiveGroups(ctx, staffID, calendar.DateFromTime(e.now()))
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +84,7 @@ func (e engine) ListGroupSupervisions(ctx context.Context, groupID int64) ([]stu
 func (e engine) QueryGroupSupervisions(ctx context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error) {
 	var endedBy *ports.Date
 	if filter.EndedBy != nil {
-		date, err := timezone.ParseDate(*filter.EndedBy)
+		date, err := calendar.ParseDate(*filter.EndedBy)
 		if err != nil {
 			return nil, err
 		}
@@ -92,7 +92,7 @@ func (e engine) QueryGroupSupervisions(ctx context.Context, filter studentpresen
 	}
 	var startedBefore *ports.Date
 	if filter.StartedBefore != nil {
-		date, err := timezone.ParseDate(*filter.StartedBefore)
+		date, err := calendar.ParseDate(*filter.StartedBefore)
 		if err != nil {
 			return nil, err
 		}
@@ -100,7 +100,7 @@ func (e engine) QueryGroupSupervisions(ctx context.Context, filter studentpresen
 	}
 	var activeOn *ports.Date
 	if filter.ActiveOn != nil {
-		date, err := timezone.ParseDate(*filter.ActiveOn)
+		date, err := calendar.ParseDate(*filter.ActiveOn)
 		if err != nil {
 			return nil, err
 		}
@@ -123,7 +123,7 @@ func (e engine) QueryGroupSupervisions(ctx context.Context, filter studentpresen
 }
 
 func (e engine) StaffIDsWithSupervisionOn(ctx context.Context, value string) ([]int64, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil, err
 	}
@@ -131,7 +131,7 @@ func (e engine) StaffIDsWithSupervisionOn(ctx context.Context, value string) ([]
 }
 
 func (e engine) SupervisedRoomsOn(ctx context.Context, value string) ([]studentpresence.StaffRoomSupervision, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +147,7 @@ func (e engine) SupervisedRoomsOn(ctx context.Context, value string) ([]studentp
 }
 
 func (e engine) EndSupervisionOn(ctx context.Context, id int64, value string) (int, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return 0, err
 	}
@@ -155,7 +155,7 @@ func (e engine) EndSupervisionOn(ctx context.Context, id int64, value string) (i
 }
 
 func (e engine) EndStaffSupervisionsOn(ctx context.Context, id int64, value string) (int, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return 0, err
 	}

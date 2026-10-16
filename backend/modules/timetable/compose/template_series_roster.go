@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Roster reconciliation across split-series predecessors (#2187,
@@ -56,7 +56,7 @@ func (s *TemplateService) reconcileSeriesPredecessorRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
-	livingValidFrom *timezone.Date,
+	livingValidFrom *calendar.Date,
 ) error {
 	if in.SeriesRosterFrom == nil {
 		return nil
@@ -119,8 +119,8 @@ func (s *TemplateService) reconcileSeriesPredecessorRoster(
 func segmentIsReconcilablePredecessor(
 	seg *templateSeriesSegment,
 	livingTemplateID int64,
-	anchor timezone.Date,
-	livingValidFrom *timezone.Date,
+	anchor calendar.Date,
+	livingValidFrom *calendar.Date,
 ) bool {
 	if seg.Group == nil || seg.Group.ID == livingTemplateID || seg.ValidUntil == nil {
 		return false
@@ -166,8 +166,8 @@ type seriesWeekdayPerson struct {
 // predecessorWindow is the part of one predecessor segment the edit
 // reconciles: [from, until) on the given weekdays.
 type predecessorWindow struct {
-	from     timezone.Date
-	until    *timezone.Date
+	from     calendar.Date
+	until    *calendar.Date
 	weekdays weekdayScope
 }
 
@@ -178,7 +178,7 @@ type predecessorWindow struct {
 // (#2129) is edited one weekday at a time, so the submitted roster describes
 // only that weekday; judging the predecessor's other weekdays against it would
 // retire rows nobody touched.
-func predecessorWindowOf(seg *templateSeriesSegment, anchor timezone.Date, scopeWeekdays []int) (predecessorWindow, bool) {
+func predecessorWindowOf(seg *templateSeriesSegment, anchor calendar.Date, scopeWeekdays []int) (predecessorWindow, bool) {
 	rowFrom := anchor
 	if seg.ValidFrom != nil && rowFrom.Before(*seg.ValidFrom) {
 		rowFrom = *seg.ValidFrom
@@ -243,21 +243,21 @@ type predecessorRosterRow struct {
 	personID   int64
 	periodID   *int64
 	weekday    *int
-	validFrom  timezone.Date
-	validUntil *timezone.Date
+	validFrom  calendar.Date
+	validUntil *calendar.Date
 }
 
 func enrollmentRosterRow(row *activitiesModel.StudentEnrollment) predecessorRosterRow {
 	return predecessorRosterRow{
 		personID: row.StudentID, periodID: row.CalendarPeriodID, weekday: row.Weekday,
-		validFrom: timezone.Date(row.ValidFrom), validUntil: timezoneDatePtr(row.ValidUntil),
+		validFrom: calendar.Date(row.ValidFrom), validUntil: timezoneDatePtr(row.ValidUntil),
 	}
 }
 
 func supervisorRosterRow(row *activitiesModel.SupervisorPlanned) predecessorRosterRow {
 	return predecessorRosterRow{
 		personID: row.StaffID, periodID: row.CalendarPeriodID, weekday: row.Weekday,
-		validFrom: timezone.Date(row.ValidFrom), validUntil: timezoneDatePtr(row.ValidUntil),
+		validFrom: calendar.Date(row.ValidFrom), validUntil: timezoneDatePtr(row.ValidUntil),
 	}
 }
 
@@ -270,7 +270,7 @@ func (s *TemplateService) reconcilePredecessorSegmentRoster(
 	in TemplateUpdateInput,
 	tenantID int64,
 	seg *templateSeriesSegment,
-	anchor timezone.Date,
+	anchor calendar.Date,
 	roster resolvedTemplateRoster,
 	studentScope, staffScope map[int64]struct{},
 ) error {
@@ -320,7 +320,7 @@ func (s *TemplateService) reconcilePredecessorSegmentRoster(
 func (s *TemplateService) reconcilePredecessorOccurrences(
 	ctx context.Context,
 	templateID int64,
-	from timezone.Date,
+	from calendar.Date,
 	touchedStudents []int64,
 	priorEnrollments []*activitiesModel.StudentEnrollment,
 	touchedStaff []int64,

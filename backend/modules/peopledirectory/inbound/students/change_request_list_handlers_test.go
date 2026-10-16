@@ -15,13 +15,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // keysetPage mimics the real services' contract: rows sorted newest-first,
@@ -129,7 +129,7 @@ func (f *aggCareFake) ListPending(_ context.Context, nativeFilter careplan.Reque
 	filters := legacyQueueFilters(nativeFilter)
 	f.pendingCalls++
 	rows := urgencyRows(f.pending, filters, func(it *careplan.CareScheduleReviewItem) bool {
-		return careplan.CareReviewUrgentOn(*it, careplan.Date(timezone.TodayDate()))
+		return careplan.CareReviewUrgentOn(*it, careplan.Date(calendar.TodayDate()))
 	})
 	items, next := keysetPage(rows, filters,
 		func(it *careplan.CareScheduleReviewItem) (time.Time, int64) {
@@ -184,7 +184,7 @@ func (f *aggOfferingFake) ListPending(_ context.Context, nativeFilter careplan.R
 	filters := legacyQueueFilters(nativeFilter)
 	f.pendingCalls++
 	rows := urgencyRows(f.pending, filters, func(item *careplan.OfferingReviewItem) bool {
-		return !timezone.Date(item.Request.EffectiveFrom).After(timezone.TodayDate())
+		return !calendar.Date(item.Request.EffectiveFrom).After(calendar.TodayDate())
 	})
 	items, next := keysetPage(rows, filters,
 		func(it *careplan.OfferingReviewItem) (time.Time, int64) {
@@ -221,7 +221,7 @@ func (f *aggExcusedFake) ListPending(_ context.Context, filter excusedrequests.Q
 	f.pendingCalls++
 	filters := legacyQueueFilters(filter)
 	rows := urgencyRows(f.pending, filters, func(item *excusedrequests.ReviewItem) bool {
-		return slices.Contains(item.Request.Dates, excusedrequests.Date(timezone.TodayDate()))
+		return slices.Contains(item.Request.Dates, excusedrequests.Date(calendar.TodayDate()))
 	})
 	items, next := keysetPage(rows, filters,
 		func(it *excusedrequests.ReviewItem) (time.Time, int64) {
@@ -275,11 +275,11 @@ func newAggResource() (*Resource, *aggFakes) {
 	if err != nil {
 		panic(err)
 	}
-	careQueue, err := requestreviewcompose.NewCareScheduleQueue(fakes.care, func() careplan.Date { return careplan.Date(timezone.TodayDate()) })
+	careQueue, err := requestreviewcompose.NewCareScheduleQueue(fakes.care, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
 	if err != nil {
 		panic(err)
 	}
-	offeringQueue, err := requestreviewcompose.NewOfferingQueue(fakes.offering, func() careplan.Date { return careplan.Date(timezone.TodayDate()) })
+	offeringQueue, err := requestreviewcompose.NewOfferingQueue(fakes.offering, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
 	if err != nil {
 		panic(err)
 	}
@@ -287,7 +287,7 @@ func newAggResource() (*Resource, *aggFakes) {
 	if err != nil {
 		panic(err)
 	}
-	excusedQueue, err := requestreviewcompose.NewExcusedQueue(fakes.excused, func() careplan.Date { return careplan.Date(timezone.TodayDate()) })
+	excusedQueue, err := requestreviewcompose.NewExcusedQueue(fakes.excused, func() careplan.Date { return careplan.Date(calendar.TodayDate()) })
 	if err != nil {
 		panic(err)
 	}
@@ -491,7 +491,7 @@ func TestAggregatedChangeRequests_OpenPaginatesAllUrgentRowsBeforeNewerNormalRow
 		aggMasterPending(1, "Neu", "Normal", aggBase.Add(48*time.Hour)),
 	}
 	urgent := aggExcusedPending(2, "Alt", "Dringend", aggBase)
-	urgent.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate())}
+	urgent.Request.Dates = []excusedrequests.Date{excusedrequests.Date(calendar.TodayDate())}
 	fakes.excused.pending = []*excusedrequests.ReviewItem{urgent}
 
 	rr, page := execAggregated(t, rs, "limit=1", aggUpdatePerms)
@@ -918,7 +918,7 @@ func TestAggregatedChangeRequests_GroupsContradictingAbsencesOnOneDay(t *testing
 	t.Parallel()
 
 	rs, fakes := newAggResource()
-	day := timezone.NewDate(2026, 8, 24).AddDays(3)
+	day := calendar.NewDate(2026, 8, 24).AddDays(3)
 	first := aggExcusedPending(1, "Mia", "Muster", aggBase)
 	first.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
 	first.Request.AbsenceStatus = "excused"
@@ -944,7 +944,7 @@ func TestAggregatedChangeRequests_LoneRequestReportsNoConflictGroup(t *testing.T
 
 	rs, fakes := newAggResource()
 	only := aggExcusedPending(1, "Mia", "Muster", aggBase)
-	only.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate().AddDays(3))}
+	only.Request.Dates = []excusedrequests.Date{excusedrequests.Date(calendar.TodayDate().AddDays(3))}
 	fakes.excused.pending = []*excusedrequests.ReviewItem{only}
 
 	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)
@@ -959,7 +959,7 @@ func TestAggregatedChangeRequests_EmitsCurrentStatusPerDate(t *testing.T) {
 	t.Parallel()
 
 	rs, fakes := newAggResource()
-	day := timezone.NewDate(2026, 8, 24).AddDays(3)
+	day := calendar.NewDate(2026, 8, 24).AddDays(3)
 	changed := true
 	item := aggExcusedPending(1, "Mia", "Muster", aggBase)
 	item.Request.Dates = []excusedrequests.Date{excusedrequests.Date(day)}
@@ -981,9 +981,9 @@ func TestAggregatedChangeRequests_MarksPastRequests(t *testing.T) {
 
 	rs, fakes := newAggResource()
 	past := aggExcusedPending(1, "Mia", "Muster", aggBase)
-	past.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate().AddDays(-2))}
+	past.Request.Dates = []excusedrequests.Date{excusedrequests.Date(calendar.TodayDate().AddDays(-2))}
 	future := aggExcusedPending(2, "Nils", "Neu", aggBase.Add(-time.Hour))
-	future.Request.Dates = []excusedrequests.Date{excusedrequests.Date(timezone.TodayDate().AddDays(2))}
+	future.Request.Dates = []excusedrequests.Date{excusedrequests.Date(calendar.TodayDate().AddDays(2))}
 	fakes.excused.pending = []*excusedrequests.ReviewItem{past, future}
 
 	page := execConflictPage(t, rs, "types=excused", aggUpdatePerms)

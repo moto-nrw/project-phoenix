@@ -9,10 +9,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -337,7 +336,7 @@ func TestPickupScheduleService_CreateStudentPickupException(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
 		// Use Berlin timezone for consistent date handling
-		exceptionDate := timezone.NewDate(2024, 3, 20)
+		exceptionDate := calendar.NewDate(2024, 3, 20)
 		firstPickupTime := time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC)
 		exception1 := &careplan.PickupException{
 			StudentID:     student.ID,
@@ -394,8 +393,8 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	staff := testpkg.CreateTestStaff(t, db, "Partial", fmt.Sprintf("Owner-%d", time.Now().UnixNano()))
 	guardian := testpkg.CreateTestAccount(t, db, fmt.Sprintf("guardian-partial-%d@test.local", time.Now().UnixNano()))
 
-	date := timezone.TodayDate().AddDays(4)
-	pickupTime := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
+	date := calendar.TodayDate().AddDays(4)
+	pickupTime := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	guardianID := guardian.ID
 	guardianPickup := &scheduleModels.StudentPickupException{
 		StudentID:         student.ID,
@@ -409,14 +408,14 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	partial, err := serviceFactory.PartialAbsence.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
 		StudentID: student.ID,
 		Date:      date,
-		FromTime:  timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
+		FromTime:  calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
 		Reason:    "Termin",
 		StaffID:   staff.ID,
 	})
 	require.NoError(t, err)
 	require.Equal(t, guardianPickup.ID, partial.ID, "the partial must reuse the guardian pickup row")
 
-	staffPickup := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	staffPickup := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err = serviceFactory.PickupSchedule.CreateOrReclaimException(
 		ctx,
 		student.ID,
@@ -432,7 +431,7 @@ func TestPickupScheduleService_ReclaimGuardianPickupRejectsSharedPartialAbsence(
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.ExcusedFrom, "failed reclaim must preserve partial metadata")
-	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
 	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, fresh.Source)
 }
 
@@ -448,7 +447,7 @@ func TestPickupScheduleService_GetStudentPickupExceptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
 		// Use consistent base date to avoid any timezone edge cases
-		baseDate := timezone.TodayDate()
+		baseDate := calendar.TodayDate()
 		for i := -2; i <= 2; i++ {
 			exception := &careplan.PickupException{
 				StudentID:     student.ID,
@@ -479,7 +478,7 @@ func TestPickupScheduleService_GetUpcomingStudentPickupExceptions(t *testing.T) 
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
 		// Use consistent base date to avoid timezone edge cases
-		baseDate := timezone.TodayDate()
+		baseDate := calendar.TodayDate()
 
 		for i := -5; i < 0; i++ {
 			exception := &careplan.PickupException{
@@ -556,7 +555,7 @@ func TestPickupScheduleService_UpdateExceptionPreservesOmittedPickupTime(t *test
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
-	exceptionDate := timezone.NewDate(2024, 4, 2)
+	exceptionDate := calendar.NewDate(2024, 4, 2)
 	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 	exception := &careplan.PickupException{
 		StudentID:     student.ID,
@@ -598,7 +597,7 @@ func TestPickupScheduleService_UpdateExceptionClearsPickupTime(t *testing.T) {
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
-	exceptionDate := timezone.NewDate(2024, 4, 2)
+	exceptionDate := calendar.NewDate(2024, 4, 2)
 	pickupTime := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 	exception := &careplan.PickupException{
 		StudentID:     student.ID,
@@ -635,8 +634,8 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
-	exceptionDate := timezone.NewDate(2024, 4, 4)
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	exceptionDate := calendar.NewDate(2024, 4, 4)
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 	exception := &careplan.PickupException{
 		StudentID:             student.ID,
 		ExceptionDate:         careplan.Date(exceptionDate),
@@ -651,7 +650,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 
 	// Collision-update path: a second create for the same date with a different
 	// wall-clock must drop partial ownership so delete cannot wipe the override.
-	newPickup := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	newPickup := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	override := &careplan.PickupException{
 		StudentID:     student.ID,
 		ExceptionDate: careplan.Date(exceptionDate),
@@ -665,7 +664,7 @@ func TestPickupScheduleService_CreateExceptionUpsertDropsPartialOwnershipOnTimeC
 	require.NoError(t, err)
 	require.NotNil(t, fresh)
 	require.NotNil(t, fresh.PickupTime)
-	assert.Equal(t, "15:00", timezone.NormalizeWallClock(*fresh.PickupTime).Format("15:04"))
+	assert.Equal(t, "15:00", calendar.NormalizeWallClock(*fresh.PickupTime).Format("15:04"))
 	assert.False(t, fresh.ExcusedOwnsPickupTime,
 		"upsert with a new wall-clock must drop partial ownership of the pickup time")
 	require.NotNil(t, fresh.ExcusedFrom, "partial metadata itself is preserved until explicit delete")
@@ -681,8 +680,8 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 
 	ctx := testpkg.TenantContext(student.TenantID)
 	staffID := createPickupServiceTestStaffID(t, db)
-	exceptionDate := timezone.NewDate(2024, 4, 3)
-	pickupTime := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+	exceptionDate := calendar.NewDate(2024, 4, 3)
+	pickupTime := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 	exception := &careplan.PickupException{
 		StudentID:             student.ID,
 		ExceptionDate:         careplan.Date(exceptionDate),
@@ -713,7 +712,7 @@ func TestPickupScheduleService_UpdateExceptionSamePickupTimeKeepsPartialOwnershi
 	assert.True(t, updated.ExcusedOwnsPickupTime,
 		"identical wall-clock must keep partial ownership so delete can reclaim the pickup row")
 	require.NotNil(t, updated.PickupTime)
-	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*updated.PickupTime).Format("15:04"))
+	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*updated.PickupTime).Format("15:04"))
 }
 
 func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
@@ -752,8 +751,8 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 	t.Run("rejects a pickup exception shared with a partial absence", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Partial", fmt.Sprintf("Delete-%d", time.Now().UnixNano()), "1a")
 		staffID := createPickupServiceTestStaffID(t, db)
-		date := timezone.TodayDate().AddDays(5)
-		from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+		date := calendar.TodayDate().AddDays(5)
+		from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 		exception := &careplan.PickupException{
 			StudentID:             student.ID,
 			ExceptionDate:         careplan.Date(date),
@@ -786,7 +785,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
 		// Use consistent base date to avoid timezone edge cases
-		baseDate := timezone.TodayDate()
+		baseDate := calendar.TodayDate()
 		for i := 1; i <= 5; i++ {
 			exception := &careplan.PickupException{
 				StudentID:     student.ID,
@@ -810,15 +809,15 @@ func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
 	t.Run("rejects the batch when one exception owns a partial absence", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Partial", fmt.Sprintf("Bulk-%d", time.Now().UnixNano()), "1a")
 		staffID := createPickupServiceTestStaffID(t, db)
-		date := timezone.TodayDate().AddDays(6)
+		date := calendar.TodayDate().AddDays(6)
 		ordinary := &careplan.PickupException{
 			StudentID:     student.ID,
 			ExceptionDate: careplan.Date(date.AddDays(-1)),
-			PickupTime:    testpkg.TimePtr(timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
+			PickupTime:    testpkg.TimePtr(calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
 			CreatedBy:     staffID,
 		}
 		require.NoError(t, service.CreateStudentPickupException(ctx, ordinary))
-		from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
+		from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
 		partial := &careplan.PickupException{
 			StudentID:             student.ID,
 			ExceptionDate:         careplan.Date(date),
@@ -866,7 +865,7 @@ func TestPickupScheduleService_GetStudentPickupData(t *testing.T) {
 
 		exception := &careplan.PickupException{
 			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(timezone.TodayDate().AddDays(5)),
+			ExceptionDate: careplan.Date(calendar.TodayDate().AddDays(5)),
 			Reason:        testpkg.StrPtr("Future exception"),
 			CreatedBy:     createPickupServiceTestStaffID(t, db),
 		}
@@ -905,7 +904,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		// Use a fixed Monday date at noon to avoid timezone boundary issues
 		// January 8, 2024 is a Monday, and noon UTC is still Monday in Berlin
-		testDate := timezone.NewDate(2024, 1, 8)
+		testDate := calendar.NewDate(2024, 1, 8)
 
 		earlyTime := time.Date(2024, 1, 1, 12, 0, 0, 0, time.UTC)
 		exception := &careplan.PickupException{
@@ -941,7 +940,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		// Use a fixed Tuesday date at noon to avoid timezone boundary issues
 		// January 9, 2024 is a Tuesday, and noon UTC is still Tuesday in Berlin
-		testDate := timezone.NewDate(2024, 1, 9)
+		testDate := calendar.NewDate(2024, 1, 9)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -957,7 +956,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		// Use a fixed Saturday date at noon to avoid timezone boundary issues
 		// January 13, 2024 is a Saturday, and noon UTC is still Saturday in Berlin
-		testDate := timezone.NewDate(2024, 1, 13)
+		testDate := calendar.NewDate(2024, 1, 13)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -970,7 +969,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		// Use a fixed Wednesday date at noon to avoid timezone boundary issues
 		// January 10, 2024 is a Wednesday
-		testDate := timezone.NewDate(2024, 1, 10)
+		testDate := calendar.NewDate(2024, 1, 10)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -995,7 +994,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		// Use a fixed Friday date at noon to avoid timezone boundary issues
 		// January 12, 2024 is a Friday
-		testDate := timezone.NewDate(2024, 1, 12)
+		testDate := calendar.NewDate(2024, 1, 12)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -1019,7 +1018,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 		err := service.UpsertStudentPickupSchedule(ctx, sched)
 		require.NoError(t, err)
 
-		testDate := timezone.NewDate(2024, 1, 8)
+		testDate := calendar.NewDate(2024, 1, 8)
 		updatedTime := time.Date(2024, 1, 1, 11, 30, 0, 0, time.UTC)
 		blankReason := "   "
 		exception := &careplan.PickupException{
@@ -1044,7 +1043,7 @@ func TestPickupScheduleService_GetEffectivePickupTimeForDate(t *testing.T) {
 
 		// Use a fixed Sunday date at noon to avoid timezone boundary issues
 		// January 14, 2024 is a Sunday
-		testDate := timezone.NewDate(2024, 1, 14)
+		testDate := calendar.NewDate(2024, 1, 14)
 
 		result, err := service.GetEffectivePickupTimeForDate(ctx, student.ID, testDate)
 
@@ -1068,7 +1067,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 		// Use a fixed Thursday date at noon to avoid timezone boundary issues
 		// January 11, 2024 is a Thursday
-		testDate := timezone.NewDate(2024, 1, 11)
+		testDate := calendar.NewDate(2024, 1, 11)
 
 		sched1 := &careplan.PickupSchedule{
 			StudentID:  student1.ID,
@@ -1120,7 +1119,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 	})
 
 	t.Run("returns empty map for empty student IDs", func(t *testing.T) {
-		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{}, timezone.TodayDate())
+		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{}, calendar.TodayDate())
 
 		require.NoError(t, err)
 		assert.Empty(t, results)
@@ -1131,7 +1130,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 		// Use a fixed Sunday date at noon to avoid timezone boundary issues
 		// January 14, 2024 is a Sunday
-		testDate := timezone.NewDate(2024, 1, 14)
+		testDate := calendar.NewDate(2024, 1, 14)
 
 		results, err := service.GetBulkEffectivePickupTimesForDate(ctx, []int64{student.ID}, testDate)
 
@@ -1145,7 +1144,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 
 		// Use a fixed Monday date at noon to avoid timezone boundary issues
 		// January 8, 2024 is a Monday
-		testDate := timezone.NewDate(2024, 1, 8)
+		testDate := calendar.NewDate(2024, 1, 8)
 
 		notes := "Picked up by aunt"
 		sched := &careplan.PickupSchedule{
@@ -1170,7 +1169,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupTimesForDate(t *testing.T) 
 	t.Run("falls back to recurring schedule notes in bulk lookup when exception reason is blank", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		testDate := timezone.NewDate(2024, 1, 8)
+		testDate := calendar.NewDate(2024, 1, 8)
 
 		recurringNote := "Ring the side entrance bell"
 		sched := &careplan.PickupSchedule{
@@ -1302,7 +1301,7 @@ func TestPickupScheduleService_GetStudentPickupNotes(t *testing.T) {
 	t.Run("returns all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		baseDate := timezone.TodayDate()
+		baseDate := calendar.TodayDate()
 		for i := 0; i < 3; i++ {
 			note := &careplan.PickupNote{
 				StudentID: student.ID,
@@ -1339,7 +1338,7 @@ func TestPickupScheduleService_GetStudentPickupNotesForDate(t *testing.T) {
 	t.Run("returns notes for specific date", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		targetDate := timezone.NewDate(2024, 3, 20)
+		targetDate := calendar.NewDate(2024, 3, 20)
 
 		// Create notes for target date
 		for i := 0; i < 2; i++ {
@@ -1458,7 +1457,7 @@ func TestPickupScheduleService_DeleteAllStudentPickupNotes(t *testing.T) {
 	t.Run("deletes all notes for student", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
 
-		baseDate := timezone.TodayDate()
+		baseDate := calendar.TodayDate()
 		for i := 1; i <= 5; i++ {
 			note := &careplan.PickupNote{
 				StudentID: student.ID,
@@ -1594,7 +1593,7 @@ func TestPickupScheduleService_EffectiveTimeKeepsRegularTime(t *testing.T) {
 	staffID := createPickupServiceTestStaffID(t, db)
 
 	// January 8, 2024 is a Monday.
-	testDate := timezone.NewDate(2024, 1, 8)
+	testDate := calendar.NewDate(2024, 1, 8)
 	require.NoError(t, service.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  student.ID,
 		Weekday:    scheduleModels.WeekdayMonday,

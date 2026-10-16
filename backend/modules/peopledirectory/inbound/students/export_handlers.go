@@ -12,8 +12,8 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // studentExportPageSize caps how many child rows a single export document may
@@ -141,13 +141,13 @@ func (rs *Resource) enrichExportCompanions(r *http.Request, responses []StudentR
 // live presence filters that cannot be answered for any day but today. Both
 // checks run before the fetch so a dated export never reaches the live-state
 // query path (#1939).
-func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (timezone.Date, bool, render.Renderer) {
+func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (calendar.Date, bool, render.Renderer) {
 	planningDate, isToday, dateErr := resolvePlanningDate(filters.Date, now)
 	if dateErr != nil {
-		return timezone.Date(""), false, common.ErrorInvalidRequest(dateErr)
+		return calendar.Date(""), false, common.ErrorInvalidRequest(dateErr)
 	}
 	if err := liveFilterError(activeLiveExportFilters(filters), planningDate, isToday); err != nil {
-		return timezone.Date(""), false, common.ErrorInvalidRequest(err)
+		return calendar.Date(""), false, common.ErrorInvalidRequest(err)
 	}
 	return planningDate, isToday, nil
 }
@@ -156,7 +156,7 @@ func resolveExportPlanningDate(filters studentExportFilters, now time.Time) (tim
 // responses: today keeps live check-in/out times, any other day starts from the
 // row's clean state and carries only that day's status days, plans, and
 // effective arrival/pickup times. It returns a renderer when a lookup fails.
-func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []StudentResponse, dataSnapshot *studentDataSnapshot, planningDate timezone.Date, isToday bool) render.Renderer {
+func (rs *Resource) prepareDatedExportResponses(r *http.Request, responses []StudentResponse, dataSnapshot *studentDataSnapshot, planningDate calendar.Date, isToday bool) render.Renderer {
 	// Actual check-in/out times and the row-seeded Sick/Excused flags describe
 	// today; a non-today planning export starts clean and only carries the
 	// requested date's status days and plans.
@@ -314,7 +314,7 @@ func errExportSelectionTooLarge(total int) error {
 	return fmt.Errorf("die Auswahl umfasst %d Kinder, ein Export ist auf höchstens %d Kinder begrenzt, bitte die Auswahl eingrenzen (etwa nach Gruppe oder Klasse)", total, studentExportPageSize)
 }
 
-func exportRequestToListParams(req studentExportRequest, today timezone.Date) *studentListParams {
+func exportRequestToListParams(req studentExportRequest, today calendar.Date) *studentListParams {
 	// decodeStudentExportRequest already rejects malformed IDs. Preserve the
 	// validated selection on the query params so authorization, directory
 	// loading and enrichment only process the marked children.
@@ -384,7 +384,7 @@ func populateExportPhotoConsentFilterData(responses []StudentResponse, students 
 // carrying rows with an empty date is noise, not data. An empty month set
 // accepts every month.
 func birthdayExportMatch(student StudentResponse, months map[time.Month]bool) bool {
-	birthday, err := timezone.ParseDate(student.Birthday)
+	birthday, err := calendar.ParseDate(student.Birthday)
 	if err != nil {
 		return false
 	}
@@ -443,7 +443,7 @@ func matchesExportYearFilter(schoolClass, raw string) bool {
 	return slices.Contains(years, schoolYear(schoolClass))
 }
 
-func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset lists.Preset, planningDate timezone.Date) []StudentResponse {
+func applyExportFilters(students []StudentResponse, filters studentExportFilters, preset lists.Preset, planningDate calendar.Date) []StudentResponse {
 	// Months and student IDs were validated when the request was decoded.
 	months, _ := parseExportMonths(filters.Months)
 	selectedIDs, _ := parseExportStudentIDs(filters.StudentIDs)
@@ -468,7 +468,7 @@ func applyExportFilters(students []StudentResponse, filters studentExportFilters
 
 // exportStudentMatchesFilters reports whether one child survives every requested
 // export filter. byBirthday and months are precomputed by applyExportFilters.
-func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool, planningDate timezone.Date) bool {
+func exportStudentMatchesFilters(student StudentResponse, filters studentExportFilters, byBirthday bool, months map[time.Month]bool, planningDate calendar.Date) bool {
 	if byBirthday && !birthdayExportMatch(student, months) {
 		return false
 	}
@@ -498,7 +498,7 @@ func exportStudentMatchesFilters(student StudentResponse, filters studentExportF
 type exportSelection struct {
 	responses    []StudentResponse
 	accessCtx    *studentAccessContext
-	planningDate timezone.Date
+	planningDate calendar.Date
 	isToday      bool
 }
 
@@ -513,7 +513,7 @@ func (rs *Resource) selectExportResponses(r *http.Request, req studentExportRequ
 		return exportSelection{}, errResp
 	}
 
-	params := exportRequestToListParams(req, timezone.DateFromTime(now))
+	params := exportRequestToListParams(req, calendar.DateFromTime(now))
 	params.careStatusOn = planningDate
 	students, errResp := rs.fetchStudentsForExport(r, params)
 	if errResp != nil {

@@ -8,9 +8,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -56,7 +56,7 @@ type fakeGroupReader struct {
 	err          error
 }
 
-func (f *fakeGroupReader) ListGroupSupervisors(_ context.Context, groupIDs []int64, _ timezone.Date) ([]notifications.StaffGroupPair, error) {
+func (f *fakeGroupReader) ListGroupSupervisors(_ context.Context, groupIDs []int64, _ calendar.Date) ([]notifications.StaffGroupPair, error) {
 	if f.err != nil {
 		return nil, f.err
 	}
@@ -209,7 +209,7 @@ func sickToday(studentIDs ...int64) notifications.AbsenceReport {
 		TenantID:   absenceTenant,
 		StudentIDs: studentIDs,
 		Status:     notifications.AbsenceStatusSick,
-		Dates:      []timezone.Date{timezone.TodayDate()},
+		Dates:      []calendar.Date{calendar.TodayDate()},
 		FromParent: true,
 	}
 }
@@ -366,7 +366,7 @@ func TestAbsenceNotifierSilentCases(t *testing.T) {
 			name: "a note for another day is planning data",
 			report: func() notifications.AbsenceReport {
 				r := sickToday(absenceStudentA)
-				r.Dates = []timezone.Date{timezone.TodayDate().AddDays(3)}
+				r.Dates = []calendar.Date{calendar.TodayDate().AddDays(3)}
 				return r
 			}(),
 			why: "a future note must not interrupt anybody today",

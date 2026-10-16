@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -222,7 +221,7 @@ func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
 	t.Parallel()
 
 	// 2026-08-17 is a Monday.
-	monday := timezone.NewDate(2026, 8, 17)
+	monday := calendar.NewDate(2026, 8, 17)
 	want := []int{
 		scheduleModels.WeekdayMonday,
 		scheduleModels.WeekdayTuesday,
@@ -245,7 +244,7 @@ func TestIsoWeekdayOfMapsAWholeWeek(t *testing.T) {
 func TestIsWeekendCoversTheWeek(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, 8, 17)
+	monday := calendar.NewDate(2026, 8, 17)
 	want := []bool{false, false, false, false, false, true, true}
 	for offset, expected := range want {
 		date := monday.AddDays(offset)

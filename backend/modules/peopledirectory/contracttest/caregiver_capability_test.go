@@ -9,12 +9,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -564,8 +563,8 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		group.ID,
 		nil,
 		teacher.Staff.ID,
-		timezone.TodayDate().AddDays(-1),
-		timezone.TodayDate().AddDays(1),
+		calendar.TodayDate().AddDays(-1),
+		calendar.TodayDate().AddDays(1),
 	)
 
 	insertPlannedSupervisor(

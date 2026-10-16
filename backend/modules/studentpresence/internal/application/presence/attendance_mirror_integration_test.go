@@ -27,11 +27,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -316,7 +315,7 @@ func TestAttendancePerCareSlot_MorningPresentAfternoonSickAndClearIndependent(t 
 
 	statusRepo := s.statusRepo
 	statusDay := &absencerecords.StudentStatusDay{
-		StudentID: student.ID, Date: timezone.Date(afternoonInstance.Date),
+		StudentID: student.ID, Date: calendar.Date(afternoonInstance.Date),
 		Status: absencerecords.StudentStatusDaySick, ReportedAt: morningCheckOut,
 		Source: absencerecords.StudentStatusSourceManual,
 	}

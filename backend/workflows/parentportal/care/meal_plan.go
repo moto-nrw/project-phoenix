@@ -6,14 +6,14 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // MealPlanWeek returns the child's school meal plan for the Monday-Friday week
 // containing weekStart. Unlike ListSickDays this is gated by the
 // operations.meal_plan_enabled toggle: if the school does not run a meal plan
 // the parent must not see one, so a disabled tenant yields ErrMealPlanDisabled.
-func (s *Service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart timezone.Date) ([]MealPlanEntry, error) {
+func (s *Service) MealPlanWeek(ctx context.Context, accountID, studentID int64, weekStart calendar.Date) ([]MealPlanEntry, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
@@ -81,7 +81,7 @@ func (s *Service) mealRegistrationAvailableForTenant(ctx context.Context, tenant
 	return available, err
 }
 
-func (s *Service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to timezone.Date) (MealParticipationPlan, error) {
+func (s *Service) MealParticipation(ctx context.Context, accountID, studentID int64, from, to calendar.Date) (MealParticipationPlan, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return MealParticipationPlan{}, err
@@ -125,19 +125,19 @@ func (s *Service) ReplaceMealParticipationSchedule(ctx context.Context, accountI
 	return effectiveFrom, nil
 }
 
-func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, participating bool) error {
+func (s *Service) SetMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, participating bool) error {
 	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
 		return s.MealPlan.SetParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date, Participating: participating})
 	})
 }
 
-func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date) error {
+func (s *Service) ClearMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date) error {
 	return s.changeMealParticipationDay(ctx, accountID, studentID, date, func(txCtx context.Context) error {
 		return s.MealPlan.ClearParticipationForDay(txCtx, MealParticipationChange{StudentID: studentID, GuardianAccountID: accountID, Date: date})
 	})
 }
 
-func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date timezone.Date, change func(context.Context) error) error {
+func (s *Service) changeMealParticipationDay(ctx context.Context, accountID, studentID int64, date calendar.Date, change func(context.Context) error) error {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionMealParticipationManage)
 	if err != nil {
 		return err

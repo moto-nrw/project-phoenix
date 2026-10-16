@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -85,12 +85,12 @@ func (rs *StaffAdminResource) listBalanceAdjustments(w http.ResponseWriter, r *h
 	if !rs.requireBalanceAdjustmentStaff(w, r, staffID) {
 		return
 	}
-	from, err := timezone.ParseDate(r.URL.Query().Get("from"))
+	from, err := calendar.ParseDate(r.URL.Query().Get("from"))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
-	to, err := timezone.ParseDate(r.URL.Query().Get("to"))
+	to, err := calendar.ParseDate(r.URL.Query().Get("to"))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -123,7 +123,7 @@ func (rs *StaffAdminResource) createBalanceAdjustment(w http.ResponseWriter, r *
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	effectiveDate, err := calendar.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
 		return
@@ -203,7 +203,7 @@ func (rs *StaffAdminResource) createOpeningBalance(w http.ResponseWriter, r *htt
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("balance_minutes is required")))
 		return
 	}
-	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	effectiveDate, err := calendar.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
 		return
@@ -237,7 +237,7 @@ func (rs *StaffAdminResource) resetStaffBalance(w http.ResponseWriter, r *http.R
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	effectiveDate, err := timezone.ParseDate(req.EffectiveDate)
+	effectiveDate, err := calendar.ParseDate(req.EffectiveDate)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid effective_date format, expected YYYY-MM-DD")))
 		return

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
@@ -13,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -159,7 +159,7 @@ type ShiftPlanningDependencies struct {
 	Logger      *slog.Logger
 	// Today overrides the calendar-day clock the materializer compares
 	// against; nil keeps timezone.TodayDate.
-	Today func() timezone.Date
+	Today func() calendar.Date
 }
 
 // ShiftPlanning is the composed Dienstplan side of Workforce: the public

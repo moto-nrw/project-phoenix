@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The package-private helpers the moved services shared with the retained
@@ -15,7 +15,7 @@ import (
 
 // isoWeekday returns the ISO 8601 weekday number for d (1=Mon … 7=Sun),
 // matching the storage convention of activities.schedules.weekday.
-func isoWeekday(d timezone.Date) int {
+func isoWeekday(d calendar.Date) int {
 	wd := d.Weekday()
 	if wd == time.Sunday {
 		return 7

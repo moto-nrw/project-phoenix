@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +64,7 @@ func TestActiveSupervisionsCarryTheirStaffMember(t *testing.T) {
 
 func createAbsence(tb testing.TB, ctx context.Context, factory *api.RepositoryTestFactory, staffID int64, approvedBy *int64) {
 	tb.Helper()
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	absence := &api.StaffAbsenceRow{
 		StaffID:     staffID,
 		AbsenceType: workforce.AbsenceTypeVacation,

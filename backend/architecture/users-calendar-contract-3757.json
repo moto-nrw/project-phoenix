@@ -40,7 +40,7 @@
   "runtime_evidence": {
     "source": "Observed local verification of commit 939b88b25f125ce40d3efb8bf80d6834b6523450 on 2026-10-08 in the #3757 worktree; PR #3901 CI separately passed backend quality, lint and seed/simulate smoke. The initial CI architecture job exposed the missing retirement-evidence record.",
     "sources": [
-      "backend/internal/timezone/date.go",
+      "https://github.com/moto-nrw/project-phoenix/blob/939b88b25f125ce40d3efb8bf80d6834b6523450/backend/internal/timezone/date.go",
       "backend/sharedkernel/calendar/date.go",
       "backend/models/users/student_directory_filter.go",
       "backend/test/calendar_date_alias_test.go",

@@ -4,10 +4,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // rosterWarnings flags the roster's children: a late or missing expected
@@ -19,7 +19,7 @@ func (s *operations) rosterWarnings(ctx context.Context, src rosterSources) map[
 	if len(src.studentIDs) == 0 {
 		return warnings
 	}
-	arrivals, err := s.deps.Arrivals.EffectiveArrivals(ctx, src.studentIDs, timezone.Date(src.inst.Date))
+	arrivals, err := s.deps.Arrivals.EffectiveArrivals(ctx, src.studentIDs, calendar.Date(src.inst.Date))
 	if err != nil {
 		s.logger().WarnContext(
 			ctx,
@@ -94,7 +94,7 @@ func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct
 
 func appendArrivalWarnings(warnings map[int64][]timetable.OperationRosterWarning, arrivals map[int64]*ExpectedArrival, inst *scheduleModels.ActivityInstance) {
 	slotStart := inst.StartTime.Format("15:04")
-	slotStartClock := timezone.NormalizeWallClock(inst.StartTime)
+	slotStartClock := calendar.NormalizeWallClock(inst.StartTime)
 	for studentID, arrival := range arrivals {
 		if arrival == nil {
 			continue
@@ -109,7 +109,7 @@ func appendArrivalWarnings(warnings map[int64][]timetable.OperationRosterWarning
 			}
 			continue
 		}
-		arrivesLate := timezone.NormalizeWallClock(*arrival.ArrivalTime).After(slotStartClock)
+		arrivesLate := calendar.NormalizeWallClock(*arrival.ArrivalTime).After(slotStartClock)
 		if arrivesLate {
 			expectedArrival := arrival.ArrivalTime.Format("15:04")
 			warnings[studentID] = append(warnings[studentID], timetable.OperationRosterWarning{

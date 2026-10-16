@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +26,7 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Partial", "Teacher")
 	room := testpkg.CreateTestRoom(t, tc.db, "Partial absence room")
 
-	date := timezone.NewDate(2026, 9, 15)
+	date := calendar.NewDate(2026, 9, 15)
 	morning := testpkg.CreateTestActivityInstance(t, tc.db, date, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "08:00",
 		EndHHMM:   "09:00",
@@ -51,7 +51,7 @@ func TestCreatePartialAbsenceAppliesOnlyToBlocksStartingAfterTheChosenTime(t *te
 	morningRow := testpkg.CreateTestInstanceStudent(t, tc.db, morning.ID, student.ID, studentpresence.SessionAttendanceExpected)
 	overlapRow := testpkg.CreateTestInstanceStudent(t, tc.db, overlap.ID, student.ID, studentpresence.SessionAttendanceExpected)
 	afternoonRow := testpkg.CreateTestInstanceStudent(t, tc.db, afternoon.ID, student.ID, studentpresence.SessionAttendanceExpected)
-	checkedInAt := time.Date(2026, 9, 15, 15, 5, 0, 0, timezone.Berlin)
+	checkedInAt := time.Date(2026, 9, 15, 15, 5, 0, 0, calendar.Berlin)
 	actualRow := testpkg.CreateTestInstanceStudent(
 		t, tc.db, actual.ID, student.ID, studentpresence.SessionAttendancePresent,
 		testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt},
@@ -110,7 +110,7 @@ func TestPartialAbsenceFromRunningBlockStartExcusesTheRestOfTheDay(t *testing.T)
 	student := testpkg.CreateTestStudent(t, tc.db, "Rest", "OfDay", "PA5")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Rest", "Teacher")
 	room := testpkg.CreateTestRoom(t, tc.db, "Rest of day room")
-	date := timezone.NewDate(2026, 9, 22)
+	date := calendar.NewDate(2026, 9, 22)
 
 	instance := func(start, end, title, status string) int64 {
 		return testpkg.CreateTestActivityInstance(t, tc.db, date, room.ID, testpkg.ActivityInstanceOpts{
@@ -123,8 +123,8 @@ func TestPartialAbsenceFromRunningBlockStartExcusesTheRestOfTheDay(t *testing.T)
 	decided := instance("15:00", "16:00", "AG", "")
 	reset := instance("16:00", "17:00", "Spätdienst", "")
 
-	checkedInAt := time.Date(2026, 9, 22, 11, 35, 0, 0, timezone.Berlin)
-	manualAt := time.Date(2026, 9, 22, 13, 10, 0, 0, timezone.Berlin)
+	checkedInAt := time.Date(2026, 9, 22, 11, 35, 0, 0, calendar.Berlin)
+	manualAt := time.Date(2026, 9, 22, 13, 10, 0, 0, calendar.Berlin)
 	earlierRow := testpkg.CreateTestInstanceStudent(t, tc.db, earlier, student.ID, studentpresence.SessionAttendancePresent,
 		testpkg.InstanceStudentOpts{CheckedInAt: &checkedInAt})
 	// The PATCH of „Entschuldigt“ on the running block leaves a manual absence.
@@ -181,7 +181,7 @@ func TestPartialAbsencePreservesAnExplicitPickupOverride(t *testing.T) {
 	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Pickup", "Override", "PA2")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Pickup", "Teacher")
-	date := timezone.NewDate(2026, 9, 16)
+	date := calendar.NewDate(2026, 9, 16)
 	pickupReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/pickup-exceptions", student.ID), map[string]any{
 		"exception_date": date.String(), "pickup_time": "16:00",
 	})
@@ -214,7 +214,7 @@ func TestFullDayStatusDoesNotOverwritePartialAbsence(t *testing.T) {
 	tc := setupStudentsRoute(t)
 	student := testpkg.CreateTestStudent(t, tc.db, "Conflict", "Partial", "PA3")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Conflict", "Teacher")
-	date := timezone.NewDate(2026, 9, 17)
+	date := calendar.NewDate(2026, 9, 17)
 
 	partialReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{
 		"date": date.String(), "from_time": "13:30",
@@ -244,7 +244,7 @@ func TestPartialAbsenceIsAPlannedPickupTimeWithoutAFullDayStatus(t *testing.T) {
 	tc.resource.Now = func() time.Time { return time.Date(2026, time.June, 1, 10, 0, 0, 0, time.UTC) }
 	student := testpkg.CreateTestStudent(t, tc.db, "Planning", "Partial", "PA4")
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Planning", "Teacher")
-	date := timezone.NewDate(2026, 6, 1)
+	date := calendar.NewDate(2026, 6, 1)
 
 	partialReq := testutil.NewAuthenticatedRequest(t, http.MethodPost, fmt.Sprintf("/%d/partial-absences", student.ID), map[string]any{
 		"date": date.String(), "from_time": "13:30", "reason": "Arzttermin",

@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentResponseOpts groups parameters for creating a student response to reduce function parameter count
@@ -69,7 +68,7 @@ func populateCareEndFields(response *StudentResponse, student *Student) {
 		return
 	}
 	response.CareEndsOn = student.EnrolledUntil.String()
-	response.CareEnded = student.CareEndedOn(timezone.TodayDate())
+	response.CareEnded = student.CareEndedOn(calendar.TodayDate())
 }
 
 // populatePublicStudentFields sets fields visible to all authenticated staff
@@ -588,8 +587,8 @@ func applyActualTimesFromAttendance(response *StudentResponse, status *studentpr
 		return
 	}
 
-	response.ActualArrivalTime = timezone.FormatBerlinClock(status.CheckInTime)
-	response.ActualPickupTime = timezone.FormatBerlinClock(status.CheckOutTime)
+	response.ActualArrivalTime = calendar.FormatBerlinClock(status.CheckInTime)
+	response.ActualPickupTime = calendar.FormatBerlinClock(status.CheckOutTime)
 	if status.CheckOutTime != nil {
 		response.ActualPickupNote = status.CheckOutNote
 	}
