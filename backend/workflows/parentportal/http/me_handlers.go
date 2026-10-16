@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -85,7 +84,11 @@ func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
 	}
 	// Reject unknown locales instead of letting the service silently coerce them
 	// to the default — a bad value should fail loudly, not persist as 'de'.
-	if !notificationsService.IsSupportedLocale(req.PortalLocale) {
+	if rs.SupportedLocale == nil {
+		common.RenderError(w, r, common.ErrorInternalServer(errors.New("locale validation is not configured")))
+		return
+	}
+	if !rs.SupportedLocale(req.PortalLocale) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(fmt.Errorf("unsupported portal_locale %q", req.PortalLocale)))
 		return
 	}

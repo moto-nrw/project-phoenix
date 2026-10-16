@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,48 +6,49 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // The row-level guardian reads (#2663). The application-level guardian
 // flows are bound onto the module by the composition root through
 // Module.BindGuardianProvider once the owner's legacy service exists.
 
-func (e engine) ListGuardianLinksByAccount(ctx context.Context, accountID int64) ([]peopledirectory.GuardianLink, error) {
+func (e Engine) ListGuardianLinksByAccount(ctx context.Context, accountID int64) ([]peopledirectory.GuardianLink, error) {
 	values, err := e.guardians.ListLinksByAccount(ctx, accountID)
-	return toPublicLinks(values), mapError(err)
+	return toPublicLinks(values), MapError(err)
 }
 
-func (e engine) ListGuardiansByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.Guardian, error) {
+func (e Engine) ListGuardiansByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.Guardian, error) {
 	values, err := e.guardians.ListByAccounts(ctx, accountIDs)
-	return toPublicGuardians(values), mapError(err)
+	return toPublicGuardians(values), MapError(err)
 }
 
-func (e engine) ListGuardiansByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Guardian, error) {
+func (e Engine) ListGuardiansByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Guardian, error) {
 	values, err := e.guardians.ListByIDs(ctx, ids)
-	return toPublicGuardians(values), mapError(err)
+	return toPublicGuardians(values), MapError(err)
 }
 
 // ObserveGuardianOperation records one provider-backed guardian operation
 // next to the module's own reads; the provider runs no directory statements
 // of its own, so the statement stats stay zero.
-func (e engine) ObserveGuardianOperation(operation string, duration time.Duration, err error) {
-	e.observe(Observation{Operation: operation, Duration: duration, Err: err})
+func (e Engine) ObserveGuardianOperation(operation string, duration time.Duration, err error) {
+	e.observe(ports.Observation{Operation: operation, Duration: duration, Err: err})
 }
 
-func (e engine) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (map[int64]int, error) {
+func (e Engine) CountGuardianLinks(ctx context.Context, guardianIDs []int64) (map[int64]int, error) {
 	values, err := e.guardians.CountLinks(ctx, guardianIDs)
 	if values == nil {
 		values = map[int64]int{}
 	}
-	return values, mapError(err)
+	return values, MapError(err)
 }
 
-func (e engine) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
+func (e Engine) StudentsWithPortalGuardian(ctx context.Context, studentIDs []int64) (map[int64]bool, error) {
 	values, err := e.guardians.StudentsWithPortalGuardian(ctx, studentIDs)
 	if values == nil {
 		values = map[int64]bool{}
 	}
-	return values, mapError(err)
+	return values, MapError(err)
 }
 
 func toPublicGuardians(values []domain.Guardian) []peopledirectory.Guardian {

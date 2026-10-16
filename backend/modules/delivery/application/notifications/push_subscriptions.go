@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -34,6 +36,7 @@ type PushSubscriptionInput struct {
 // span every active tenant mapping in one admin transaction so mapping reads
 // and device-row changes share the same RLS context and commit atomically.
 type PushSubscriptionService interface {
+	ParentDevices() devices.PushSubscriptions
 	// PublicKey returns the VAPID public key the browser subscribes with.
 	PublicKey() (string, error)
 	// Subscribe registers (or refreshes) a staff device for the current tenant.

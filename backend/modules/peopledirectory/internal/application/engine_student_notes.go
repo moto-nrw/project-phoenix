@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -7,10 +7,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-func (e engine) ListStudentNotes(ctx context.Context, filter peopledirectory.StudentNoteFilter) ([]peopledirectory.StudentNote, error) {
+func (e Engine) ListStudentNotes(ctx context.Context, filter peopledirectory.StudentNoteFilter) ([]peopledirectory.StudentNote, error) {
 	notes, err := e.studentNotes.List(ctx, toDomainNoteFilter(filter))
 	if err != nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	result := make([]peopledirectory.StudentNote, 0, len(notes))
 	for _, note := range notes {
@@ -19,31 +19,31 @@ func (e engine) ListStudentNotes(ctx context.Context, filter peopledirectory.Stu
 	return result, nil
 }
 
-func (e engine) CreateStudentNote(ctx context.Context, input peopledirectory.CreateStudentNote) (peopledirectory.StudentNote, error) {
+func (e Engine) CreateStudentNote(ctx context.Context, input peopledirectory.CreateStudentNote) (peopledirectory.StudentNote, error) {
 	note, err := e.studentNotes.Create(ctx, domain.CreateStudentNote{
 		StudentID: input.StudentID, AuthorAccountID: input.AuthorAccountID,
 		Kind: input.Kind, Visibility: input.Visibility, Category: input.Category,
 		Body: input.Body, Subject: toDomainNoteSubject(input.Subject), RevalidateSubject: input.RevalidateSubject,
 	})
 	if err != nil {
-		return peopledirectory.StudentNote{}, mapError(err)
+		return peopledirectory.StudentNote{}, MapError(err)
 	}
 	return toPublicNote(note), nil
 }
 
-func (e engine) UpdateStudentNote(ctx context.Context, input peopledirectory.UpdateStudentNote) (peopledirectory.StudentNote, error) {
+func (e Engine) UpdateStudentNote(ctx context.Context, input peopledirectory.UpdateStudentNote) (peopledirectory.StudentNote, error) {
 	note, err := e.studentNotes.Update(ctx, domain.UpdateStudentNote{
 		ID: input.ID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
 		Kind: input.Kind, Visibility: input.Visibility, Category: input.Category, Body: input.Body,
 		SubjectDate: input.SubjectDate,
 	})
 	if err != nil {
-		return peopledirectory.StudentNote{}, mapError(err)
+		return peopledirectory.StudentNote{}, MapError(err)
 	}
 	return toPublicNote(note), nil
 }
 
-func (e engine) DeleteStudentNote(ctx context.Context, input peopledirectory.DeleteStudentNote) error {
+func (e Engine) DeleteStudentNote(ctx context.Context, input peopledirectory.DeleteStudentNote) error {
 	var resolveAuthorization func(context.Context) (domain.StudentNoteDeleteAuthorization, error)
 	if input.ResolveAuthorization != nil {
 		resolveAuthorization = func(ctx context.Context) (domain.StudentNoteDeleteAuthorization, error) {
@@ -56,7 +56,7 @@ func (e engine) DeleteStudentNote(ctx context.Context, input peopledirectory.Del
 			}, err
 		}
 	}
-	return mapError(e.studentNotes.Delete(ctx, domain.DeleteStudentNote{
+	return MapError(e.studentNotes.Delete(ctx, domain.DeleteStudentNote{
 		ID: input.ID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
 		Authorization: domain.StudentNoteDeleteAuthorization{
 			Admin:                 input.Authorization.Admin,

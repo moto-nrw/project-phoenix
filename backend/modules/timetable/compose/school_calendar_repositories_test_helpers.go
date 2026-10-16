@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -7,16 +9,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-// SchoolCalendarRepositories are the retained calendar period, closing day
-// and dateframe repositories served by the School Calendar owner.
+// SchoolCalendarRepositories are the retained period, closing day and dateframe repositories.
 type SchoolCalendarRepositories struct {
 	CalendarPeriod scheduleModels.CalendarPeriodRepository
 	ClosingDay     scheduleModels.ClosingDayRepository
 	Dateframe      scheduleModels.DateframeRepository
 }
 
-// NewSchoolCalendarRepositories builds the retained calendar repositories
-// over the School Calendar owner; usage answers the period reference counts.
+// NewSchoolCalendarRepositories binds School Calendar; usage counts period references.
 func NewSchoolCalendarRepositories(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) SchoolCalendarRepositories {
 	return SchoolCalendarRepositories{
 		CalendarPeriod: application.NewCalendarPeriodRepository(calendar, usage),

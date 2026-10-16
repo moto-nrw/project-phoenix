@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
-func (e engine) ListGuardianPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]peopledirectory.GuardianPortalContact, error) {
+func (e Engine) ListGuardianPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) ([]peopledirectory.GuardianPortalContact, error) {
 	values, err := e.guardians.ListPortalContacts(ctx, guardianIDs, studentIDs)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	result := make([]peopledirectory.GuardianPortalContact, 0, len(values))
 	for _, value := range values {

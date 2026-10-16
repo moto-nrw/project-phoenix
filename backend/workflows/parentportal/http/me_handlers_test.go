@@ -670,7 +670,7 @@ func TestUpdateMyProfile_RejectsUnsupportedLocale(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeParentService{}
-	rs := &Resource{ParentService: fake}
+	rs := &Resource{ParentService: fake, SupportedLocale: func(locale string) bool { return locale == "en" }}
 	req := withClaims(
 		httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`{"portal_locale":"xx"}`)),
 		1234,
@@ -688,7 +688,7 @@ func TestUpdateMyProfile_RejectsMissingLocale(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeParentService{}
-	rs := &Resource{ParentService: fake}
+	rs := &Resource{ParentService: fake, SupportedLocale: func(locale string) bool { return locale == "en" }}
 	req := withClaims(
 		httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`{}`)),
 		1234,
@@ -705,7 +705,7 @@ func TestUpdateMyProfile_RejectsMalformedBody(t *testing.T) {
 	t.Parallel()
 
 	fake := &fakeParentService{}
-	rs := &Resource{ParentService: fake}
+	rs := &Resource{ParentService: fake, SupportedLocale: func(locale string) bool { return locale == "en" }}
 	req := withClaims(
 		httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`not json`)),
 		1234,
@@ -736,7 +736,7 @@ func TestUpdateMyProfile_PersistsSupportedLocale(t *testing.T) {
 	fake := &fakeParentService{
 		updateProfile: &parentService.Profile{Locale: "en", Explicit: true},
 	}
-	rs := &Resource{ParentService: fake}
+	rs := &Resource{ParentService: fake, SupportedLocale: func(locale string) bool { return locale == "en" }}
 	req := withClaims(
 		httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`{"portal_locale":"en"}`)),
 		1234,
@@ -767,7 +767,7 @@ func TestUpdateMyProfile_MapsMissingProfileToConflict(t *testing.T) {
 	fake := &fakeParentService{
 		updateProfileErr: fmt.Errorf("parent: update portal locale: %w", parentService.ErrGuardianProfileNotFound),
 	}
-	rs := &Resource{ParentService: fake}
+	rs := &Resource{ParentService: fake, SupportedLocale: func(locale string) bool { return locale == "en" }}
 	req := withClaims(
 		httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`{"portal_locale":"en"}`)),
 		1234,
@@ -788,7 +788,7 @@ func TestUpdateMyProfile_PropagatesOtherErrorsAs500(t *testing.T) {
 	fake := &fakeParentService{
 		updateProfileErr: errors.New("db exploded"),
 	}
-	rs := &Resource{ParentService: fake}
+	rs := &Resource{ParentService: fake, SupportedLocale: func(locale string) bool { return locale == "en" }}
 	req := withClaims(
 		httptest.NewRequest(http.MethodPut, "/me/profile", strings.NewReader(`{"portal_locale":"en"}`)),
 		1234,

@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package application
 
 import (
@@ -9,8 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
-// ClosingDayRangeListing serves the date-typed range finder of the legacy
-// closing day contract over an owner listing keyed by YYYY-MM-DD.
+// ClosingDayRangeListing binds the legacy date-typed range finder to a YYYY-MM-DD listing.
 type ClosingDayRangeListing struct {
 	Source func(ctx context.Context, from, to string) ([]*schedule.ClosingDay, error)
 }
@@ -19,8 +20,7 @@ func (l ClosingDayRangeListing) FindOverlappingRange(ctx context.Context, from, 
 	return l.Source(ctx, string(from), string(to))
 }
 
-// DateframeOptionsListing serves the dateframe List(ctx, options) contract
-// over the owner listing.
+// DateframeOptionsListing serves the dateframe List(ctx, options) contract over the owner listing.
 type DateframeOptionsListing struct {
 	Source func(context.Context, DateframeListing) ([]*schedule.Dateframe, error)
 }
