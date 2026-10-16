@@ -1,4 +1,4 @@
-package compose
+package api
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -21,7 +22,7 @@ var errInjectedAudit = errors.New("injected audit failure")
 type auditRecorder struct {
 	mu      sync.Mutex
 	failing bool
-	entries []AuditEntry
+	entries []communicationCompose.AuditEntry
 }
 
 type retryableAuditError struct{}
@@ -37,7 +38,7 @@ func (retryableAuditError) Field(field byte) string {
 
 type retryOnceAudit struct{ attempts int }
 
-func (a *retryOnceAudit) AppendAnnouncementAudit(context.Context, AuditEntry) error {
+func (a *retryOnceAudit) AppendAnnouncementAudit(context.Context, communicationCompose.AuditEntry) error {
 	a.attempts++
 	if a.attempts == 1 {
 		return retryableAuditError{}
@@ -45,7 +46,7 @@ func (a *retryOnceAudit) AppendAnnouncementAudit(context.Context, AuditEntry) er
 	return nil
 }
 
-func (a *auditRecorder) AppendAnnouncementAudit(_ context.Context, entry AuditEntry) error {
+func (a *auditRecorder) AppendAnnouncementAudit(_ context.Context, entry communicationCompose.AuditEntry) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	if a.failing {
@@ -61,17 +62,17 @@ func (a *auditRecorder) fail(value bool) {
 	a.failing = value
 }
 
-func buildCommunication(t *testing.T, db *bun.DB, audit Audit, observations ...func(Observation)) *communication.Module {
+func buildCommunication(t *testing.T, db *bun.DB, audit communicationCompose.Audit, observations ...func(communicationCompose.Observation)) *communication.Module {
 	t.Helper()
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{DB: db, Observe: func(organizationCompose.Observation) {}})
 	require.NoError(t, err)
 	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
-	observe := func(Observation) {}
+	observe := func(communicationCompose.Observation) {}
 	if len(observations) > 0 {
 		observe = observations[0]
 	}
-	module, err := New(Dependencies{DB: db, Organizations: organizations, People: people, Audit: audit, Observe: observe})
+	module, err := communicationCompose.New(communicationCompose.Dependencies{DB: db, Organizations: organizations, Viewers: communicationViewerNames{query: people}, Audit: audit, Observe: observe})
 	require.NoError(t, err)
 	return module
 }
@@ -206,8 +207,8 @@ func TestCreateAnnouncementRetriesWholeTransactionAfterSerializationFailure(t *t
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	audit := &retryOnceAudit{}
-	var observed Observation
-	module := buildCommunication(t, db, audit, func(value Observation) { observed = value })
+	var observed communicationCompose.Observation
+	module := buildCommunication(t, db, audit, func(value communicationCompose.Observation) { observed = value })
 	operator := testpkg.CreateTestOperator(t, db)
 	ownAnnouncementsByOperator(t, db, operator.ID)
 	announcement := newAnnouncement("Automatic retry", testpkg.Tenant(t))
@@ -226,9 +227,9 @@ func TestCreateAnnouncementRetriesWholeTransactionAfterSerializationFailure(t *t
 func TestAnnouncementViewWriteRollsBackWithOuterUnitOfWorkAndRetryIsIdempotent(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	observations := make([]Observation, 0, 3)
+	observations := make([]communicationCompose.Observation, 0, 3)
 	var observationsMu sync.Mutex
-	module := buildCommunication(t, db, &auditRecorder{}, func(observation Observation) {
+	module := buildCommunication(t, db, &auditRecorder{}, func(observation communicationCompose.Observation) {
 		observationsMu.Lock()
 		defer observationsMu.Unlock()
 		observations = append(observations, observation)

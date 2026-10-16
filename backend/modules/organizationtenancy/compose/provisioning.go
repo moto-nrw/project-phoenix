@@ -90,9 +90,17 @@ func NewProvisioning(dependencies ProvisioningDependencies) (organizationtenancy
 		}
 		return tx, nil
 	}, dependencies.ActiveAccountCounts)
+	rows := operatordashboard.Rows[domain.DashboardCounts, domain.OrganizationSummary, domain.SchoolSummary, domain.PWAUsageRow]{
+		Counts: func(row operatordashboard.Counts) domain.DashboardCounts { return domain.DashboardCounts(row) },
+		Organization: func(row operatordashboard.OrganizationSummary) domain.OrganizationSummary {
+			return domain.OrganizationSummary(row)
+		},
+		School:   func(row operatordashboard.SchoolSummary) domain.SchoolSummary { return domain.SchoolSummary(row) },
+		PWAUsage: func(row operatordashboard.PWAUsageRow) domain.PWAUsageRow { return domain.PWAUsageRow(row) },
+	}
 	return application.NewProvisioning(application.ProvisioningDependencies{
 		PWAUsageWindowDays: dependencies.PWAUsageWindowDays,
-		Organizations:      dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
+		Organizations:      dependencies.Organizations, Transaction: transaction{}, Dashboard: operatordashboard.Map(dashboard, rows),
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
 		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,

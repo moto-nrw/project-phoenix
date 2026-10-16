@@ -277,7 +277,7 @@ func (d schoolDirectory) FindSchool(ctx context.Context, id int64) (identityacce
 	if d.schools == nil {
 		return identityaccess.School{}, false, errors.New("school directory is not composed")
 	}
-	school, found, err := organizationCompose.FindSchool(ctx, d.schools, id)
+	school, found, err := lookupSchool(ctx, d.schools, id)
 	if err != nil || !found {
 		return identityaccess.School{}, false, err
 	}

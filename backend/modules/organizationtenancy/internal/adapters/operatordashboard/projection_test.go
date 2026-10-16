@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -185,9 +184,9 @@ func setupSummariesFixture(t *testing.T, db *bun.DB) *summariesFixture {
 	}
 }
 
-func counts(t *testing.T, db *bun.DB, projection *operatordashboard.Projection) domain.DashboardCounts {
+func counts(t *testing.T, db *bun.DB, projection *operatordashboard.Projection) operatordashboard.Counts {
 	t.Helper()
-	var result domain.DashboardCounts
+	var result operatordashboard.Counts
 	withinAdmin(t, db, func(ctx context.Context) error {
 		var err error
 		result, err = projection.Counts(ctx)
@@ -222,7 +221,7 @@ func TestProjection_OrganizationSummaries(t *testing.T) {
 	projection := newProjection()
 	fix := setupSummariesFixture(t, db)
 
-	var all []domain.OrganizationSummary
+	var all []operatordashboard.OrganizationSummary
 	withinAdmin(t, db, func(ctx context.Context) error {
 		var err error
 		all, err = projection.OrganizationSummaries(ctx)
@@ -230,7 +229,7 @@ func TestProjection_OrganizationSummaries(t *testing.T) {
 	})
 	require.NotEmpty(t, all)
 
-	byID := map[int64]domain.OrganizationSummary{}
+	byID := map[int64]operatordashboard.OrganizationSummary{}
 	for _, o := range all {
 		byID[o.ID] = o
 	}
@@ -264,9 +263,9 @@ func TestProjection_OrganizationSummaries(t *testing.T) {
 	}
 }
 
-func schoolSummaries(t *testing.T, db *bun.DB, projection *operatordashboard.Projection, organizationID *int64) []domain.SchoolSummary {
+func schoolSummaries(t *testing.T, db *bun.DB, projection *operatordashboard.Projection, organizationID *int64) []operatordashboard.SchoolSummary {
 	t.Helper()
-	var rows []domain.SchoolSummary
+	var rows []operatordashboard.SchoolSummary
 	withinAdmin(t, db, func(ctx context.Context) error {
 		var err error
 		rows, err = projection.SchoolSummaries(ctx, organizationID)
@@ -284,7 +283,7 @@ func TestProjection_SchoolSummaries_Global(t *testing.T) {
 	all := schoolSummaries(t, db, projection, nil)
 	require.NotEmpty(t, all)
 
-	byID := map[int64]domain.SchoolSummary{}
+	byID := map[int64]operatordashboard.SchoolSummary{}
 	for _, s := range all {
 		byID[s.ID] = s
 	}
@@ -326,7 +325,7 @@ func TestProjection_SchoolSummaries_ChildQuota(t *testing.T) {
 	require.NoError(t, err)
 
 	for name, organizationID := range map[string]*int64{"global": nil, "by organization": &fix.OrgA.ID} {
-		byID := map[int64]domain.SchoolSummary{}
+		byID := map[int64]operatordashboard.SchoolSummary{}
 		for _, s := range schoolSummaries(t, db, projection, organizationID) {
 			byID[s.ID] = s
 		}
@@ -348,7 +347,7 @@ func TestProjection_SchoolSummaries_ByOrganization(t *testing.T) {
 	t.Run("scopes to organization", func(t *testing.T) {
 		rows := schoolSummaries(t, db, projection, &fix.OrgA.ID)
 
-		byID := map[int64]domain.SchoolSummary{}
+		byID := map[int64]operatordashboard.SchoolSummary{}
 		for _, s := range rows {
 			byID[s.ID] = s
 			assert.Equal(t, fix.OrgA.ID, s.OrganizationID)
@@ -405,7 +404,7 @@ func recordUsageRow(t *testing.T, db *bun.DB, tenantID, accountID int64, portal 
 	require.NoError(t, err)
 }
 
-func usageRowFor(rows []domain.PWAUsageRow, tenantID int64, portal string) *domain.PWAUsageRow {
+func usageRowFor(rows []operatordashboard.PWAUsageRow, tenantID int64, portal string) *operatordashboard.PWAUsageRow {
 	for i := range rows {
 		if rows[i].TenantID == tenantID && rows[i].Portal == portal {
 			return &rows[i]
@@ -414,9 +413,9 @@ func usageRowFor(rows []domain.PWAUsageRow, tenantID int64, portal string) *doma
 	return nil
 }
 
-func pwaUsage(t *testing.T, db *bun.DB, projection *operatordashboard.Projection, tenantID int64, window time.Duration) []domain.PWAUsageRow {
+func pwaUsage(t *testing.T, db *bun.DB, projection *operatordashboard.Projection, tenantID int64, window time.Duration) []operatordashboard.PWAUsageRow {
 	t.Helper()
-	var rows []domain.PWAUsageRow
+	var rows []operatordashboard.PWAUsageRow
 	withinAdmin(t, db, func(ctx context.Context) error {
 		var err error
 		rows, err = projection.PWAUsage(ctx, tenantID, window)

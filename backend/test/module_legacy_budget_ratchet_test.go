@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 67469
+const moduleComposeBudgetTotal = 67428
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -172,7 +172,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/careplan/compose":                       4509,
 	"modules/careplan/requestfeed/compose":           86,
 	"modules/classday/compose":                       506,
-	"modules/communication/composition":              1523,
+	"modules/communication/composition":              1518,
 	"modules/dataimport/compose":                     253,
 	"modules/dataimport/compose/retained":            34,
 	"modules/delivery/compose":                       816,
@@ -194,7 +194,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/guardianlinkview/compose":               8, // #4076, see the parent request feed projection below
 	"modules/identityaccess/compose":                 7339,
 	"modules/mealplan/compose":                       274,
-	"modules/organizationtenancy/compose":            744,
+	"modules/organizationtenancy/compose":            708,
 	"modules/organizationtenancy/compose/vocabulary": 48,
 	// #4076: the compositions of the parent request feed, student directory
 	// and enrollment provenance projections only build their readers for the
