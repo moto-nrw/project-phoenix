@@ -3929,7 +3929,7 @@ The same change moves the capability engine (the mapping of the public
 vocabulary onto the domain, `application.Engine`) and the attendance mirror;
 the mirror reports a recovered panic through a port the composition binds to
 Sentry (`compose/attendance_mirror_report.go`). The Timetable composition goes
-from 14,106 to 6,198 LOC.
+from 14,106 to 6,193 LOC.
 
 ### Enrollment wiring out of services (#4012)
 

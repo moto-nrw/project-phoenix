@@ -21,11 +21,6 @@ type CareArrivalExceptionRows interface {
 	scheduleModels.StudentArrivalExceptionRepository
 }
 
-// CareArrivalNoteRows serve the retained arrival notes from Care Plan.
-type CareArrivalNoteRows interface {
-	scheduleModels.StudentArrivalNoteRepository
-}
-
 // CarePickupScheduleRows serve the retained pickup schedules from Care Plan.
 type CarePickupScheduleRows interface {
 	scheduleModels.StudentPickupScheduleRepository
