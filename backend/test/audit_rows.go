@@ -181,3 +181,25 @@ type GuardianFinancialChange struct {
 	Note              string    `bun:"note,notnull"`
 	OccurredAt        time.Time `bun:"occurred_at,nullzero,notnull,default:now()"`
 }
+
+// AuditStudentFieldDocumentPrefix starts the audit.student_field_edits field
+// name of a child-document upload or deletion; the category follows (#777).
+const AuditStudentFieldDocumentPrefix = "document_"
+
+// AuditResourceTypeStudentDocumentDownload is the stored
+// audit.data_access_log resource type of a sensitive child-document download.
+const AuditResourceTypeStudentDocumentDownload = "student_document_download"
+
+// StudentFieldEdit is one audit.student_field_edits row.
+type StudentFieldEdit struct {
+	bun.BaseModel `bun:"table:audit.student_field_edits,alias:student_field_edit"`
+	ID            int64     `bun:"id,pk,autoincrement"`
+	TenantID      int64     `bun:"tenant_id,notnull"`
+	StudentID     int64     `bun:"student_id,notnull"`
+	EditedBy      int64     `bun:"edited_by,notnull"`
+	EditedByName  string    `bun:"edited_by_name,notnull"`
+	FieldName     string    `bun:"field_name,notnull"`
+	OldValue      *string   `bun:"old_value"`
+	NewValue      *string   `bun:"new_value"`
+	CreatedAt     time.Time `bun:"created_at,notnull,default:now()"`
+}
