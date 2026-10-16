@@ -34,6 +34,7 @@ defaults:
 
 env:
   GOTOOLCHAIN: local
+  GOFLAGS: -tags=testhooks
 
 jobs:
   plan-backend:

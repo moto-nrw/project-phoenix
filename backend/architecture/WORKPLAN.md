@@ -3,16 +3,16 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 199 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 17.10.2026 · Ratchet 196 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-57.283 in `compose`
+57.188 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 85 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 29 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 199 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 196 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -286,6 +286,22 @@ ist in `delivery-sse-http-owner-4078.json` belegt. Routen, Responses und Goldens
 bleiben unverändert; Communication bleibt der letzte `inbound-*`-Schnitt.
 
 
+#4078: Display-HTTP gehört Device Fleet; `inbound-display` entfällt. Root bindet
+unveränderte JWT-, Tenant-, Berechtigungs- und Fehler-Middleware und hostet die
+bisherigen Workflow-Tests als route-sized Komposition. Alle 156 Assertions
+bleiben identisch, der mutable Test-Kompositionshook entfällt. SQL-Not-found-
+und Transient-Klassifikation liegen im eigenen Postgres-Adapter; Root bindet
+sie über den HTTP-eigenen Port. Display-Token-Minting und -Hashing liegen als
+unveränderter Credential-Adapter hinter dem bestehenden Token-Port statt in
+Compose. Die ownerweite Krypto-Regel wird auf Produktion/Adapter eingeengt;
+die HTTP-ORM-Regel entfällt. Elf Regeln entfallen, eine engere folgt:
+875 → 865. Inbound 9 → 8, Keys 200 → 197 (#4004 86 → 83), Composition
+unverändert 1.657. Compose sinkt um 95 LOC: 57.283 → 57.188, Device Fleet
+712 → 701 und der leere HTTP-Compose-Eintrag (84) entfällt. Keine Selektoren,
+keine neue Reichweite, keine höheren Budgets oder Root-Service-Graph-Felder.
+Die drei #4004-Retirements sind in `display-http-owner-4078.json` belegt.
+Routen, Responses, IoT-Strings, Statuscodes und Goldens bleiben unverändert.
+
 #4078: IoT-Info und der IoT-HTTP-Host gehören Device Scan; `inbound-iot`
 entfällt. Root bindet die nativen HTTP-Blätter über typisierte Konstruktor-Ports,
 JWT-/Device-Guards, Tenant-Transaktion und Metrics. Der Host importiert keine
@@ -298,7 +314,7 @@ Die echten Konstruktor-/Nil-Verträge bleiben im Owner; route-sized Tests bauen
 `TestFullProductionRouterGolden` bleibt vollständig identisch, Golden-Dateien
 ändern sich nicht. Nur der exakte umgezogene Metrics-Symbolname wird im bestehenden
 Provenienz-Normalisierer abgebildet. Achtzehn Regeln entfallen ohne Nachfolger;
-875 → 857, Inbound 9 → 8, Keys 200 → 199 (#4004 86 → 85), #4078 fünf unverändert.
+865 → 847, Inbound 8 → 7, Keys 197 → 196 (#4004 83 → 82), #4078 fünf unverändert.
 Composition 1.657 und alle Budgets bleiben gleich. Der einzelne #4004-Key ist
 in `iot-http-owner-4078.json` belegt. Testrollen, Routen, Middleware-Reihenfolge,
 Responses und PyrePortal-Strings bleiben gleich; keine Selektoren, Schemaänderung,

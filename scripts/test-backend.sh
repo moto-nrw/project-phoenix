@@ -4,13 +4,13 @@
 # verfügbar, und ein Sweep am Ende (auch bei Ctrl-C/Fehlschlag), der die
 # Clones dieses Laufs droppt und verwaiste Clones toter Läufe einsammelt.
 #
-# `go test ./...` funktioniert weiterhin ohne dieses Skript (selbst-
+# `go test -tags=testhooks ./...` funktioniert weiterhin ohne dieses Skript (selbst-
 # initialisierend); dann räumt erst die Generation-GC des nächsten Laufs auf.
 #
 # Das Leftover-Gate sitzt NICHT hier, sondern im Testprozess selbst: jedes
 # Test-Binary vergleicht seinen Clone am Ende mit dem Startzustand und lässt
 # das Package scheitern, wenn Zeilen in geteiltem (tenant-losem) Zustand
-# übrig sind. Ein nacktes `go test ./...` ist damit genauso abgesichert.
+# übrig sind. Ein nacktes `go test -tags=testhooks ./...` ist damit genauso abgesichert.
 #
 # Usage: scripts/test-backend.sh [go-test-args...]     (Default: ./...)
 set -euo pipefail
@@ -35,7 +35,7 @@ trap sweep EXIT
 # Handshake once per run instead of once per test binary: server erreichbar,
 # Template zum Migrations-Hash gebaut. Die Binaries bekommen das Ergebnis
 # ueber PHX_TEST_TEMPLATE und ueberspringen beide Schritte (#2419). Ein
-# nacktes `go test ./...` ohne diese Zeile macht sie weiterhin selbst.
+# nacktes `go test -tags=testhooks ./...` ohne diese Zeile macht sie weiterhin selbst.
 PHX_TEST_TEMPLATE=$(go run ./internal/testdb/cmd/bootstrap)
 export PHX_TEST_TEMPLATE
 
@@ -49,7 +49,7 @@ fi
 # still overrides this budget. Keep -parallel 8 fixed: it sizes the DB pool
 # (13 connections per binary including its keeper) and is a test-cache input.
 package_workers=$("$repo_root/scripts/go-package-workers.sh")
-CONCURRENCY=(-p "$package_workers" -parallel 8)
+CONCURRENCY=(-p "$package_workers" -parallel 8 -tags=testhooks)
 
 if go tool gotestsum --help >/dev/null 2>&1; then
   go tool gotestsum --format pkgname-and-test-fails -- "${CONCURRENCY[@]}" "$@"

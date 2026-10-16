@@ -5,17 +5,13 @@ package compose
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/sha256"
-	"encoding/base64"
-	"encoding/hex"
 	"errors"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/randstr"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/credentials"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
@@ -129,7 +125,7 @@ func New(dependencies Dependencies) (*devicefleet.Module, error) {
 		Dashboard: dashboard,
 		Tenants:   tenants,
 		Tx:        transaction{db: dependencies.DB},
-		Tokens:    displayTokens{},
+		Tokens:    credentials.DisplayTokens{},
 		APIKeys:   deviceAPIKeys{},
 		Now:       ports.Clock(now),
 		Window:    ports.WindowResolver(dependencies.OnlineWindow),
@@ -246,24 +242,6 @@ func (r presenceReader) ListPresentStudents(ctx context.Context, today time.Time
 		}
 	}
 	return present, nil
-}
-
-// displayTokens mints 32 random bytes as URL-safe base64 and persists only
-// the SHA-256 hex digest, so a database leak exposes no usable dashboard URL.
-type displayTokens struct{}
-
-func (displayTokens) Mint() (string, string, error) {
-	buffer := make([]byte, 32)
-	if _, err := rand.Read(buffer); err != nil {
-		return "", "", fmt.Errorf("failed to generate display token: %w", err)
-	}
-	raw := base64.RawURLEncoding.EncodeToString(buffer)
-	return raw, displayTokens{}.Hash(raw), nil
-}
-
-func (displayTokens) Hash(raw string) string {
-	sum := sha256.Sum256([]byte(strings.TrimSpace(raw)))
-	return hex.EncodeToString(sum[:])
 }
 
 type deviceAPIKeys struct{}
