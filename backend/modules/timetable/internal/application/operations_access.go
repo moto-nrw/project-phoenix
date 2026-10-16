@@ -1,16 +1,13 @@
-package compose
+package application
 
 import (
 	"context"
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Who may act on a block (#3167, #2527): operators are the staff planned
@@ -134,23 +131,20 @@ func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.Activ
 // nobody acts on a block they cannot see. Portals keep their assignment
 // boundary and admins their own rights.
 func (s *operations) schoolWideScope(ctx context.Context, accountID int64, isAdmin bool, action ScopedAction) (bool, error) {
-	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) || !isOGSActorToken(ctx, accountID) {
+	if s.isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) || !s.isOGSActorToken(ctx, accountID) {
 		return false, nil
 	}
 	key, err := s.deps.Settings.ActionScopeKey(action)
 	if err != nil {
 		return false, err
 	}
-	return authorize.SchoolWideActionScope(ctx, s.deps.Settings, key)
+	return s.caller.SchoolWideActionScope(ctx, s.deps.Settings, key)
 }
 
 // isOGSActorToken accepts a tenant or organisation session of the caller's
 // own tenant with schedules:read.
-func isOGSActorToken(ctx context.Context, accountID int64) bool {
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	return (claims.Scope == "" || claims.Scope == "tenant" || claims.Scope == "org") &&
-		int64(claims.ID) == accountID && claims.TenantID > 0 && claims.TenantID == tenant.FromContext(ctx) &&
-		authorize.HasPermission("schedules:read", sessiontoken.PermissionsFromCtx(ctx))
+func (s *operations) isOGSActorToken(ctx context.Context, accountID int64) bool {
+	return s.caller.OGSActorToken(ctx, accountID)
 }
 
 // requireCanReportAbsence covers reporting a child sick or excused on the
@@ -161,7 +155,7 @@ func (s *operations) requireCanReportAbsence(ctx context.Context, accountID int6
 	if operationErr == nil {
 		return s.requireDirectAbsenceScope(ctx, isAdmin)
 	}
-	if !errors.Is(operationErr, timetable.ErrTimetableOperationForbidden) || isAssignmentBoundPortal(ctx) {
+	if !errors.Is(operationErr, timetable.ErrTimetableOperationForbidden) || s.isAssignmentBoundPortal(ctx) {
 		return operationErr
 	}
 	if err := s.requireDirectAbsenceScope(ctx, isAdmin); err != nil {
@@ -171,7 +165,7 @@ func (s *operations) requireCanReportAbsence(ctx context.Context, accountID int6
 	if err != nil {
 		return err
 	}
-	if !hasStaff || !isOGSActorToken(ctx, accountID) {
+	if !hasStaff || !s.isOGSActorToken(ctx, accountID) {
 		return timetable.ErrTimetableOperationForbidden
 	}
 	if s.operationalOverview(ctx, isAdmin, hasStaff) {
@@ -189,7 +183,7 @@ func (s *operations) requireCanReportAbsence(ctx context.Context, accountID int6
 // requireDirectAbsenceScope keeps the school-portal and admin contracts;
 // everybody else needs the all-staff absence scope.
 func (s *operations) requireDirectAbsenceScope(ctx context.Context, isAdmin bool) error {
-	if isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) {
+	if s.isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) {
 		return nil
 	}
 	allStaff, err := s.deps.Settings.StudentAbsenceEditAllStaff(ctx)
@@ -203,11 +197,10 @@ func (s *operations) requireDirectAbsenceScope(ctx context.Context, isAdmin bool
 }
 
 func (s *operations) hasAdministrativeActionAccess(ctx context.Context, isAdmin bool) bool {
-	if isAssignmentBoundPortal(ctx) {
+	if s.isAssignmentBoundPortal(ctx) {
 		return false
 	}
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	return isAdmin || claims.IsAdmin || authorize.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx))
+	return isAdmin || s.caller.AdministrativeAccess(ctx)
 }
 
 func (s *operations) requireFixedGroupOperationAccess(ctx context.Context, staffID, instanceID int64) (int64, error) {
@@ -257,7 +250,7 @@ func (s *operations) supervises(ctx context.Context, activeGroupID, staffID int6
 // is or was planned into. Starting a block adds its operator as supervisor,
 // so the supervisor list would keep access after a withdrawn assignment.
 func (s *operations) operatesLoadedBlock(ctx context.Context, inst *scheduleModels.ActivityInstance, staffRows []*scheduleModels.InstanceStaff, staffID int64, supervises func() (bool, error)) (bool, error) {
-	if isAssignmentBoundPortal(ctx) {
+	if s.isAssignmentBoundPortal(ctx) {
 		return calendar.Date(inst.Date) == s.today() && staffAssigned(staffRows, staffID), nil
 	}
 	if staffAssigned(staffRows, staffID) {
@@ -269,9 +262,8 @@ func (s *operations) operatesLoadedBlock(ctx context.Context, inst *scheduleMode
 	return supervises()
 }
 
-func isAssignmentBoundPortal(ctx context.Context) bool {
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	return claims.IsSchoolScope()
+func (s *operations) isAssignmentBoundPortal(ctx context.Context) bool {
+	return s.caller.AssignmentBoundPortal(ctx)
 }
 
 // operationalOverview reports whether the caller may see every running
@@ -279,10 +271,10 @@ func isAssignmentBoundPortal(ctx context.Context) bool {
 // the same setting as every other surface, so a block PlannedNow lists can
 // never 403 on the detail call. Fails closed on a settings fault.
 func (s *operations) operationalOverview(ctx context.Context, isAdmin, hasStaff bool) bool {
-	allowed, err := authorize.HasOperationalOverviewForResolvedStaff(
+	allowed, err := s.caller.OperationalOverview(
 		ctx,
 		s.deps.Settings,
-		isAssignmentBoundPortal(ctx),
+		s.isAssignmentBoundPortal(ctx),
 		s.hasAdministrativeActionAccess(ctx, isAdmin),
 		hasStaff,
 	)

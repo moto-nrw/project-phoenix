@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -393,7 +392,7 @@ func (s *operations) rosterCareDayStatus(inst *scheduleModels.ActivityInstance, 
 		return timetable.CareDayUnknown
 	}
 	completed := inst != nil && inst.Status == scheduleModels.InstanceStatusCompleted
-	return s.deps.CareDays.AttendanceRowCareDay(completed, application.CareDayAttendance(planned), careDay[studentID])
+	return s.deps.CareDays.AttendanceRowCareDay(completed, CareDayAttendance(planned), careDay[studentID])
 }
 
 func applyPlannedRosterAttendance(row *timetable.OperationRosterRow, planned *scheduleModels.InstanceStudent) {
