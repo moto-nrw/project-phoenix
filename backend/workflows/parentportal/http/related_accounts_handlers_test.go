@@ -76,7 +76,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
@@ -185,7 +185,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:            repos.CareExceptions,
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
 		StudentRepo:         repos.Student,
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},

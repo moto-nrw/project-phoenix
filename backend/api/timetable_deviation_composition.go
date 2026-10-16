@@ -59,7 +59,7 @@ func NewTimetableAttendanceCorrections(in TimetableCorrectionInputs) (timetable.
 // tenant transaction and rolls its visit write back with a failing mirror.
 // The Presence behaviour suites bind it the same way.
 func NewTimetableAttendanceMirror(rows timetableCompose.OwnerRows, logger *slog.Logger) (studentpresence.AttendanceSyncer, error) {
-	mirror, err := timetableCompose.NewAttendanceMirror(timetableCompose.AttendanceMirrorDependencies{
+	mirror, err := timetableCompose.NewAttendanceMirror(timetablePorts.AttendanceMirrorDependencies{
 		Instances: rows.Instances, Participants: rows.Participants, Logger: logger,
 	})
 	if err != nil {

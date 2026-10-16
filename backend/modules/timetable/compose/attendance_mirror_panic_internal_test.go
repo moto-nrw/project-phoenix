@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type mirrorSentryTransport chan *sentry.Event
@@ -28,6 +30,12 @@ type panickingInstanceRepo struct {
 	scheduleModel.ActivityInstanceRepository
 }
 
+// panickingParticipantRepo is the participant twin; the sync panics on the
+// instance read before it reaches the participants.
+type panickingParticipantRepo struct {
+	scheduleModel.InstanceStudentRepository
+}
+
 // Issue #3640: the attendance sync turns a panic into an error for the
 // transaction owner. The panic itself must reach Sentry, since the error no
 // longer carries its stack, and the next sync runs normally.
@@ -39,10 +47,12 @@ func TestAttendanceMirrorReportsRecoveredPanic(t *testing.T) {
 	require.NoError(t, err)
 	ctx := sentry.SetHubOnContext(context.Background(), sentry.NewHub(client, sentry.NewScope()))
 	ctx = tenant.WithTenantID(ctx, 44)
-	mirror := &attendanceMirror{
-		instanceRepo: panickingInstanceRepo{},
-		logger:       slog.New(slog.DiscardHandler),
-	}
+	mirror, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{
+		Instances:    panickingInstanceRepo{},
+		Participants: panickingParticipantRepo{},
+		Logger:       slog.New(slog.DiscardHandler),
+	})
+	require.NoError(t, err)
 
 	snapshot, err := mirror.MirrorCheckInForVisit(ctx, timetable.AttendanceVisit{StudentID: 1, ActiveGroupID: 2, EntryTime: time.Now()})
 

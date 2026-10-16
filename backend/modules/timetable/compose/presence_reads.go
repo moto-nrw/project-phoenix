@@ -144,3 +144,11 @@ func legacyParticipant(row presenceprojection.Participant) *scheduleModels.Insta
 	participant.SetTenantID(row.TenantID)
 	return participant
 }
+
+func mustPresenceReads(db *bun.DB) PresenceReads {
+	reads, err := NewPresenceReads(db)
+	if err != nil {
+		panic(err)
+	}
+	return reads
+}

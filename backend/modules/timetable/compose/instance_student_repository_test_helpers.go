@@ -3,12 +3,13 @@ package compose
 import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/uptrace/bun"
 )
 
 // NewInstanceStudentRepository serves the retained participant repository
 // over the Timetable owner and Student Presence; preview answers the partial
 // absence blocks a pickup change excuses.
-func NewInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence participantPresence, preview PartialAbsences) scheduleModels.InstanceStudentRepository {
+func NewInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence participantPresence, preview application.PartialAbsences) scheduleModels.InstanceStudentRepository {
 	return newTimetableInstanceStudentRepository(db, capability, presence, preview)
 }

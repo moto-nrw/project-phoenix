@@ -7,6 +7,7 @@ package compose
 // consumer-owned RepositoryDirectories.
 
 import (
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 
 	activities "github.com/moto-nrw/project-phoenix/models/activities"
@@ -14,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 )
 
 // RepositoryDependencies are what the retained Timetable adapters compose.
@@ -23,10 +25,10 @@ type RepositoryDependencies struct {
 	// Presence runs the blocks and records their attendance.
 	Presence *studentpresence.Module
 	// PartialAbsences previews the blocks an earlier pickup excuses.
-	PartialAbsences PartialAbsences
+	PartialAbsences application.PartialAbsences
 	// Calendar lists the active calendar periods of the template capacity.
 	Calendar    schoolcalendar.Query
-	Directories RepositoryDirectories
+	Directories ports.RepositoryDirectories
 }
 
 // Repositories are the retained activities and schedule repositories of the
@@ -47,31 +49,21 @@ type Repositories struct {
 	InstanceStudent     schedule.InstanceStudentRepository
 }
 
-// NewRepositories builds the retained schedule adapters over the Timetable owner. The
-// activity group and supervisor rows are enriched with the group, staff and
-// person names the RepositoryDirectories resolve.
+// NewRepositories builds the retained schedule adapters over the Timetable
+// owner: the capability-only adapters from the application, the instance and
+// participant adapters over the database and Student Presence here.
 func NewRepositories(dependencies RepositoryDependencies) Repositories {
-	capability, directories := dependencies.Timetable, dependencies.Directories
-	groupRows := timetableActivityGroupRepository{
-		timetable: capability, groups: directories.GroupNames, rooms: directories.RoomNames,
-		calendar: dependencies.Calendar, shiftTypes: directories.ShiftTypes,
-	}
-	groupProjection := groupActivityGroupRepository{activityGroupTargets: groupRows, groups: directories.GroupNames}
-	staffGroups := newStaffActivityGroupRepository(groupProjection, directories.StaffPersons)
-	supervisors := staffSupervisorPlannedRepository{SupervisorPlannedRepository: timetableActivitySupervisorRepository{timetable: capability}, membership: directories.StaffPersons}
+	capability := dependencies.Timetable
+	rows := application.NewCapabilityRepositories(capability, dependencies.Calendar, dependencies.Directories)
 	instances := newTimetableActivityInstanceRepository(dependencies.DB, capability, dependencies.Presence)
 	return Repositories{
-		ActivityCategory:   timetableActivityCategoryRepository{timetable: capability},
-		ActivityGroup:      newPersonActivityGroupRepository(staffGroups, directories.PersonNames),
-		ActivitySchedule:   timetableActivityScheduleRepository{timetable: capability},
-		ActivitySupervisor: personSupervisorPlannedRepository{SupervisorPlannedRepository: supervisors, persons: directories.PersonNames},
-		StudentEnrollment:  timetableStudentEnrollmentRepository{timetable: capability, alumni: directories.StudentAlumni, names: directories.StudentNames},
-		Timeframe:          timetableTimeframeRepository{timetable: capability},
-		PlanningTrack:      timetablePlanningTrackRepository{timetable: capability},
-		RecurrenceRule:     timetableRecurrenceRuleRepository{timetable: capability},
-		ActivityException:  timetableActivityExceptionRepository{timetable: capability},
-		ActivityInstance:   instances, InstanceIdempotency: instances,
-		InstanceStaff:   timetableInstanceStaffRepository{timetable: capability},
+		ActivityCategory: rows.ActivityCategory, ActivityGroup: rows.ActivityGroup,
+		ActivitySchedule: rows.ActivitySchedule, ActivitySupervisor: rows.ActivitySupervisor,
+		StudentEnrollment: rows.StudentEnrollment, Timeframe: rows.Timeframe,
+		PlanningTrack: rows.PlanningTrack, RecurrenceRule: rows.RecurrenceRule,
+		ActivityException: rows.ActivityException,
+		ActivityInstance:  instances, InstanceIdempotency: instances,
+		InstanceStaff:   rows.InstanceStaff,
 		InstanceStudent: newTimetableInstanceStudentRepository(dependencies.DB, capability, dependencies.Presence, dependencies.PartialAbsences),
 	}
 }
@@ -80,10 +72,10 @@ func NewRepositories(dependencies RepositoryDependencies) Repositories {
 // without the name enrichment, for readers that only load groups by ID or
 // list them with their category.
 func NewActivityGroupRecords(capability timetable.Capability) activities.GroupRepository {
-	return timetableActivityGroupRepository{timetable: capability}
+	return application.NewActivityGroupRecords(capability)
 }
 
 // GroupReads are the template reads of the same consumers.
-func (r Repositories) GroupReads() TimetableGroupReads {
-	return NewTimetableGroupReads(r.ActivityGroup)
+func (r Repositories) GroupReads() application.TimetableGroupReads {
+	return application.NewTimetableGroupReads(r.ActivityGroup)
 }

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,21 +16,17 @@ import (
 // and to Care Plan. They moved here with the retirement of the legacy SQL
 // test providers (#3554).
 
-// listOptions are the retained repositories' list options. The owner's
-// compose package names them for its adapters, so this suite reaches them
-// without importing the base model package.
-type listOptions = timetableCompose.RecurrenceRuleQueryOptions
-
-// newListOptions mirrors the base package's options constructor: an empty
-// filter, no pagination, no sorting.
-func newListOptions() *listOptions {
-	options := &listOptions{}
+// newListOptions mirrors the base package's options constructor for the
+// retained repositories' list options: an empty filter, no pagination, no
+// sorting.
+func newListOptions() *application.RecurrenceRuleQueryOptions {
+	options := &application.RecurrenceRuleQueryOptions{}
 	options.Filter = fresh(options.Filter)
 	return options
 }
 
 // sortedBy sets the options' sort order to the single field.
-func sortedBy(options *listOptions, field string, descending bool) {
+func sortedBy(options *application.RecurrenceRuleQueryOptions, field string, descending bool) {
 	options.Sorting = fresh(options.Sorting)
 	if descending {
 		options.Sorting.AddField(field, "DESC")
@@ -64,7 +60,7 @@ func isNotFound(err error) bool {
 }
 
 type queryListRepository[T any] interface {
-	List(context.Context, *listOptions) ([]T, error)
+	List(context.Context, *application.RecurrenceRuleQueryOptions) ([]T, error)
 }
 
 type arrivalScheduleQueryRepository interface {

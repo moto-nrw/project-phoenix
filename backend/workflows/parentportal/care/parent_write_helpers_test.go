@@ -8,14 +8,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 )
 
 func TestChildHasPermission(t *testing.T) {
 	t.Parallel()
 
-	child := &parentModels.ChildSummary{
-		GuardianPermissions: map[string]interface{}{
+	child := &ChildSummary{
+		GuardianPermissions: map[string]bool{
 			authorize.GuardianPermissionPortalAccess: true,
 			authorize.GuardianPermissionNotesWrite:   false,
 		},
@@ -44,11 +43,11 @@ func TestResolvePermittedChildRejectsNonPositiveIDs(t *testing.T) {
 func TestParentWritePermissionHelpers(t *testing.T) {
 	t.Parallel()
 
-	permissions := map[string]interface{}{
+	permissions := map[string]bool{
 		authorize.GuardianPermissionMasterDataEdit: true,
 	}
 
-	child := &parentModels.ChildSummary{GuardianPermissions: permissions}
+	child := &ChildSummary{GuardianPermissions: permissions}
 	assert.True(t, childHasPermission(child, authorize.GuardianPermissionMasterDataEdit))
 	assert.False(t, childHasPermission(child, authorize.GuardianPermissionNotesWrite))
 	assert.False(t, childHasPermission(nil, authorize.GuardianPermissionMasterDataEdit))
