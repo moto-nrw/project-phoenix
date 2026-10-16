@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -77,18 +76,18 @@ func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) DayInstance {
 		Date:      calendar.DateFromTime(s.now),
 		StartTime: time.Date(1, 1, 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC),
 		RoomID:    s.room,
-		Status:    timetable.InstanceStatusPlanned,
+		Planned:   true,
 	})
 	return s.instances.instances[len(s.instances.instances)-1]
 }
 
-// setStatus sets the composed status the port reports for the instance (for
+// markStarted makes the port report the instance as no longer planned (for
 // the active-not-overdue branch).
-func setStatus(t *testing.T, s *overdueSetup, id int64, status string) {
+func markStarted(t *testing.T, s *overdueSetup, id int64) {
 	t.Helper()
 	for index := range s.instances.instances {
 		if s.instances.instances[index].ID == id {
-			s.instances.instances[index].Status = status
+			s.instances.instances[index].Planned = false
 			return
 		}
 	}
@@ -137,7 +136,7 @@ func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
 	s := buildOverdue(t)
 
 	ai := seedPlanned(t, s, 30)
-	setStatus(t, s, ai.ID, "active")
+	markStarted(t, s, ai.ID)
 
 	s.sched.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, s.now)
 

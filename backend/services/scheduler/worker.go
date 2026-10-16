@@ -4,9 +4,6 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
 // WorkerDependencies is the complete typed input to the embedded Worker root.
@@ -38,8 +35,8 @@ type WorkerDependencies struct {
 	StaffDocumentCleaner      StaffDocumentFileCleaner
 	StudentDocumentCleaner    StudentDocumentFileCleaner
 	FileStoreCleaner          FileStoreCleaner
-	Materializer              timetable.MaterializationCapability
-	TimetableCleanup          timetable.TimetableCleanup
+	Materializer              TimetableMaterializer
+	TimetableCleanup          TimetableCleanup
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   StudentChangeLogCleanup
@@ -47,8 +44,8 @@ type WorkerDependencies struct {
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        BookingConsistencyAudit
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
-	AutoStart                 timetable.InstanceAutoStart
-	AutoEnd                   timetable.InstanceAutoEnd
+	AutoStart                 InstanceAutoStart
+	AutoEnd                   InstanceAutoEnd
 	InstanceRepo              DayInstanceReader
 	InstanceRoomRepo          ExistingRoomReader
 	InstanceStudentRepo       InstanceCheckoutCloser
@@ -67,7 +64,7 @@ type WorkerDependencies struct {
 	// AppointmentReminders is the established reminder capability consumed by
 	// the scheduler. It also exposes scheduled parent-announcement delivery,
 	// avoiding a second dependency in this shrink-only worker composition.
-	AppointmentReminders reminder.Capability
+	AppointmentReminders ReminderCommands
 }
 
 // NewWorker constructs and validates the complete embedded worker before the
