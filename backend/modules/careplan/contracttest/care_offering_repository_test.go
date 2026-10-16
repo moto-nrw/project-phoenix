@@ -42,7 +42,7 @@ func setupCareOfferingRepoTest(t *testing.T) (
 	}))
 	t.Cleanup(func() { wipePhases(db, tenantID, phaseName) })
 
-	carePlan := carePlanTest.NewCarePlan(t, db)
+	carePlan := carePlanTest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	return db, careOfferingRepoUnderTest{
 		careOfferingFixtureRecords: newCareOfferingFixtureRecords(carePlan),
 		CareOfferingRecords:        enrollmentTest.NewCareOfferingRecords(carePlan),

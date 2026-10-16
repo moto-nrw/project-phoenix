@@ -7,14 +7,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/parentrequestfeedprojection"
 	"github.com/uptrace/bun"
 )
 
 type Database func(context.Context) (bun.IDB, error)
 
-type Store struct{ resolve Database }
+type Store struct {
+	resolve Database
+	feed    requestfeed.FeedSource
+}
 
 type subscriptionRow struct {
 	bun.BaseModel `bun:"table:parent_request_rss_feeds,alias:feed"`
@@ -23,11 +26,11 @@ type subscriptionRow struct {
 	TokenHash     string `bun:"token_hash"`
 }
 
-func New(resolve Database) *Store {
-	if resolve == nil {
-		panic("request feed postgres: database is required")
+func New(resolve Database, feed requestfeed.FeedSource) *Store {
+	if resolve == nil || feed == nil {
+		panic("request feed postgres: database and feed reader are required")
 	}
-	return &Store{resolve: resolve}
+	return &Store{resolve: resolve, feed: feed}
 }
 
 func (s *Store) database(ctx context.Context) (bun.IDB, error) {
@@ -98,12 +101,8 @@ func (s *Store) Resolve(ctx context.Context, tokenHash string) (domain.Subscript
 }
 
 func (s *Store) List(ctx context.Context, tenantID int64, since time.Time, access domain.Access) ([]domain.Item, error) {
-	db, err := s.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	projected, err := parentrequestfeedprojection.ListNewParentRequests(
-		ctx, db, tenantID, since, access.GeneralRequests, access.EnrollmentRequests,
+	projected, err := s.feed.ListNewParentRequests(
+		ctx, tenantID, since, access.GeneralRequests, access.EnrollmentRequests,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("list request feed items: %w", err)
@@ -113,4 +112,27 @@ func (s *Store) List(ctx context.Context, tenantID int64, since time.Time, acces
 		rows = append(rows, domain.Item{Kind: item.Kind, ID: item.ID, CreatedAt: item.CreatedAt})
 	}
 	return rows, nil
+}
+
+// AccessResolver reads an account's feed access through the feed source in
+// the caller's transaction.
+type AccessResolver struct{ feed requestfeed.FeedSource }
+
+// NewAccessResolver binds the access read to the feed source.
+func NewAccessResolver(feed requestfeed.FeedSource) AccessResolver {
+	if feed == nil {
+		panic("request feed postgres: feed source is required")
+	}
+	return AccessResolver{feed: feed}
+}
+
+func (a AccessResolver) Resolve(ctx context.Context, tenantID, accountID int64) (domain.Access, error) {
+	access, found, err := a.feed.ResolveAccess(ctx, tenantID, accountID)
+	if err != nil || !found {
+		return domain.Access{}, err
+	}
+	return domain.Access{
+		Active: true, GeneralRequests: access.GeneralRequests, EnrollmentRequests: access.EnrollmentRequests,
+		SchoolName: access.SchoolName, Subdomain: access.Subdomain,
+	}, err
 }

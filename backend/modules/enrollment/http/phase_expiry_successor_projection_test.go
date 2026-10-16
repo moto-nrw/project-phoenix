@@ -28,7 +28,7 @@ func TestPhaseExpiryProjection_ListSnapshots_RequiresEffectiveSuccessorBooking(t
 	phaseRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	requestRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	childRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
-	offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db))
+	offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{}))
 	linkRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 
 	source := makeOwnerEligibilityPhase(uniquePhaseName("expiry-source"))

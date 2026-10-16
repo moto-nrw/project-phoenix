@@ -28,16 +28,17 @@ type ScheduleReviewDependencies struct {
 	BookingsAuthoritative func(context.Context) (bool, error)
 	Today                 func() careplan.Date
 	// Fingerprint returns the lowercase hexadecimal SHA-256 of the content.
-	Fingerprint func([]byte) string
-	Blocks      PickupReviewBlocks
-	Logger      *slog.Logger
+	Fingerprint      func([]byte) string
+	Blocks           PickupReviewBlocks
+	Logger           *slog.Logger
+	StudentDirectory StudentDirectory
 }
 
 func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
 	if db == nil || observe == nil || deps.People == nil || deps.Bookings == nil || deps.Classes == nil || deps.Scope == nil || deps.BookingsAuthoritative == nil || deps.Today == nil || deps.Blocks != nil && deps.Fingerprint == nil {
 		return nil, errors.New("care schedule reviews: database, observer, people, bookings, classes, scope, booking policy, clock, and impact fingerprint for block previews are required")
 	}
-	requests, err := NewCareScheduleRequestQueries(db, observe)
+	requests, err := NewCareScheduleRequestQueries(db, deps.StudentDirectory, observe)
 	if err != nil {
 		return nil, err
 	}

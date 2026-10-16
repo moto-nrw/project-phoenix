@@ -183,13 +183,13 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	if clock == nil {
 		clock = time.Now
 	}
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, svc.PeopleDirectory,
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(db, testpkg.StudentDirectory{}, svc.PeopleDirectory,
 		reviewScope, func() requestreviewcompose.ReviewDate {
 			return requestreviewcompose.ReviewDate(calendar.DateFromTime(clock()))
 		},
 		func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
-	careReviews, err := requestreviewcompose.NewScheduleReviews(db, requestreviewcompose.ScheduleReviewDependencies{
+	careReviews, err := requestreviewcompose.NewScheduleReviews(db, testpkg.StudentDirectory{}, requestreviewcompose.ScheduleReviewDependencies{
 		People: svc.PeopleDirectory,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
