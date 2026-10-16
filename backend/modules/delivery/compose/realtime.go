@@ -39,3 +39,8 @@ func QueueInstanceStarted(ctx context.Context, broadcaster realtime.Broadcaster,
 func QueueArrivalScheduleChanged(ctx context.Context, broadcaster realtime.Broadcaster, logger *slog.Logger) {
 	realtimeevents.QueueArrivalScheduleChanged(ctx, broadcaster, logger)
 }
+
+// NewGroupEvents binds School Structure's post-commit invalidations.
+func NewGroupEvents(broadcaster RealtimePublisher, logger *slog.Logger) realtimeevents.GroupEvents {
+	return realtimeevents.GroupEvents{Broadcaster: broadcaster, Logger: logger}
+}

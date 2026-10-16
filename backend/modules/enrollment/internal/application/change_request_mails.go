@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -91,7 +90,7 @@ func (s *ChangeRequests) logChangeRequestNotificationFailure(err error, tenantID
 }
 
 func (s *ChangeRequests) emailPayload(ctx context.Context, req *enrollmentModels.Request, changeRequestID int64, recipient string) map[string]any {
-	schoolName, logoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
 	return map[string]any{
 		enrollment.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
 		enrollment.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
@@ -99,7 +98,7 @@ func (s *ChangeRequests) emailPayload(ctx context.Context, req *enrollmentModels
 		enrollment.EnrollmentPayloadSchoolName:        schoolName,
 		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(s.deps.ParentsURL, req.StatusToken),
 		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       emailbranding.MotoLogoURL(s.deps.ParentsURL),
+		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		enrollment.EnrollmentPayloadRecipientEmail:    recipient,
 		"change_request_id":                           strconv.FormatInt(changeRequestID, 10),
 	}

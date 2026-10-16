@@ -132,7 +132,7 @@ func composeCaregivers(b graphBuild) (graphBuild, error) {
 		ActiveGroups: b.Presence.SessionRecords, ActiveSupervisors: b.groupSupervisions,
 		ActiveSupervisorCreator: b.graph.Active,
 		Audit:                   people.SubstitutionAudit(b.audits.SubstitutionChange),
-		Runtime:                 education.NewLegacyRepositoryRuntime(b.DB.Pool()), Broadcaster: b.graph.RealtimeHub,
+		Runtime:                 education.NewLegacyRepositoryRuntime(b.DB.Pool()), Broadcaster: NewGroupEvents(b.graph.RealtimeHub, b.Logger.With("service", "substitution")),
 		Logger: b.Logger.With("service", "substitution"), Schedule: schedule,
 		CanSeeAll: b.canSeeAllSubstitutions, Now: b.now,
 	})
@@ -432,7 +432,7 @@ func composeNotifications(b graphBuild) (graphBuild, error) {
 		deliveryOnDutyStaff{presence: workforceCompose.WorkPresence(b.WorkTime)})
 	b.staffParentMessages = deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
 		b.Platform.ParentPortal.ParentMessageThread, b.DB.Pool(), b.Logger.With("producer", "staff_parent_message_notifications"))
-	b.graph.ParentEventEmitter.WithDecisionNotifications(notifier, preferences)
+	b.graph.ParentEventEmitter.WithDecisionNotifications(deliveryCompose.NewRequestDecisionNotifier(notifier, preferences))
 	b.graph.AbsenceNotifier = deliveryCompose.NewAbsenceNotifier(notifier, recipients, b.DB.Pool(), b.Logger.With("producer", "absence_notifications"))
 	// The workflow is owned by Care Plan (#3093); this root adapts the
 	// retained directories, the review policy and the effect sinks.

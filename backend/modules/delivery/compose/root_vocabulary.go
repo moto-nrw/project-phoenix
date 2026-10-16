@@ -38,8 +38,7 @@ type (
 	MailIntent       = emailoutbox.Intent
 	MailRenderer     = emailoutbox.Renderer
 	MailRendererFunc = emailoutbox.RendererFunc
-	// PWAUsageCounts and PWAUsageRow are the operator dashboard's standalone
-	// usage the PWA usage report reads from Organisation & Tenancy.
+	// PWA usage aggregates come from the root-bound Organisation & Tenancy port.
 	PWAUsageCounts = pwa.UsageCounts
 	PWAUsageRow    = pwa.UsageRow
 	// The opt-in mail recipients of a notification type, which the root
@@ -114,3 +113,11 @@ var (
 	MotoLogoURL   = emailbranding.MotoLogoURL
 	SchoolLogoURL = emailbranding.SchoolLogoURL
 )
+
+// NewRequestDecisionNotifier binds consent and dispatch for request decisions.
+func NewRequestDecisionNotifier(notifier NotificationService, preferences NotificationPreferenceService) *notifications.RequestDecisionNotifier {
+	return notifications.NewRequestDecisionNotifier(notifier, preferences)
+}
+
+// PWAUsageWindowDays is the reporting window the root supplies to dashboards.
+const PWAUsageWindowDays = pwa.UsageWindowDays
