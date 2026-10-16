@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 61,
+  "policy_epoch": 62,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5484,6 +5484,17 @@
       "source_role": "workflow-integration-test",
       "target_owner": "people-directory",
       "target_role": "compose"
+    },
+    {
+      "id": "student-owner-integration.people-directory.port",
+      "description": "The student unit-of-work integration test names the owner seam its People Directory composition takes (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "legacy-composition",
+      "source_role": "workflow-integration-test",
+      "target_owner": "people-directory",
+      "target_role": "port"
     },
     {
       "id": "student-owner-integration.care-plan.compose",

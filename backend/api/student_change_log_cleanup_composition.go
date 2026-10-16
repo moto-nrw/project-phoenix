@@ -6,6 +6,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
 
@@ -15,14 +16,14 @@ import (
 // service leaves the matching port unbound, so the sweep refuses to run
 // instead of deleting without a trail or a verified retention period.
 func NewStudentChangeLogCleanup(
-	edits peopleCompose.StudentChangeLogStore,
+	edits peoplePorts.StudentChangeLogStore,
 	deletions DataDeletionAppender,
 	settings RetentionSettings,
 	logger *slog.Logger,
-) peopleCompose.StudentChangeLogCleanupService {
-	var deletionLog peopleCompose.StudentChangeLogDeletionLog
+) peoplePorts.StudentChangeLogCleanupService {
+	var deletionLog peoplePorts.StudentChangeLogDeletionLog
 	if deletions != nil {
-		deletionLog = func(ctx context.Context, entry peopleCompose.StudentChangeLogDeletion) error {
+		deletionLog = func(ctx context.Context, entry peoplePorts.StudentChangeLogDeletion) error {
 			deletion := auditModels.NewDataDeletion(
 				entry.StudentID,
 				auditModels.DeletionTypeStudentChangeLogRetention,
@@ -36,7 +37,7 @@ func NewStudentChangeLogCleanup(
 			return deletions.Create(ctx, deletion)
 		}
 	}
-	var retention peopleCompose.StudentChangeLogRetention
+	var retention peoplePorts.StudentChangeLogRetention
 	if settings != nil {
 		retention = func(ctx context.Context) (int, error) {
 			return settings.ResolveInt(ctx, configModels.KeyGDPRStudentChangeLogRetentionDays)
