@@ -62,7 +62,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/classday/internal/application/slotlists.go":                             2638,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           948,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
-	"modules/communication/internal/staffannouncements/service.go":                   1230,
+	"modules/communication/internal/staffannouncements/service.go":                   1209,
 	"modules/enrollment/form_schema.go":                                              1015,
 	"modules/identityaccess/compose/account_lifecycle.go":                            828,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1004,
