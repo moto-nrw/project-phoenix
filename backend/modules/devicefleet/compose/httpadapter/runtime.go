@@ -12,37 +12,33 @@ import (
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // Resource is the composed display HTTP resource.
 type Resource = displayHTTP.Resource
 
 // NewResource wires the display routes to the shared inbound middleware.
-func NewResource(displays devicefleet.Capability, settings configService.SettingsService) *Resource {
-	if displays == nil || settings == nil {
+// displayEnabled resolves the current tenant's display.enabled toggle; the
+// routes run inside the tenant transaction middleware.
+func NewResource(displays devicefleet.Capability, displayEnabled func(context.Context) (bool, error)) *Resource {
+	if displays == nil || displayEnabled == nil {
 		panic("display HTTP composition: all dependencies are required")
 	}
-	return displayHTTP.NewResource(displays, runtime(settings))
+	return displayHTTP.NewResource(displays, runtime(displayEnabled))
 }
 
-func runtime(settings configService.SettingsService) displayHTTP.Runtime {
+func runtime(displayEnabled func(context.Context) (bool, error)) displayHTTP.Runtime {
 	return displayHTTP.Runtime{
-		Protected:     protectedRoutes,
-		AnyPermission: apiCommon.RequiresAnyPermission,
-		Permission:    apiCommon.RequiresPermission,
-		ParseID:       apiCommon.ParseInt64IDWithError,
-		Failure:       renderFailure,
-		FeatureEnabled: func(ctx context.Context) (bool, error) {
-			// Routes run inside the tenant transaction middleware, so this
-			// resolves against the current tenant.
-			return settings.ResolveBool(ctx, configModel.KeyDisplayEnabled)
-		},
-		Read:   permissions.DisplayRead,
-		Manage: permissions.DisplayManage,
+		Protected:      protectedRoutes,
+		AnyPermission:  apiCommon.RequiresAnyPermission,
+		Permission:     apiCommon.RequiresPermission,
+		ParseID:        apiCommon.ParseInt64IDWithError,
+		Failure:        renderFailure,
+		FeatureEnabled: displayEnabled,
+		Read:           permissions.DisplayRead,
+		Manage:         permissions.DisplayManage,
 	}
 }
 

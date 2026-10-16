@@ -5,7 +5,6 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -114,8 +113,7 @@ func TestInstance_CreatePlanned_AllowsAccountBackedGuest(t *testing.T) {
 
 	s := buildLifecycle(t)
 	staff, _ := testpkg.CreateTestStaffWithAccount(t, s.db, "Gast", "MitKonto")
-	guest := &usersModels.Guest{StaffID: staff.ID, ActivityExpertise: "Musik"}
-	guest.SetTenantID(testpkg.Tenant(t))
+	guest := &testpkg.Guest{TenantID: testpkg.Tenant(t), StaffID: staff.ID, ActivityExpertise: "Musik"}
 	_, err := s.db.NewInsert().Model(guest).ModelTableExpr(`users.guests`).Exec(s.ctx)
 	require.NoError(t, err)
 
