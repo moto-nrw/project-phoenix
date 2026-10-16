@@ -95,6 +95,18 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 		if findErr != nil || (found && known.CoolingDown(d.now())) {
 			return findErr
 		}
+		if found {
+			if err := d.store.LockDemoSchool(txCtx, known.SchoolSlug); err != nil {
+				return err
+			}
+			// Expiry or a restart may have won before this transaction acquired
+			// the school key. Re-read the address under both of its locks before
+			// deciding whether a new access can keep using that school.
+			known, found, findErr = d.store.FindActiveDemoAccessByEmail(txCtx, access.Email, d.now())
+			if findErr != nil || (found && known.CoolingDown(d.now())) {
+				return findErr
+			}
+		}
 		var txErr error
 		if access.SchoolSlug, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
 			return txErr
@@ -179,6 +191,9 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 		if access, err = d.valid(txCtx, token); err != nil {
 			return err
 		}
+		if access, err = d.lockAndReload(txCtx, token, access); err != nil {
+			return err
+		}
 		if entry, err = d.entry(txCtx, access.SchoolSlug); err != nil {
 			return err
 		}
@@ -235,6 +250,9 @@ func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.
 	err := d.adminTx(ctx, func(txCtx context.Context) error {
 		var err error
 		if access, err = d.valid(txCtx, token); err != nil {
+			return err
+		}
+		if access, err = d.lockAndReload(txCtx, token, access); err != nil {
 			return err
 		}
 		if err := d.perAddress.admit(access.Email, at); err != nil {
@@ -345,6 +363,16 @@ func (d *DemoAccess) valid(ctx context.Context, token string) (domain.DemoAccess
 		return domain.DemoAccess{}, domain.ErrDemoAccessExpired
 	}
 	return access, nil
+}
+
+// lockAndReload makes an access's school stable for a mutating flow. The
+// initial read finds the key; the second read makes an expiry that won the
+// race report the real token state instead of operating on stale school data.
+func (d *DemoAccess) lockAndReload(ctx context.Context, token string, access domain.DemoAccess) (domain.DemoAccess, error) {
+	if err := d.store.LockDemoSchool(ctx, access.SchoolSlug); err != nil {
+		return domain.DemoAccess{}, err
+	}
+	return d.valid(ctx, token)
 }
 
 // demoTenantLock is the mint guard of the tenant switch: an account a demo
