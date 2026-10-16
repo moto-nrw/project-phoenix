@@ -115,41 +115,31 @@ func (r timetableActivityInstanceRepository) reload(ctx context.Context, value *
 }
 
 func (r timetableActivityInstanceRepository) CreateTemplateBackedIfAbsent(ctx context.Context, value *scheduleModels.ActivityInstance) (bool, error) {
-	if value == nil {
-		return false, errors.New("activity instance cannot be nil")
-	}
-	if value.ActivityGroupID == nil {
-		return false, errors.New("activity_group_id is required for template-backed insert")
-	}
-	if err := value.Validate(); err != nil {
-		return false, err
-	}
-	created, inserted, err := r.timetable.CreateTemplateBackedActivityInstanceIfAbsent(ctx, publicActivityInstanceInput(value))
-	if err != nil {
-		return false, WrapDatabaseError("create template-backed if absent", err)
-	}
-	if inserted {
-		return true, r.reload(ctx, value, created.ID, "create template-backed if absent")
-	}
-	return false, nil
+	return r.createUnlessPresent(ctx, value, value != nil && value.ActivityGroupID == nil, "activity_group_id is required for template-backed insert", "create template-backed if absent", r.timetable.CreateTemplateBackedActivityInstanceIfAbsent)
 }
 
 func (r timetableActivityInstanceRepository) CreateIdempotent(ctx context.Context, value *scheduleModels.ActivityInstance) (bool, error) {
+	return r.createUnlessPresent(ctx, value, value != nil && value.IdempotencyKey == nil, "idempotency_key is required for idempotent insert", "create idempotent", r.timetable.CreateIdempotentActivityInstance)
+}
+
+// createUnlessPresent validates the instance, inserts it through create when
+// no row with its key exists, and reloads the stored row after an insert.
+func (r timetableActivityInstanceRepository) createUnlessPresent(ctx context.Context, value *scheduleModels.ActivityInstance, keyMissing bool, keyRequired, operation string, create func(context.Context, timetable.ActivityInstanceInput) (timetable.ActivityInstance, bool, error)) (bool, error) {
 	if value == nil {
 		return false, errors.New("activity instance cannot be nil")
 	}
-	if value.IdempotencyKey == nil {
-		return false, errors.New("idempotency_key is required for idempotent insert")
+	if keyMissing {
+		return false, errors.New(keyRequired)
 	}
 	if err := value.Validate(); err != nil {
 		return false, err
 	}
-	created, inserted, err := r.timetable.CreateIdempotentActivityInstance(ctx, publicActivityInstanceInput(value))
+	created, inserted, err := create(ctx, publicActivityInstanceInput(value))
 	if err != nil {
-		return false, WrapDatabaseError("create idempotent", err)
+		return false, WrapDatabaseError(operation, err)
 	}
 	if inserted {
-		return true, r.reload(ctx, value, created.ID, "create idempotent")
+		return true, r.reload(ctx, value, created.ID, operation)
 	}
 	return false, nil
 }

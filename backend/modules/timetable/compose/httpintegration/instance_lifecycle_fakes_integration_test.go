@@ -42,7 +42,7 @@ func newFakeLifecycle(t *testing.T, deps compose.InstanceLifecycleDependencies) 
 	deps.CalendarPeriodRepo = struct {
 		scheduleModels.CalendarPeriodRepository
 	}{}
-	deps.StaffRepo = struct{ usersModels.StaffRepository }{}
+	deps.StaffRepo = struct{ compose.LifecycleStaff }{}
 	deps.ActiveService = struct{ compose.SessionEnder }{}
 	deps.CareDays = struct{ compose.CareDays }{}
 	deps.CareDayLocks = struct{ compose.CareDayLocks }{}
@@ -448,7 +448,7 @@ func (r *reopenVisitStub) ListVisits(_ context.Context, filter studentpresence.V
 }
 
 type reopenStudentLockStub struct {
-	usersModels.StudentRepository
+	compose.LifecycleStudents
 	locked []int64
 }
 

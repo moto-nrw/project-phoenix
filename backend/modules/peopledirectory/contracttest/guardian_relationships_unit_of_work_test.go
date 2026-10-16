@@ -10,6 +10,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -85,7 +86,7 @@ func (o *sqlGuardianOwners) SetGuardianStudentPermissions(ctx context.Context, t
 	return affected > 0, err
 }
 
-func newRelationshipStore(db *bun.DB, owners *sqlGuardianOwners) userModels.StudentGuardianRepository {
+func newRelationshipStore(db *bun.DB, owners *sqlGuardianOwners) peopleVocabulary.StudentGuardianRepository {
 	return peopleCompose.NewRetainedGuardianRelationshipRepository(db, api.PeopleRepositorySuiteWithOwners(owners, owners))
 }
 

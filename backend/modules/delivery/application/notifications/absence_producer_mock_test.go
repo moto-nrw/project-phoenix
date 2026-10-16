@@ -35,7 +35,6 @@ const (
 )
 
 type fakeStudentReader struct {
-	userModel.StudentRepository
 	byID map[int64]*userModel.Student
 	err  error
 }
@@ -72,7 +71,6 @@ func (f *fakeGroupReader) ListGroupSupervisors(_ context.Context, groupIDs []int
 }
 
 type fakeStaffAccountReader struct {
-	userModel.StaffRepository
 	accounts map[int64]int64
 	err      error
 	dutyErr  error

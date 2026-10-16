@@ -36,9 +36,9 @@ type StaffRecipientResolver interface {
 
 type staffRecipientResolver struct {
 	preferences  PreferenceService
-	students     userModel.StudentRepository
+	students     studentReadScopes
 	groups       GroupSupervisors
-	staff        userModel.StaffRepository
+	staff        staffAccounts
 	accounts     authAccountReader
 	settings     settingsBoolReader
 	workSessions dutyReader
@@ -55,6 +55,16 @@ type GroupSupervisors interface {
 type StaffGroupPair struct {
 	StaffID int64
 	GroupID int64
+}
+
+// studentReadScopes is the slice of the student repository this resolver needs.
+type studentReadScopes interface {
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
+}
+
+// staffAccounts is the slice of the staff repository this resolver needs.
+type staffAccounts interface {
+	ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
 }
 
 // authAccountReader is the slice of the account repository this resolver needs.
@@ -74,9 +84,9 @@ type dutyReader interface {
 // personal staff notifications about children.
 func NewStaffRecipientResolver(
 	preferences PreferenceService,
-	students userModel.StudentRepository,
+	students studentReadScopes,
 	groups GroupSupervisors,
-	staff userModel.StaffRepository,
+	staff staffAccounts,
 	accounts authAccountReader,
 	settings settingsBoolReader,
 	workSessions dutyReader,

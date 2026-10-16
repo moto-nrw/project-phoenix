@@ -44,12 +44,12 @@ type Dependencies struct {
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
 	Settings              configService.SettingsService
 
-	StudentRepo         usersModels.StudentRepository
-	PersonRepo          usersModels.PersonRepository
-	GuardianProfileRepo usersModels.GuardianProfileRepository
-	GuardianPhoneRepo   usersModels.GuardianPhoneNumberRepository
-	StudentGuardianRepo usersModels.StudentGuardianRepository
-	ChangeRequestRepo   usersModels.StudentDataChangeRequestRepository
+	StudentRepo         care.StudentReads
+	PersonRepo          care.PersonReads
+	GuardianProfileRepo messaging.GuardianProfiles
+	GuardianPhoneRepo   care.GuardianPhoneReads
+	StudentGuardianRepo care.StudentGuardianReads
+	ChangeRequestRepo   care.DataRequestReads
 	StatusDayRepo       care.StatusDayReads
 	Attendance          care.AttendanceReader
 

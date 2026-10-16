@@ -11,7 +11,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
@@ -97,7 +96,7 @@ type SubstitutionDependencies struct {
 	Deviations        application.ScheduleDeviations
 	ActivityInstances ScheduleInstances
 	InstanceStaff     ScheduleInstanceStaff
-	Staff             usersModels.StaffRepository
+	Staff             application.ScheduleStaff
 
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger

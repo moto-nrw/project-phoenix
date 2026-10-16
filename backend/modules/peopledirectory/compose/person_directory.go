@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -43,11 +44,11 @@ type PersonDirectoryDependencies struct {
 	// composition root binds NewStudentDirectory.
 	StudentDirectory StudentLocker
 	// Repository dependencies
-	PersonRepo    userModels.PersonRepository
+	PersonRepo    usersRepo.PersonRepository
 	RFIDRepo      RFIDCards
 	AccountExists func(context.Context, int64) (bool, error)
-	StudentRepo   userModels.StudentRepository
-	TeacherRepo   userModels.TeacherRepository
+	StudentRepo   usersRepo.StudentRepository
+	TeacherRepo   usersRepo.TeacherRepository
 	// StaffDirectory serves the staff and teacher lookups and the two staff
 	// writes (#3752); the composition root binds NewStaffDirectory.
 	StaffDirectory StaffDirectory
@@ -655,10 +656,10 @@ func IsPersonNotFound(err error) bool {
 
 // translateMissingStudent restates the owner's missing child in the error shape
 // the retained callers branch on: a DatabaseError wrapping base.ErrNotFound and
-// sql.ErrNoRows (userModels.MissingStudentError).
+// sql.ErrNoRows (usersRepo.MissingStudentError).
 func translateMissingStudent(op string, err error) error {
 	if !errors.Is(err, userModels.ErrStudentRowMissing) {
 		return err
 	}
-	return userModels.MissingStudentError(op, sql.ErrNoRows)
+	return usersRepo.MissingStudentError(op)
 }

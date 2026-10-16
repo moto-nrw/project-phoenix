@@ -6,7 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -38,7 +38,7 @@ func (r *ManualPartialAbsenceDates) ManualPartialAbsenceDates(ctx context.Contex
 func manualPartialAbsenceError(err error) error {
 	const operation = "find by student id and date range"
 	if errors.Is(err, careplan.ErrStudentScheduleNotFound) {
-		return peopleCompose.RetainedRecordErrors{}.MissingRecordError(operation)
+		return transactionruntime.RecordErrors{}.MissingRecordError(operation)
 	}
-	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(operation, err)
+	return transactionruntime.RecordErrors{}.WrapRecordError(operation, err)
 }
