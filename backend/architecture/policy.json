@@ -219,10 +219,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-users",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-work-time-models",
       "kind": "inbound"
     },
@@ -404,6 +400,13 @@
       "path": "modules/studentdirectoryview",
       "owner": "student-directory-view",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentdirectoryview/compose",
+      "owner": "student-directory-view",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1942,7 +1945,7 @@
     },
     {
       "path": "modules/peopledirectory/http",
-      "owner": "inbound-users",
+      "owner": "people-directory",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -2200,10 +2203,24 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableenrollmentprovenance/compose",
+      "owner": "timetable-enrollment-provenance",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/parentrequestfeedprojection",
       "owner": "parent-request-feed-view",
       "role": "postgres",
       "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentrequestfeedprojection/compose",
+      "owner": "parent-request-feed-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -5640,17 +5657,6 @@
       "target_role": "public"
     },
     {
-      "id": "data-import.compose.school-name.organization-tenancy",
-      "description": "Bind the optional invitation school label to the native current-school query (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "data-import.compose.opening-references.workforce",
       "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
       "scopes": [
@@ -8493,17 +8499,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-users.to.people-directory",
-      "description": "inbound-users calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-work-time-models.to.workforce",
       "description": "inbound-work-time-models calls exactly one public capability.",
       "scopes": [
@@ -9561,28 +9556,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "inbound-users.http.security-contract",
-      "description": "The People Directory HTTP adapter binds its established permission contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.people-directory-http",
-      "description": "The production root constructs the People Directory HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-users",
-      "target_role": "http"
     },
     {
       "id": "delivery.application.same-owner-adapter",

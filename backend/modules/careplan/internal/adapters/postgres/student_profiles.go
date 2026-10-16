@@ -7,16 +7,15 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/uptrace/bun"
 )
 
-func (s *Store) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, domain.OperationStats, error) {
+func (s *DirectoryStore) ClearStudentStatusFlags(ctx context.Context, ids []int64, status string) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	members := studentdirectoryview.Query(db, tenantID).
+	members := s.directory.StudentRows(db, tenantID).
 		ColumnExpr("student.membership_id").Where("student.id IN (?)", bun.List(ids))
 	query := db.NewUpdate().TableExpr("users.student_care_profiles AS care").
 		Set("updated_at = NOW()").Where("care.tenant_id = ?", tenantID).
@@ -81,12 +80,12 @@ func (s *Store) SaveStudentCareProfile(ctx context.Context, profile domain.Stude
 	return stats, err
 }
 
-func (s *Store) SetStudentLiveStatus(ctx context.Context, input domain.StudentLiveStatus) (int64, domain.OperationStats, error) {
+func (s *DirectoryStore) SetStudentLiveStatus(ctx context.Context, input domain.StudentLiveStatus) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	members := studentdirectoryview.Query(db, tenantID).
+	members := s.directory.StudentRows(db, tenantID).
 		ColumnExpr("student.membership_id").Where("student.id = ?", input.StudentID)
 	query := db.NewUpdate().TableExpr("users.student_care_profiles AS care").
 		Set("sick = ?", input.Sick).Set("sick_since = ?", input.SickSince).
@@ -105,12 +104,12 @@ func (s *Store) SetStudentLiveStatus(ctx context.Context, input domain.StudentLi
 
 // SetStudentHealthInfo resolves the membership the same way
 // SetStudentLiveStatus does, so a foreign student ID matches no care row.
-func (s *Store) SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (int64, domain.OperationStats, error) {
+func (s *DirectoryStore) SetStudentHealthInfo(ctx context.Context, studentID int64, healthInfo *string) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
-	members := studentdirectoryview.Query(db, tenantID).
+	members := s.directory.StudentRows(db, tenantID).
 		ColumnExpr("student.membership_id").Where("student.id = ?", studentID)
 	query := db.NewUpdate().TableExpr("users.student_care_profiles AS care").
 		Set("health_info = ?", healthInfo).Set("updated_at = NOW()").

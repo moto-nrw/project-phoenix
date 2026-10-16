@@ -66,7 +66,7 @@ func (f masterDataFixture) decisions(t *testing.T, configure ...func(*api.Master
 // queue is the native open queue and history the decisions are listed from.
 func (f masterDataFixture) queue(t *testing.T, scope careplanCompose.ReviewScopeResolver) careplan.MasterDataReviewQuery {
 	t.Helper()
-	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)), scope,
+	queue, err := requestreviewcompose.NewMasterDataReviews(f.db, testpkg.StudentDirectory{}, api.MustNewPeopleDirectory(testpkg.MustDatabase(f.db)), scope,
 		careplanCompose.Today, func(requestreviewcompose.CareObservation) {})
 	require.NoError(t, err)
 	return queue

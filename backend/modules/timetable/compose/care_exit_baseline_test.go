@@ -15,6 +15,7 @@ import (
 func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
 	t.Helper()
 	module, err := New(Dependencies{
+		Provenance:          testpkg.EnrollmentProvenance{},
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
 		DB:                  db,
 		Students:            StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),

@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 301 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
+Stand 16.10.2026 · Ratchet 297 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,8 +11,8 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 34 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 96 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 31 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 95 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 48 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 2 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 301 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 297 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -63,7 +63,7 @@ Die Root-Reichweite steht bereits. Inbound-Owner 28 → 27, Regeln 945 → 943; 
 Owner `inbound-activities` und `inbound-database` entfallen. Fünf gleich enge
 Nachfolger ersetzen sechs Regeln; die Root-Reichweite steht bereits. Die Upload-Suite
 setzt denselben registrierten Schlüssel als Testwert statt über das fremde Modell.
-Inbound-Owner 27 → 24, Regeln 945 → 944, Keys 326 → 325, #4078 11 → 10; Budgets unverändert.
+Inbound-Owner 27 → 24, Regeln 938 → 937, Keys 316 → 315, #4078 11 → 10; Budgets unverändert.
 
 #4075: Die letzten zehn Delivery-Cutover-Keys sind entfernt. Enrollment bindet Mail-Branding,
 Organisation & Tenancy das PWA-Zeitfenster, School Structure die Ereignisse und die
@@ -73,6 +73,12 @@ Kindzugriff. Tests prüfen Settings- und HTTP-Verträge ohne fremde Implementier
 Keine neue oder gelöschte Regel, keine neuen Type-Aliase; `delivery-cutover.*` bleibt leer.
 Compose-LOC 89.901 → 89.899, Application-Passthroughs 718 → 717, Keys 326 → 316.
 `inbound-notifications` bleibt bei #4078; Scheduler und `cmd/devtools` sind unverändert.
+
+#4078: `modules/peopledirectory/http` gehört zu `people-directory`; `inbound-users`
+entfällt. Seine drei Regeln werden ohne neue Regel gelöscht: Die bestehenden
+People-Directory-Regeln tragen den öffentlichen Vertrag und den Berechtigungsvertrag,
+die stehende Root-Regel den Mount. Inbound-Owner 24 → 23, Regeln 937 → 934;
+Paketpfade, Go-Code, Keys (308), #4078-Keys (10) und Budgets bleiben unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

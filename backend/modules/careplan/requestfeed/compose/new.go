@@ -8,14 +8,17 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/parentrequestfeedprojection"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
+// Database is the request feed's transaction; the root builds the feed
+// source over it.
+type Database = postgres.Database
+
 type Dependencies struct {
 	DB          *bun.DB
+	Feed        func(Database) requestfeed.FeedSource
 	FrontendURL string
 	Now         func() time.Time
 	NewToken    func() (string, string, error)
@@ -23,7 +26,7 @@ type Dependencies struct {
 }
 
 func New(dependencies Dependencies) (*requestfeed.Module, error) {
-	if dependencies.DB == nil || dependencies.FrontendURL == "" || dependencies.Now == nil || dependencies.NewToken == nil || dependencies.HashToken == nil {
+	if dependencies.DB == nil || dependencies.Feed == nil || dependencies.FrontendURL == "" || dependencies.Now == nil || dependencies.NewToken == nil || dependencies.HashToken == nil {
 		return nil, errors.New("request feed compose: all dependencies are required")
 	}
 	database := func(ctx context.Context) (bun.IDB, error) {
@@ -41,9 +44,10 @@ func New(dependencies Dependencies) (*requestfeed.Module, error) {
 		}
 		return nil, errors.New("request feed compose: unsupported transaction")
 	}
+	feed := dependencies.Feed(database)
 	service, err := application.New(
-		postgres.New(database),
-		accessAdapter{database: database},
+		postgres.New(database, feed),
+		postgres.NewAccessResolver(feed),
 		tokenAdapter{newToken: dependencies.NewToken, hashToken: dependencies.HashToken},
 		application.WithinAdmin(tenant.WithinAdmin),
 		dependencies.FrontendURL,
@@ -62,25 +66,6 @@ type tokenAdapter struct {
 
 func (a tokenAdapter) New() (string, string, error) { return a.newToken() }
 func (a tokenAdapter) Hash(raw string) string       { return a.hashToken(raw) }
-
-type accessAdapter struct {
-	database func(context.Context) (bun.IDB, error)
-}
-
-func (a accessAdapter) Resolve(ctx context.Context, tenantID, accountID int64) (domain.Access, error) {
-	db, err := a.database(ctx)
-	if err != nil {
-		return domain.Access{}, err
-	}
-	access, found, err := parentrequestfeedprojection.ResolveAccess(ctx, db, tenantID, accountID)
-	if err != nil || !found {
-		return domain.Access{}, err
-	}
-	return domain.Access{
-		Active: true, GeneralRequests: access.GeneralRequests, EnrollmentRequests: access.EnrollmentRequests,
-		SchoolName: access.SchoolName, Subdomain: access.Subdomain,
-	}, err
-}
 
 type engine struct{ service *application.Service }
 

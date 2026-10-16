@@ -42,7 +42,6 @@ type Store interface {
 	DeleteCategory(context.Context, int64) (domain.OperationStats, error)
 	LockStudentEnrollmentsForCareExit(context.Context, []int64, string) (domain.OperationStats, error)
 	EndStudentEnrollmentsForCareExit(context.Context, []int64, string) (domain.CareExitEnrollmentChanges, domain.OperationStats, error)
-	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []domain.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error)
 	FindGroup(context.Context, int64, string) (domain.Group, bool, domain.OperationStats, error)
 	FindGroupByName(context.Context, string) (domain.Group, bool, domain.OperationStats, error)
 	ListGroups(context.Context, domain.GroupFilter) ([]domain.Group, domain.OperationStats, error)
@@ -85,7 +84,6 @@ type Store interface {
 	CreateStudentEnrollment(context.Context, domain.StudentEnrollmentFields) (domain.StudentEnrollment, domain.OperationStats, error)
 	UpdateStudentEnrollment(context.Context, int64, domain.StudentEnrollmentFields) (domain.StudentEnrollment, bool, domain.OperationStats, error)
 	DeleteStudentEnrollment(context.Context, int64) (domain.OperationStats, error)
-	BackfillStudentEnrollmentSource(context.Context, int64, int64, []int64) (int64, domain.OperationStats, error)
 	DeleteStudentEnrollmentsBySource(context.Context, int64, int64) (int64, domain.OperationStats, error)
 	CapActiveStudentEnrollments(context.Context, int64, string) (int64, domain.OperationStats, error)
 	SetStudentEnrollmentValidUntil(context.Context, int64, string) (bool, domain.OperationStats, error)
@@ -194,3 +192,10 @@ type Observation struct {
 }
 
 type Observer func(Observation)
+
+// EnrollmentProvenanceStore writes the enrollment links whose eligibility the
+// enrollment provenance projection decides (ADR 0058).
+type EnrollmentProvenanceStore interface {
+	BackfillStudentEnrollmentSource(context.Context, int64, int64, []int64) (int64, domain.OperationStats, error)
+	RestoreStudentEnrollmentsForCareExit(context.Context, []int64, []int64, []domain.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error)
+}

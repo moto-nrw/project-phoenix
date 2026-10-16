@@ -62,16 +62,3 @@ func blockDisplayDatabase(ctx context.Context, db *bun.DB) (bun.IDB, error) {
 		return nil, fmt.Errorf("timetable block display metadata: unsupported transaction %T", raw)
 	}
 }
-
-// NewTenantAdvisoryLocks takes the planner's transaction-scoped advisory
-// locks through the tenant runtime's unit of work; they release at commit or
-// rollback.
-func NewTenantAdvisoryLocks() AdvisoryLocks {
-	return tenantAdvisoryLocks{}
-}
-
-type tenantAdvisoryLocks struct{}
-
-func (tenantAdvisoryLocks) AcquireXactLock(ctx context.Context, key string) error {
-	return tenant.AcquireLock(ctx, key, false)
-}
