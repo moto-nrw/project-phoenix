@@ -170,7 +170,7 @@ func lifecycleDependencies(s *lifecycleSetup, broadcaster realtime.Broadcaster, 
 		CareDayLocks:        s.repos.CarePlan(),
 		Protocol:            api.TimetableDeviationProtocol(audits.DeviationEvent),
 		ContentHash:         securityruntime.Fingerprint,
-		DB:                  s.db,
+		Database:            compose.NewTenantDatabase(s.db),
 		Logger:              slog.Default(),
 		RecoveryRepo:        recoveryRepo,
 	}

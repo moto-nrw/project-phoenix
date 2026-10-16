@@ -3883,6 +3883,15 @@ binds it to the tenant runtime. It adds
 internal tests, `timetable-activities.module-internal-test.tenant-runtime`
 (the internal-test mirror of the reach, ADR 0058 addendum point 4).
 
+Without a new rule or epoch, #4084 then moves the instance lifecycle, its
+automatic start and end, the status slots, the staff deviation writes, the
+bulk substitution and the substitute conflicts (6,869 LOC) into
+`internal/application`. The lifecycle takes a `TenantDatabase` port (tenant
+transaction and advisory locks) and the staff deviations a
+`TransactionLocks` port instead of the database handle. The composition's
+unique-violation wrappers have no caller left, so they and
+`timetable-activities.postgres.transaction-runtime` are deleted.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

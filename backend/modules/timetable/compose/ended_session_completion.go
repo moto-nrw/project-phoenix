@@ -8,6 +8,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -46,7 +47,7 @@ type EndedSessionParticipants interface {
 type EndedSessionCompletionDependencies struct {
 	Instances    EndedSessionInstances
 	Participants EndedSessionParticipants
-	CareDays     CareDays
+	CareDays     application.CareDays
 }
 
 type endedSessionCompletion struct {
@@ -107,7 +108,7 @@ func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, acti
 		return fmt.Errorf("complete bridged instances: load spontaneous blocks: %w", err)
 	}
 	for _, instance := range instances {
-		end, ok := spontaneousCompletionEnd(instance, completedAt)
+		end, ok := application.SpontaneousCompletionEnd(instance, completedAt)
 		if !ok {
 			continue
 		}
