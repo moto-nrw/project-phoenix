@@ -175,10 +175,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-feedback",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-filestore",
       "kind": "inbound"
     },
@@ -830,7 +826,7 @@
     },
     {
       "path": "modules/feedback/http",
-      "owner": "inbound-feedback",
+      "owner": "feedback",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7923,12 +7919,12 @@
       "target_role": "legacy-model"
     },
     {
-      "id": "inbound-feedback.to.feedback",
-      "description": "inbound-feedback calls exactly one public capability.",
+      "id": "feedback.http.public",
+      "description": "The Feedback HTTP adapter calls its own public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-feedback",
+      "source_owner": "feedback",
       "source_role": "http",
       "target_owner": "feedback",
       "target_role": "public"
@@ -8719,12 +8715,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-feedback.http.security-contract",
+      "id": "feedback.http.security-contract",
       "description": "The Feedback HTTP adapter binds its established permission contract.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-feedback",
+      "source_owner": "feedback",
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
@@ -8783,17 +8779,6 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.feedback-http",
-      "description": "The production root constructs the Feedback HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-feedback",
-      "target_role": "http"
     },
     {
       "id": "meal-plan.compose.orm-sql",
