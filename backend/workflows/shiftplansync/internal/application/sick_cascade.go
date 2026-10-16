@@ -17,7 +17,6 @@ import (
 	"log/slog"
 	"sort"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -256,7 +255,7 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 		return fmt.Errorf("sick cascade: load instances for %s: %w", day.String(), err)
 	}
 	if missingID := missingActivityInstanceID(rows, instancesByID); missingID > 0 {
-		return fmt.Errorf("sick cascade: load instance %d: %w", missingID, modelBase.ErrNotFound)
+		return fmt.Errorf("sick cascade: load instance %d: %w", missingID, errRecordNotFound)
 	}
 	for _, row := range rows {
 		if row.IsAbsent {
@@ -542,7 +541,7 @@ func (s *sickCascade) classifyStampedBlockRows(ctx context.Context, rows []*time
 		return nil, nil, fmt.Errorf("sick clear: load stamped instances: %w", err)
 	}
 	if missingID := missingActivityInstanceID(rows, instancesByID); missingID > 0 {
-		return nil, nil, fmt.Errorf("sick clear: load instance %d: %w", missingID, modelBase.ErrNotFound)
+		return nil, nil, fmt.Errorf("sick clear: load instance %d: %w", missingID, errRecordNotFound)
 	}
 	for _, row := range rows {
 		instance := instancesByID[row.InstanceID]

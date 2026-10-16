@@ -6,8 +6,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -137,16 +135,16 @@ func (f *fakeInstanceStaffReader) FindByInstanceIDs(_ context.Context, ids []int
 }
 
 type fakeRoomReader struct {
-	rows  []*facilities.Room
+	names map[int64]string
 	err   error
 	calls int
 	ids   []int64
 }
 
-func (f *fakeRoomReader) FindByIDs(_ context.Context, ids []int64) ([]*facilities.Room, error) {
+func (f *fakeRoomReader) RoomNamesByID(_ context.Context, ids []int64) (map[int64]string, error) {
 	f.calls++
 	f.ids = append([]int64(nil), ids...)
-	return f.rows, f.err
+	return f.names, f.err
 }
 
 type fakeStaffReader struct {
@@ -185,13 +183,20 @@ func (f *fakeOverviewHolidayService) HolidayDates(_ context.Context, from, to ca
 	return f.dates, f.err
 }
 
+// The schedule day indexes (Monday=0 … Sunday=6) the fixtures below use.
+const (
+	dayMonday  = 0
+	dayTuesday = 1
+	dayFriday  = 4
+)
+
 type fakeOverviewWorkModelReader struct {
-	models []*configModel.WorkTimeModel
+	models []workforce.WorkTimeModel
 	err    error
 	ids    []int64
 }
 
-func (f *fakeOverviewWorkModelReader) FindByIDs(_ context.Context, ids []int64) ([]*configModel.WorkTimeModel, error) {
+func (f *fakeOverviewWorkModelReader) ListWorkTimeModelsByIDs(_ context.Context, ids []int64) ([]workforce.WorkTimeModel, error) {
 	f.ids = append([]int64(nil), ids...)
 	return f.models, f.err
 }
@@ -207,13 +212,13 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 		monday: true,
 		friday: true,
 	}}
-	modelReader := &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
+	modelReader := &fakeOverviewWorkModelReader{models: []workforce.WorkTimeModel{{
 		ID:                 modelID,
 		RotationLength:     1,
-		RotationAnchorDate: workforceDate(monday),
-		Entries: []*configModel.WorkTimeModelEntry{
-			{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
-			{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 60},
+		RotationAnchorDate: monday.String(),
+		Entries: []workforce.WorkTimeModelEntry{
+			{WeekIndex: 0, DayOfWeek: dayMonday, TargetMinutes: 240},
+			{WeekIndex: 0, DayOfWeek: dayTuesday, TargetMinutes: 60},
 		},
 	}}}
 	service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{
@@ -228,9 +233,9 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 	targets, err := service.resolveWeeklyTargets(
 		context.Background(),
 		[]*workforce.PlanStaff{scheduledStaff, modelStaff},
-		[]*configModel.StaffWorkSchedule{
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: workforceDate(validFrom)},
-			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: workforceDate(validFrom)},
+		[]*workforce.ScheduleRow{
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: dayMonday, TargetMinutes: 120, ValidFrom: validFrom},
+			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: dayFriday, TargetMinutes: 180, ValidFrom: validFrom},
 		},
 		[]calendar.Date{monday},
 	)
@@ -308,12 +313,10 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 		testShift(t, 3, date, "08:00", "10:00"),
 		testShift(t, 3, date, "10:00", "12:00"),
 	}}
-	rooms := &fakeRoomReader{rows: []*facilities.Room{
-		{Name: "Hauptraum"},
-		{Name: "Nebenraum"},
+	rooms := &fakeRoomReader{names: map[int64]string{
+		mainRoomID:     "Hauptraum",
+		overrideRoomID: "Nebenraum",
 	}}
-	rooms.rows[0].ID = mainRoomID
-	rooms.rows[1].ID = overrideRoomID
 	staff := &fakeStaffReader{rows: []*workforce.PlanStaff{
 		fakeStaff(3, "Clara", "Zulu"),
 		fakeStaff(1, "Anna", "Alpha"),
@@ -400,7 +403,7 @@ func TestStaffScheduleOverview_TenantWeekWithoutAnyShiftSuppressesWarnings(t *te
 		Shifts:        &fakeShiftReader{},
 		Instances:     &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
 		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{{InstanceID: 8, StaffID: 4}}},
-		Rooms:         &fakeRoomReader{rows: []*facilities.Room{{Name: "Raum"}}},
+		Rooms:         &fakeRoomReader{names: map[int64]string{0: "Raum"}},
 		Staff:         &fakeStaffReader{},
 	})
 	got, err := service.GetOverview(context.Background(), date, date.AddDays(4))

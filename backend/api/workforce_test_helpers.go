@@ -10,6 +10,7 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
@@ -100,8 +101,8 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: repos.StaffAbsenceType, Staff: NewPlanStaffDirectory(repos.Staff), CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
 		Instances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms: repos.Room, ActivityGroups: timetableCompose.NewTimetableGroupReads(repos.ActivityGroup),
-		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel, Holidays: nonWorkingDayService,
+		Rooms: facilitiesCompose.NewRoomNameDirectory(repos.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(repos.ActivityGroup),
+		WorkSchedules: repos.Workforce, WorkModels: repos.Workforce, Holidays: nonWorkingDayService,
 		DB: db.Pool(), Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
 	if err != nil {

@@ -12,7 +12,6 @@ import (
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -255,7 +254,7 @@ func TestShiftService_CreateRejectsUnknownStaff(t *testing.T) {
 
 	svc, _, staffRepo := shiftServiceFixture()
 	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
-		return nil, modelBase.ErrNotFound
+		return nil, errRowNotFound
 	}
 
 	_, err := svc.CreateShift(context.Background(), validShift(999))
@@ -576,7 +575,7 @@ func TestShiftService_UpdateNotFound(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
-		return nil, modelBase.ErrNotFound
+		return nil, errRowNotFound
 	}
 
 	update := validShift(7)
@@ -719,7 +718,7 @@ func TestShiftService_DeleteNotFound(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
-		return nil, modelBase.ErrNotFound
+		return nil, errRowNotFound
 	}
 
 	err := svc.DeleteShift(context.Background(), 12345)

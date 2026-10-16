@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -468,7 +467,7 @@ func (s *Store) CreateStaffAbsenceType(ctx context.Context, fields domain.StaffA
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableStaffAbsenceTypes).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, staffAbsenceTypeNameUniqueIndex) {
+		if isUniqueViolationOn(err, staffAbsenceTypeNameUniqueIndex) {
 			return domain.StaffAbsenceType{}, stats, &domain.ConflictError{Kind: domain.ErrAbsenceTypeNameTaken, Cause: err}
 		}
 		return domain.StaffAbsenceType{}, stats, fmt.Errorf("workforce postgres: insert staff absence type: %w", err)
@@ -504,7 +503,7 @@ func (s *Store) UpdateStaffAbsenceType(ctx context.Context, value domain.StaffAb
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, staffAbsenceTypeNameUniqueIndex) {
+		if isUniqueViolationOn(err, staffAbsenceTypeNameUniqueIndex) {
 			return domain.StaffAbsenceType{}, false, stats, &domain.ConflictError{Kind: domain.ErrAbsenceTypeNameTaken, Cause: err}
 		}
 		return domain.StaffAbsenceType{}, false, stats, fmt.Errorf("workforce postgres: update staff absence type: %w", err)

@@ -7,6 +7,7 @@ import (
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -104,7 +105,7 @@ func NewShiftTypeTestModule(db transactionruntime.Database) (ShiftTypeTestModule
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce: NewAbsenceTypeTestCapability(db), Staff: NewPlanStaffDirectory(timetable.Staff), CalendarPeriods: timetable.SchoolCalendar(),
 		Instances: timetableCompose.NewTimetableInstanceReads(timetable.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(timetable.InstanceStaff),
-		Rooms: timetable.Room, ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
+		Rooms: facilitiesCompose.NewRoomNameDirectory(timetable.Room), ActivityGroups: timetableCompose.NewTimetableGroupReads(timetable.ActivityGroup),
 		CategoryLinker: timetableCompose.ShiftTypeCategoryLinker(linker.SetCategoryShiftTypeLinks), DB: db.Pool(), Logger: slog.Default(),
 	})
 	if err != nil {

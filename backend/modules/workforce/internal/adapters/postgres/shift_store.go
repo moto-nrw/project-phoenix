@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -252,7 +251,7 @@ func (s *Store) CreateStaffShift(ctx context.Context, value domain.StaffShift) (
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableStaffShifts).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, staffShiftStartUniqueName) {
+		if isUniqueViolationOn(err, staffShiftStartUniqueName) {
 			return domain.StaffShift{}, stats, &domain.ConflictError{Kind: domain.ErrStaffShiftDuplicate, Cause: err}
 		}
 		return domain.StaffShift{}, stats, fmt.Errorf("workforce postgres: insert staff shift: %w", err)
@@ -285,7 +284,7 @@ func (s *Store) CreateStaffShifts(ctx context.Context, values []domain.StaffShif
 	_, err = db.NewInsert().Model(&rows).ModelTableExpr(tableStaffShifts).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, staffShiftStartUniqueName) {
+		if isUniqueViolationOn(err, staffShiftStartUniqueName) {
 			return nil, stats, &domain.ConflictError{Kind: domain.ErrStaffShiftDuplicate, Cause: err}
 		}
 		return nil, stats, fmt.Errorf("workforce postgres: bulk insert staff shifts: %w", err)
@@ -322,7 +321,7 @@ func (s *Store) UpdateStaffShift(ctx context.Context, value domain.StaffShift) (
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, staffShiftStartUniqueName) {
+		if isUniqueViolationOn(err, staffShiftStartUniqueName) {
 			return domain.StaffShift{}, false, stats, &domain.ConflictError{Kind: domain.ErrStaffShiftDuplicate, Cause: err}
 		}
 		return domain.StaffShift{}, false, stats, fmt.Errorf("workforce postgres: update staff shift: %w", err)
@@ -675,7 +674,7 @@ func (s *Store) CreateShiftType(ctx context.Context, value domain.ShiftType) (do
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableShiftTypes).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, shiftTypeNameUniqueIndex) {
+		if isUniqueViolationOn(err, shiftTypeNameUniqueIndex) {
 			return domain.ShiftType{}, stats, &domain.ConflictError{Kind: domain.ErrShiftTypeNameTaken, Cause: err}
 		}
 		return domain.ShiftType{}, stats, fmt.Errorf("workforce postgres: insert shift type: %w", err)
@@ -736,7 +735,7 @@ func (s *Store) UpdateShiftType(ctx context.Context, value domain.ShiftType) (do
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, shiftTypeNameUniqueIndex) {
+		if isUniqueViolationOn(err, shiftTypeNameUniqueIndex) {
 			return domain.ShiftType{}, false, stats, &domain.ConflictError{Kind: domain.ErrShiftTypeNameTaken, Cause: err}
 		}
 		return domain.ShiftType{}, false, stats, fmt.Errorf("workforce postgres: update shift type: %w", err)

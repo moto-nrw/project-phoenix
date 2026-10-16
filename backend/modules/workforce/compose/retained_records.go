@@ -1,6 +1,8 @@
 package compose
 
 import (
+	"github.com/uptrace/bun"
+
 	workforcePostgres "github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	workforceLegacy "github.com/moto-nrw/project-phoenix/modules/workforce/legacy"
 )
@@ -20,10 +22,16 @@ type (
 )
 
 var (
-	NewStaffAbsenceTypeAllowanceRepository       = workforcePostgres.NewStaffAbsenceTypeAllowanceRepository
-	NewStaffAbsenceTypeAllowanceChangeRepository = workforcePostgres.NewStaffAbsenceTypeAllowanceChangeRepository
-	NewStaffMasterDataRepository                 = workforceLegacy.NewStaffMasterDataRepository
-	NewStaffQualificationRepository              = workforceLegacy.NewStaffQualificationRepository
-	NewStaffFinancialDataRepository              = workforceLegacy.NewStaffFinancialDataRepository
-	NewGroupSubstitutionRepository               = workforceLegacy.NewGroupSubstitutionRepository
+	NewStaffMasterDataRepository    = workforceLegacy.NewStaffMasterDataRepository
+	NewStaffQualificationRepository = workforceLegacy.NewStaffQualificationRepository
+	NewStaffFinancialDataRepository = workforceLegacy.NewStaffFinancialDataRepository
+	NewGroupSubstitutionRepository  = workforceLegacy.NewGroupSubstitutionRepository
 )
+
+func NewStaffAbsenceTypeAllowanceRepository(db *bun.DB) *StaffAbsenceTypeAllowanceRepository {
+	return workforcePostgres.NewStaffAbsenceTypeAllowanceRepository(workforcePostgres.Database(databaseRuntime(db)))
+}
+
+func NewStaffAbsenceTypeAllowanceChangeRepository(db *bun.DB) *StaffAbsenceTypeAllowanceChangeRepository {
+	return workforcePostgres.NewStaffAbsenceTypeAllowanceChangeRepository(workforcePostgres.Database(databaseRuntime(db)))
+}

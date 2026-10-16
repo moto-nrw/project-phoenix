@@ -30,21 +30,21 @@ func TestCustomAbsenceAllowanceIsTenantIsolated(t *testing.T) {
 		EntitledDays: 2, Reason: "Anspruch Mandant A", ChangedBy: admin.ID,
 	})
 	require.NoError(t, err)
-	allowances, err := repos.StaffAbsenceTypeAllowance.List(tenantA.Context(), nil)
+	allowances, err := repos.StaffAbsenceTypeAllowance.List(tenantA.Context())
 	require.NoError(t, err)
 	require.Len(t, allowances, 1)
 	assert.Equal(t, 2.0, allowances[0].EntitledDays)
-	changes, err := repos.StaffAbsenceTypeAllowanceChange.List(tenantA.Context(), nil)
+	changes, err := repos.StaffAbsenceTypeAllowanceChange.List(tenantA.Context())
 	require.NoError(t, err)
 	require.Len(t, changes, 1)
 	assert.Equal(t, "Anspruch Mandant A", changes[0].Reason)
 	assert.Equal(t, admin.ID, changes[0].ChangedBy)
 	// Read all rows in B, not just the known A identifiers: neither the claim
 	// nor its audit may cross the tenant boundary.
-	allowances, err = repos.StaffAbsenceTypeAllowance.List(tenantB.Context(), nil)
+	allowances, err = repos.StaffAbsenceTypeAllowance.List(tenantB.Context())
 	require.NoError(t, err)
 	assert.Empty(t, allowances, "tenant B must not see tenant A's allowance")
-	changes, err = repos.StaffAbsenceTypeAllowanceChange.List(tenantB.Context(), nil)
+	changes, err = repos.StaffAbsenceTypeAllowanceChange.List(tenantB.Context())
 	require.NoError(t, err)
 	assert.Empty(t, changes, "tenant B must not see tenant A's allowance audit")
 }

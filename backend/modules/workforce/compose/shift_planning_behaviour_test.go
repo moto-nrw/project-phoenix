@@ -96,7 +96,7 @@ func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capabil
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
 		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},
-		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewRoomRepository(owners.Rooms), ActivityGroups: planningGroups{},
+		InstanceStaff: planningInstanceStaff{}, Rooms: api.NewTimetableRoomNames(owners.Rooms), ActivityGroups: planningGroups{},
 		DB: db,
 	}
 }

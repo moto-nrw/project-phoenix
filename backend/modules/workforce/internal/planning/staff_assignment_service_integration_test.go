@@ -56,7 +56,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
 		ActivityInstanceRepo: timetableRepos.InstanceReads(),
-		RoomRepo:             api.NewRoomRepository(owners.Rooms),
+		RoomRepo:             api.NewTimetableRoomNames(owners.Rooms),
 		ActivityGroupRepo:    timetableRepos.GroupReads(),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)
