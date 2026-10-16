@@ -24,7 +24,7 @@ func NewActivitiesTestModule(db transactionruntime.Database) (ActivitiesTestModu
 		return ActivitiesTestModule{}, err
 	}
 	activityService, err := timetableCompose.NewService(r.Timetable, r.ActivityGroup, r.ActivitySchedule,
-		r.ActivitySupervisor, r.StudentEnrollment, r.ActiveGroup, r.Staff, r.Student)
+		r.ActivitySupervisor, r.StudentEnrollment, r.ActiveGroup, NewTimetableStaff(r.Staff), r.Student)
 	if err != nil {
 		return ActivitiesTestModule{}, err
 	}

@@ -139,7 +139,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	recovery := arrivalTimetable.NewRetainedActivityRecoveryRepository(db.Pool(), r.InstanceStudent)
 	conflicts, err := NewTimetableConflictDetection(TimetableConflictReaders{
 		Instances: r.ActivityInstance, InstanceStaff: r.InstanceStaff, InstanceStudents: r.InstanceStudent,
-		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: r.Staff, CalendarPeriods: r.CalendarPeriod,
+		Exceptions: r.ActivityException, Schedules: r.ActivitySchedule, Staff: NewTimetableStaff(r.Staff), CalendarPeriods: r.CalendarPeriod,
 		ArrivalExceptions: r.StudentArrivalException, Sessions: r.ActiveGroup, Shifts: r.StaffShift,
 		Presence: NewLoggedStudentPresence(db, logger), ArrivalBaselines: arrival, Logger: logger,
 	})
@@ -156,7 +156,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		Rows: lifecycleRows, Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db.Pool(),
 		},
-		Staff: r.Staff, Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
+		Staff: NewTimetableStaff(r.Staff), Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
 		Presence: NewLoggedStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
 		Settings: settings.Settings, Materialization: materialization, RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Broadcaster: hub, Logger: logger, Now: now,
@@ -188,7 +188,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, err
 	}
 	deviationDeps, err := TimetableStaffDeviationDependencies(TimetableDeviationInputs{
-		Rows: r.OwnerRows(), Staff: r.Staff, Supervisions: r.GroupSupervisor,
+		Rows: r.OwnerRows(), Staff: NewTimetableStaff(r.Staff), Supervisions: r.GroupSupervisor,
 		Lifecycle: instance.DeviationLifecycle(), Broadcaster: hub, Logger: logger, Now: now,
 	})
 	if err != nil {

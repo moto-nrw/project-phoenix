@@ -89,10 +89,10 @@ type OperationStudents interface {
 
 // OperationPeople resolves persons and their staff profiles.
 type OperationPeople interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.Person, error)
-	GetByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Person, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*usersModels.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Staff, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*timetable.Person, error)
+	GetByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.Person, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*timetable.StaffMember, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
 }
 
 // EducationGroupNames is the consumer-owned port to School Structure's

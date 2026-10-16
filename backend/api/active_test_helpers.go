@@ -214,7 +214,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
 		Sessions: r.ActiveGroup, Presence: presence,
 		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: NewLoggedStudentPresence(db, logger),
-		People: TimetableOperationPeople{OperationPeople: data.Users, Membership: membership}, PlanningTracks: r.Timetable,
+		People: TimetableOperationPeople{OperationPeople: newTimetableOperationPeople(data.Users), Membership: membership}, PlanningTracks: r.Timetable,
 		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: OptionalClock(clocks),
 	})
 	if err != nil {

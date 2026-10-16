@@ -52,9 +52,9 @@ func (notFoundError) Error() string       { return "not found" }
 func (notFoundError) RepositoryNotFound() {}
 
 func wireAssignedStaff(deps *timetableOpsTestDeps, accountID, personID, staffID, instanceID int64) {
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = personID
-	deps.personService.staffByPersonID[personID] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[personID] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[personID].ID = staffID
 	deps.staffRepo.assign(instanceID, &scheduleModels.InstanceStaff{StaffID: staffID})
 }
@@ -134,7 +134,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModels.Student{}},
 		groups:        &fakeOpsEducationGroups{names: map[int64]string{}},
 		rooms:         &fakeOpsRooms{names: map[int64]string{810: "Lernraum"}},
-		personService: &fakeOpsPersonService{people: map[int64]*usersModels.Person{}, staffByPersonID: map[int64]*usersModels.Staff{}, staffWithPerson: map[int64]*usersModels.Staff{}},
+		personService: &fakeOpsPersonService{people: map[int64]*timetable.Person{}, staffByPersonID: map[int64]*timetable.StaffMember{}, staffWithPerson: map[int64]*timetable.StaffMember{}},
 		tracks:        &fakeOpsPlanningTracks{byID: map[int64]timetable.PlanningTrack{}},
 		settings:      &fakeOpsSettings{attendanceScope: attendanceEditScopeOwn, startScope: blockStartScopeOwn, completeScope: blockCompleteScopeOwn, absenceScope: studentAbsenceEditScopeAllStaff},
 		announcer:     &fakeOpsAnnouncer{},
@@ -586,22 +586,22 @@ func (r *fakeOpsRooms) RoomName(_ context.Context, id int64) (string, bool, erro
 }
 
 type fakeOpsPersonService struct {
-	accountPerson   *usersModels.Person
+	accountPerson   *timetable.Person
 	accountErr      error
-	people          map[int64]*usersModels.Person
-	staffByPersonID map[int64]*usersModels.Staff
-	staffWithPerson map[int64]*usersModels.Staff
+	people          map[int64]*timetable.Person
+	staffByPersonID map[int64]*timetable.StaffMember
+	staffWithPerson map[int64]*timetable.StaffMember
 }
 
-func (s *fakeOpsPersonService) FindByAccountID(context.Context, int64) (*usersModels.Person, error) {
+func (s *fakeOpsPersonService) FindByAccountID(context.Context, int64) (*timetable.Person, error) {
 	if s.accountErr != nil {
 		return nil, s.accountErr
 	}
 	return s.accountPerson, nil
 }
 
-func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int64]*usersModels.Person, error) {
-	out := map[int64]*usersModels.Person{}
+func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int64]*timetable.Person, error) {
+	out := map[int64]*timetable.Person{}
 	for _, id := range ids {
 		if person := s.people[id]; person != nil {
 			out[id] = person
@@ -610,12 +610,12 @@ func (s *fakeOpsPersonService) GetByIDs(_ context.Context, ids []int64) (map[int
 	return out, nil
 }
 
-func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID int64) (*usersModels.Staff, error) {
+func (s *fakeOpsPersonService) GetStaffByPersonID(_ context.Context, personID int64) (*timetable.StaffMember, error) {
 	return s.staffByPersonID[personID], nil
 }
 
-func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []int64) (map[int64]*usersModels.Staff, error) {
-	out := map[int64]*usersModels.Staff{}
+func (s *fakeOpsPersonService) GetStaffWithPersonByIDs(_ context.Context, ids []int64) (map[int64]*timetable.StaffMember, error) {
+	out := map[int64]*timetable.StaffMember{}
 	for _, id := range ids {
 		if staff := s.staffWithPerson[id]; staff != nil {
 			out[id] = staff

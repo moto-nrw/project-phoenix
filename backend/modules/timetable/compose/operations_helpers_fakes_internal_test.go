@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -91,23 +90,23 @@ func (r *helperInstances) FindByActiveGroupID(context.Context, int64) (*schedule
 }
 
 type helperPeople struct {
-	accountPerson *usersModels.Person
+	accountPerson *timetable.Person
 	staffErr      error
 }
 
-func (p *helperPeople) FindByAccountID(context.Context, int64) (*usersModels.Person, error) {
+func (p *helperPeople) FindByAccountID(context.Context, int64) (*timetable.Person, error) {
 	return p.accountPerson, nil
 }
 
-func (p *helperPeople) GetByIDs(context.Context, []int64) (map[int64]*usersModels.Person, error) {
+func (p *helperPeople) GetByIDs(context.Context, []int64) (map[int64]*timetable.Person, error) {
 	return nil, nil
 }
 
-func (p *helperPeople) GetStaffByPersonID(context.Context, int64) (*usersModels.Staff, error) {
+func (p *helperPeople) GetStaffByPersonID(context.Context, int64) (*timetable.StaffMember, error) {
 	return nil, p.staffErr
 }
 
-func (p *helperPeople) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*usersModels.Staff, error) {
+func (p *helperPeople) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*timetable.StaffMember, error) {
 	return nil, nil
 }
 
