@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
@@ -49,6 +48,26 @@ func (f *overviewFixture) newWorkSessionService() timetracking.WorkSessionServic
 		api.RenderTimeTrackingPDF,
 		api.RenderTimeTrackingWorkbook,
 	)
+}
+
+// accessLogRow is one audit.data_access_log row as the export suites read it
+// back.
+type accessLogRow struct {
+	ActorAccountID int64          `bun:"actor_account_id"`
+	ResourceType   string         `bun:"resource_type"`
+	Metadata       map[string]any `bun:"metadata,type:jsonb"`
+}
+
+// accessLogs reads the fixture tenant's data access log.
+func (f *overviewFixture) accessLogs(t *testing.T) []accessLogRow {
+	t.Helper()
+	var logs []accessLogRow
+	require.NoError(t, f.db.NewSelect().
+		TableExpr(`audit.data_access_log AS "data_access_log"`).
+		Column("actor_account_id", "resource_type", "metadata").
+		Where("tenant_id = ?", f.tenantID).
+		Scan(context.Background(), &logs))
+	return logs
 }
 
 func (f *overviewFixture) cleanupAccessLogs(t *testing.T) {
@@ -251,12 +270,7 @@ func TestStaffTimeExport_CSVAndAudit(t *testing.T) {
 	assert.Contains(t, lines[1], ";offen")
 	assert.Contains(t, file.Filename, ".csv")
 
-	var logs []*auditModels.DataAccessLog
-	require.NoError(t, f.db.NewSelect().
-		Model(&logs).
-		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
-		Where("tenant_id = ?", f.tenantID).
-		Scan(context.Background()))
+	logs := f.accessLogs(t)
 	require.Len(t, logs, 1)
 	assert.Equal(t, "time_tracking_export", logs[0].ResourceType)
 	assert.Equal(t, actorID, logs[0].ActorAccountID)

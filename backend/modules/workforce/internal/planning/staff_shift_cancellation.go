@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -67,7 +66,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	}
 	existing, err := s.repo.FindByID(ctx, input.ShiftID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
 		}
 		return nil, fmt.Errorf("find staff shift: %w", err)
@@ -128,7 +127,7 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 	// StaffID is immutable, so the lock set computed above is still correct.
 	existing, err = s.repo.FindByID(ctx, input.ShiftID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
 		}
 		return nil, fmt.Errorf("find staff shift: %w", err)

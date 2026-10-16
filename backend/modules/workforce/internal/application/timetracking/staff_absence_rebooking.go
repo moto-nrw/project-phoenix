@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -186,7 +185,7 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 	for _, id := range ids {
 		absence, err := s.absenceRepo.FindByID(ctx, id)
 		if err != nil {
-			if modelBase.IsNoRows(err) {
+			if isRecordNotFound(err) {
 				return nil, fmt.Errorf("absence not found")
 			}
 			return nil, err

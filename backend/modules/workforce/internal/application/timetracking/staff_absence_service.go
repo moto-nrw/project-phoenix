@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -1319,26 +1319,20 @@ func (s *staffAbsenceService) ListAbsences(ctx context.Context, staffID int64, f
 		return nil, fmt.Errorf("invalid absence status")
 	}
 
-	options := modelBase.NewQueryOptions()
-	options.Filter.Equal("staff_id", staffID)
+	query := workforce.StaffAbsenceFilter{StaffID: staffID}
 	if filter.From != nil && filter.To != nil {
-		options.Filter.
-			LessThanOrEqual("date_start", *filter.To).
-			GreaterThanOrEqual("date_end", *filter.From)
+		query.OverlapFrom, query.OverlapTo = filter.From.String(), filter.To.String()
 	}
 	if filter.Status != "" {
-		options.Filter.Equal("status", filter.Status)
+		query.Statuses = []string{filter.Status}
 	}
-
-	sorting := &modelBase.Sorting{}
 	if filter.From != nil {
-		sorting.AddField("date_start", modelBase.SortAsc)
+		query.Order = []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}
 	} else {
-		sorting.AddField("requested_at", modelBase.SortDesc)
+		query.Order = []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderRequestedAt, Descending: true}}
 	}
-	options.Sorting = sorting
 
-	absences, err := s.absenceRepo.List(ctx, options)
+	absences, err := s.absenceRepo.ListWithFilter(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absences: %w", err)
 	}

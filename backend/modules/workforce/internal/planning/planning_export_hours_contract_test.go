@@ -7,7 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
@@ -19,14 +18,14 @@ type hoursExport struct {
 	hours  planexport.WeeklyHours
 }
 
-func (f *hoursExport) ExportDienstplanHours(ctx context.Context, params planexport.Params, reader planexport.WeeklyHoursReader) (listexport.File, error) {
+func (f *hoursExport) ExportDienstplanHours(ctx context.Context, params planexport.Params, reader planexport.WeeklyHoursReader) (planexport.File, error) {
 	f.params = params
 	hours, err := reader.WeeklyHours(ctx, "2026-09-21", "2026-09-27")
 	if err != nil {
-		return listexport.File{}, err
+		return planexport.File{}, err
 	}
 	f.hours = hours
-	return listexport.File{Filename: "Stundenuebersicht.xlsx", Data: []byte("sheet")}, nil
+	return planexport.File{Filename: "Stundenuebersicht.xlsx", Data: []byte("sheet")}, nil
 }
 
 // The hours template (#3819) is served from the Dienstplan's own weekly

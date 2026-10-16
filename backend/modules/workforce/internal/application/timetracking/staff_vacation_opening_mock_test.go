@@ -47,10 +47,6 @@ func (m *voOpeningRepoMock) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (m *voOpeningRepoMock) List(context.Context, *QueryOptions) ([]*StaffVacationOpening, error) {
-	return nil, nil
-}
-
 func (m *voOpeningRepoMock) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error) {
 	if m.getByStaffAndYearFunc != nil {
 		return m.getByStaffAndYearFunc(ctx, staffID, year)

@@ -36,7 +36,7 @@ import (
 	"log/slog"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -213,11 +213,11 @@ func (s *timeTrackingCleanupService) PreviewExpiredTimeTrackingData(ctx context.
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffForDays(retentionDays)
 
-	sessionsToDelete, err := s.workSessionRepo.CountWithOptions(ctx, olderThanOptions(workSessionDateColumn, cutoff))
+	sessionsToDelete, err := s.workSessionRepo.CountWithFilter(ctx, sessionsBefore(cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("count work_sessions: %w", err)
 	}
-	absencesToDelete, err := s.staffAbsenceRepo.CountWithOptions(ctx, olderThanOptions(staffAbsenceDateColumn, cutoff))
+	absencesToDelete, err := s.staffAbsenceRepo.CountWithFilter(ctx, absencesBefore(cutoff))
 	if err != nil {
 		return nil, fmt.Errorf("count staff_absences: %w", err)
 	}
@@ -260,11 +260,11 @@ func (s *timeTrackingCleanupService) GetStats(ctx context.Context) (*TimeTrackin
 	retentionDays := s.resolveRetentionDays(ctx)
 	cutoff := cutoffForDays(retentionDays)
 
-	totalSessions, err := s.workSessionRepo.CountWithOptions(ctx, nil)
+	totalSessions, err := s.workSessionRepo.CountWithFilter(ctx, workforce.WorkSessionFilter{})
 	if err != nil {
 		return nil, fmt.Errorf("count sessions: %w", err)
 	}
-	totalAbsences, err := s.staffAbsenceRepo.CountWithOptions(ctx, nil)
+	totalAbsences, err := s.staffAbsenceRepo.CountWithFilter(ctx, workforce.StaffAbsenceFilter{})
 	if err != nil {
 		return nil, fmt.Errorf("count absences: %w", err)
 	}
@@ -315,22 +315,16 @@ func cutoffForDays(retentionDays int) calendar.Date {
 	return calendar.TodayDate().AddDays(-retentionDays)
 }
 
-// olderThanOptions builds query options selecting rows whose dateColumn is
+// sessionsBefore selects the work sessions whose workSessionDateColumn is
 // strictly before the cutoff.
-func olderThanOptions(dateColumn string, cutoff calendar.Date) *modelBase.QueryOptions {
-	options := modelBase.NewQueryOptions()
-	options.Filter = modelBase.NewFilter().LessThan(dateColumn, cutoff)
-	return options
+func sessionsBefore(cutoff calendar.Date) workforce.WorkSessionFilter {
+	return workforce.WorkSessionFilter{DateBefore: cutoff.String()}
 }
 
-// staffImpactOptions extends olderThanOptions with the (staff_id, id)
-// ordering the audit sample bookkeeping relies on.
-func staffImpactOptions(dateColumn string, cutoff calendar.Date) *modelBase.QueryOptions {
-	options := olderThanOptions(dateColumn, cutoff)
-	sorting := &modelBase.Sorting{}
-	sorting.AddField("staff_id", modelBase.SortAsc).AddField("id", modelBase.SortAsc)
-	options.Sorting = sorting
-	return options
+// absencesBefore selects the absences whose staffAbsenceDateColumn is
+// strictly before the cutoff.
+func absencesBefore(cutoff calendar.Date) workforce.StaffAbsenceFilter {
+	return workforce.StaffAbsenceFilter{DateEndBefore: cutoff.String()}
 }
 
 // perStaffCounts maps staff_id to the number of rows older than cutoff (sessions
@@ -358,7 +352,10 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 	counts := make(perStaffCounts)
 	samples := make(perStaffSamples)
 
-	sessions, err := s.workSessionRepo.List(ctx, staffImpactOptions(workSessionDateColumn, cutoff))
+	// The (staff_id, id) order is what the audit sample bookkeeping relies on.
+	sessionFilter := sessionsBefore(cutoff)
+	sessionFilter.Order = []workforce.WorkSessionOrder{{Field: workforce.WorkSessionOrderStaffID}, {Field: workforce.WorkSessionOrderID}}
+	sessions, err := s.workSessionRepo.ListWithFilter(ctx, sessionFilter)
 	if err != nil {
 		return nil, nil, fmt.Errorf("scan work_sessions: %w", err)
 	}
@@ -371,7 +368,9 @@ func (s *timeTrackingCleanupService) collectStaffImpact(
 		}
 	}
 
-	absences, err := s.staffAbsenceRepo.List(ctx, staffImpactOptions(staffAbsenceDateColumn, cutoff))
+	absenceFilter := absencesBefore(cutoff)
+	absenceFilter.Order = []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderStaffID}, {Field: workforce.StaffAbsenceOrderID}}
+	absences, err := s.staffAbsenceRepo.ListWithFilter(ctx, absenceFilter)
 	if err != nil {
 		return nil, nil, fmt.Errorf("scan staff_absences: %w", err)
 	}

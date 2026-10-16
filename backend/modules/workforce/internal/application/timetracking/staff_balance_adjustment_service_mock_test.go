@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,7 @@ func (r *recordingBalanceAdjustmentRepo) Delete(context.Context, any) error {
 	return nil
 }
 
-func (r *recordingBalanceAdjustmentRepo) List(context.Context, *QueryOptions) ([]*StaffBalanceAdjustment, error) {
+func (r *recordingBalanceAdjustmentRepo) ListWithFilter(context.Context, workforce.StaffBalanceAdjustmentFilter) ([]*StaffBalanceAdjustment, error) {
 	*r.events = append(*r.events, "list")
 	return r.resets, nil
 }

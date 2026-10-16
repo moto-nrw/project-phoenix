@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,7 +24,7 @@ type wsMockWorkSessionRepository struct {
 	findByIDFunc            func(ctx context.Context, id any) (*WorkSession, error)
 	updateFunc              func(ctx context.Context, entity *WorkSession) error
 	deleteFunc              func(ctx context.Context, id any) error
-	listFunc                func(ctx context.Context, options *QueryOptions) ([]*WorkSession, error)
+	listFunc                func(ctx context.Context, filter workforce.WorkSessionFilter) ([]*WorkSession, error)
 	listByStaffAndDateFunc  func(ctx context.Context, staffID int64, date Date) ([]*WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*WorkSession, error)
 	// Only set by tests that need the two lookups to differ, i.e. an open
@@ -81,9 +82,9 @@ func (m *wsMockWorkSessionRepository) Delete(ctx context.Context, id any) error 
 	return nil
 }
 
-func (m *wsMockWorkSessionRepository) List(ctx context.Context, options *QueryOptions) ([]*WorkSession, error) {
+func (m *wsMockWorkSessionRepository) ListWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) ([]*WorkSession, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
+		return m.listFunc(ctx, filter)
 	}
 	if m.listByStaffAndDateFunc != nil {
 		return m.listByStaffAndDateFunc(ctx, 0, TodayDate())
@@ -326,7 +327,7 @@ type wsMockWorkSessionBreakRepository struct {
 	findByIDFunc             func(ctx context.Context, id any) (*WorkSessionBreak, error)
 	updateFunc               func(ctx context.Context, entity *WorkSessionBreak) error
 	deleteFunc               func(ctx context.Context, id any) error
-	listFunc                 func(ctx context.Context, options *QueryOptions) ([]*WorkSessionBreak, error)
+	getBySessionIDsFunc      func(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error)
 	getBySessionIDFunc       func(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)
 	getActiveBySessionIDFunc func(ctx context.Context, sessionID int64) (*WorkSessionBreak, error)
 	endBreakFunc             func(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error
@@ -360,13 +361,6 @@ func (m *wsMockWorkSessionBreakRepository) Delete(ctx context.Context, id any) e
 		return m.deleteFunc(ctx, id)
 	}
 	return nil
-}
-
-func (m *wsMockWorkSessionBreakRepository) List(ctx context.Context, options *QueryOptions) ([]*WorkSessionBreak, error) {
-	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
-	}
-	return nil, nil
 }
 
 func (m *wsMockWorkSessionBreakRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error) {
@@ -454,7 +448,7 @@ type wsMockStaffAbsenceRepository struct {
 	findByIDFunc                  func(ctx context.Context, id any) (*StaffAbsence, error)
 	updateFunc                    func(ctx context.Context, entity *StaffAbsence) error
 	deleteFunc                    func(ctx context.Context, id any) error
-	listFunc                      func(ctx context.Context, options *QueryOptions) ([]*StaffAbsence, error)
+	listFunc                      func(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error)
 	getByStaffAndDateRangeFunc    func(ctx context.Context, staffID int64, from, to Date) ([]*StaffAbsence, error)
 	getByStaffIDsAndDateRangeFunc func(ctx context.Context, staffIDs []int64, from, to Date) (map[int64][]*StaffAbsence, error)
 	getByStaffAndDateFunc         func(ctx context.Context, staffID int64, date Date) (*StaffAbsence, error)
@@ -494,9 +488,9 @@ func (m *wsMockStaffAbsenceRepository) Delete(ctx context.Context, id any) error
 	return nil
 }
 
-func (m *wsMockStaffAbsenceRepository) List(ctx context.Context, options *QueryOptions) ([]*StaffAbsence, error) {
+func (m *wsMockStaffAbsenceRepository) ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
+		return m.listFunc(ctx, filter)
 	}
 	return nil, nil
 }
@@ -1758,7 +1752,7 @@ func TestWSAutoEndExpiredBreaks_UsesPlannedEndAndRecalculatesBreakMinutes(t *tes
 		assert.Equal(t, sessionID, id)
 		return &WorkSession{StaffID: 100}, nil
 	}
-	sessionRepo.listFunc = func(_ context.Context, _ *QueryOptions) ([]*WorkSession, error) {
+	sessionRepo.listFunc = func(_ context.Context, _ workforce.WorkSessionFilter) ([]*WorkSession, error) {
 		return []*WorkSession{{Model: Model{ID: sessionID}, StaffID: 100}}, nil
 	}
 	breakRepo.endBreakFunc = func(_ context.Context, id int64, endedAt time.Time, durationMinutes int) error {
@@ -2934,7 +2928,7 @@ func wsStrPtr(s string) *string {
 
 // Generic query helper stubs (interface additions for the issue #585
 // cleanup refactor) — unused by these tests.
-func (m *wsMockWorkSessionRepository) CountWithOptions(context.Context, *QueryOptions) (int, error) {
+func (m *wsMockWorkSessionRepository) CountWithFilter(context.Context, workforce.WorkSessionFilter) (int, error) {
 	return 0, nil
 }
 
@@ -2946,7 +2940,7 @@ func (m *wsMockWorkSessionRepository) DeleteOlderThan(context.Context, string, D
 	return 0, nil
 }
 
-func (m *wsMockStaffAbsenceRepository) CountWithOptions(context.Context, *QueryOptions) (int, error) {
+func (m *wsMockStaffAbsenceRepository) CountWithFilter(context.Context, workforce.StaffAbsenceFilter) (int, error) {
 	return 0, nil
 }
 
@@ -3351,7 +3345,7 @@ func TestWSCheckInOn_NewSessionUsesTheStampDay(t *testing.T) {
 	svc.nowFunc = func() time.Time { return stampedAt }
 
 	var listCalls int
-	sessionRepo.listFunc = func(_ context.Context, _ *QueryOptions) ([]*WorkSession, error) {
+	sessionRepo.listFunc = func(_ context.Context, _ workforce.WorkSessionFilter) ([]*WorkSession, error) {
 		listCalls++
 		return nil, nil
 	}
@@ -3398,7 +3392,7 @@ func TestWSCheckInOn_StalePinnedDayDoesNotReopenYesterday(t *testing.T) {
 		CheckOutTime: &checkOut,
 	}
 
-	sessionRepo.listFunc = func(_ context.Context, _ *QueryOptions) ([]*WorkSession, error) {
+	sessionRepo.listFunc = func(_ context.Context, _ workforce.WorkSessionFilter) ([]*WorkSession, error) {
 		return []*WorkSession{yesterday}, nil
 	}
 	sessionRepo.updateFunc = func(_ context.Context, _ *WorkSession) error {
@@ -3758,6 +3752,9 @@ func (m *wsMockWorkSessionRepository) GetHistoryByStaffIDs(ctx context.Context, 
 }
 
 func (m *wsMockWorkSessionBreakRepository) GetBySessionIDs(ctx context.Context, sessionIDs []int64) (map[int64][]*WorkSessionBreak, error) {
+	if m.getBySessionIDsFunc != nil {
+		return m.getBySessionIDsFunc(ctx, sessionIDs)
+	}
 	result := make(map[int64][]*WorkSessionBreak, len(sessionIDs))
 	for _, sessionID := range sessionIDs {
 		breaks, err := m.GetBySessionID(ctx, sessionID)

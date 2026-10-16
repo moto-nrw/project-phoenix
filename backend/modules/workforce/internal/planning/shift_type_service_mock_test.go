@@ -13,20 +13,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun/driver/pgdriver"
-
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // ----------------------------------------------------------------------------
 // Mock repository
 // ----------------------------------------------------------------------------
 
+// errRowNotFound is the missing-row answer of the row adapters as the
+// services see it: an error carrying the repository not-found marker.
+var errRowNotFound error = rowNotFoundError{}
+
+type rowNotFoundError struct{}
+
+func (rowNotFoundError) Error() string       { return "repository: not found" }
+func (rowNotFoundError) RepositoryNotFound() {}
+
 type shiftTypeMockRepo struct {
 	createFunc        func(ctx context.Context, st *ShiftType) error
 	findByIDFunc      func(ctx context.Context, id any) (*ShiftType, error)
 	updateFunc        func(ctx context.Context, st *ShiftType) error
 	deleteFunc        func(ctx context.Context, id any) error
-	listFunc          func(ctx context.Context, o *modelBase.QueryOptions) ([]*ShiftType, error)
 	listAllFunc       func(ctx context.Context) ([]*ShiftType, error)
 	createIfAbsentFn  func(ctx context.Context, st *ShiftType) (bool, error)
 	createIfAbsentHit int
@@ -43,7 +49,7 @@ func (m *shiftTypeMockRepo) FindByID(ctx context.Context, id any) (*ShiftType, e
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return nil, modelBase.ErrNotFound
+	return nil, errRowNotFound
 }
 
 func (m *shiftTypeMockRepo) Update(ctx context.Context, st *ShiftType) error {
@@ -58,13 +64,6 @@ func (m *shiftTypeMockRepo) Delete(ctx context.Context, id any) error {
 		return m.deleteFunc(ctx, id)
 	}
 	return nil
-}
-
-func (m *shiftTypeMockRepo) List(ctx context.Context, o *modelBase.QueryOptions) ([]*ShiftType, error) {
-	if m.listFunc != nil {
-		return m.listFunc(ctx, o)
-	}
-	return nil, nil
 }
 
 func (m *shiftTypeMockRepo) ListAll(ctx context.Context) ([]*ShiftType, error) {
@@ -101,10 +100,10 @@ func TestShiftTypeService_GetShiftType_Branches(t *testing.T) {
 		require.ErrorIs(t, err, ErrShiftTypeNotFound)
 	})
 
-	t.Run("modelBase.ErrNotFound maps to not found", func(t *testing.T) {
+	t.Run("a missing row maps to not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
 			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
-				return nil, modelBase.ErrNotFound
+				return nil, errRowNotFound
 			},
 		}, nil)
 		_, err := svc.GetShiftType(ctx, 5)
@@ -242,10 +241,10 @@ func TestShiftTypeService_UpdateShiftType_Branches(t *testing.T) {
 		require.ErrorIs(t, err, ErrShiftTypeNotFound)
 	})
 
-	t.Run("missing row (modelBase.ErrNotFound) is not found", func(t *testing.T) {
+	t.Run("missing row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
 			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
-				return nil, modelBase.ErrNotFound
+				return nil, errRowNotFound
 			},
 		}, nil)
 		_, err := svc.UpdateShiftType(ctx, withID(5))
@@ -367,7 +366,7 @@ func TestShiftTypeService_DeleteShiftType_Branches(t *testing.T) {
 	t.Run("missing row is not found", func(t *testing.T) {
 		svc := NewShiftTypeService(&shiftTypeMockRepo{
 			findByIDFunc: func(context.Context, any) (*ShiftType, error) {
-				return nil, modelBase.ErrNotFound
+				return nil, errRowNotFound
 			},
 		}, nil)
 		require.ErrorIs(t, svc.DeleteShiftType(ctx, 5), ErrShiftTypeNotFound)
@@ -471,6 +470,6 @@ func TestIsShiftTypeNameConflict(t *testing.T) {
 
 	assert.False(t, isShiftTypeNameConflict(nil), "nil is never a conflict")
 	assert.False(t, isShiftTypeNameConflict(errors.New("plain")), "a plain error is not a pg conflict")
-	// A pgdriver.Error zero value has no SQLSTATE, so the 23505 check fails.
+	// A bare driver error is not the Workforce store's name conflict.
 	assert.False(t, isShiftTypeNameConflict(pgdriver.Error{}), "a pg error without 23505 is not a conflict")
 }

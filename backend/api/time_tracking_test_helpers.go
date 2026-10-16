@@ -60,3 +60,17 @@ type noHolidays struct{}
 func (noHolidays) HolidayDates(context.Context, timezone.Date, timezone.Date) (map[timezone.Date]bool, error) {
 	return nil, nil
 }
+
+// PayrollSettings is the settings read the payroll status resolves the
+// Lohnarten and DATEV identifiers through.
+type PayrollSettings interface {
+	ResolveString(ctx context.Context, key string) (string, error)
+}
+
+// NewPayrollExportSettings binds the payroll export settings to the Settings
+// Platform's payroll status over the given settings and personnel counter,
+// the way the service graph binds them, for suites that may not name the
+// Settings Platform's services.
+func NewPayrollExportSettings(settings PayrollSettings, countPersonnel func(context.Context) (int, int, error)) PayrollExportSettings {
+	return PayrollExportSettings{Source: settingsCompose.NewPayrollStatusService(settings, countPersonnel)}
+}

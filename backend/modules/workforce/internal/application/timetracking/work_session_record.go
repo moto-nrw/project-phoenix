@@ -4,14 +4,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type WorkSession struct {
-	base.Model `bun:"schema:active,table:work_sessions"`
-	base.TenantModel
+	Model `bun:"schema:active,table:work_sessions"`
+	TenantModel
 	StaffID        int64         `bun:"staff_id,notnull" json:"staff_id"`
 	Date           calendar.Date `bun:"date,notnull,type:date" json:"date"`
 	Status         string        `bun:"status,notnull,default:'present'" json:"status"`

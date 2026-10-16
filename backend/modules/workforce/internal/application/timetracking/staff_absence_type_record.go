@@ -5,7 +5,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -30,8 +29,8 @@ const maxAbsenceTypeNameLength = 100
 // nothing that can be missing for one tenant, no duplicate rows, and no way to
 // delete or rename one by accident. Only the school's own additions live here.
 type StaffAbsenceType struct {
-	base.Model `bun:"schema:active,table:staff_absence_types"`
-	base.TenantModel
+	Model `bun:"schema:active,table:staff_absence_types"`
+	TenantModel
 	Name string `bun:"name,notnull" json:"name"`
 	// BaseType is the canonical absence type this entry is a named subtype of.
 	// v1 always stores workforce.AbsenceTypeOther; the column exists so a later
