@@ -1,4 +1,4 @@
-package httpadapter
+package api
 
 import (
 	"context"
@@ -20,16 +20,16 @@ import (
 // runs without a .env file.
 func init() { routetest.SeedTestJWTConfig() }
 
-// capabilityStub answers the one write call /api/work-time-models makes on
+// workTimeModelsCapabilityStub answers the one write call /api/work-time-models makes on
 // PUT. The capability rewrites the assigned staff schedules inside that same
 // call, so the handler has nothing left to sequence.
-type capabilityStub struct {
+type workTimeModelsCapabilityStub struct {
 	workforce.Capability
 	updateErr error
 	updated   bool
 }
 
-func (s *capabilityStub) UpdateWorkTimeModel(_ context.Context, input workforce.UpdateWorkTimeModel) (workforce.WorkTimeModel, error) {
+func (s *workTimeModelsCapabilityStub) UpdateWorkTimeModel(_ context.Context, input workforce.UpdateWorkTimeModel) (workforce.WorkTimeModel, error) {
 	s.updated = true
 	if s.updateErr != nil {
 		return workforce.WorkTimeModel{}, s.updateErr
@@ -37,15 +37,15 @@ func (s *capabilityStub) UpdateWorkTimeModel(_ context.Context, input workforce.
 	return workforce.WorkTimeModel{ID: input.ID, Name: input.Name, RotationLength: input.RotationLength, RotationAnchorDate: input.RotationAnchorDate}, nil
 }
 
-// updateRequest drives PUT /{id} straight at the handler, past the
+// updateWorkTimeModelsRequest drives PUT /{id} straight at the handler, past the
 // authentication and transaction middleware the composition root supplies.
-func updateRequest(t *testing.T, capability workforce.Capability, notify func(context.Context)) *httptest.ResponseRecorder {
+func updateWorkTimeModelsRequest(t *testing.T, capability workforce.Capability, notify func(context.Context)) *httptest.ResponseRecorder {
 	t.Helper()
 	resource := worktimemodelsHTTP.NewResource(capability, worktimemodelsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
-			routes(router, passthrough)
+			routes(router, workTimeModelsPassthrough)
 		},
-		Permission: func(string) worktimemodelsHTTP.Middleware { return passthrough },
+		Permission: func(string) worktimemodelsHTTP.Middleware { return workTimeModelsPassthrough },
 		ParseID:    func(*http.Request) (int64, error) { return 7, nil },
 		Success: func(w http.ResponseWriter, _ *http.Request, status int, _ any, _ string) {
 			w.WriteHeader(status)
@@ -63,7 +63,7 @@ func updateRequest(t *testing.T, capability workforce.Capability, notify func(co
 	return recorder
 }
 
-func passthrough(next http.Handler) http.Handler { return next }
+func workTimeModelsPassthrough(next http.Handler) http.Handler { return next }
 
 // A template edit also rewrites the schedule snapshots of every assigned
 // staff member. The time-account views may only be invalidated once that
@@ -73,9 +73,9 @@ func TestUpdateNotifiesTimeTrackingOnlyAfterTheWriteSucceeds(t *testing.T) {
 
 	t.Run("notifies after the write", func(t *testing.T) {
 		t.Parallel()
-		capability := &capabilityStub{}
+		capability := &workTimeModelsCapabilityStub{}
 		notified := false
-		recorder := updateRequest(t, capability, func(context.Context) { notified = true })
+		recorder := updateWorkTimeModelsRequest(t, capability, func(context.Context) { notified = true })
 
 		assert.Equal(t, http.StatusOK, recorder.Code)
 		assert.True(t, capability.updated)
@@ -84,9 +84,9 @@ func TestUpdateNotifiesTimeTrackingOnlyAfterTheWriteSucceeds(t *testing.T) {
 
 	t.Run("stays silent when the write fails", func(t *testing.T) {
 		t.Parallel()
-		capability := &capabilityStub{updateErr: errors.New("assigned refresh failed")}
+		capability := &workTimeModelsCapabilityStub{updateErr: errors.New("assigned refresh failed")}
 		notified := false
-		recorder := updateRequest(t, capability, func(context.Context) { notified = true })
+		recorder := updateWorkTimeModelsRequest(t, capability, func(context.Context) { notified = true })
 
 		assert.Equal(t, http.StatusInternalServerError, recorder.Code)
 		assert.True(t, capability.updated)
@@ -99,7 +99,7 @@ func TestUpdateNotifiesTimeTrackingOnlyAfterTheWriteSucceeds(t *testing.T) {
 func TestRouterRejectsUsersRead(t *testing.T) {
 	t.Parallel()
 
-	resource := worktimemodelsHTTP.NewResource(&capabilityStub{}, runtime(func(context.Context) {}))
+	resource := worktimemodelsHTTP.NewResource(&workTimeModelsCapabilityStub{}, workTimeModelsRuntime(func(context.Context) {}))
 	router := resource.Router()
 	claims := routetest.DefaultTestClaims()
 	claims.Roles = []string{"user"}
