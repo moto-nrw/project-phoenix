@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -38,7 +37,7 @@ func (submitterOnlyVisibility) Allows(_ string, _, accountID, submittedBy int64)
 // interface, keeping the tests honest about what the services touch. Test-only
 // copy of the workflows/parentportal behaviour-test stub for the care-schedule tests.
 type parentSettingsStub struct {
-	configService.SettingsService
+	care.SettingsService
 	boolValues   map[string]bool
 	stringValues map[string]string
 }
