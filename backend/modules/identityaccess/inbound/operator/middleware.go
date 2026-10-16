@@ -5,15 +5,17 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
-// OperatorLookup reloads the current platform operator state for protected
-// operator routes.
+// OperatorLookup reloads the current platform operator state and refresh-token
+// family for protected operator routes.
 type OperatorLookup interface {
 	FindOperator(ctx context.Context, id int64) (Operator, error)
+	LatestOperatorSessionInFamily(ctx context.Context, familyID string) (OperatorSession, error)
 }
 
 // RequiresOperatorScope is middleware that checks if the JWT has platform scope
@@ -60,6 +62,23 @@ func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handl
 				return
 			}
 			if !operator.Active {
+				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
+				return
+			}
+			if claims.FamilyID == "" {
+				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
+				return
+			}
+			session, err := lookup.LatestOperatorSessionInFamily(r.Context(), claims.FamilyID)
+			if errors.Is(err, ErrOperatorSessionNotFound) {
+				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
+				return
+			}
+			if err != nil {
+				renderOperatorLookupError(w, r, claims.ID, err)
+				return
+			}
+			if session.OperatorID != int64(claims.ID) || !session.Expiry.After(time.Now()) {
 				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
 				return
 			}

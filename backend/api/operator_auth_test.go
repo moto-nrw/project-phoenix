@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
@@ -26,6 +27,7 @@ type mockOperatorAuthService struct {
 	loginFn                          func(ctx context.Context, email, password string, clientIP net.IP) (string, string, *identityaccess.Operator, error)
 	refreshTokenFn                   func(ctx context.Context, operatorID int64, refreshTokenValue string) (string, string, error)
 	getOperatorFn                    func(ctx context.Context, id int64) (*identityaccess.Operator, error)
+	latestOperatorSessionFn          func(ctx context.Context, familyID string) (identityaccess.OperatorSession, error)
 	updateProfileFn                  func(ctx context.Context, operatorID int64, displayName string) (*identityaccess.Operator, error)
 	changePasswordFn                 func(ctx context.Context, operatorID int64, currentPassword, newPassword string) error
 	initiateEmailChangeFn            func(ctx context.Context, operatorID int64, newEmail, currentPassword string, clientIP net.IP) error
@@ -83,6 +85,13 @@ func (m *mockOperatorAuthService) FindOperator(ctx context.Context, id int64) (i
 		return *identityOperatorOf(op), err
 	}
 	return identityaccess.Operator{}, identityoperator.ErrOperatorNotFound
+}
+
+func (m *mockOperatorAuthService) LatestOperatorSessionInFamily(ctx context.Context, familyID string) (identityaccess.OperatorSession, error) {
+	if m.latestOperatorSessionFn != nil {
+		return m.latestOperatorSessionFn(ctx, familyID)
+	}
+	return identityaccess.OperatorSession{OperatorID: 42, FamilyID: familyID, Expiry: time.Now().Add(time.Hour)}, nil
 }
 
 func (m *mockOperatorAuthService) FindOperatorForUpdate(ctx context.Context, id int64) (identityaccess.Operator, error) {

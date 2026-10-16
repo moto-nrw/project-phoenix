@@ -18,6 +18,8 @@ import (
 type (
 	// Operator is one operator identity row.
 	Operator = identityaccess.Operator
+	// OperatorSession is one persisted, revocable operator refresh session.
+	OperatorSession = identityaccess.OperatorSession
 	// OperatorInvitation is one invitation link with its delivery state.
 	OperatorInvitation = identityaccess.OperatorInvitation
 	// OperatorInvitationPreview is what the public accept page may show.
@@ -107,6 +109,7 @@ func IsValidMFAAdminOverride(value string) bool {
 // values, so errors.Is decides exactly what it decided before.
 var (
 	ErrOperatorNotFound               = identityaccess.ErrOperatorNotFound
+	ErrOperatorSessionNotFound        = identityaccess.ErrOperatorSessionNotFound
 	ErrOperatorInactive               = identityaccess.ErrOperatorInactive
 	ErrOperatorInvalidCredentials     = identityaccess.ErrOperatorInvalidCredentials
 	ErrOperatorPasswordMismatch       = identityaccess.ErrOperatorPasswordMismatch
