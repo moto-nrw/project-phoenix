@@ -54,6 +54,12 @@ Keys und Budgets unverändert.
 Capability, Shared-HTTP-Runtime und Berechtigungsvertrag. Die Root-Reichweite steht bereits.
 Inbound-Owner 29 → 28, Regeln 946 → 945; Keys und Budgets unverändert.
 
+#4078: `modules/classday/http` gehört zu `class-day-view`; `inbound-classday` entfällt.
+Sieben gleich enge Nachfolger ersetzen acht Regeln. Die nun ungenutzte generische
+Regel `inbound.adapter-test.projection.public` entfällt zusätzlich. Die beiden eingehenden Schulportal-Regeln
+bleiben auf denselben Paketpfad und ihre bisherigen Produktions-/External-Test-Scopes begrenzt.
+Die Root-Reichweite steht bereits. Inbound-Owner 28 → 27, Regeln 945 → 943; Keys und Budgets unverändert.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der

@@ -151,10 +151,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-classday",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-common",
       "kind": "inbound"
     },
@@ -761,7 +757,7 @@
     },
     {
       "path": "modules/classday/http",
-      "owner": "inbound-classday",
+      "owner": "class-day-view",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -6842,18 +6838,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound.adapter-test.projection.public",
-      "description": "Adapter tests may use public projections (inbound sources; a platform reaches no projection owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
-      "source_role": "adapter-test",
-      "target_owner_kind": "projection",
-      "target_role": "public"
-    },
-    {
       "id": "projection.adapter-test.projection.public",
       "description": "Adapter tests may use public projections (projection sources; a platform reaches no projection owner, ADR 0057).",
       "scopes": [
@@ -7825,12 +7809,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-classday.to.class-day-view",
-      "description": "inbound-classday calls exactly one public capability.",
+      "id": "class-day-view.http.public",
+      "description": "The Class Day HTTP adapter calls its own public projection capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-classday",
+      "source_owner": "class-day-view",
       "source_role": "http",
       "target_owner": "class-day-view",
       "target_role": "public"
@@ -11388,45 +11372,45 @@
       "target_class": "crypto"
     },
     {
-      "id": "inbound-classday.http-common",
-      "description": "Class-day handlers reuse common HTTP rendering, the school-scope group and the permission gates (#2701).",
+      "id": "class-day-view.http.common",
+      "description": "The Class Day HTTP adapter uses the shared HTTP runtime.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-classday",
+      "source_owner": "class-day-view",
       "source_role": "http",
       "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
-      "id": "inbound-classday.security-contract",
-      "description": "Class-day handlers name the class-day permissions (#2701).",
+      "id": "class-day-view.http.security-contract",
+      "description": "The Class Day HTTP adapter names its established permission contract.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-classday",
+      "source_owner": "class-day-view",
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
     },
     {
-      "id": "inbound-classday.identity-adapter",
-      "description": "Class-day handlers read the authenticated account claims (#2701).",
+      "id": "class-day-view.http.identity-runtime",
+      "description": "The Class Day HTTP adapter reads authenticated account claims through the session runtime.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-classday",
+      "source_owner": "class-day-view",
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "http"
     },
     {
-      "id": "inbound-classday.adapter-test.identity-adapter",
-      "description": "Class-day handler tests construct school-scope claims (#2701).",
+      "id": "class-day-view.adapter-test.identity-runtime",
+      "description": "Class Day external handler tests construct school-scope claims through the session runtime.",
       "scopes": [
         "external_test"
       ],
-      "source_owner": "inbound-classday",
+      "source_owner": "class-day-view",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
@@ -11465,14 +11449,14 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-school.to.inbound-classday",
-      "description": "The school portal mounts the class-day surface (#2701).",
+      "id": "inbound-school.to.class-day-http",
+      "description": "The School Portal mounts the Class Day HTTP surface.",
       "scopes": [
         "production"
       ],
       "source_owner": "inbound-school",
       "source_role": "http",
-      "target_owner": "inbound-classday",
+      "target_owner": "class-day-view",
       "target_role": "http"
     },
     {
@@ -11509,14 +11493,14 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-school.adapter-test.inbound-classday",
-      "description": "School-portal handler tests construct the class-day surface they mount (#2701).",
+      "id": "inbound-school.adapter-test.class-day-http",
+      "description": "School Portal external handler tests construct the Class Day HTTP surface they mount.",
       "scopes": [
         "external_test"
       ],
       "source_owner": "inbound-school",
       "source_role": "adapter-test",
-      "target_owner": "inbound-classday",
+      "target_owner": "class-day-view",
       "target_role": "http"
     },
     {
@@ -11595,17 +11579,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "student-presence",
       "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.class-day-http",
-      "description": "The production root constructs the class-day HTTP adapter (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-classday",
-      "target_role": "http"
     },
     {
       "id": "root-composition.to.school-portal-http",
