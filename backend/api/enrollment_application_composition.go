@@ -67,6 +67,7 @@ func NewEnrollmentNotifications(modes enrollmentCompose.NotificationModePin, set
 		Outbox:      enrollmentMailOutbox{outbox: outbox},
 		Schools:     schools,
 		Fingerprint: securityruntime.Fingerprint,
+		Branding:    EnrollmentMailBranding,
 	})
 }
 
@@ -221,4 +222,9 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		platformModels.EmailKindEnrollmentRolloverOptIn:            render(renderers.RolloverOptIn),
 		platformModels.EmailKindEnrollmentRolloverOptOut:           render(renderers.RolloverOptOut),
 	}
+}
+
+// EnrollmentMailBranding binds Enrollment's logo port to Delivery.
+func EnrollmentMailBranding(baseURL, schoolImageURL string) (string, string) {
+	return deliveryCompose.SchoolLogoURL(baseURL, schoolImageURL), deliveryCompose.MotoLogoURL(baseURL)
 }

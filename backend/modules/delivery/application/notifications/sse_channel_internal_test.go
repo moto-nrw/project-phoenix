@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -137,7 +136,7 @@ func TestSSEGuardianFanOutRechecksChildAccess(t *testing.T) {
 	assert.Equal(t, []int64{77, 88}, access.accountIDs)
 	assert.Equal(t, []int64{55}, access.studentIDs)
 	assert.Equal(t, int64(41), access.tenantID)
-	assert.Equal(t, authorize.GuardianPermissionPortalAccess, access.permission)
+	assert.Equal(t, "parent_portal.access", access.permission)
 }
 
 // TestSSEGuardianFanOutSkipsRecheckWithoutChildren keeps events that are about no

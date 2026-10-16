@@ -400,7 +400,7 @@ func composeSettings(b graphBuild) (graphBuild, error) {
 	b.graph.Education = education.NewGroupManagement(
 		b.People.Groups, b.People.GroupTeachers, b.People.ClassTeachers, b.People.GroupRooms, b.People.GroupTeacherDirectory,
 		b.People.StaffChecks, b.People.Students, b.groupSubstitutions, education.NewLegacyRepositoryRuntime(b.DB.Pool()),
-		education.GroupServiceOptions{Broadcaster: hub, Audit: b.People.ClassAssignmentAudit(b.audits.StaffMasterDataChange)},
+		education.GroupServiceOptions{Broadcaster: NewGroupEvents(hub, nil), Audit: b.People.ClassAssignmentAudit(b.audits.StaffMasterDataChange)},
 	)
 	// Start page composition (#2875) shares the settings tenant runtime: the
 	// personal layout and the school's prescription are read inside the same

@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 49,
+  "policy_epoch": 51,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -143,10 +143,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-activities",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-announcement",
       "kind": "inbound"
     },
@@ -155,15 +151,7 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-database",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-display",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-filestore",
       "kind": "inbound"
     },
     {
@@ -228,10 +216,6 @@
     },
     {
       "id": "inbound-substitutions",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-users",
       "kind": "inbound"
     },
     {
@@ -1954,7 +1938,7 @@
     },
     {
       "path": "modules/peopledirectory/http",
-      "owner": "inbound-users",
+      "owner": "people-directory",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -2523,6 +2507,13 @@
       "path": "modules/schedulerruntime/compose",
       "owner": "scheduler-runtime",
       "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/ports",
+      "owner": "scheduler-runtime",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -3319,7 +3310,7 @@
     },
     {
       "path": "modules/filestorage/http/files",
-      "owner": "inbound-filestore",
+      "owner": "file-storage",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -6070,17 +6061,6 @@
       "target_role": "compose"
     },
     {
-      "id": "student-presence.application.public",
-      "description": "The Student Presence application implements its own public Statistik report contract (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "application",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "student-presence.compose.presence-cutover.tenant-runtime.public",
       "description": "Construct and connect the Student Presence owner capability.",
       "scopes": [
@@ -6187,28 +6167,6 @@
       "source_owner": "enrollment",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "enrollment.postgres.to.enrollment.public",
-      "description": "enrollment postgres uses the Enrollment cutover's enrollment public boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "postgres",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "enrollment.application.to.enrollment.public",
-      "description": "enrollment application uses the Enrollment cutover's enrollment public boundary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "application",
-      "target_owner": "enrollment",
       "target_role": "public"
     },
     {
@@ -7055,6 +7013,28 @@
       "source_owner_kind": "domain",
       "source_role": "postgres",
       "target_role": "legacy-model",
+      "same_owner": true
+    },
+    {
+      "id": "domain.application-public",
+      "description": "domain application code may use its own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "application",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "domain.postgres-public",
+      "description": "domain postgres adapters may use their own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "postgres",
+      "target_role": "public",
       "same_owner": true
     },
     {
@@ -8509,17 +8489,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-users.to.people-directory",
-      "description": "inbound-users calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-work-time-models.to.workforce",
       "description": "inbound-work-time-models calls exactly one public capability.",
       "scopes": [
@@ -8918,17 +8887,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "organization-tenancy.application-public",
-      "description": "The remaining Organization and Tenancy application services consume the owner facade during the school cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "organization-tenancy",
-      "source_role": "application",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "school-structure.port-domain",
       "description": "School Structure ports express persistence operations using their own domain values.",
       "scopes": [
@@ -9287,17 +9245,6 @@
       "target_role": "public"
     },
     {
-      "id": "facilities.compatibility-application.public",
-      "description": "Facilities compatibility workflows delegate room lifecycle operations to the public owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "facilities",
-      "source_role": "application",
-      "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
       "id": "facilities.internal-test.tenant-runtime",
       "description": "Facilities composition tests verify transaction and RLS behavior through the shared tenant runtime.",
       "scopes": [
@@ -9599,28 +9546,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "inbound-users.http.security-contract",
-      "description": "The People Directory HTTP adapter binds its established permission contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.people-directory-http",
-      "description": "The production root constructs the People Directory HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-users",
-      "target_role": "http"
     },
     {
       "id": "delivery.application.same-owner-adapter",
@@ -10357,17 +10282,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "care-plan.postgres.public",
-      "description": "Care Plan Postgres adapters use the owner facade vocabulary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "postgres",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "parent-request-feed-view.integration-test.support",
       "description": "The request-feed projection integration test uses hermetic database support.",
       "scopes": [
@@ -10397,17 +10311,6 @@
       ],
       "source_owner": "care-plan",
       "source_role": "legacy-model",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.application.public",
-      "description": "Care Plan application code consumes the owner facade vocabulary.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "application",
       "target_owner": "care-plan",
       "target_role": "public"
     },
@@ -11103,17 +11006,6 @@
       "source_owner": "device-fleet",
       "source_role": "workflow-integration-test",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "device-fleet.compatibility-application.public",
-      "description": "The retained IoT service delegates every device operation to the public owner capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "application",
-      "target_owner": "device-fleet",
       "target_role": "public"
     },
     {
@@ -12547,69 +12439,58 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-filestore.to.file-storage",
+      "id": "file-storage.http.to.file-storage",
       "description": "inbound-filestore calls exactly one public capability (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "file-storage",
       "target_role": "public"
     },
     {
-      "id": "inbound-filestore.http-common",
+      "id": "file-storage.http.http-common",
       "description": "File handlers reuse common HTTP rendering, the tenant and parent route groups, the permission gates and the multipart document validation (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
-      "id": "inbound-filestore.security-contract",
+      "id": "file-storage.http.security-contract",
       "description": "File handlers name the files:manage and admin permissions (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
     },
     {
-      "id": "inbound-filestore.identity-adapter",
+      "id": "file-storage.http.identity-adapter",
       "description": "File handlers read the acting account and its permissions from the JWT claims (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "http"
     },
     {
-      "id": "inbound-filestore.adapter-test.inbound-common",
+      "id": "file-storage.http.adapter-test.inbound-common",
       "description": "File route tests decode the string ids and resolve the uploads directory through the common HTTP helpers (#2707).",
       "scopes": [
         "external_test"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "adapter-test",
       "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.inbound-filestore-http",
-      "description": "The production root constructs the file storage HTTP adapter (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-filestore",
       "target_role": "http"
     },
     {
@@ -13719,17 +13600,6 @@
       "target_role": "public"
     },
     {
-      "id": "workforce.application.public",
-      "description": "The Workforce planning package serves the public planning, assignment, overview and shift-type contracts over the owner's row capability (#3418).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "application",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "workforce.application.tenant-runtime",
       "description": "The Workforce planning commands read the tenant id and register after-commit work (#3418).",
       "scopes": [
@@ -14546,6 +14416,16 @@
       "target_role": "contract"
     },
     {
+      "id": "root-composition.reach.platform.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "port"
+    },
+    {
       "id": "root-composition.reach.platform.http",
       "description": "ADR 0053 point 2: the typed roots import the http role of every platform owner.",
       "scopes": [
@@ -14877,6 +14757,17 @@
       "same_owner": true
     },
     {
+      "id": "owner-compose.platform.port",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
       "id": "owner-compose.platform.domain",
       "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role.",
       "scopes": [
@@ -15137,6 +15028,17 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.port",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
       "target_role": "port",
       "same_owner": true
     },

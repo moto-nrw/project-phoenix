@@ -223,10 +223,10 @@ type Logger interface {
 	Error(msg string, args ...any)
 }
 
-// CleanupRetentionStore deletes the finished cleanup intents of one school
-// whose bytes were removed before the instant (#4046). Every statement runs
-// on the school's tenant transaction.
+// CleanupRetentionStore deletes a school's finished cleanup intents after the
+// retention window (#4046). Every statement uses the school's tenant transaction
+// and the database clock.
 type CleanupRetentionStore interface {
-	DeleteFinishedFileCleanups(ctx context.Context, before time.Time) (int, error)
-	DeleteFinishedAttachmentCleanups(ctx context.Context, before time.Time) (int, error)
+	DeleteFinishedFileCleanups(ctx context.Context, window time.Duration) (int, error)
+	DeleteFinishedAttachmentCleanups(ctx context.Context, window time.Duration) (int, error)
 }

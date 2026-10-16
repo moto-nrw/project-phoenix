@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 89895
+const moduleComposeBudgetTotal = 89887
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -169,14 +169,14 @@ var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                    528,
 	"modules/auditlog/compose":                        275,
 	"modules/auditlog/compose/vocabulary":             132,
-	"modules/careplan/compose":                        4510,
+	"modules/careplan/compose":                        4509,
 	"modules/careplan/requestfeed/compose":            101,
 	"modules/classday/compose":                        535,
 	"modules/communication/composition":               1523,
 	"modules/dataimport/compose":                      299,
 	"modules/dataimport/compose/retained":             34,
 	"modules/dataimport/inbound/compose":              131,
-	"modules/delivery/compose":                        818,
+	"modules/delivery/compose":                        816,
 	"modules/delivery/compose/email":                  36,
 	"modules/delivery/compose/realtime":               30,
 	"modules/devicefleet/compose":                     712,
@@ -194,13 +194,13 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                       16,
 	"modules/identityaccess/compose":                  7339,
 	"modules/mealplan/compose":                        274,
-	"modules/organizationtenancy/compose":             746,
+	"modules/organizationtenancy/compose":             744,
 	"modules/organizationtenancy/compose/vocabulary":  48,
 	"modules/peopledirectory/compose":                 8962,
 	"modules/peopledirectory/compose/vocabulary":      133,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,
-	"modules/schedulerruntime/compose":                85,
+	"modules/schedulerruntime/compose":                83,
 	"modules/schoolcalendar/compose":                  572,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                869,
@@ -221,7 +221,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose/repositoryadapter":     274,
 	"workflows/gradetransition/compose":               180,
 	"workflows/openroommove/compose":                  81,
-	"workflows/parentportal/compose":                  509,
+	"workflows/parentportal/compose":                  508,
 	"workflows/reminderdelivery/compose":              71,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 225,

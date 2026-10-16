@@ -8,8 +8,8 @@ import (
 	"time"
 
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,16 +26,16 @@ const (
 // newWorkerLease binds the Worker's leadership to platform.worker_leases.
 // Every process gets a holder ID of its own, so a restarted process never
 // resumes the term of its predecessor.
-func newWorkerLease(runtime tenant.UnitOfWork) (scheduler.WorkerLease, error) {
+func newWorkerLease(runtime tenant.UnitOfWork) (schedulerPorts.WorkerLease, error) {
 	store, err := schedulerRuntimeCompose.NewWorkerLeaseStore(runtime)
 	if err != nil {
-		return scheduler.WorkerLease{}, err
+		return schedulerPorts.WorkerLease{}, err
 	}
 	holder, err := workerHolderID()
 	if err != nil {
-		return scheduler.WorkerLease{}, err
+		return schedulerPorts.WorkerLease{}, err
 	}
-	return scheduler.WorkerLease{
+	return schedulerPorts.WorkerLease{
 		Store:       store,
 		Name:        workerLeaseName,
 		Holder:      holder,
@@ -43,7 +43,7 @@ func newWorkerLease(runtime tenant.UnitOfWork) (scheduler.WorkerLease, error) {
 		RenewEvery:  workerLeaseRenewEvery,
 		RetryEvery:  workerLeaseRetryEvery,
 		FenceMargin: workerLeaseFenceMargin,
-		Evidence: scheduler.LeaseEvidence{
+		Evidence: schedulerPorts.LeaseEvidence{
 			Term:       observability.SetWorkerLeaseTerm,
 			Operation:  observability.RecordWorkerLeaseOperation,
 			Leadership: observability.RecordWorkerLeadershipChange,

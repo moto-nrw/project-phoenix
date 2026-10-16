@@ -132,7 +132,7 @@ func composeCaregivers(b graphBuild) (graphBuild, error) {
 		ActiveGroups: b.Presence.SessionRecords, ActiveSupervisors: b.groupSupervisions,
 		ActiveSupervisorCreator: b.graph.Active,
 		Audit:                   people.SubstitutionAudit(b.audits.SubstitutionChange),
-		Runtime:                 education.NewLegacyRepositoryRuntime(b.DB.Pool()), Broadcaster: b.graph.RealtimeHub,
+		Runtime:                 education.NewLegacyRepositoryRuntime(b.DB.Pool()), Broadcaster: NewGroupEvents(b.graph.RealtimeHub, b.Logger.With("service", "substitution")),
 		Logger: b.Logger.With("service", "substitution"), Schedule: schedule,
 		CanSeeAll: b.canSeeAllSubstitutions, Now: b.now,
 	})
@@ -432,7 +432,7 @@ func composeNotifications(b graphBuild) (graphBuild, error) {
 		deliveryOnDutyStaff{presence: workforceCompose.WorkPresence(b.WorkTime)})
 	b.staffParentMessages = deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
 		b.Platform.ParentPortal.ParentMessageThread, b.DB.Pool(), b.Logger.With("producer", "staff_parent_message_notifications"))
-	b.graph.ParentEventEmitter.WithDecisionNotifications(notifier, preferences)
+	b.graph.ParentEventEmitter.WithDecisionNotifications(deliveryCompose.NewRequestDecisionNotifier(notifier, preferences))
 	b.graph.AbsenceNotifier = deliveryCompose.NewAbsenceNotifier(notifier, recipients, b.DB.Pool(), b.Logger.With("producer", "absence_notifications"))
 	// The workflow is owned by Care Plan (#3093); this root adapts the
 	// retained directories, the review policy and the effect sinks.
@@ -530,7 +530,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	return parentportalcompose.Dependencies{
 		CareProfiles: profiles, ChildRepo: portal.ParentChild, EnrollablePhaseRepo: portal.ParentEnrollablePhase,
 		EnrollmentSettings: b.settingsService, EnrollmentRequestRepo: portal.ParentEnrollmentRequest,
-		GuardianProfileRepo: people.GuardianProfiles, Attendance: b.Presence.Presence, StatusDayRepo: b.CarePlanWiring.StatusDays,
+		GuardianProfileRepo: people.GuardianProfiles, Attendance: BindParentAttendance(b.Presence.Presence), StatusDayRepo: b.CarePlanWiring.StatusDays,
 		MealPlan: b.MealPlan, StudentRepo: people.Students, CarePlan: b.CarePlan, People: b.Persons,
 		PickupAutoExcusal: b.pickupAutoExcusal, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub,
 		PersonRepo: people.Persons, ChangeRequestRepo: NewStudentDataChangeRequestRepository(b.CarePlan),
@@ -544,13 +544,13 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 			ThreadRepo: portal.ParentMessageThread, MessageRepo: messages, ReadRepo: portal.ParentMessageRead,
 			Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent"),
 		}),
-		ParentMessageNotifier: b.staffParentMessages, ArrivalSchedules: b.graph.ArrivalSchedule,
+		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: b.graph.ArrivalSchedule,
 		PickupSchedules: b.graph.PickupSchedule, CareRequests: b.graph.CareRequests, ExcusedRequests: b.excusedRequests,
 		Emitter: b.graph.ParentEventEmitter, AnnouncementRepo: portal.ParentAnnouncement,
 		GuardianInvites: b.identity.ParentGuardianAccess, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentGuardianRepo: people.StudentGuardians, GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()),
 		StudentConsents: b.graph.StudentConsents, StudentPhotos: studentPhotoUnlinker(b.graph.StudentPhotos),
-		AbsenceNotifier: b.graph.AbsenceNotifier, CarePeriods: b.Enrollment.ParentCarePeriods,
+		AbsenceNotifier: bindParentAbsenceNotifier(b.graph.AbsenceNotifier), CarePeriods: b.Enrollment.ParentCarePeriods,
 		OfferingHistory: b.Enrollment.ParentOfferingHistory, CareOfferingRepo: b.enrollmentCareOfferings,
 		OfferingChanges: b.offeringChanges, Logger: b.Logger.With("service", "parent"), Now: b.now,
 	}

@@ -544,7 +544,7 @@ func testNotifications(modes enrollmentTest.NotificationModePin, settings interf
 }, schools interface {
 	FindSchool(ctx context.Context, id int64) (*enrollmentTest.School, error)
 }) enrollmentTest.Notifications {
-	deps := enrollmentTest.NotificationDependencies{
+	deps := enrollmentTest.NotificationDependencies{Branding: api.EnrollmentMailBranding,
 		Modes: modes, Settings: notificationModeSettings{settings: settings}, Outbox: &recordingMailOutbox{},
 	}
 	if schools != nil {

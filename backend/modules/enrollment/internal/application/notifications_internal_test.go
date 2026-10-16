@@ -62,6 +62,11 @@ func newNotificationsForTest(deps NotificationDependencies) *Notifications {
 	if deps.Fingerprint == nil {
 		deps.Fingerprint = testFingerprint
 	}
+	if deps.Branding == nil {
+		deps.Branding = func(baseURL, image string) (string, string) {
+			return image, baseURL + "/images/moto-logo-mit-schriftzug.png"
+		}
+	}
 	return NewNotifications(deps)
 }
 
@@ -218,9 +223,10 @@ func TestSchoolBrand(t *testing.T) {
 	t.Parallel()
 	school := &enrollment.School{Name: "OGS Sonnenschule", Settings: `{"loginImageUrl":"https://cdn.example.test/logo.png"}`}
 
-	name, logo := newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}}).SchoolBrand(context.Background(), 3, "https://parents.example.test")
+	name, logo, footer := newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}}).SchoolBrand(context.Background(), 3, "https://parents.example.test")
 	assert.Equal(t, "OGS Sonnenschule", name)
 	assert.Equal(t, "https://cdn.example.test/logo.png", logo)
+	assert.Equal(t, "https://parents.example.test/images/moto-logo-mit-schriftzug.png", footer)
 
 	for label, deps := range map[string]NotificationDependencies{
 		"no directory":   {},
@@ -228,11 +234,12 @@ func TestSchoolBrand(t *testing.T) {
 		"missing school": {Schools: schoolDirectoryStub{}},
 		"deleted school": {Schools: schoolDirectoryStub{school: &enrollment.School{Name: "Alt", Deleted: true}}},
 	} {
-		name, logo := newNotificationsForTest(deps).SchoolBrand(context.Background(), 3, "https://parents.example.test")
+		name, logo, footer := newNotificationsForTest(deps).SchoolBrand(context.Background(), 3, "https://parents.example.test")
 		assert.Empty(t, name, label)
 		assert.Empty(t, logo, label)
+		assert.Equal(t, "https://parents.example.test/images/moto-logo-mit-schriftzug.png", footer, label)
 	}
-	name, _ = newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}}).SchoolBrand(context.Background(), 0, "")
+	name, _, _ = newNotificationsForTest(NotificationDependencies{Schools: schoolDirectoryStub{school: school}}).SchoolBrand(context.Background(), 0, "")
 	assert.Empty(t, name, "a zero tenant has no school")
 }
 

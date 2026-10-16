@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -100,8 +99,8 @@ type Dependencies struct {
 	// Platform: the meal plan, live events and notifiers.
 	MealPlan              MealPlanProvider
 	Broadcaster           realtime.Broadcaster
-	AbsenceNotifier       notificationsSvc.AbsenceNotifier
-	ParentMessageNotifier notificationsSvc.StaffParentMessageNotifier
+	AbsenceNotifier       care.AbsenceNotifier
+	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               *parentmessaging.Emitter
 }
 

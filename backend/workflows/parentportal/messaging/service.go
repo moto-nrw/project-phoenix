@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -69,7 +68,7 @@ type Config struct {
 	MessageRepo           usersModels.ParentMessageRepository
 	MessageReadRepo       usersModels.ParentMessageReadRepository
 	Conversations         ConversationCore
-	ParentMessageNotifier notificationsSvc.StaffParentMessageNotifier
+	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               *parentmessaging.Emitter
 
 	ChangeRequestRepo         care.DataRequestReads

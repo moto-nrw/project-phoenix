@@ -27,8 +27,8 @@ const (
 	// are relative to the reference clock.
 	marketingReferenceClock = "10:15"
 
-	marketingAdminFirstName = "Katrin"
-	marketingAdminLastName  = "Brandt"
+	marketingAdminFirstName = "Sara"
+	marketingAdminLastName  = "Jansen"
 	marketingStaffPassword  = "Sonnenhang1234%"
 )
 
@@ -93,13 +93,13 @@ func marketingProfileDefinition() demoProfileDefinition {
 
 func marketingGroups() []marketingGroup {
 	return []marketingGroup{
-		{key: "fuchsbau", name: "Fuchsbau", leader: "Miriam Sommer"},
-		{key: "eulennest", name: "Eulennest", leader: "Jonas Albrecht"},
+		{key: "fuchsbau", name: "Fuchsbau", leader: "Hilal Özdemir"},
+		{key: "eulennest", name: "Eulennest", leader: "Thore Gritzmann"},
 	}
 }
 
 func marketingStaff() []marketingStaffMember {
-	return []marketingStaffMember{{firstName: "Miriam", lastName: "Sommer"}, {firstName: "Jonas", lastName: "Albrecht"}}
+	return []marketingStaffMember{{firstName: "Hilal", lastName: "Özdemir"}, {firstName: "Thore", lastName: "Gritzmann"}}
 }
 
 // marketingFamilies lists one contact per family. The first family has two

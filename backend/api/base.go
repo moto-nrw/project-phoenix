@@ -87,6 +87,7 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
@@ -111,7 +112,6 @@ import (
 	workforceHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
@@ -158,7 +158,7 @@ type moduleServices struct {
 	// the Worker's booking audit read through.
 	carePlan *carePlanModule.Module
 	// studentStatusDays archives the Worker's status flags over Care Plan.
-	studentStatusDays scheduler.StudentStatusFlagArchiver
+	studentStatusDays schedulerPorts.StudentStatusFlagArchiver
 	// companions is Care Plan's companion graph of the student routes;
 	// reviewPolicy is the parent request review reach (#4011).
 	companions   carePlanModule.StudentCompanions
@@ -814,8 +814,8 @@ type serveGraph struct {
 
 // documentSweeps are the Worker's file sweeps that route resources serve.
 type documentSweeps struct {
-	staff   scheduler.StaffDocumentFileCleaner
-	student scheduler.StudentDocumentFileCleaner
+	staff   schedulerPorts.StaffDocumentFileCleaner
+	student schedulerPorts.StudentDocumentFileCleaner
 }
 
 // routeInputs is what the route composition reads. It hands back none of the
@@ -1451,7 +1451,7 @@ func newDeviceAuthentication(modules moduleServices) *deviceauth.Authenticators 
 
 // mountStudentRoutes serves /api/students and hands its resource back as the
 // Worker's student document sweep.
-func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module) (scheduler.StudentDocumentFileCleaner, error) {
+func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module) (schedulerPorts.StudentDocumentFileCleaner, error) {
 	svc, modules := in.modules.services, in.modules
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
@@ -1511,7 +1511,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		Broadcaster:                  svc.RealtimeHub,
 		ParentEventEmitter:           svc.ParentEventEmitter,
-		AbsenceNotifier:              svc.AbsenceNotifier,
+		AbsenceNotifier:              studentAbsenceNotifier{notifier: svc.AbsenceNotifier},
 		StudentPhotos:                svc.PeopleDirectory,
 		StudentConsents:              svc.StudentConsents,
 		PrivacyConsents:              presence,
@@ -1620,7 +1620,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 // mountStaffRoutes serves the staff administration, shift planning,
 // substitutions and time tracking, and hands the staff administration back
 // as the Worker's staff document sweep.
-func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumentFileCleaner, error) {
+func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDocumentFileCleaner, error) {
 	svc, workforce := in.modules.services, in.modules.workforce
 	staff, staffAdmin, err := newStaffComposition(in.modules.membership, workforce, svc, in.modules.identity, in.db, in.logger.With("handler", "staff"))
 	if err != nil {

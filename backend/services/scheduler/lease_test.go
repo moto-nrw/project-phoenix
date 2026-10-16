@@ -11,6 +11,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,36 +43,36 @@ func (m *memoryLeaseStore) failing(holder string) bool {
 	return m.down || m.unreachable[holder]
 }
 
-func (m *memoryLeaseStore) Acquire(ctx context.Context, name, holder string, ttl time.Duration) (LeaseTerm, bool, error) {
+func (m *memoryLeaseStore) Acquire(ctx context.Context, name, holder string, ttl time.Duration) (ports.LeaseTerm, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failing(holder) {
-		return LeaseTerm{}, false, errLeaseDatabaseDown
+		return ports.LeaseTerm{}, false, errLeaseDatabaseDown
 	}
 	now := time.Now()
 	if m.holder != "" && m.holder != holder && m.until.After(now) {
-		return LeaseTerm{}, false, nil
+		return ports.LeaseTerm{}, false, nil
 	}
 	m.holder, m.token, m.until = holder, m.token+1, now.Add(ttl)
-	return LeaseTerm{Name: name, Holder: holder, Token: m.token, Until: m.until.Add(m.skew)}, true, ctx.Err()
+	return ports.LeaseTerm{Name: name, Holder: holder, Token: m.token, Until: m.until.Add(m.skew)}, true, ctx.Err()
 }
 
-func (m *memoryLeaseStore) Renew(_ context.Context, term LeaseTerm, ttl time.Duration) (LeaseTerm, bool, error) {
+func (m *memoryLeaseStore) Renew(_ context.Context, term ports.LeaseTerm, ttl time.Duration) (ports.LeaseTerm, bool, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failing(term.Holder) {
-		return LeaseTerm{}, false, errLeaseDatabaseDown
+		return ports.LeaseTerm{}, false, errLeaseDatabaseDown
 	}
 	now := time.Now()
 	if m.holder != term.Holder || m.token != term.Token || !m.until.After(now) {
-		return LeaseTerm{}, false, nil
+		return ports.LeaseTerm{}, false, nil
 	}
 	m.until = now.Add(ttl)
 	term.Until = m.until.Add(m.skew)
 	return term, true, nil
 }
 
-func (m *memoryLeaseStore) Release(_ context.Context, term LeaseTerm) error {
+func (m *memoryLeaseStore) Release(_ context.Context, term ports.LeaseTerm) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failing(term.Holder) {
@@ -85,14 +87,14 @@ func (m *memoryLeaseStore) Release(_ context.Context, term LeaseTerm) error {
 	return nil
 }
 
-func (m *memoryLeaseStore) Assert(_ context.Context, term LeaseTerm, margin time.Duration) error {
+func (m *memoryLeaseStore) Assert(_ context.Context, term ports.LeaseTerm, margin time.Duration) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.failing(term.Holder) {
 		return errLeaseDatabaseDown
 	}
 	if m.holder != term.Holder || m.token != term.Token || !m.until.After(time.Now().Add(margin)) {
-		return fmt.Errorf("%w: token %d", ErrLeaseNotHeld, term.Token)
+		return fmt.Errorf("%w: token %d", ports.ErrLeaseNotHeld, term.Token)
 	}
 	return nil
 }
@@ -126,7 +128,7 @@ type delayedRenewStore struct {
 	release chan struct{}
 }
 
-func (m *delayedRenewStore) Renew(_ context.Context, term LeaseTerm, ttl time.Duration) (LeaseTerm, bool, error) {
+func (m *delayedRenewStore) Renew(_ context.Context, term ports.LeaseTerm, ttl time.Duration) (ports.LeaseTerm, bool, error) {
 	select {
 	case m.started <- struct{}{}:
 	default:
@@ -145,10 +147,10 @@ type leaseRecorder struct {
 	operations map[string]int
 }
 
-func (r *leaseRecorder) evidence() LeaseEvidence {
+func (r *leaseRecorder) evidence() ports.LeaseEvidence {
 	r.suppressed = make(map[string]int)
 	r.operations = make(map[string]int)
-	return LeaseEvidence{
+	return ports.LeaseEvidence{
 		Operation: func(operation, outcome string, _ time.Duration) {
 			r.mu.Lock()
 			r.operations[operation+"/"+outcome]++
@@ -201,18 +203,18 @@ const (
 	testLeaseMargin = 80 * time.Millisecond
 )
 
-func leaseWorker(t *testing.T, store LeaseStore, holder string, recorder *leaseRecorder) *Scheduler {
+func leaseWorker(t *testing.T, store ports.LeaseStore, holder string, recorder *leaseRecorder) *Scheduler {
 	t.Helper()
 	deps := minimalWorkerDependencies(t)
 	deps.Logger = slog.New(slog.DiscardHandler)
-	deps.Lease = WorkerLease{
+	deps.Lease = ports.WorkerLease{
 		Store: store, Name: "worker", Holder: holder,
 		TTL: testLeaseTTL, RenewEvery: testLeaseRenew, RetryEvery: testLeaseRetry, FenceMargin: testLeaseMargin,
 	}
 	if recorder != nil {
 		deps.Lease.Evidence = recorder.evidence()
 	}
-	require.NoError(t, deps.Lease.validate())
+	require.NoError(t, validateWorkerLease(deps.Lease))
 	worker := newScheduler(deps)
 	registry, err := NewRegistry(nil)
 	require.NoError(t, err)
@@ -242,27 +244,27 @@ func probeRun(worker *Scheduler, check func(context.Context)) bool {
 
 func TestWorkerLeaseConfigurationIsRequiredAndConsistent(t *testing.T) {
 	t.Parallel()
-	valid := WorkerLease{
+	valid := ports.WorkerLease{
 		Store: newMemoryLeaseStore(), Name: "worker", Holder: "a",
 		TTL: 30 * time.Second, RenewEvery: 10 * time.Second, RetryEvery: 5 * time.Second, FenceMargin: 5 * time.Second,
 	}
-	require.NoError(t, valid.validate())
+	require.NoError(t, validateWorkerLease(valid))
 
-	tests := map[string]func(*WorkerLease){
-		"store":           func(l *WorkerLease) { l.Store = nil },
-		"holder":          func(l *WorkerLease) { l.Holder = "" },
-		"positive":        func(l *WorkerLease) { l.RetryEvery = 0 },
-		"cannot keep":     func(l *WorkerLease) { l.RenewEvery = 25 * time.Second },
-		"negative margin": func(l *WorkerLease) { l.FenceMargin = -time.Second },
+	tests := map[string]func(*ports.WorkerLease){
+		"store":           func(l *ports.WorkerLease) { l.Store = nil },
+		"holder":          func(l *ports.WorkerLease) { l.Holder = "" },
+		"positive":        func(l *ports.WorkerLease) { l.RetryEvery = 0 },
+		"cannot keep":     func(l *ports.WorkerLease) { l.RenewEvery = 25 * time.Second },
+		"negative margin": func(l *ports.WorkerLease) { l.FenceMargin = -time.Second },
 	}
 	for name, mutate := range tests {
 		lease := valid
 		mutate(&lease)
-		require.Error(t, lease.validate(), name)
+		require.Error(t, validateWorkerLease(lease), name)
 	}
 
 	deps := minimalWorkerDependencies(t)
-	deps.Lease = WorkerLease{}
+	deps.Lease = ports.WorkerLease{}
 	require.ErrorContains(t, validateWorkerDependencies(deps), "lease store is required", "no Worker runs without the lease")
 }
 
@@ -326,7 +328,7 @@ func TestLeaseLossMidJobCancelsTheRunAndFencesItsCommit(t *testing.T) {
 	})
 
 	require.True(t, ran)
-	require.ErrorIs(t, commitErr, ErrLeaseNotHeld, "a stale token is rejected at finalize")
+	require.ErrorIs(t, commitErr, ports.ErrLeaseNotHeld, "a stale token is rejected at finalize")
 	require.ErrorIs(t, cancelled, context.Canceled, "the fenced term cancels its running job")
 	assert.Equal(t, 1, recorder.count("fenced"))
 	assert.True(t, recorder.changed("fenced"))

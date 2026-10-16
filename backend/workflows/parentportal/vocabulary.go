@@ -12,6 +12,12 @@ import (
 
 type (
 	AttendanceReader                = care.AttendanceReader
+	Attendance                      = care.Attendance
+	AttendanceFilter                = care.AttendanceFilter
+	AbsenceReport                   = care.AbsenceReport
+	AbsenceNotifier                 = care.AbsenceNotifier
+	StaffParentMessageReport        = care.StaffParentMessageReport
+	StaffParentMessageNotifier      = care.StaffParentMessageNotifier
 	CareException                   = care.CareException
 	CareExceptions                  = care.CareExceptions
 	CareOfferingSelection           = care.CareOfferingSelection

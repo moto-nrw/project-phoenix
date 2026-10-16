@@ -80,10 +80,17 @@ import (
 // modules/ or workflows/, legacy/ excluded as above. A composition is where
 // forwarding moved when the application layer shrank — identityaccess.Module
 // alone forwards hundreds of methods — so a register that stopped at the
-// application layer measured where code left, not where it went. The
-// composition register is separate (modulePassthroughComposeBudgets), keyed by
-// the composition directory ("modules/timetable/compose",
-// "modules/communication/composition"); its subpackages count with it.
+// application layer measured where code left, not where it went.
+//
+// Since ADR 0061 (#4084) one register counts both trees per module:
+// modulePassthroughOwnerBudgets replaces the application register
+// modulePassthroughBudgets and the composition register
+// modulePassthroughComposeBudgets, and modulePassthroughOwnerBudgetTotal
+// replaces their totals modulePassthroughBudgetTotal and
+// modulePassthroughComposeBudgetTotal. #4084 moves code from the compositions
+// into the application layers; moving a method within one module must not
+// count as growth, so both trees share one entry. A method moved to another
+// module still raises that module's entry.
 //
 // Form: a budget per module, like test/query_budgets.go, not an allowlist per
 // method. The key is the module directory relative to the backend root
@@ -107,10 +114,9 @@ import (
 // A red run prints the measured count for every module, so the register can
 // always be rebuilt from the failure output. Numbers only ever go down.
 //
-// Both registers have a total (modulePassthroughBudgetTotal,
-// modulePassthroughComposeBudgetTotal) that must equal the sum of their
-// entries. Raising an entry therefore means raising the total as well, and a
-// raise of either against the pull request's base fails
+// The register has a total (modulePassthroughOwnerBudgetTotal) that must
+// equal the sum of its entries. Raising an entry therefore means raising the
+// total as well, and a raise of either against the pull request's base fails
 // `scripts/backend-architecture.sh check` (ratchet budgets, #4071); a raise
 // needs an ADR added in the same change (ADR 0057 point 5). The application
 // register's total was 718 when the total was introduced; it had grown from
@@ -167,17 +173,29 @@ const modulePassthroughMaxBodyLines = 14
 // depth.
 const modulePassthroughApplicationSegment = "/internal/application/"
 
-// modulePassthroughBudgetTotal is the sum of modulePassthroughBudgets.
-// Shrink-only, like every entry.
-const modulePassthroughBudgetTotal = 718
+// modulePassthroughOwnerBudgetTotal is the sum of
+// modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
+// modulePassthroughBudgetTotal and the 2392 of
+// modulePassthroughComposeBudgetTotal. Shrink-only, like every entry.
+const modulePassthroughOwnerBudgetTotal = 3109
 
-// modulePassthroughBudgets is the register: module directory → pass-throughs
-// measured there. Sorted alphabetically so later diffs stay readable.
-// Shrink-only — see the header.
-var modulePassthroughBudgets = map[string]int{
+// modulePassthroughOwnerBudgets is the register: module directory →
+// pass-throughs measured in its application layer and its compositions
+// together (ADR 0061). Each entry started as the sum of the module's entries
+// in modulePassthroughBudgets and modulePassthroughComposeBudgets; the
+// composition counts were first measured on 2026-10-15 on top of development
+// c49b81c3a9 (2394 in 34 compositions). #4084 carries the compositions that
+// still hold more than construction. Sorted alphabetically so later diffs stay
+// readable. Shrink-only — an entry may fall or go, never rise, and no module
+// gets a new entry.
+var modulePassthroughOwnerBudgets = map[string]int{
 	// Appointment, recipient, recurrence-rule and occurrence-override CRUD,
 	// all of it one s.store call inside s.run; service.go alone.
-	"modules/appointments": 29,
+	//
+	// ADR 0061: application 29 + modules/appointments/compose 36.
+	"modules/appointments": 65,
+	// ADR 0061: application 0 + modules/auditlog/compose 1.
+	"modules/auditlog": 1,
 	// The widest register: student_schedules.go (45) and records.go (29)
 	// forward one store call per schedule and record operation, plus
 	// withdrawals (12), the care-exit/companion service surface (15) and the
@@ -198,24 +216,38 @@ var modulePassthroughBudgets = map[string]int{
 	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
-	"modules/careplan": 111,
+	//
+	// ADR 0061: application 111 + modules/careplan/compose 188 + modules/careplan/requestfeed/compose 4.
+	"modules/careplan": 303,
 	// The caller and arrival-exception ports reached straight through, most
 	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
 	// day report is built in the projection instead of forwarded to the
 	// retained enrollment report.
-	"modules/classday": 6,
+	//
+	// ADR 0061: application 6 + modules/classday/compose 15.
+	"modules/classday": 21,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
-	"modules/communication": 6,
+	//
+	// ADR 0061: application 6 + modules/communication/composition 66.
+	"modules/communication": 72,
+	// ADR 0061: application 0 + modules/dataimport/compose 1.
+	"modules/dataimport": 1,
 	// Email outbox and backlog reads/writes forwarded to the store, and the
 	// worker's Backlog.
-	"modules/delivery": 7,
+	//
+	// ADR 0061: application 7 + modules/delivery/compose 14.
+	"modules/delivery": 21,
 	// device.go carries 12 (registration, last-seen, status, listings); the
 	// display, online-window, service and unregistered-tag-scan files one each.
-	"modules/devicefleet": 16,
+	//
+	// ADR 0061: application 16 + modules/devicefleet/compose 42.
+	"modules/devicefleet": 58,
 	// Session lifecycle (6) plus the school-name lookup and the service
 	// facade's device read.
-	"modules/devicescan": 8,
+	//
+	// ADR 0061: application 8 + modules/devicescan/compose 48.
+	"modules/devicescan": 56,
 	// First measured with #3562, when phases, form schemas, captcha and the
 	// parent mails moved out of services/enrollment. form_schemas.go carries
 	// 11: the transactional wrapper runs each schema write in one tenant
@@ -223,41 +255,73 @@ var modulePassthroughBudgets = map[string]int{
 	// the listings and the lookup that maps a miss to ErrPhaseNotFound),
 	// captcha (2: the tenant settings reads), the school brand and the
 	// approved-offering read by care offering follow.
-	"modules/enrollment": 17,
+	//
+	// ADR 0061: application 16 + modules/enrollment/compose 19.
+	"modules/enrollment": 35,
 	// The target-state read, which only maps the port error to ErrUnavailable.
-	"modules/exporttransfer": 1,
+	//
+	// ADR 0061: application 1 + modules/exporttransfer/compose 3.
+	"modules/exporttransfer": 4,
 	// Room and toilet reads/writes in service.go.
-	"modules/facilities": 4,
+	//
+	// ADR 0061: application 4 + modules/facilities/compose 15.
+	"modules/facilities": 19,
 	// Feedback submission and listing, one store call each.
-	"modules/feedback": 6,
+	//
+	// ADR 0061: application 6 + modules/feedback/compose 8.
+	"modules/feedback": 14,
 	// CountAttachments, the only attachment method short enough to qualify.
-	"modules/filestorage": 1,
+	//
+	// ADR 0061: application 1 + modules/filestorage/compose 26.
+	"modules/filestorage": 27,
 	// Spread over 32 files, led by operator_tokens.go (18), account_session.go
 	// (12), operator.go (10) and operator_mfa.go (9): session/operator
 	// lookups and their ForUpdate twins, MFA and passkey credential and
 	// challenge stores, permission and role administration reads.
-	"modules/identityaccess": 117,
+	//
+	// ADR 0061: application 117 + modules/identityaccess/compose 484.
+	"modules/identityaccess": 601,
 	// Menu, participation and week reads forwarded to the store.
-	"modules/mealplan": 8,
+	//
+	// ADR 0061: application 8 + modules/mealplan/compose 7.
+	"modules/mealplan": 15,
 	// The provisioning listings (organisations, accounts, devices, dashboard)
 	// and the school read/soft-delete/restore surface.
-	"modules/organizationtenancy": 21,
+	//
+	// ADR 0061: application 21 + modules/organizationtenancy/compose 39.
+	"modules/organizationtenancy": 60,
 	// student.go (15), service.go (13) and student_records.go (12) lead;
 	// guardian links, enrollment, directory, deletion and photo reads follow,
 	// each one observeRun around a single s.store call.
-	"modules/peopledirectory": 52,
+	//
+	// ADR 0061: application 52 + modules/peopledirectory/compose 256.
+	"modules/peopledirectory": 308,
+	// ADR 0061: application 0 + modules/requestreview/compose 17.
+	"modules/requestreview": 17,
+	// ADR 0061: application 0 + modules/schedulerruntime/compose 4.
+	"modules/schedulerruntime": 4,
 	// Calendar-period, closing-day and dateframe CRUD in service.go. The
 	// holiday and iCal methods are NOT in this number — they call a domain
 	// function, see known limitation 1.
-	"modules/schoolcalendar": 15,
+	//
+	// ADR 0061: application 15 + modules/schoolcalendar/compose 27 + modules/schoolcalendar/portal/compose 2.
+	"modules/schoolcalendar": 44,
 	// Membership service reads (17), teaching assignments (11) and the
 	// class-list-entry surface (5).
-	"modules/schoolmembership": 28,
+	//
+	// ADR 0061: application 28 + modules/schoolmembership/compose 56.
+	"modules/schoolmembership": 84,
 	// Hiding the wizard is personal state with no rule of its own, so the
 	// service hands it to the store (#2832).
-	"modules/schoolsetup": 1,
+	//
+	// ADR 0061: application 1 + modules/schoolsetup/compose 3.
+	"modules/schoolsetup": 4,
 	// School-year transition (9) plus the transition history and service reads.
-	"modules/schoolstructure": 13,
+	//
+	// ADR 0061: application 13 + modules/schoolstructure/compose 72.
+	"modules/schoolstructure": 85,
+	// ADR 0061: application 0 + modules/settings/compose 20.
+	"modules/settings": 20,
 	// Attendance, visit, supervision, group-mapping and room reads/writes
 	// across 18 files, each one store call inside the operation wrapper (64).
 	// internal/application/presence (#3422) adds 12 that map a single read or
@@ -280,12 +344,16 @@ var modulePassthroughBudgets = map[string]int{
 	// tenant transaction. The same cutover removed the four reads and the
 	// reinstate command no consumer called. Shrink-only from here like every
 	// other entry.
-	"modules/studentpresence": 89,
+	//
+	// ADR 0061: application 89 + modules/studentpresence/compose 151.
+	"modules/studentpresence": 240,
 	// The largest block, and the one the previous version could not see at
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single
 	// s.store call.
-	"modules/timetable": 100,
+	//
+	// ADR 0061: application 100 + modules/timetable/compose 404.
+	"modules/timetable": 504,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	//
@@ -299,55 +367,15 @@ var modulePassthroughBudgets = map[string]int{
 	// and the absence range, date, pending and today reads, the ledger
 	// listing, the month status and the vacation opening (7). Shrink-only
 	// from here like every other entry.
-	"modules/workforce": 62,
-}
-
-// modulePassthroughComposeBudgetTotal is the sum of
-// modulePassthroughComposeBudgets. Shrink-only, like every entry.
-const modulePassthroughComposeBudgetTotal = 2392
-
-// modulePassthroughComposeBudgets is the composition register (#4071): owner
-// composition directory → pass-throughs measured below it. First measured on
-// 2026-10-15 on top of development c49b81c3a9 by the scan below: 2394 in
-// 34 compositions. The four largest are modules/identityaccess/compose
-// (the Module facade forwarding to its engine), modules/timetable/compose,
-// modules/workforce/compose and modules/peopledirectory/compose. #4084 carries
-// the compositions that still hold more than construction. Shrink-only — an
-// entry may fall or go, never rise, and no composition gets a new entry.
-var modulePassthroughComposeBudgets = map[string]int{
-	"modules/appointments/compose":          36,
-	"modules/auditlog/compose":              1,
-	"modules/careplan/compose":              188,
-	"modules/careplan/requestfeed/compose":  4,
-	"modules/classday/compose":              15,
-	"modules/communication/composition":     66,
-	"modules/dataimport/compose":            1,
-	"modules/delivery/compose":              14,
-	"modules/devicefleet/compose":           42,
-	"modules/devicescan/compose":            48,
-	"modules/enrollment/compose":            19,
-	"modules/exporttransfer/compose":        3,
-	"modules/facilities/compose":            15,
-	"modules/feedback/compose":              8,
-	"modules/filestorage/compose":           26,
-	"modules/identityaccess/compose":        484,
-	"modules/mealplan/compose":              7,
-	"modules/organizationtenancy/compose":   39,
-	"modules/peopledirectory/compose":       256,
-	"modules/requestreview/compose":         17,
-	"modules/schedulerruntime/compose":      4,
-	"modules/schoolcalendar/compose":        27,
-	"modules/schoolcalendar/portal/compose": 2,
-	"modules/schoolmembership/compose":      56,
-	"modules/schoolsetup/compose":           3,
-	"modules/schoolstructure/compose":       72,
-	"modules/settings/compose":              20,
-	"modules/studentpresence/compose":       151,
-	"modules/timetable/compose":             404,
-	"modules/workforce/compose":             338,
-	"workflows/openroommove/compose":        1,
-	"workflows/parentportal/compose":        22,
-	"workflows/shiftplansync/compose":       3,
+	//
+	// ADR 0061: application 62 + modules/workforce/compose 338.
+	"modules/workforce": 400,
+	// ADR 0061: application 0 + workflows/openroommove/compose 1.
+	"workflows/openroommove": 1,
+	// ADR 0061: application 0 + workflows/parentportal/compose 22.
+	"workflows/parentportal": 22,
+	// ADR 0061: application 0 + workflows/shiftplansync/compose 3.
+	"workflows/shiftplansync": 3,
 }
 
 func TestModulePassthroughRatchet(t *testing.T) {
@@ -359,19 +387,13 @@ func TestModulePassthroughRatchet(t *testing.T) {
 		return
 	}
 
-	counts, err := modulePassthroughScan(backendRoot, modulePassthroughModuleKey)
+	counts, err := modulePassthroughScan(backendRoot, modulePassthroughOwnerKey)
 	if err != nil {
 		t.Fatalf("module-passthrough scan failed: %v", err)
 	}
-	composeCounts, err := modulePassthroughScan(backendRoot, modulePassthroughComposeKey)
-	if err != nil {
-		t.Fatalf("module-passthrough scan of the compositions failed: %v", err)
-	}
 
-	violations := modulePassthroughViolations(counts, modulePassthroughBudgets)
-	violations = append(violations, modulePassthroughViolations(composeCounts, modulePassthroughComposeBudgets)...)
-	violations = append(violations, modulePassthroughTotalViolations("modulePassthroughBudgetTotal", modulePassthroughBudgets, modulePassthroughBudgetTotal)...)
-	violations = append(violations, modulePassthroughTotalViolations("modulePassthroughComposeBudgetTotal", modulePassthroughComposeBudgets, modulePassthroughComposeBudgetTotal)...)
+	violations := modulePassthroughViolations(counts, modulePassthroughOwnerBudgets)
+	violations = append(violations, modulePassthroughTotalViolations("modulePassthroughOwnerBudgetTotal", modulePassthroughOwnerBudgets, modulePassthroughOwnerBudgetTotal)...)
 	if len(violations) > 0 {
 		sort.Strings(violations)
 		t.Errorf("Module-passthrough ratchet check failed (%d issue(s)):\n\n%s\n\n"+
@@ -500,30 +522,24 @@ func modulePassthroughScan(backendRoot string, key func(string) string) (map[str
 	return counts, nil
 }
 
-// modulePassthroughModuleKey maps "modules/careplan/requestfeed/internal/
-// application/x.go" to its owning module directory, "modules/careplan", and
-// every file outside an application layer to "".
-func modulePassthroughModuleKey(rel string) string {
-	if !strings.Contains(rel, modulePassthroughApplicationSegment) {
+// modulePassthroughOwnerKey maps a file in an application layer or below an
+// owner composition to its module directory, and every other file to "":
+// "modules/careplan/requestfeed/internal/application/x.go" and
+// "modules/careplan/requestfeed/compose/x.go" to "modules/careplan",
+// "modules/communication/composition/x.go" to "modules/communication". A
+// composition is a directory named compose or composition below the module
+// directory (ADR 0061).
+func modulePassthroughOwnerKey(rel string) string {
+	parts := strings.Split(rel, "/")
+	if len(parts) < 3 {
 		return ""
 	}
-	parts := strings.Split(rel, "/")
-	if len(parts) < 2 {
-		return ""
+	if strings.Contains(rel, modulePassthroughApplicationSegment) {
+		return parts[0] + "/" + parts[1]
 	}
-	return parts[0] + "/" + parts[1]
-}
-
-// modulePassthroughComposeKey maps a file below an owner composition to the
-// composition directory: "modules/timetable/compose/httpadapter/x.go" to
-// "modules/timetable/compose", "modules/careplan/requestfeed/compose/x.go" to
-// "modules/careplan/requestfeed/compose". Files outside a directory named
-// compose or composition map to "".
-func modulePassthroughComposeKey(rel string) string {
-	parts := strings.Split(rel, "/")
 	for index, part := range parts[:len(parts)-1] {
 		if index >= 2 && (part == "compose" || part == "composition") {
-			return strings.Join(parts[:index+1], "/")
+			return parts[0] + "/" + parts[1]
 		}
 	}
 	return ""

@@ -4,6 +4,8 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
@@ -54,7 +56,7 @@ func NewTestFormSchemas(records enrollmentTest.FormSchemaRecords) capability.For
 // owner pins the mode, the suite's settings choose it, the suite's outbox
 // records the mails and the school directory brands them.
 func NewTestNotifications(modes enrollmentTest.NotificationModePin, settings enrollmentTest.NotificationSettings, outbox testMailOutbox, schools capability.SchoolDirectory) capability.Notifications {
-	return enrollmentTest.NewNotifications(enrollmentTest.NotificationDependencies{
+	return enrollmentTest.NewNotifications(enrollmentTest.NotificationDependencies{Branding: api.EnrollmentMailBranding,
 		Modes:    modes,
 		Settings: settings,
 		Outbox:   outbox,
@@ -65,7 +67,7 @@ func NewTestNotifications(modes enrollmentTest.NotificationModePin, settings enr
 // NewTestFlowNotifications composes the parent mails like
 // NewTestNotifications; without an outbox the mails are not recorded.
 func NewTestFlowNotifications(modes enrollmentTest.NotificationModePin, settings enrollmentTest.NotificationSettings, outbox testMailOutbox, schools capability.SchoolDirectory) capability.Notifications {
-	deps := enrollmentTest.NotificationDependencies{Modes: modes, Settings: settings, Schools: schools}
+	deps := enrollmentTest.NotificationDependencies{Branding: api.EnrollmentMailBranding, Modes: modes, Settings: settings, Schools: schools}
 	if outbox != nil {
 		deps.Outbox = outbox
 	}

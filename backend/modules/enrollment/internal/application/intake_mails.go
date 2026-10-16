@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
 
@@ -19,8 +18,7 @@ func (s *Intake) enqueueSubmissionEmails(ctx context.Context, tenantID int64, re
 	if s.deps.Outbox == nil {
 		return nil
 	}
-	schoolName, logoURL := schoolBrand(ctx, s.deps.Notifications, tenantID, s.deps.ParentsURL)
-	footerLogoURL := emailbranding.MotoLogoURL(s.deps.ParentsURL)
+	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, tenantID, s.deps.ParentsURL)
 	childNames := make([]string, 0, len(children))
 	for _, c := range children {
 		childNames = append(childNames, fmt.Sprintf("%s %s", c.FirstName, c.LastName))

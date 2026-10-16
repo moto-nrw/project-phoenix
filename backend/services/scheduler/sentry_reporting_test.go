@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/getsentry/sentry-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +49,7 @@ func newRecordingHub(t *testing.T) (*sentry.Hub, sentryRecordingTransport) {
 
 type sentryTestSchedulerOptions struct {
 	retryable func(error) bool
-	run       func(JobID, string, time.Duration)
+	run       func(ports.JobID, string, time.Duration)
 	// stopped starts every job run on a context the scheduler already
 	// cancelled, as during shutdown.
 	stopped bool
@@ -64,13 +66,13 @@ func newSentryTestScheduler(t *testing.T, options sentryTestSchedulerOptions) (*
 	}
 	run := options.run
 	if run == nil {
-		run = func(JobID, string, time.Duration) {}
+		run = func(ports.JobID, string, time.Duration) {}
 	}
 	hub, transport := newRecordingHub(t)
-	scheduler := newScheduler(WorkerDependencies{
+	scheduler := newScheduler(ports.WorkerDependencies{
 		Logger:        slog.New(slog.DiscardHandler),
 		TenantRuntime: scriptedTenantRuntime(nil, retryable),
-		Tracer: WorkerTracer{
+		Tracer: ports.WorkerTracer{
 			StartJob: func(ctx context.Context, _ string) (context.Context, error) {
 				ctx = sentry.SetHubOnContext(ctx, hub)
 				if options.stopped {
@@ -140,7 +142,7 @@ func TestJobRunRecoveringAfterFailedAttemptSendsNoEvent(t *testing.T) {
 	var outcome string
 	scheduler, transport := newSentryTestScheduler(t, sentryTestSchedulerOptions{
 		retryable: func(err error) bool { return errors.Is(err, serialization) },
-		run:       func(_ JobID, got string, _ time.Duration) { outcome = got },
+		run:       func(_ ports.JobID, got string, _ time.Duration) { outcome = got },
 	})
 	attempts := 0
 
@@ -204,7 +206,7 @@ func TestJobRunPanicSendsOneEventAndNextRunIsNormal(t *testing.T) {
 
 	var outcomes []string
 	scheduler, transport := newSentryTestScheduler(t, sentryTestSchedulerOptions{
-		run: func(_ JobID, outcome string, _ time.Duration) { outcomes = append(outcomes, outcome) },
+		run: func(_ ports.JobID, outcome string, _ time.Duration) { outcomes = append(outcomes, outcome) },
 	})
 	task := &ScheduledTask{Name: "status-flag-clear"}
 	runs := 0
