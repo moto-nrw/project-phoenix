@@ -12,7 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
+	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -115,13 +115,15 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 		return b, fmt.Errorf("compose OGS group live projection: %w", err)
 	}
 	b.graph.OGSGroupLive = live
-	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{
-		Access: newSupervisionAccess(b.settingsService, b.identity.SupervisionCaller),
-		Active: b.graph.Active, ActiveGroups: b.Presence.OpenRoomSessions, OpenVisits: b.graph.Active,
-		Rooms: b.Presence.OpenRooms, UserContext: b.identity.SupervisionCaller, Education: b.graph.Education,
-		Yard: newSupervisionYard(b.graph.Schulhof), Operations: b.graph.TimetableOperations,
-		Settings: newSupervisionSettings(b.settingsService),
-		Pickups:  b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule, Now: b.now,
+	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{
+		Access:   newSupervisionAccess(b.settingsService, b.identity.SupervisionCaller),
+		Sessions: newSupervisionSessions(b.graph.Active, b.Presence.OpenRoomSessions, b.identity.SupervisionCaller),
+		Rooms:    b.Presence.OpenRooms, Yard: newSupervisionYard(b.graph.Schulhof),
+		Groups:   newSupervisionGroups(b.graph.Education, b.identity.SupervisionCaller),
+		Schedule: newSupervisionSchedule(b.graph.TimetableOperations),
+		Presence: newSupervisionPresence(b.graph.Active, b.graph.Active),
+		Planning: newSupervisionPlanning(b.graph.PickupSchedule, b.graph.ArrivalSchedule),
+		Settings: newSupervisionSettings(b.settingsService), Calendar: supervisionCalendar{}, Now: b.now,
 	})
 	if err != nil {
 		return b, fmt.Errorf("compose supervision dashboard projection: %w", err)
