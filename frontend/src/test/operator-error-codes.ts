@@ -39,6 +39,8 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "identity.invitation_not_found",
   "identity.invitation_rate_limited",
   "identity.operator_invitation_invalid",
+  // Deactivation of operator accounts (`operator_status.go`, #4047).
+  "identity.operator_self_deactivation",
   // School access of accounts and school-account MFA (`errors.go`,
   // `mfa_admin.go`).
   "identity.account_not_found",

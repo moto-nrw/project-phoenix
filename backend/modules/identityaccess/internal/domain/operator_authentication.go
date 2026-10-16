@@ -70,6 +70,10 @@ const (
 	OperatorAuditActionEmailChangeStarted = "email_change_initiated"
 	OperatorAuditActionEmailChangeDone    = "email_change_confirmed"
 	OperatorAuditResourceInvitation       = "invitation"
+
+	// Deactivation and reactivation of an operator account (#4047).
+	OperatorAuditActionDeactivated = "operator_deactivated"
+	OperatorAuditActionReactivated = "operator_reactivated"
 )
 
 // OperatorAuditEntry is one platform-scoped ledger entry: who did what to

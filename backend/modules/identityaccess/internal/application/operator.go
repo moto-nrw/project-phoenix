@@ -119,6 +119,21 @@ func (s *Service) DeleteOperator(ctx context.Context, id int64) error {
 	})
 }
 
+// deleteDeactivatedOperators removes the accounts whose database-clock
+// retention window has ended.
+func (s *Service) deleteDeactivatedOperators(ctx context.Context) (result int, err error) {
+	err = s.run(ctx, s.tx.RunPlatform, "delete_deactivated_operators", func(txCtx context.Context, stats *domain.OperationStats) error {
+		deleted, queryStats, deleteErr := s.operators.DeleteDeactivatedOperators(txCtx)
+		stats.Add(queryStats)
+		if deleteErr != nil {
+			return deleteErr
+		}
+		result = deleted
+		return nil
+	})
+	return result, err
+}
+
 func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {
 	return s.run(ctx, s.tx.RunPlatform, "record_operator_login", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := s.operators.RecordOperatorLogin(txCtx, id, time.Now())

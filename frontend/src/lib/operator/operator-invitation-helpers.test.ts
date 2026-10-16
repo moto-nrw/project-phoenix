@@ -28,6 +28,7 @@ const sampleOperator: BackendOperatorListItem = {
   active: true,
   last_login: "2026-04-03T10:00:00Z",
   created_at: "2026-01-01T00:00:00Z",
+  is_self: false,
 };
 
 const sampleValidation: BackendInvitationValidation = {
@@ -96,7 +97,23 @@ describe("mapOperatorInfo", () => {
       active: true,
       lastLogin: "2026-04-03T10:00:00Z",
       createdAt: "2026-01-01T00:00:00Z",
+      isSelf: false,
     });
+  });
+
+  it("maps the deactivation time and the own account", () => {
+    const result = mapOperatorInfo({
+      ...sampleOperator,
+      active: false,
+      deactivated_at: "2026-03-01T10:00:00Z",
+      is_self: true,
+    });
+    expect(result.deactivatedAt).toBe("2026-03-01T10:00:00Z");
+    expect(result.isSelf).toBe(true);
+    expect(
+      mapOperatorInfo({ ...sampleOperator, deactivated_at: null })
+        .deactivatedAt,
+    ).toBeUndefined();
   });
 
   it("converts null last_login to undefined", () => {

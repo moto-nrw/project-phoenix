@@ -74,6 +74,7 @@ describe("operator invitation api", () => {
             active: true,
             last_login: "2026-04-03T00:00:00Z",
             created_at: "2026-01-01T00:00:00Z",
+            is_self: true,
           },
         ],
       };
