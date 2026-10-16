@@ -1,4 +1,4 @@
-package studentdirectoryview
+package postgres
 
 import (
 	"context"
@@ -9,25 +9,24 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func (s *Projection) ListCareEnds(
+func (s *studentDirectoryReads) ListCareEnds(
 	ctx context.Context,
 	ids []int64,
-) (map[int64]string, OperationStats, error) {
+) (map[int64]string, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, OperationStats{}, err
+		return nil, directoryStats{}, err
 	}
 	var rows []struct {
 		ID            int64          `bun:"id"`
 		EnrolledUntil *calendar.Date `bun:"enrolled_until"`
 	}
-	query := withStudentTenant(db.NewSelect().
-		TableExpr(studentSource).
+	query := withStudentTenant(s.rows.StudentRows(db, 0).
 		ColumnExpr(`"student".id, "student".enrolled_until`).
 		Where(`"student".id IN (?)`, bun.List(ids)).
 		Where(`"student".enrolled_until IS NOT NULL`), tenantID)
 
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)

@@ -82,7 +82,7 @@ func newStack(t *testing.T) *stack {
 	// that resolves its participants through the Timetable plan (#2762).
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}, Roster: plannedRoster{plan: plan}})
 	require.NoError(t, err)
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)

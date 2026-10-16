@@ -7,19 +7,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
 // studentRepository implements the StudentRepository interface.
 type studentRepository struct {
-	runtime Runtime
+	runtime  Runtime
+	students StudentDirectoryRows
 }
 
 // NewStudentRepository creates a new StudentRepository
-func NewStudentRepository(runtime Runtime) StudentRepository {
-	return &studentRepository{runtime: requireRuntime(runtime)}
+func NewStudentRepository(runtime Runtime, students StudentDirectoryRows) StudentRepository {
+	return &studentRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students)}
 }
 
 // List retains the legacy equality-filter contract without a generic
@@ -27,7 +27,7 @@ func NewStudentRepository(runtime Runtime) StudentRepository {
 func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([]*users.Student, error) {
 	rows := make([]*users.Student, 0)
 	db := r.runtime.DB(ctx)
-	query := studentdirectoryview.ModelQuery(db, r.runtime.TenantID(ctx), &rows)
+	query := r.students.StudentModelRows(db, r.runtime.TenantID(ctx), &rows)
 	for field, value := range filters {
 		if value != nil {
 			query = query.Where("? = ?", bun.Ident(field), value)
@@ -41,7 +41,7 @@ func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([
 
 func (r *studentRepository) CountWithOptions(ctx context.Context, options *QueryOptions) (int, error) {
 	db := r.runtime.DB(ctx)
-	query := studentdirectoryview.Query(db, r.runtime.TenantID(ctx)).Column("student.id")
+	query := r.students.StudentRows(db, r.runtime.TenantID(ctx)).Column("student.id")
 	if options != nil && options.Filter != nil {
 		options.Filter.WithTableAlias("student")
 		query = applyFilter(query, options.Filter)

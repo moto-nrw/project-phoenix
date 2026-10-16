@@ -33,7 +33,8 @@ func notesModuleWithDeletionAudit(
 ) *peopledirectory.Module {
 	t.Helper()
 	module, err := New(Dependencies{
-		DB: db, StudentOwners: owners, StudentNoteDeletionAudit: audit, Observe: func(Observation) {},
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db, StudentOwners: owners, StudentNoteDeletionAudit: audit, Observe: func(Observation) {},
 	})
 	require.NoError(t, err)
 	return module

@@ -3403,6 +3403,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/guardianlinkview/compose",
+      "owner": "guardian-link-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/inbound/birthdays",
       "owner": "people-directory",
       "role": "http",
@@ -5589,28 +5596,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "compose"
-    },
-    {
-      "id": "student-directory-view.postgres.people-public",
-      "description": "Keep the existing student result contract during the owner storage cutover (#2759).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-directory-view",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "student-directory-view.postgres.departure-contract",
-      "description": "Read the existing weekday departure value types (#2759).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-directory-view",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "contract"
     },
     {
       "id": "workforce.domain.vacation-opening-contract",
