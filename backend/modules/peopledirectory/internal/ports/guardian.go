@@ -27,6 +27,7 @@ type GuardianStore interface {
 	// guardian holds a portal account.
 	ListAccountLinksByStudents(context.Context, []int64) ([]domain.GuardianLink, domain.OperationStats, error)
 	GuardianPortalWrites
+	GuardianLifecycleWrites
 }
 
 // GuardianLinkOwners are the owners of the other two halves of a
@@ -36,6 +37,18 @@ type GuardianLinkOwners interface {
 	CreateGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup bool, notes *string) error
 	ChangeGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup *bool, setNotes bool, notes *string) (bool, error)
 	GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error
+	SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error)
+}
+
+// GuardianRolePresets is the Security Runtime's role-preset policy of a
+// student-guardian relationship.
+type GuardianRolePresets interface {
+	// DefaultRole is the preset a new relationship takes when the caller
+	// chose none.
+	DefaultRole(relationshipType string, isPrimary, isEmergencyContact, canPickup bool) string
+	// Preset returns the stored role of a preset and the parent-portal
+	// permissions it grants.
+	Preset(role string) (string, []string)
 }
 
 // GuardianPortalWrites are the row writes of the parents-portal workflow.
@@ -58,4 +71,26 @@ type GuardianPortalWrites interface {
 	// GuardianAccount is the portal account the guardian profile names.
 	GuardianAccount(ctx context.Context, guardianID int64) (*int64, domain.OperationStats, error)
 	SetPortalLocale(ctx context.Context, accountID int64, locale string) (int64, domain.OperationStats, error)
+}
+
+// GuardianLifecycleWrites are the row writes of the guardian invitation,
+// approval and revocation flows. Every method writes in the tenant of the
+// caller's transaction and refuses without one; a false result means the
+// tenant has no such row.
+type GuardianLifecycleWrites interface {
+	// LockGuardianAccount serializes the account links of one parent account
+	// in the school until the transaction ends, also while no profile holds
+	// the account yet.
+	LockGuardianAccount(ctx context.Context, accountID int64) (domain.OperationStats, error)
+	// LockAccountHolders locks the profile and every profile holding the
+	// account, ordered by ID.
+	LockAccountHolders(ctx context.Context, guardianID, accountID int64) ([]domain.GuardianAccountHolder, domain.OperationStats, error)
+	// GuardianHasLinks reports whether the profile has a relationship.
+	GuardianHasLinks(ctx context.Context, guardianID int64) (bool, domain.OperationStats, error)
+	// SetGuardianAccount binds the account to the profile, or clears the
+	// binding when accountID is nil.
+	SetGuardianAccount(ctx context.Context, guardianID int64, accountID *int64) (bool, domain.OperationStats, error)
+	DeleteGuardian(ctx context.Context, guardianID int64) (bool, domain.OperationStats, error)
+	SetLinkRole(ctx context.Context, linkID int64, role string) (bool, domain.OperationStats, error)
+	DeleteLink(ctx context.Context, linkID int64) (domain.OperationStats, error)
 }

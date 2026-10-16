@@ -177,6 +177,7 @@ type engine interface {
 	StudentNoteCommand
 	guardianEngine
 	guardianPortalEngine
+	GuardianLifecycleCommand
 	Create(context.Context, CreatePerson) (Person, error)
 	Update(context.Context, UpdatePerson) (Person, error)
 	Delete(context.Context, int64) error

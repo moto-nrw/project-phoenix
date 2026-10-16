@@ -51,6 +51,7 @@ func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleD
 	directory.StudentPhotoRuntime = func() peopleCompose.StudentPhotoRuntime { return *photoRuntime }
 	directory.StudentCompanions = NewStudentCompanionSeam(owners.Companions)
 	directory.GuardianLinkOwners = owners.GuardianLinks
+	directory.GuardianRolePresets = guardianRolePresets
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
 	directory.StudentDirectory = studentDirectoryView.NewReader()
 	capability, err := peopleCompose.NewWithGuardianMemberships(directory, owners.GuardianMemberships)
