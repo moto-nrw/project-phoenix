@@ -5,7 +5,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 )
@@ -106,9 +105,9 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 
 // newTestDecisions composes Enrollment's decision flow over the sources; the
 // optional outbox records its parent mails.
-func newTestDecisions(src api.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) *TestDecisions {
+func newTestDecisions(src api.EnrollmentDecisionSources, outboxes ...testMailOutbox) *TestDecisions {
 	if src.Notifications == nil {
-		var outbox platformModels.OutboxEnqueuer
+		var outbox testMailOutbox
 		if len(outboxes) > 0 {
 			outbox = outboxes[0]
 		}
@@ -118,7 +117,7 @@ func newTestDecisions(src api.EnrollmentDecisionSources, outboxes ...platformMod
 	return api.NewEnrollmentDecisions(src)
 }
 
-func newTestDecisionService(src api.EnrollmentDecisionSources, outboxes ...platformModels.OutboxEnqueuer) enrollmentAPI.DecisionService {
+func newTestDecisionService(src api.EnrollmentDecisionSources, outboxes ...testMailOutbox) enrollmentAPI.DecisionService {
 	return newFlowDecisionService(newTestDecisions(src, outboxes...))
 }
 
@@ -167,6 +166,6 @@ func newTestRolloverService(src api.EnrollmentRolloverSources) enrollmentAPI.Rol
 // suite's outbox records the mails.
 func testNotifications(modes TestNotificationModePin, settings interface {
 	ResolveString(ctx context.Context, key string) (string, error)
-}, outbox platformModels.OutboxEnqueuer, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
+}, outbox testMailOutbox, schools enrollmentOwner.SchoolDirectory) enrollmentOwner.Notifications {
 	return NewTestFlowNotifications(modes, notificationModeSettings{settings: settings}, outbox, schools)
 }

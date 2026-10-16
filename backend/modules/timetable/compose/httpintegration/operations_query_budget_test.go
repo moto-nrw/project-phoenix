@@ -96,7 +96,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	templates, err := rows.OperationTemplates()
 	require.NoError(t, err)
 	deps.Instances, deps.InstanceStaff, deps.Participants = rows.Instances, rows.InstanceStaff, rows.Participants
-	deps.Templates, deps.Students = templates, rows.Students
+	deps.Templates, deps.Students = templates, api.NewTimetableOperationStudents(rows.Students)
 	deps.EducationGroups, deps.Rooms = rows.EducationGroupNames(), rows.RoomNames()
 	operations, err := compose.NewOperations(deps)
 	require.NoError(t, err)
