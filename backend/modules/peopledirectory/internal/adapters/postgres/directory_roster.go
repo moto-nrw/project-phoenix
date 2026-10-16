@@ -1,11 +1,11 @@
-package studentdirectoryview
+package postgres
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	domain "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -14,15 +14,15 @@ import (
 // Both tables are this owner's, so the roster is one statement rather than a
 // read plus a name lookup.
 type studentRosterRow struct {
-	studentRecordRow
+	directoryRecordRow
 	FirstName string  `bun:"first_name"`
 	LastName  string  `bun:"last_name"`
 	TagID     *string `bun:"tag_id"`
 	AccountID *int64  `bun:"account_id"`
 }
 
-func (r studentRosterRow) toRosterEntry() domain.StudentRosterEntry {
-	return domain.StudentRosterEntry{
+func (r studentRosterRow) toRosterEntry() directory.StudentRosterEntry {
+	return directory.StudentRosterEntry{
 		Record:    r.toDomain(),
 		FirstName: r.FirstName,
 		LastName:  r.LastName,
@@ -37,28 +37,27 @@ func (r studentRosterRow) toRosterEntry() domain.StudentRosterEntry {
 // Graduates are soft-deleted and invisible to every staff-facing and kiosk
 // roster; the statistics aggregate leaves them out too, so counting them here
 // would give the child table a different population than the room table.
-func (s *Projection) selectStudentRoster(
+func (s *studentDirectoryReads) selectStudentRoster(
 	ctx context.Context,
 	operation string,
 	narrow func(*bun.SelectQuery) *bun.SelectQuery,
-) ([]domain.StudentRosterEntry, OperationStats, error) {
+) ([]directory.StudentRosterEntry, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, OperationStats{}, err
+		return nil, directoryStats{}, err
 	}
 	rows := []studentRosterRow{}
-	query := withStudentTenant(db.NewSelect().
-		TableExpr(studentSource).
+	query := withStudentTenant(s.rows.StudentRows(db, 0).
 		ColumnExpr(studentRecordColumns).
 		ColumnExpr(`"person".first_name, "person".last_name, "person".tag_id, "person".account_id`).
 		Join(`INNER JOIN users.persons AS "person" ON "person".id = "student".person_id`).
-		Where(`"student".status <> ?`, domain.StudentStatusAlumnus), tenantID)
+		Where(`"student".status <> ?`, directory.StudentStatusAlumnus), tenantID)
 
 	query = narrow(query).
 		Distinct().
 		OrderExpr(`"person".last_name, "person".first_name, "student".id`)
 
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
@@ -66,7 +65,7 @@ func (s *Projection) selectStudentRoster(
 		return nil, stats, fmt.Errorf("student directory projection: %s: %w", operation, err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.StudentRosterEntry, 0, len(rows))
+	result := make([]directory.StudentRosterEntry, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row.toRosterEntry())
 	}
@@ -80,25 +79,25 @@ func (s *Projection) selectStudentRoster(
 // status, because the status only follows once the scheduler ticks.
 func currentCare(query *bun.SelectQuery, today string) *bun.SelectQuery {
 	return query.Where(
-		`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, studentDateParam(today))
+		`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, directoryDateParam(today))
 }
 
 // ListRosterByGroups is the live roster of the given groups.
-func (s *Projection) ListRosterByGroups(
+func (s *studentDirectoryReads) ListRosterByGroups(
 	ctx context.Context,
 	groupIDs []int64,
 	today string,
-) ([]domain.StudentRosterEntry, OperationStats, error) {
+) ([]directory.StudentRosterEntry, directoryStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster by group", func(query *bun.SelectQuery) *bun.SelectQuery {
 		return currentCare(query.Where(`"student".group_id IN (?)`, bun.List(groupIDs)), today)
 	})
 }
 
 // ListRoster is the school's whole live roster.
-func (s *Projection) ListRoster(
+func (s *studentDirectoryReads) ListRoster(
 	ctx context.Context,
 	today string,
-) ([]domain.StudentRosterEntry, OperationStats, error) {
+) ([]directory.StudentRosterEntry, directoryStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster", func(query *bun.SelectQuery) *bun.SelectQuery {
 		return currentCare(query, today)
 	})
@@ -114,25 +113,25 @@ func (s *Projection) ListRoster(
 // for an active child on a window containing today — and a row with neither
 // bound carries no interval at all, so an inactive status is the only
 // remaining signal and means "no longer enrolled".
-func (s *Projection) ListRosterOverlapping(
+func (s *studentDirectoryReads) ListRosterOverlapping(
 	ctx context.Context,
 	from, to, today string,
-) ([]domain.StudentRosterEntry, OperationStats, error) {
+) ([]directory.StudentRosterEntry, directoryStats, error) {
 	return s.selectStudentRoster(ctx, "list student roster overlapping", func(query *bun.SelectQuery) *bun.SelectQuery {
 		query = query.
-			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, studentDateParam(from)).
+			Where(`("student".enrolled_until IS NULL OR "student".enrolled_until >= ?)`, directoryDateParam(from)).
 			Where(`NOT ("student".enrolled_from IS NULL AND "student".enrolled_until IS NULL AND "student".status = ?)`,
 				"inactive")
 
 		if afterDay(today, to) {
 			return query.Where(
-				`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, studentDateParam(to))
+				`("student".enrolled_from IS NULL OR "student".enrolled_from <= ?)`, directoryDateParam(to))
 		}
 		// Today lies inside the window, so an active child whose enrolment has
 		// not formally started is nonetheless enrolled on that day.
 		return query.Where(
 			`("student".enrolled_from IS NULL OR "student".enrolled_from <= ? OR "student".status = ?)`,
-			studentDateParam(to), domain.StudentStatusActive)
+			directoryDateParam(to), directory.StudentStatusActive)
 	})
 }
 

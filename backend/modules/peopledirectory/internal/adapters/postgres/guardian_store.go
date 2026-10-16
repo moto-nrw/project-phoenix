@@ -2,11 +2,11 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -57,25 +57,42 @@ type PortalMembershipQuery func(context.Context, []int64) (map[int64][]int64, er
 type GuardianStore struct {
 	database    Database
 	memberships PortalMembershipQuery
+	links       GuardianLinks
 }
 
-func NewGuardianStore(database Database, memberships PortalMembershipQuery) *GuardianStore {
+// GuardianLinks is People Directory's reader port onto the guardian link
+// projection (ADR 0058); the composition root binds it. Each row source is
+// aliased "student_guardian" and runs in the caller's statement and
+// transaction; a zero tenant leaves the rows unscoped.
+type GuardianLinks interface {
+	GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery
+	GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
+}
+
+// errGuardianLinksUnbound fails a link read closed in a graph that bound no
+// guardian link projection.
+var errGuardianLinksUnbound = errors.New("people directory postgres: the guardian link projection is required")
+
+func NewGuardianStore(database Database, memberships PortalMembershipQuery, links GuardianLinks) *GuardianStore {
 	if database == nil {
 		panic("people directory postgres: database runtime is required")
 	}
-	return &GuardianStore{database: database, memberships: memberships}
+	return &GuardianStore{database: database, memberships: memberships, links: links}
 }
 
 // ListLinksByAccount joins the two owned tables once: every link of every
 // profile of the account, in the tenant of the context or, inside an admin
 // transaction, across every tenant. Profile and link must share the tenant.
 func (s *GuardianStore) ListLinksByAccount(ctx context.Context, accountID int64) ([]domain.GuardianLink, domain.OperationStats, error) {
+	if s.links == nil {
+		return nil, domain.OperationStats{}, errGuardianLinksUnbound
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
 	}
 	rows := []guardianLinkRow{}
-	query := guardianlinkview.ModelQuery(db, 0, &rows).
+	query := s.links.GuardianLinkModelRows(db, 0, &rows).
 		Join(`JOIN users.guardian_profiles AS "guardian_profile" ON "guardian_profile".id = "student_guardian".guardian_profile_id AND "guardian_profile".tenant_id = "student_guardian".tenant_id`).
 		Where(`"guardian_profile".account_id = ?`, accountID)
 	if tenantID > 0 {
@@ -175,6 +192,9 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 	if s.memberships == nil {
 		return nil, domain.OperationStats{}, fmt.Errorf("people directory postgres: list account links by students: portal account queries are required")
 	}
+	if s.links == nil {
+		return nil, domain.OperationStats{}, errGuardianLinksUnbound
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, domain.OperationStats{}, err
@@ -183,7 +203,7 @@ func (s *GuardianStore) ListAccountLinksByStudents(ctx context.Context, studentI
 		guardianLinkRow
 		AccountID int64 `bun:"portal_account_id"`
 	}{}
-	query := guardianlinkview.ModelQuery(db, 0, &rows).
+	query := s.links.GuardianLinkModelRows(db, 0, &rows).
 		ColumnExpr(`"student_guardian".id, "student_guardian".tenant_id, "student_guardian".student_id,
 			"student_guardian".guardian_profile_id, "student_guardian".relationship_type, "student_guardian".guardian_role,
 			"student_guardian".is_primary, "student_guardian".is_emergency_contact, "student_guardian".can_pickup,

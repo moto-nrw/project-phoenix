@@ -65,7 +65,7 @@ func buildCommunication(t *testing.T, db *bun.DB, audit Audit, observations ...f
 	t.Helper()
 	organizations, err := organizationCompose.New(organizationCompose.Dependencies{DB: db, Observe: func(organizationCompose.Observation) {}})
 	require.NoError(t, err)
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	observe := func(Observation) {}
 	if len(observations) > 0 {

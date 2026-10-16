@@ -10,8 +10,8 @@ import (
 // NewMessageableGuardians is the parent-message recipient lookup over the
 // retained People Directory rows; memberships bounds it to the guardians'
 // active schools (Identity & Access).
-func NewMessageableGuardians(db *bun.DB, memberships func(context.Context, []int64, []int64) (map[int64][]int64, error)) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(NewLegacyRepositoryRuntime(db), memberships)
+func NewMessageableGuardians(db *bun.DB, links usersRepo.GuardianLinkRows, memberships func(context.Context, []int64, []int64) (map[int64][]int64, error)) *usersRepo.MessageableGuardianRepository {
+	return usersRepo.NewMessageableGuardianRepository(NewLegacyRepositoryRuntime(db), links, memberships)
 }
 
 // StaffMessageRole is the school role class of one account.

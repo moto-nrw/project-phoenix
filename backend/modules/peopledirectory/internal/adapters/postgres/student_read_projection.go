@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 )
 
 func (s *StudentStore) ListByIDs(ctx context.Context, ids []int64) ([]domain.Student, domain.OperationStats, error) {
@@ -71,7 +71,7 @@ func (s *StudentStore) ListDirectory(
 	ctx context.Context,
 	filter domain.StudentDirectoryFilter,
 ) ([]domain.StudentRecord, domain.OperationStats, error) {
-	records, stats, err := s.reads.ListDirectory(ctx, studentdirectoryview.Filter(filter))
+	records, stats, err := s.reads.ListDirectory(ctx, directoryFilter(filter))
 	result := make([]domain.StudentRecord, 0, len(records))
 	for _, row := range records {
 		result = append(result, domain.StudentRecord(row))
@@ -83,7 +83,7 @@ func (s *StudentStore) CountDirectory(
 	ctx context.Context,
 	filter domain.StudentDirectoryFilter,
 ) (int, domain.OperationStats, error) {
-	records, stats, err := s.reads.CountDirectory(ctx, studentdirectoryview.Filter(filter))
+	records, stats, err := s.reads.CountDirectory(ctx, directoryFilter(filter))
 	return records, domain.OperationStats(stats), projectionError(err)
 }
 
@@ -249,10 +249,10 @@ func (s *StudentStore) ListRosterOverlapping(
 }
 
 func projectionError(err error) error {
-	if errors.Is(err, studentdirectoryview.ErrStudentLockBusy) {
+	if errors.Is(err, directory.ErrStudentLockBusy) {
 		return domain.ErrStudentLockBusy
 	}
-	if errors.Is(err, studentdirectoryview.ErrStudentNotFound) {
+	if errors.Is(err, directory.ErrStudentNotFound) {
 		return domain.ErrStudentNotFound
 	}
 	return err

@@ -43,8 +43,8 @@ func NewPersonRepository(db *bun.DB, accounts AccountLookup) usersRepo.PersonRep
 // portal reachability queries its check joins: the schools in which an account
 // holds an active guardian membership, and those in which it can also log in
 // with a password (#2720, #2721).
-func NewGuardianProfileRepository(db *bun.DB, portal, loginReady func(context.Context, []int64) (map[int64][]int64, error)) usersRepo.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db),
+func NewGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, portal, loginReady func(context.Context, []int64) (map[int64][]int64, error)) usersRepo.GuardianProfileRepository {
+	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links,
 		usersRepo.WithPortalMemberships(portal),
 		usersRepo.WithPortalLoginMemberships(loginReady),
 	)
@@ -55,6 +55,8 @@ func NewGuardianProfileRepository(db *bun.DB, portal, loginReady func(context.Co
 // relationship and runs the unit of work, Care Plan's pickup permission and
 // Identity & Access's portal access are written through the commands.
 type GuardianRelationshipDependencies struct {
+	Students    usersRepo.StudentDirectoryRows
+	Links       usersRepo.GuardianLinkRows
 	Memberships SchoolMembershipLookup
 	Pickup      GuardianPickupPermissionCommand
 	Access      GuardianStudentAccessCommand
@@ -66,7 +68,7 @@ type GuardianRelationshipDependencies struct {
 // NewGuardianRelationshipRepository is the relationship store with its
 // membership lookup, both owner halves and the default role bound.
 func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelationshipDependencies) usersRepo.StudentGuardianRepository {
-	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db),
+	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), dependencies.Students, dependencies.Links,
 		usersRepo.WithGuardianRelationshipMemberships(dependencies.Memberships),
 		usersRepo.WithGuardianRelationshipOwners(dependencies.Pickup, dependencies.Access),
 		usersRepo.WithGuardianDefaultRole(defaultGuardianRole(dependencies.RolePresets)))
