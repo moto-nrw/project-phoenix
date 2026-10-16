@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+
 	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
 
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
@@ -219,7 +221,7 @@ type moduleServices struct {
 // NewCleanupTimetable composes the unobserved Timetable owner for CLI roots.
 // The serving root uses initializeModuleServices so it can attach metrics.
 func NewCleanupTimetable(db transactionruntime.Database) (timetableModule.Capability, error) {
-	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db.Pool(), Observe: func(peopleCompose.Observation) {}})
+	students, err := peopleCompose.New(peopleCompose.Dependencies{DB: db.Pool(), Observe: func(peopleCompose.Observation) {}, GuardianLinkRows: guardianLinkView.NewReader()})
 	if err != nil {
 		return nil, err
 	}
@@ -615,7 +617,7 @@ func composeFacilities(db transactionruntime.Database, usage facilitiesCompose.R
 }
 
 func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -624,7 +626,7 @@ func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 		return nil, err
 	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
-		StudentDirectory: studentDirectoryView.NewCareReader(),
+		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents, StatusSlots: slots,
 		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
@@ -1377,14 +1379,14 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, studentDirectoryView.NewCareReader(), modules.persons,
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, studentDirectoryView.NewReader(), modules.persons,
 		reviewScope, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, studentDirectoryView.NewCareReader(), requestreviewcompose.ScheduleReviewDependencies{
+	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, studentDirectoryView.NewReader(), requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {

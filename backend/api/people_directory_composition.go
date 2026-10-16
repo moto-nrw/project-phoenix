@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strconv"
 
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -47,6 +49,7 @@ func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleD
 	directory.StudentPhotoRuntime = func() peopleCompose.StudentPhotoRuntime { return *photoRuntime }
 	directory.StudentCompanions = NewStudentCompanionSeam(owners.Companions)
 	directory.GuardianLinkOwners = owners.GuardianLinks
+	directory.GuardianLinkRows = guardianLinkView.NewReader()
 	capability, err := peopleCompose.NewWithGuardianMemberships(directory, owners.GuardianMemberships)
 	if err != nil {
 		return nil, nil, err

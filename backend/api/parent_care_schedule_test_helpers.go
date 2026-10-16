@@ -41,5 +41,5 @@ type ParentPortalCareProfiles = careplan.StudentProfileCommands
 // guardian portal writes the child's health information and live absence
 // flags through, for tests that compose the portal.
 func NewParentPortalCareProfiles(db transactionruntime.Database) (ParentPortalCareProfiles, error) {
-	return careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
+	return careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(careplanCompose.Observation) {})
 }

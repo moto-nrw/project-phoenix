@@ -64,6 +64,9 @@ type Dependencies struct {
 	// of a link the parents portal creates or patches. Optional on the same
 	// terms: a graph without it refuses only those link writes.
 	GuardianLinkOwners GuardianLinkOwners
+	// GuardianLinkRows is the guardian link projection the root binds; without
+	// it the link reads fail closed.
+	GuardianLinkRows postgres.GuardianLinks
 	// Now is the clock a granted photo consent is stamped with. Optional;
 	// time.Now by default.
 	Now func() time.Time
@@ -112,7 +115,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
 	}
 	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
-	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships)), dependencies.GuardianLinkOwners, transaction{}, observe)
+	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships), dependencies.GuardianLinkRows), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
 		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}

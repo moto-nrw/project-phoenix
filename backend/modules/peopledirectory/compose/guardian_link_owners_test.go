@@ -43,7 +43,7 @@ func (o failingGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Contex
 
 func buildModuleWithLinkOwners(t *testing.T, db *bun.DB, owners GuardianLinkOwners) *peopledirectory.Module {
 	t.Helper()
-	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners}, testPortalMemberships(db))
+	module, err := NewWithGuardianMemberships(Dependencies{DB: db, Observe: func(Observation) {}, GuardianLinkOwners: owners, GuardianLinkRows: testpkg.GuardianLinks{}}, testPortalMemberships(db))
 	require.NoError(t, err)
 	return module
 }

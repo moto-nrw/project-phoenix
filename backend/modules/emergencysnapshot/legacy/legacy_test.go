@@ -425,7 +425,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 		PresenceMode: fakeMode{mode: "detailed"},
 		Students:     newOwnerStudentSource(t, db),
 		Persons:      people,
-		Contacts:     usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db)),
+		Contacts:     usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db), testpkg.StudentDirectory{}, testpkg.GuardianLinks{}),
 		Rooms:        facilitiesModule,
 		Renderer:     listexport.NewService(),
 	})

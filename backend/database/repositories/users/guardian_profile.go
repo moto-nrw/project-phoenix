@@ -8,9 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
-
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
 )
@@ -31,6 +28,8 @@ const (
 // guardianProfileRepository implements the GuardianProfileRepository interface.
 type guardianProfileRepository struct {
 	runtime                Runtime
+	students               StudentDirectoryRows
+	links                  GuardianLinkRows
 	portalMemberships      PortalMembershipQuery
 	portalLoginMemberships PortalLoginMembershipQuery
 }
@@ -50,9 +49,11 @@ func WithPortalLoginMemberships(query PortalLoginMembershipQuery) GuardianProfil
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
-func NewGuardianProfileRepository(runtime Runtime, options ...GuardianProfileOption) GuardianProfileRepository {
+func NewGuardianProfileRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianProfileOption) GuardianProfileRepository {
 	repository := &guardianProfileRepository{
-		runtime: requireRuntime(runtime),
+		runtime:  requireRuntime(runtime),
+		students: requireStudentRows(students),
+		links:    requireGuardianLinkRows(links),
 	}
 	for _, option := range options {
 		option(repository)
@@ -624,7 +625,7 @@ func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		EnrollmentSubmit bool   `bun:"enrollment_submit"`
 	}
 	var rows []childRow
-	childErr := guardianlinkview.Query(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
+	childErr := r.links.GuardianLinkRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
 		ColumnExpr(`"s".id AS student_id`).
 		ColumnExpr(`"p".first_name`).
 		ColumnExpr(`"p".last_name`).
@@ -635,7 +636,7 @@ func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context,
 		// Per-relationship enrollment-submit permission, so the form can offer
 		// reuse only for children this guardian may actually re-enroll (#1663).
 		ColumnExpr(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) AS enrollment_submit`, guardianPermissionEnrollmentSubmit).
-		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, studentdirectoryview.Query(r.runtime.DB(ctx), r.runtime.TenantID(ctx))).
+		Join(`INNER JOIN (?) AS "s" ON "s".id = "student_guardian".student_id`, r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx))).
 		Join(`INNER JOIN users.persons AS "p" ON "p".id = "s".person_id`).
 		Where(`"student_guardian".guardian_profile_id = ?`, profile.ID).
 		Where(`COALESCE(("student_guardian".permissions ->> ?)::boolean, false) = TRUE`, guardianPermissionPortalAccess).

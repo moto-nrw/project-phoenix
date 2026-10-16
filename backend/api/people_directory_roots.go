@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -81,7 +83,7 @@ func NewPeopleDirectoryWithPhotosAndObserver(
 	if err != nil {
 		return nil, nil, err
 	}
-	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
+	careProfiles, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return nil, nil, err
 	}
@@ -147,7 +149,7 @@ func newGuardianLinkOwners(db transactionruntime.Database) guardianLinkOwners {
 // portal reachability check joins (#2720, #2721).
 func NewGuardianProfileRepository(db transactionruntime.Database) userModels.GuardianProfileRepository {
 	identity := NewPeopleIdentityAccess(db, nil)
-	profiles := peopleCompose.NewGuardianProfileRepository(db.Pool(),
+	profiles := peopleCompose.NewGuardianProfileRepository(db.Pool(), studentDirectoryView.NewReader(), guardianLinkView.NewReader(),
 		identity.FindActiveGuardianMemberships, identity.FindLoginReadyGuardianMemberships)
 	return profiles
 }
@@ -164,6 +166,7 @@ func NewStudentGuardianRepository(db transactionruntime.Database) userModels.Stu
 func newStudentGuardianRepository(db transactionruntime.Database, memberships activeSchoolMemberships, observe IdentityAccessObserver) userModels.StudentGuardianRepository {
 	pickup, access := newGuardianRelationshipOwners(db, observe)
 	relationships := peopleCompose.NewGuardianRelationshipRepository(db.Pool(), peopleCompose.GuardianRelationshipDependencies{
+		Students: studentDirectoryView.NewReader(), Links: guardianLinkView.NewReader(),
 		Memberships: memberships.FindActiveSchoolMemberships,
 		Pickup:      pickup, Access: access, RolePresets: guardianRolePresets,
 	})
@@ -188,7 +191,7 @@ func NewStudentRepository(db transactionruntime.Database, membership groupAssign
 // PresenceStudents reads Directory records and writes only Care Plan's live
 // flags, over an unobserved Care Plan student profile owner.
 func PresenceStudents(db transactionruntime.Database, source presenceStudentSource) presenceservice.PresenceStudents {
-	care, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
+	care, err := careplanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		panic(err)
 	}
