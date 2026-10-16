@@ -6,7 +6,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -53,7 +52,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 			return nil
 		}
 
-		rows, attErr := s.Attendance.ListAttendance(txCtx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
+		rows, attErr := s.Attendance.ListAttendance(txCtx, AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
 		if attErr != nil {
 			return attErr
 		}
@@ -72,7 +71,7 @@ func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID 
 			}
 		}
 
-		tracks, trackErr := s.Attendance.HasAttendance(txCtx, studentpresence.AttendanceFilter{
+		tracks, trackErr := s.Attendance.HasAttendance(txCtx, AttendanceFilter{
 			FromDate: today.AddDays(-attendanceCultureLookbackDays).String(), UntilDate: today.String(),
 		})
 		if trackErr != nil {

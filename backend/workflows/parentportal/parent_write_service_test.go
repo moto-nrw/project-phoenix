@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -42,7 +41,7 @@ func tenantBroadcastIDs(bc *testpkg.RecordingBroadcaster) []int64 {
 }
 
 type recordingParentAbsenceNotifier struct {
-	reports []notificationsService.AbsenceReport
+	reports []parentService.AbsenceReport
 }
 
 // studentReads is the student surface the portal reads; the test may not name
@@ -95,7 +94,7 @@ func (s *signalingStudentService) Update(ctx context.Context, student *userModel
 
 func (n *recordingParentAbsenceNotifier) NotifyAbsenceReported(
 	_ context.Context,
-	report notificationsService.AbsenceReport,
+	report parentService.AbsenceReport,
 ) error {
 	n.reports = append(n.reports, report)
 	return nil

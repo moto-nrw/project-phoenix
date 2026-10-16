@@ -20,7 +20,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -34,7 +33,7 @@ func buildReadService(t *testing.T, enabled bool) (*messaging.Service, *testpkg.
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificationsSvc.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
@@ -70,10 +69,10 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier notificat
 }
 
 type recordingStaffParentMessageNotifier struct {
-	reports []notificationsSvc.StaffParentMessageReport
+	reports []care.StaffParentMessageReport
 }
 
-func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report notificationsSvc.StaffParentMessageReport) error {
+func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report care.StaffParentMessageReport) error {
 	n.reports = append(n.reports, report)
 	return nil
 }
@@ -295,7 +294,7 @@ func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
 	view, err := svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "Hallo OGS")
 	require.NoError(t, err)
 	require.Len(t, notifier.reports, 1)
-	assert.Equal(t, notificationsSvc.StaffParentMessageReport{
+	assert.Equal(t, care.StaffParentMessageReport{
 		TenantID:       chain.TenantID,
 		ThreadID:       view.ThreadID,
 		MessageID:      view.Messages[0].ID,
