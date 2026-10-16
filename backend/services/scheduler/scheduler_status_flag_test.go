@@ -34,8 +34,9 @@ func TestScheduleStatusFlagClearTask_DisabledByEnvVar(t *testing.T) {
 }
 
 // statusFlagArchives records what the end-of-day clear asks the Care Plan
-// archive for. The archive's SQL (flag to status day, flag and timestamp
-// cleared, school-scoped rows) is covered in
+// archive for. The status and source the root binds for each flag are
+// covered in api/scheduler_presence_ports_test.go, the archive's SQL (flag to
+// status day, flag and timestamp cleared, school-scoped rows) in
 // modules/careplan/internal/adapters/postgres.
 type statusFlagArchives struct {
 	mu    sync.Mutex
@@ -48,12 +49,10 @@ type statusFlagArchive struct {
 	inTransaction bool
 	flagColumn    string
 	sinceColumn   string
-	status        string
 	date          calendar.Date
-	source        string
 }
 
-func (a *statusFlagArchives) ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date calendar.Date, _ time.Time, source string) (int64, error) {
+func (a *statusFlagArchives) ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date calendar.Date, _ time.Time) (int64, error) {
 	a.mu.Lock()
 	defer a.mu.Unlock()
 	_, inTransaction := testpkg.TransactionFromContext(ctx)
@@ -62,9 +61,7 @@ func (a *statusFlagArchives) ArchiveAndClearStatusFlag(ctx context.Context, flag
 		inTransaction: inTransaction,
 		flagColumn:    flagColumn,
 		sinceColumn:   sinceColumn,
-		status:        status,
 		date:          date,
-		source:        source,
 	})
 	if a.err != nil {
 		return 0, a.err
@@ -83,8 +80,7 @@ func (a *statusFlagArchives) flagColumns() []string {
 }
 
 // TestClearStatusFlag_ArchivesSickFlag — the sick flag goes to the archive
-// with its timestamp column, the sick status, today's date and the
-// end-of-day source.
+// with its timestamp column and today's date.
 func TestClearStatusFlag_ArchivesSickFlag(t *testing.T) {
 	t.Parallel()
 	archives := &statusFlagArchives{}
@@ -96,10 +92,9 @@ func TestClearStatusFlag_ArchivesSickFlag(t *testing.T) {
 	assert.Equal(t, int64(1), affected)
 	require.Len(t, archives.calls, 1)
 	call := archives.calls[0]
+	assert.Equal(t, "sick", call.flagColumn)
 	assert.Equal(t, "sick_since", call.sinceColumn)
-	assert.Equal(t, "sick", call.status)
 	assert.Equal(t, calendar.TodayDate(), call.date)
-	assert.Equal(t, "end_of_day", call.source)
 }
 
 // TestClearStatusFlag_NilDBReturnsError — defensive guard so a misconfigured
@@ -245,7 +240,6 @@ func TestClearStatusFlag_ArchivesExcusedFlag(t *testing.T) {
 	require.Len(t, archives.calls, 1)
 	assert.Equal(t, "excused", archives.calls[0].flagColumn)
 	assert.Equal(t, "excused_since", archives.calls[0].sinceColumn)
-	assert.Equal(t, "excused", archives.calls[0].status)
 }
 
 // TestCheckAndRunStatusFlagClear_EndToEnd_ClearsBothFlags runs the end-of-day

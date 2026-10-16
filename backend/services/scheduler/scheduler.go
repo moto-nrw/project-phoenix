@@ -11,10 +11,6 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -166,8 +162,8 @@ type SettingsResolver interface {
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService              studentpresence.SessionMaintenance
-	cleanupService             studentpresence.PresenceCleanup
+	activeService              SessionMaintenance
+	cleanupService             PresenceCleanup
 	authCleanup                AuthCleanup
 	invitationCleanup          InvitationCleaner
 	workSessionCleanup         WorkSessionCleaner
@@ -186,7 +182,7 @@ type Scheduler struct {
 	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    StudentChangeLogCleanup
-	pwaUsageCleanup            pwaSvc.UsageService
+	pwaUsageCleanup            PWAUsageCleanup
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         BookingConsistencyAudit
 	enrollmentRejectedCleanup  RejectedEnrollmentCleaner
@@ -241,7 +237,7 @@ type Scheduler struct {
 	instanceStudentRepo  InstanceCheckoutCloser
 	timetableBridge      TimetableBridgeCompleter
 	studentStatusDayRepo StudentStatusFlagArchiver
-	overdueBroadcaster   realtimeevents.Publisher
+	overdueBroadcaster   InstanceOverdueBroadcaster
 	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
 	overdueEmittedDay    calendar.Date
 	overdueEmittedDayMu  sync.Mutex
@@ -1079,7 +1075,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 // tenant transaction created by the scheduler runtime. If this sync fails, callers
 // return the error so the active close rolls back too instead of leaving the
 // planner in a stale "active" state.
-func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *studentpresence.DailySessionCleanupResult) (int, error) {
+func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *DailySessionsEnded) (int, error) {
 	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
 		return 0, nil
 	}
@@ -1896,39 +1892,14 @@ func (s *Scheduler) runStatusFlagClear(ctx context.Context, task *ScheduledTask)
 	})
 }
 
-// clearStatusFlag clears a boolean flag + its timestamp for every student in
+// clearStatusFlag archives a boolean flag + its timestamp for every student in
 // the current tenant transaction. Column names are trusted constants — the
 // caller picks them from a fixed set.
 func (s *Scheduler) clearStatusFlag(ctx context.Context, flagColumn, sinceColumn string) (int64, error) {
 	if s.studentStatusDayRepo == nil {
 		return 0, fmt.Errorf("scheduler student status day repo not configured")
 	}
-	status, err := statusForFlagColumn(flagColumn)
-	if err != nil {
-		return 0, err
-	}
-	return s.studentStatusDayRepo.ArchiveAndClearStatusFlag(
-		ctx, flagColumn, sinceColumn, status,
-		calendar.TodayDate(), time.Now(), absencerecords.StudentStatusSourceEndOfDay,
-	)
-}
-
-// StudentStatusFlagArchiver archives a legacy boolean student flag into the
-// student's status day for the date and clears the flag. Column names must be
-// trusted constants, never user input.
-type StudentStatusFlagArchiver interface {
-	ArchiveAndClearStatusFlag(ctx context.Context, flagColumn, sinceColumn, status string, date calendar.Date, reportedFallback time.Time, source string) (int64, error)
-}
-
-func statusForFlagColumn(flagColumn string) (string, error) {
-	switch flagColumn {
-	case "sick":
-		return absencerecords.StudentStatusDaySick, nil
-	case "excused":
-		return absencerecords.StudentStatusDayExcused, nil
-	default:
-		return "", fmt.Errorf("unsupported status flag column %q", flagColumn)
-	}
+	return s.studentStatusDayRepo.ArchiveEndOfDayStatusFlag(ctx, flagColumn, sinceColumn, calendar.TodayDate(), time.Now())
 }
 
 // --- Timetable materialization (WP-B8) ---
@@ -2373,12 +2344,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 // scoped topic to route through. Admin dashboard subscribers pick it up.
 func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst DayInstance) {
 	instanceStart := inst.StartTime.Format("15:04:05")
-	if err := realtimeevents.PublishInstanceOverdue(s.overdueBroadcaster, tenantID, realtimeevents.OverdueInstance{
-		InstanceID: inst.ID,
-		Date:       inst.Date.String(),
-		StartTime:  instanceStart,
-		RoomID:     inst.RoomID,
-	}); err != nil {
+	if err := s.overdueBroadcaster.BroadcastInstanceOverdue(tenantID, inst.ID, inst.Date.String(), instanceStart, inst.RoomID); err != nil {
 		s.getLogger().Warn("overdue tick: broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
@@ -2386,7 +2352,7 @@ func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, ins
 		)
 		return
 	}
-	if err := realtimeevents.PublishInstanceOverdueRefresh(s.overdueBroadcaster, tenantID, inst.ID); err != nil {
+	if err := s.overdueBroadcaster.BroadcastInstanceOverdueRefresh(tenantID, inst.ID); err != nil {
 		s.getLogger().Warn("overdue tick: active supervision broadcast failed",
 			slog.Int64("tenant_id", tenantID),
 			slog.Int64("instance_id", inst.ID),
@@ -2656,10 +2622,10 @@ func (s *Scheduler) checkAndRunStudentChangeLogCleanup(ctx context.Context, task
 // lastPWAUsageCleanup. Mirrors the student change-log cleanup task.
 
 // schedulePWAUsageCleanupTask registers the daily PWA usage cleanup when a
-// pwa.UsageService has been wired in. Nil → no task.
+// cleanup has been wired in. Nil → no task.
 func (s *Scheduler) schedulePWAUsageCleanupTask() {
 	if s.pwaUsageCleanup == nil {
-		s.getLogger().Info("pwa usage GDPR cleanup not configured (no pwa.UsageService)")
+		s.getLogger().Info("pwa usage GDPR cleanup not configured (no cleanup capability)")
 		return
 	}
 
@@ -2685,7 +2651,7 @@ func (s *Scheduler) checkAndRunPWAUsageCleanup(ctx context.Context, task *Schedu
 		cleanupCtx, cleanupCancel := context.WithTimeout(tenantCtx, time.Duration(timeoutMinutes)*time.Minute)
 		defer cleanupCancel()
 
-		result, err := s.pwaUsageCleanup.CleanupExpiredUsage(cleanupCtx)
+		result, err := s.pwaUsageCleanup(cleanupCtx)
 		if err != nil {
 			s.getLogger().Error("pwa usage cleanup failed for tenant",
 				slog.Int64("tenant_id", tenantID),
