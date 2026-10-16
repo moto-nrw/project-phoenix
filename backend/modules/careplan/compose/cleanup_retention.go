@@ -17,14 +17,13 @@ import (
 // the nightly cleanup (#4046). It runs on the tenant transaction of the
 // school in context and needs no other owner.
 func NewCleanupRetention() careplan.CleanupRetention {
-	return cleanupRetention{store: postgres.New(retentionDatabase), now: time.Now}
+	return cleanupRetention{store: postgres.New(retentionDatabase)}
 }
 
 // cleanupRetention binds each deletion to its window; the store deletes what
 // finished before the cutoff.
 type cleanupRetention struct {
 	store *postgres.Store
-	now   func() time.Time
 }
 
 func (r cleanupRetention) DeleteFinishedStudentDocumentCleanups(ctx context.Context) (int, int, error) {
@@ -35,8 +34,8 @@ func (r cleanupRetention) DeleteFinishedWithdrawalCompletions(ctx context.Contex
 	return r.deleteFinished(ctx, domain.WithdrawalCompletionRetentionWindow, r.store.DeleteFinishedWithdrawalCompletions)
 }
 
-func (r cleanupRetention) deleteFinished(ctx context.Context, window time.Duration, deleteBefore func(context.Context, time.Time) (int, error)) (int, int, error) {
-	deleted, err := deleteBefore(ctx, r.now().Add(-window))
+func (r cleanupRetention) deleteFinished(ctx context.Context, window time.Duration, deleteBefore func(context.Context, time.Duration) (int, error)) (int, int, error) {
+	deleted, err := deleteBefore(ctx, window)
 	if err != nil {
 		return 0, 0, err
 	}

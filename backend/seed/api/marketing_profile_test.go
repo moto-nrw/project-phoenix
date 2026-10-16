@@ -143,9 +143,9 @@ func assertMarketingProfile(t *testing.T, profile *SeedProfile) {
 
 	admins := profile.Credentials.Accounts.Admin
 	require.Len(t, admins, 2)
-	assert.Equal(t, AccountCredentials{Key: "schul-admin", AccountID: 7101, Email: "marketing-admin@example.test", Password: "Marketing1234%", Name: "Katrin Brandt", StaffID: 7100}, admins[0], "the pipeline signs in with accounts.admin[0]")
+	assert.Equal(t, AccountCredentials{Key: "schul-admin", AccountID: 7101, Email: "marketing-admin@example.test", Password: "Marketing1234%", Name: "Sara Jansen", StaffID: 7100}, admins[0], "the pipeline signs in with accounts.admin[0]")
 	assert.Equal(t, "demo1@mail.de", admins[1].Email)
-	assert.Equal(t, "Katrin Brandt", profile.Credentials.SchoolAdmin.Name)
+	assert.Equal(t, "Sara Jansen", profile.Credentials.SchoolAdmin.Name)
 	require.Len(t, profile.Credentials.Accounts.Betreuer, 2)
 	assert.Equal(t, []string{"fuchsbau", "eulennest"}, []string{profile.Credentials.Accounts.Betreuer[0].Group, profile.Credentials.Accounts.Betreuer[1].Group})
 
@@ -171,7 +171,7 @@ func assertMarketingProfile(t *testing.T, profile *SeedProfile) {
 
 func assertMarketingAPIWrites(t *testing.T, mock *marketingProfileAPIMock, profile *SeedProfile) {
 	t.Helper()
-	assert.Equal(t, "Katrin Brandt", mock.adminName)
+	assert.Equal(t, "Sara Jansen", mock.adminName)
 	presence := make(map[string]int)
 	for _, student := range profile.Entities.Students {
 		created := mock.students[student.ID]
@@ -205,8 +205,8 @@ func assertMarketingAPIWrites(t *testing.T, mock *marketingProfileAPIMock, profi
 	}
 	assert.ElementsMatch(t, []string{
 		marketingMockAdminToken,
-		marketingMockStaffPrefix + "miriam.sommer@example.test",
-		marketingMockStaffPrefix + "jonas.albrecht@example.test",
+		marketingMockStaffPrefix + "hilal.oezdemir@example.test",
+		marketingMockStaffPrefix + "thore.gritzmann@example.test",
 	}, mock.avatars, "every staff member uploads their own picture while signed in")
 	distinct := map[string]bool{}
 	for _, picture := range mock.pictures {
@@ -741,7 +741,7 @@ func assertMarketingDailyLife(t *testing.T, mock *marketingProfileAPIMock, profi
 
 	admin := profile.Credentials.Accounts.Admin[0]
 	assert.Equal(t, []marketingMockMessage{{
-		sender: marketingMockStaffPrefix + "miriam.sommer@example.test",
+		sender: marketingMockStaffPrefix + "hilal.oezdemir@example.test",
 		target: fmt.Sprintf("account-%d", admin.AccountID), body: marketingTeamMessage,
 	}}, mock.teamMessages, "a caregiver writes to the admin, who leaves it unread")
 	require.Len(t, mock.parentMessages, 2)
