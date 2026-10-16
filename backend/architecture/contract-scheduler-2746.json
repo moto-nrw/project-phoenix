@@ -77,7 +77,7 @@
     "source": "Local runs on the #2746 branch on 2026-10-02 against the local postgres-test server.",
     "sources": [
       "backend/api/scheduler_ports.go",
-      "backend/modules/delivery/application/realtimeevents/instance_overdue.go",
+      "backend/realtime/events.go",
       "backend/modules/schedulerruntime/jobruntime/runtime.go",
       "backend/modules/settings/compose/tenant_snapshots.go",
       "backend/services/scheduler/setting_keys.go",

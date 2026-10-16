@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -78,8 +77,8 @@ func TestStopCancelsRunningTaskContexts(t *testing.T) {
 }
 
 func newUnitScheduler(
-	activeService studentpresence.Presence,
-	cleanupService studentpresence.PresenceCleanup,
+	activeService SessionMaintenance,
+	cleanupService PresenceCleanup,
 	authService AuthCleanup,
 	invitationService InvitationCleaner,
 	emailChangeCleaner EmailChangeTokenCleaner,
