@@ -40,6 +40,11 @@ Checker-Übergang für bestehende Paketpfade entfällt mit seinen Tests im letzt
 ersetzen die bisherigen Capability- und Berechtigungsverträge. Die stehende Root-Regel
 trägt den Mount. Inbound-Owner 33 → 32, Regeln 951 → 950; Keys und Budgets unverändert.
 
+#4078: Die Staff- und Klassenlisten-HTTP-Adapter gehören zu `school-membership`.
+`inbound-staff` und `inbound-classlistentries` entfallen. Zwei gleich enge Eigen-HTTP-Regeln
+ersetzen vier Capability-/Berechtigungsregeln; die stehende Root-Regel ersetzt beide
+Mount-Regeln. Inbound-Owner 32 → 30, Regeln 950 → 946; Keys und Budgets unverändert.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der

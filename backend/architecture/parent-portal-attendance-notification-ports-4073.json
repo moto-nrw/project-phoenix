@@ -26,13 +26,13 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/compose|github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
   ],
-  "atomic_cutover": "The workflow declares AttendanceReader, AttendanceFilter, Attendance, AbsenceNotifier, AbsenceReport, StaffParentMessageNotifier and StaffParentMessageReport. api/parent_portal_delivery_ports.go translates to the existing owner facades and passes the same context. Attendance exposes only check-in and check-out times. Delivery composition names the staff message report for root wiring. Seven keys fall (486 -> 479), carrier #4073 falls from 61 to 54, rules stay at 950 and composition fields/setters stay at 1740. No package moves, new grants, route changes or scheduler changes; the remaining inbound/parent imports stay for a later cut.",
+  "atomic_cutover": "The workflow declares AttendanceReader, AttendanceFilter, Attendance, AbsenceNotifier, AbsenceReport, StaffParentMessageNotifier and StaffParentMessageReport. api/parent_portal_delivery_ports.go translates to the existing owner facades and passes the same context. Attendance exposes only check-in and check-out times. Delivery composition names the staff message report for root wiring. Seven keys fall (486 -> 479), carrier #4073 falls from 61 to 54, rules stay at 946 and composition fields/setters stay at 1740. No package moves, new grants, route changes or scheduler changes; the remaining inbound/parent imports stay for a later cut.",
   "tests": [
-    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; scripts/run-go-toolchain.sh scripts/backend-architecture.sh validate-ticket --all --base-ref 77cbd184b2fe1678d81a840427a1251ca600183d.",
+    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; scripts/run-go-toolchain.sh scripts/backend-architecture.sh validate-ticket --all --base-ref 86abb54ca22e7008fc531a50eb3f9b71f53b7102.",
     "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast includes the parentportal and care suites, API/router tests and the separate retention-clock prerequisite. Existing tests use the workflow-owned DTOs without weakened assertions."
   ],
   "runtime_evidence": {
-    "source": "Local verification of PR #4120 against development base 77cbd184b2fe1678d81a840427a1251ca600183d; behavior evidence comes from the existing workflow and API suites, not a production sample or latency benchmark.",
+    "source": "Local verification of PR #4120 against development base 86abb54ca22e7008fc531a50eb3f9b71f53b7102; behavior evidence comes from the existing workflow and API suites, not a production sample or latency benchmark.",
     "sources": [
       "backend/api/parent_portal_delivery_ports.go",
       "backend/workflows/parentportal/care/presence_queries.go",
