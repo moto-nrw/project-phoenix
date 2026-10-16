@@ -29,9 +29,7 @@ func (p *OperatorProvisioning) deactivateOperator(ctx context.Context, change do
 	}
 	operator, err := p.changeOperatorStatus(ctx, change.OperatorID, func(txCtx context.Context, operator *domain.Operator) error {
 		if operator.Active {
-			deactivatedAt := p.now()
 			operator.Active = false
-			operator.DeactivatedAt = &deactivatedAt
 		}
 		_, revokeErr := p.operators.RevokeOperatorSessions(txCtx, operator.ID)
 		return revokeErr
@@ -80,7 +78,10 @@ func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, operato
 		if err := change(txCtx, &operator); err != nil {
 			return err
 		}
-		updated, err := p.operators.UpdateOperator(txCtx, operator)
+		if _, err := p.operators.UpdateOperator(txCtx, operator); err != nil {
+			return err
+		}
+		updated, err := p.operators.FindOperator(txCtx, operator.ID)
 		if err != nil {
 			return err
 		}
