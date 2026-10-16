@@ -8,8 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
+	"github.com/moto-nrw/project-phoenix/api/common"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -107,7 +108,7 @@ func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
 }
 
 // ChildResponse is the wire shape for one row in the /me/children
-// list. Mirrors models/parent.ChildSummary but stringifies int64 IDs
+// list. Mirrors the workflow child projection but stringifies int64 IDs
 // per the project's frontend convention (Rule 4 in CLAUDE.md).
 type ChildResponse struct {
 	StudentID     string         `json:"student_id"`
@@ -135,12 +136,24 @@ func toChildResponse(c *parentService.ChildSummary) ChildResponse {
 		LastName:      c.LastName,
 		SchoolClass:   c.SchoolClass,
 		Status:        c.Status,
-		EnrolledFrom:  c.EnrolledFrom,
-		EnrolledUntil: c.EnrolledUntil,
+		EnrolledFrom:  parentResponseDatePointer(c.EnrolledFrom),
+		EnrolledUntil: parentResponseDatePointer(c.EnrolledUntil),
 		SchoolName:    c.SchoolName,
 		SchoolSlug:    c.SchoolSlug,
-		CareEnded:     c.CareEnded(careplan.Date(timezone.TodayDate().String())),
+		CareEnded:     c.CareEnded(timezone.TodayDate()),
 	}
+}
+
+// The workflow uses calendar.Date. The established wire contract renders an
+// unset non-null date as "", not calendar.Date's null representation.
+func parentResponseDate(day timezone.Date) careplan.Date { return careplan.Date(day.String()) }
+
+func parentResponseDatePointer(day *timezone.Date) *careplan.Date {
+	if day == nil {
+		return nil
+	}
+	value := parentResponseDate(*day)
+	return &value
 }
 
 // listMyChildren returns every student linked to the calling parent's
@@ -170,7 +183,7 @@ func (rs *Resource) listMyChildren(w http.ResponseWriter, r *http.Request) {
 }
 
 // EnrollablePhaseResponse is the wire shape for /me/enrollable-schools.
-// Mirrors models/parent.EnrollablePhase but stringifies int64 ids.
+// Mirrors the workflow enrollable-phase projection but stringifies int64 ids.
 type EnrollablePhaseResponse struct {
 	SchoolID   string `json:"school_id"`
 	SchoolName string `json:"school_name"`
@@ -220,8 +233,8 @@ func (rs *Resource) listEnrollableSchools(w http.ResponseWriter, r *http.Request
 			PhaseName:             p.PhaseName,
 			PhaseNameTranslations: p.PhaseNameTranslations,
 			PhaseKind:             p.PhaseKind,
-			ServiceStartDate:      p.ServiceStartDate,
-			ServiceEndDate:        p.ServiceEndDate,
+			ServiceStartDate:      parentResponseDate(p.ServiceStartDate),
+			ServiceEndDate:        parentResponseDate(p.ServiceEndDate),
 			EnrollmentOpenAt:      p.EnrollmentOpenAt,
 			EnrollmentCloseAt:     p.EnrollmentCloseAt,
 			AlreadyLinked:         p.AlreadyLinked,
@@ -297,8 +310,8 @@ func (rs *Resource) listMyEnrollments(w http.ResponseWriter, r *http.Request) {
 			WithdrawnAt:      req.WithdrawnAt,
 			PhaseID:          strconv.FormatInt(req.PhaseID, 10),
 			PhaseName:        req.PhaseName,
-			ServiceStartDate: req.ServiceStartDate,
-			ServiceEndDate:   req.ServiceEndDate,
+			ServiceStartDate: parentResponseDate(req.ServiceStartDate),
+			ServiceEndDate:   parentResponseDate(req.ServiceEndDate),
 			SchoolName:       req.SchoolName,
 			SchoolSlug:       req.SchoolSlug,
 			Children:         children,

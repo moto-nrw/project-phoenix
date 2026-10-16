@@ -29,7 +29,7 @@ func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return care.New(care.Config{
 		RequestSharing: unconfiguredRequestSharer{},
-		ChildRepo:      repos.ParentChild,
+		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
 		StudentRepo:    repos.Student,
@@ -57,7 +57,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 	require.NoError(t, err)
 	return care.New(care.Config{
 		RequestSharing:   unconfiguredRequestSharer{},
-		ChildRepo:        repos.ParentChild,
+		ChildRepo:        repos.ParentChildReads(),
 		Attendance:       parentAttendance(t, db),
 		StatusDayRepo:    repos.StudentStatusDay,
 		StudentRepo:      repos.Student,

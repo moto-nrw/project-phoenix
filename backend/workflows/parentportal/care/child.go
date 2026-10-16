@@ -9,9 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -80,7 +77,7 @@ func (s *Service) ResolvePermittedChild(ctx context.Context, accountID, studentI
 			GuardianPermissions: child.GuardianPermissions,
 			StudentName:         strings.TrimSpace(child.FirstName + " " + child.LastName),
 			SchoolName:          child.SchoolName,
-			CareEnded:           child.CareEnded(careplan.Date(s.todayDate().String())),
+			CareEnded:           child.CareEnded(s.todayDate()),
 		}
 		return nil
 	})
@@ -90,20 +87,18 @@ func (s *Service) ResolvePermittedChild(ctx context.Context, accountID, studentI
 	return resolved, nil
 }
 
-func childHasPermission(child *parentModels.ChildSummary, permission string) bool {
+func childHasPermission(child *ChildSummary, permission string) bool {
 	if child == nil {
 		return false
 	}
-	return authorize.StudentGuardianHasPermission(&usersModels.StudentGuardian{
-		Permissions: child.GuardianPermissions,
-	}, permission)
+	return child.GuardianPermissions[permission]
 }
 
 // Child is the minimal resolved context a per-child write needs.
 type Child struct {
 	TenantID            int64
 	GuardianProfileID   int64
-	GuardianPermissions map[string]interface{}
+	GuardianPermissions map[string]bool
 	// StudentName / SchoolName feed the OGS messaging views (thread counterpart
 	// + child label); resolved once here from the cross-tenant child lookup.
 	StudentName string
@@ -130,9 +125,7 @@ func (c *Child) HasPermission(permission string) bool {
 	if c == nil {
 		return false
 	}
-	return authorize.StudentGuardianHasPermission(&usersModels.StudentGuardian{
-		Permissions: c.GuardianPermissions,
-	}, permission)
+	return c.GuardianPermissions[permission]
 }
 
 // GuardianReasonRequired resolves operations.parent_request_reason_policy for
