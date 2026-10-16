@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
-	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -20,8 +19,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
@@ -51,33 +48,9 @@ func (s *stubMessagePreferences) FilterNotOptedOut(_ context.Context, notificati
 
 type emailFixture struct {
 	svc    *messaging.Service
-	outbox *recordingMessageOutbox
+	outbox *testpkg.CapturingOutbox
 	chain  testpkg.ParentChain
 	staff  int64
-}
-
-type recordingMessageOutbox struct {
-	mu   sync.Mutex
-	rows []platformModels.OutboxEnqueueRequest
-}
-
-func (o *recordingMessageOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.rows = append(o.rows, req)
-	return nil
-}
-
-func (o *recordingMessageOutbox) Rows() []platformModels.OutboxEnqueueRequest {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	return append([]platformModels.OutboxEnqueueRequest(nil), o.rows...)
-}
-
-func (o *recordingMessageOutbox) Clear() {
-	o.mu.Lock()
-	defer o.mu.Unlock()
-	o.rows = nil
 }
 
 func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) *emailFixture {
@@ -86,7 +59,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	organizations, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	outbox := &recordingMessageOutbox{}
+	outbox := testpkg.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
 		UserContext:      api.StaffStudentReads{},
 		ThreadRepo:       repos.ParentMessageThread,
@@ -110,23 +83,24 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	return &emailFixture{svc: svc, outbox: outbox, chain: chain, staff: staffAccount.ID}
 }
 
-// mailContent unwraps the template data of a captured message.
-func mailContent(t *testing.T, msg *email.Message) map[string]any {
-	t.Helper()
-	content, ok := msg.Content.(map[string]any)
-	require.True(t, ok, "Template-Daten sind eine Map")
-	return content
+// renderedMail is what the delivery worker would send for a captured request.
+type renderedMail struct {
+	To       string
+	Subject  string
+	Template string
+	Content  map[string]any
 }
 
-func renderMessageRow(t *testing.T, req platformModels.OutboxEnqueueRequest) *email.Message {
+// renderMessageRow renders a captured outbox request the way the delivery
+// worker does. The sender address is the worker's default and stays unset.
+func renderMessageRow(t *testing.T, kind string, payload map[string]any) renderedMail {
 	t.Helper()
-	row := &emailoutbox.Intent{Kind: req.Kind, Payload: req.Payload}
-	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{
-		DefaultFrom: email.NewEmail("moto", "no-reply@moto.test"),
-	})
-	msg, err := renderer(context.Background(), row)
+	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{})
+	msg, err := renderer(context.Background(), &emailoutbox.Intent{Kind: kind, Payload: payload})
 	require.NoError(t, err)
-	return msg
+	content, ok := msg.Content.(map[string]any)
+	require.True(t, ok, "Template-Daten sind eine Map")
+	return renderedMail{To: msg.To.Address, Subject: msg.Subject, Template: msg.Template, Content: content}
 }
 
 func guardianEmail(t *testing.T, db *bun.DB, accountID int64) string {
@@ -153,16 +127,16 @@ func TestStartThread_SendsGuardianEmail(t *testing.T) {
 		"Guten Tag, Felix hat heute seine Jacke vergessen. Bitte melden Sie sich kurz bei uns.")
 	require.NoError(t, err)
 
-	rows := f.outbox.Rows()
+	rows := f.outbox.Requests()
 	require.Len(t, rows, 1)
-	assert.Equal(t, platformModels.EmailKindParentMessage, rows[0].Kind)
-	assert.Equal(t, platformModels.EmailRelatedTypeParentMessage, rows[0].RelatedEntityType)
+	assert.Equal(t, "parent_message", rows[0].Kind)
+	assert.Equal(t, "parent_message", rows[0].RelatedEntityType)
 
-	msg := renderMessageRow(t, rows[0])
-	assert.Equal(t, guardianEmail(t, db, f.chain.AccountID), msg.To.Address)
+	msg := renderMessageRow(t, rows[0].Kind, rows[0].Payload)
+	assert.Equal(t, guardianEmail(t, db, f.chain.AccountID), msg.To)
 	assert.Equal(t, "Neue Nachricht von der OGS", msg.Subject)
 	assert.Equal(t, "parent-message-notification.html", msg.Template)
-	content := mailContent(t, msg)
+	content := msg.Content
 	assert.Equal(t, testParentsURL+"/messages/"+strconv.FormatInt(f.chain.StudentID, 10), content["MessagesURL"])
 	assert.NotContains(t, content, "ChildName")
 	assert.NotContains(t, content, "Preview")
@@ -183,11 +157,11 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 
 	_, err = f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Please reply")
 	require.NoError(t, err)
-	rows := f.outbox.Rows()
+	rows := f.outbox.Requests()
 	require.Len(t, rows, 1)
-	msg := renderMessageRow(t, rows[0])
+	msg := renderMessageRow(t, rows[0].Kind, rows[0].Payload)
 	assert.Equal(t, "New message from the OGS", msg.Subject)
-	content := mailContent(t, msg)
+	content := msg.Content
 	assert.Equal(t, "New message", content["BrandKicker"])
 	assert.Equal(t, "Reply", content["ReplyLabel"])
 	assert.Contains(t, content["IntroText"], "sent you a message")
@@ -204,13 +178,13 @@ func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {
 
 	detail, err := f.svc.StartThread(ctx, f.chain.StudentID, f.chain.AccountID, "Erste Nachricht")
 	require.NoError(t, err)
-	f.outbox.Clear()
+	before := len(f.outbox.Requests())
 
 	sensitive := "Gesundheitsinformation, die nicht in eine E-Mail gehoert"
 	_, err = f.svc.PostMessage(ctx, detail.ThreadID, sensitive, detail.Messages[0].ID)
 	require.NoError(t, err)
 
-	rows := f.outbox.Rows()
+	rows := f.outbox.Requests()[before:]
 	require.Len(t, rows, 1)
 	assert.NotContains(t, fmt.Sprint(rows[0].Payload), sensitive)
 	assert.Contains(t, rows[0].IdempotencyKey, "parent_message:")
@@ -227,7 +201,7 @@ func TestStartThread_RespectsGuardianOptOut(t *testing.T) {
 	_, err := f.svc.StartThread(adminCtx(t, f.staff), f.chain.StudentID, f.chain.AccountID, "Guten Tag")
 	require.NoError(t, err)
 
-	assert.Empty(t, f.outbox.Rows(), "kein Versand nach Widerspruch")
+	assert.Empty(t, f.outbox.Requests(), "kein Versand nach Widerspruch")
 	assert.Equal(t, notifications.TypeParentMessage, preferences.gotType)
 }
 
