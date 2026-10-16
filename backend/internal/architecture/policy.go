@@ -213,7 +213,13 @@ func (p *Policy) Validate() error {
 	if err := p.validateRelocations(); err != nil {
 		return err
 	}
-	return p.validateRules(owners, roles, classes)
+	if err := p.validateRules(owners, roles, classes); err != nil {
+		return err
+	}
+	if p.PolicyEpoch >= acyclicTargetEpoch {
+		return p.validateAcyclicTarget()
+	}
+	return nil
 }
 
 func (p *Policy) validateHeader() error {

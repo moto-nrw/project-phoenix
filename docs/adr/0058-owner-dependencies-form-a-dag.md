@@ -66,3 +66,31 @@ domain `http` roles leaves three pairs (`people-directory` with
   ([ADR 0059](0059-the-roots-hold-no-service-graph.md)).
 - The Definition of Done of #2580 contains this criterion in place of the
   ADR 0032 sentence.
+
+## Addendum (#3417): the layering of the remaining domain cycle
+
+Decision of 2026-10-16. On `ced14cc9ff` the target graph had one cyclic
+component of 14 owners. Without the domain → projection and domain → workflow
+rules that point 2 already excludes, six domains still formed one component:
+`care-plan`, `enrollment`, `people-directory`, `student-presence`,
+`timetable-activities` and `workforce`. The directions are:
+
+- People Directory is the lowest of them: it holds the master data the
+  others read and depends on none of them.
+- Care Plan sits above People Directory, Enrollment above Care Plan.
+- Workforce sits above Student Presence.
+
+Not target, therefore, and cut: People Directory's HTTP reach into Care
+Plan, Enrollment and Student Presence (it moves into the root,
+[#4079](https://github.com/moto-nrw/project-phoenix/issues/4079)),
+`care-plan → enrollment` and `student-presence → workforce` (consumer-owned
+ports the root binds,
+[#4076](https://github.com/moto-nrw/project-phoenix/issues/4076)). The
+remaining edges among the six (Care Plan → People Directory, Enrollment →
+Care Plan, People Directory and Timetable & Activities, Student Presence →
+Care Plan, Timetable & Activities → Care Plan and Student Presence,
+Workforce → Student Presence and Timetable & Activities) are acyclic.
+
+The 14 rules that closed the cycle are deleted and their 18 imports are
+exact keys, the conversion point 5 prescribes. From policy epoch 48 the
+policy loader rejects a target graph with a cyclic component.
