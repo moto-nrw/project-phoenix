@@ -2,7 +2,6 @@ package compose
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
@@ -513,15 +512,6 @@ func assignInstanceStaffID(result *InstanceStaffListFilter, field string, id int
 		return errors.New("instance staff filter is unsupported")
 	}
 	return nil
-}
-
-// translateNotFound joins the persistence-neutral not-found sentinel to a
-// driver no-rows error, as the generic repositories do.
-func translateNotFound(err error) error {
-	if !errors.Is(err, sql.ErrNoRows) {
-		return err
-	}
-	return errors.Join(domain.ErrRecordNotFound, err)
 }
 
 // InstanceStudentDay is the Berlin calendar day of an instant as the legacy

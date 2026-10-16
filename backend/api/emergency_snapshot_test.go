@@ -284,7 +284,7 @@ func TestEmergencySnapshotPersonIdentityFilteringMatchesRetainedReader(t *testin
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Filtering", "Parity", "3a")
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	old := peopleCompose.NewPersonRepository(db, nil)
 	ids := []int64{student.PersonID}
@@ -415,7 +415,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		})
 	}
 
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	facilitiesModule, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
@@ -424,7 +424,7 @@ func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 		PresenceMode: emergencyFakeMode{mode: "detailed"},
 		Students:     newEmergencyOwnerStudents(t, db),
 		Persons:      people,
-		Contacts:     peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{}),
+		Contacts:     peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{Students: testpkg.StudentDirectory{}, Links: testpkg.GuardianLinks{}}),
 		Rooms:        facilitiesModule,
 		Renderer:     lists.NewRendererService(),
 	})
@@ -458,7 +458,8 @@ type emergencyOwnerStudents struct{ directory peopledirectory.Capability }
 func newEmergencyOwnerStudents(t *testing.T, db *bun.DB) emergencyOwnerStudents {
 	t.Helper()
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db, Observe: func(peopleCompose.Observation) {},
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db, Observe: func(peopleCompose.Observation) {},
 	})
 	require.NoError(t, err)
 	return emergencyOwnerStudents{directory: directory}

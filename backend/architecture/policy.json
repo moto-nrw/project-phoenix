@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 53,
+  "policy_epoch": 55,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -876,7 +876,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/careplan/inbound/parent",
+      "path": "workflows/parentportal/http",
       "owner": "parent-portal",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -3403,6 +3403,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/guardianlinkview/compose",
+      "owner": "guardian-link-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/inbound/birthdays",
       "owner": "people-directory",
       "role": "http",
@@ -5578,28 +5585,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "care-plan",
       "target_role": "compose"
-    },
-    {
-      "id": "student-directory-view.postgres.people-public",
-      "description": "Keep the existing student result contract during the owner storage cutover (#2759).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-directory-view",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "student-directory-view.postgres.departure-contract",
-      "description": "Read the existing weekday departure value types (#2759).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-directory-view",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "contract"
     },
     {
       "id": "workforce.domain.vacation-opening-contract",
@@ -8950,14 +8935,58 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "timetable-activities.postgres.transaction-runtime",
-      "description": "Timetable & Activities' postgres adapter classifies unique violations through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
+      "id": "timetable-activities.application.school-calendar.public",
+      "description": "Timetable & Activities' staff notices resolve the school calendar's week pattern through its public contract (ADR 0058 addendum, #4084).",
       "scopes": [
         "production"
       ],
       "source_owner": "timetable-activities",
-      "source_role": "postgres",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.tenant-runtime",
+      "description": "Timetable & Activities' template, materialization and series services read the tenant and its transaction from the tenant runtime (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.transaction-runtime",
+      "description": "Timetable & Activities' application classifies the driver's no-rows result through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
       "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.student-presence.public",
+      "description": "Timetable & Activities' conflict detection reads Student Presence's sessions through its public contract, as the composition did (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.tenant-runtime",
+      "description": "The internal tests of Timetable & Activities' application put the tenant into their context, as the moved code reads it (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
@@ -15372,6 +15401,11 @@
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "modules/careplan/inbound/parent",
+      "to": "workflows/parentportal/http",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
       "from": "modules/identityaccess/legacy/jwt",

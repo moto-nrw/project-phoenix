@@ -131,7 +131,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	materializationDeps := TimetableMaterializationDependencies(TimetableMaterializationInputs{
 		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger,
 	})
-	materializationDeps.DB = db.Pool()
+	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -154,7 +154,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	lifecycleRows.Locks = recovery
 	instance, err := NewTimetableLifecycle(TimetableLifecycleInputs{
 		Rows: lifecycleRows, Planning: arrivalTimetable.InstanceLifecycleDependencies{
-			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, DB: db.Pool(),
+			IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
 		},
 		Staff: NewTimetableStaff(r.Staff), Sessions: r.ActiveGroup, Supervisions: r.GroupSupervisor,
 		Presence: NewLoggedStudentPresence(db, logger), SessionEnder: ender, CareDays: careDay, CareDayLocks: carePlan,
@@ -182,7 +182,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	templateDeps.DB = db.Pool()
+	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	templates, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -194,7 +194,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	deviationDeps.DB = db.Pool()
+	deviationDeps.Locks = arrivalTimetable.NewTenantDatabase(db.Pool())
 	deviations, err := arrivalTimetable.NewStaffDeviations(deviationDeps)
 	if err != nil {
 		return TimetableTestModule{}, err

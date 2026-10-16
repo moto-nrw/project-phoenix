@@ -29,12 +29,12 @@ func TestEmergencySnapshotRuntimeEvidence(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Runtime-room")
 	activity := testpkg.CreateTestActivityGroup(t, db, "Runtime-activity")
 	group := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	rooms, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
 	query, err := newEmergencySnapshot(emergencySnapshotSources{Presence: emergencyPresenceModule(t, db), PresenceMode: emergencyFakeMode{mode: "detailed"},
-		Students: newEmergencyOwnerStudents(t, db), Persons: people, Contacts: peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{}),
+		Students: newEmergencyOwnerStudents(t, db), Persons: people, Contacts: peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{Students: testpkg.StudentDirectory{}, Links: testpkg.GuardianLinks{}}),
 		Rooms: rooms, Renderer: lists.NewRendererService()})
 	require.NoError(t, err)
 	var postgres string

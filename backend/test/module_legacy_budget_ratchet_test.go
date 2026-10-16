@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 1798
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3816
+const moduleLegacyFileBudgetTotal = 3806
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -149,7 +149,7 @@ var moduleLegacyFileBudgets = map[string]int{
 	"modules/timetable/compose/legacy_errors.go":                              121,
 	"modules/timetable/compose/legacy_group_update.go":                        47,
 	"modules/timetable/compose/legacy_interface.go":                           90,
-	"modules/timetable/compose/legacy_repository_options.go":                  531,
+	"modules/timetable/compose/legacy_repository_options.go":                  521,
 	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
 	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
 	"modules/workforce/internal/planning/legacy_helpers.go":                   47,
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 89843
+const moduleComposeBudgetTotal = 71696
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -192,6 +192,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/feedback/compose":                       219,
 	"modules/filestorage/compose":                    642,
 	"modules/grouplive/compose":                      14,
+	"modules/guardianlinkview/compose":               8, // #4076, see the parent request feed projection below
 	"modules/identityaccess/compose":                 7339,
 	"modules/mealplan/compose":                       274,
 	"modules/organizationtenancy/compose":            744,
@@ -203,7 +204,7 @@ var moduleComposeBudgets = map[string]int{
 	// Timetable's advisory locks moved into the root and gave up more than
 	// the three hold.
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 8962,
+	"modules/peopledirectory/compose":                 8943,
 	"modules/peopledirectory/compose/vocabulary":      133,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,
@@ -219,7 +220,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            19,
-	"modules/timetable/compose":                       36297,
+	"modules/timetable/compose":                       18164,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
@@ -235,7 +236,7 @@ var moduleComposeBudgets = map[string]int{
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 225,
 	"workflows/staffclock/compose":                    36,
-	"workflows/staffoffboarding/compose":              224,
+	"workflows/staffoffboarding/compose":              221,
 	"workflows/studentdeletion/compose":               236,
 }
 

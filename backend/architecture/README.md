@@ -3869,6 +3869,29 @@ and the ID helpers are Timetable's own values in `internal/domain`; the
 unique-violation classification is reached through the owner's postgres
 adapter, which delegates to the transaction runtime.
 
+Epoch 54 moves the staff notices (#2180), the Timetable templates, the
+materialization, the series conversion, the roster maintenance and the
+conflict detection (11,264 LOC) from the composition into
+`internal/application`; the staff notice repository and its row mapping go
+to `internal/adapters/postgres`. The template services take a
+`TenantTransactions` port instead of the database handle; the composition
+binds it to the tenant runtime. It adds
+`timetable-activities.application.school-calendar.public`,
+`timetable-activities.application.tenant-runtime`,
+`timetable-activities.application.transaction-runtime`,
+`timetable-activities.application.student-presence.public` and, for the moved
+internal tests, `timetable-activities.module-internal-test.tenant-runtime`
+(the internal-test mirror of the reach, ADR 0058 addendum point 4).
+
+Without a new rule or epoch, #4084 then moves the instance lifecycle, its
+automatic start and end, the status slots, the staff deviation writes, the
+bulk substitution and the substitute conflicts (6,869 LOC) into
+`internal/application`. The lifecycle takes a `TenantDatabase` port (tenant
+transaction and advisory locks) and the staff deviations a
+`TransactionLocks` port instead of the database handle. The composition's
+unique-violation wrappers have no caller left, so they and
+`timetable-activities.postgres.transaction-runtime` are deleted.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
