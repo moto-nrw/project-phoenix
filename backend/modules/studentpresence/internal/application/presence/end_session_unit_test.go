@@ -622,7 +622,7 @@ func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
 	supervisorRepo := &mockGroupSupervisorRepository{findByActiveGroupIDFunc: func(context.Context, int64, bool) ([]*ports.GroupSupervisor, error) {
 		return []*ports.GroupSupervisor{}, nil
 	}}
-	broadcaster := testpkg.NewRecordingBroadcaster()
+	broadcaster := &recordingEventPublisher{}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		DB: db, GroupRepo: groupRepo, SchoolPresence: visitRepo,
 		SupervisorRepo: supervisorRepo, Broadcaster: broadcaster,
@@ -630,7 +630,7 @@ func TestEndActivitySessionDoesNotBroadcastWhenCommitFails(t *testing.T) {
 
 	ctx := withSessionTestRuntime(t, context.Background(), db)
 	require.ErrorContains(t, svc.EndActivitySession(ctx, 1), "commit failed")
-	require.Empty(t, broadcaster.Events())
+	require.Zero(t, broadcaster.announcements)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -642,7 +642,7 @@ func TestEndActiveGroupSessionDoesNotBroadcastWhenOuterCommitFails(t *testing.T)
 	db := testpkg.NewBunDB(mockDB)
 	mock.ExpectBegin()
 	mock.ExpectCommit().WillReturnError(errors.New("outer commit failed"))
-	broadcaster := testpkg.NewRecordingBroadcaster()
+	broadcaster := &recordingEventPublisher{}
 	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
 		DB: db,
 		GroupRepo: &mockGroupRepository{findByIDForUpdateFunc: func(context.Context, int64) (*ports.ActiveGroup, error) {
@@ -657,7 +657,7 @@ func TestEndActiveGroupSessionDoesNotBroadcastWhenOuterCommitFails(t *testing.T)
 
 	ctx := withSessionTestRuntime(t, context.Background(), db)
 	require.ErrorContains(t, svc.EndActiveGroupSession(ctx, 1), "outer commit failed")
-	require.Empty(t, broadcaster.Events())
+	require.Zero(t, broadcaster.announcements)
 	require.NoError(t, mock.ExpectationsWereMet())
 }
 
@@ -947,4 +947,44 @@ func (m *mockVisitRepository) LockRoomSessionWrites(ctx context.Context, roomID 
 		return m.lockRoomSessionWritesFunc(ctx, roomID)
 	}
 	return nil
+}
+
+// recordingEventPublisher counts every announcement a service makes, so a
+// test can prove that nothing was announced.
+type recordingEventPublisher struct{ announcements int }
+
+func (p *recordingEventPublisher) VisitCheckedIn(context.Context, studentpresence.LiveVisitChange) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) VisitCheckedOut(context.Context, studentpresence.LiveVisitChange) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) RoomlessAttendanceChanged(context.Context, bool, studentpresence.LiveVisitChange) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) BulkStudentChange(context.Context, bool, string, []string, []string) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) BulkStudentChangeToEducationGroup(context.Context, bool, string, int64, []string) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) SessionStarted(context.Context, studentpresence.LiveSessionChange) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) SessionEnded(context.Context, studentpresence.LiveSessionChange) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) SupervisionRefresh(context.Context, string, string, []string) {
+	p.announcements++
+}
+
+func (p *recordingEventPublisher) DashboardCountsChanged(context.Context, []string) {
+	p.announcements++
 }

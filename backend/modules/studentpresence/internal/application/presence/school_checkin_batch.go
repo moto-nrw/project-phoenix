@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -543,14 +542,14 @@ func (s *service) registerSchoolCheckinBatchBroadcast(
 		// One event per active group whose roster changed.
 		for groupID, ids := range activeGroups {
 			groupIDStr := strconv.FormatInt(groupID, 10)
-			realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), checkIn, groupIDStr, ids, allEduGroupIDs)
+			s.Broadcaster.BulkStudentChange(ctx, checkIn, groupIDStr, ids, allEduGroupIDs)
 		}
 
 		// One event per distinct educational group, carrying only that
 		// group's students so each client invalidates the right caches.
 		// No active group: this is a roomless attendance change.
 		for gid, ids := range eduGroups {
-			realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), checkIn, "", gid, ids)
+			s.Broadcaster.BulkStudentChangeToEducationGroup(ctx, checkIn, "", gid, ids)
 		}
 
 		// Single tenant-wide refresh for the entire batch. The group-specific
