@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 484 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 47 ·
+Stand 16.10.2026 · Ratchet 477 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 47 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -17,14 +17,14 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach, Projektion, Workflow | 6 |
-| [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 14 |
+| [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach, Projektion, Workflow | 3 |
+| [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 10 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 11 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 7 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
 | [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools des Kommando-Roots | 2 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 484 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 477 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -130,7 +130,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 
 ## Worker und Scheduler · 0 Keys
 
-- [ ] [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067) Worker-Vertrag der Root als definierte Typen in einen `scheduler-runtime`/`contract`-Punkt (ADR 0056 Punkt 4) — 0 (entfernt `api -> services/scheduler`, 37 Symbole, ohne Alias und ohne Regel; der Key trägt weiter #2750, weil der Baseline-Vergleich keinen Issue-Wechsel zulässt, #4067 blockt #2750). Entscheidung vom 16.10.2026: Der Vertrag darf keine Typen anderer Owner nennen (ADR 0057), also erst die Ports (ADR 0058 Punkt 2), dann der Umzug; #4067 trägt dafür alle Keys mit Quelle `services/scheduler` (#4072, #4075). Schritt 1: Der Erzeuger der persönlichen Erinnerungs-Benachrichtigungen liegt in `workflows/reminderdelivery` (`PersonalReminderNotifications`), der Worker hält nur den Tick-Port `ReminderNotificationTick`; die Root bindet Zustellung, Zustimmung, Konten und Dienstanwesenheit (`workforce.OnDutyStaffIDs`). Fünf Keys weg (519 → 514): `services/scheduler -> delivery/application/notifications` und `-> workforce` in Produktion und internem Test, `-> workflows/reminderdelivery` im internen Test
+- [ ] [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067) Worker-Vertrag der Root als definierte Typen in einen `scheduler-runtime`/`contract`-Punkt (ADR 0056 Punkt 4) — 0 (entfernt `api -> services/scheduler`, 37 Symbole, ohne Alias und ohne Regel; der Key trägt weiter #2750, weil der Baseline-Vergleich keinen Issue-Wechsel zulässt, #4067 blockt #2750). Entscheidung vom 16.10.2026: Der Vertrag darf keine Typen anderer Owner nennen (ADR 0057), also erst die Ports (ADR 0058 Punkt 2), dann der Umzug; #4067 trägt dafür alle Keys mit Quelle `services/scheduler` (#4072, #4075). Schritt 1: Der Erzeuger der persönlichen Erinnerungs-Benachrichtigungen liegt in `workflows/reminderdelivery` (`PersonalReminderNotifications`), der Worker hält nur den Tick-Port `ReminderNotificationTick`; die Root bindet Zustellung, Zustimmung, Konten und Dienstanwesenheit (`workforce.OnDutyStaffIDs`). Fünf Keys weg (519 → 514): `services/scheduler -> delivery/application/notifications` und `-> workforce` in Produktion und internem Test, `-> workflows/reminderdelivery` im internen Test. Schritt 2: eigene Ports des Workers für Sitzungsende und verlassene Sitzungen, die nächtliche Anwesenheitsbereinigung, das Archiv der Status-Flags, die PWA-Nutzungsbereinigung und die Überfällig-Ereignisse; die Root bindet sie (`api/scheduler_presence_ports.go`), Care Plans Status und Quelle bindet die Root, die Ereignisse baut `realtime`. Sieben Keys weg (512 → 505): `-> studentpresence`, `-> delivery/application/pwa` und `-> delivery/application/realtimeevents` in Produktion und internem Test, `-> careplan/absencerecords` in Produktion; damit trägt `services/scheduler` keinen #4075-Key mehr. Offen: `-> timetable` (Produktion, interner Test) und `-> workflows/reminderdelivery` (Produktion), danach der Vertrag
 - [x] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease — Migration 1.15.437 (`platform.worker_leases`, `platform.assert_worker_lease`), Store in `modules/schedulerruntime/workerlease`, jeder Job-Lauf und jeder Commit hängt am Lease-Term; eigenständiger Prozess `worker`, `serve --embedded-worker=false`; 0 Keys (Ratchet 378 → 378), Composition 603 → 603; Runbook `docs/operations/worker-lease-2726.md`
 - [x] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 0 (alle 27 Keys weg, 377 → 350): Tenant-Runtime über den Scheduler-Port `TenantRuntime`, gebunden durch das neue Paket `modules/schedulerruntime/jobruntime` (scheduler-runtime/postgres, ohne neue Regel); Settings-Keys als lokale Konstanten, die Root prüft sie beim Start gegen die Registry (`settingsCompose.VerifyPreloadKeys`) und bindet den Minuten-Snapshot über `settingsCompose.NewTenantSnapshots`; Overdue-Tick über `realtimeevents` und eigene Ports, Booking-Audit, Schülerstatus und Change-Log über Ports, die `api/scheduler_ports.go` an die Legacy-Typen bindet; die Suiten laufen über Test-Support (`testpkg.PassthroughTenantRuntime`, `ScriptedTenantRuntime`) statt über Repositories, die SQL-Seiten der Overdue- und Session-End-Pfade pinnen zwei neue Tests in `database/repositories`; das Budget-Szenario `services.scheduler.minute_snapshot.setting_values` prüft jetzt `services.TestSchedulerMinuteSnapshotReadsEverySchoolOnce` über die echte Bindung; Composition 603 → 597
 

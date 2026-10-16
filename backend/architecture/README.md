@@ -4339,6 +4339,27 @@ an incomplete producer instead of silently not registering the tick.
 519 -> 514. The composition surface falls from 1,743 to 1,742. The evidence
 record is `scheduler-reminder-notifications-4067.json`.
 
+Step 2, Student Presence, Care Plan and the Delivery Platform. The Worker
+declares its own ports for the session end and the abandoned-session sweep
+(`SessionMaintenance`, `DailySessionsEnded`), the nightly presence cleanup
+(`PresenceCleanup` and its three results), the end-of-day status flag archive
+(`StudentStatusFlagArchiver.ArchiveEndOfDayStatusFlag`), the standalone usage
+sweep (`PWAUsageCleanup`) and the overdue announcements
+(`InstanceOverdueBroadcaster`). The root binds them in
+`api/scheduler_presence_ports.go`. Care Plan's vocabulary moves with the
+binding: the root archives the sick flag as a sick day and the excused flag
+as an excused day from the end-of-day source. The overdue event envelopes
+become the Delivery Platform's `realtime.NewInstanceOverdueEvent` and
+`NewInstanceOverdueRefreshEvent`, which the root broadcasts tenant-wide;
+`realtimeevents.PublishInstanceOverdue` and `PublishInstanceOverdueRefresh`
+had no other caller and are deleted. Seven keys leave `legacy.jsonl`
+(512 -> 505): `services/scheduler -> modules/studentpresence`,
+`-> modules/delivery/application/pwa` and
+`-> modules/delivery/application/realtimeevents` in production and internal
+test, and `-> modules/careplan/absencerecords` in production. The
+composition surface stays at 1,740. The evidence record is
+`scheduler-presence-delivery-ports-4067.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
