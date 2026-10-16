@@ -57,7 +57,7 @@
     "source": "Local runs on the #3554 branch stacked on work/3553-move-deviations-substitutions-and-the-attendance at 8d5d3bcfe4c17a6266a3591249917532c061d468.",
     "sources": [
       "backend/modules/timetable/instance_lifecycle.go",
-      "backend/modules/timetable/compose/instance_lifecycle.go",
+      "backend/modules/timetable/internal/application/instance_lifecycle.go",
       "backend/api/timetable_lifecycle_composition.go",
       "backend/test/query_budgets.go"
     ],
