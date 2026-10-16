@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 51,
+  "policy_epoch": 52,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -9012,6 +9012,17 @@
       "source_owner": "timetable-activities",
       "source_role": "compose",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.application.school-calendar.public",
+      "description": "Timetable & Activities' staff notices resolve the school calendar's week pattern through its public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.postgres.transaction-runtime",

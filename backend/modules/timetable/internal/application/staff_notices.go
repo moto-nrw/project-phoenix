@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/uptrace/bun"
 )
 
 // Tagesinformationen (#2180) — Geschäftslogik der Hinweise fürs Team:
@@ -38,7 +37,6 @@ type StaffNoticePeriodLookup interface {
 // gibt je Konto-Id den Anzeigenamen der aktiven Person des Mandanten zurück;
 // Konten ohne Person fehlen in der Antwort.
 type StaffNoticeDependencies struct {
-	DB          *bun.DB
 	Periods     StaffNoticePeriodLookup
 	Names       func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	Logger      *slog.Logger
@@ -54,8 +52,8 @@ type staffNoticeService struct {
 }
 
 // NewStaffNotices verdrahtet den Dienst auf dem eigenen Repository des Owners.
-func NewStaffNotices(deps StaffNoticeDependencies) timetable.StaffNotices {
-	return newStaffNotices(NewStaffNoticeRepository(deps.DB), deps)
+func NewStaffNotices(repo scheduleModels.StaffNoticeRepository, deps StaffNoticeDependencies) timetable.StaffNotices {
+	return newStaffNotices(repo, deps)
 }
 
 // newStaffNotices ist die Naht für die Logiktests: sie setzen ein anderes

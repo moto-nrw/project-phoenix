@@ -304,7 +304,7 @@ var modulePassthroughBudgets = map[string]int{
 
 // modulePassthroughComposeBudgetTotal is the sum of
 // modulePassthroughComposeBudgets. Shrink-only, like every entry.
-const modulePassthroughComposeBudgetTotal = 2392
+const modulePassthroughComposeBudgetTotal = 2382
 
 // modulePassthroughComposeBudgets is the composition register (#4071): owner
 // composition directory → pass-throughs measured below it. First measured on
@@ -343,7 +343,7 @@ var modulePassthroughComposeBudgets = map[string]int{
 	"modules/schoolstructure/compose":       72,
 	"modules/settings/compose":              20,
 	"modules/studentpresence/compose":       151,
-	"modules/timetable/compose":             404,
+	"modules/timetable/compose":             394,
 	"modules/workforce/compose":             338,
 	"workflows/openroommove/compose":        1,
 	"workflows/parentportal/compose":        22,
