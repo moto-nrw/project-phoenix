@@ -49,3 +49,16 @@ func TestAnalysisBuildTagsCannotHideProductionSource(t *testing.T) {
 		t.Fatalf("analysis tag hid production source: %v", err)
 	}
 }
+
+func TestGodaQueryCarriesAnalysisBuildTags(t *testing.T) {
+	t.Parallel()
+	policy, graph, _ := loadProjectionInputs(t)
+	policy.Build.Tags = []string{"testhooks"}
+	query, err := GodaQuery(policy, graph, "module:alpha")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(query, "testhooks=1(") {
+		t.Fatalf("goda query lost the analysis build tag: %s", query)
+	}
+}
