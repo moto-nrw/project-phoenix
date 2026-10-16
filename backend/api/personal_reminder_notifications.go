@@ -6,8 +6,8 @@ import (
 	"log/slog"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -15,7 +15,7 @@ import (
 // producer for the Worker's minute tick: the reminder batch, the consent of
 // the notification preferences, the staff and admin accounts, the on-duty
 // staff of Workforce and the Delivery Platform's notification service.
-func newPersonalReminderTick(graph *serveGraph, reads workerReads, runtime scheduler.TenantRuntime, logger *slog.Logger) (scheduler.ReminderNotificationTick, error) {
+func newPersonalReminderTick(graph *serveGraph, reads workerReads, runtime schedulerPorts.TenantRuntime, logger *slog.Logger) (schedulerPorts.ReminderNotificationTick, error) {
 	services := graph.services
 	producer, err := reminder.NewPersonalReminderNotifications(reminder.PersonalReminderDependencies{
 		Computer: services.Reminders,

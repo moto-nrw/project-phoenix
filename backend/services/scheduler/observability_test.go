@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 )
 
 type workerCorrelationKey struct{}
@@ -31,7 +33,7 @@ func TestRunCleanupJobsEmitsCorrelatedWorkerFailure(t *testing.T) {
 	var gotCorrelation bool
 	legacyObservations := 0
 	scheduler.tenantRuntimeObserver = func(_, _ string) { legacyObservations++ }
-	scheduler.workerTracer = WorkerTracer{
+	scheduler.workerTracer = ports.WorkerTracer{
 		StartJob: func(ctx context.Context, operation string) (context.Context, error) {
 			if operation != "token-cleanup" {
 				t.Fatalf("StartJob() operation = %q, want token-cleanup", operation)
@@ -64,7 +66,7 @@ func TestRunCleanupJobsReturnsTraceSetupFailure(t *testing.T) {
 	t.Parallel()
 
 	scheduler := &Scheduler{}
-	scheduler.workerTracer = WorkerTracer{
+	scheduler.workerTracer = ports.WorkerTracer{
 		StartJob: func(context.Context, string) (context.Context, error) {
 			return nil, errors.New("random source unavailable")
 		},
@@ -81,7 +83,7 @@ func TestRunCleanupJobsStartsCorrelationBeforeEmptyJobExit(t *testing.T) {
 	started := false
 	correlatedLog := false
 	scheduler := &Scheduler{}
-	scheduler.workerTracer = WorkerTracer{
+	scheduler.workerTracer = ports.WorkerTracer{
 		StartJob: func(ctx context.Context, _ string) (context.Context, error) {
 			started = true
 			return context.WithValue(ctx, workerCorrelationKey{}, true), nil
@@ -134,7 +136,7 @@ func TestRunJobCheckContainsPanicToCurrentRun(t *testing.T) {
 
 	scheduler := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler))
 	var gotOutcome string
-	scheduler.workerTracer.Run = func(_ JobID, outcome string, _ time.Duration) {
+	scheduler.workerTracer.Run = func(_ ports.JobID, outcome string, _ time.Duration) {
 		gotOutcome = outcome
 	}
 
@@ -187,10 +189,10 @@ func TestRunJobCheckRecordsDurationByStableID(t *testing.T) {
 	t.Parallel()
 
 	scheduler := newUnitScheduler(nil, nil, nil, nil, nil, nil, slog.New(slog.DiscardHandler))
-	var gotJobID JobID
+	var gotJobID ports.JobID
 	var gotOutcome string
 	var gotDuration time.Duration
-	scheduler.workerTracer.Run = func(jobID JobID, outcome string, duration time.Duration) {
+	scheduler.workerTracer.Run = func(jobID ports.JobID, outcome string, duration time.Duration) {
 		gotJobID = jobID
 		gotOutcome = outcome
 		gotDuration = duration
@@ -211,12 +213,12 @@ func TestFormerCustomPollingJobsRecordStableIDs(t *testing.T) {
 		breakAutoEnder: &countingBreakAutoEnder{},
 		logger:         slog.New(slog.DiscardHandler),
 	})
-	var got []JobID
-	scheduler.workerTracer.Run = func(jobID JobID, _ string, _ time.Duration) {
+	var got []ports.JobID
+	scheduler.workerTracer.Run = func(jobID ports.JobID, _ string, _ time.Duration) {
 		got = append(got, jobID)
 	}
 	checks := []struct {
-		id    JobID
+		id    ports.JobID
 		check func(context.Context, *ScheduledTask)
 	}{
 		{id: "session-cleanup", check: scheduler.checkAndRunSessionCleanup},
@@ -227,7 +229,7 @@ func TestFormerCustomPollingJobsRecordStableIDs(t *testing.T) {
 		scheduler.runJobCheck(&ScheduledTask{Name: string(check.id)}, check.check)
 	}
 
-	want := []JobID{"session-cleanup", "break-auto-end", "auto-checkout"}
+	want := []ports.JobID{"session-cleanup", "break-auto-end", "auto-checkout"}
 	if !slices.Equal(got, want) {
 		t.Fatalf("run job IDs = %v, want %v", got, want)
 	}

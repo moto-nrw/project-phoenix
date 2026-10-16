@@ -7,19 +7,21 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type stubBookingConsistencyAudit struct {
-	report *BookingConsistencyReport
+	report *ports.BookingConsistencyReport
 	err    error
 	calls  int
 }
 
 // audit serves the scheduler's booking consistency port.
-func (s *stubBookingConsistencyAudit) audit(_ context.Context, auditDate calendar.Date) (*BookingConsistencyReport, error) {
+func (s *stubBookingConsistencyAudit) audit(_ context.Context, auditDate calendar.Date) (*ports.BookingConsistencyReport, error) {
 	s.calls++
 	if s.report != nil {
 		s.report.AuditDate = auditDate
@@ -31,7 +33,7 @@ func TestBookingConsistencyAuditLogsDriftCounts(t *testing.T) {
 	t.Parallel()
 
 	var output bytes.Buffer
-	auditor := &stubBookingConsistencyAudit{report: &BookingConsistencyReport{
+	auditor := &stubBookingConsistencyAudit{report: &ports.BookingConsistencyReport{
 		TenantID:                    42,
 		PickupProjectionMissingDays: 3,
 		TotalFindings:               3,
@@ -82,7 +84,7 @@ func TestBookingConsistencyAuditTreatsOptionalNoOfferingAsReview(t *testing.T) {
 	var output bytes.Buffer
 	// The Audit Platform counts an optional-offering phase for review only,
 	// so the bound report carries no finding for it.
-	auditor := &stubBookingConsistencyAudit{report: &BookingConsistencyReport{
+	auditor := &stubBookingConsistencyAudit{report: &ports.BookingConsistencyReport{
 		TenantID:                        42,
 		ApprovedWithoutOptionalOffering: 2,
 	}}

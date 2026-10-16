@@ -18,6 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -67,11 +69,11 @@ func buildOverdue(t *testing.T) *overdueSetup {
 // seedPlanned adds one planned instance of the day with a StartTime of
 // `minutesAgo` minutes before s.now, so callers can control the overdue
 // margin relative to the default 5-minute threshold.
-func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) DayInstance {
+func seedPlanned(t *testing.T, s *overdueSetup, minutesAgo int) ports.DayInstance {
 	t.Helper()
 	start := s.now.Add(-time.Duration(minutesAgo) * time.Minute)
 	s.nextID++
-	s.instances.instances = append(s.instances.instances, DayInstance{
+	s.instances.instances = append(s.instances.instances, ports.DayInstance{
 		ID:        s.nextID,
 		Date:      calendar.DateFromTime(s.now),
 		StartTime: time.Date(1, 1, 1, start.Hour(), start.Minute(), start.Second(), 0, time.UTC),

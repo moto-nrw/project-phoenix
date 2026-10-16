@@ -49,7 +49,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		submissionLimits:     owners.SubmissionLimits,
 		settingAudit:         owners.SettingAudit,
 		exportTransfers:      owners.ExportTransfers,
-	}, nil)
+	})
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -57,8 +57,26 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 func (s retentionSuite) run(t *testing.T, tenantID int64) {
 	t.Helper()
 	require.NoError(t, testpkg.WithinTenantContext(t, context.Background(), s.serve, tenantID, func(ctx context.Context) error {
-		return s.retention.run(ctx, tenantID)
+		return s.retention.runSteps(ctx)
 	}))
+}
+
+// runSteps runs the owners' deletion steps of one school in order and logs
+// each deletion, as the Worker's nightly run does (services/scheduler).
+func (r workerRetention) runSteps(ctx context.Context) error {
+	for _, step := range r.steps {
+		outcome, err := step.Run(ctx)
+		if err != nil {
+			return fmt.Errorf("retention step %s: %w", step.Kind, err)
+		}
+		if outcome.Deleted == 0 {
+			continue
+		}
+		if err := r.log(ctx, step.Kind, outcome); err != nil {
+			return fmt.Errorf("log retention step %s: %w", step.Kind, err)
+		}
+	}
+	return nil
 }
 
 func (s retentionSuite) insertID(t *testing.T, query string, args ...any) int64 {
