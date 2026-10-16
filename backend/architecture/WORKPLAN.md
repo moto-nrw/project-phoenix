@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 201 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 16.10.2026 · Ratchet 200 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 56.287 in `compose`
 
@@ -16,12 +16,12 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 29 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 5 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 201 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 200 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -266,6 +266,25 @@ Die bisher unter `api/` liegende 67-Zeilen-Übersichtsfunktion fällt erstmals
 unter die Modul-Längengrenze. Der unveränderte Personal-Mapper ist als benannter
 Schritt extrahiert; Wiedereinsetzen ergibt denselben vollständigen AST. Keine neue
 Allowlist-Zeile. Keine Route, Response, IoT-Zeichenkette oder Assertion ändert sich.
+
+#4078: SSE gehört Delivery Platform/HTTP; `inbound-sse` entfällt. Root bindet
+die bisherigen JWT-/Portal-Router, skalare Identität und Admin-Prüfung,
+Token-Deadline und Tenant-Transaktion. Die HTTP-eigenen typisierten Event-,
+Client- und Hub-Ports verwenden weiterhin die nativen Eventwerte, Client-Zeiger
+und denselben 32er-Kanal; keine Relay-Goroutine und kein zusätzlicher Puffer.
+Die vorhandene Testkomposition liefert den echten Root-Runtime-Wert. Vier
+Auth-/Router-Fälle liegen in Root; sämtliche 81 Assertions bleiben identisch.
+Zwei ownerweite Provider-/Rendering-Regeln werden durch sechs engere Rollen-
+und Scope-Regeln ersetzt. Mit den sechs Inbound-Regeln entfallen acht Regeln;
+Regelzahl 877 → 875, Inbound-Owner 10 → 9, Keys 204 → 203, #4078 6 → 5.
+Keine neue Reichweite, kein Selektor, kein Root-Service-Graph-Feld. Composition
+bleibt 1.657. Der bereits gemergte typisierte Transaktionsport aus #4184 bleibt über die
+Root-Bindung erhalten; die vorhandene
+Längen-Ausnahme des School-Stream-Handlers entfällt: Der unveränderte
+Registrierungsschritt ist benannt und der öffentliche Handler liegt unter 60 Zeilen. Der Einzel-Key
+ist in `delivery-sse-http-owner-4078.json` belegt. Routen, Responses und Goldens
+bleiben unverändert; Communication bleibt der letzte `inbound-*`-Schnitt.
+
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
