@@ -151,10 +151,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-calendar",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-classday",
       "kind": "inbound"
     },
@@ -781,8 +777,8 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/staffcalendar/http",
-      "owner": "inbound-calendar",
+      "path": "modules/schoolcalendar/http",
+      "owner": "school-calendar",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -11702,61 +11698,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-calendar.http-common",
-      "description": "Staff calendar handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-calendar",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-calendar.security-contract",
-      "description": "Staff calendar handlers name the calendar permissions (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-calendar",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "inbound-calendar.identity-adapter",
-      "description": "Staff calendar handlers verify and authenticate the JWT and scope the tenant (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-calendar",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.inbound-calendar-http",
-      "description": "The production root constructs the staff calendar HTTP adapter and mounts its CalDAV handler (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-calendar",
-      "target_role": "http"
-    },
-    {
-      "id": "e2e-calendar.to.inbound-calendar-http",
-      "description": "The calendar E2E flows drive the staff calendar HTTP adapter (#2703).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "test-support",
-      "source_role": "e2e-test",
-      "target_owner": "inbound-calendar",
-      "target_role": "http"
-    },
-    {
       "id": "inbound-statistics.http-common",
       "description": "Statistics handlers reuse common HTTP rendering, the tenant group and the permission gates (#2703).",
       "scopes": [
@@ -11950,17 +11891,6 @@
       ],
       "source_owner": "school-calendar",
       "source_role": "port",
-      "target_owner": "school-calendar",
-      "target_role": "contract"
-    },
-    {
-      "id": "calendar-portal.production.inbound-calendar.http.school-calendar.contract",
-      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-calendar",
-      "source_role": "http",
       "target_owner": "school-calendar",
       "target_role": "contract"
     },
@@ -15696,6 +15626,61 @@
       "source_role": "module-behavior-test",
       "target_owner": "identity-access",
       "target_role": "http"
+    },
+    {
+      "id": "school-calendar.http-common",
+      "description": "Staff calendar handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "inbound-common",
+      "target_role": "http"
+    },
+    {
+      "id": "school-calendar.security-contract",
+      "description": "Staff calendar handlers name the calendar permissions (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "security-runtime",
+      "target_role": "contract"
+    },
+    {
+      "id": "school-calendar.identity-adapter",
+      "description": "Staff calendar handlers verify and authenticate the JWT and scope the tenant (#2703).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "identity-access",
+      "target_role": "http"
+    },
+    {
+      "id": "e2e-calendar.to.school-calendar-http",
+      "description": "The calendar E2E flows drive the staff calendar HTTP adapter (#2703).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "test-support",
+      "source_role": "e2e-test",
+      "target_owner": "school-calendar",
+      "target_role": "http"
+    },
+    {
+      "id": "calendar-portal.production.school-calendar.http.school-calendar.contract",
+      "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-calendar",
+      "source_role": "http",
+      "target_owner": "school-calendar",
+      "target_role": "contract"
     }
   ],
   "relocations": [
