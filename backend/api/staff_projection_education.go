@@ -162,8 +162,8 @@ func (r groupSubstitutions) FindGroupHandovers(ctx context.Context, groupID int6
 // ListWithRelations resolves the groups and then the staff members. Soft-
 // deleted staff are included so historical substitutions keep resolving
 // after offboarding, as the replaced WhereAllWithDeleted lookup did.
-func (r groupSubstitutions) ListWithRelations(ctx context.Context, options *userModels.QueryOptions) ([]*educationRepo.GroupSubstitution, error) {
-	rows, err := educationHandovers(r.ListWithOptions(ctx, options))
+func (r groupSubstitutions) ListWithRelations(ctx context.Context, query educationRepo.HandoverQuery) ([]*educationRepo.GroupSubstitution, error) {
+	rows, err := educationHandovers(r.ListWithFilter(ctx, handoverFilter(query)))
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
@@ -260,7 +260,7 @@ type GroupSubstitutionRepository interface {
 	// Structure values, the group service's deletion guard.
 	FindGroupHandovers(ctx context.Context, groupID int64) ([]*educationRepo.GroupSubstitution, error)
 	// ListWithRelations is ListWithOptions with the group and staff attached.
-	ListWithRelations(ctx context.Context, options *userModels.QueryOptions) ([]*educationRepo.GroupSubstitution, error)
+	ListWithRelations(ctx context.Context, query educationRepo.HandoverQuery) ([]*educationRepo.GroupSubstitution, error)
 }
 
 // GroupSubstitutionRows are the Workforce rows of the contract, served over
@@ -275,7 +275,7 @@ type GroupSubstitutionRows interface {
 	// ListActiveSubstitutionBlockers returns current/upcoming typed group
 	// handovers as caregiver-capability blocker rows.
 	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error)
-	ListWithOptions(ctx context.Context, options *userModels.QueryOptions) ([]*workforceCompose.GroupSubstitution, error)
+	ListWithFilter(ctx context.Context, filter workforce.GroupSubstitutionFilter) ([]*workforceCompose.GroupSubstitution, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*workforceCompose.GroupSubstitution, error)
 }
 
@@ -325,13 +325,13 @@ func (h EducationHandovers) FindByIDForUpdate(ctx context.Context, id any) (*edu
 
 // ListHandovers selects the handovers of one school.
 func (h EducationHandovers) ListHandovers(ctx context.Context, query educationRepo.HandoverQuery) ([]*educationRepo.GroupSubstitution, error) {
-	return educationHandovers(h.substitutions.ListWithOptions(ctx, handoverQueryOptions(query)))
+	return educationHandovers(h.substitutions.ListWithFilter(ctx, handoverFilter(query)))
 }
 
 // ListHandoversWithRelations is ListHandovers with the group and the staff
 // members attached.
 func (h EducationHandovers) ListHandoversWithRelations(ctx context.Context, query educationRepo.HandoverQuery) ([]*educationRepo.GroupSubstitution, error) {
-	return h.substitutions.ListWithRelations(ctx, handoverQueryOptions(query))
+	return h.substitutions.ListWithRelations(ctx, query)
 }
 
 func educationHandoverResult(row *workforceCompose.GroupSubstitution, err error) (*educationRepo.GroupSubstitution, error) {
@@ -374,33 +374,24 @@ func workforceSubstitution(handover *educationRepo.GroupSubstitution) *workforce
 	}
 }
 
-func handoverQueryOptions(query educationRepo.HandoverQuery) *userModels.QueryOptions {
-	filter := userModels.NewQueryFilter().Equal("tenant_id", query.TenantID)
-	if query.TargetType != "" {
-		filter.Equal("target_type", query.TargetType)
-	}
-	if query.GroupID > 0 {
-		filter.Equal("group_id", query.GroupID)
+// handoverFilter selects the handovers of one school in the Workforce
+// capability's filter: a start on or before and an end on or after the
+// bounds overlap the period.
+func handoverFilter(query educationRepo.HandoverQuery) workforce.GroupSubstitutionFilter {
+	filter := workforce.GroupSubstitutionFilter{
+		TenantID: query.TenantID, TargetType: query.TargetType, GroupID: query.GroupID,
+		SubstituteStaffID: query.SubstituteStaffID,
 	}
 	if query.GroupIDs != nil {
-		values := make([]any, len(query.GroupIDs))
-		for i, id := range query.GroupIDs {
-			values[i] = id
-		}
-		filter.In("group_id", values...)
-	}
-	if query.SubstituteStaffID > 0 {
-		filter.Equal("substitute_staff_id", query.SubstituteStaffID)
+		filter.GroupIDs = append([]int64{}, query.GroupIDs...)
 	}
 	if query.StartsOnOrBefore != nil {
-		filter.LessThanOrEqual("start_date", *query.StartsOnOrBefore)
+		filter.OverlapTo = query.StartsOnOrBefore.String()
 	}
 	if query.EndsOnOrAfter != nil {
-		filter.GreaterThanOrEqual("end_date", *query.EndsOnOrAfter)
+		filter.OverlapFrom = query.EndsOnOrAfter.String()
 	}
-	options := userModels.NewQueryOptions()
-	options.Filter = filter
-	return options
+	return filter
 }
 
 // NewGroupSubstitutionRepository serves the retained group substitution
