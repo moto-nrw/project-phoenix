@@ -26,6 +26,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -395,6 +396,6 @@ func (m StudentTestModule) StatusDayOverviewPeople() presenceservice.StatusDayOv
 }
 
 // HistorySlots supplies the same owner projection to narrow student route fixtures.
-func (m StudentTestModule) HistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
+func (m StudentTestModule) HistorySlots(records timetablePorts.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	return NewHistorySlots(records)
 }

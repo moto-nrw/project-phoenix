@@ -8,6 +8,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -22,7 +23,7 @@ func (s *TemplateSplitService) EndFromDate(ctx context.Context, in timetable.End
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return nil, &ScheduleError{Op: "end template", Err: errors.New("no tenant in context")}
+		return nil, &ports.ScheduleError{Op: "end template", Err: errors.New("no tenant in context")}
 	}
 	if _, ok := tenant.TransactionFromContext(ctx); !ok && s.runInTx != nil {
 		return s.endFromDateWithTransaction(ctx, in, tenantID)
@@ -70,8 +71,8 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 		return nil, err
 	}
 	if err := s.validateCareOfferingSeries(ctx, old.ID); err != nil {
-		return nil, s.deps.CareOfferings.validationError(
-			ctx,
+		return nil, careOfferingValidationError(
+			ctx, s.deps.CareOfferings,
 			"end template: validate linked care offerings",
 			"ending the recurrence is incompatible with an existing care offering",
 			err,
@@ -113,7 +114,7 @@ func (s *TemplateSplitService) deleteEndedInstances(
 ) (int64, error) {
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &templateID, false)
 	if err != nil {
-		return 0, &ScheduleError{Op: "end template: delete planned instances", Err: err}
+		return 0, &ports.ScheduleError{Op: "end template: delete planned instances", Err: err}
 	}
 	cascadeDeleted, err := s.cascadeEndToSeriesSegments(ctx, templateID, requestedFrom)
 	if err != nil {
@@ -136,15 +137,15 @@ func (s *TemplateSplitService) capEndedSegment(
 	}
 	cappedSchedules, err := s.deps.ScheduleRepo.CapValidUntil(ctx, templateID, effectiveDate.String())
 	if err != nil {
-		return nil, &ScheduleError{Op: "end template: cap schedules", Err: err}
+		return nil, &ports.ScheduleError{Op: "end template: cap schedules", Err: err}
 	}
 	cappedEnrollments, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, templateID, activitiesModel.Date(effectiveDate))
 	if err != nil {
-		return nil, &ScheduleError{Op: "end template: cap enrollments", Err: err}
+		return nil, &ports.ScheduleError{Op: "end template: cap enrollments", Err: err}
 	}
 	cappedSupervisors, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, templateID, activitiesModel.Date(effectiveDate))
 	if err != nil {
-		return nil, &ScheduleError{Op: "end template: cap supervisors", Err: err}
+		return nil, &ports.ScheduleError{Op: "end template: cap supervisors", Err: err}
 	}
 	cappedBoundedEnrollments, err := s.capBoundedSegmentEnrollments(ctx, segmentEnrollments, sourceValidUntil, effectiveDate)
 	if err != nil {
@@ -236,8 +237,8 @@ func (s *TemplateSplitService) endCascadedSegment(
 	// offering still depends on must fail, no matter which segment of it
 	// the request came in on.
 	if err := s.validateCareOfferingSeries(ctx, seg.Group.ID); err != nil {
-		return 0, s.deps.CareOfferings.validationError(
-			ctx,
+		return 0, careOfferingValidationError(
+			ctx, s.deps.CareOfferings,
 			"end template: validate linked care offerings",
 			"ending the recurrence is incompatible with an existing care offering",
 			err,
@@ -246,7 +247,7 @@ func (s *TemplateSplitService) endCascadedSegment(
 	segmentID := seg.Group.ID
 	n, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(capAt), nil, &segmentID, false)
 	if err != nil {
-		return 0, &ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
+		return 0, &ports.ScheduleError{Op: "end template: delete cascaded segment planned instances", Err: err}
 	}
 	s.getLogger().Info("end cascade capped series segment",
 		slog.Int64("template_id", templateID),

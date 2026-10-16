@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -48,14 +49,14 @@ func (s *operations) rosterWithActionAccess(ctx context.Context, accountID int64
 	if roster.CanOperate, err = actionAllowed(s.requireCanOperate(ctx, accountID, isAdmin, instanceID)); err != nil {
 		return nil, err
 	}
-	if roster.CanStart, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockStart)); err != nil {
+	if roster.CanStart, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedBlockStart)); err != nil {
 		return nil, err
 	}
 	roster.CanStart = roster.CanStart && roster.Instance.Status == scheduleModels.InstanceStatusPlanned && !roster.Instance.IsDuty
-	if roster.CanEnd, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockComplete)); err != nil {
+	if roster.CanEnd, err = actionAllowed(s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedBlockComplete)); err != nil {
 		return nil, err
 	}
-	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedAttendance)
 	if err != nil && !errors.Is(err, timetable.ErrTimetableOperationForbidden) {
 		return nil, err
 	}

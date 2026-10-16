@@ -8,6 +8,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -26,32 +27,6 @@ const (
 	LifecycleEventActivityUpdate           = "activity_update"
 )
 
-// LifecycleEvent is one realtime notification of the lifecycle. Events are
-// refetch triggers, not payloads; the optional fields mirror the event data
-// the clients read.
-type LifecycleEvent struct {
-	Type              string
-	ActiveGroupID     string
-	InstanceID        *string
-	InstanceDate      *string
-	InstanceStartTime *string
-	RoomID            *string
-	RoomName          *string
-	ActivityName      *string
-	SupervisorIDs     *[]string
-	StudentIDs        *[]string
-	GroupIDs          *[]string
-	Reason            *string
-	Source            *string
-}
-
-// LifecycleBroadcaster delivers the lifecycle's events; the composition root
-// binds the realtime hub.
-type LifecycleBroadcaster interface {
-	BroadcastToGroup(tenantID int64, topic string, event LifecycleEvent) error
-	BroadcastToTenant(tenantID int64, event LifecycleEvent) error
-}
-
 // broadcastPlannedInstanceChanged queues one tenant-wide
 // staffing_deviation_changed event after the surrounding tenant transaction
 // commits. CRUD on planned blocks fires no lifecycle event, yet it changes
@@ -61,7 +36,7 @@ func (s *InstanceLifecycleService) broadcastPlannedInstanceChanged(ctx context.C
 		return
 	}
 	tenantID := tenant.FromContext(ctx)
-	event := LifecycleEvent{Type: LifecycleEventStaffingDeviationChanged, Source: &source}
+	event := ports.LifecycleEvent{Type: LifecycleEventStaffingDeviationChanged, Source: &source}
 	tenant.RegisterAfterCommit(ctx, func() {
 		if err := s.deps.Broadcaster.BroadcastToTenant(tenantID, event); err != nil {
 			s.getLogger().Warn("SSE planned instance broadcast failed",
@@ -98,11 +73,11 @@ func (s *InstanceLifecycleService) broadcastInstanceEvent(
 	})
 }
 
-func instanceEventBase(eventType string, instance *scheduleModel.ActivityInstance) LifecycleEvent {
+func instanceEventBase(eventType string, instance *scheduleModel.ActivityInstance) ports.LifecycleEvent {
 	instanceID := strconv.FormatInt(instance.ID, 10)
 	instanceDate := instance.Date.String()
 	instanceStart := instance.StartTime.Format("15:04:05")
-	return LifecycleEvent{
+	return ports.LifecycleEvent{
 		Type:              eventType,
 		InstanceID:        &instanceID,
 		InstanceDate:      &instanceDate,
@@ -114,7 +89,7 @@ func instanceEventBase(eventType string, instance *scheduleModel.ActivityInstanc
 // supervisors on a start event.
 func (s *InstanceLifecycleService) describeStartedSession(
 	ctx context.Context,
-	event *LifecycleEvent,
+	event *ports.LifecycleEvent,
 	instance *scheduleModel.ActivityInstance,
 	activeGroup *studentpresence.LiveGroup,
 	staffRows []*scheduleModel.InstanceStaff,
@@ -142,7 +117,7 @@ func (s *InstanceLifecycleService) describeStartedSession(
 	}
 }
 
-func (s *InstanceLifecycleService) deliverInstanceEvent(tenantID int64, event LifecycleEvent) {
+func (s *InstanceLifecycleService) deliverInstanceEvent(tenantID int64, event ports.LifecycleEvent) {
 	if event.ActiveGroupID != "" {
 		if err := s.deps.Broadcaster.BroadcastToGroup(tenantID, event.ActiveGroupID, event); err != nil {
 			s.getLogger().Warn("SSE broadcast failed",
@@ -164,7 +139,7 @@ func (s *InstanceLifecycleService) deliverInstanceEvent(tenantID int64, event Li
 
 func (s *InstanceLifecycleService) broadcastActiveSupervisionChanged(tenantID int64, activeGroupID, instanceID, sourceEventType string) {
 	reason := instanceRefreshReason(sourceEventType)
-	event := LifecycleEvent{
+	event := ports.LifecycleEvent{
 		Type:          LifecycleEventActiveSupervisionChanged,
 		ActiveGroupID: activeGroupID,
 		InstanceID:    &instanceID,
@@ -202,7 +177,7 @@ func (s *InstanceLifecycleService) QueueActivityUpdates(ctx context.Context, tou
 		instanceID := strconv.FormatInt(update.InstanceID, 10)
 		instanceDate := update.Date.String()
 		instanceStart := update.StartTime.Format("15:04:05")
-		event := LifecycleEvent{
+		event := ports.LifecycleEvent{
 			Type:              LifecycleEventActivityUpdate,
 			ActiveGroupID:     topic,
 			InstanceID:        &instanceID,

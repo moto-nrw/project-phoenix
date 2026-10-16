@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 213 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 56 ·
+Stand 16.10.2026 · Ratchet 213 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 57 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-67.410 in `compose`
+67.301 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -31,9 +31,9 @@ bleiben bei Security Runtimes gemeinsamem Prädikat. Personenfilter und Audience
 liegen nun in Care Plans Application statt in Compose; Record-Codecs liegen im eigenen
 Postgres-Adapter. Admin-Transaktionen, Beziehungsschutz,
 Fehler, Nil-/Leerslices, Kalenderdaten, JSON und Statusgrund-Redaktion bleiben gleich.
-Fünf `models/parent`-Keys fallen: 218 → 213, #4073 40 → 35, Regeln 898 unverändert,
+Fünf `models/parent`-Keys fallen: 218 → 213, #4073 40 → 35, Regeln 902 unverändert,
 Composition 1.657 unverändert. Compose: Care Plan 4.509 → 4.334, Parent Portal 507 → 506,
-gesamt 67.586 → 67.410 LOC; beide Register und die Summe sinken entsprechend.
+gesamt 67.477 → 67.301 LOC; beide Register und die Summe sinken entsprechend.
 Keine neue Freigabe, Klassifizierung, Rolle oder Paketverschiebung.
 
 #4073: Kind-Ereignisse und Messaging-Aktivierungsprüfung laufen über eigene Workflow-Ports.

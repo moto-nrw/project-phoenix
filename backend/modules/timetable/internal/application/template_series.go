@@ -6,6 +6,7 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -47,7 +48,7 @@ func loadTemplateSeriesSegments(
 ) ([]templateSeriesSegment, error) {
 	groups, err := groupRepo.FindTemplateSeries(ctx, templateID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "load template series: find lineage", Err: err}
+		return nil, &ports.ScheduleError{Op: "load template series: find lineage", Err: err}
 	}
 	groupIDs := make([]int64, 0, len(groups))
 	for _, group := range groups {
@@ -60,7 +61,7 @@ func loadTemplateSeriesSegments(
 	}
 	scheduleRows, err := scheduleRepo.FindByGroupIDs(ctx, groupIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: "load template series: load schedules", Err: err}
+		return nil, &ports.ScheduleError{Op: "load template series: load schedules", Err: err}
 	}
 	schedulesByGroup := make(map[int64][]*activitiesModel.Schedule, len(groups))
 	for _, row := range scheduleRows {
@@ -98,7 +99,7 @@ func templateSeriesSegmentOf(
 	validFrom, validUntil, err := commonScheduleValidityEnvelope(schedules)
 	if err != nil {
 		if group.ID == templateID {
-			return templateSeriesSegment{}, false, &ScheduleError{Op: "load template series: inspect schedule envelope", Err: err}
+			return templateSeriesSegment{}, false, &ports.ScheduleError{Op: "load template series: inspect schedule envelope", Err: err}
 		}
 		OrDefaultLogger(logger).Warn("skipping template series segment with inconsistent schedule envelope",
 			slog.Int64("template_id", templateID),

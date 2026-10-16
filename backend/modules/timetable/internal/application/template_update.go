@@ -9,6 +9,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -86,7 +87,7 @@ type TemplateUpdateInput struct {
 func (s *TemplateService) UpdateTemplate(ctx context.Context, in TemplateUpdateInput) error {
 	targetsProvided := in.Targets != nil
 	if err := normalizeTemplateUpdateTarget(&in); err != nil {
-		return &ScheduleError{Op: updateTemplateOp, Err: err}
+		return &ports.ScheduleError{Op: updateTemplateOp, Err: err}
 	}
 	tenantID, err := s.validateTemplateUpdateRequest(ctx, in)
 	if err != nil {
@@ -118,19 +119,19 @@ func normalizeTemplateUpdateTarget(in *TemplateUpdateInput) error {
 
 func (s *TemplateService) validateTemplateUpdateRequest(ctx context.Context, in TemplateUpdateInput) (int64, error) {
 	if err := validateTemplateUpdateInput(in, s.deps.SchoolClasses); err != nil {
-		return 0, &ScheduleError{Op: updateTemplateOp, Err: err}
+		return 0, &ports.ScheduleError{Op: updateTemplateOp, Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("no tenant in context")}
+		return 0, &ports.ScheduleError{Op: updateTemplateOp, Err: errors.New("no tenant in context")}
 	}
 	if s.deps.Transactions == nil {
-		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("database is not configured")}
+		return 0, &ports.ScheduleError{Op: updateTemplateOp, Err: errors.New("database is not configured")}
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
 		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil ||
 		s.deps.ActivityCategoryRepo == nil {
-		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("template repositories are not configured")}
+		return 0, &ports.ScheduleError{Op: updateTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
 	return tenantID, nil
 }
@@ -179,12 +180,12 @@ func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdat
 	existing, err := s.deps.ActivityGroupRepo.FindByID(ctx, in.TemplateID)
 	if err != nil {
 		if domain.IsRecordNotFound(err) {
-			return nil, &ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}
+			return nil, &ports.ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}
 		}
-		return nil, &ScheduleError{Op: "update template: load target", Err: err}
+		return nil, &ports.ScheduleError{Op: "update template: load target", Err: err}
 	}
 	if existing == nil || !existing.IsTemplate || existing.ArchivedAt != nil {
-		return nil, &ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}
+		return nil, &ports.ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}
 	}
 	if in.Fields.CategoryID != existing.CategoryID {
 		if err := validateAssignableCategory(ctx, s.deps.ActivityCategoryRepo, in.Fields.CategoryID, "update template: validate category"); err != nil {
@@ -210,7 +211,7 @@ func (s *TemplateService) resolveUpdateTargets(
 ) error {
 	existingTargets, err := loadExistingDynamicTargets(ctx, s.deps.ActivityGroupRepo, in.TemplateID)
 	if err != nil {
-		return &ScheduleError{Op: "update template: load targets", Err: err}
+		return &ports.ScheduleError{Op: "update template: load targets", Err: err}
 	}
 	if !targetsProvided && len(existingTargets) > 0 {
 		in.Targets = existingTargets
@@ -222,7 +223,7 @@ func (s *TemplateService) resolveUpdateTargets(
 		}
 	}
 	if err := validateDynamicTargets(ctx, s, in.GradeLevelMax, existing, existingTargets, in.Targets); err != nil {
-		return &ScheduleError{Op: "update template: validate target grade", Err: err}
+		return &ports.ScheduleError{Op: "update template: validate target grade", Err: err}
 	}
 	return nil
 }
@@ -245,10 +246,10 @@ func (s *TemplateService) loadTemplateUpdateState(
 	}
 	previousSchedules, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, in.TemplateID)
 	if err != nil {
-		return templateUpdateState{}, &ScheduleError{Op: "update template: load previous schedules", Err: err}
+		return templateUpdateState{}, &ports.ScheduleError{Op: "update template: load previous schedules", Err: err}
 	}
 	if err := validateLegacyTemplateWeekdays(previousSchedules, in.Weekdays); err != nil {
-		return templateUpdateState{}, &ScheduleError{Op: "update template: validate weekdays", Err: err}
+		return templateUpdateState{}, &ports.ScheduleError{Op: "update template: validate weekdays", Err: err}
 	}
 	// Capture the series' current Listenart before the field write so the
 	// instance propagation can tell an untouched occurrence (still carrying the
@@ -279,10 +280,10 @@ func (s *TemplateService) writeTemplateFields(ctx context.Context, in TemplateUp
 	if targetsProvided {
 		targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
 		if !ok {
-			return &ScheduleError{Op: "update template: replace targets", Err: errors.New("target repository is not configured")}
+			return &ports.ScheduleError{Op: "update template: replace targets", Err: errors.New("target repository is not configured")}
 		}
 		if err := targetRepo.ReplaceTargets(ctx, in.TemplateID, in.Targets); err != nil {
-			return &ScheduleError{Op: "update template: replace targets", Err: err}
+			return &ports.ScheduleError{Op: "update template: replace targets", Err: err}
 		}
 	}
 	return s.propagateListKindToInstances(ctx, in.TemplateID, state.previousListKind, in.Fields.ListKind)
@@ -321,8 +322,8 @@ func (s *TemplateService) writeTemplateRecurrenceAndRoster(ctx context.Context, 
 		return nil
 	}
 	if err := s.deps.CareOfferings.ValidateSeries(ctx, in.TemplateID); err != nil {
-		return s.deps.CareOfferings.validationError(
-			ctx,
+		return careOfferingValidationError(
+			ctx, s.deps.CareOfferings,
 			"update template: validate linked care offerings",
 			"updated recurrence is incompatible with an existing care offering",
 			err,
@@ -344,7 +345,7 @@ func (s *TemplateService) resyncUpdatedTemplateOfferingRoster(
 		return nil
 	}
 	if s.deps.ResyncOfferingRoster == nil {
-		return &ScheduleError{Op: updateTemplateOp, Err: errors.New("offering roster resync is not configured")}
+		return &ports.ScheduleError{Op: updateTemplateOp, Err: errors.New("offering roster resync is not configured")}
 	}
 	if err := s.deps.ResyncOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 		TemplateID:       in.TemplateID,
@@ -354,7 +355,7 @@ func (s *TemplateService) resyncUpdatedTemplateOfferingRoster(
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom, s.deps.Today()),
 	}); err != nil {
-		return &ScheduleError{Op: "update template: resync offering roster", Err: err}
+		return &ports.ScheduleError{Op: "update template: resync offering roster", Err: err}
 	}
 	return nil
 }
@@ -423,7 +424,7 @@ func (s *TemplateService) reconcileManualRosterInstances(
 		offeringResyncBoundary(in.RosterValidFrom, scheduleValidFrom, s.deps.Today()),
 		nil,
 	); err != nil {
-		return &ScheduleError{Op: "update template: reconcile manual roster occurrences", Err: err}
+		return &ports.ScheduleError{Op: "update template: reconcile manual roster occurrences", Err: err}
 	}
 	return nil
 }
@@ -517,7 +518,7 @@ func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Contex
 	}
 	deleted, err := cleaner.DeletePlannedMaterializedWeekendInstances(ctx, templateID, removed)
 	if err != nil {
-		return &ScheduleError{Op: "update template: delete removed legacy weekend instances", Err: err}
+		return &ports.ScheduleError{Op: "update template: delete removed legacy weekend instances", Err: err}
 	}
 	if deleted > 0 {
 		// This bulk deletion bypasses the planned-instance CRUD flow, so it must
@@ -549,10 +550,10 @@ func (s *TemplateService) resolvePulledForwardStart(
 		return storedFrom, nil
 	}
 	if newStart.Before(s.deps.Today()) {
-		return nil, &ScheduleError{Op: op, Err: timetable.ErrTemplateStartInPast}
+		return nil, &ports.ScheduleError{Op: op, Err: timetable.ErrTemplateStartInPast}
 	}
 	if storedFrom == nil || !newStart.Before(*storedFrom) {
-		return nil, &ScheduleError{Op: op, Err: timetable.ErrTemplateStartNotEarlier}
+		return nil, &ports.ScheduleError{Op: op, Err: timetable.ErrTemplateStartNotEarlier}
 	}
 	segments, err := loadTemplateSeriesSegments(
 		ctx,
@@ -566,7 +567,7 @@ func (s *TemplateService) resolvePulledForwardStart(
 	}
 	for i := range segments {
 		if predecessorOverlapsPulledStart(&segments[i], in.TemplateID, *storedFrom, newStart) {
-			return nil, &ScheduleError{Op: op, Err: timetable.ErrTemplateStartPredecessorOverlap}
+			return nil, &ports.ScheduleError{Op: op, Err: timetable.ErrTemplateStartPredecessorOverlap}
 		}
 	}
 	return in.StartDate, nil
@@ -599,14 +600,14 @@ func (s *TemplateService) loadEditableTemplateEnvelope(
 ) (*calendar.Date, *calendar.Date, error) {
 	existing, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return nil, nil, &ScheduleError{Op: "update template: load schedules", Err: err}
+		return nil, nil, &ports.ScheduleError{Op: "update template: load schedules", Err: err}
 	}
 	validFrom, validUntil, err := commonScheduleValidityEnvelope(existing)
 	if err != nil {
-		return nil, nil, &ScheduleError{Op: "update template: inspect schedule validity", Err: err}
+		return nil, nil, &ports.ScheduleError{Op: "update template: inspect schedule validity", Err: err}
 	}
 	if validUntil != nil {
-		return nil, nil, &ScheduleError{Op: "update template: inspect schedule validity", Err: timetable.ErrTemplateSegmentNotEditable}
+		return nil, nil, &ports.ScheduleError{Op: "update template: inspect schedule validity", Err: timetable.ErrTemplateSegmentNotEditable}
 	}
 	return validFrom, validUntil, nil
 }
@@ -614,15 +615,15 @@ func (s *TemplateService) loadEditableTemplateEnvelope(
 func (s *TemplateService) updateTemplateFields(ctx context.Context, in TemplateUpdateInput) error {
 	updated, err := s.deps.ActivityGroupRepo.UpdateTemplateFields(ctx, in.TemplateID, in.Fields)
 	if err != nil {
-		return &ScheduleError{Op: updateTemplateFieldsOp, Err: err}
+		return &ports.ScheduleError{Op: updateTemplateFieldsOp, Err: err}
 	}
 	if updated == 0 {
 		// Archive can commit while the handler's read-only preflight waits for
 		// this recurrence gate. Preserve the active-CRUD 404 contract.
-		return &ScheduleError{Op: updateTemplateFieldsOp, Err: timetable.ErrTemplateSegmentNotEditable}
+		return &ports.ScheduleError{Op: updateTemplateFieldsOp, Err: timetable.ErrTemplateSegmentNotEditable}
 	}
 	if updated > 1 {
-		return &ScheduleError{
+		return &ports.ScheduleError{
 			Op:  updateTemplateFieldsOp,
 			Err: fmt.Errorf("expected one template row to change, got %d", updated),
 		}
@@ -649,7 +650,7 @@ func (s *TemplateService) propagateListKindToInstances(
 	if _, err := s.deps.ActivityInstanceRepo.PropagateListKindToFutureInstances(
 		ctx, templateID, previousKind, newKind, scheduleModel.Date(s.deps.Today()),
 	); err != nil {
-		return &ScheduleError{Op: "update template: propagate list kind", Err: err}
+		return &ports.ScheduleError{Op: "update template: propagate list kind", Err: err}
 	}
 	return nil
 }
@@ -661,7 +662,7 @@ func (s *TemplateService) replaceTemplateSchedules(
 	validFrom, validUntil *calendar.Date,
 ) error {
 	if err := s.deps.ActivityScheduleRepo.DeleteByGroupID(ctx, in.TemplateID); err != nil {
-		return &ScheduleError{Op: "update template: delete schedules", Err: err}
+		return &ports.ScheduleError{Op: "update template: delete schedules", Err: err}
 	}
 	for _, weekday := range in.Weekdays {
 		timeframeID := in.TimeframeID
@@ -676,7 +677,7 @@ func (s *TemplateService) replaceTemplateSchedules(
 		}
 		schedule.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, schedule); err != nil {
-			return &ScheduleError{Op: "update template: create schedule", Err: err}
+			return &ports.ScheduleError{Op: "update template: create schedule", Err: err}
 		}
 	}
 	return nil
@@ -688,14 +689,14 @@ func (s *TemplateService) replaceTemplateSchedules(
 // then insert a stale future occurrence.
 func (s *TemplateService) ArchiveTemplate(ctx context.Context, templateID int64) (int64, error) {
 	if templateID <= 0 {
-		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("template id is required")}
+		return 0, &ports.ScheduleError{Op: archiveTemplateOp, Err: errors.New("template id is required")}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("no tenant in context")}
+		return 0, &ports.ScheduleError{Op: archiveTemplateOp, Err: errors.New("no tenant in context")}
 	}
 	if s.deps.Transactions == nil || s.deps.ActivityGroupRepo == nil {
-		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("template service is not configured")}
+		return 0, &ports.ScheduleError{Op: archiveTemplateOp, Err: errors.New("template service is not configured")}
 	}
 
 	var archived int64
@@ -706,12 +707,12 @@ func (s *TemplateService) ArchiveTemplate(ctx context.Context, templateID int64)
 		var err error
 		archived, err = s.deps.ActivityGroupRepo.ArchiveTemplate(txCtx, templateID)
 		if err != nil {
-			return &ScheduleError{Op: "archive template: update", Err: err}
+			return &ports.ScheduleError{Op: "archive template: update", Err: err}
 		}
 		if archived > 0 && s.deps.CareOfferings.ValidateSeries != nil {
 			if err := s.deps.CareOfferings.ValidateSeries(txCtx, templateID); err != nil {
-				return s.deps.CareOfferings.validationError(
-					txCtx,
+				return careOfferingValidationError(
+					txCtx, s.deps.CareOfferings,
 					"archive template: validate linked care offerings",
 					"archiving the template is incompatible with an existing care offering",
 					err,
@@ -723,7 +724,7 @@ func (s *TemplateService) ArchiveTemplate(ctx context.Context, templateID int64)
 	return archived, err
 }
 
-func validateTemplateUpdateInput(in TemplateUpdateInput, rules SchoolClassRules) error {
+func validateTemplateUpdateInput(in TemplateUpdateInput, rules ports.SchoolClassRules) error {
 	if in.TemplateID <= 0 {
 		return errors.New("template id is required")
 	}

@@ -11,6 +11,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,7 +33,7 @@ func timetableDataWithArrivalBaseline(
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	data, err := arrivalTimetable.NewTimetableData(arrivalTimetable.TimetableDataDependencies{
+	data, err := arrivalTimetable.NewTimetableData(timetablePorts.TimetableDataDependencies{
 		Instances:         env.timetable.ActivityInstance,
 		InstanceStaff:     env.timetable.InstanceStaff,
 		Participants:      env.timetable.InstanceStudent,
@@ -57,21 +58,21 @@ func timetableDataWithArrivalBaseline(
 // unusedStudentWeekReaders stands in for the planner readers the student
 // week never touches.
 type unusedStudentWeekReaders struct {
-	arrivalTimetable.DataGroups
-	arrivalTimetable.RoomNames
-	arrivalTimetable.RoomOccupancy
-	arrivalTimetable.DeviationEventReader
+	timetablePorts.DataGroups
+	timetablePorts.RoomNames
+	timetablePorts.RoomOccupancy
+	timetablePorts.DeviationEventReader
 	timetable.ConflictAckCapability
 }
 
 // unusedStudentWeekTemplates and unusedStudentWeekCategories stand in for
 // the template and category writes of a spontaneous start.
 type unusedStudentWeekTemplates struct {
-	arrivalTimetable.DataTemplates
+	timetablePorts.DataTemplates
 }
 
 type unusedStudentWeekCategories struct {
-	arrivalTimetable.DataCategories
+	timetablePorts.DataCategories
 }
 
 // pickupBaselineProjector serves the Timetable pickup port from Care Plan's
@@ -80,7 +81,7 @@ type pickupBaselineProjector struct {
 	reader careplan.PickupBaselineReader
 }
 
-func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to calendar.Date) (arrivalTimetable.PickupBaselines, error) {
+func (p pickupBaselineProjector) ProjectPickups(ctx context.Context, studentIDs []int64, from, to calendar.Date) (timetablePorts.PickupBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err
@@ -112,7 +113,7 @@ func exceptionConflictsWithArrivalBaseline(
 	t.Helper()
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: env.db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	detection, err := arrivalTimetable.NewConflictDetection(arrivalTimetable.ConflictDetectionDependencies{
+	detection, err := arrivalTimetable.NewConflictDetection(timetablePorts.ConflictDetectionDependencies{
 		Instances:         env.timetable.ActivityInstance,
 		InstanceStaff:     env.timetable.InstanceStaff,
 		InstanceStudents:  env.timetable.InstanceStudent,
@@ -136,7 +137,7 @@ func exceptionConflictsWithArrivalBaseline(
 // unusedConflictShifts stands in for the Dienstplan rows the exception read
 // never touches.
 type unusedConflictShifts struct {
-	arrivalTimetable.ConflictShifts
+	timetablePorts.ConflictShifts
 }
 
 // arrivalBaselineProjector serves the conflict detection's arrival port from
@@ -145,7 +146,7 @@ type arrivalBaselineProjector struct {
 	reader careplan.ArrivalBaselineReader
 }
 
-func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to calendar.Date) (arrivalTimetable.ArrivalBaselines, error) {
+func (p arrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to calendar.Date) (timetablePorts.ArrivalBaselines, error) {
 	projection, err := p.reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err

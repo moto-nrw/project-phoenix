@@ -3,11 +3,13 @@ package application
 import (
 	"strings"
 	"sync"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // testSchoolClassRules mirrors School Structure's supported grade range and
 // class-name identity, which the composition root binds in production.
-var testSchoolClassRules = SchoolClassRules{
+var testSchoolClassRules = ports.SchoolClassRules{
 	MinGradeLevel: 1,
 	MaxGradeLevel: 13,
 	Normalize: func(class string) string {

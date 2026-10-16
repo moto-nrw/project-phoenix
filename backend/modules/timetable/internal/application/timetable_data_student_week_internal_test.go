@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
@@ -13,7 +14,7 @@ import (
 // baseline; a composition without it fails instead of guessing.
 func TestArrivalReadsRequireNativeBaseline(t *testing.T) {
 	t.Parallel()
-	data := &timetableData{deps: TimetableDataDependencies{}}
+	data := &timetableData{deps: ports.TimetableDataDependencies{}}
 	date := calendar.NewDate(2026, 9, 21)
 	var studentID int64
 	week := &timetable.StudentWeek{ArrivalByDate: map[string]timetable.StudentWeekTimes{}, PickupByDate: map[string]timetable.StudentWeekTimes{}}

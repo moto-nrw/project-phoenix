@@ -14,6 +14,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -666,7 +667,7 @@ func updateCalendarPeriodRow(t *testing.T, db *bun.DB, ctx context.Context, peri
 // per-date care filter and the staffing announcement.
 func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, timetableRepos api.TimetableRepositories) timetable.MaterializationCapability {
 	t.Helper()
-	svc, err := compose.NewMaterialization(compose.MaterializationDependencies{
+	svc, err := compose.NewMaterialization(timetablePorts.MaterializationDependencies{
 		GroupRepo:      timetableRepos.ActivityGroup,
 		ScheduleRepo:   timetableRepos.ActivitySchedule,
 		EnrollmentRepo: timetableRepos.StudentEnrollment,
