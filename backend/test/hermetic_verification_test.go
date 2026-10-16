@@ -393,8 +393,8 @@ func checkHardcodedIDs(t *testing.T, root string) []string {
 		"error_helpers_test.go",                                                // Internal unit tests for helper functions (no DB)
 		"auth/authorize/role_grant_test.go",                                    // Pure policy unit tests on stack-allocated roles (no DB); int64 literals are throwaway IDs
 		"api/iot/api_test.go",                                                  // Uses mock SchoolRepo for unit testing handler
-		"api/iot/checkin/capacity_errors_test.go",                              // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
-		"api/iot/checkin/wire_test.go",                                         // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
+		"modules/devicescan/http/checkin/capacity_errors_test.go",              // Pure JSON-marshal regression tests for capacity/conflict renderers (ex api/iot/common); int64 literals are throwaway IDs, not DB rows
+		"modules/devicescan/http/checkin/wire_test.go",                         // Wire goldens over a fake device-scan workflow (#2698); int64 literals are throwaway IDs, not DB rows
 		"api/iot/config_test.go",                                               // Uses mock settings service for unit testing config endpoint
 		"enrich_pickup_times_test.go",                                          // Uses mock PickupScheduleService for unit testing enrichment
 		"modules/timetable/http/api_test.go",                                   // Uses mock CalendarPeriodService for unit testing handlers

@@ -6,7 +6,6 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
 func (rs *Resource) startActivitySession(w http.ResponseWriter, r *http.Request) {
@@ -45,14 +44,14 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	}
 	// The workflow joins the request transaction. Every failure must roll it
 	// back, including 4xx outcomes, so no partial close or event can commit.
-	ended, err := rs.SessionEnd.EndSession(r.Context(), current.ID)
+	endedAt, failure, err := rs.SessionEnd(r.Context(), current.ID)
 	if err != nil {
 		rs.runtime.MarkRollback(r.Context())
 		status, message := http.StatusInternalServerError, "failed to end activity session"
-		switch {
-		case errors.Is(err, sessionend.ErrSessionNotFound):
+		switch failure {
+		case EndNotFound:
 			status, message = http.StatusNotFound, ""
-		case errors.Is(err, sessionend.ErrSessionAlreadyEnded):
+		case EndAlreadyEnded:
 			status, message = http.StatusBadRequest, ""
 		}
 		rs.runtime.Failure(w, r, status, err, message)
@@ -60,7 +59,7 @@ func (rs *Resource) endActivitySession(w http.ResponseWriter, r *http.Request) {
 	}
 	response := map[string]interface{}{
 		"active_group_id": current.ID, "activity_id": current.ActivityID, "device_id": current.DeviceID,
-		"ended_at": ended.EndedAt, "duration": ended.EndedAt.Sub(current.StartTime).String(),
+		"ended_at": endedAt, "duration": endedAt.Sub(current.StartTime).String(),
 		"status": "ended", "message": "Activity session ended successfully",
 	}
 	rs.runtime.Success(w, r, http.StatusOK, response, "Activity session ended successfully")

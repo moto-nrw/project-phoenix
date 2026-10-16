@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -50,39 +51,6 @@ import (
 
 const materializeForTenantOp = "materialize for tenant"
 
-// CareBoundReader projects the last care day of a set of children. Narrow on
-// purpose — the materializer needs one DATE column, not student rows (#2487).
-type CareBoundReader interface {
-	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
-}
-
-// MaterializationDependencies wires the materializer. The repositories are
-// required. DB and RecurrenceLock go together: production wiring provides
-// both so direct calls get an RLS-aware transaction and the recurrence gate;
-// a nil DB is reserved for pure repository-double unit tests. CareBounds is
-// the per-date care filter (#2487); nil means no child has an end of care.
-// NonWorkingDays answers holidays and closing days (#3594); nil skips none.
-// Staffing announces created instances to the staffing caches (#1844); nil
-// announces nothing.
-type MaterializationDependencies struct {
-	GroupRepo      activities.GroupRepository
-	ScheduleRepo   activities.ScheduleRepository
-	EnrollmentRepo activities.StudentEnrollmentRepository
-	SupervisorRepo activities.SupervisorPlannedRepository
-	PeriodRepo     schedule.CalendarPeriodRepository
-	InstanceRepo   schedule.ActivityInstanceRepository
-	StaffRepo      schedule.InstanceStaffRepository
-	StudentRepo    schedule.InstanceStudentRepository
-	ExceptionRepo  schedule.ActivityExceptionRepository
-	TimeframeRepo  schedule.TimeframeRepository
-	CareBounds     CareBoundReader
-	NonWorkingDays timetable.NonWorkingDayCalendar
-	RecurrenceLock timetable.RecurrenceWriteLock
-	Staffing       StaffingAnnouncer
-	Transactions   TenantTransactions
-	Logger         *slog.Logger
-}
-
 // materializationService is the concrete implementation.
 type materializationService struct {
 	groupRepo      activities.GroupRepository
@@ -93,18 +61,18 @@ type materializationService struct {
 	instanceRepo   schedule.ActivityInstanceRepository
 	staffRepo      schedule.InstanceStaffRepository
 	studentRepo    schedule.InstanceStudentRepository
-	careBounds     CareBoundReader
+	careBounds     ports.CareBoundReader
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
 	exceptionRepo  schedule.ActivityExceptionRepository
 	timeframeRepo  schedule.TimeframeRepository
 	lock           timetable.RecurrenceWriteLock
-	transactions   TenantTransactions
-	staffing       StaffingAnnouncer
+	transactions   ports.TenantTransactions
+	staffing       ports.StaffingAnnouncer
 	logger         *slog.Logger
 }
 
 // NewMaterialization composes the Timetable owner's recurrence engine.
-func NewMaterialization(deps MaterializationDependencies) (timetable.MaterializationCapability, error) {
+func NewMaterialization(deps ports.MaterializationDependencies) (timetable.MaterializationCapability, error) {
 	if deps.GroupRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil || deps.SupervisorRepo == nil ||
 		deps.PeriodRepo == nil || deps.InstanceRepo == nil || deps.StaffRepo == nil || deps.StudentRepo == nil ||
 		deps.ExceptionRepo == nil || deps.TimeframeRepo == nil {
@@ -161,7 +129,7 @@ func (s *materializationService) MaterializeForTenant(
 	}
 	if s.transactions != nil {
 		if tenantID <= 0 {
-			return nil, &ScheduleError{Op: materializeForTenantOp, Err: errors.New("no tenant in context")}
+			return nil, &ports.ScheduleError{Op: materializeForTenantOp, Err: errors.New("no tenant in context")}
 		}
 		if _, ok := tenant.TransactionFromContext(ctx); !ok {
 			return s.materializeForTenantInTransaction(ctx, tenantID, from, to, source)
@@ -174,7 +142,7 @@ func (s *materializationService) MaterializeForTenant(
 		// roster-archive pass in between would leave a departed child on an
 		// upcoming roster with nothing left to remove them (#405 review).
 		if err := s.lock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
-			return nil, &ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
+			return nil, &ports.ScheduleError{Op: "materialize for tenant: lock recurrence", Err: err}
 		}
 	}
 
@@ -183,10 +151,10 @@ func (s *materializationService) MaterializeForTenant(
 
 func validateMaterializationWindow(from, to calendar.Date) error {
 	if to.Before(from) {
-		return &ScheduleError{Op: materializeForTenantOp, Err: errors.New("to_date must not be before from_date")}
+		return &ports.ScheduleError{Op: materializeForTenantOp, Err: errors.New("to_date must not be before from_date")}
 	}
 	if days := from.DaysUntil(to) + 1; days > timetable.MaxMaterializationWindowDays {
-		return &ScheduleError{Op: materializeForTenantOp, Err: fmt.Errorf("window exceeds %d days", timetable.MaxMaterializationWindowDays)}
+		return &ports.ScheduleError{Op: materializeForTenantOp, Err: fmt.Errorf("window exceeds %d days", timetable.MaxMaterializationWindowDays)}
 	}
 	return nil
 }
@@ -284,7 +252,7 @@ func (s *materializationService) loadMaterializationPreconditions(
 ) ([]*schedule.CalendarPeriod, []*activities.Group, bool, error) {
 	periods, err := s.periodRepo.FindActiveByTenantID(ctx)
 	if err != nil {
-		return nil, nil, false, &ScheduleError{Op: "materialize for tenant: load periods", Err: err}
+		return nil, nil, false, &ports.ScheduleError{Op: "materialize for tenant: load periods", Err: err}
 	}
 	if len(periods) == 0 {
 		// No active period means A/B resolution has no anchor and unbounded
@@ -297,7 +265,7 @@ func (s *materializationService) loadMaterializationPreconditions(
 	}
 	templates, err := s.groupRepo.FindAllTemplates(ctx)
 	if err != nil {
-		return nil, nil, false, &ScheduleError{Op: "materialize for tenant: load templates", Err: err}
+		return nil, nil, false, &ports.ScheduleError{Op: "materialize for tenant: load templates", Err: err}
 	}
 	if len(templates) == 0 {
 		// Periods exist but no recurring activities yet. Distinct warning so
@@ -322,15 +290,15 @@ func (s *materializationService) loadMaterializationWorld(
 ) (*materializationWorld, error) {
 	days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
 	if err != nil {
-		return nil, &ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
+		return nil, &ports.ScheduleError{Op: "materialize for tenant: load non-working days", Err: err}
 	}
 	existing, err := s.instanceRepo.FindByTenantAndDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
-		return nil, &ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
+		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	exceptions, err := s.exceptionRepo.FindByDateRange(ctx, schedule.Date(from), schedule.Date(to))
 	if err != nil {
-		return nil, &ScheduleError{Op: "materialize for tenant: load exceptions", Err: err}
+		return nil, &ports.ScheduleError{Op: "materialize for tenant: load exceptions", Err: err}
 	}
 	timeframeByID, err := s.loadTimeframes(ctx, "materialize for tenant: load timeframes")
 	if err != nil {
@@ -338,7 +306,7 @@ func (s *materializationService) loadMaterializationWorld(
 	}
 	follows, err := WeekendFollowsFridayIn(ctx, from, to)
 	if err != nil {
-		return nil, &ScheduleError{Op: "materialize for tenant", Err: err}
+		return nil, &ports.ScheduleError{Op: "materialize for tenant", Err: err}
 	}
 	return &materializationWorld{
 		from:          from,
@@ -357,7 +325,7 @@ func (s *materializationService) loadMaterializationWorld(
 func (s *materializationService) loadTimeframes(ctx context.Context, op string) (map[int64]*schedule.Timeframe, error) {
 	timeframes, err := s.timeframeRepo.ListAll(ctx)
 	if err != nil {
-		return nil, &ScheduleError{Op: op, Err: err}
+		return nil, &ports.ScheduleError{Op: op, Err: err}
 	}
 	timeframeByID := make(map[int64]*schedule.Timeframe, len(timeframes))
 	for _, tf := range timeframes {
@@ -406,22 +374,22 @@ type templateRoster struct {
 func (s *materializationService) loadTemplatePeople(ctx context.Context, templateID int64, op string) (templateRoster, error) {
 	enrollments, err := s.enrollmentRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return templateRoster{}, &ScheduleError{Op: op + ": load enrollments", Err: err}
+		return templateRoster{}, &ports.ScheduleError{Op: op + ": load enrollments", Err: err}
 	}
 	targetStudentIDs := make([]int64, 0)
 	if targetRepo, ok := s.groupRepo.(activities.GroupTargetRepository); ok {
 		targetStudentIDs, err = targetRepo.FindTargetStudentIDs(ctx, templateID)
 		if err != nil {
-			return templateRoster{}, &ScheduleError{Op: op + ": load target students", Err: err}
+			return templateRoster{}, &ports.ScheduleError{Op: op + ": load target students", Err: err}
 		}
 	}
 	supervisors, err := s.supervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return templateRoster{}, &ScheduleError{Op: op + ": load supervisors", Err: err}
+		return templateRoster{}, &ports.ScheduleError{Op: op + ": load supervisors", Err: err}
 	}
 	careBounds, err := s.loadCareBounds(ctx, targetStudentIDs, enrollments)
 	if err != nil {
-		return templateRoster{}, &ScheduleError{Op: op + ": load care bounds", Err: err}
+		return templateRoster{}, &ports.ScheduleError{Op: op + ": load care bounds", Err: err}
 	}
 	return templateRoster{
 		enrollments:      enrollments,
@@ -520,7 +488,7 @@ func (s *materializationService) materializeTemplate(
 ) error {
 	schedules, err := s.scheduleRepo.FindByGroupID(ctx, tmpl.ID)
 	if err != nil {
-		return &ScheduleError{Op: "materialize template: load schedules", Err: err}
+		return &ports.ScheduleError{Op: "materialize template: load schedules", Err: err}
 	}
 	if len(schedules) == 0 {
 		return nil // nothing to materialize for this template
@@ -623,7 +591,7 @@ func createInstanceError(
 	effective materialParams,
 	err error,
 ) error {
-	return &ScheduleError{
+	return &ports.ScheduleError{
 		Op: "materialize template: create instance",
 		Err: fmt.Errorf(
 			"tenant_id=%d template_id=%d schedule_id=%d date=%s period_id=%d room_id=%d start_time=%s end_time=%s: %w",
@@ -685,7 +653,7 @@ func (s *materializationService) copyExpectedStudents(
 			Status:     schedule.AttendanceStatusExpected,
 		}
 		if err := s.studentRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: errorOp, Err: err}
+			return &ports.ScheduleError{Op: errorOp, Err: err}
 		}
 		result.InstanceStudentsCreated++
 	}
@@ -693,10 +661,10 @@ func (s *materializationService) copyExpectedStudents(
 		return nil
 	}
 	if _, err := s.studentRepo.ApplyActiveStatusDaysForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
-		return &ScheduleError{Op: "materialize template: apply student status days", Err: err}
+		return &ports.ScheduleError{Op: "materialize template: apply student status days", Err: err}
 	}
 	if _, err := s.studentRepo.ApplyActivePartialAbsencesForInstance(ctx, instanceID, schedule.Date(date)); err != nil {
-		return &ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
+		return &ports.ScheduleError{Op: "materialize template: apply student partial absences", Err: err}
 	}
 	return nil
 }
@@ -739,7 +707,7 @@ func (s *materializationService) copySupervisors(
 			IsAbsent:     false,
 		}
 		if err := s.staffRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: "materialize template: copy supervisor", Err: err}
+			return &ports.ScheduleError{Op: "materialize template: copy supervisor", Err: err}
 		}
 		result.InstanceStaffCreated++
 	}

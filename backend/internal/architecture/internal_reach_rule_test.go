@@ -17,6 +17,7 @@ var internalReachOwners = map[string]Owner{
 	"delivery-platform":    {ID: "delivery-platform", Kind: "platform"},
 	"school-setup":         {ID: "school-setup", Kind: "projection"},
 	"session-end":          {ID: "session-end", Kind: "workflow"},
+	"care-plan":            {ID: "care-plan", Kind: "domain"},
 }
 
 // internalReachBase holds the owner edges the base grants: Timetable's
@@ -27,6 +28,7 @@ var internalReachBase = &Policy{Rules: []Rule{
 	{ID: "timetable-activities.compose.school-setup.public", SourceOwner: "timetable-activities", SourceRole: "compose", TargetOwner: "school-setup", TargetRole: "public", Scopes: []string{"production"}},
 	{ID: "timetable-activities.compose.session-end.public", SourceOwner: "timetable-activities", SourceRole: "compose", TargetOwner: "session-end", TargetRole: "public", Scopes: []string{"production"}},
 	{ID: "workforce.application.timetable-activities.public", SourceOwner: "workforce", SourceRole: "application", TargetOwner: "timetable-activities", TargetRole: "public", Scopes: []string{"production"}},
+	{ID: "care-plan.contracttest.timetable-activities.compose", SourceOwner: "care-plan", SourceRole: "e2e-test", TargetOwner: "timetable-activities", TargetRole: "compose", Scopes: []string{"external_test"}},
 	{ID: "timetable-activities.module-internal-test.workforce.public", SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "workforce", TargetRole: "public", Scopes: []string{"internal_test"}},
 }}
 
@@ -84,6 +86,22 @@ func TestReviewedInternalReachRuleShape(t *testing.T) {
 		{"internal test mirror: platform application role", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "transaction-runtime", TargetRole: "application", Scopes: internalTest}, false},
 		{"internal test mirror: generic own public", Rule{SourceOwnerKind: "domain", SourceRole: "module-internal-test", TargetRole: "public", SameOwner: true, Scopes: internalTest}, false},
 		{"internal test mirror: projection source", Rule{SourceOwner: "school-setup", SourceRole: "module-internal-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: internalTest}, false},
+
+		{"port: generic own public", Rule{SourceOwnerKind: "domain", SourceRole: "port", TargetRole: "public", SameOwner: true, Scopes: production}, true},
+		{"port: platform public", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: production}, true},
+		{"port: foreign domain with a base edge", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "student-presence", TargetRole: "public", Scopes: production}, true},
+		{"port: own legacy model (temporary)", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "timetable-activities", TargetRole: "legacy-model", Scopes: production}, true},
+		{"port: reverse DAG direction", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "workforce", TargetRole: "public", Scopes: production}, false},
+		{"port: platform non-public role", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "transaction-runtime", TargetRole: "application", Scopes: production}, false},
+		{"port: projection target", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "school-setup", TargetRole: "public", Scopes: production}, false},
+		{"port: workflow target", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "session-end", TargetRole: "public", Scopes: production}, false},
+		{"port: another owner's legacy model", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "workforce", TargetRole: "legacy-model", Scopes: production}, false},
+		{"port: legacy model in test scopes", Rule{SourceOwner: "timetable-activities", SourceRole: "port", TargetOwner: "timetable-activities", TargetRole: "legacy-model", Scopes: everyScope}, false},
+		{"port: legacy model of a projection", Rule{SourceOwner: "school-setup", SourceRole: "port", TargetOwner: "school-setup", TargetRole: "legacy-model", Scopes: production}, false},
+		{"narrowing: compose reach to the port", Rule{SourceOwner: "care-plan", SourceRole: "e2e-test", TargetOwner: "timetable-activities", TargetRole: "port", Scopes: []string{"external_test"}}, true},
+		{"narrowing: wider scope than the compose reach", Rule{SourceOwner: "care-plan", SourceRole: "e2e-test", TargetOwner: "timetable-activities", TargetRole: "port", Scopes: everyScope}, false},
+		{"narrowing: no compose reach in the base", Rule{SourceOwner: "care-plan", SourceRole: "e2e-test", TargetOwner: "workforce", TargetRole: "port", Scopes: []string{"external_test"}}, false},
+		{"narrowing: another source role", Rule{SourceOwner: "care-plan", SourceRole: "module-behavior-test", TargetOwner: "timetable-activities", TargetRole: "port", Scopes: []string{"external_test"}}, false},
 	} {
 		if got := reviewedInternalReachRule(scenario.rule, internalReachBase, internalReachOwners); got != scenario.want {
 			t.Errorf("%s: reviewedInternalReachRule = %v, want %v", scenario.name, got, scenario.want)

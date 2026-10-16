@@ -43,7 +43,7 @@ func newStatisticsReports(owners statisticsOwners) func(StatisticsSources) stude
 		return NewStatistics(owners.Logger, presenceCompose.StatisticsDependencies{
 			DB:          owners.DB.Pool(),
 			StatusDays:  StatisticsStatusDays{owners.CarePlan},
-			Courses:     NewCourseStatistics(MustPresenceReads(owners.DB)),
+			Courses:     NewCourseStatistics(owners.DB),
 			Holidays:    schoolCalendarCompose.TenantHolidays{Calendar: owners.Calendar},
 			ClosingDays: schoolCalendarCompose.TenantClosingDays{Calendar: owners.Calendar},
 			Periods:     StatisticsReportPeriods{owners.Calendar},

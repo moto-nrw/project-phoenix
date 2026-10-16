@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // ChildEvent describes one notification pill appended to a child's parent-OGS
@@ -252,4 +254,14 @@ func (e *Emitter) GuardianHasChildAccess(ctx context.Context, studentID, guardia
 		}
 	}
 	return false, nil
+}
+
+// EmitParentChildEvent is the public parent-authored event capability. The
+// retained emitter keeps the richer staff-decision vocabulary until #4074.
+func (e *Emitter) EmitParentChildEvent(tenantID, studentID, guardianAccountID int64, event communication.ParentChildEvent) {
+	e.EmitChildEvent(tenantID, studentID, guardianAccountID, ChildEvent{
+		EventType: event.EventType, ActorKind: event.ActorKind, ActorAccountID: event.ActorAccountID,
+		Body: event.Body, RequestType: event.RequestType, RequestStatus: event.RequestStatus,
+		RefTable: event.RefTable, RefID: event.RefID,
+	})
 }

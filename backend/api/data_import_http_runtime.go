@@ -9,7 +9,7 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importapi "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importapi "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"

@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 1798
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3806
+const moduleLegacyFileBudgetTotal = 3801
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -136,12 +136,12 @@ var moduleLegacyFileBudgets = map[string]int{
 	"database/repositories/users/legacy_composition_support.go":               35,
 	"database/repositories/users/legacy_types.go":                             14,
 	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
-	"modules/presenceprojection/legacy_rows.go":                               357,
+	"modules/presenceprojection/legacy_rows.go":                               353,
 	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
 	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
 	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 169,
 	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
-	"modules/timetable/compose/legacy_activity_service.go":                    538,
+	"modules/timetable/compose/legacy_activity_service.go":                    537,
 	"modules/timetable/compose/legacy_category_operations.go":                 138,
 	"modules/timetable/compose/legacy_composition_support.go":                 63,
 	"modules/timetable/compose/legacy_composition_support_test_helpers.go":    70,
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 67622
+const moduleComposeBudgetTotal = 67477
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -219,7 +219,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            19,
-	"modules/timetable/compose":                       14251,
+	"modules/timetable/compose":                       14106,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,

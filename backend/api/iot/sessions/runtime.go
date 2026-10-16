@@ -4,9 +4,23 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
+
+// EndFailure classifies a failed session close without exposing its workflow.
+type EndFailure uint8
+
+const (
+	EndFailed EndFailure = iota
+	EndNotFound
+	EndAlreadyEnded
+)
+
+// EndSession closes the selected session and returns its close instant and raw error.
+// The root binds the workflow and translates its failure classification.
+type EndSession func(context.Context, int64) (time.Time, EndFailure, error)
 
 // Runtime binds authentication, responses and rollback at the composition root.
 type Runtime struct {

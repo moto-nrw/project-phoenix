@@ -11,6 +11,9 @@ import (
 )
 
 type (
+	ChildEvent                      = care.ChildEvent
+	ChildEvents                     = care.ChildEvents
+	MessagingGate                   = messaging.MessagingGate
 	AttendanceReader                = care.AttendanceReader
 	Attendance                      = care.Attendance
 	AttendanceFilter                = care.AttendanceFilter

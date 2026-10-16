@@ -35,26 +35,28 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 
 	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				parentportal.KeyParentPickupChangeEnabled: true,
-				parentportal.KeyParentNotesEnabled:        true,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentportal.KeyParentPickupChangeEnabled: true,
+			parentportal.KeyParentNotesEnabled:        true,
 		},
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          repos.CarePlan(),
+		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChild,
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       repos.Student,
+		CareExceptions:    repos.CarePlan(),
+		Settings:          settings,
 		Broadcaster:       testpkg.NewRecordingBroadcaster(),
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
-		Emitter:           emitter,
+		Emitter:           api.BindParentChildEvents(emitter),
 		Logger:            slog.Default(),
 	})
 
@@ -99,26 +101,28 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	emitterBC := testpkg.NewRecordingBroadcaster()
 	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				parentportal.KeyParentPickupChangeEnabled: true,
-				parentportal.KeyParentNotesEnabled:        true,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentportal.KeyParentPickupChangeEnabled: true,
+			parentportal.KeyParentNotesEnabled:        true,
 		},
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          repos.CarePlan(),
+		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChild,
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       repos.Student,
+		CareExceptions:    repos.CarePlan(),
+		Settings:          settings,
 		Broadcaster:       testpkg.NewRecordingBroadcaster(),
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
-		Emitter:           emitter,
+		Emitter:           api.BindParentChildEvents(emitter),
 		Logger:            slog.Default(),
 	})
 

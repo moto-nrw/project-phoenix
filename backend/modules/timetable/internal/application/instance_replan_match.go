@@ -5,6 +5,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -102,7 +103,7 @@ func (p seriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantI
 	return p.lifecycle.acquireSubstituteDayLocks(ctx, tenantID, from, to)
 }
 
-func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (PreservedDeviations, error) {
+func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (ports.PreservedDeviations, error) {
 	id := templateID
 	snapshots, occurrences, err := p.lifecycle.snapshotDeviations(ctx, from, to, &id)
 	if err != nil {

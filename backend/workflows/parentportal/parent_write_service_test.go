@@ -146,23 +146,25 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				parentService.KeyParentSickNoteEnabled: sickEnabled,
-				parentService.KeyParentNotesEnabled:    notesEnabled,
-			},
-			stringValues: map[string]string{
-				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentService.KeyParentSickNoteEnabled: sickEnabled,
+			parentService.KeyParentNotesEnabled:    notesEnabled,
 		},
+		stringValues: map[string]string{
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
+		},
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          repos.CarePlan(),
+		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChild,
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       repos.Student,
+		CareExceptions:    repos.CarePlan(),
+		Settings:          settings,
 		Broadcaster:       bc,
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),

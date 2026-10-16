@@ -84,7 +84,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
-	"modules/classday/internal/application/slotlists.go:(*service).ListOptions":                                                                 296,
 	"modules/classday/internal/application/slotlists.go:(*service).RenderList":                                                                  71,
 	"modules/classday/internal/application/slotlists.go:(*service).buildList":                                                                   127,
 	"modules/classday/internal/application/slotlists.go:(*service).classifyPlannedRow":                                                          128,
@@ -114,7 +113,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/dataimport/fileformat/template_writer.go:(Decoder).Template":                                                                       62,
 	"modules/dataimport/fileformat/templates.go:writeHinweiseSheet":                                                                             145,
 	"modules/dataimport/fileformat/xlsx_parser.go:(*XLSXParser).ParseStudents":                                                                  76,
-	"modules/dataimport/inbound/api.go:(*Resource).Router":                                                                                      66,
+	"modules/dataimport/http/api.go:(*Resource).Router":                                                                                         66,
 	"modules/delivery/application/notifications/parent_copy.go:ParentAnnouncementCopy":                                                          95,
 	"modules/delivery/application/notifications/preferences.go:(*preferenceService).GetForParent":                                               63,
 	"modules/delivery/application/notifications/service.go:(*router).NotifyBatch":                                                               62,

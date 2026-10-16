@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
@@ -470,7 +471,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 
 	t.Run("no source skips the hook", func(t *testing.T) {
 		called := false
-		svc := NewTemplateService(TemplateServiceDependencies{CareOfferings: CareOfferingChecks{
+		svc := NewTemplateService(TemplateServiceDependencies{CareOfferings: ports.CareOfferingChecks{
 			ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error {
 				called = true
 				return nil
@@ -484,7 +485,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	t.Run("the sources are checked against the template period", func(t *testing.T) {
 		var gotOfferings []int64
 		var gotPeriod *int64
-		svc := NewTemplateService(TemplateServiceDependencies{CareOfferings: CareOfferingChecks{
+		svc := NewTemplateService(TemplateServiceDependencies{CareOfferings: ports.CareOfferingChecks{
 			ValidateOfferingSource: func(_ context.Context, ids, _ []int64, period *int64) error {
 				gotOfferings, gotPeriod = ids, period
 				return nil
@@ -497,7 +498,7 @@ func TestValidateOfferingSourceReference(t *testing.T) {
 	})
 
 	t.Run("an unknown source surfaces as timetable.ErrOfferingSourceInvalid before any write", func(t *testing.T) {
-		svc := NewTemplateService(TemplateServiceDependencies{CareOfferings: CareOfferingChecks{
+		svc := NewTemplateService(TemplateServiceDependencies{CareOfferings: ports.CareOfferingChecks{
 			ValidateOfferingSource: func(context.Context, []int64, []int64, *int64) error {
 				return fmt.Errorf("%w: care offering %d not found", timetable.ErrOfferingSourceInvalid, int64(12))
 			},

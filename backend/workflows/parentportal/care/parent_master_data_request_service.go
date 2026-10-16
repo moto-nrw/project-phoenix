@@ -13,7 +13,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -204,7 +203,7 @@ func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission mas
 		}
 		for i := range refIDs {
 			refID := refIDs[i]
-			s.Emitter.EmitChildEvent(submission.tenantID, submission.studentID, submission.accountID, parentmessaging.ChildEvent{
+			s.Emitter.EmitChildEvent(submission.tenantID, submission.studentID, submission.accountID, ChildEvent{
 				EventType:      "request_created",
 				ActorKind:      usersModels.ParentMessageSenderGuardian,
 				ActorAccountID: submission.accountID,

@@ -6,6 +6,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,8 +19,8 @@ func TestAppendArrivalWarningsAddsTheClassExceptionLine(t *testing.T) {
 	clock := normalizedClock(t, "12:45")
 	warnings := map[int64][]timetable.OperationRosterWarning{}
 
-	appendArrivalWarnings(warnings, map[int64]*ExpectedArrival{
-		1: {ArrivalTime: &clock, ClassException: &ClassArrivalNotice{
+	appendArrivalWarnings(warnings, map[int64]*ports.ExpectedArrival{
+		1: {ArrivalTime: &clock, ClassException: &ports.ClassArrivalNotice{
 			ArrivalTime: "12:45", Label: "Klasse 4a: Unterricht fällt aus",
 		}},
 		2: {ArrivalTime: &clock},
@@ -40,8 +41,8 @@ func TestAppendArrivalWarningsKeepsOnlyTheReasonWhenTheClassArrivesLate(t *testi
 	late := normalizedClock(t, "13:30")
 	warnings := map[int64][]timetable.OperationRosterWarning{}
 
-	appendArrivalWarnings(warnings, map[int64]*ExpectedArrival{
-		1: {ArrivalTime: &late, ClassException: &ClassArrivalNotice{
+	appendArrivalWarnings(warnings, map[int64]*ports.ExpectedArrival{
+		1: {ArrivalTime: &late, ClassException: &ports.ClassArrivalNotice{
 			ArrivalTime: "13:30", Label: "Klasse 4a: Wandertag",
 		}},
 	}, inst)

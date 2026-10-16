@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -326,7 +327,7 @@ func (s *InstanceLifecycleService) logStaffMovedEvent(ctx context.Context, plan 
 	}
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       plan.target,
-		eventType:      DeviationEventStaffMoved,
+		eventType:      ports.DeviationEventStaffMoved,
 		subjectStaffID: &plan.staffID,
 		oldValue:       oldValue,
 		newValue:       staffMoveSlot(plan.target, "to"),

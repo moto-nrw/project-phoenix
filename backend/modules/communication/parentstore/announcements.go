@@ -16,7 +16,13 @@ import (
 // PendingAnnouncementApplicant is one undecided enrollment application the
 // pending_enrollment target reaches. Enrollment owns those rows; the
 // composition root converts them so Communication never reads its tables.
-type PendingAnnouncementApplicant = domain.PendingAnnouncementApplicant
+type PendingAnnouncementApplicant struct {
+	TenantID          int64
+	GuardianFirstName string
+	GuardianLastName  string
+	GuardianAccountID *int64
+	GuardianEmail     string
+}
 
 // PendingApplicantSource supplies Enrollment's undecided applications for
 // the caller's school and for an explicit school set.
@@ -31,14 +37,39 @@ type PendingApplicantSource interface {
 //
 // SchoolName is not served here: the school's name belongs to Organisation
 // and Tenancy, and the composition root decorates it exactly as before.
-func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, links GuardianLinkRows, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
 	if applicants == nil {
 		panic("communication parent store: pending applicant source is required")
 	}
 	return &announcementRepository{
 		store:    parentpostgres.NewAnnouncementStore(postgresDatabase(db)),
-		audience: parentaudience.New(audienceDatabase(db), applicants, clocks...),
+		audience: parentaudience.New(audienceDatabase(db), audienceApplicants{source: applicants}, links, clocks...),
 	}
+}
+
+// audienceApplicants hands Enrollment's applicants to the audience
+// projection in the projection's vocabulary.
+type audienceApplicants struct{ source PendingApplicantSource }
+
+func (a audienceApplicants) PendingAnnouncementApplicants(ctx context.Context) ([]parentaudience.PendingAnnouncementApplicant, error) {
+	rows, err := a.source.PendingAnnouncementApplicants(ctx)
+	return audienceApplicantRows(rows), err
+}
+
+func (a audienceApplicants) PendingAnnouncementApplicantsForSchools(ctx context.Context, schoolIDs []int64) ([]parentaudience.PendingAnnouncementApplicant, error) {
+	rows, err := a.source.PendingAnnouncementApplicantsForSchools(ctx, schoolIDs)
+	return audienceApplicantRows(rows), err
+}
+
+func audienceApplicantRows(rows []PendingAnnouncementApplicant) []parentaudience.PendingAnnouncementApplicant {
+	if rows == nil {
+		return nil
+	}
+	values := make([]parentaudience.PendingAnnouncementApplicant, 0, len(rows))
+	for _, row := range rows {
+		values = append(values, parentaudience.PendingAnnouncementApplicant(row))
+	}
+	return values
 }
 
 func audienceDatabase(db *bun.DB) parentaudience.Database {
@@ -397,7 +428,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 	return rows, nil
 }
 
-func declarationHistoryLinksForAccount(submissions []*domain.DeclarationSubmission, accountID int64) []domain.DeclarationHistoryLink {
+func declarationHistoryLinksForAccount(submissions []*domain.DeclarationSubmission, accountID int64) []parentaudience.DeclarationHistoryLink {
 	owned := make([]*domain.DeclarationSubmission, 0, len(submissions))
 	for _, submission := range submissions {
 		if submission.AccountID != nil && *submission.AccountID == accountID {
@@ -407,15 +438,15 @@ func declarationHistoryLinksForAccount(submissions []*domain.DeclarationSubmissi
 	return declarationHistoryLinks(owned)
 }
 
-func mergeFeedItems(current, historical []*domain.ParentAnnouncementFeedItem) []*domain.ParentAnnouncementFeedItem {
-	items := make(map[int64]*domain.ParentAnnouncementFeedItem, len(current)+len(historical))
+func mergeFeedItems(current, historical []*parentaudience.ParentAnnouncementFeedItem) []*parentaudience.ParentAnnouncementFeedItem {
+	items := make(map[int64]*parentaudience.ParentAnnouncementFeedItem, len(current)+len(historical))
 	for _, item := range historical {
 		items[item.ID] = item
 	}
 	for _, item := range current {
 		items[item.ID] = item
 	}
-	merged := make([]*domain.ParentAnnouncementFeedItem, 0, len(items))
+	merged := make([]*parentaudience.ParentAnnouncementFeedItem, 0, len(items))
 	for _, item := range items {
 		merged = append(merged, item)
 	}
@@ -426,7 +457,7 @@ func mergeFeedItems(current, historical []*domain.ParentAnnouncementFeedItem) []
 	return merged
 }
 
-func feedItemTime(item *domain.ParentAnnouncementFeedItem) time.Time {
+func feedItemTime(item *parentaudience.ParentAnnouncementFeedItem) time.Time {
 	if item.ReminderSentAt != nil && (item.PublishedAt == nil || item.ReminderSentAt.After(*item.PublishedAt)) {
 		return *item.ReminderSentAt
 	}
@@ -471,11 +502,11 @@ func publishedError(err error) error {
 	return err
 }
 
-func feedScope(scope usersModels.AnnouncementFeedScope) domain.ParentAnnouncementFeedScope {
-	return domain.ParentAnnouncementFeedScope{TenantIDs: scope.TenantIDs, SystemOnlyTenantIDs: scope.SystemOnlyTenantIDs}
+func feedScope(scope usersModels.AnnouncementFeedScope) parentaudience.ParentAnnouncementFeedScope {
+	return parentaudience.ParentAnnouncementFeedScope{TenantIDs: scope.TenantIDs, SystemOnlyTenantIDs: scope.SystemOnlyTenantIDs}
 }
 
-func feedTenantIDs(scope domain.ParentAnnouncementFeedScope) []int64 {
+func feedTenantIDs(scope parentaudience.ParentAnnouncementFeedScope) []int64 {
 	ids := make([]int64, 0, len(scope.TenantIDs)+len(scope.SystemOnlyTenantIDs))
 	ids = append(ids, scope.TenantIDs...)
 	return append(ids, scope.SystemOnlyTenantIDs...)
@@ -550,7 +581,7 @@ func optionModels(values []*domain.ParentAnnouncementOption) []*usersModels.Pare
 	return options
 }
 
-func reminderModels(values []*domain.ParentAnnouncementReminderRecipient) []*usersModels.AnnouncementPollReminderRecipient {
+func reminderModels(values []*parentaudience.ParentAnnouncementReminderRecipient) []*usersModels.AnnouncementPollReminderRecipient {
 	if values == nil {
 		return nil
 	}
