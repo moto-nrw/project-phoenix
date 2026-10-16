@@ -17,7 +17,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -412,7 +411,7 @@ func TestChildFeatures_ExposesRelatedAccountsFlags(t *testing.T) {
 	})
 }
 
-func buildRelAcctServiceWith(t *testing.T, settings configService.SettingsService) (*parentService.Portal, *bun.DB) {
+func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsService) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))

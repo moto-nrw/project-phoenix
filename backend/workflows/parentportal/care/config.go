@@ -8,7 +8,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,7 +38,7 @@ type Config struct {
 	StudentGuardianRepo   StudentGuardianReads
 	ChangeRequestRepo     DataRequestReads
 	StatusDayRepo         StatusDayReads
-	Settings              configService.SettingsService
+	Settings              SettingsService
 
 	// Attendance is the only presence source for parents. Visits and room
 	// locations are deliberately excluded from this consumer contract.
