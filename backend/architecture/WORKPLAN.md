@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 207 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 60 ·
+Stand 16.10.2026 · Ratchet 207 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 57.283 in `compose`
 
@@ -242,7 +242,7 @@ Bindungs- und Handler-Deklarationen sind bis auf Paketnamen und Port exakt.
 unter `modules/workforce/http/{absencetypes,worktimemodels,shifttypes,staffshifts,substitutions,timetracking}`.
 Alle 69 Go-Dateinamen, Owner und Produktions- sowie Testrollen bleiben identisch.
 Nur Importpfade, eingefrorene Pfadschlüssel der Größen-/Längen-/Komplexitätsregister
-und der aktuelle Evidence-Quellpfad folgen der Relocation. Epoche 59 → 60;
+und der aktuelle Evidence-Quellpfad folgen der Relocation. Epoche 60 → 61;
 Regeln, Legacy-Keys, Composition und Budgetwerte bleiben unverändert.
 Die bisher unter `api/` liegende 67-Zeilen-Übersichtsfunktion fällt erstmals
 unter die Modul-Längengrenze. Der unveränderte Personal-Mapper ist als benannter
