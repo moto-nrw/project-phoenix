@@ -3719,9 +3719,9 @@ check accepts the imports such a rule implies. None of the rules carries an
 
 | Reach | Acceptance function | Selectors | Rules in epoch 41 |
 |---|---|---|---|
-| The typed roots (point 2) | `reviewedRootCompositionRule` | `root-composition`, any role and scope, to the `compose`, `public`, `contract`, `port` and `http` roles of every `domain`, `platform`, `workflow` and `projection` owner, to `migrations`/`migration`, and to the root's own packages | 19 `root-composition.reach.*` |
-| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose` of a non-composition owner, production, every role of its own owner | 22 `owner-compose.*` |
-| A test of one owner (point 7.1) | `reviewedOwnTestRule` | the test scopes of an owner to its own `public`, `contract`, `compose`, `port`, `adapter` and `test-support`; its `test-support` role in production to the same roles except `test-support` | 31 `own-test.*`, 5 `own-test-support.*` |
+| The typed roots (point 2) | `reviewedRootCompositionRule` | `root-composition`, any role and scope, to the `compose`, `public`, `contract`, `port` and `http` roles of every `domain`, `platform`, `workflow` and `projection` owner, to `migrations`/`migration`, and to the root's own packages | 23 `root-composition.reach.*` |
+| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose` of a non-composition owner, production, every role of its own owner | 27 `owner-compose.*` |
+| A test of one owner (point 7.1) | `reviewedOwnTestRule` | the test scopes of an owner to its own `public`, `contract`, `compose`, `port`, `adapter` and `test-support`; its `test-support` role in production to the same roles except `test-support` | 30 `own-test.*`, 5 `own-test-support.*` |
 | A test of several owners (point 7.2) | `reviewedRootTestRule` | the test scopes of every owner to `root-composition`/`compose` | 1 `root-test.domain.compose` |
 
 Three constraints shape the rules:
@@ -4404,6 +4404,24 @@ modules/timetable` in production and internal test and `->
 workflows/reminderdelivery` in production. `services/scheduler` carries no
 key any more, and #4072 has none left. The composition surface stays at
 1,740. The evidence record is `scheduler-timetable-reminder-ports-4067.json`.
+
+Step 4, the contract moves. The Worker's dependency struct, its ports and
+their results are defined types in `modules/schedulerruntime/ports`
+(`scheduler-runtime`/`port`, ADR 0056 amendment of 2026-10-16), together with
+`Worker`, the interface the roots run. `services/scheduler` names them and
+keeps the implementation. The roots import the ports and build the Worker
+through `modules/schedulerruntime/compose.NewWorker`; the setting keys come
+through `compose.SettingKeys`. The retention run is built inside `NewWorker`
+from `RetentionSteps` and `RetentionLog`, and the root implements the
+rollover runner, so neither constructor reaches the root. The composition
+merged into one file and fell from 85 to 83 LOC. Policy epoch 49 -> 50 adds
+the standing ADR 0053 reaches `root-composition.reach.platform.port`,
+`owner-compose.platform.port` and `own-test.platform.port`, accepted by
+`reviewedRootCompositionRule`, `reviewedOwnerCompositionRule` and
+`reviewedOwnTestRule`. `api -> services/scheduler` (#2750) leaves
+`legacy.jsonl`, 340 -> 339; no other key, no alias and no exception is
+added, and the composition surface stays at 1,721. The evidence record is
+`scheduler-runtime-ports-4067.json`.
 
 ## Changing the policy
 

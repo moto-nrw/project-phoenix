@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 89903
+const moduleComposeBudgetTotal = 89901
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -200,7 +200,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/peopledirectory/compose/vocabulary":      133,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,
-	"modules/schedulerruntime/compose":                85,
+	"modules/schedulerruntime/compose":                83,
 	"modules/schoolcalendar/compose":                  572,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                869,

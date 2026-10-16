@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,9 +28,9 @@ func TestTenantBatchesBoundWorkAndPreserveEveryOutcome(t *testing.T) {
 	t.Parallel()
 
 	commandErr := errors.New("owner command failed")
-	var evidence []TenantBatchEvidence
+	var evidence []ports.TenantBatchEvidence
 	scheduler := newTenantBatchTestScheduler(t, func(error) bool { return false })
-	scheduler.workerTracer.Batch = func(event TenantBatchEvidence) {
+	scheduler.workerTracer.Batch = func(event ports.TenantBatchEvidence) {
 		evidence = append(evidence, event)
 	}
 
@@ -182,9 +184,9 @@ func TestTenantBatchesObserveBacklogWithoutCompletedBatch(t *testing.T) {
 	t.Parallel()
 
 	scheduler := newTenantBatchTestScheduler(t, func(error) bool { return false })
-	var jobID JobID
+	var jobID ports.JobID
 	backlog := -1
-	scheduler.workerTracer.Backlog = func(gotJobID JobID, gotBacklog int) {
+	scheduler.workerTracer.Backlog = func(gotJobID ports.JobID, gotBacklog int) {
 		jobID = gotJobID
 		backlog = gotBacklog
 	}
@@ -195,7 +197,7 @@ func TestTenantBatchesObserveBacklogWithoutCompletedBatch(t *testing.T) {
 
 	assert.Zero(t, result.Batches)
 	assert.Zero(t, result.Backlog)
-	assert.Equal(t, JobID("empty-job"), jobID)
+	assert.Equal(t, ports.JobID("empty-job"), jobID)
 	assert.Zero(t, backlog)
 }
 
@@ -204,7 +206,7 @@ func TestTenantBatchesObserveBacklogWhenCancelledBeforeFirstBatch(t *testing.T) 
 
 	scheduler := newTenantBatchTestScheduler(t, func(error) bool { return false })
 	backlog := -1
-	scheduler.workerTracer.Backlog = func(_ JobID, gotBacklog int) {
+	scheduler.workerTracer.Backlog = func(_ ports.JobID, gotBacklog int) {
 		backlog = gotBacklog
 	}
 	ctx, cancel := context.WithCancel(context.Background())
@@ -271,15 +273,15 @@ func TestJobRunReportsAggregatedCommandFailure(t *testing.T) {
 	scheduler := newTenantBatchTestScheduler(t, func(error) bool { return false })
 	var gotOutcome, gotFailureOutcome string
 	var gotErr error
-	var gotBatchJobID JobID
-	scheduler.workerTracer.Run = func(_ JobID, outcome string, _ time.Duration) {
+	var gotBatchJobID ports.JobID
+	scheduler.workerTracer.Run = func(_ ports.JobID, outcome string, _ time.Duration) {
 		gotOutcome = outcome
 	}
 	scheduler.workerTracer.Failure = func(_ context.Context, _ string, outcome string, err error) {
 		gotFailureOutcome = outcome
 		gotErr = err
 	}
-	scheduler.workerTracer.Batch = func(event TenantBatchEvidence) {
+	scheduler.workerTracer.Batch = func(event ports.TenantBatchEvidence) {
 		gotBatchJobID = event.JobID
 	}
 
@@ -292,7 +294,7 @@ func TestJobRunReportsAggregatedCommandFailure(t *testing.T) {
 	assert.Equal(t, "failed", gotOutcome)
 	assert.Equal(t, "command_failure", gotFailureOutcome)
 	assert.ErrorIs(t, gotErr, commandErr)
-	assert.Equal(t, JobID("command-job"), gotBatchJobID)
+	assert.Equal(t, ports.JobID("command-job"), gotBatchJobID)
 }
 
 func newTenantBatchTestScheduler(t *testing.T, retryable func(error) bool) *Scheduler {
@@ -311,11 +313,11 @@ func newTenantBatchTestSchedulerWithTenantRunner(
 	retryable func(error) bool,
 ) *Scheduler {
 	t.Helper()
-	return newScheduler(WorkerDependencies{
+	return newScheduler(ports.WorkerDependencies{
 		Logger:        slog.New(slog.DiscardHandler),
 		TenantRuntime: scriptedTenantRuntime(withinTenant, retryable),
-		Tracer: WorkerTracer{
-			Run: func(JobID, string, time.Duration) {},
+		Tracer: ports.WorkerTracer{
+			Run: func(ports.JobID, string, time.Duration) {},
 		},
 	})
 }
