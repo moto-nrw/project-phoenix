@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,10 +38,10 @@ func (s *courseWriteChangesStub) WithdrawCourseRequest(
 func TestCourseWritesRequireCatalogPermissionBeforeMutation(t *testing.T) {
 	t.Parallel()
 
-	child := &parentModels.ChildSummary{
+	child := &ChildSummary{
 		StudentID: 22,
 		TenantID:  testpkg.Tenant(t),
-		GuardianPermissions: map[string]interface{}{
+		GuardianPermissions: map[string]bool{
 			authorize.GuardianPermissionEnrollmentSubmit: true,
 		},
 	}

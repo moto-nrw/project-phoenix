@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -23,19 +22,19 @@ import (
 // these tests need a real *bun.DB to compile.
 type stubChildRepo struct {
 	gotAccountID int64
-	result       []*parentModels.ChildSummary
+	result       []*parentService.ChildSummary
 	err          error
 }
 
-func (s *stubChildRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentModels.ChildSummary, error) {
+func (s *stubChildRepo) ListByAccount(_ context.Context, accountID int64) ([]*parentService.ChildSummary, error) {
 	s.gotAccountID = accountID
 	return s.result, s.err
 }
 
-// FindForAccount satisfies the ChildRepository interface. Returns the
+// FindForAccount satisfies the ChildReads interface. Returns the
 // first canned child whose StudentID matches, or nil when none — mirrors
 // the real repo's "not linked" contract.
-func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID int64) (*parentModels.ChildSummary, error) {
+func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID int64) (*parentService.ChildSummary, error) {
 	s.gotAccountID = accountID
 	if s.err != nil {
 		return nil, s.err
@@ -50,7 +49,7 @@ func (s *stubChildRepo) FindForAccount(_ context.Context, accountID, studentID i
 
 type stubEnrollableRepo struct {
 	gotAccountID int64
-	result       []*parentModels.EnrollablePhase
+	result       []*parentService.EnrollablePhase
 	err          error
 }
 
@@ -70,13 +69,13 @@ func (s stubEnrollmentSettings) EnrollmentEnabledForTenants(_ context.Context, t
 	return result, nil
 }
 
-func (s *stubEnrollableRepo) ListEnrollable(_ context.Context, accountID int64) ([]*parentModels.EnrollablePhase, error) {
+func (s *stubEnrollableRepo) ListEnrollable(_ context.Context, accountID int64) ([]*parentService.EnrollablePhase, error) {
 	s.gotAccountID = accountID
 	return s.result, s.err
 }
 
-func (s *stubEnrollableRepo) GuardianSubmitStatus(_ context.Context, _, _ int64) (*parentModels.GuardianSubmitStatus, error) {
-	return &parentModels.GuardianSubmitStatus{}, nil
+func (s *stubEnrollableRepo) GuardianSubmitStatus(_ context.Context, _, _ int64) (*parentService.GuardianSubmitStatus, error) {
+	return &parentService.GuardianSubmitStatus{}, nil
 }
 
 func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
@@ -117,7 +116,7 @@ func fakeAdminContext(t *testing.T) context.Context {
 func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSettings(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{
+	repo := &stubEnrollableRepo{result: []*parentService.EnrollablePhase{
 		{SchoolID: 11, PhaseID: 101},
 		{SchoolID: 22, PhaseID: 202},
 	}}
@@ -138,7 +137,7 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 
 	want := errors.New("settings unavailable")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{{SchoolID: 11}}},
+		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
 		EnrollmentSettings:  stubEnrollmentSettings{err: want},
 		Logger:              slog.Default(),
 	})
@@ -153,7 +152,7 @@ func TestService_ListChildrenForAccount_PassesAccountIDThrough(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubChildRepo{
-		result: []*parentModels.ChildSummary{
+		result: []*parentService.ChildSummary{
 			{StudentID: 4321, FirstName: "Lara", LastName: "Beispiel"},
 		},
 	}
@@ -203,7 +202,7 @@ func TestService_ListChildrenForAccount_PropagatesRepoError(t *testing.T) {
 func TestService_ListChildrenForAccount_EmptyResultPropagates(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubChildRepo{result: []*parentModels.ChildSummary{}}
+	repo := &stubChildRepo{result: []*parentService.ChildSummary{}}
 	svc := newSvcWithChild(t, repo)
 
 	got, err := svc.ListChildrenForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
@@ -218,7 +217,7 @@ func TestService_ListEnrollableForAccount_PassesAccountIDThrough(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubEnrollableRepo{
-		result: []*parentModels.EnrollablePhase{
+		result: []*parentService.EnrollablePhase{
 			{SchoolID: 5005, PhaseID: 7007, PhaseName: "Schuljahr 2026/27", AlreadyLinked: true},
 		},
 	}
@@ -269,7 +268,7 @@ func TestService_ListEnrollableForAccount_PropagatesRepoError(t *testing.T) {
 func TestService_ListEnrollableForAccount_EmptyResultPropagates(t *testing.T) {
 	t.Parallel()
 
-	repo := &stubEnrollableRepo{result: []*parentModels.EnrollablePhase{}}
+	repo := &stubEnrollableRepo{result: []*parentService.EnrollablePhase{}}
 	svc := newSvcWithEnrollable(t, repo)
 
 	got, err := svc.ListEnrollableForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
