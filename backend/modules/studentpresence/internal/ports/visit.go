@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// ErrOpenVisitExists reports that the store refused a second open visit of a
+// student: the partial unique index uniq_active_visits_open_per_student.
+var ErrOpenVisitExists = errors.New("student already has an open visit")
+
 // Visit is the owner's persistence-independent visit record.
 type Visit struct {
 	ID, TenantID             int64

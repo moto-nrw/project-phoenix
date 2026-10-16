@@ -7,7 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -278,7 +277,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 			return err
 		}
 		if row.StudentID != studentID {
-			return base.ErrNotFound
+			return ErrNotFound
 		}
 
 		fresh, err := wc.StudentService.LockForStatusWrite(ctx, studentID, row.Status)

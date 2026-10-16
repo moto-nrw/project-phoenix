@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
@@ -77,7 +76,7 @@ func (s *Service) StartActivitySession(ctx context.Context, start ports.Activity
 		}
 		var stats ports.Stats
 		result, stats, err = s.store.StartActivitySession(txCtx, start)
-		if base.IsUniqueViolation(err) {
+		if errors.Is(err, ports.ErrActivitySessionExists) {
 			// One session per instance: a second start races the first.
 			return stats, ports.ErrActivitySessionExists
 		}

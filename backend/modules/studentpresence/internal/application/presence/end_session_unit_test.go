@@ -264,10 +264,6 @@ func (m *mockVisitRepository) Delete(ctx context.Context, id interface{}) error 
 	return nil
 }
 
-func (m *mockVisitRepository) List(ctx context.Context, options *QueryOptions) ([]*studentpresence.Visit, error) {
-	return nil, nil
-}
-
 func (m *mockVisitRepository) FindActiveByStudentID(ctx context.Context, studentID int64) ([]*studentpresence.Visit, error) {
 	return nil, nil
 }
