@@ -94,3 +94,35 @@ Workforce → Student Presence and Timetable & Activities) are acyclic.
 The 14 rules that closed the cycle are deleted and their 18 imports are
 exact keys, the conversion point 5 prescribes. From policy epoch 48 the
 policy loader rejects a target graph with a cyclic component.
+
+## Addendum (#4084): the reach of a domain owner's implementation
+
+Decision of 2026-10-16. #4084 moves domain logic, row mapping and repository
+code out of the owner compositions into `application` and `postgres`. That
+code names the owner's own `public` contract, the tenant runtime and the
+public contracts of domains the owner already depends on. Measured on
+`537bf3572e`, Timetable's `application` role had no rule into any of them,
+while Care Plan, Enrollment, Student Presence, Workforce and five other
+domains each carried a per-owner rule into their own `public` role.
+
+From policy epoch 50 a reviewed epoch may add exactly these rules
+(`reviewedInternalReachRule`, `internal/architecture/internal_reach_rule.go`):
+
+1. `domain.application-public` and `domain.postgres-public`: a domain's
+   `application` and `postgres` roles into its own `public` role, production
+   only. They replace the nine per-owner rules of that shape.
+2. Per owner, a domain's `application` or `postgres` role into the `public`
+   role of `tenant-runtime` or `transaction-runtime`, production only. A
+   domain depends on platforms (point 2); no other role of a platform is
+   admitted.
+3. Per owner, a domain's `application` or `postgres` role into another
+   domain's `public` role, production only, when the base already grants the
+   owner a production rule into that target. Such a rule adds no edge to the
+   owner graph: it moves an edge the owner's composition or HTTP role holds
+   into its implementation, so the direction recorded above stays, and the
+   reverse direction stays forbidden.
+
+A per-owner rule is added in the change that first uses it. The composition's
+rule into the same target goes once the composition no longer needs it.
+Projection, workflow and platform sources, other targets, external classes
+and test scopes stay under the ordinary loosening guards.

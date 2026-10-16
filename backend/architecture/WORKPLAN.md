@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 309 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 49 ·
+Stand 16.10.2026 · Ratchet 309 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 50 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
