@@ -521,9 +521,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/enrollment/selection",
-      "owner": "enrollment",
-      "role": "contract",
+      "path": "modules/careplan/selection",
+      "owner": "care-plan",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -5977,17 +5977,6 @@
       "target_role": "contract"
     },
     {
-      "id": "enrollment.application.native-selection-contract",
-      "description": "Share the native selection calculation with the retained adjustment entry point (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "application",
-      "target_owner": "enrollment",
-      "target_role": "contract"
-    },
-    {
       "id": "request-review-view.compose.audit-corrections.public",
       "description": "Render the native Audit correction history without retained audit models (#3179).",
       "scopes": [
@@ -6172,17 +6161,6 @@
       "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "care-plan.integration-test.enrollment-compose",
-      "description": "Parent enrollment compatibility tests exercise the Enrollment write owner.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "compose"
     },
     {
       "id": "enrollment.integration-test.enrollment.postgres",

@@ -274,7 +274,7 @@ func (s *service) ensureNFCAutoCheckInNonCritical(ctx context.Context, groupID, 
 }
 
 func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int64) error {
-	session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, stampSourceNFC)
+	checkedIn, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, stampSourceNFC)
 	var plannedStart PlannedStartNotReachedError
 	if errors.As(err, &plannedStart) {
 		plannedStartTime, currentTime := plannedStart.PlannedStartNotReached()
@@ -289,7 +289,7 @@ func (s *service) ensureNFCAutoCheckIn(ctx context.Context, groupID, staffID int
 	if err != nil {
 		return err
 	}
-	if session == nil {
+	if !checkedIn {
 		s.getLogger().InfoContext(ctx, "NFC auto-check-in skipped: staff already checked out today",
 			slog.Int64("staff_id", staffID),
 			slog.Int64("group_id", groupID),

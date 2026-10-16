@@ -132,12 +132,12 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/enrollment/internal/adapters/postgres/change_request_reads.go:(*Store).ChangeRequestsForReview": 17,
 	"modules/enrollment/phase.go:(*Phase).Validate":                                                          41,
 	"modules/enrollment/publish_schema.go:(*Module).PublishSchema":                                           21,
-	"modules/enrollment/selection/automatic_shares.go:AutomaticShares":                                       18,
-	"modules/enrollment/selection/materialize.go:MaterializeAdjustments":                                     44,
-	"modules/enrollment/selection/materialize.go:autoLunchDaysForTarget":                                     16,
-	"modules/enrollment/selection/materialize.go:materializeOfferingSelections":                              44,
-	"modules/enrollment/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":               29,
-	"modules/enrollment/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                         21,
+	"modules/careplan/selection/automatic_shares.go:AutomaticShares":                                         18,
+	"modules/careplan/selection/materialize.go:MaterializeAdjustments":                                       44,
+	"modules/careplan/selection/materialize.go:autoLunchDaysForTarget":                                       16,
+	"modules/careplan/selection/materialize.go:materializeOfferingSelections":                                44,
+	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":                 29,
+	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                           21,
 
 	"modules/facilities/compose/legacy/projections.go:historyNames": 26,
 

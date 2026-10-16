@@ -18,7 +18,6 @@ import (
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -140,7 +139,7 @@ func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.En
 // returns the affected row count.
 func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	t.Helper()
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db})
 	var n int
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, bErr := repo.BackfillGuardianAccountID(ctx, accountID, email)
@@ -499,7 +498,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db})
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, listErr := repo.ListByAccount(ctx, 0)
 		return listErr
@@ -731,7 +730,7 @@ func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db})
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, bErr := repo.BackfillGuardianAccountID(ctx, 0, "x@example.com")
 		return bErr

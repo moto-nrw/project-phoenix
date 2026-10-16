@@ -144,7 +144,7 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 
 // attendanceStampSource picks the work-session source channel for the
 // presence auto-stamp: kiosk-driven requests stamp as nfc, web requests as app.
-func (s *service) attendanceStampSource(ctx context.Context) string {
+func (s *service) attendanceStampSource(ctx context.Context) studentpresence.StampSource {
 	if s.attendancePrincipal(ctx).IsIoT {
 		return stampSourceNFC
 	}
@@ -167,17 +167,17 @@ func (s *service) ensureStaffPresenceForAttendanceResult(
 // the auto-stamp on kiosk session start (assignMultipleSupervisorsNonCritical):
 // failures are logged, never returned, and an already-closed session for
 // today is left untouched (EnsureCheckedIn returns nil, nil).
-func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source string) {
+func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source studentpresence.StampSource) {
 	if staffID <= 0 || s.WorkSessionService == nil {
 		return
 	}
 
 	s.runBestEffortDB(ctx, "staff_presence_checkin", func() error {
-		session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
+		checkedIn, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
 		if err != nil {
 			return err
 		}
-		if session == nil {
+		if !checkedIn {
 			s.getLogger().DebugContext(ctx, "staff already checked out today, presence auto-stamp skipped",
 				slog.Int64("staff_id", staffID),
 			)
@@ -186,7 +186,7 @@ func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source
 	}, func(err error) {
 		s.getLogger().WarnContext(ctx, "auto work-session check-in failed",
 			slog.Int64("staff_id", staffID),
-			slog.String("source", source),
+			slog.String("source", source.String()),
 			slog.String("error", err.Error()),
 		)
 	})

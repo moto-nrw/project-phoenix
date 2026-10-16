@@ -110,7 +110,7 @@ func composePresence(b graphBuild) (graphBuild, error) {
 		EducationGroupRepo: b.Presence.AttendanceEducationGroups, DeviceRepo: b.Presence.SessionDevices(b.settingsService),
 		StaffNames: b.Presence.AttendanceStaffNames(b.graph.Users), DB: b.DB.Pool(),
 		Broadcaster: b.graph.RealtimeHub, Tracker: b.ProductEvents,
-		WorkSessionService: b.graph.WorkSession.AutoCheckIn, AttendanceSyncer: attendanceSync,
+		WorkSessionService: presenceAutoCheckIn{checkIn: b.graph.WorkSession.AutoCheckIn}, AttendanceSyncer: attendanceSync,
 		TimetableBridgeCompleter: b.graph.TimetableBridge, Logger: logger, Now: b.now,
 	},
 		// Auto-clear of sick / excused flags respects the tenant's
