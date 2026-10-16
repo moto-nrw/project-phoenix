@@ -26,7 +26,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 		Requests: src.Requests, Children: src.Children, Guardians: src.Guardians, LateInvites: src.LateInviteRepo,
 		Catalog: src.Catalog, RateLimits: src.RateLimitRepo, Offerings: src.CareOfferingRepo, Bookings: src.Bookings,
 		Capacity: src.Capacity, Schools: src.SchoolRepo, Notifications: src.Notifications, Students: src.StudentRepo,
-		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: intakeMailOutbox(src.OutboxEnqueuer),
+		GuardianAuthorizer: src.GuardianAuthorizer, Outbox: src.OutboxEnqueuer,
 		Settings: intakeSettings(src.Settings), AdminSubscribers: src.AdminSubscribers, ManualDecider: src.ManualDecider,
 		ParentChanges: src.ParentChanges,
 		Random:        securityruntime.FillRandom, Fingerprint: securityruntime.Fingerprint,
@@ -66,7 +66,7 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 		Decisions: src.Decisions, BookingGates: src.BookingGates, Companions: src.CompanionGraphLocker,
 		CompanionLockBusy: userModels.ErrCompanionLockBusy, People: people,
 		GuardianInvitations: src.GuardianInvitations,
-		Settings:            intakeSettings(src.Settings), Outbox: intakeMailOutbox(src.OutboxEnqueuer),
+		Settings:            intakeSettings(src.Settings), Outbox: src.OutboxEnqueuer,
 		FrontendURL: src.FrontendURL, ParentsURL: src.ParentsURL, Logger: src.Logger,
 	}
 	if src.PersonRepo != nil {
@@ -75,6 +75,8 @@ func NewEnrollmentChangeRequests(src EnrollmentChangeRequestSources) enrollmentO
 	return enrollmentCompose.NewChangeRequests(deps)
 }
 
+// intakeMailOutbox binds Enrollment's mail outbox to the platform outbox;
+// nil without one.
 func intakeMailOutbox(outbox platformModels.OutboxEnqueuer) enrollmentCompose.MailOutbox {
 	if outbox == nil {
 		return nil

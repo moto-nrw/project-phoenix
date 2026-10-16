@@ -8,7 +8,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -282,7 +281,7 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 	deps.studentRepo.byInstance[337] = []*scheduleModels.InstanceStudent{
 		{StudentID: 527, Status: scheduleModels.AttendanceStatusExpected},
 	}
-	deps.students.byID[527] = &usersModels.Student{PersonID: 437, SchoolClass: "2a"}
+	deps.students.byID[527] = &timetable.OperationStudent{PersonID: 437, SchoolClass: "2a"}
 	deps.personService.people[437] = &timetable.Person{FirstName: "Lina", LastName: "Lang"}
 	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
 	deps.pickupService.byStudent[527] = &pickup

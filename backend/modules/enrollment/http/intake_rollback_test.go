@@ -9,7 +9,6 @@ import (
 	"time"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
@@ -212,7 +211,7 @@ type failingIntakeOutbox struct {
 	failure   error
 }
 
-func (o *failingIntakeOutbox) EnqueueOutbox(ctx context.Context, request platformModels.OutboxEnqueueRequest) error {
+func (o *failingIntakeOutbox) EnqueueMail(ctx context.Context, request TestMail) error {
 	payload, err := json.Marshal(request.Payload)
 	if err != nil {
 		return err

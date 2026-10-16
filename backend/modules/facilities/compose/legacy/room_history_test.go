@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func TestRoomHistoryResolvesNamesAndPropagatesOwnerErrors(t *testing.T) {
 	t.Parallel()
 	activityID := int64(10)
 	facts := historyFactsStub{rows: []RoomSessionFact{{SessionID: 1, ActivityGroupID: &activityID, SupervisorStaffIDs: []int64{7, 6, 7}, StudentCount: 2}}}
-	activities := activityProjectionStub{groups: []*activityModels.Group{activityGroup(10, "Atelier", "Kreativ")}}
+	activities := activityProjectionStub{groups: map[int64]ActivityGroupName{10: activityGroup("Atelier", "Kreativ")}}
 	membership := membershipQueryStub{staff: []schoolmembership.Staff{{ID: 7, PersonID: 70}, {ID: 6, PersonID: 60}}}
 	people := personQueryStub{people: []peopledirectory.Person{{ID: 70, FirstName: " Bert", LastName: "Supervisor "}, {ID: 60, FirstName: "Ada", LastName: "Supervisor"}}}
 	project := HistoryProjection(facts, activities, membership, people)

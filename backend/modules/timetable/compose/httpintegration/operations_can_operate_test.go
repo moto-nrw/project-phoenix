@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -41,7 +40,7 @@ func TestTimetableAbsenceWithoutBlockAssignment(t *testing.T) {
 					row.ID = 3427
 					deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
 					deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
-					deps.students.byID[studentID] = &usersModels.Student{PersonID: 3428, SchoolClass: "1a"}
+					deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 3428, SchoolClass: "1a"}
 					deps.personService.people[3428] = &timetable.Person{FirstName: "Test", LastName: "Kind"}
 					ctx := testpkg.IdentityContext(tenant.WithTenantID(context.Background(), 3429), accountID, 3429, "", []string{"schedules:read"})
 					roster, err := deps.service.Roster(ctx, accountID, false, instanceID)
@@ -88,7 +87,7 @@ func TestTimetableBlockAbsenceRespectsDirectReportScope(t *testing.T) {
 					row.ID = 3407
 					deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
 					deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
-					deps.students.byID[studentID] = &usersModels.Student{PersonID: 3408, SchoolClass: "1a"}
+					deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 3408, SchoolClass: "1a"}
 					deps.personService.people[3408] = &timetable.Person{FirstName: "Test", LastName: "Kind"}
 					status := "absent"
 					patch := timetable.AttendancePatch{Status: &status, Substatus: &substatus}

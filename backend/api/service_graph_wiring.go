@@ -448,7 +448,7 @@ type EnrollmentIntakeSources struct {
 	StudentRepo        enrollmentCompose.StudentMatches
 	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
 	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
-	OutboxEnqueuer     platformModels.OutboxEnqueuer
+	OutboxEnqueuer     enrollmentCompose.MailOutbox
 	Settings           EnrollmentIntakeSettings
 	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
 	// mail (#3780); nil keeps the configured address list only.
@@ -488,7 +488,7 @@ type EnrollmentChangeRequestSources struct {
 	BookingGates         enrollmentCompose.CareBookingGates
 	CompanionGraphLocker enrollmentCompose.CompanionGraphCoordinator
 	Settings             EnrollmentIntakeSettings
-	OutboxEnqueuer       platformModels.OutboxEnqueuer
+	OutboxEnqueuer       enrollmentCompose.MailOutbox
 	FrontendURL          string
 	ParentsURL           string
 	Logger               *slog.Logger
@@ -543,7 +543,7 @@ type EnrollmentRolloverSources struct {
 	Catalog          enrollmentCompose.RolloverCatalogCloner
 	Notifications    enrollmentOwner.Notifications
 	PhaseEligibility enrollmentCompose.PhaseEligibilityGuard
-	Outbox           platformModels.OutboxEnqueuer
+	Outbox           enrollmentCompose.MailOutbox
 	Settings         EnrollmentRolloverSettings
 	// Decisions approves auto-renewed rows on an auto-approve phase.
 	Decisions  enrollmentCompose.RolloverDecider
@@ -1185,11 +1185,11 @@ type CalendarDependencies struct {
 	// accompanies the appointment e-mails (#1671). Both optional and both
 	// required together: without consent there is nobody to address, so a nil
 	// Preferences disables the push rather than broadcasting past consent.
-	Notifier deliveryCompose.NotificationService
+	Notifier CalendarNotifier
 	// ReminderNotifier waits for Web Push acceptance so the scheduler can retry
 	// a transient failure without permanently claiming the reminder delivery.
-	ReminderNotifier deliveryCompose.SynchronousNotificationService
-	Preferences      deliveryCompose.NotificationPreferenceService
+	ReminderNotifier CalendarReminderNotifier
+	Preferences      CalendarPreferences
 
 	// Logger is nil-safe (see service.logger()); notification dispatch is
 	// fire-and-forget and reports its failures here instead of to the caller.
@@ -1197,7 +1197,7 @@ type CalendarDependencies struct {
 }
 
 type CalendarOutbox interface {
-	Enqueue(context.Context, deliveryCompose.MailEnqueueRequest) (*deliveryCompose.MailEnqueued, error)
+	Enqueue(context.Context, calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error)
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
 }
 type CalendarPushOutbox interface {

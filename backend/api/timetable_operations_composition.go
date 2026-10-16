@@ -33,7 +33,7 @@ func NewTimetableOperations(in TimetableOperationInputs) (timetable.OperationCap
 		Supervisions:         in.Supervisions,
 		Visits:               in.Visits,
 		Attendance:           timetableOperationAttendance{presence: in.Presence},
-		Students:             in.Rows.Students,
+		Students:             NewTimetableOperationStudents(in.Rows.Students),
 		People:               in.People,
 		EducationGroups:      in.Rows.EducationGroupNames(),
 		Rooms:                in.Rows.RoomNames(),
