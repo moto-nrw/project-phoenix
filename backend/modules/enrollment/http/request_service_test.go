@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -108,7 +107,7 @@ func (s *stubRequestSettings) ResolveInt(_ context.Context, key string) (int, er
 // can assert both confirmation emails were enqueued with the right kind.
 type recordingOutbox struct {
 	mu      sync.Mutex
-	entries []platformModels.OutboxEnqueueRequest
+	entries []TestMail
 	err     error
 }
 
@@ -119,7 +118,7 @@ type failAfterDurableEnqueue struct {
 	calls  int
 }
 
-func (f *failAfterDurableEnqueue) EnqueueOutbox(ctx context.Context, req platformModels.OutboxEnqueueRequest) error {
+func (f *failAfterDurableEnqueue) EnqueueMail(ctx context.Context, req TestMail) error {
 	payload, err := json.Marshal(req.Payload)
 	if err != nil {
 		return err
@@ -200,7 +199,7 @@ func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ contex
 	return email == a.grantedEmail, nil
 }
 
-func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.OutboxEnqueueRequest) error {
+func (r *recordingOutbox) EnqueueMail(_ context.Context, req TestMail) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if r.err != nil {
@@ -210,10 +209,10 @@ func (r *recordingOutbox) EnqueueOutbox(_ context.Context, req platformModels.Ou
 	return nil
 }
 
-func (r *recordingOutbox) ByKind(kind string) []platformModels.OutboxEnqueueRequest {
+func (r *recordingOutbox) ByKind(kind string) []TestMail {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	out := make([]platformModels.OutboxEnqueueRequest, 0, len(r.entries))
+	out := make([]TestMail, 0, len(r.entries))
 	for _, e := range r.entries {
 		if e.Kind == kind {
 			out = append(out, e)
@@ -1855,7 +1854,7 @@ func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *
 	require.Len(t, updated.Children, 1)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, updated.Children[0].Status)
 
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, flowRepositories(t, env.db).Enrollment(), editor.Request.ID)
@@ -2059,7 +2058,7 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 	))
 	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
 
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["rejected_names"])
 	assert.Equal(t, []string{"Noah Beispiel"}, digests[0].Payload["withdrawn_names"])
@@ -2067,7 +2066,7 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 
 	// Retrying an already-withdrawn child is a no-op, including notification.
 	require.NoError(t, env.svc.Withdraw(ctx, submitted.Request.StatusToken, submitted.Children[1].ID))
-	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest), 1)
+	assert.Len(t, env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest), 1)
 }
 
 func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
@@ -2433,7 +2432,7 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, r2.Children[0].Status,
 		"over-capacity child must be persisted as waitlisted under mode=waitlist")
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{"Lina Beispiel"}, digests[0].Payload["waitlisted_names"])
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, flowRepositories(t, env.db).Enrollment(), r2.Request.ID)
@@ -2465,11 +2464,11 @@ func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t
 	require.NoError(t, err)
 	require.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
 
-	rows := env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted)
+	rows := env.outbox.ByKind(enrollmentCapability.MailKindWaitlisted)
 	require.Len(t, rows, 1)
 	assert.Equal(t, result.Request.ID, rows[0].RelatedEntityID)
 	assert.NotEmpty(t, rows[0].IdempotencyKey)
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+	assert.Empty(t, env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest))
 }
 
 func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *testing.T) {
@@ -2503,10 +2502,10 @@ func TestRequestService_Submit_AllCapacityOverflowWaitlistsQueueOneDigest(t *tes
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[1].Status)
 
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.ElementsMatch(t, []string{"Lina Beispiel", "Noah Beispiel"}, digests[0].Payload["waitlisted_names"])
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
+	assert.Empty(t, env.outbox.ByKind(enrollmentCapability.MailKindWaitlisted))
 }
 
 func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarly(t *testing.T) {
@@ -2538,8 +2537,8 @@ func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarl
 	require.Len(t, result.Children, 2)
 	assert.Equal(t, enrollmentModels.ChildStatusWaitlisted, result.Children[0].Status)
 	assert.Equal(t, enrollmentModels.ChildStatusSubmitted, result.Children[1].Status)
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentWaitlisted))
+	assert.Empty(t, env.outbox.ByKind(enrollmentCapability.MailKindDecisionDigest))
+	assert.Empty(t, env.outbox.ByKind(enrollmentCapability.MailKindWaitlisted))
 
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Request.ID)
 	require.NoError(t, err)

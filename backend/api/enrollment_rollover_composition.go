@@ -19,10 +19,7 @@ func NewEnrollmentRollovers(src EnrollmentRolloverSources) enrollmentOwner.Rollo
 	deps := enrollmentCompose.RolloverDependencies{
 		Bookings: src.Bookings, Phases: src.Phases, Requests: src.Requests, Children: src.Children,
 		Catalog: src.Catalog, Notifications: src.Notifications, PhaseEligibility: src.PhaseEligibility,
-		Decisions: src.Decisions, ParentsURL: src.ParentsURL, Random: securityruntime.FillRandom, Logger: src.Logger,
-	}
-	if src.Outbox != nil {
-		deps.Outbox = enrollmentMailOutbox{outbox: src.Outbox}
+		Decisions: src.Decisions, Outbox: src.Outbox, ParentsURL: src.ParentsURL, Random: securityruntime.FillRandom, Logger: src.Logger,
 	}
 	if src.Settings != nil {
 		deps.Settings = enrollmentRolloverSettings{settings: src.Settings}

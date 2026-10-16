@@ -448,7 +448,7 @@ type EnrollmentIntakeSources struct {
 	StudentRepo        enrollmentCompose.StudentMatches
 	GuardianAuthorizer enrollmentCompose.GuardianStudentAuthorizer
 	RateLimitRepo      enrollmentCompose.SubmissionRateLimiter
-	OutboxEnqueuer     platformModels.OutboxEnqueuer
+	OutboxEnqueuer     enrollmentCompose.MailOutbox
 	Settings           EnrollmentIntakeSettings
 	// AdminSubscribers adds the staff who switched on the "Neue Anmeldung"
 	// mail (#3780); nil keeps the configured address list only.
@@ -488,7 +488,7 @@ type EnrollmentChangeRequestSources struct {
 	BookingGates         enrollmentCompose.CareBookingGates
 	CompanionGraphLocker enrollmentCompose.CompanionGraphCoordinator
 	Settings             EnrollmentIntakeSettings
-	OutboxEnqueuer       platformModels.OutboxEnqueuer
+	OutboxEnqueuer       enrollmentCompose.MailOutbox
 	FrontendURL          string
 	ParentsURL           string
 	Logger               *slog.Logger
@@ -543,7 +543,7 @@ type EnrollmentRolloverSources struct {
 	Catalog          enrollmentCompose.RolloverCatalogCloner
 	Notifications    enrollmentOwner.Notifications
 	PhaseEligibility enrollmentCompose.PhaseEligibilityGuard
-	Outbox           platformModels.OutboxEnqueuer
+	Outbox           enrollmentCompose.MailOutbox
 	Settings         EnrollmentRolloverSettings
 	// Decisions approves auto-renewed rows on an auto-approve phase.
 	Decisions  enrollmentCompose.RolloverDecider
