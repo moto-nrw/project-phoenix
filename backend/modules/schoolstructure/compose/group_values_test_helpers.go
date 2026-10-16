@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -75,7 +77,6 @@ func legacyGroupQuery(query *domain.GroupListQuery) *schoolstructure.GroupListQu
 	return &result
 }
 
-// Legacy storage vocabulary belongs only to the retained suite seam.
 type legacyGroupStorageTestError = domain.StoreError
 
 var legacyGroupRecordTestNotFound = domain.RecordNotFound
