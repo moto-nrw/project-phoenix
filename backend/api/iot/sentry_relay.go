@@ -1,17 +1,13 @@
-package compose
+package iot
 
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"strings"
 	"time"
-
-	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	"github.com/moto-nrw/project-phoenix/observability"
 )
 
 // sentryForwardTimeout bounds one forward to Sentry.
@@ -26,8 +22,9 @@ var sentryAnswerHeaders = []string{"Content-Type", "Retry-After", "X-Sentry-Rate
 // open proxy, and always posts to that project's endpoint, never to a host
 // the envelope names.
 type sentryForwarder struct {
-	target observability.SentryTarget
-	client *http.Client
+	target  SentryTarget
+	runtime SentryTransportRuntime
+	client  *http.Client
 }
 
 // NewErrorReportRelay builds the relay from the DSN of the pyreportal
@@ -35,44 +32,41 @@ type sentryForwarder struct {
 // a DSN the backend runs without Sentry, which serve allows only while
 // SENTRY_DSN is empty too, and the route answers 503. A malformed DSN stops
 // the start.
-func NewErrorReportRelay(dsn string) (iotAPI.ErrorReportRelay, error) {
+func NewErrorReportRelay(dsn string, runtime SentryTransportRuntime) (ErrorReportRelay, error) {
 	if strings.TrimSpace(dsn) == "" {
 		return nil, nil
 	}
-	target, err := observability.ParseSentryDSN(dsn)
+	target, err := runtime.ParseTarget(dsn)
 	if err != nil {
 		return nil, fmt.Errorf("SENTRY_PYREPORTAL_DSN: %w", err)
 	}
-	return &sentryForwarder{target: target, client: &http.Client{Timeout: sentryForwardTimeout}}, nil
+	return &sentryForwarder{target: target, runtime: runtime, client: &http.Client{Timeout: sentryForwardTimeout}}, nil
 }
 
-func (f *sentryForwarder) Relay(ctx context.Context, envelope []byte, origin iotAPI.ErrorReportOrigin) (iotAPI.ErrorReportAnswer, error) {
-	tagged, err := observability.TagSentryEnvelope(envelope, f.target.ProjectID, observability.SentryReporter{DeviceID: origin.DeviceID, SchoolID: origin.SchoolID})
-	switch {
-	case errors.Is(err, observability.ErrSentryProjectNotAllowed):
-		return iotAPI.ErrorReportAnswer{}, fmt.Errorf("%w: %w", iotAPI.ErrErrorReportProjectNotAllowed, err)
-	case err != nil:
-		return iotAPI.ErrorReportAnswer{}, fmt.Errorf("%w: %w", iotAPI.ErrErrorReportInvalid, err)
+func (f *sentryForwarder) Relay(ctx context.Context, envelope []byte, origin ErrorReportOrigin) (ErrorReportAnswer, error) {
+	tagged, err := f.runtime.TagEnvelope(envelope, f.target.ProjectID, origin)
+	if err != nil {
+		return ErrorReportAnswer{}, err
 	}
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, f.target.EnvelopeURL, bytes.NewReader(tagged))
 	if err != nil {
-		return iotAPI.ErrorReportAnswer{}, fmt.Errorf("%w: %w", iotAPI.ErrErrorReportUndelivered, err)
+		return ErrorReportAnswer{}, fmt.Errorf("%w: %w", ErrErrorReportUndelivered, err)
 	}
 	req.Header.Set("Content-Type", "application/x-sentry-envelope")
 	resp, err := f.client.Do(req)
 	if err != nil {
-		return iotAPI.ErrorReportAnswer{}, fmt.Errorf("%w: %w", iotAPI.ErrErrorReportUndelivered, err)
+		return ErrorReportAnswer{}, fmt.Errorf("%w: %w", ErrErrorReportUndelivered, err)
 	}
 	defer func() { _ = resp.Body.Close() }()
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<10))
 	if err != nil {
-		return iotAPI.ErrorReportAnswer{}, fmt.Errorf("%w: read answer: %w", iotAPI.ErrErrorReportUndelivered, err)
+		return ErrorReportAnswer{}, fmt.Errorf("%w: read answer: %w", ErrErrorReportUndelivered, err)
 	}
 	if resp.StatusCode >= http.StatusInternalServerError {
-		return iotAPI.ErrorReportAnswer{}, fmt.Errorf("%w: sentry answered %d", iotAPI.ErrErrorReportUndelivered, resp.StatusCode)
+		return ErrorReportAnswer{}, fmt.Errorf("%w: sentry answered %d", ErrErrorReportUndelivered, resp.StatusCode)
 	}
-	answer := iotAPI.ErrorReportAnswer{Status: resp.StatusCode, Header: http.Header{}, Body: body}
+	answer := ErrorReportAnswer{Status: resp.StatusCode, Header: http.Header{}, Body: body}
 	for _, key := range sentryAnswerHeaders {
 		if value := resp.Header.Get(key); value != "" {
 			answer.Header.Set(key, value)
