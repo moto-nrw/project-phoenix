@@ -74,6 +74,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
 	deps := offboardingcompose.Dependencies{
 		DB: db, Access: api.StaffOffboardingAccess(authService),
+		People:     peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
 		Employment: api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
 		Authorize: func(ctx context.Context) (staffoffboarding.Actor, error) {
 			actor, _ := ctx.Value(offboardingTestActorKey{}).(staffoffboarding.Actor)

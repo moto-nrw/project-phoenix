@@ -4,56 +4,8 @@
 package studentdirectoryview
 
 import (
-	"context"
-	"errors"
-	"time"
-
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-
 	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
-
-// Database supplies the caller's existing RLS transaction and school ID.
-// A zero school is reserved for the existing explicit admin-read transaction.
-type Database func(context.Context) (bun.IDB, int64, error)
-
-var ErrStudentLockBusy = directory.ErrStudentLockBusy
-var ErrStudentNotFound = directory.ErrStudentNotFound
-
-type OperationStats struct {
-	Queries           int64
-	Rows              int64
-	StatementDuration time.Duration
-}
-
-type Filter struct {
-	IDs           []int64
-	SchoolClasses []string
-	GradeLevels   []string
-	KeepAlumni    []int64
-	CareStatus    string
-	CareStatusOn  string
-	Page          int
-	PageSize      int
-}
-
-func studentDateParam(value string) *calendar.Date {
-	if value == "" {
-		return nil
-	}
-	day, err := calendar.ParseDate(value)
-	if err != nil {
-		return nil
-	}
-	return &day
-}
-
-func isLockNotAvailable(err error) bool {
-	var postgresError pgdriver.Error
-	return errors.As(err, &postgresError) && postgresError.Field('C') == "55P03"
-}
 
 const studentSource = `(SELECT p.id, p.tenant_id, p.person_id, p.created_at,
 	GREATEST(p.updated_at, m.updated_at, c.updated_at) AS updated_at,

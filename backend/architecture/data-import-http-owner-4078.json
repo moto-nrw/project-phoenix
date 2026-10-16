@@ -88,7 +88,7 @@
     },
     "errors": {
       "state": "measured",
-      "result": "All 451 original assert/require calls across eight affected test files are preserved (AST comparison). The final full test-changed run without --fast passed all 67 affected packages, including api in 35.300s and test in 42.967s. Earlier full runs exposed stale ORM/LOC ratchet entries and a fixture carrier exposing the Resource implementation; those were fixed without relaxing tests or budgets. The narrow fixture explicitly includes the three staff handlers the unchanged tests directly exercise."
+      "result": "All 451 original assert/require calls across eight affected files are preserved (AST comparison). The full no-fast test-changed gate passed all67 affected packages after the final runtime/fixture change. Subsequent development merges changed no owned runtime code; on merged baseab3dc180207c059c942f6116ac5c33abdf168c8f, architecture passed279 keys/composition1664/shrink-only budgets, the full Root api suite passed26.617s, the three affected route-builder/ORM/LOC ratchets passed18.073s and lint reported0 issues. Earlier stale-ratchet and broad-fixture failures were fixed without relaxing assertions or budgets."
     },
     "failure": {
       "state": "measured",
@@ -96,7 +96,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "The full api suite passed in 35.300s, including import CSV/XLSX template, preview, student/staff/class-list import cases and TestFullProductionRouterGolden with unchanged assertions. The complete fileformat suite passed both targeted and full changed-package runs. No native app server was needed."
+      "result": "The full Root api suite passed26.617s on the latest integrated base, including all moved Data Import template/preview/student/staff/class-list, quota, batch/upload cases and TestFullProductionRouterGolden with unchanged assertions. The complete Fileformat suite passed in the earlier full no-fast gate. No native app server was needed."
     }
   },
   "rollback_and_cleanup": "Revert the slice to restore inbound-import, its composition package and thirteen rules; remove the successor and restore the two exact keys. No schema or production data cleanup. Physical HTTP relocation follows separately under ADR0020 with owner and roles unchanged.",

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -17,6 +16,9 @@ func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, stu
 	result := []domain.GuardianPortalContact{}
 	if len(guardianIDs) == 0 && len(studentIDs) == 0 {
 		return result, domain.OperationStats{}, nil
+	}
+	if s.links == nil {
+		return nil, domain.OperationStats{}, errGuardianLinksUnbound
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -33,7 +35,7 @@ func (s *GuardianStore) ListPortalContacts(ctx context.Context, guardianIDs, stu
 	}
 	query := db.NewSelect().TableExpr("users.guardian_profiles AS gp").
 		ColumnExpr("gp.id AS guardian_profile_id, gp.tenant_id, gp.account_id, gp.first_name, gp.last_name, gp.email, gp.portal_locale, sg.student_id, sg.permissions -> 'parent_portal.access' AS portal_permission").
-		Join("LEFT JOIN (?) AS sg ON sg.guardian_profile_id = gp.id AND sg.tenant_id = gp.tenant_id", guardianlinkview.Query(db, tenantID)).
+		Join("LEFT JOIN (?) AS sg ON sg.guardian_profile_id = gp.id AND sg.tenant_id = gp.tenant_id", s.links.GuardianLinkRows(db, tenantID)).
 		Where("gp.account_id IS NOT NULL").
 		WhereGroup(" AND ", func(q *bun.SelectQuery) *bun.SelectQuery {
 			return q.Where("gp.id IN (?)", bun.List(guardianIDs)).WhereOr("sg.student_id IN (?)", bun.List(studentIDs))

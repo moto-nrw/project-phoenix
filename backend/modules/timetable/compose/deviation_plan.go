@@ -6,6 +6,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -244,7 +245,7 @@ func (s *staffDeviations) lockDeviationDay(ctx context.Context, instanceID int64
 	if err != nil {
 		return nil, err
 	}
-	if calendar.Date(locked.Date) != date || !isPlannableInstance(locked) {
+	if calendar.Date(locked.Date) != date || !application.IsPlannableInstance(locked) {
 		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, msgInstanceMoved)
 	}
 	return locked, nil
@@ -436,7 +437,7 @@ func loadPlannableInstance(row *scheduleModel.InstanceStaff, readSet *deviationR
 	if instance == nil {
 		return nil, timetable.DeviationInternalDetail(fmt.Sprintf("instance_staff %d references missing instance %d", row.ID, row.InstanceID))
 	}
-	if !isPlannableInstance(instance) {
+	if !application.IsPlannableInstance(instance) {
 		return nil, nil
 	}
 	return instance, nil

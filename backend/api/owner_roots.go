@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"time"
 
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
@@ -70,7 +72,7 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
 			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),
-			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, identity.FindActiveSchoolMemberships)),
+			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, guardianLinkView.NewReader(), identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
 				parentStore.NewStaffParentMessageReadRepository(pool, members, persons), groupNames),
 			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, peopleCompose.NewMessageableStaff(pool,

@@ -261,7 +261,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 	s.res.Templates = timetableData
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
 		timetableCompose.InstanceSeriesConversionDependencies{
-			DB:             s.db,
+			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      s.res.InstanceService,
 			Templates:      timetableData,
@@ -310,7 +310,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	repoFactory := mustTimetableTestRepositories(s.db)
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
 		timetableCompose.InstanceSeriesConversionDependencies{
-			DB:             s.db,
+			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      failingInstanceService,
 			Templates:      s.res.Templates,

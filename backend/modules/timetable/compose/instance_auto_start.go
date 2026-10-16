@@ -10,6 +10,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -36,7 +37,7 @@ func NewInstanceAutoStart(deps InstanceAutoStartDependencies) (timetable.Instanc
 	if deps.InstanceRepo == nil || deps.InstanceStaffRepo == nil || deps.Lifecycle == nil || deps.Rooms == nil || deps.Conflicts == nil {
 		return nil, errors.New("timetable auto-start: required dependency is nil")
 	}
-	deps.Logger = orDefaultLogger(deps.Logger)
+	deps.Logger = application.OrDefaultLogger(deps.Logger)
 	return &instanceAutoStart{InstanceAutoStartDependencies: deps}, nil
 }
 

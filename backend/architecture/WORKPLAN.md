@@ -3,16 +3,16 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 284 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 53 ·
+Stand 16.10.2026 · Ratchet 279 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-90.627 in `compose`
+78.444 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 19 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 91 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 90 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 54 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 284 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 279 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -83,7 +83,7 @@ Paketpfade, Go-Code, Keys (307), #4078-Keys (10) und Budgets bleiben unveränder
 #4078: Der Elternportal-HTTP-Adapter gehört zu `parent-portal`; `inbound-parent` entfällt.
 Die Owner-Zuordnung kommt vor der physischen Verschiebung: ADR 0020 verlangt bei einer
 Relocation denselben Owner und dieselben Rollen. Die Verschiebung nach
-`workflows/parentportal/http` folgt als eigener, schuldenneutraler Schnitt.
+`workflows/parentportal/http` ist ein eigener, schuldenneutraler Schnitt.
 Die stehende Root-Reichweite löst den einen #2750-Key `api → parent` auf.
 Laufzeit-Code, Routen, Antworten, Assertions und offene #4073-/#4004-Keys bleiben hier unverändert.
 Der bestehende endliche Parent-HTTP-Epochenschutz folgt nur dem Owner-Namen;
@@ -93,13 +93,20 @@ in `parent-portal-http-owner-4078.json`; Composition und Budgets bleiben unverä
 Nach dem Merge von #4147: Inbound-Owner 23 → 22, Regeln 936 → 934, Keys 303 → 302;
 #2750 2 → 1, #4078 10 → 10 und #4079 15 → 15, Policy-Epoche 51 unverändert.
 
+#4078: Parent-HTTP liegt nach ADR 0020 unter `workflows/parentportal/http`.
+Owner, Produktions- und Testrollen sowie alle 52 Go-Dateinamen bleiben gleich.
+Die Relocation benennt drei bestehende #4073-Keys und vier Funktionslängen-Einträge
+nur um. Aktive Evidenz-Dateiverweise folgen den Dateien; historische Keys bleiben
+unverändert. Keine neuen Regeln, höheren Budgets oder geänderten Assertions/HTTP-Verträge.
+Policy-Epoche 54 → 55 nach dem Merge von #4156; 281 Keys und Composition 1.664 bleiben unverändert.
+
 #4078: Data Import übernimmt seinen HTTP-Adapter; `inbound-import` entfällt.
 Die Root hält die Middleware-/Identitäts-/Tenant-Verdrahtung und die fünf bisherigen
 HTTP-Suiten; deren Assertions bleiben unverändert. Der Decoder kommt über die
 bestehende Owner-Komposition. Workbook-Fixtures bleiben im Fileformat-Adapter,
 seine Rendering-Testregel entfällt. Dreizehn Regeln werden durch eine gleich enge
-Eigen-HTTP-Regel ersetzt; Inbound-Owner 22 → 21, Regeln 935 → 923,
-Keys 286 → 284, #4078 10 → 9, #2750 1 → 0. Composition bleibt gleich; das
+Eigen-HTTP-Regel ersetzt; Inbound-Owner 22 → 21, Regeln 938 → 926,
+Keys 281 → 279, #4078 10 → 9, #2750 1 → 0. Composition bleibt gleich; das
 Compose-LOC-Budget sinkt um 131 und die verwaiste HTTP-ORM-Ausnahme entfällt.
 Der Retirement-Nachweis liegt in `data-import-http-owner-4078.json`.
 Die physische Verschiebung nach `modules/dataimport/http` folgt separat gemäß ADR 0020.
