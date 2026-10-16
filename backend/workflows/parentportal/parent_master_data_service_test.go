@@ -50,7 +50,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
@@ -111,7 +111,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
+		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
 		GuardianProfileRepo: repos.GuardianProfile,
 		PersonRepo:          repos.Person,
@@ -147,7 +147,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		ChildRepo: repos.ParentChild,
+		ChildRepo: repos.ParentChildReads(),
 		Settings:  masterDataSettings(true, true, false),
 		MealPlan:  availableMealPlan(false),
 		Logger:    slog.Default(),

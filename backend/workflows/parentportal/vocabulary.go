@@ -11,6 +11,10 @@ import (
 )
 
 type (
+	EnrollmentRequestChildSummary   = care.EnrollmentRequestChildSummary
+	EnrollmentRequestReads          = care.EnrollmentRequestReads
+	EnrollablePhaseReads            = care.EnrollablePhaseReads
+	ChildReads                      = care.ChildReads
 	ChildEvent                      = care.ChildEvent
 	ChildEvents                     = care.ChildEvents
 	MessagingGate                   = messaging.MessagingGate

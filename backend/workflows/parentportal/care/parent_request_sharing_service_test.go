@@ -34,7 +34,7 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
 	svc := messaging.New(messaging.Config{
 		Children:  childResolver(db, repos),
-		ChildRepo: repos.ParentChild, GuardianProfileRepo: repos.GuardianProfile,
+		ChildRepo: repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
 		ChangeRequestRepo:      repos.StudentDataChangeRequest,
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,

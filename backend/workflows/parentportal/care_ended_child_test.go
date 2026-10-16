@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -93,7 +92,7 @@ func TestParentPortal_CareEndedChildIsReadOnly(t *testing.T) {
 		children, err := svc.ListChildrenForAccount(ctx, chain.AccountID)
 		require.NoError(t, err)
 		require.Len(t, children, 1, "the child does not disappear from the portal")
-		assert.True(t, children[0].CareEnded(careplan.Date(calendar.NewDate(2026, 8, 24).String())),
+		assert.True(t, children[0].CareEnded(calendar.NewDate(2026, 8, 24)),
 			"the card is labelled 'Betreuung beendet' rather than removed")
 	})
 }
