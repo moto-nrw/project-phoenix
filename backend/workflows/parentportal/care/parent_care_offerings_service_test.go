@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -149,15 +148,14 @@ func (s childOfferingRepoStub) RequestChildOfferingHistory(
 }
 
 type careOfferingRepoStub struct {
-	enrollmentModels.CareOfferingRepository
-	offerings []*enrollmentModels.CareOffering
+	offerings []*CareOffering
 	err       error
 }
 
 func (s careOfferingRepoStub) ListByIDs(
 	_ context.Context,
 	_ []int64,
-) ([]*enrollmentModels.CareOffering, error) {
+) ([]*CareOffering, error) {
 	return s.offerings, s.err
 }
 
@@ -288,13 +286,13 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	note := "Ab Februar bitte dienstags"
 	createdAt := time.Now().Add(-time.Hour)
 
-	firstOffering := &enrollmentModels.CareOffering{
+	firstOffering := &CareOffering{
 		ID:            41,
 		Name:          "Zweite Sortierung",
 		SortOrder:     20,
 		IncludesLunch: true,
 	}
-	secondOffering := &enrollmentModels.CareOffering{
+	secondOffering := &CareOffering{
 		ID:                  42,
 		Name:                "Erste Sortierung",
 		Description:         &description,
@@ -302,7 +300,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 		PriceCents:          &price,
 		IncludesHolidayCare: true,
 	}
-	futureOffering := &enrollmentModels.CareOffering{
+	futureOffering := &CareOffering{
 		ID:        43,
 		Name:      "Zukünftige Betreuung",
 		SortOrder: 30,
@@ -342,7 +340,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 		{CareOfferingID: 999},
 		{CareOfferingID: 43, ValidFrom: &ownerFutureStart},
 	}}
-	svc.CareOfferingRepo = careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{
+	svc.CareOfferingRepo = careOfferingRepoStub{offerings: []*CareOffering{
 		firstOffering, nil, secondOffering, futureOffering,
 	}}
 	view, err := svc.GetChildCareOfferings(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22)
@@ -414,7 +412,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 	svc := &Service{Config: Config{
 		CarePeriods:     carePeriodRepoStub{periods: []*CarePeriod{period}},
 		OfferingHistory: links,
-		CareOfferingRepo: careOfferingRepoStub{offerings: []*enrollmentModels.CareOffering{{
+		CareOfferingRepo: careOfferingRepoStub{offerings: []*CareOffering{{
 			ID: 1, Name: "Nachmittagsbetreuung",
 		}}},
 	}}

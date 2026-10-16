@@ -49,6 +49,16 @@ func (r *CareOfferingRecords) ListByIDs(ctx context.Context, ids []int64) ([]*en
 	return r.list(ctx, careplan.CareOfferingFilter{IDs: ids, Order: careplan.OfferingOrderCatalog}, "failed to list care offerings by ids")
 }
 
+// CareOfferingsByIDs exposes the existing decoded rows as public catalog
+// values. Reusing ListByIDs retains its empty-input, ordering and error contract.
+func (r *CareOfferingRecords) CareOfferingsByIDs(ctx context.Context, ids []int64) ([]*enrollment.CareOffering, error) {
+	rows, err := r.ListByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return publicCareOfferings(rows), nil
+}
+
 // ListByIDsForUpdate locks the offerings with the given ids by ascending id.
 func (r *CareOfferingRecords) ListByIDsForUpdate(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error) {
 	if len(ids) == 0 {
