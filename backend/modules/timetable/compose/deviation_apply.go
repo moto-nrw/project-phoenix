@@ -7,6 +7,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -54,7 +55,7 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 		return s.cancelDeviation(ctx, instanceID, instance, in)
 	}
 
-	if !isPlannableInstance(instance) {
+	if !application.IsPlannableInstance(instance) {
 		return nil, timetable.DeviationConflict(timetable.CodeInvalidTransition, msgInstanceNotEditable)
 	}
 

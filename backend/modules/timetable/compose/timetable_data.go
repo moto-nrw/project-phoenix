@@ -11,6 +11,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -121,7 +122,7 @@ type TimetableDataDependencies struct {
 	Participants      DataParticipants
 	PickupExceptions  DataPickupExceptions
 	ArrivalExceptions DataArrivalExceptions
-	ArrivalBaselines  ArrivalBaselineProjector
+	ArrivalBaselines  application.ArrivalBaselineProjector
 	PickupBaselines   PickupBaselineProjector
 	Visits            OperationVisits
 	Templates         DataTemplates

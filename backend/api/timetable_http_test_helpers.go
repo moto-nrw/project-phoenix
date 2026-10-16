@@ -104,7 +104,7 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 			EnrollmentRepo: r.StudentEnrollment, SupervisorRepo: r.ActivitySupervisor,
 			PeriodRepo: r.CalendarPeriod, InstanceRepo: r.ActivityInstance, StaffRepo: r.InstanceStaff,
 			StudentRepo: r.InstanceStudent, ExceptionRepo: r.ActivityException,
-			TimeframeRepo: r.Timeframe, CareBounds: r.Student, RecurrenceLock: lock, DB: db.Pool(),
+			TimeframeRepo: r.Timeframe, CareBounds: r.Student, RecurrenceLock: lock, Transactions: timetableCompose.NewTenantTransactions(db.Pool()),
 		})
 		if err != nil {
 			return TimetableHTTPTestModule{}, err
@@ -130,8 +130,8 @@ func NewTimetableHTTPTestModule(db transactionruntime.Database, options Timetabl
 			MinGradeLevel: timetable.MinSchoolGradeLevel, MaxGradeLevel: timetable.MaxSchoolGradeLevel,
 			Normalize: func(class string) string { return strings.ToLower(strings.TrimSpace(class)) },
 		},
-		DB:    db.Pool(),
-		Today: today,
+		Transactions: timetableCompose.NewTenantTransactions(db.Pool()),
+		Today:        today,
 	})
 	if err != nil {
 		return TimetableHTTPTestModule{}, err

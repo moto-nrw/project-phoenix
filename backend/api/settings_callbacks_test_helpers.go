@@ -6,6 +6,8 @@ import (
 	"context"
 	"log/slog"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
@@ -32,7 +34,8 @@ func NewSettingsCallbacksTestModule(db transactionruntime.Database, unit tenant.
 	hub := deliveryCompose.NewRealtimeHub(slog.Default())
 	photoRuntime := new(peopleCompose.StudentPhotoRuntime)
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db.Pool(), Observe: func(peopleCompose.Observation) {},
+		StudentDirectory: studentDirectoryView.NewReader(),
+		DB:               db.Pool(), Observe: func(peopleCompose.Observation) {},
 		StudentPhotoRuntime: func() peopleCompose.StudentPhotoRuntime { return *photoRuntime },
 	})
 	if err != nil {

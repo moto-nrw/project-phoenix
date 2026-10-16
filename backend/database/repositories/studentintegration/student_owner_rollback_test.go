@@ -62,7 +62,8 @@ func TestStudentOwnerWritesRollbackWhenCallerCatchesFailure(t *testing.T) {
 			require.NoError(t, err)
 			failure := errors.New("failure after owner write")
 			module, err := peopleCompose.New(peopleCompose.Dependencies{
-				DB: db, Observe: func(peopleCompose.Observation) {},
+				StudentDirectory: testpkg.StudentDirectory{},
+				DB:               db, Observe: func(peopleCompose.Observation) {},
 				StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
 			})
 			require.NoError(t, err)
@@ -95,7 +96,8 @@ func TestStudentOwnerUpdatesRollbackWhenCallerCatchesFailure(t *testing.T) {
 				require.NoError(t, err)
 				failure := errors.New("failure after owner update")
 				module, err := peopleCompose.New(peopleCompose.Dependencies{
-					DB: db, Observe: func(peopleCompose.Observation) {},
+					StudentDirectory: testpkg.StudentDirectory{},
+					DB:               db, Observe: func(peopleCompose.Observation) {},
 					StudentOwners: failingStudentOwner{StudentOwners: api.NewStudentOwners(membership, care), stage: stage, failure: failure},
 				})
 				require.NoError(t, err)

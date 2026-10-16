@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -37,7 +38,7 @@ func (s *InstanceLifecycleService) logSnapshotDropped(ctx context.Context, snap 
 	}
 	startTime, err := time.Parse("15:04:05", snap.startTime)
 	if err != nil {
-		return &ScheduleError{Op: "log dropped deviation: parse start time", Err: err}
+		return &application.ScheduleError{Op: "log dropped deviation: parse start time", Err: err}
 	}
 	event := DeviationEventRecord{
 		ActivityGroupID: &activityGroupID,
@@ -47,10 +48,10 @@ func (s *InstanceLifecycleService) logSnapshotDropped(ctx context.Context, snap 
 		ActorAccountID:  normalizeActor(actorAccountID),
 	}
 	if event.OldValue, err = marshalDeviationValue(droppedSnapshotValue(snap)); err != nil {
-		return &ScheduleError{Op: "log dropped deviation: marshal", Err: err}
+		return &application.ScheduleError{Op: "log dropped deviation: marshal", Err: err}
 	}
 	if err := s.deps.Protocol.RecordDeviationEvent(ctx, event); err != nil {
-		return &ScheduleError{Op: "log dropped deviation", Err: err}
+		return &application.ScheduleError{Op: "log dropped deviation", Err: err}
 	}
 	return nil
 }

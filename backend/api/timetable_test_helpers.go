@@ -133,7 +133,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	materializationDeps := TimetableMaterializationDependencies(TimetableMaterializationInputs{
 		Rows: rows, CareBounds: r.Student, NonWorkingDays: calendar, RecurrenceLock: recurrenceLock, Broadcaster: hub, Logger: logger,
 	})
-	materializationDeps.DB = db.Pool()
+	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
 	if err != nil {
 		return TimetableTestModule{}, err
@@ -184,7 +184,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, err
 	}
-	templateDeps.DB = db.Pool()
+	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
 	templates, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetableTestModule{}, err

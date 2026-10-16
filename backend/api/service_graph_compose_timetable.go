@@ -259,7 +259,7 @@ func composeMaterialization(b graphBuild) (graphBuild, error) {
 		NonWorkingDays: b.Calendar, RecurrenceLock: b.TimetableWiring.RecurrenceLock,
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "materialization"),
 	})
-	deps.DB = b.DB.Pool()
+	deps.Transactions = arrivalTimetable.NewTenantTransactions(b.DB.Pool())
 	materialization, err := arrivalTimetable.NewMaterialization(deps)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable materialization: %w", err)
