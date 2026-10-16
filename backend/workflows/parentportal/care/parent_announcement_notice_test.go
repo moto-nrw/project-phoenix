@@ -6,11 +6,12 @@ import (
 	"testing"
 	"time"
 
+	care "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+
 	"github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/uptrace/bun"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,7 +35,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*messaging.Service,
 		StudentRepo:           repos.Student,
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentNewsEnabled: newsEnabled,
+				care.KeyParentNewsEnabled: newsEnabled,
 			},
 		},
 		Logger: slog.Default(),

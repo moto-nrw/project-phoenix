@@ -9,7 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -180,7 +180,7 @@ func (s *Service) checkPickupChangeSubmittable(ctx context.Context, child *Child
 // checkPickupChangeAllowed verifies the school allows the one-day pickup
 // change and the date lies in the bookable window. It returns today's date.
 func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, date calendar.Date) (calendar.Date, error) {
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentPickupChangeEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyParentPickupChangeEnabled)
 	if err != nil {
 		return "", fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
@@ -215,7 +215,7 @@ func (s *Service) checkDayDepartureModeAllowed(ctx context.Context, tenantID int
 	if s.Settings == nil {
 		return errors.New("parent: settings service not configured")
 	}
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentCareModeRequestEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyParentCareModeRequestEnabled)
 	if err != nil {
 		return fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
 	}

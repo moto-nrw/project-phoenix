@@ -8,7 +8,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -182,10 +181,10 @@ type CreateGuardianContactInput struct {
 func applyContactInput(profile *usersModels.GuardianProfile, input *GuardianContactInput) {
 	profile.FirstName = strings.TrimSpace(input.FirstName)
 	profile.LastName = strings.TrimSpace(input.LastName)
-	profile.Email = strutil.TrimPtrToNil(input.Email)
-	profile.AddressStreet = strutil.TrimPtrToNil(input.AddressStreet)
-	profile.AddressCity = strutil.TrimPtrToNil(input.AddressCity)
-	profile.AddressPostalCode = strutil.TrimPtrToNil(input.AddressPostalCode)
+	profile.Email = trimGuardianText(input.Email)
+	profile.AddressStreet = trimGuardianText(input.AddressStreet)
+	profile.AddressCity = trimGuardianText(input.AddressCity)
+	profile.AddressPostalCode = trimGuardianText(input.AddressPostalCode)
 }
 
 func validateContactInput(input *GuardianContactInput) error {
@@ -298,4 +297,16 @@ func validateCreateGuardianContactInput(input *CreateGuardianContactInput) error
 		return fmt.Errorf("%w: invalid relationship type", ErrGuardianRelationshipInvalid)
 	}
 	return validateRelationshipInput(&GuardianRelationshipInput{PickupNotes: input.PickupNotes})
+}
+
+// trimGuardianText normalizes optional contact fields without changing the input.
+func trimGuardianText(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }

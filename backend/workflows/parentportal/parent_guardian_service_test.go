@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -43,7 +43,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentGuardianManagementEnabled: mgmtEnabled},
+			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: mgmtEnabled},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
@@ -1433,7 +1433,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		StatusDayRepo: repos.StudentStatusDay,
 		StudentRepo:   repos.Student,
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentGuardianManagementEnabled: true},
+			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: true},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},

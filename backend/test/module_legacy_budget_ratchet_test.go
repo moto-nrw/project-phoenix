@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 71676
+const moduleComposeBudgetTotal = 67632
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -175,7 +175,6 @@ var moduleComposeBudgets = map[string]int{
 	"modules/communication/composition":              1523,
 	"modules/dataimport/compose":                     253,
 	"modules/dataimport/compose/retained":            34,
-	"modules/dataimport/inbound/compose":             131,
 	"modules/delivery/compose":                       816,
 	"modules/delivery/compose/email":                 36,
 	"modules/delivery/compose/realtime":              30,
@@ -220,7 +219,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
-	"modules/timetable/compose":                       18164,
+	"modules/timetable/compose":                       14251,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,

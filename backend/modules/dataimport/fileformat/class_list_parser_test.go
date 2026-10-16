@@ -8,18 +8,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xuri/excelize/v2"
 )
 
 // buildClassListXLSX builds an in-memory .xlsx from the given rows
 // (row 0 = header).
 func buildClassListXLSX(t *testing.T, rows [][]string) io.Reader {
 	t.Helper()
-	f := excelize.NewFile()
+	f, err := newExcelSheet("Sheet1")
+	require.NoError(t, err)
 	sheet := f.GetSheetName(0)
 	for r, row := range rows {
 		for c, val := range row {
-			cell, err := excelize.CoordinatesToCellName(c+1, r+1)
+			cell, err := excelCellName(c+1, r+1)
 			require.NoError(t, err)
 			require.NoError(t, f.SetCellStr(sheet, cell, val))
 		}
