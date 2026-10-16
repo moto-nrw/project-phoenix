@@ -24,7 +24,7 @@ type OwnerRows struct {
 	Participants      scheduleModels.InstanceStudentRepository
 	Templates         activitiesModels.GroupRepository
 	Categories        activitiesModels.CategoryRepository
-	Students          LifecycleStudents
+	Students          RosterStudents
 	EducationGroups   EducationGroupNames
 	Rooms             OwnerRooms
 	PickupExceptions  scheduleModels.StudentPickupExceptionRepository

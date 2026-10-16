@@ -37,7 +37,7 @@ func TestTimetableOperationsCheckInCreatesVisitAndMarksPlannedPresent(t *testing
 	}
 	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}].ID = rowID
 	deps.students.byID[studentID] = &usersModels.Student{PersonID: 480, SchoolClass: "2c"}
-	deps.personService.people[480] = &usersModels.Person{FirstName: "Mila", LastName: "Muster"}
+	deps.personService.people[480] = &timetable.Person{FirstName: "Mila", LastName: "Muster"}
 
 	roster, err := deps.service.CheckInStudent(tenant.WithTenantID(context.Background(), 720), 660, false, instanceID, studentID)
 
@@ -89,7 +89,7 @@ func TestTimetableOperationsCheckInMovesVisitCreatedDuringCheckIn(t *testing.T) 
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
 	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
 	deps.students.byID[studentID] = &usersModels.Student{PersonID: 481, SchoolClass: "2c"}
-	deps.personService.people[481] = &usersModels.Person{FirstName: "Mila", LastName: "Muster"}
+	deps.personService.people[481] = &timetable.Person{FirstName: "Mila", LastName: "Muster"}
 	deps.visitRepo.currentByStudentSequence[studentID] = []*studentpresence.Visit{
 		nil,
 		{StudentID: studentID, ActiveGroupID: originActiveGroupID, EntryTime: opsNow},
@@ -143,7 +143,7 @@ func TestTimetableOperationsCheckInMovesStudentActiveElsewhere(t *testing.T) {
 		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}] = row
 		deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
 		deps.students.byID[studentID] = &usersModels.Student{PersonID: 491, SchoolClass: "2b"}
-		deps.personService.people[491] = &usersModels.Person{FirstName: "Marie", LastName: "Muster"}
+		deps.personService.people[491] = &timetable.Person{FirstName: "Marie", LastName: "Muster"}
 
 		roster, err := deps.service.CheckInStudent(context.Background(), 670, false, instanceID, studentID)
 
@@ -249,7 +249,7 @@ func TestTimetableOperationsCheckOutEndsMatchingVisit(t *testing.T) {
 	deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: opsNow}}
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
 	deps.students.byID[studentID] = &usersModels.Student{PersonID: 492, SchoolClass: "1a"}
-	deps.personService.people[492] = &usersModels.Person{FirstName: "Ben", LastName: "Beispiel"}
+	deps.personService.people[492] = &timetable.Person{FirstName: "Ben", LastName: "Beispiel"}
 
 	_, err := deps.service.CheckOutStudent(context.Background(), 671, false, instanceID, studentID)
 
@@ -298,7 +298,7 @@ func TestTimetableOperationsPatchAttendanceUpdatesRowAndBroadcasts(t *testing.T)
 		deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, studentID}],
 	}
 	deps.students.byID[studentID] = &usersModels.Student{PersonID: 494, SchoolClass: "1b"}
-	deps.personService.people[494] = &usersModels.Person{FirstName: "Lea", LastName: "Lern"}
+	deps.personService.people[494] = &timetable.Person{FirstName: "Lea", LastName: "Lern"}
 	status := scheduleModels.AttendanceStatusAbsent
 	note := "krank gemeldet"
 
@@ -372,7 +372,7 @@ func TestTimetableOperationsCheckInBranches(t *testing.T) {
 		deps.visitRepo.currentByStudent[studentID] = &studentpresence.Visit{StudentID: studentID, ActiveGroupID: activeGroupID, EntryTime: opsNow}
 		deps.visitRepo.byActiveGroup[activeGroupID] = []*studentpresence.Visit{deps.visitRepo.currentByStudent[studentID]}
 		deps.students.byID[studentID] = &usersModels.Student{PersonID: 500, SchoolClass: "4a"}
-		deps.personService.people[500] = &usersModels.Person{FirstName: "Tom", LastName: "Test"}
+		deps.personService.people[500] = &timetable.Person{FirstName: "Tom", LastName: "Test"}
 
 		_, err := deps.service.CheckInStudent(context.Background(), 679, false, instanceID, studentID)
 
@@ -388,7 +388,7 @@ func TestTimetableOperationsCheckInBranches(t *testing.T) {
 		deps.instanceRepo.byID[instanceID] = activeInstance(instanceID, activeGroupID)
 		deps.activeGroups.updateErr = errors.New("update failed")
 		deps.students.byID[studentID] = &usersModels.Student{PersonID: 502, SchoolClass: "4a"}
-		deps.personService.people[502] = &usersModels.Person{FirstName: "Noa", LastName: "Neben"}
+		deps.personService.people[502] = &timetable.Person{FirstName: "Noa", LastName: "Neben"}
 
 		_, err := deps.service.CheckInStudent(context.Background(), 680, false, instanceID, studentID)
 

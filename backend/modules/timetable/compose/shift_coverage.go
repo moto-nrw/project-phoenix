@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
@@ -199,7 +198,7 @@ func indexShiftsByStaffDate(shifts []*scheduleModels.StaffShift) map[staffDateKe
 	return index
 }
 
-func buildShiftCoverageWarnings(pending []pendingShiftCoverageWarning, staff map[int64]*usersModels.Staff) []timetable.ShiftCoverageWarning {
+func buildShiftCoverageWarnings(pending []pendingShiftCoverageWarning, staff map[int64]*timetable.StaffMember) []timetable.ShiftCoverageWarning {
 	warnings := make([]timetable.ShiftCoverageWarning, 0, len(pending))
 	for _, item := range pending {
 		name := coverageStaffName(staff[item.staffID], item.staffID)
@@ -222,7 +221,7 @@ func buildShiftCoverageWarnings(pending []pendingShiftCoverageWarning, staff map
 	return warnings
 }
 
-func coverageStaffName(staff *usersModels.Staff, id int64) string {
+func coverageStaffName(staff *timetable.StaffMember, id int64) string {
 	if staff != nil && staff.Person != nil {
 		if name := strings.TrimSpace(staff.Person.FirstName + " " + staff.Person.LastName); name != "" {
 			return name

@@ -72,7 +72,7 @@ func newPlannedNowBudgetOperations(t *testing.T, db *bun.DB, staffFixture *testp
 	t.Helper()
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
-	staff, err := repos.Staff.FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
+	staff, err := api.NewTimetableStaff(repos.Staff).FindWithPerson(testpkg.Ctx(t), staffFixture.ID)
 	require.NoError(t, err)
 	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(db), owners)
 	stand := newTimetableOpsDeps()

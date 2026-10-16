@@ -7,7 +7,6 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -120,7 +119,7 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 	assert.False(t, deps.service.operationalOverview(context.Background(), false, true))
 	assert.False(t, deps.service.operationalOverview(context.Background(), false, false))
 
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 505
 	deps.personService.staffErr = helperNotFound{}
 	staffID, hasStaff, err := deps.service.resolveStaffID(context.Background(), 683)

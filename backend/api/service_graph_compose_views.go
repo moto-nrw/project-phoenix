@@ -161,7 +161,7 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.InstanceSeriesConverter = converter
 	corrections, err := b.TimetableWiring.AttendanceCorrections(TimetableCorrectionInputs{
-		Rows: b.timetableRows, Trail: b.audits.AttendanceCorrection, People: b.People.Persons,
+		Rows: b.timetableRows, Trail: b.audits.AttendanceCorrection, People: timetableCorrectionPeople{rows: b.People.Persons},
 		Logger: b.Logger.With("service", "attendance-correction"),
 	})
 	if err != nil {
