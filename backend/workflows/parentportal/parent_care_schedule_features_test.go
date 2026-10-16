@@ -67,7 +67,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		MessageThreadRepo:      repos.ParentMessageThread,
 		MessageRepo:            communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:        repos.ParentMessageRead,
-		Conversations:          communicationtest.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Conversations:          api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

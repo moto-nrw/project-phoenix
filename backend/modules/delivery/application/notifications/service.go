@@ -36,7 +36,6 @@ import (
 	"strings"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -348,7 +347,7 @@ func (r *router) Notify(ctx context.Context, event Event) error {
 	}
 	// ResolveBoolForTenant works with and without tenant middleware, so
 	// scheduler-style producers can notify outside a request context.
-	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, configModel.KeyNotificationsDispatchEnabled)
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
 	if err != nil {
 		return fmt.Errorf("resolving notification feature flag: %w", err)
 	}
@@ -405,7 +404,7 @@ func (r *router) NotifyDurably(ctx context.Context, event Event) (int, error) {
 	if r.settings == nil {
 		return 0, errors.New("notifications service has no settings service configured")
 	}
-	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, configModel.KeyNotificationsDispatchEnabled)
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
 	if err != nil {
 		return 0, fmt.Errorf("resolving notification feature flag: %w", err)
 	}
@@ -461,7 +460,7 @@ func (r *router) NotifySynchronously(ctx context.Context, event Event) error {
 	if r.settings == nil {
 		return errors.New("notifications service has no settings service configured")
 	}
-	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, configModel.KeyNotificationsDispatchEnabled)
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, event.Audience.TenantID, settingDispatchEnabled)
 	if err != nil {
 		return fmt.Errorf("resolving notification feature flag: %w", err)
 	}
@@ -551,7 +550,7 @@ func (r *router) NotifyBatch(ctx context.Context, events []Event) error {
 	if r.settings == nil {
 		return errors.New("notifications service has no settings service configured")
 	}
-	enabled, err := r.settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyNotificationsDispatchEnabled)
+	enabled, err := r.settings.ResolveBoolForTenant(ctx, tenantID, settingDispatchEnabled)
 	if err != nil {
 		return fmt.Errorf("resolving notification feature flag: %w", err)
 	}
@@ -608,11 +607,11 @@ func staffAccountIDs(audience Audience) []int64 {
 // everything by construction. An unparseable or empty setting closes the
 // window: corrupt configuration must never widen delivery into quiet hours.
 func (r *router) withinActiveWindow(ctx context.Context, tenantID int64) (bool, error) {
-	start, err := r.resolveWindowBound(ctx, tenantID, configModel.KeyNotificationsActiveWindowStart)
+	start, err := r.resolveWindowBound(ctx, tenantID, settingActiveWindowStart)
 	if err != nil {
 		return false, err
 	}
-	end, err := r.resolveWindowBound(ctx, tenantID, configModel.KeyNotificationsActiveWindowEnd)
+	end, err := r.resolveWindowBound(ctx, tenantID, settingActiveWindowEnd)
 	if err != nil {
 		return false, err
 	}

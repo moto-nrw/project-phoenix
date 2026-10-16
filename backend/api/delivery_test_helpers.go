@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -105,7 +106,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	service.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	push := deliveryCompose.NewPushSubscriptionService(db.Pool(), pushRepo, members, vapid, logger)
 	push.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
-	preferences := deliveryCompose.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db.Pool(), members)
+	preferences := deliveryCompose.NewPreferenceService(NewNotificationConsentTestStore(db), settings.Settings, db.Pool(), members, securityruntime.HasPermission)
 	preferences.(interface{ SetTenantRuntime(tenant.UnitOfWork) }).SetTenantRuntime(unit)
 	return DeliveryTestModule{Delivery: delivery.Module, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil

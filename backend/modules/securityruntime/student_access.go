@@ -26,6 +26,12 @@ func CanReadStudent(ctx context.Context, granted []string, student interface{ Is
 	return authorize.CanReadStudent(ctx, granted, student, userCtx)
 }
 
+// ResolveStudentReadScope reports whether the caller reads children
+// tenant-wide: an administrator, or verified staff of the tenant (#2329).
+func ResolveStudentReadScope(ctx context.Context, granted []string, userCtx StudentAccessUserContext) bool {
+	return authorize.ResolveStudentReadScope(ctx, granted, userCtx)
+}
+
 // CanModifyStudent decides whether the caller may write to an existing
 // child's record: an administrator, or verified staff of the tenant (#2329).
 func CanModifyStudent(ctx context.Context, granted []string, student interface{ IsAuthorizationStudent() bool }, userCtx StudentAccessUserContext) bool {

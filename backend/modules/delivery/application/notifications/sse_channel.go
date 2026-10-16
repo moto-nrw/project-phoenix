@@ -7,7 +7,6 @@ import (
 	"maps"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -152,7 +151,7 @@ func (c *sseChannel) permittedGuardians(ctx context.Context, audience Audience) 
 	var permitted []int64
 	err := tenant.WithTenantTx(ctx, c.db, audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		allowed, err := c.guardians.FilterAccountsWithStudentAccess(
-			txCtx, recipients, audience.StudentIDs, audience.TenantID, authorize.GuardianPermissionPortalAccess)
+			txCtx, recipients, audience.StudentIDs, audience.TenantID, guardianPermissionPortalAccess)
 		if err != nil {
 			return err
 		}

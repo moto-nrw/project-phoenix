@@ -75,7 +75,7 @@ func TestCreateVisit_EnrichesCheckInEventWithAttendance(t *testing.T) {
 		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})
@@ -235,7 +235,7 @@ func TestCreateVisit_WalkInLeavesAttendanceFieldsUnset(t *testing.T) {
 		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
 		AttendanceSyncer:   syncer,
 		Logger:             slog.Default(),
 	})

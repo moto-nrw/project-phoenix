@@ -28,12 +28,9 @@ type ParentMessagingConfig struct {
 	MessageRepo usersModels.ParentMessageRepository
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     parentMessages.PersonLookup
-	// UserContext is the caller context: its staff check gates the read
-	// scope, and its groups serve the "own groups" count scope (#3673).
-	UserContext interface {
-		HasCurrentStaff(context.Context) (bool, error)
-		MyGroupIDs(context.Context) ([]int64, error)
-	}
+	// UserContext is the caller: the student read rules gate the read scope,
+	// and its groups serve the "own groups" count scope (#3673).
+	UserContext      parentMessages.Caller
 	Settings         configService.SettingsService
 	Broadcaster      realtime.Broadcaster
 	DB               *bun.DB
