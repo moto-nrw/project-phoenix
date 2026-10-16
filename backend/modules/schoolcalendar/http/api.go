@@ -20,7 +20,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Resource struct {
@@ -67,8 +67,8 @@ type createAppointmentRequest struct {
 	Title              string                             `json:"title"`
 	Description        *string                            `json:"description,omitempty"`
 	Location           *string                            `json:"location,omitempty"`
-	StartDate          calendar.Date                      `json:"start_date"`
-	EndDate            calendar.Date                      `json:"end_date"`
+	StartDate          timezone.Date                      `json:"start_date"`
+	EndDate            timezone.Date                      `json:"end_date"`
 	StartTime          string                             `json:"start_time"`
 	EndTime            string                             `json:"end_time"`
 	AllDay             bool                               `json:"all_day"`
@@ -83,8 +83,8 @@ type updateAppointmentRequest struct {
 	Title              string                             `json:"title"`
 	Description        *string                            `json:"description,omitempty"`
 	Location           *string                            `json:"location,omitempty"`
-	StartDate          calendar.Date                      `json:"start_date"`
-	EndDate            calendar.Date                      `json:"end_date"`
+	StartDate          timezone.Date                      `json:"start_date"`
+	EndDate            timezone.Date                      `json:"end_date"`
 	StartTime          string                             `json:"start_time"`
 	EndTime            string                             `json:"end_time"`
 	AllDay             bool                               `json:"all_day"`
@@ -321,7 +321,7 @@ func (rs *Resource) cancelOccurrence(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	occurrenceDate, err := calendar.ParseDate(chi.URLParam(r, "occurrenceDate"))
+	occurrenceDate, err := timezone.ParseDate(chi.URLParam(r, "occurrenceDate"))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid occurrence date")))
 		return
@@ -399,22 +399,22 @@ func (rs *Resource) recipientOptions(w http.ResponseWriter, r *http.Request) {
 	common.Respond(w, r, http.StatusOK, options, "Recipient options retrieved")
 }
 
-func parseRange(w http.ResponseWriter, r *http.Request) (calendar.Date, calendar.Date, bool) {
+func parseRange(w http.ResponseWriter, r *http.Request) (timezone.Date, timezone.Date, bool) {
 	fromRaw := r.URL.Query().Get("from")
 	toRaw := r.URL.Query().Get("to")
 	if fromRaw == "" || toRaw == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query params are required")))
-		return calendar.Date(""), calendar.Date(""), false
+		return timezone.Date(""), timezone.Date(""), false
 	}
-	from, err := calendar.ParseDate(fromRaw)
+	from, err := timezone.ParseDate(fromRaw)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date")))
-		return calendar.Date(""), calendar.Date(""), false
+		return timezone.Date(""), timezone.Date(""), false
 	}
-	to, err := calendar.ParseDate(toRaw)
+	to, err := timezone.ParseDate(toRaw)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date")))
-		return calendar.Date(""), calendar.Date(""), false
+		return timezone.Date(""), timezone.Date(""), false
 	}
 	return from, to, true
 }
@@ -424,7 +424,7 @@ func parseClock(raw string) (time.Time, error) {
 	if err != nil {
 		return time.Time{}, fmt.Errorf("invalid time %q, expected HH:mm", raw)
 	}
-	return calendar.NormalizeWallClock(t), nil
+	return timezone.NormalizeWallClock(t), nil
 }
 
 func renderCalendarError(w http.ResponseWriter, r *http.Request, err error) {
