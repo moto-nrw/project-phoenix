@@ -56,36 +56,35 @@ func RequiresActiveOperator(lookup OperatorLookup) func(http.Handler) http.Handl
 				return
 			}
 
-			operator, err := lookup.FindOperator(r.Context(), int64(claims.ID))
-			if err != nil {
+			if err := validateActiveOperatorSession(r.Context(), lookup, int64(claims.ID), claims.FamilyID); err != nil {
 				renderOperatorLookupError(w, r, claims.ID, err)
-				return
-			}
-			if !operator.Active {
-				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
-				return
-			}
-			if claims.FamilyID == "" {
-				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
-				return
-			}
-			session, err := lookup.LatestOperatorSessionInFamily(r.Context(), claims.FamilyID)
-			if errors.Is(err, ErrOperatorSessionNotFound) {
-				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
-				return
-			}
-			if err != nil {
-				renderOperatorLookupError(w, r, claims.ID, err)
-				return
-			}
-			if session.OperatorID != int64(claims.ID) || !session.Expiry.After(time.Now()) {
-				common.RenderError(w, r, AuthErrorRenderer(ErrOperatorInactive))
 				return
 			}
 
 			next.ServeHTTP(w, r)
 		})
 	}
+}
+
+func validateActiveOperatorSession(ctx context.Context, lookup OperatorLookup, operatorID int64, familyID string) error {
+	operator, err := lookup.FindOperator(ctx, operatorID)
+	if err != nil {
+		return err
+	}
+	if !operator.Active || familyID == "" {
+		return ErrOperatorInactive
+	}
+	session, err := lookup.LatestOperatorSessionInFamily(ctx, familyID)
+	if errors.Is(err, ErrOperatorSessionNotFound) {
+		return ErrOperatorInactive
+	}
+	if err != nil {
+		return err
+	}
+	if session.OperatorID != operatorID || !session.Expiry.After(time.Now()) {
+		return ErrOperatorInactive
+	}
+	return nil
 }
 
 func renderOperatorLookupError(w http.ResponseWriter, r *http.Request, operatorID int, err error) {
