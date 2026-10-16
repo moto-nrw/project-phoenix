@@ -4508,15 +4508,30 @@ logically overlapping rules. Change
 for a reviewed architecture decision; it does not approve or rebuild legacy
 findings.
 
-Policy candidates must use `schema_version: 3`. Schema 3 added the optional rule
-`issue`, which epoch 47 forbids again (ADR 0057); the JSON shape still
-accepts it for older bases. Only `LoadBasePolicyAndManifest`, reading an immutable Git base,
-accepts schema 2 during the schema-3 rollout and normalizes it to 3 before full
-validation. Candidates never use that compatibility path. Schema 1, future
-schemas, unknown fields and invalid metadata still fail. Keep this bounded
-2-to-3 allowance while supported merge bases predate the rollout; remove it
-once development and all supported comparison bases use schema 3. Existing
-projection and migration-evidence schema versions are separate contracts.
+Policy candidates must use `schema_version: 4`. Schema 4 adds optional
+`source_package` and `target_package` rule selectors (ADR 0057 addendum,
+#4078). Each is an exact, classified module-relative package path. An omitted
+selector keeps the owner/role reach; an explicitly empty, null, unknown,
+absolute, unclean or wildcard selector is rejected. Selectors intersect the
+existing owner, owner-kind, role and scope constraints; they cannot replace
+those constraints or bypass target-only validation. `source_package` also
+narrows an external-class rule; `target_package` is first-party only.
+
+Adding a selector to an otherwise unchanged rule is narrowing. Removing or
+changing it is compared as a possible permission increase, including paths
+whose owner/role pairs are identical. Exact selectors also participate in
+rule-overlap detection, permission memoization and the target owner graph.
+For a #4078 successor, restrict the reclassified source and/or target package
+when owner/role selectors alone would grant reach to unchanged packages.
+The approved transition, deleted-rule/scope checks and non-increasing rule
+count still apply. This schema change grants no owner any permission itself.
+
+Only `LoadBasePolicyAndManifest`, reading an immutable Git base, accepts
+schema 2 or 3 during the rollout and normalizes it to 4 before full validation.
+Old schemas cannot carry package selectors. Candidates never use that path.
+Schema 1, future schemas, unknown fields and invalid metadata still fail.
+Remove the older-base allowance once all supported comparison bases use
+schema 4. Evidence and projection schemas remain separate contracts.
 
 #3416 leaves `policy_epoch` at the checkout's existing value, 17. Adding issue
 metadata and deleting unused permissions grants no new architectural permission
