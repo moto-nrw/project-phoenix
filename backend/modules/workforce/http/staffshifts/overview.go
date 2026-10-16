@@ -68,14 +68,7 @@ type OverviewResponse struct {
 func toOverviewResponse(overview workforce.StaffScheduleOverview) OverviewResponse {
 	usedWeeks := make([]string, 0, len(overview.UsedWeeks))
 	usedWeeks = append(usedWeeks, overview.UsedWeeks...)
-	staff := make([]OverviewStaffResponse, 0, len(overview.Staff))
-	for _, member := range overview.Staff {
-		staff = append(staff, OverviewStaffResponse{
-			ID:        member.ID,
-			FirstName: member.FirstName,
-			LastName:  member.LastName,
-		})
-	}
+	staff := overviewStaffResponses(overview.Staff)
 
 	assignments := make([]AssignmentResponse, 0, len(overview.Assignments))
 	for _, assignment := range overview.Assignments {
@@ -131,6 +124,18 @@ func toOverviewResponse(overview workforce.StaffScheduleOverview) OverviewRespon
 		Assignments:     assignments,
 		WeeklySummaries: weeklySummaries,
 	}
+}
+
+func overviewStaffResponses(members []workforce.OverviewStaff) []OverviewStaffResponse {
+	staff := make([]OverviewStaffResponse, 0, len(members))
+	for _, member := range members {
+		staff = append(staff, OverviewStaffResponse{
+			ID:        member.ID,
+			FirstName: member.FirstName,
+			LastName:  member.LastName,
+		})
+	}
+	return staff
 }
 
 func (rs *Resource) overview(w http.ResponseWriter, r *http.Request) {

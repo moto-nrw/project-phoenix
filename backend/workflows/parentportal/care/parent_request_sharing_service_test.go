@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -13,7 +15,6 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
@@ -32,7 +33,7 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	}
 	request.SetTenantID(author.TenantID)
 	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
-	svc := messaging.New(messaging.Config{
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		Children:  childResolver(db, repos),
 		ChildRepo: repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
@@ -40,14 +41,14 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
 		Logger: slog.Default(),
 	})
-	sharing := messaging.RequestSharingService(svc)
+	sharing := parentportal.RequestSharingService(svc)
 
-	_, err := sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, messaging.RequestShareMasterData, request.ID, []int64{other.GuardianProfileID})
-	assert.ErrorIs(t, err, messaging.ErrRequestSharingInvalid)
-	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, messaging.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID})
-	assert.ErrorIs(t, err, messaging.ErrRequestSharingInvalid)
-	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, messaging.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID, author.GuardianProfileID})
-	assert.ErrorIs(t, err, messaging.ErrRequestSharingInvalid)
-	_, err = sharing.SetRequestSharing(ctx, other.AccountID, other.StudentID, messaging.RequestShareMasterData, request.ID, nil)
+	_, err := sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, []int64{other.GuardianProfileID})
+	assert.ErrorIs(t, err, parentportal.ErrRequestSharingInvalid)
+	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID})
+	assert.ErrorIs(t, err, parentportal.ErrRequestSharingInvalid)
+	_, err = sharing.SetRequestSharing(ctx, author.AccountID, author.StudentID, parentportal.RequestShareMasterData, request.ID, []int64{author.GuardianProfileID, author.GuardianProfileID})
+	assert.ErrorIs(t, err, parentportal.ErrRequestSharingInvalid)
+	_, err = sharing.SetRequestSharing(ctx, other.AccountID, other.StudentID, parentportal.RequestShareMasterData, request.ID, nil)
 	assert.Error(t, err)
 }

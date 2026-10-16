@@ -170,6 +170,14 @@ func TestFixedSeeder_SeedStaffAccounts_NamesOneCaregiverAfterTheVisitor(t *testi
 	fs.accountScope = "ogs-nord-k3m9xp"
 	fs.visitor = visitorName{first: "Anna", last: "Müller"}
 	fs.roleIDs["admin"], fs.roleIDs["user"], fs.roleIDs["guest"] = 1, 2, 3
+	var savedAccountID int64
+	var savedAfterRegistrations int
+	fs.saveVisitor = func(_ context.Context, accountID, parentAccountID int64) error {
+		savedAccountID = accountID
+		savedAfterRegistrations = len(registered)
+		assert.Zero(t, parentAccountID)
+		return nil
+	}
 
 	require.NoError(t, fs.seedStaffAccounts(context.Background(), &FixedResult{}))
 	require.Len(t, registered, len(DemoStaff))
@@ -183,6 +191,9 @@ func TestFixedSeeder_SeedStaffAccounts_NamesOneCaregiverAfterTheVisitor(t *testi
 	assert.Equal(t, "Anna", registered[visitorStaffIndex]["first_name"])
 	assert.InDelta(t, 1, registered[visitorStaffIndex]["role_id"], 0)
 	assert.Equal(t, "Julia Klein", fs.staffCredentials[visitorStaffIndex].Name, "the internal key keeps the seed name")
+	visitor := DemoStaff[visitorStaffIndex]
+	assert.Equal(t, fs.accountIDs[visitor.FirstName+" "+visitor.LastName], savedAccountID)
+	assert.Equal(t, visitorStaffIndex+1, savedAfterRegistrations, "the visitor account is saved before a later registration can fail")
 }
 
 func TestVisitorDisplayName(t *testing.T) {

@@ -161,7 +161,7 @@ var moduleLegacyFileBudgets = map[string]int{
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry; raised by ADR 0062.
+// like every entry; raised by ADR 0063.
 const moduleComposeBudgetTotal = 57300
 
 // moduleComposeBudgets maps every owner composition package to its production
@@ -197,7 +197,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/filestorage/compose":                   642,
 	"modules/grouplive/compose":                     14,
 	"modules/guardianlinkview/compose":              8, // #4076, see the parent request feed projection below
-	// Raised by ADR 0062: the operator status lifecycle (#4047).
+	// Raised by ADR 0063: the operator status lifecycle (#4047).
 	"modules/identityaccess/compose":                 7356,
 	"modules/mealplan/compose":                       274,
 	"modules/organizationtenancy/compose":            708,

@@ -1130,7 +1130,7 @@
     },
     {
       "scope": "test",
-      "file": "api/shift-types/api_test.go",
+      "file": "modules/workforce/http/shifttypes/api_test.go",
       "declaration": "TestShiftType_CreateWithCategoryLinks",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1140,7 +1140,7 @@
     },
     {
       "scope": "test",
-      "file": "api/shift-types/api_test.go",
+      "file": "modules/workforce/http/shifttypes/api_test.go",
       "declaration": "TestShiftType_UpdateRejectsUnknownCategoryIDs",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1150,7 +1150,7 @@
     },
     {
       "scope": "test",
-      "file": "api/shift-types/api_test.go",
+      "file": "modules/workforce/http/shifttypes/api_test.go",
       "declaration": "TestShiftType_UpdateSyncsAndOmittedLeavesUntouched",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1160,7 +1160,7 @@
     },
     {
       "scope": "test",
-      "file": "api/shift-types/api_test.go",
+      "file": "modules/workforce/http/shifttypes/api_test.go",
       "declaration": "buildShiftTypeSetup",
       "target": "api/testutil.SetupAPITest",
       "lines": [
@@ -1170,7 +1170,7 @@
     },
     {
       "scope": "test",
-      "file": "api/shift-types/api_test.go",
+      "file": "modules/workforce/http/shifttypes/api_test.go",
       "declaration": "shiftTypeTestSetup.shiftTypeIDOf",
       "target": "database/repositories.NewFactory",
       "lines": [
@@ -1210,7 +1210,7 @@
     },
     {
       "scope": "test",
-      "file": "api/staff-shifts/overview_internal_test.go",
+      "file": "modules/workforce/http/staffshifts/overview_internal_test.go",
       "declaration": "TestOverviewRoute_RequiresScheduleShiftAndUserPermissions",
       "target": "api/testutil.SetupAPITest",
       "lines": [
@@ -1534,7 +1534,7 @@
     },
     {
       "scope": "test",
-      "file": "api/substitutions/substitutions_test.go",
+      "file": "modules/workforce/http/substitutions/substitutions_test.go",
       "declaration": "setupTestContext",
       "target": "api/testutil.SetupAPITest",
       "lines": [

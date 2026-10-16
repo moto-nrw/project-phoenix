@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -57,21 +58,26 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 
 	// The demo process hides the schools whose last access expired; an order
 	// still waiting for its seed is closed, and an unknown slug is passed over.
-	hidden, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
+	// No access names either order any more, so both lose their visitor
+	// (#4048).
+	hidden, erased, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
 	require.NoError(t, err)
 	assert.Equal(t, 1, hidden)
+	assert.Equal(t, 2, erased)
 	assert.True(t, schoolHidden(t, db, firstID))
 	assert.False(t, schoolHidden(t, db, secondID))
-	assert.Equal(t, organizationtenancy.DemoSchoolFailed, demoSchoolProgress(t, db, waiting).Status, "a waiting order nobody can enter is not seeded")
+	assert.Nil(t, demoSchoolProgress(t, db, waiting), "a waiting order nobody can enter is closed and erased, not seeded")
 	none, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	assert.Nil(t, none)
-	hidden, err = queue.RetireDemoSchools(ctx, []string{first})
+	hidden, erased, err = queue.RetireDemoSchools(ctx, []string{first})
 	require.NoError(t, err)
 	assert.Zero(t, hidden, "a school hidden before counts nothing")
-	hidden, err = queue.RetireDemoSchools(ctx, nil)
+	assert.Zero(t, erased, "an order erased before counts nothing")
+	hidden, erased, err = queue.RetireDemoSchools(ctx, nil)
 	require.NoError(t, err)
 	assert.Zero(t, hidden)
+	assert.Zero(t, erased)
 
 	ready, err := queue.ReadyDemoSchools(ctx)
 	require.NoError(t, err)
@@ -79,7 +85,7 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	active, err := queue.ActiveDemoSchools(ctx, entered.Add(-time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, []string{second}, active, "a hidden school is not simulated, even if it was just entered")
-	assert.Equal(t, organizationtenancy.DemoSchoolReady, demoSchoolProgress(t, db, first).Status, "the order keeps its progress; the school itself is what is gone")
+	assert.Nil(t, demoSchoolProgress(t, db, first), "the order of a hidden school no access names is erased (#4048)")
 
 	// The capacity: the hidden school and the closed order hold no place,
 	// the remaining ready school does.
@@ -92,6 +98,105 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	require.NoError(t, order("OGS Ost"), "the hidden school's place is free")
 	require.NoError(t, order("OGS Mitte"), "the closed order's place is free")
 	require.ErrorIs(t, order("OGS Hafen"), organizationtenancy.ErrDemoCapacityReached)
+}
+
+func TestRetiringDemoSchoolWithAnActiveAccessLeavesItOpen(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
+	_, err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, school_name, token_hash, expires_at, school_slug, first_name, last_name)
+		VALUES ('besuch@example.test', 'OGS Nord', 'active-access', NOW() + INTERVAL '1 day', ?, 'Zyxwolda', 'Quorbelt')`, slug).Exec(t.Context())
+	require.NoError(t, err)
+
+	hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+	require.NoError(t, err)
+	assert.Zero(t, hidden)
+	assert.Zero(t, erased)
+	assert.False(t, schoolHidden(t, db, schoolID))
+	assert.NotNil(t, demoSchoolProgress(t, db, slug))
+}
+
+func TestRetiringDemoSchoolWaitsForItsSeedLease(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
+	type retirement struct {
+		hidden, erased int
+		err            error
+	}
+	started := make(chan struct{})
+	finished := make(chan retirement, 1)
+
+	require.NoError(t, schools.WithDemoLease(t.Context(), "demo school seed:"+slug, func(context.Context) error {
+		go func() {
+			close(started)
+			hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+			finished <- retirement{hidden: hidden, erased: erased, err: err}
+		}()
+		<-started
+		select {
+		case result := <-finished:
+			return fmt.Errorf("erasure finished despite the seed lease: %+v", result)
+		case <-time.After(100 * time.Millisecond):
+		}
+		assert.False(t, schoolHidden(t, db, schoolID))
+		return nil
+	}))
+
+	result := <-finished
+	require.NoError(t, result.err)
+	assert.Equal(t, 1, result.hidden)
+	assert.Equal(t, 1, result.erased)
+}
+
+func TestRetiringDemoSchoolsWaitsForVisitorErasureLease(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	_, err = tx.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0))`).Exec(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	type retirement struct {
+		hidden, erased int
+		err            error
+	}
+	started := make(chan struct{})
+	finished := make(chan retirement, 1)
+	go func() {
+		close(started)
+		hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+		finished <- retirement{hidden: hidden, erased: erased, err: err}
+	}()
+	<-started
+	select {
+	case result := <-finished:
+		t.Fatalf("erasure finished despite the global cleanup lease: %+v", result)
+	case <-time.After(100 * time.Millisecond):
+	}
+	require.NoError(t, tx.Rollback())
+
+	result := <-finished
+	require.NoError(t, result.err)
+	assert.Equal(t, 1, result.hidden)
+	assert.Equal(t, 1, result.erased)
 }
 
 // The serving backend hides the visitor's school when the visitor starts over

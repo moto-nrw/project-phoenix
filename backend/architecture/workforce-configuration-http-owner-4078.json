@@ -38,7 +38,7 @@
       "backend/api/workforce_work_time_models_http.go",
       "backend/api/workforce_work_time_models_http_test.go",
       "backend/api/time_tracking_composition.go",
-      "backend/modules/workforce/inbound/timetracking/api.go",
+      "backend/modules/workforce/http/timetracking/api.go",
       "backend/api/testdata/route_table.golden"
     ],
     "workload": "Existing Root Absence Types routes, Work Time Models update notification and permission rejection cases, TestFullProductionRouterGolden and three relevant strictness ratchets against local isolated PostgreSQL test tenants.",

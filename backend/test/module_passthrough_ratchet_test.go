@@ -177,7 +177,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// by ADR 0062.
+// by ADR 0063.
 const modulePassthroughOwnerBudgetTotal = 3091
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -281,7 +281,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// challenge stores, permission and role administration reads.
 	//
 	// ADR 0061: application 117 + modules/identityaccess/compose 484.
-	// Raised by ADR 0062: the operator status lifecycle (#4047), 2 in compose.
+	// Raised by ADR 0063: the operator status lifecycle (#4047), 2 in compose.
 	"modules/identityaccess": 602,
 	// Menu, participation and week reads forwarded to the store.
 	//

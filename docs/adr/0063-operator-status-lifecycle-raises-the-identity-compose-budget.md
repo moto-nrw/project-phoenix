@@ -39,8 +39,8 @@ single-call delegations.
 
 1. `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 7,339
    to 7,356 and `moduleComposeBudgetTotal` rises by the same 17 lines.
-2. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 601
-   to 603 and `modulePassthroughOwnerBudgetTotal` rises by the same two. The
+2. `modulePassthroughOwnerBudgets["modules/identityaccess"]` rises from 600
+   to 602 and `modulePassthroughOwnerBudgetTotal` rises by the same two. The
    two delegations sit in `modules/identityaccess/compose`, which this entry
    counts together with the application layer since
    [ADR 0061](0061-pass-throughs-are-counted-per-owner.md).

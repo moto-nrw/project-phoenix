@@ -16,10 +16,10 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	shifttypesHTTP "github.com/moto-nrw/project-phoenix/api/shift-types"
-	staffshiftsHTTP "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	shifttypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/shifttypes"
+	staffshiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

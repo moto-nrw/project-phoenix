@@ -244,14 +244,14 @@ var queryBudgets = map[string]queryBudget{
 	// database/repositories/users — due announcement reminders read their rows
 	// and targets in two batches, regardless of the number due in one tick.
 	"repositories.parent_announcements.due_reminders": {max: 2, exact: true},
-	// modules/workforce/inbound/timetracking — GET
+	// modules/workforce/http/timetracking — GET
 	// /api/staff-notices/{id}/acknowledgements (#2208): four tenant-transaction
 	// statements (BEGIN, SET ROLE, set_config, COMMIT) plus one notice read, one
 	// acknowledgement list and ONE batched People-Directory name lookup for the
 	// whole list. Flat at three acknowledgements — a per-row lookup would show
 	// as N+1 here.
 	"api.staff_notices.acknowledgements": {max: 7, exact: true},
-	// modules/workforce/inbound/timetracking — GET
+	// modules/workforce/http/timetracking — GET
 	// /api/staff/{id}/target-overrides (#3259): the tenant-transaction
 	// statements, the two staff lookups (membership, employment profile) and
 	// ONE read of the staff member's

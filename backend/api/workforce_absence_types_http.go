@@ -6,10 +6,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	absencetypesHTTP "github.com/moto-nrw/project-phoenix/api/absence-types"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	absencetypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/absencetypes"
 )
 
 // newAbsenceTypesResource wires /api/absence-types over the absence-type
