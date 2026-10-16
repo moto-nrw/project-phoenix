@@ -4,6 +4,11 @@ status: accepted
 
 # The server root is the HTTP host
 
+> Amended on 2026-10-16: the dev tools are a binary of their own
+> ([ADR 0060](0060-the-dev-tools-are-a-binary-of-their-own.md), #4096).
+> `cmd` no longer starts `seed`, `simulate` and `demo`, and the production
+> image no longer ships them.
+
 Decision for [#4063](https://github.com/moto-nrw/project-phoenix/issues/4063)
 under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
 completes the root reach of

@@ -1,11 +1,8 @@
-package api
+package main
 
 import (
 	"testing"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -41,13 +38,8 @@ func TestDemoReadsWebCheckoutOfPhysicalSchoolStay(t *testing.T) {
 	web := testpkg.EnsureWebManualDevice(t, db)
 	departure := time.Now().Truncate(time.Microsecond)
 	stay := testpkg.CreateTestAttendance(t, db, student.ID, staff.ID, physical.ID, departure.Add(-time.Hour), nil)
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db, Observe: func(presencecompose.Observation) {}})
-	require.NoError(t, err)
-	_, err = presence.CloseAttendance(testpkg.Ctx(t), studentpresence.AttendanceCheckout{
-		// Both web checkout endpoints record the staff but no physical device.
-		StudentIDs: []int64{student.ID}, Date: stay.Date, At: departure, StaffID: staff.ID,
-	})
-	require.NoError(t, err)
+	// Both web checkout endpoints record the staff but no physical device.
+	testpkg.CheckOutTestAttendanceByStaff(t, db, student.ID, stay.Date, departure, staff.ID)
 	runtime, err := NewDemoRuntime(testpkg.NewDatabase(t, db), time.Now)
 	require.NoError(t, err)
 	today := testpkg.TodayDate()

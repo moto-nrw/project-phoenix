@@ -89,6 +89,19 @@ func assertLocalDevEnv(appEnv string) error {
 	)
 }
 
+// isDevOnlyEnv is the allow-list of the dev-only commands. Unset APP_ENV is
+// the local-dev default; demo is the public demo environment (ADR 0027), which
+// holds synthetic data only. The dev tools binary (cmd/devtools) keeps the
+// same list for seed, simulate and demo.
+func isDevOnlyEnv(appEnv string) bool {
+	switch strings.ToLower(strings.TrimSpace(appEnv)) {
+	case "", "local", "development", "dev", "test", "demo":
+		return true
+	default:
+		return false
+	}
+}
+
 func init() {
 	RootCmd.AddCommand(seedParentsCmd)
 	seedParentsCmd.Flags().Int("count", 5, "How many demo guardians to promote into parent accounts")
