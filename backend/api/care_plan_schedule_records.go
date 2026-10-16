@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // NewCarePlanRows binds the Timetable composition's retained schedule and
@@ -19,7 +19,7 @@ import (
 func NewCarePlanRows(capability careplan.Capability) timetableCompose.CarePlanRows {
 	return timetableCompose.CarePlanRows{
 		Records: carePlanRecords{capability: capability},
-		Errors:  peopleCompose.RetainedRecordErrors{},
+		Errors:  transactionruntime.RecordErrors{},
 		Today:   func() timetableCompose.CareDate { return timetableCompose.CareDate(carePlanCompose.Today()) },
 	}
 }
@@ -334,10 +334,10 @@ func noRowsError() error { return errors.Unwrap(retainedNotFound("")) }
 
 // retainedNotFound is the retained repository's not-found error for op.
 func retainedNotFound(op string) error {
-	return peopleCompose.RetainedRecordErrors{}.MissingRecordError(op)
+	return transactionruntime.RecordErrors{}.MissingRecordError(op)
 }
 
 // WrapRetainedError preserves the retained repository error shape.
 func WrapRetainedError(op string, err error) error {
-	return peopleCompose.RetainedRecordErrors{}.WrapRecordError(op, err)
+	return transactionruntime.RecordErrors{}.WrapRecordError(op, err)
 }

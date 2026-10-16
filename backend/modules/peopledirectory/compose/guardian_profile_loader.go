@@ -6,6 +6,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -16,13 +17,13 @@ import (
 // this service keeps the data access inside the repository and the
 // tenant transaction handling in one place.
 type GuardianProfileLoader struct {
-	repo   usersModels.GuardianProfileRepository
+	repo   usersRepo.GuardianProfileRepository
 	db     *bun.DB
 	logger *slog.Logger
 }
 
 // NewGuardianProfileLoader wires a loader against the repo + db.
-func NewGuardianProfileLoader(repo usersModels.GuardianProfileRepository, db *bun.DB, logger *slog.Logger) *GuardianProfileLoader {
+func NewGuardianProfileLoader(repo usersRepo.GuardianProfileRepository, db *bun.DB, logger *slog.Logger) *GuardianProfileLoader {
 	if logger == nil {
 		logger = slog.Default()
 	}

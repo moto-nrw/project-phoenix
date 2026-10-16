@@ -32,7 +32,7 @@ func (r *FamilyProtectionEventRepository) Create(ctx context.Context, event *use
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &userModels.DatabaseError{Op: "create family protection event", Err: translateNotFound(err)}
+		return &DatabaseError{Op: "create family protection event", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -53,7 +53,7 @@ func (r *FamilyProtectionEventRepository) CurrentForStudents(ctx context.Context
 		OrderExpr(`"family_protection_event".student_id, "family_protection_event".id DESC`)
 	query = withTenantFilter(ctx, r.runtime, query, "family_protection_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &userModels.DatabaseError{Op: "list current family protection", Err: translateNotFound(err)}
+		return nil, &DatabaseError{Op: "list current family protection", Err: translateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.StudentID] = row

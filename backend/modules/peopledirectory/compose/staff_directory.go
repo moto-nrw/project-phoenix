@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -57,9 +58,9 @@ type LehrkraftRoleQuery interface {
 type StaffDirectoryDependencies struct {
 	// Runtime runs the staff writes in the request's tenant transaction.
 	Runtime        LegacyRepositoryRuntime
-	Persons        users.PersonRepository
-	Staff          users.StaffRepository
-	Teachers       users.TeacherRepository
+	Persons        usersRepo.PersonRepository
+	Staff          usersRepo.StaffRepository
+	Teachers       usersRepo.TeacherRepository
 	LehrkraftRoles LehrkraftRoleQuery
 	// MayManageStaff reports whether the actor's permissions carry the
 	// staff administration authority (staff:manage), under the Security
@@ -69,9 +70,9 @@ type StaffDirectoryDependencies struct {
 
 type staffMembershipDirectory struct {
 	runtime        LegacyRepositoryRuntime
-	persons        users.PersonRepository
-	staff          users.StaffRepository
-	teachers       users.TeacherRepository
+	persons        usersRepo.PersonRepository
+	staff          usersRepo.StaffRepository
+	teachers       usersRepo.TeacherRepository
 	lehrkraftRoles LehrkraftRoleQuery
 	mayManageStaff func([]string) bool
 }

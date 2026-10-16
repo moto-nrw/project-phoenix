@@ -28,30 +28,30 @@ const (
 	guardianPermissionEnrollmentSubmit = "parent_portal.enrollment.submit"
 )
 
-// GuardianProfileRepository implements the users.GuardianProfileRepository interface
-type GuardianProfileRepository struct {
+// guardianProfileRepository implements the GuardianProfileRepository interface.
+type guardianProfileRepository struct {
 	runtime                Runtime
 	portalMemberships      PortalMembershipQuery
 	portalLoginMemberships PortalLoginMembershipQuery
 }
 
 // GuardianProfileOption configures a GuardianProfileRepository at construction.
-type GuardianProfileOption func(*GuardianProfileRepository)
+type GuardianProfileOption func(*guardianProfileRepository)
 
 // WithPortalMemberships binds account reachability without exposing owner SQL.
 func WithPortalMemberships(query PortalMembershipQuery) GuardianProfileOption {
-	return func(r *GuardianProfileRepository) { r.portalMemberships = query }
+	return func(r *guardianProfileRepository) { r.portalMemberships = query }
 }
 
 // WithPortalLoginMemberships binds parent-login reachability without exposing
 // owner SQL.
 func WithPortalLoginMemberships(query PortalLoginMembershipQuery) GuardianProfileOption {
-	return func(r *GuardianProfileRepository) { r.portalLoginMemberships = query }
+	return func(r *guardianProfileRepository) { r.portalLoginMemberships = query }
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
-func NewGuardianProfileRepository(runtime Runtime, options ...GuardianProfileOption) users.GuardianProfileRepository {
-	repository := &GuardianProfileRepository{
+func NewGuardianProfileRepository(runtime Runtime, options ...GuardianProfileOption) GuardianProfileRepository {
+	repository := &guardianProfileRepository{
 		runtime: requireRuntime(runtime),
 	}
 	for _, option := range options {
@@ -61,7 +61,7 @@ func NewGuardianProfileRepository(runtime Runtime, options ...GuardianProfileOpt
 }
 
 // Create inserts a new guardian profile into the database
-func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.GuardianProfile) error {
+func (r *guardianProfileRepository) Create(ctx context.Context, profile *users.GuardianProfile) error {
 	if err := profile.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -77,14 +77,14 @@ func (r *GuardianProfileRepository) Create(ctx context.Context, profile *users.G
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("failed to create guardian profile: %w", err)
+		return guardianWriteError("failed to create guardian profile", err)
 	}
 
 	return nil
 }
 
 // FindByID retrieves a guardian profile by their ID
-func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindByID(ctx context.Context, id int64) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
 	err := r.runtime.DB(ctx).NewSelect().
@@ -106,7 +106,7 @@ func (r *GuardianProfileRepository) FindByID(ctx context.Context, id int64) (*us
 // FindByIDs retrieves guardian profiles for the given ids in a single query,
 // keyed by id for O(1) lookup. Missing ids are simply absent from the map.
 // Tenant-scoped via RLS / TenantWhere, mirroring FindByIDs on the other repos.
-func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
 	}
@@ -140,7 +140,7 @@ func (r *GuardianProfileRepository) FindByIDs(ctx context.Context, ids []int64) 
 // when there is none. Isolation therefore does not rest on it. Its result may
 // include several schools for one account, so each profile is matched against
 // its own school, never against membership in any school.
-func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
 	}
@@ -152,7 +152,7 @@ func (r *GuardianProfileRepository) FindActivePortalProfilesByIDs(ctx context.Co
 
 // FindLoginReadyPortalProfilesByIDs returns guardian profiles whose linked
 // account can authenticate with a password at the current tenant.
-func (r *GuardianProfileRepository) FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindLoginReadyPortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*users.GuardianProfile, error) {
 	if len(ids) == 0 {
 		return make(map[int64]*users.GuardianProfile), nil
 	}
@@ -162,7 +162,7 @@ func (r *GuardianProfileRepository) FindLoginReadyPortalProfilesByIDs(ctx contex
 	return r.findPortalProfilesByIDs(ctx, ids, r.portalLoginMemberships, "find login-ready portal guardian memberships")
 }
 
-func (r *GuardianProfileRepository) findPortalProfilesByIDs(
+func (r *guardianProfileRepository) findPortalProfilesByIDs(
 	ctx context.Context,
 	ids []int64,
 	membershipsQuery func(context.Context, []int64) (map[int64][]int64, error),
@@ -206,7 +206,7 @@ func (r *GuardianProfileRepository) findPortalProfilesByIDs(
 }
 
 // LockByIDForUpdate locks a guardian profile row for the current transaction.
-func (r *GuardianProfileRepository) LockByIDForUpdate(ctx context.Context, id int64) error {
+func (r *guardianProfileRepository) LockByIDForUpdate(ctx context.Context, id int64) error {
 	var profileID int64
 	query := r.runtime.DB(ctx).NewSelect().
 		TableExpr(`users.guardian_profiles AS "guardian_profile"`).
@@ -226,7 +226,7 @@ func (r *GuardianProfileRepository) LockByIDForUpdate(ctx context.Context, id in
 }
 
 // FindByEmail retrieves a guardian profile by their email address
-func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email string) (*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindByEmail(ctx context.Context, email string) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
 	err := r.runtime.DB(ctx).NewSelect().
@@ -246,7 +246,7 @@ func (r *GuardianProfileRepository) FindByEmail(ctx context.Context, email strin
 }
 
 // FindByAccountID retrieves a guardian profile by their account ID
-func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindByAccountID(ctx context.Context, accountID int64) (*users.GuardianProfile, error) {
 	profile := new(users.GuardianProfile)
 
 	// A parent account is cross-tenant and can own one guardian_profiles row
@@ -275,7 +275,7 @@ func (r *GuardianProfileRepository) FindByAccountID(ctx context.Context, account
 }
 
 // FindWithoutAccount retrieves guardian profiles without portal accounts
-func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*users.GuardianProfile, error) {
 	var profiles []*users.GuardianProfile
 
 	err := r.runtime.DB(ctx).NewSelect().
@@ -294,7 +294,7 @@ func (r *GuardianProfileRepository) FindWithoutAccount(ctx context.Context) ([]*
 }
 
 // FindInvitable retrieves guardians who can be invited (has email, no account)
-func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) FindInvitable(ctx context.Context) ([]*users.GuardianProfile, error) {
 	var profiles []*users.GuardianProfile
 
 	err := r.runtime.DB(ctx).NewSelect().
@@ -317,26 +317,26 @@ func (r *GuardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 // ListWithOptions retrieves guardian profiles with pagination and filters
 // FindByEmails retrieves the tenant's guardian profiles whose trimmed email
 // is one of the given addresses, through the generic list filter.
-func (r *GuardianProfileRepository) FindByEmails(ctx context.Context, emails []string) ([]*users.GuardianProfile, error) {
-	return r.ListWithOptions(ctx, &users.QueryOptions{
-		Filter: users.NewQueryFilter().TrimIn("email", emails...),
+func (r *guardianProfileRepository) FindByEmails(ctx context.Context, emails []string) ([]*users.GuardianProfile, error) {
+	return r.ListWithOptions(ctx, &QueryOptions{
+		Filter: NewQueryFilter().TrimIn("email", emails...),
 	})
 }
 
-func (r *GuardianProfileRepository) ListWithOptions(ctx context.Context, options *users.QueryOptions) ([]*users.GuardianProfile, error) {
-	listOptions := &users.QueryOptions{}
+func (r *guardianProfileRepository) ListWithOptions(ctx context.Context, options *QueryOptions) ([]*users.GuardianProfile, error) {
+	listOptions := &QueryOptions{}
 	if options != nil {
 		*listOptions = *options
 	}
-	fields := make([]users.QuerySortField, 0, 2)
+	fields := make([]QuerySortField, 0, 2)
 	if options != nil && options.Sorting != nil {
 		fields = append(fields, options.Sorting.Fields...)
 	}
 	fields = append(fields,
-		users.QuerySortField{Field: "last_name", Direction: users.SortAsc},
-		users.QuerySortField{Field: "first_name", Direction: users.SortAsc},
+		QuerySortField{Field: "last_name", Direction: SortAsc},
+		QuerySortField{Field: "first_name", Direction: SortAsc},
 	)
-	listOptions.Sorting = &users.QuerySorting{Fields: fields}
+	listOptions.Sorting = &QuerySorting{Fields: fields}
 
 	profiles := make([]*users.GuardianProfile, 0)
 	if listOptions.Filter != nil {
@@ -393,7 +393,7 @@ const maxSearchTokens = 10
 // LIKE metacharacters in each token are escaped (see escapeLikePattern) so they
 // match literally — the picker's enumeration guard relies on a real minimum
 // query length, which raw "%"/"_" input would otherwise bypass.
-func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText string, limit int) ([]*users.GuardianProfile, error) {
+func (r *guardianProfileRepository) SearchByText(ctx context.Context, searchText string, limit int) ([]*users.GuardianProfile, error) {
 	// strings.Fields splits on any run of whitespace and drops empties, so a
 	// query that is only spaces yields no tokens → empty result.
 	tokens := strings.Fields(strings.ToLower(searchText))
@@ -435,7 +435,7 @@ func (r *GuardianProfileRepository) SearchByText(ctx context.Context, searchText
 }
 
 // Update updates an existing guardian profile
-func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.GuardianProfile) error {
+func (r *guardianProfileRepository) Update(ctx context.Context, profile *users.GuardianProfile) error {
 	if err := profile.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
@@ -447,7 +447,7 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 		Exec(ctx)
 
 	if err != nil {
-		return fmt.Errorf("failed to update guardian profile: %w", err)
+		return guardianWriteError("failed to update guardian profile", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -463,7 +463,7 @@ func (r *GuardianProfileRepository) Update(ctx context.Context, profile *users.G
 }
 
 // Delete removes a guardian profile
-func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error {
+func (r *guardianProfileRepository) Delete(ctx context.Context, id int64) error {
 	result, err := r.runtime.DB(ctx).NewDelete().
 		Model((*users.GuardianProfile)(nil)).
 		ModelTableExpr(`users.guardian_profiles AS "guardian_profile"`).
@@ -489,7 +489,7 @@ func (r *GuardianProfileRepository) Delete(ctx context.Context, id int64) error 
 // LinkAccount links a guardian profile to a parent account. A removed contact
 // may leave that account attached to a childless profile (#3477). Move only
 // that orphaned association; retain both contacts and all relationship data.
-func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
+func (r *guardianProfileRepository) LinkAccount(ctx context.Context, profileID int64, accountID int64) error {
 	if profileID <= 0 || accountID <= 0 {
 		return users.ErrGuardianAccountConflict
 	}
@@ -500,7 +500,7 @@ func (r *GuardianProfileRepository) LinkAccount(ctx context.Context, profileID i
 	})
 }
 
-func (r *GuardianProfileRepository) linkAccount(ctx context.Context, profileID, accountID int64) error {
+func (r *guardianProfileRepository) linkAccount(ctx context.Context, profileID, accountID int64) error {
 	tenantID, err := r.runtime.RequireTenantID(ctx)
 	if err != nil {
 		return err
@@ -583,7 +583,7 @@ func (r *GuardianProfileRepository) linkAccount(ctx context.Context, profileID, 
 // users.persons) lives here so handlers/services don't reach into the
 // schema directly. Returns (nil, nil) when no profile is linked under
 // the current tenant context.
-func (r *GuardianProfileRepository) LoadProfileWithChildren(ctx context.Context, accountID int64) (*users.GuardianProfileWithChildren, error) {
+func (r *guardianProfileRepository) LoadProfileWithChildren(ctx context.Context, accountID int64) (*users.GuardianProfileWithChildren, error) {
 	profile := new(users.GuardianProfile)
 	err := r.runtime.DB(ctx).NewSelect().
 		Model(profile).

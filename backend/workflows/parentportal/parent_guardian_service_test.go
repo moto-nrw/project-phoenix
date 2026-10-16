@@ -1390,11 +1390,22 @@ func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
 	assert.Contains(t, err.Error(), "chk_guardian_has_account_matches_account_id")
 }
 
+// guardianProfiles is the guardian-profile surface the portal reads; the test
+// may not name the portal's own ports.
+type guardianProfiles interface {
+	FindByID(ctx context.Context, id int64) (*userModels.GuardianProfile, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
+	FindByEmail(ctx context.Context, email string) (*userModels.GuardianProfile, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*userModels.GuardianProfile, error)
+	LockByIDForUpdate(ctx context.Context, id int64) error
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
+}
+
 // emailLookupFailingGuardianRepo wraps the real guardian-profile repository and
 // fails FindByEmail with a fixed error, delegating everything else. It lets the
 // email-lookup-error test inject a DB/RLS-style failure on exactly that call.
 type emailLookupFailingGuardianRepo struct {
-	userModels.GuardianProfileRepository
+	guardianProfiles
 	err error
 }
 
@@ -1427,7 +1438,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: emailLookupFailingGuardianRepo{GuardianProfileRepository: repos.GuardianProfile, err: lookupErr},
+		GuardianProfileRepo: emailLookupFailingGuardianRepo{guardianProfiles: repos.GuardianProfile, err: lookupErr},
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		Logger:              slog.Default(),
 	})

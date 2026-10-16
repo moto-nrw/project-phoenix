@@ -1,11 +1,13 @@
-// Package vocabulary names the People Directory records, repositories and constants
-// the legacy composition still binds (#2747). The owner's composition
-// re-exports them under its own path, so the legacy composition depends on the
-// composition instead of the domain package. Shrink it as consumers move to the
-// owner's public contract; never add a name nothing uses.
+// Package vocabulary names the People Directory records, repository contracts
+// and constants the legacy composition still binds (#2747, #3990) under the
+// owner's composition path. Shrink it as consumers move to the owner's public
+// contract; never add a name nothing uses.
 package vocabulary
 
-import upstream "github.com/moto-nrw/project-phoenix/models/users"
+import (
+	repository "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	upstream "github.com/moto-nrw/project-phoenix/models/users"
+)
 
 type (
 	ActiveCaregiver                    = upstream.ActiveCaregiver
@@ -19,21 +21,21 @@ type (
 	CareWithdrawalCompletion           = upstream.CareWithdrawalCompletion
 	CareWithdrawalCompletionFilter     = upstream.CareWithdrawalCompletionFilter
 	CareWithdrawalCompletionRepository = upstream.CareWithdrawalCompletionRepository
-	CaregiverBindingLocker             = upstream.CaregiverBindingLocker
+	CaregiverBindingLocker             = repository.CaregiverBindingLocker
 	CompanionChangeRecorder            = upstream.CompanionChangeRecorder
 	CompanionLink                      = upstream.CompanionLink
-	DatabaseError                      = upstream.DatabaseError
+	DatabaseError                      = repository.DatabaseError
 	DepartureMode                      = upstream.DepartureMode
 	DeparturePlanSnapshot              = upstream.DeparturePlanSnapshot
 	FamilyProtectionEventRepository    = upstream.FamilyProtectionEventRepository
 	GuardianEmergencyContactRow        = upstream.GuardianEmergencyContactRow
 	GuardianFinancialDataRepository    = upstream.GuardianFinancialDataRepository
 	GuardianPhoneNumber                = upstream.GuardianPhoneNumber
-	GuardianPhoneNumberRepository      = upstream.GuardianPhoneNumberRepository
+	GuardianPhoneNumberRepository      = repository.GuardianPhoneNumberRepository
 	GuardianProfile                    = upstream.GuardianProfile
-	GuardianProfileRepository          = upstream.GuardianProfileRepository
+	GuardianProfileRepository          = repository.GuardianProfileRepository
 	Guest                              = upstream.Guest
-	GuestRepository                    = upstream.GuestRepository
+	GuestRepository                    = repository.GuestRepository
 	MonthDay                           = upstream.MonthDay
 	ParentAnnouncementRepository       = upstream.ParentAnnouncementRepository
 	ParentMessageReadRepository        = upstream.ParentMessageReadRepository
@@ -44,11 +46,11 @@ type (
 	ParentRequestShareEventRepository  = upstream.ParentRequestShareEventRepository
 	Person                             = upstream.Person
 	PersonAccount                      = upstream.PersonAccount
-	PersonRepository                   = upstream.PersonRepository
+	PersonRepository                   = repository.PersonRepository
 	PhoneType                          = upstream.PhoneType
-	QueryFilter                        = upstream.QueryFilter
-	QueryOptions                       = upstream.QueryOptions
-	RequestQueueFilters                = upstream.RequestQueueFilters
+	QueryFilter                        = repository.QueryFilter
+	QueryOptions                       = repository.QueryOptions
+	RequestQueueFilters                = repository.RequestQueueFilters
 	Staff                              = upstream.Staff
 	StaffFinancialDataRepository       = upstream.StaffFinancialDataRepository
 	StaffMasterDataRepository          = upstream.StaffMasterDataRepository
@@ -56,21 +58,21 @@ type (
 	StaffMessageRepository             = upstream.StaffMessageRepository
 	StaffMessageThreadRepository       = upstream.StaffMessageThreadRepository
 	StaffQualificationRepository       = upstream.StaffQualificationRepository
-	StaffRepository                    = upstream.StaffRepository
+	StaffRepository                    = repository.StaffRepository
 	StaffWithRoleInfo                  = upstream.StaffWithRoleInfo
 	Student                            = upstream.Student
 	StudentCompanion                   = upstream.StudentCompanion
-	StudentCompanionRepository         = upstream.StudentCompanionRepository
+	StudentCompanionRepository         = repository.StudentCompanionRepository
 	StudentConsentState                = upstream.StudentConsentState
 	StudentDataChangeRequest           = upstream.StudentDataChangeRequest
-	StudentDataChangeRequestRepository = upstream.StudentDataChangeRequestRepository
+	StudentDataChangeRequestRepository = repository.StudentDataChangeRequestRepository
 	StudentGuardian                    = upstream.StudentGuardian
-	StudentGuardianRepository          = upstream.StudentGuardianRepository
-	StudentRepository                  = upstream.StudentRepository
+	StudentGuardianRepository          = repository.StudentGuardianRepository
+	StudentRepository                  = repository.StudentRepository
 	StudentStatus                      = upstream.StudentStatus
 	StudentWithGroupInfo               = upstream.StudentWithGroupInfo
 	Teacher                            = upstream.Teacher
-	TeacherRepository                  = upstream.TeacherRepository
+	TeacherRepository                  = repository.TeacherRepository
 )
 
 const (
@@ -95,7 +97,7 @@ const (
 	ParentRequestEventSubmitted        = upstream.ParentRequestEventSubmitted
 	ParentRequestTypeCareSchedule      = upstream.ParentRequestTypeCareSchedule
 	ParentRequestTypePickupChange      = upstream.ParentRequestTypePickupChange
-	SortDesc                           = upstream.SortDesc
+	SortDesc                           = repository.SortDesc
 	StudentStatusActive                = upstream.StudentStatusActive
 	StudentStatusAlumnus               = upstream.StudentStatusAlumnus
 	StudentStatusInactive              = upstream.StudentStatusInactive
@@ -115,22 +117,20 @@ var (
 	ErrGuardianAccountConflict         = upstream.ErrGuardianAccountConflict
 	ErrGuardianProfileNotFound         = upstream.ErrGuardianProfileNotFound
 	ErrPersonnelNumberConflict         = upstream.ErrPersonnelNumberConflict
-	ErrRepositoryNotFound              = upstream.ErrRepositoryNotFound
+	ErrRepositoryNotFound              = repository.ErrRepositoryNotFound
 	ErrStudentGuardianNotFound         = upstream.ErrStudentGuardianNotFound
 	ErrStudentRowMissing               = upstream.ErrStudentRowMissing
-	IsRepositoryNoRows                 = upstream.IsRepositoryNoRows
-	IsUniqueViolation                  = upstream.IsUniqueViolation
-	IsUniqueViolationOn                = upstream.IsUniqueViolationOn
-	NewQueryFilter                     = upstream.NewQueryFilter
-	NewQueryOptions                    = upstream.NewQueryOptions
+	IsRepositoryNoRows                 = repository.IsRepositoryNoRows
+	NewQueryFilter                     = repository.NewQueryFilter
+	NewQueryOptions                    = repository.NewQueryOptions
 	AccompaniedWeekdays                = upstream.AccompaniedWeekdays
 	ContextWithCompanionChangeRecorder = upstream.ContextWithCompanionChangeRecorder
 	EnrolledOn                         = upstream.EnrolledOn
-	MissingStudentError                = upstream.MissingStudentError
+	MissingStudentError                = repository.MissingStudentError
 	MonthDayOf                         = upstream.MonthDayOf
 	OptionalCalendarDate               = upstream.OptionalCalendarDate
 	RecordCompanionChange              = upstream.RecordCompanionChange
 	RenderCalendarDate                 = upstream.RenderCalendarDate
-	RowMissing                         = upstream.RowMissing
+	RowMissing                         = repository.RowMissing
 	WithAccompaniedDays                = upstream.WithAccompaniedDays
 )

@@ -95,6 +95,16 @@ type LifecycleStaff interface {
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
 }
 
+// LifecycleStudents reads and locks the People Directory children the
+// timetable names.
+type LifecycleStudents interface {
+	FindByID(ctx context.Context, id any) (*usersModel.Student, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*usersModel.Student, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)
+	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)
+}
+
 // InstanceLifecycleDependencies wires the lifecycle. Broadcaster and
 // GuardianNotices are optional (nil announces nothing and refuses every
 // notice); Settings is required with EnforceTimePolicy; Logger and Now
@@ -109,7 +119,7 @@ type InstanceLifecycleDependencies struct {
 	RecoveryRepo        scheduleModel.ActivityRecoveryRepository
 	ActivityGroupRepo   activitiesModel.GroupRepository
 	StaffRepo           LifecycleStaff
-	StudentRepo         usersModel.StudentRepository
+	StudentRepo         LifecycleStudents
 	ActiveGroupRepo     studentpresence.SessionRecords
 	SupervisorRepo      studentpresence.SupervisionRecords
 	Presence            LifecyclePresence

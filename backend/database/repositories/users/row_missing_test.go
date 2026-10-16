@@ -1,9 +1,12 @@
 package users
 
 import (
+	"database/sql"
 	"errors"
 	"fmt"
 	"testing"
+
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 func TestRowMissing(t *testing.T) {
@@ -17,9 +20,9 @@ func TestRowMissing(t *testing.T) {
 		{name: "nil", err: nil, want: false},
 		{name: "not-found sentinel", err: ErrRepositoryNotFound, want: true},
 		{name: "not-found in a database error", err: &DatabaseError{Op: "find", Err: errors.Join(ErrRepositoryNotFound, errors.New("driver"))}, want: true},
-		{name: "guardian profile sentinel", err: fmt.Errorf("find: %w", ErrGuardianProfileNotFound), want: true},
-		{name: "student guardian sentinel", err: fmt.Errorf("find: %w", ErrStudentGuardianNotFound), want: true},
-		{name: "missing student", err: MissingStudentError("find student", errors.New("driver no rows")), want: true},
+		{name: "guardian profile sentinel", err: fmt.Errorf("find: %w", usersModels.ErrGuardianProfileNotFound), want: true},
+		{name: "student guardian sentinel", err: fmt.Errorf("find: %w", usersModels.ErrStudentGuardianNotFound), want: true},
+		{name: "missing student", err: MissingStudentError("find student"), want: true},
 		{name: "store failure", err: &DatabaseError{Op: "find", Err: errors.New("connection reset")}, want: false},
 	}
 	for _, tt := range tests {
@@ -35,10 +38,9 @@ func TestRowMissing(t *testing.T) {
 func TestMissingStudentErrorKeepsTheCallerSentinels(t *testing.T) {
 	t.Parallel()
 
-	noRows := errors.New("driver no rows")
-	err := MissingStudentError("find student", noRows)
+	err := MissingStudentError("find student")
 
-	for _, target := range []error{ErrRepositoryNotFound, noRows, ErrStudentRowMissing} {
+	for _, target := range []error{ErrRepositoryNotFound, sql.ErrNoRows, usersModels.ErrStudentRowMissing} {
 		if !errors.Is(err, target) {
 			t.Fatalf("MissingStudentError does not wrap %v", target)
 		}

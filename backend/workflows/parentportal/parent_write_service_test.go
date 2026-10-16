@@ -45,14 +45,21 @@ type recordingParentAbsenceNotifier struct {
 	reports []notificationsService.AbsenceReport
 }
 
+// studentReads is the student surface the portal reads; the test may not name
+// the portal's own port.
+type studentReads interface {
+	FindByID(ctx context.Context, id any) (*userModels.Student, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
+}
+
 type pausingStudentRepository struct {
-	userModels.StudentRepository
+	studentReads
 	locked  chan<- struct{}
 	release <-chan struct{}
 }
 
 func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
-	student, err := r.StudentRepository.FindByIDForUpdate(ctx, id)
+	student, err := r.studentReads.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -436,9 +443,9 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		StatusDayRepo:  repos.StudentStatusDay,
 		CareExceptions: repos.CarePlan(),
 		StudentRepo: &pausingStudentRepository{
-			StudentRepository: repos.Student,
-			locked:            parentLocked,
-			release:           releaseParent,
+			studentReads: repos.Student,
+			locked:       parentLocked,
+			release:      releaseParent,
 		},
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{

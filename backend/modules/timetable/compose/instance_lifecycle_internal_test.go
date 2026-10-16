@@ -138,7 +138,7 @@ func TestWithCompletionConfirmationStoresClone(t *testing.T) {
 }
 
 type studentReadScopeStub struct {
-	usersModel.StudentRepository
+	LifecycleStudents
 	byID map[int64]*usersModel.Student
 }
 
