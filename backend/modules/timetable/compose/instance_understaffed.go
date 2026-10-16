@@ -6,6 +6,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -40,7 +41,7 @@ func (s *InstanceLifecycleService) setUnderstaffedAck(ctx context.Context, insta
 	if ack {
 		rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instanceID)
 		if err != nil {
-			return nil, &ScheduleError{Op: "set understaffed ack: load staff", Err: err}
+			return nil, &application.ScheduleError{Op: "set understaffed ack: load staff", Err: err}
 		}
 		if !timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 			return nil, timetable.ErrUnderstaffedAckStillStaffed
@@ -53,7 +54,7 @@ func (s *InstanceLifecycleService) setUnderstaffedAck(ctx context.Context, insta
 		instance.UnderstaffedNote = note
 	}
 	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
-		return nil, &ScheduleError{Op: "set understaffed ack: update", Err: err}
+		return nil, &application.ScheduleError{Op: "set understaffed ack: update", Err: err}
 	}
 	// An idempotent replay still writes the columns but records no event.
 	if !logEvent || (previousAck == ack && equalOptionalString(previousNote, instance.UnderstaffedNote)) {
@@ -101,7 +102,7 @@ func (s *InstanceLifecycleService) clearStaleAckIfStaffed(ctx context.Context, i
 	}
 	rows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return &ScheduleError{Op: "clear stale ack: load staff", Err: err}
+		return &application.ScheduleError{Op: "clear stale ack: load staff", Err: err}
 	}
 	if timetable.IsUnderstaffedWithMinimum(staffingRowsOf(rows), dutyMinimumStaff(instance)) {
 		return nil // still short-staffed → keep the acknowledgement
@@ -110,7 +111,7 @@ func (s *InstanceLifecycleService) clearStaleAckIfStaffed(ctx context.Context, i
 	instance.UnderstaffedAck = false
 	instance.UnderstaffedNote = nil
 	if err := s.updateLifecycleColumns(ctx, instance, "understaffed_ack", "understaffed_note"); err != nil {
-		return &ScheduleError{Op: "clear stale ack: update", Err: err}
+		return &application.ScheduleError{Op: "clear stale ack: update", Err: err}
 	}
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,

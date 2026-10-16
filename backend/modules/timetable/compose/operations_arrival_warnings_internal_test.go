@@ -57,3 +57,10 @@ func normalizedClock(t *testing.T, hhmm string) time.Time {
 	t.Helper()
 	return calendar.NormalizeWallClock(mustClock(t, hhmm))
 }
+
+func mustClock(t *testing.T, hhmm string) time.Time {
+	t.Helper()
+	parsed, err := time.Parse("15:04", hhmm)
+	require.NoError(t, err)
+	return parsed
+}

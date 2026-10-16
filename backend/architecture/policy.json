@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 53,
+  "policy_epoch": 54,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -8988,6 +8988,61 @@
       "source_owner": "timetable-activities",
       "source_role": "compose",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.application.school-calendar.public",
+      "description": "Timetable & Activities' staff notices resolve the school calendar's week pattern through its public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.tenant-runtime",
+      "description": "Timetable & Activities' template, materialization and series services read the tenant and its transaction from the tenant runtime (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.transaction-runtime",
+      "description": "Timetable & Activities' application classifies the driver's no-rows result through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.application.student-presence.public",
+      "description": "Timetable & Activities' conflict detection reads Student Presence's sessions through its public contract, as the composition did (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "application",
+      "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "timetable-activities.module-internal-test.tenant-runtime",
+      "description": "The internal tests of Timetable & Activities' application put the tenant into their context, as the moved code reads it (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.postgres.transaction-runtime",

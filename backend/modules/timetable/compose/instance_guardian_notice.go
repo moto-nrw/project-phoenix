@@ -8,6 +8,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -69,7 +70,7 @@ func (s *InstanceLifecycleService) GuardianNoticeReachFor(ctx context.Context, i
 	}
 	reach, err := s.deps.GuardianNotices.NoticeReach(ctx, studentIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: "guardian notice reach", Err: err}
+		return nil, &application.ScheduleError{Op: "guardian notice reach", Err: err}
 	}
 	return &timetable.GuardianNoticeReach{
 		ChildCount:  len(studentIDs),
@@ -108,7 +109,7 @@ func (s *InstanceLifecycleService) CancelWithNotice(ctx context.Context, in time
 
 func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, in timetable.CancelInstanceInput) error {
 	if s.deps.GuardianNotices == nil {
-		return &ScheduleError{Op: "guardian notice", Err: errGuardianNoticesNotWired}
+		return &application.ScheduleError{Op: "guardian notice", Err: errGuardianNoticesNotWired}
 	}
 	if in.ActorAccountID == nil || *in.ActorAccountID <= 0 {
 		return fmt.Errorf("%w: acting account is required", timetable.ErrGuardianNoticeInvalid)
@@ -155,7 +156,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 		if errors.Is(err, timetable.ErrGuardianNoticeInvalid) {
 			return nil, err
 		}
-		return nil, &ScheduleError{Op: "publish guardian notice", Err: err}
+		return nil, &application.ScheduleError{Op: "publish guardian notice", Err: err}
 	}
 	result.AnnouncementID = published.AnnouncementID
 	result.FamilyCount = published.RecipientCount
@@ -175,7 +176,7 @@ func (s *InstanceLifecycleService) publishGuardianNotice(
 func (s *InstanceLifecycleService) noticeStudentIDs(ctx context.Context, instanceID int64) ([]int64, error) {
 	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instanceID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "guardian notice: load roster", Err: err}
+		return nil, &application.ScheduleError{Op: "guardian notice: load roster", Err: err}
 	}
 	seen := make(map[int64]struct{}, len(rows))
 	ids := make([]int64, 0, len(rows))

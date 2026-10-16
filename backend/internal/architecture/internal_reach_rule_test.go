@@ -33,6 +33,7 @@ var internalReachBase = &Policy{Rules: []Rule{
 func TestReviewedInternalReachRuleShape(t *testing.T) {
 	t.Parallel()
 	production := []string{"production"}
+	internalTest := []string{"internal_test"}
 	for _, scenario := range []struct {
 		name string
 		rule Rule
@@ -70,6 +71,19 @@ func TestReviewedInternalReachRuleShape(t *testing.T) {
 		{"target owner kind", Rule{SourceOwner: "timetable-activities", SourceRole: "application", TargetOwnerKind: "platform", TargetRole: "public", Scopes: production}, false},
 		{"external class", Rule{SourceOwner: "timetable-activities", SourceRole: "application", TargetClass: "orm-sql", Scopes: production}, false},
 		{"unknown source owner", Rule{SourceOwner: "nobody", SourceRole: "application", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: production}, false},
+
+		{"internal test mirror: platform public", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: internalTest}, true},
+		{"internal test mirror: foreign domain with a base edge", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "student-presence", TargetRole: "public", Scopes: internalTest}, true},
+		{"internal test mirror in external_test", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"external_test"}}, false},
+		{"internal test mirror in both test scopes", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"internal_test", "external_test"}}, false},
+		{"internal test mirror in production", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: production}, false},
+		{"behaviour test role", Rule{SourceOwner: "timetable-activities", SourceRole: "module-behavior-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: []string{"external_test"}}, false},
+		{"e2e test role", Rule{SourceOwner: "timetable-activities", SourceRole: "e2e-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: internalTest}, false},
+		{"internal test mirror: target production would not get", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "delivery-platform", TargetRole: "public", Scopes: internalTest}, false},
+		{"internal test mirror: reverse DAG direction", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "workforce", TargetRole: "public", Scopes: internalTest}, false},
+		{"internal test mirror: platform application role", Rule{SourceOwner: "timetable-activities", SourceRole: "module-internal-test", TargetOwner: "transaction-runtime", TargetRole: "application", Scopes: internalTest}, false},
+		{"internal test mirror: generic own public", Rule{SourceOwnerKind: "domain", SourceRole: "module-internal-test", TargetRole: "public", SameOwner: true, Scopes: internalTest}, false},
+		{"internal test mirror: projection source", Rule{SourceOwner: "school-setup", SourceRole: "module-internal-test", TargetOwner: "tenant-runtime", TargetRole: "public", Scopes: internalTest}, false},
 	} {
 		if got := reviewedInternalReachRule(scenario.rule, internalReachBase, internalReachOwners); got != scenario.want {
 			t.Errorf("%s: reviewedInternalReachRule = %v, want %v", scenario.name, got, scenario.want)
