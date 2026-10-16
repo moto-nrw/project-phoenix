@@ -1,6 +1,8 @@
 package compose
 
 import (
+	"context"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -42,4 +44,15 @@ func (r CareScheduleRepositories) EnrollmentPickupSchedules() application.Enroll
 // arrival schedules.
 func (r CareScheduleRepositories) EnrollmentArrivalSchedules() application.EnrollmentArrivalSchedules {
 	return application.NewEnrollmentArrivalSchedules(r.StudentArrivalSchedule)
+}
+
+// NewCarePickupNoteRows serves the pickup notes from Care Plan.
+func NewCarePickupNoteRows(rows ports.CarePlanRows) ports.CarePickupNoteRows {
+	return application.NewCarePickupNoteRows(rows)
+}
+
+// NewCalendarPeriodUsageRepository counts the rows that reference each
+// calendar period.
+func NewCalendarPeriodUsageRepository(enrollment application.EnrollmentPhaseQueries, countReferences func(context.Context) (map[int64]ports.CalendarPeriodReferences, error)) ports.CalendarPeriodUsageRepository {
+	return application.NewCalendarPeriodUsageRepository(enrollment, countReferences)
 }

@@ -51,12 +51,6 @@ func ListCalendarShiftTypes(ctx context.Context, rows ports.CalendarShiftTypeRow
 	return application.ListCalendarShiftTypes(ctx, rows)
 }
 
-// NewCalendarPeriodUsageRepository counts the rows that reference each
-// calendar period.
-func NewCalendarPeriodUsageRepository(enrollment application.EnrollmentPhaseQueries, countReferences func(context.Context) (map[int64]ports.CalendarPeriodReferences, error)) ports.CalendarPeriodUsageRepository {
-	return application.NewCalendarPeriodUsageRepository(enrollment, countReferences)
-}
-
 // NewActivityCategorySeeder binds the category seeder to the retained
 // category rows.
 func NewActivityCategorySeeder(categories activitiesModels.CategoryRepository) application.ActivityCategorySeeder {
@@ -86,11 +80,6 @@ func NewCarePickupScheduleRows(rows ports.CarePlanRows) ports.CarePickupSchedule
 // NewCarePickupExceptionRows serves the pickup exceptions from Care Plan.
 func NewCarePickupExceptionRows(rows ports.CarePlanRows) ports.CarePickupExceptionRows {
 	return application.NewCarePickupExceptionRows(rows)
-}
-
-// NewCarePickupNoteRows serves the pickup notes from Care Plan.
-func NewCarePickupNoteRows(rows ports.CarePlanRows) ports.CarePickupNoteRows {
-	return application.NewCarePickupNoteRows(rows)
 }
 
 // NewCareScheduleRequestRows serves the care schedule change requests from
