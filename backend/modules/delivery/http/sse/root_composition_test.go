@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
+	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -24,9 +25,9 @@ func setupUserContextModule(t *testing.T) (*bun.DB, api.UserContextTestModule) {
 // The root imports this package, so the internal tests reach its caller rows
 // through this binding.
 func init() {
-	sse.ComposeSubscriptionResolver = func(t *testing.T) (*bun.DB, sse.SubscriptionResolver) {
+	sse.ComposeSubscriptionResolver = func(t *testing.T) (*bun.DB, sse.SubscriptionResolver, sse.Runtime[realtime.Event, *realtime.Client]) {
 		t.Helper()
 		db, module := setupUserContextModule(t)
-		return db, module.UserContext
+		return db, module.UserContext, api.NewSSEHTTPRuntime()
 	}
 }

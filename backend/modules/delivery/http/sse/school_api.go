@@ -5,12 +5,6 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/go-chi/chi/v5"
-
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const (
@@ -36,7 +30,7 @@ type SchoolAccessChecker interface {
 // SetSchoolAccess wires the authorization re-check for the school SSE stream.
 // Without it the school stream refuses to open — a long-lived connection that
 // nobody re-authorizes is exactly what this guard exists to prevent.
-func (rs *Resource) SetSchoolAccess(checker SchoolAccessChecker) {
+func (rs *Resource[E, C]) SetSchoolAccess(checker SchoolAccessChecker) {
 	rs.schoolAccess = checker
 }
 
@@ -45,19 +39,8 @@ func (rs *Resource) SetSchoolAccess(checker SchoolAccessChecker) {
 // SchoolMiddleware (scope=school only) and registered per account, so the
 // connection is woken only by fan-outs addressed to this Lehrkraft's account —
 // today the Team-Chat trigger (staff_message). Mounted at /school-sse.
-func (rs *Resource) SchoolRouter() chi.Router {
-	r := chi.NewRouter()
 
-	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(sessiontoken.SchoolMiddleware(tenant.ClaimScope{}))
-		r.Get("/events", rs.schoolEventsHandler)
-	})
-
-	return r
-}
-
-// schoolEventsHandler streams account-addressed triggers to a Lehrkraft. No
+// SchoolEvents streams account-addressed triggers to a Lehrkraft. No
 // subscription resolution (no groups, no supervision topics): the school
 // client is indexed by account only (Hub.RegisterSchool), so tenant-wide staff
 // refreshes never reach it.
@@ -66,8 +49,8 @@ func (rs *Resource) SchoolRouter() chi.Router {
 // access token, so the school-portal role is verified before the first byte and
 // again while the connection is open; a revoked Lehrkraft is disconnected
 // instead of being woken until her token runs out.
-func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel, ok := withSSETokenDeadline(r.Context())
+func (rs *Resource[E, C]) SchoolEvents(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel, ok := rs.runtime.TokenDeadline(r.Context())
 	if !ok {
 		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
@@ -89,8 +72,8 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	accountID := int64(sessiontoken.ClaimsFromCtx(ctx).ID)
-	tenantID := tenant.FromContext(ctx)
+	accountID := rs.runtime.Identity(ctx).AccountID
+	tenantID := rs.runtime.Identity(ctx).TenantID
 	if accountID <= 0 || tenantID <= 0 {
 		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
@@ -122,12 +105,11 @@ func (rs *Resource) schoolEventsHandler(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	conn.client = &realtime.Client{
-		Channel:          make(chan realtime.Event, 32),
-		UserID:           accountID,
-		AccountID:        accountID,
-		SubscribedGroups: make(map[string]bool),
-	}
+	rs.startSchoolStream(ctx, conn, accountID, tenantID, logger)
+}
+
+func (rs *Resource[E, C]) startSchoolStream(ctx context.Context, conn *sseConnection[E, C], accountID, tenantID int64, logger *slog.Logger) {
+	conn.client = rs.runtime.NewClient(make(chan E, 32), accountID, accountID, 0, false, make(map[string]bool))
 	rs.hub.RegisterSchool(conn.client, tenantID)
 	rs.runSchoolEventLoop(ctx, conn, &schoolAccessGate{
 		checker:    rs.schoolAccess,
@@ -187,7 +169,7 @@ func (g *schoolAccessGate) allow(ctx context.Context, now time.Time) bool {
 // runSchoolEventLoop is runEventLoop with the authorization gate in front of
 // every delivery and every heartbeat: an idle connection is cut within a minute
 // of the role being revoked, without waiting for traffic.
-func (rs *Resource) runSchoolEventLoop(ctx context.Context, conn *sseConnection, gate *schoolAccessGate) {
+func (rs *Resource[E, C]) runSchoolEventLoop(ctx context.Context, conn *sseConnection[E, C], gate *schoolAccessGate) {
 	defer rs.hub.Unregister(conn.client)
 
 	heartbeat := time.NewTicker(30 * time.Second)
@@ -198,7 +180,7 @@ func (rs *Resource) runSchoolEventLoop(ctx context.Context, conn *sseConnection,
 		case <-ctx.Done():
 			return
 
-		case event := <-conn.client.Channel:
+		case event := <-conn.client.SSEEvents():
 			if !schoolDeliver(ctx, gate, func() error { return conn.sendEvent(event) }) {
 				return
 			}

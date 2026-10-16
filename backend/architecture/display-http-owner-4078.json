@@ -105,5 +105,5 @@
     }
   },
   "rollback_and_cleanup": "Revert this owner slice to restore inbound-display, eleven rules, three exact #4004 compose keys and the previous binding/fixture/adapter locations. No schema or data rollback.",
-  "exit_criterion": "inbound-display absent; listed three #4004 keys absent with complete evidence; no widened reach, selectors or new graph fields; rules 877 to 867, composition1657 unchanged, Compose57283 to57188; unchanged assertions/routes/responses. #4078 remains open."
+  "exit_criterion": "inbound-display absent; listed three #4004 keys absent with complete evidence; no widened reach, selectors or new graph fields; rules 875 to 865, composition1657 unchanged, Compose57283 to57188; unchanged assertions/routes/responses. #4078 remains open."
 }

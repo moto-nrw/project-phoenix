@@ -3,9 +3,6 @@ package sse
 import (
 	"context"
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SubscriptionResolver resolves the caller's live-update topics through the
@@ -25,22 +22,19 @@ type SetupRejection interface {
 	SetupMessage() string
 }
 
-// TenantTransaction runs topic lookup inside the validated school's unit of work.
-type TenantTransaction func(context.Context, tenant.TenantID, func(context.Context) error) error
-
 // Resource defines the SSE resource with dependencies
-type Resource struct {
-	hub         *realtime.Hub
-	userCtx     SubscriptionResolver
-	runTenantTx TenantTransaction
-	logger      *slog.Logger
+type Resource[E Event, C Client[E]] struct {
+	hub     Hub[C]
+	userCtx SubscriptionResolver
+	runtime Runtime[E, C]
+	logger  *slog.Logger
 	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
 	// SetSchoolAccess; the school handler refuses to stream without it.
 	schoolAccess SchoolAccessChecker
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
-func (rs *Resource) getLogger() *slog.Logger {
+func (rs *Resource[E, C]) getLogger() *slog.Logger {
 	return loggerOrDefault(rs.logger)
 }
 
@@ -52,16 +46,16 @@ func loggerOrDefault(logger *slog.Logger) *slog.Logger {
 }
 
 // NewResource creates a new SSE resource
-func NewResource(
-	hub *realtime.Hub,
+func NewResource[E Event, C Client[E]](
+	hub Hub[C],
 	userCtx SubscriptionResolver,
-	runTenantTx TenantTransaction,
+	runtime Runtime[E, C],
 	logger *slog.Logger,
-) *Resource {
-	return &Resource{
-		hub:         hub,
-		userCtx:     userCtx,
-		runTenantTx: runTenantTx,
-		logger:      logger,
+) *Resource[E, C] {
+	return &Resource[E, C]{
+		hub:     hub,
+		userCtx: userCtx,
+		runtime: runtime,
+		logger:  logger,
 	}
 }

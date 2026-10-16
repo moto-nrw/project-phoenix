@@ -163,10 +163,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-sse",
-      "kind": "inbound"
-    },
-    {
       "id": "legacy-composition",
       "kind": "composition"
     },
@@ -867,7 +863,7 @@
     },
     {
       "path": "modules/delivery/http/sse",
-      "owner": "inbound-sse",
+      "owner": "delivery-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7042,17 +7038,6 @@
       "target_class": "crypto"
     },
     {
-      "id": "external.delivery.delivery-platform",
-      "description": "delivery-platform may use classified delivery dependencies.",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "target_class": "delivery"
-    },
-    {
       "id": "external.http-router.adapter",
       "description": "adapter packages may use HTTP and router dependencies.",
       "scopes": [
@@ -7278,17 +7263,6 @@
       ],
       "source_role": "test-support",
       "target_class": "process-exec"
-    },
-    {
-      "id": "external.rendering.delivery-platform",
-      "description": "delivery-platform may use classified rendering dependencies.",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "delivery-platform",
-      "target_class": "rendering"
     },
     {
       "id": "external.rendering.document-rendering",
@@ -7890,17 +7864,6 @@
       "source_owner": "facilities",
       "source_role": "http",
       "target_owner": "facilities",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-sse.to.delivery-platform",
-      "description": "inbound-sse calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
       "target_role": "public"
     },
     {
@@ -9320,49 +9283,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-sse.identity-adapter",
-      "description": "SSE handlers authenticate stream claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-sse.tenant-runtime",
-      "description": "SSE handlers use the request tenant transaction.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-sse.adapter-test.crypto",
-      "description": "SSE adapter tests mint signed JWT fixtures.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "adapter-test",
-      "target_class": "crypto"
-    },
-    {
-      "id": "inbound-sse.adapter-test.identity-adapter",
-      "description": "SSE adapter tests construct JWT middleware.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "delivery-platform.workflow-integration-test.delivery-platform-application",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -9437,17 +9357,6 @@
       "source_owner": "root-composition",
       "source_role": "compose",
       "target_owner": "inbound-notifications",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.compose.inbound-sse-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-sse",
       "target_role": "http"
     },
     {
@@ -14656,6 +14565,66 @@
       "source_role": "http",
       "target_owner": "data-import",
       "target_role": "public"
+    },
+    {
+      "id": "external.rendering.delivery-platform.module-behavior-test",
+      "description": "Delivery module-behavior-test uses its existing classified rendering dependencies.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "module-behavior-test",
+      "target_class": "rendering"
+    },
+    {
+      "id": "external.delivery.delivery-platform.module-internal-test",
+      "description": "Delivery module-internal-test uses its existing classified delivery dependencies.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "module-internal-test",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.delivery.delivery-platform.workflow-integration-test",
+      "description": "Delivery workflow-integration-test uses its existing classified delivery dependencies.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "workflow-integration-test",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.delivery.delivery-platform.adapter",
+      "description": "Delivery adapter uses its existing classified delivery dependencies.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter",
+      "target_class": "delivery"
+    },
+    {
+      "id": "external.rendering.delivery-platform.adapter",
+      "description": "Delivery adapter uses its existing classified rendering dependencies.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "adapter",
+      "target_class": "rendering"
+    },
+    {
+      "id": "external.delivery.delivery-platform.application",
+      "description": "Delivery application uses its existing classified delivery dependencies.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "delivery-platform",
+      "source_role": "application",
+      "target_class": "delivery"
     }
   ],
   "relocations": [
