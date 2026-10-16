@@ -159,9 +159,28 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	require.NoError(t, schools.RememberDemoSchool(ctx, retired, organizationtenancy.DemoSchoolState{SchoolID: retiredID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, retired, accounts[retiredID].caregiver, accounts[retiredID].parent))
 	_, err = db.NewRaw(`UPDATE platform.demo_school_states
-		SET visitor_account_ids = ARRAY[?], visitor_parent_account_ids = ARRAY[?] WHERE name = ?`,
-		accounts[abandonedID].caregiver, accounts[abandonedID].parent, retired).Exec(ctx)
+		SET visitor_account_ids = ARRAY[?], visitor_parent_account_ids = ARRAY[?], visitor_school_ids = ARRAY[?, ?] WHERE name = ?`,
+		accounts[abandonedID].caregiver, accounts[abandonedID].parent, retiredID, abandonedID, retired).Exec(ctx)
 	require.NoError(t, err)
+	// The same visitor account can also be referenced by a different retired
+	// school. It must not expand this order's cleanup scope.
+	for _, statement := range []string{
+		`UPDATE users.persons SET account_id = ? WHERE tenant_id = ? AND first_name = ? AND last_name = ?`,
+		`UPDATE users.guardian_profiles SET account_id = ? WHERE tenant_id = ?`,
+		`UPDATE enrollment.requests SET guardian_account_id = ? WHERE tenant_id = ?`,
+		`UPDATE audit.guardian_changes SET actor_account_id = ? WHERE tenant_id = ?`,
+		`UPDATE users.parent_messages SET sender_account_id = ? WHERE tenant_id = ?`,
+		`UPDATE platform.email_delivery SET account_id = ? WHERE tenant_id = ?`,
+	} {
+		accountID := accounts[retiredID].parent
+		if statement == `UPDATE users.persons SET account_id = ? WHERE tenant_id = ? AND first_name = ? AND last_name = ?` {
+			accountID = accounts[retiredID].caregiver
+			_, err = db.NewRaw(statement, accountID, unrelatedID, visitorFirst, visitorLast).Exec(ctx)
+		} else {
+			_, err = db.NewRaw(statement, accountID, unrelatedID).Exec(ctx)
+		}
+		require.NoError(t, err, statement)
+	}
 	failed := orderDemoSchool(t, db, "OGS Ost")
 	_, err = queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
@@ -257,4 +276,59 @@ func TestDemoSchoolQueueErasesVisitorOutboxWithoutDelivery(t *testing.T) {
 	var remaining int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE id = ?`, orphanedOutboxID).Scan(t.Context(), &remaining))
 	assert.Zero(t, remaining, "an outbox without a delivery must still be erased by its recipient account")
+}
+
+func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+	for _, accountID := range []int64{accounts.caregiver, accounts.parent} {
+		_, err = db.NewRaw(`DELETE FROM auth.account_tenants WHERE account_id = ?`, accountID).Exec(ctx)
+		require.NoError(t, err)
+		testpkg.MapAccountToTenant(t, db, accountID, schoolID)
+	}
+	_, err = db.NewRaw(`UPDATE auth.accounts
+		SET username = 'demo-visitor-' || id, password_hash = 'hash', avatar = 'avatar', calendar_feed_token = 'calendar-' || id
+		WHERE id IN (?, ?)`, accounts.caregiver, accounts.parent).Exec(ctx)
+	require.NoError(t, err)
+	var roleID int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles ORDER BY id LIMIT 1`).Scan(ctx, &roleID))
+	_, err = db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id)
+		VALUES (?, ?, ?), (?, ?, ?)`, accounts.caregiver, roleID, schoolID, accounts.parent, roleID, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope)
+		VALUES (?, 'visitor-session-caregiver', NOW() + INTERVAL '1 day', ?, 'tenant'),
+			(?, 'visitor-session-parent', NOW() + INTERVAL '1 day', ?, 'parent')`,
+		accounts.caregiver, schoolID, accounts.parent, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{}`),
+		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
+
+	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Equal(t, 1, erased)
+	var remaining int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_tenants WHERE account_id IN (?, ?)`, accounts.caregiver, accounts.parent).Scan(ctx, &remaining))
+	assert.Zero(t, remaining, "school mappings must not retain an erased visitor")
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_roles WHERE account_id IN (?, ?)`, accounts.caregiver, accounts.parent).Scan(ctx, &remaining))
+	assert.Zero(t, remaining, "roles must not retain an erased visitor")
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.tokens WHERE account_id IN (?, ?)`, accounts.caregiver, accounts.parent).Scan(ctx, &remaining))
+	assert.Zero(t, remaining, "sessions must not retain an erased visitor")
+	var retainedCredentials int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.accounts
+		WHERE id IN (?, ?) AND (active OR password_hash IS NOT NULL OR username IS NOT NULL OR avatar IS NOT NULL OR calendar_feed_token IS NOT NULL
+			OR email NOT LIKE 'demo-besuch-%@example.invalid')`, accounts.caregiver, accounts.parent).Scan(ctx, &retainedCredentials))
+	assert.Zero(t, retainedCredentials, "the retained account tombstones must not contain usable or identifying data")
 }

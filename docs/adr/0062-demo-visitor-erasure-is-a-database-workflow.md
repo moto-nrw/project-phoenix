@@ -30,9 +30,11 @@ demo role may read.
 `platform.erase_closed_demo_visitors` is the single cross-owner database
 workflow for this deletion. It may run only as `phoenix_demo`, has a fixed
 `pg_catalog` search path, and has no table grants for its caller. It uses the
-stored caregiver and parent account IDs, including IDs from abandoned seed
-attempts, never a visitor name, and only changes hidden Demo-Schulen in the
-same organisation.
+stored caregiver and parent account IDs and the school-ID history, including
+abandoned seed attempts, never a visitor name. It changes only the hidden
+Demo-Schulen recorded for the order. It removes sessions, roles, credentials
+and school mappings, then tombstones an account only when it has no reference
+outside those recorded schools.
 
 The existing `data_objects` policy entries remain the authority for table
 ownership. This workflow is not a new owner and does not permit Organisation
@@ -42,9 +44,10 @@ runtime authorization.
 
 ## Consequences
 
-- A repeated seed retains its former visitor account IDs in the order state
-  until the state row is deleted, so the cleanup can identify its abandoned
-  school without matching another visitor with the same name.
+- A repeated seed retains its former visitor account IDs and school IDs in the
+  order state until the state row is deleted, so the cleanup can identify its
+  abandoned school without matching another visitor with the same name or
+  changing another school's data.
 - A final failed order retains its school ID until the same cleanup, allowing
   the workflow to restrict itself to the correct Demo-Träger.
 - The database function remains the only caller-facing capability for this

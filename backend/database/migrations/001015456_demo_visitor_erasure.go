@@ -41,14 +41,13 @@ func init() {
 //   - deletes the declarations the parent signed with the name, since their
 //     record hash covers it, and the mails that carried it;
 //   - deletes the order itself with the name, the account ids and the
-//     credentials of its seed state.
+//     authentication data of its seed state.
 //
 // The visitor is matched by the caregiver and parent account IDs, never by a
-// name. Their ID histories cover a seed that failed and was repeated: that
-// seed left its first school behind (cmd/devtools/demo_scheduler.go,
-// ReplaceAbandoned). Visible schools are never touched. The Demo-Träger is
-// the organization of the schools the demo has orders for; a database
-// without demo orders has none, so the function changes nothing there.
+// name. Their account and school histories cover a seed that failed and was
+// repeated: that seed left its first school behind
+// (cmd/devtools/demo_scheduler.go, ReplaceAbandoned). Visible schools are
+// never touched. A database without demo orders changes nothing there.
 //
 // Text the visitor typed into the demo school is not found by name and stays
 // in the hidden school; docs/reference/loeschfristen.md names that rest. The
@@ -60,12 +59,13 @@ func init() {
 // retention functions of 1.15.454), so the demo role gets no write grant on
 // any of the tables; only phoenix_demo may call it. Unlike those functions it
 // writes tables of other owners (People Directory, Enrollment, Audit
-// Platform, Communication, Delivery Platform). ADR 0061 records this narrow
+// Platform, Communication, Delivery Platform). ADR 0062 records this narrow
 // demo-only workflow; it does not transfer ownership of those tables.
 const demoVisitorErasureUpSQL = `
 		ALTER TABLE platform.demo_school_states
 			ADD COLUMN IF NOT EXISTS visitor_account_ids BIGINT[] NOT NULL DEFAULT '{}',
-			ADD COLUMN IF NOT EXISTS visitor_parent_account_ids BIGINT[] NOT NULL DEFAULT '{}';
+			ADD COLUMN IF NOT EXISTS visitor_parent_account_ids BIGINT[] NOT NULL DEFAULT '{}',
+			ADD COLUMN IF NOT EXISTS visitor_school_ids BIGINT[] NOT NULL DEFAULT '{}';
 
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
@@ -76,6 +76,7 @@ const demoVisitorErasureUpSQL = `
 		AS $$
 		DECLARE
 			hidden_schools BIGINT[];
+			erased_account_ids BIGINT[];
 			visitor RECORD;
 			target_name TEXT;
 			erased INTEGER := 0;
@@ -84,7 +85,8 @@ const demoVisitorErasureUpSQL = `
 			FOR visitor IN
 				SELECT state.name, state.tenant_id,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
-					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids
+					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids,
+					array_remove(state.visitor_school_ids || ARRAY[state.tenant_id], NULL) AS visitor_school_ids
 				FROM platform.demo_school_states AS state
 				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
 				WHERE (state.status = 'failed' OR (state.status = 'ready' AND school.deleted_at IS NOT NULL))
@@ -96,7 +98,8 @@ const demoVisitorErasureUpSQL = `
 				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
 				SELECT state.name, state.tenant_id,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
-					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids
+					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids,
+					array_remove(state.visitor_school_ids || ARRAY[state.tenant_id], NULL) AS visitor_school_ids
 				INTO visitor
 				FROM platform.demo_school_states AS state
 				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
@@ -110,8 +113,8 @@ const demoVisitorErasureUpSQL = `
 				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
 					SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
 					FROM platform.schools AS school
-					WHERE school.deleted_at IS NOT NULL
-						AND school.organization_id = (SELECT organization_id FROM platform.schools WHERE id = visitor.tenant_id);
+					WHERE school.id = ANY (visitor.visitor_school_ids)
+						AND school.deleted_at IS NOT NULL;
 					UPDATE users.persons SET first_name = 'Demo', last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
 						AND account_id = ANY (visitor.visitor_account_ids);
@@ -151,6 +154,64 @@ const demoVisitorErasureUpSQL = `
 					)
 					DELETE FROM platform.email_outbox AS outbox
 					WHERE outbox.id IN (SELECT id FROM visitor_outbox);
+					SELECT COALESCE(array_agg(account.id), '{}') INTO erased_account_ids
+					FROM auth.accounts AS account
+					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND NOT EXISTS (
+							SELECT 1 FROM auth.account_tenants AS membership
+							WHERE membership.account_id = account.id
+								AND membership.tenant_id <> ALL (visitor.visitor_school_ids)
+						)
+						AND NOT EXISTS (
+							SELECT 1 FROM users.persons AS person
+							WHERE person.account_id = account.id AND person.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM users.guardian_profiles AS guardian
+							WHERE guardian.account_id = account.id AND guardian.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM enrollment.requests AS request
+							WHERE request.guardian_account_id = account.id AND request.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM users.parent_messages AS message
+							WHERE message.sender_account_id = account.id AND message.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM users.parent_message_threads AS thread
+							WHERE thread.guardian_account_id = account.id AND thread.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM users.parent_message_reads AS read
+							WHERE read.account_id = account.id AND read.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM audit.guardian_changes AS change
+							WHERE change.actor_account_id = account.id AND change.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM users.parent_announcement_declaration_submissions AS submission
+							WHERE submission.account_id = account.id AND submission.tenant_id <> ALL (visitor.visitor_school_ids)
+							UNION ALL
+							SELECT 1 FROM platform.email_delivery AS delivery
+							WHERE delivery.account_id = account.id AND delivery.tenant_id <> ALL (visitor.visitor_school_ids)
+						);
+					IF cardinality(erased_account_ids) > 0 THEN
+						DELETE FROM auth.tokens WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.password_reset_tokens WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.account_roles WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.account_permissions WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.account_tenants WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.mfa_credentials WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.mfa_email_challenges WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.mfa_trusted_devices WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.mfa_overrides WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.passkey_credentials WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.passkey_sessions WHERE account_id = ANY (erased_account_ids);
+						DELETE FROM auth.demo_accesses
+						WHERE account_id = ANY (erased_account_ids) OR parent_account_id = ANY (erased_account_ids);
+						DELETE FROM auth.password_reset_rate_limits
+						WHERE email IN (SELECT email FROM auth.accounts WHERE id = ANY (erased_account_ids));
+						UPDATE auth.accounts SET
+							email = 'demo-besuch-' || id || '@example.invalid',
+							username = NULL, active = FALSE, password_hash = NULL, is_password_otp = FALSE,
+							last_login = NULL, avatar = NULL, calendar_feed_token = NULL
+						WHERE id = ANY (erased_account_ids);
+					END IF;
 				END IF;
 				DELETE FROM platform.demo_school_states WHERE name = visitor.name;
 				erased := erased + 1;
@@ -215,7 +276,8 @@ func demoVisitorErasureDown(ctx context.Context, db *bun.DB) error {
 		DROP FUNCTION IF EXISTS platform.erase_closed_demo_visitors();
 		ALTER TABLE platform.demo_school_states
 			DROP COLUMN IF EXISTS visitor_account_ids,
-			DROP COLUMN IF EXISTS visitor_parent_account_ids;`); err != nil {
+			DROP COLUMN IF EXISTS visitor_parent_account_ids,
+			DROP COLUMN IF EXISTS visitor_school_ids;`); err != nil {
 		return fmt.Errorf("drop demo visitor erasure: %w", err)
 	}
 	return nil

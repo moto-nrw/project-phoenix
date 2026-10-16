@@ -47,9 +47,10 @@ func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID, vis
 			visitor_account_id = COALESCE(NULLIF(?, 0), visitor_account_id),
 			visitor_parent_account_id = COALESCE(NULLIF(?, 0), visitor_parent_account_id),
 			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
-			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[?], NULL)
 		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`,
-		schoolID, visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
+		schoolID, visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, schoolID, name).Exec(ctx)
 	if err != nil {
 		return errors.New("could not reserve demo school state")
 	}
@@ -63,9 +64,10 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 	// A queued order has its row already and stays preparing until its first
 	// tick; the standing school has no order and is ready with its seed.
 	// Seeded credentials are never overwritten.
-	result, err := s.db.NewRaw(`INSERT INTO platform.demo_school_states AS state (name, tenant_id, seed_state, status) VALUES (?, ?, ?::jsonb, 'ready')
-		ON CONFLICT (name) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, seed_state = EXCLUDED.seed_state
-		WHERE state.seed_state IS NULL`, name, state.TenantID, state.SeedJSON).Exec(ctx)
+	result, err := s.db.NewRaw(`INSERT INTO platform.demo_school_states AS state (name, tenant_id, seed_state, status, visitor_school_ids) VALUES (?, ?, ?::jsonb, 'ready', ARRAY[?])
+		ON CONFLICT (name) DO UPDATE SET tenant_id = EXCLUDED.tenant_id, seed_state = EXCLUDED.seed_state,
+			visitor_school_ids = array_remove(state.visitor_school_ids || ARRAY[EXCLUDED.tenant_id], NULL)
+		WHERE state.seed_state IS NULL`, name, state.TenantID, state.SeedJSON, state.TenantID).Exec(ctx)
 	// Do not include a driver error here: constraint errors may contain the
 	// rejected row, including the seed credentials.
 	if err != nil {
@@ -85,9 +87,10 @@ func (s *DemoStateStore) Update(ctx context.Context, name string, state DemoStat
 			visitor_account_id = COALESCE(NULLIF(?, 0), visitor_account_id),
 			visitor_parent_account_id = COALESCE(NULLIF(?, 0), visitor_parent_account_id),
 			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
-			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[?], NULL)
 		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, state.VisitorAccountID, state.VisitorParentAccountID,
-		state.VisitorAccountID, state.VisitorParentAccountID, name, state.TenantID).Exec(ctx)
+		state.VisitorAccountID, state.VisitorParentAccountID, state.TenantID, name, state.TenantID).Exec(ctx)
 	if err != nil {
 		return errors.New("could not update demo school state")
 	}
@@ -220,7 +223,8 @@ func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccount
 		SET status = 'ready', claimed_at = NULL,
 			visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0),
 			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
-			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[tenant_id], NULL)
 		WHERE name = ?`,
 		visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
 	if err != nil {
