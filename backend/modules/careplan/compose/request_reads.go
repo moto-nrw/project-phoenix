@@ -25,15 +25,14 @@ func NewRequestReads(records RequestReadRecords, diffs carerequests.Diffs, logge
 	return &application.RequestReads{Records: requestReadRecords{records}, Diffs: diffs, Logger: logger}, nil
 }
 
+// NewParentCareRequestQueries retains request lookup/decoding for parent sharing.
+func NewParentCareRequestQueries(records application.ParentCareRequestRecords, missing func() error) carerequests.ParentCareRequestQueries {
+	return application.ParentCareRequestReads{Records: records, Missing: missing}
+}
+
+// requestReadRecords translates the application's list selection into the public query filter.
 type requestReadRecords struct{ RequestReadRecords }
 
-func (r requestReadRecords) PendingWeekly(ctx context.Context, id int64) (*carerequests.Request, error) {
-	rows, err := r.ListCareScheduleRequests(ctx, careplan.CareScheduleRequestFilter{StudentID: id, RequestKinds: []string{"weekly_schedule"}, Statuses: []string{"pending"}})
-	if err != nil || len(rows) == 0 {
-		return nil, err
-	}
-	return &rows[0], nil
-}
-func (r requestReadRecords) RecentPickup(ctx context.Context, id int64, since time.Time) ([]carerequests.Request, error) {
-	return r.ListCareScheduleRequests(ctx, careplan.CareScheduleRequestFilter{StudentID: id, RequestKinds: []string{"pickup_change"}, RecentSince: since})
+func (r requestReadRecords) ListCareRequests(ctx context.Context, studentID int64, kinds, statuses []string, since time.Time) ([]carerequests.Request, error) {
+	return r.ListCareScheduleRequests(ctx, careplan.CareScheduleRequestFilter{StudentID: studentID, RequestKinds: kinds, Statuses: statuses, RecentSince: since})
 }
