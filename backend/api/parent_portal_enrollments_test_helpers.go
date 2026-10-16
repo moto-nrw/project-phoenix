@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 import enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
