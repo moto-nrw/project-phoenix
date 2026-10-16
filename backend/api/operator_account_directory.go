@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
@@ -290,7 +289,7 @@ func (r operatorAccountDirectory) listAccounts(ctx context.Context, schoolIDs []
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
-	schools, err := organizationTenancyCompose.SchoolsByID(ctx, r.schools, schoolIDs)
+	schools, err := schoolsByID(ctx, r.schools, schoolIDs)
 	if err != nil {
 		return nil, fmt.Errorf("load school names for accounts: %w", err)
 	}
