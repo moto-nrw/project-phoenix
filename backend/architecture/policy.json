@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 54,
+  "policy_epoch": 55,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -876,7 +876,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/careplan/inbound/parent",
+      "path": "workflows/parentportal/http",
       "owner": "parent-portal",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -9045,17 +9045,6 @@
       "target_role": "public"
     },
     {
-      "id": "timetable-activities.postgres.transaction-runtime",
-      "description": "Timetable & Activities' postgres adapter classifies unique violations through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "postgres",
-      "target_owner": "transaction-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.compose.tenant-runtime",
       "description": "Timetable & Activities composition resolves ambient tenant transactions through the shared runtime.",
       "scopes": [
@@ -15522,6 +15511,11 @@
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+    },
+    {
+      "from": "modules/careplan/inbound/parent",
+      "to": "workflows/parentportal/http",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
       "from": "modules/identityaccess/legacy/jwt",
