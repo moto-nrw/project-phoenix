@@ -91,9 +91,9 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 	access.ExpiresAt = d.now().Add(domain.DemoAccessLifetime)
 	var stored, lead bool
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
-		known, found, findErr := d.store.FindActiveDemoAccessByEmail(txCtx, access.Email, d.now())
-		if findErr != nil || (found && known.CoolingDown(d.now())) {
-			return findErr
+		known, found, coolingDown, err := d.knownSchool(txCtx, access.Email)
+		if err != nil || coolingDown {
+			return err
 		}
 		var txErr error
 		if access.SchoolSlug, txErr = d.schoolFor(txCtx, access, known, found); txErr != nil {
@@ -130,7 +130,7 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 		if err != nil {
 			return "", err
 		}
-		if entry.Status != domain.DemoSchoolFailed {
+		if entry.Exists && entry.Status != domain.DemoSchoolFailed {
 			return known.SchoolSlug, nil
 		}
 	}
@@ -176,7 +176,7 @@ func (d *DemoAccess) Redeem(ctx context.Context, token string, role domain.DemoR
 	var access domain.DemoAccess
 	err = d.adminTx(ctx, func(txCtx context.Context) error {
 		var err error
-		if access, err = d.valid(txCtx, token); err != nil {
+		if access, err = d.validAndLock(txCtx, token); err != nil {
 			return err
 		}
 		if entry, err = d.entry(txCtx, access.SchoolSlug); err != nil {
@@ -234,7 +234,7 @@ func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.
 	var access domain.DemoAccess
 	err := d.adminTx(ctx, func(txCtx context.Context) error {
 		var err error
-		if access, err = d.valid(txCtx, token); err != nil {
+		if access, err = d.validAndLock(txCtx, token); err != nil {
 			return err
 		}
 		if err := d.perAddress.admit(access.Email, at); err != nil {
@@ -345,6 +345,52 @@ func (d *DemoAccess) valid(ctx context.Context, token string) (domain.DemoAccess
 		return domain.DemoAccess{}, domain.ErrDemoAccessExpired
 	}
 	return access, nil
+}
+
+// validAndLock makes an access's school stable for a mutating flow. The
+// initial read finds the key; each later read verifies that the locked school
+// still owns the access and makes an expiry race report the real token state.
+func (d *DemoAccess) validAndLock(ctx context.Context, token string) (domain.DemoAccess, error) {
+	for {
+		locked, err := d.valid(ctx, token)
+		if err != nil {
+			return domain.DemoAccess{}, err
+		}
+		if err := d.store.LockDemoSchool(ctx, locked.SchoolSlug); err != nil {
+			return domain.DemoAccess{}, err
+		}
+		access, err := d.valid(ctx, token)
+		if err != nil {
+			return domain.DemoAccess{}, err
+		}
+		if access.SchoolSlug == locked.SchoolSlug {
+			return access, nil
+		}
+	}
+}
+
+// knownSchool keeps the address and school locks together. If an expiry or a
+// restart wins while this request waits for the school, the second read sees
+// that result before a new access chooses a school.
+func (d *DemoAccess) knownSchool(ctx context.Context, email string) (domain.DemoAccess, bool, bool, error) {
+	known, found, err := d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
+	if err != nil || !found {
+		return known, found, false, err
+	}
+	for !known.CoolingDown(d.now()) {
+		lockedSlug := known.SchoolSlug
+		if err := d.store.LockDemoSchool(ctx, lockedSlug); err != nil {
+			return domain.DemoAccess{}, false, false, err
+		}
+		known, found, err = d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
+		if err != nil || !found {
+			return known, found, false, err
+		}
+		if known.SchoolSlug == lockedSlug {
+			return known, true, false, nil
+		}
+	}
+	return known, true, true, nil
 }
 
 // demoTenantLock is the mint guard of the tenant switch: an account a demo

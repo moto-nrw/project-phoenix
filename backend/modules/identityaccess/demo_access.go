@@ -70,6 +70,7 @@ const (
 // AccountID is the prospect's own caregiver; zero signs in the school's
 // administrator, as in the standing demo school.
 type DemoSchoolEntry struct {
+	Exists    bool
 	Status    string
 	SchoolID  int64
 	AccountID int64

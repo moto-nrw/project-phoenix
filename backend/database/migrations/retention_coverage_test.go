@@ -57,7 +57,7 @@ var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 5
-	openGapTables = 12
+	openGapTables = 11
 )
 
 // tableRetentions classifies every table of the schema.
@@ -207,7 +207,7 @@ var tableRetentions = map[string]tableRetention{
 	"platform.billing_key_date_counts":                      notPersonal("aggregate per-school counts for billing"),
 	"platform.billing_settings":                             notPersonal("billing configuration"),
 	"platform.cleanup_runs":                                 notPersonal("ledger of last successful cleanup per school and job"),
-	"platform.demo_school_states":                           undecided("demo visitor names and account ids; never deleted (demo schools only retired via soft delete)"),
+	"platform.demo_school_states":                           own("demo process only: hourly demoExpiry -> RetireDemoSchools -> RetireMany -> SQL platform.erase_closed_demo_visitors (closed order without demo access; also replaces the visitor's name in the hidden demo schools)"),
 	"platform.email_delivery":                               own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after its mail ended, else after created_at)"),
 	"platform.email_outbox":                                 own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled; guardian welcome keeps only its key)"),
 	"platform.operator_audit_log":                           undecided("operator request_ip (operators FK NO ACTION); no automated deletion"),

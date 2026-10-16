@@ -143,6 +143,8 @@ func runStandingDemo(ctx context.Context, schools *DemoRuntime, baseURL, heartbe
 // the visitor's name (#3463, #3468).
 type demoSchool struct {
 	slug            string
+	schoolID        int64
+	seedJSON        []byte
 	state           *simulate.SeedState
 	client          *seedapi.Client
 	ticker          *simulate.DemoTicker
@@ -197,7 +199,7 @@ func loadDemoSchool(ctx context.Context, schools *DemoRuntime, slug, baseURL str
 		return nil, fmt.Errorf("stored demo has no admin")
 	}
 	return &demoSchool{
-		slug: slug, state: state, client: client, ticker: ticker,
+		slug: slug, schoolID: saved.SchoolID, seedJSON: saved.SeedJSON, state: state, client: client, ticker: ticker,
 		visitorID: seedapi.VisitorAccountID(profile), visitorParentID: visitorParentID,
 	}, nil
 }
@@ -259,14 +261,22 @@ func provisionDemoSchool(ctx context.Context, schools *DemoRuntime, adapter seed
 	}
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
+	var schoolID int64
 	stateSaved := false
 	if options.DeferHistory {
-		options.SaveBootstrap = func(ctx context.Context, schoolID int64) error {
-			if err := schools.ReserveDemoSchool(ctx, slug, schoolID); err != nil {
+		options.SaveBootstrap = func(ctx context.Context, bootstrapSchoolID int64) error {
+			if err := schools.ReserveDemoSchool(ctx, slug, bootstrapSchoolID, 0, 0); err != nil {
 				return err
 			}
+			schoolID = bootstrapSchoolID
 			stateSaved = true
 			return nil
+		}
+		options.SaveVisitor = func(ctx context.Context, visitorAccountID, visitorParentAccountID int64) error {
+			if schoolID == 0 {
+				return fmt.Errorf("demo visitor was created before its school")
+			}
+			return schools.ReserveDemoSchool(ctx, slug, schoolID, visitorAccountID, visitorParentAccountID)
 		}
 	}
 	options.SaveState = func(ctx context.Context, state *seedapi.SeedState) error {

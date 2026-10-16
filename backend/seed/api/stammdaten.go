@@ -41,7 +41,8 @@ type FixedSeeder struct {
 	staffCredentials []StaffCredentials // created staff credentials for summary
 	accountScope     string             // slug all account emails and usernames carry; empty for the local seed
 	visitor          visitorName        // prospect of the public demo shown as one caregiver and one parent
-	seedDay          seedDate           // the day the seed started; birthdays are relative to it
+	saveVisitor      func(context.Context, int64, int64) error
+	seedDay          seedDate // the day the seed started; birthdays are relative to it
 }
 
 // FixedResult contains counts of created entities
@@ -1310,7 +1311,7 @@ func (s *FixedSeeder) fetchRoles(_ context.Context) error {
 
 // seedStaffAccounts creates auth accounts for staff and the matching person
 // records (with account_id set on creation, so no separate link step is needed).
-func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) error {
+func (s *FixedSeeder) seedStaffAccounts(ctx context.Context, result *FixedResult) error {
 	// Get role IDs for different staff types
 	adminRoleID, ok := s.roleIDs["admin"]
 	if !ok {
@@ -1425,6 +1426,11 @@ func (s *FixedSeeder) seedStaffAccounts(_ context.Context, result *FixedResult) 
 			Position:  staff.Position,
 		})
 		s.accountIDs[personKey] = account.Data.ID
+		if i == visitorStaffIndex && s.saveVisitor != nil {
+			if err := s.saveVisitor(ctx, account.Data.ID, 0); err != nil {
+				return fmt.Errorf("save visitor caregiver account: %w", err)
+			}
+		}
 
 		result.AccountCount++
 	}

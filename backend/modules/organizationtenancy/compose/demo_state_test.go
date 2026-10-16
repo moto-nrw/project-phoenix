@@ -86,9 +86,9 @@ func TestDemoSchoolStateIsSavedFromItsFields(t *testing.T) {
 	require.NoError(t, err)
 	ctx := t.Context()
 
-	require.NoError(t, schools.RememberDemoSchoolFields(ctx, name, schoolID, []byte(`{"profile":"vollbetrieb"}`)))
-	require.Error(t, schools.RememberDemoSchoolFields(ctx, name, schoolID, []byte(`{}`)), "must not overwrite existing credentials")
-	require.NoError(t, schools.UpdateDemoSchoolFields(ctx, name, schoolID, []byte(`{"profile":"vollbetrieb","round":2}`)))
+	require.NoError(t, schools.RememberDemoSchoolFields(ctx, name, schoolID, []byte(`{"profile":"vollbetrieb"}`), 0, 0))
+	require.Error(t, schools.RememberDemoSchoolFields(ctx, name, schoolID, []byte(`{}`), 0, 0), "must not overwrite existing credentials")
+	require.NoError(t, schools.UpdateDemoSchoolFields(ctx, name, schoolID, []byte(`{"profile":"vollbetrieb","round":2}`), 0, 0))
 
 	state, err := schools.LoadDemoSchool(ctx, name)
 	require.NoError(t, err)

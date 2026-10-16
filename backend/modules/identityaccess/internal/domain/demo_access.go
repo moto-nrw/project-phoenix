@@ -123,6 +123,7 @@ const (
 // DemoSchoolEntry is what a demo access needs to enter its school. AccountID
 // is the prospect's own caregiver; zero signs in the school's administrator.
 type DemoSchoolEntry struct {
+	Exists    bool
 	Status    string
 	TenantID  int64
 	AccountID int64
