@@ -4,16 +4,16 @@ import (
 	"context"
 	"strconv"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // parentSettingsStub answers ResolveBoolForTenant / ResolveStringForTenant
 // from maps; every other SettingsService method panics via the embedded nil
 // interface, keeping the tests honest about what the services touch.
 type parentSettingsStub struct {
-	configService.SettingsService
+	parentService.SettingsService
 	boolValues               map[string]bool
 	boolDefault              bool  // returned for keys not in boolValues
 	boolErr                  error // returned by every bool lookup when set

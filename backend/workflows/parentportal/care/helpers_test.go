@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -43,7 +42,7 @@ func (unusedRequestSharer) LoadRequestShareVisibility(context.Context, int64) (c
 // from maps; every other SettingsService method panics via the embedded nil
 // interface. Test-only copy of the workflows/parentportal behaviour-test stub.
 type messagingSettingsStub struct {
-	configService.SettingsService
+	care.SettingsService
 	boolValues   map[string]bool
 	stringValues map[string]string
 }

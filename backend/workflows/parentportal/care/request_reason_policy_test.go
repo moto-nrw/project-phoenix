@@ -1,4 +1,4 @@
-package config
+package care
 
 import (
 	"testing"
@@ -25,7 +25,7 @@ func TestReasonRequiredForFollowsPolicy(t *testing.T) {
 		{"", true, true},
 		{"whatever-a-future-release-writes", true, true},
 	} {
-		assert.Equal(t, tc.wantStaff, ReasonRequiredFor(tc.policy, true), "staff side of %q", tc.policy)
-		assert.Equal(t, tc.wantParents, ReasonRequiredFor(tc.policy, false), "guardian side of %q", tc.policy)
+		assert.Equal(t, tc.wantStaff, RequestReasonPolicy(tc.policy).RequiresReason(true), "staff side of %q", tc.policy)
+		assert.Equal(t, tc.wantParents, RequestReasonPolicy(tc.policy).RequiresReason(false), "guardian side of %q", tc.policy)
 	}
 }

@@ -164,7 +164,10 @@ type (
 	GuardianSubmitStatus             = care.GuardianSubmitStatus
 	InboxThread                      = messaging.InboxThread
 	ParentMessage                    = messaging.ParentMessage
+	RequestReasonPolicy              = care.RequestReasonPolicy
 	SettingsService                  = care.SettingsService
+	SettingsSnapshot                 = care.SettingsSnapshot
+	BatchSettingsService             = care.BatchSettingsService
 	StudentDataChangeRequest         = care.StudentDataChangeRequest
 )
 

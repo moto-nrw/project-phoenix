@@ -6,7 +6,6 @@ import (
 
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // childFeatureSettings holds the tenant settings behind ChildFeatureFlags,
@@ -58,16 +57,14 @@ func childFeatureSettingKeys() []string {
 // settings service supports one, and falls back to single-key lookups.
 type childSettingResolver struct {
 	ctx      context.Context
-	settings configService.SettingsService
+	settings SettingsService
 	tenantID int64
-	snapshot *configService.SettingsSnapshot
+	snapshot SettingsSnapshot
 }
 
 func (s *Service) newChildSettingResolver(ctx context.Context, tenantID int64) (childSettingResolver, error) {
 	r := childSettingResolver{ctx: ctx, settings: s.Settings, tenantID: tenantID}
-	if batch, ok := s.Settings.(interface {
-		ResolveManyForTenant(context.Context, int64, []string) (*configService.SettingsSnapshot, error)
-	}); ok {
+	if batch, ok := s.Settings.(BatchSettingsService); ok {
 		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, childFeatureSettingKeys())
 		if err != nil {
 			return childSettingResolver{}, fmt.Errorf("parent: resolve child feature settings: %w", err)
