@@ -3,7 +3,6 @@ package workforce
 import (
 	"context"
 	"errors"
-	"slices"
 	"time"
 )
 
@@ -26,17 +25,18 @@ const (
 	WorkSessionDateColumn = "date"
 )
 
-// OnDutyStaffIDs names the staff members of a work presence map who are on
-// duty: present at school or working from home. Staff notifications that
-// only reach staff on duty filter by it (#4072).
-func OnDutyStaffIDs(presence map[int64]string) []int64 {
-	onDuty := make([]int64, 0, len(presence))
+// OnDutyStaffIDs returns the staff members of a presence map (staff ID →
+// status, as GetTodayPresenceMap answers) who are working right now. It
+// matches the two real statuses positively: the map also carries a synthetic
+// "checked out" value, and an unknown future status must not silently count
+// as working.
+func OnDutyStaffIDs(presence map[int64]string) map[int64]struct{} {
+	onDuty := make(map[int64]struct{}, len(presence))
 	for staffID, status := range presence {
 		if status == WorkSessionStatusPresent || status == WorkSessionStatusHomeOffice {
-			onDuty = append(onDuty, staffID)
+			onDuty[staffID] = struct{}{}
 		}
 	}
-	slices.Sort(onDuty)
 	return onDuty
 }
 

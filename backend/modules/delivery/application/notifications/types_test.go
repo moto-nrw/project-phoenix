@@ -9,6 +9,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Personal reminder producers and the catalogue pin the same wire values
+// independently, so Delivery does not import the reminder workflow (#4072).
+func TestPersonalReminderNoticesSpeakTheEventVocabulary(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"}, []string{
+		notifications.TypePickupUpcoming, notifications.TypePickupOverdue,
+		notifications.TypeActivityStart, notifications.TypeActivityOverdue,
+		notifications.TypeMyActivityStarting,
+	})
+	for _, notificationType := range []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"} {
+		_, known := notifications.GetType(notificationType)
+		assert.True(t, known, "%s is not in the notification catalogue", notificationType)
+	}
+	assert.Equal(t, "normal", notifications.PriorityNormal)
+	assert.Equal(t, "high", notifications.PriorityHigh)
+	assert.Equal(t, "staff", string(notifications.ScopeStaff))
+}
+
 func TestNotificationTypeCatalogue(t *testing.T) {
 	t.Parallel()
 

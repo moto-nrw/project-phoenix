@@ -2,6 +2,8 @@ package api
 
 import (
 	"context"
+	"maps"
+	"slices"
 
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -43,5 +45,5 @@ func (s deliveryOnDutyStaff) OnDutyStaffIDs(ctx context.Context) ([]int64, error
 	if err != nil {
 		return nil, err
 	}
-	return workforce.OnDutyStaffIDs(presence), nil
+	return slices.Sorted(maps.Keys(workforce.OnDutyStaffIDs(presence))), nil
 }

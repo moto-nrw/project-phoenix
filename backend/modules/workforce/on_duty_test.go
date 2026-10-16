@@ -18,6 +18,6 @@ func TestOnDutyStaffIDsCountsPresenceAndHomeOffice(t *testing.T) {
 		40: "",
 	})
 
-	assert.Equal(t, []int64{10, 30}, onDuty, "present and home office are on duty, in staff order")
+	assert.Equal(t, map[int64]struct{}{10: {}, 30: {}}, onDuty, "present and home office are on duty")
 	assert.Empty(t, workforce.OnDutyStaffIDs(nil), "nobody checked in is nobody on duty")
 }

@@ -51,7 +51,7 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator|github.com/moto-nrw/project-phoenix/modules/organizationtenancy",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/settings|github.com/moto-nrw/project-phoenix/modules/careplan"
   ],
-  "atomic_cutover": "Replace the platform imports and bind the new ports in api in one deployment. Care Plan serves booking-authority-impact through its own HTTP adapter at the same operator route; the root translates its blocked-switch error into settings.BookingAuthorityBlockedError. Settings stores wizard state through generic state shapes. Plan export translation moves from the deleted modules/planexport/compose into api/plan_export.go. Audit reads auditlog.ApprovedBooking and ApprovedBookingOfferingLink through the root adapter. Delivery resolves recipients through its own ports, with Workforce retaining the on-duty rule. Tests move to the root where real owners are composed. No policy rule is added; the stale document-rendering adapter-test rule is deleted. Legacy keys fall from 519 to 494, the composition surface stays 1743, compose LOC falls from 90745 to 90423 and passthroughs from 2397 to 2393.",
+  "atomic_cutover": "Replace the platform imports and bind the new ports in api in one deployment. Care Plan serves booking-authority-impact through its own HTTP adapter at the same operator route; the root translates its blocked-switch error into settings.BookingAuthorityBlockedError. Settings stores wizard state through generic state shapes. Plan export translation moves from the deleted modules/planexport/compose into api/plan_export.go. Audit reads auditlog.ApprovedBooking and ApprovedBookingOfferingLink through the root adapter. Delivery resolves recipients through its own ports, with Workforce retaining the on-duty rule. Tests move to the root where real owners are composed. No policy rule is added; the stale document-rendering adapter-test rule is deleted. Legacy keys fall from 519 to 494, the composition surface stays 1743, compose LOC falls from 90745 to 90423 and passthroughs from 2397 to 2393. Integration with development at 0ce3ca295ca398ef1591f0fa34514548dda72d86 retains its set-returning Workforce helper; the Delivery root adapter sorts that set into its existing slice port. Reminder vocabulary is pinned independently at both producers, without a Delivery-to-workflow import. After integration the total is 489 legacy keys and 1742 composition targets; six scheduler keys remain under #4072.",
   "tests": [
     "scripts/run-go-toolchain.sh scripts/backend-architecture.sh check --base-ref d79c1dc6166bf856802cf83ffdb91469a9411554; validate-ticket --all with the same base verifies coverage of all 25 retired keys.",
     "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development: affected suites include root booking consistency audit, plan export bindings and RLS, operator booking-authority review, blocked-write rollback and reset, Care Plan HTTP failure handling, Settings operator ports and Delivery recipient resolution.",
@@ -67,7 +67,8 @@
       "backend/api/delivery_staff_recipients_test.go",
       "backend/modules/settings/inbound/operator/settings_integration_test.go",
       "backend/modules/careplan/http/booking_authority_impact_test.go",
-      "backend/modules/workforce/on_duty_test.go"
+      "backend/modules/workforce/on_duty_test.go",
+      "backend/workflows/reminderdelivery/personal_notifications_internal_test.go"
     ],
     "workload": "Local affected-package Go tests through scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development, with package-owned PostgreSQL clones, per-test tenants, -p 2 and -parallel 8. The initial attempt without TEST_DB_DSN stopped during bootstrap before tests; the configured run uses the existing local test server.",
     "thresholds": "Existing behaviour assertions remain green; blocked booking-authority writes leave no override, reset closes booking-expired tasks, export inputs enforce RLS, audit findings retain their scenarios, and dependency removals add no policy rule or composition target.",
@@ -89,7 +90,7 @@
     },
     "errors": {
       "state": "measured",
-      "result": "The configured local scripts/test-changed.sh origin/development run completed successfully for all 174 affected packages. Root api, Care Plan HTTP, Settings operator, Audit, Delivery recipient and Workforce suites passed; no test failure was reported."
+      "result": "The configured local scripts/test-changed.sh origin/development run completed successfully for all 174 affected packages. Root api, Care Plan HTTP, Settings operator, Audit, Delivery recipient and Workforce suites passed; no test failure was reported. After merging development at 0ce3ca295ca398ef1591f0fa34514548dda72d86, the configured changed-test run also passed all 177 affected packages; full backend lint reported 0 issues."
     },
     "pool_wait": {
       "state": "not_applicable",
@@ -129,5 +130,5 @@
     }
   },
   "rollback_and_cleanup": "Revert the port cutover commit together with this evidence record to restore the previous bindings, package, policy entry and baseline keys. No migration, data backfill or persisted-state cleanup is required.",
-  "exit_criterion": "All 25 listed keys are absent, scripts/backend-architecture.sh check and validate-ticket --all --base-ref pass, behaviour suites retain the existing route/status/error contracts, and composition targets do not exceed 1743. The nine scheduler keys remain explicitly outside this cutover."
+  "exit_criterion": "All 25 listed keys are absent, scripts/backend-architecture.sh check and validate-ticket --all --base-ref pass, behaviour suites retain the existing route/status/error contracts, and composition targets do not exceed 1743. The remaining scheduler keys stay outside this cutover; #4111 independently retired three of the original nine."
 }
