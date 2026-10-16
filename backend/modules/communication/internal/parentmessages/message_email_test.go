@@ -88,6 +88,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	require.NoError(t, err)
 	outbox := &recordingMessageOutbox{}
 	svc := messaging.NewService(messaging.Config{
+		UserContext:      api.StaffStudentReads{},
 		ThreadRepo:       repos.ParentMessageThread,
 		MessageRepo:      parentStore.NewParentMessageRepository(db),
 		ReadRepo:         repos.ParentMessageRead,

@@ -5,8 +5,14 @@ import (
 	"errors"
 	"testing"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/stretchr/testify/assert"
+)
+
+// The Settings Platform registry keys the side effects register under. The
+// literals pin the registry contract the production registration names.
+const (
+	checkoutSchulhofEnabledKey = "checkout.schulhof_enabled"
+	checkoutWCEnabledKey       = "checkout.wc_enabled"
 )
 
 type recordedSettingsRegistry struct {
@@ -55,14 +61,14 @@ func TestRegisterSettingsSideEffectsPreservesProvisioningContracts(t *testing.T)
 		wantWC       bool
 		wantErr      error
 	}{
-		{name: "Schulhof enabled", key: configModels.KeyCheckoutSchulhofEnabled, value: true, wantSchulhof: true},
-		{name: "Schulhof disabled", key: configModels.KeyCheckoutSchulhofEnabled, value: false},
-		{name: "Schulhof malformed", key: configModels.KeyCheckoutSchulhofEnabled, value: "true"},
-		{name: "Schulhof error", key: configModels.KeyCheckoutSchulhofEnabled, value: true, schulhofErr: wantErr, wantSchulhof: true, wantErr: wantErr},
-		{name: "WC enabled", key: configModels.KeyCheckoutWCEnabled, value: true, wantWC: true},
-		{name: "WC disabled", key: configModels.KeyCheckoutWCEnabled, value: false},
-		{name: "WC malformed", key: configModels.KeyCheckoutWCEnabled, value: "true"},
-		{name: "WC error", key: configModels.KeyCheckoutWCEnabled, value: true, wcErr: wantErr, wantWC: true, wantErr: wantErr},
+		{name: "Schulhof enabled", key: checkoutSchulhofEnabledKey, value: true, wantSchulhof: true},
+		{name: "Schulhof disabled", key: checkoutSchulhofEnabledKey, value: false},
+		{name: "Schulhof malformed", key: checkoutSchulhofEnabledKey, value: "true"},
+		{name: "Schulhof error", key: checkoutSchulhofEnabledKey, value: true, schulhofErr: wantErr, wantSchulhof: true, wantErr: wantErr},
+		{name: "WC enabled", key: checkoutWCEnabledKey, value: true, wantWC: true},
+		{name: "WC disabled", key: checkoutWCEnabledKey, value: false},
+		{name: "WC malformed", key: checkoutWCEnabledKey, value: "true"},
+		{name: "WC error", key: checkoutWCEnabledKey, value: true, wcErr: wantErr, wantWC: true, wantErr: wantErr},
 	}
 
 	for _, test := range tests {

@@ -4,13 +4,17 @@ import (
 	"context"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+)
+
+// The schedule day indexes (Monday=0 … Sunday=6) the suites use.
+const (
+	dayMonday  = 0
+	dayTuesday = 1
 )
 
 // refuseAnchorRebase raises on the Workforce anchor write. That call sits
@@ -51,7 +55,7 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 			RotationLength:     1,
 			RotationAnchorDate: "2026-01-05",
 			Entries: []workforce.WorkTimeModelEntry{
-				{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
+				{WeekIndex: 0, DayOfWeek: dayMonday, TargetMinutes: 300},
 			},
 		},
 	})
@@ -62,10 +66,12 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 		_ = capability.DeleteWorkTimeModel(ctx, created.ID)
 	}()
 
-	schedules := repositoryadapter.NewStaffWorkScheduleRepository(capability)
-	require.NoError(t, schedules.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
-		{WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
-	}, configModel.CalendarDate("")))
+	require.NoError(t, capability.ReplaceStaffSchedule(ctx, workforce.ReplaceStaffSchedule{
+		StaffID: staff.ID,
+		Entries: []workforce.StaffWorkScheduleEntry{
+			{WeekIndex: 0, RotationLength: 1, DayOfWeek: dayMonday, TargetMinutes: 300},
+		},
+	}))
 	_, err = db.NewUpdate().Table("users.staff_employment_profiles").
 		Set("work_time_model_id = ?", created.ID).
 		Where("membership_id = ?", staff.ID).Exec(ctx)
@@ -78,7 +84,7 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 			RotationLength:     1,
 			RotationAnchorDate: "2026-06-01",
 			Entries: []workforce.WorkTimeModelEntry{
-				{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 420},
+				{WeekIndex: 0, DayOfWeek: dayTuesday, TargetMinutes: 420},
 			},
 		},
 	}
@@ -95,12 +101,12 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 	require.NoError(t, err)
 	assert.Equal(t, "2026-01-05", rolledBack.RotationAnchorDate, "the template anchor must be rolled back")
 	require.Len(t, rolledBack.Entries, 1)
-	assert.Equal(t, configModel.DayMonday, rolledBack.Entries[0].DayOfWeek, "the template entry must be rolled back")
+	assert.Equal(t, dayMonday, rolledBack.Entries[0].DayOfWeek, "the template entry must be rolled back")
 
 	current, err := capability.CurrentStaffSchedule(ctx, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, current, 1, "the running schedule version must not have been closed")
-	assert.Equal(t, configModel.DayMonday, current[0].DayOfWeek)
+	assert.Equal(t, dayMonday, current[0].DayOfWeek)
 	assert.Equal(t, 300, current[0].TargetMinutes)
 
 	var closed int
@@ -121,7 +127,7 @@ func TestWorkTimeModelUpdate_RollsBackEveryWriteAndRetriesCleanly(t *testing.T) 
 	current, err = capability.CurrentStaffSchedule(ctx, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, current, 1)
-	assert.Equal(t, configModel.DayTuesday, current[0].DayOfWeek)
+	assert.Equal(t, dayTuesday, current[0].DayOfWeek)
 	assert.Equal(t, 420, current[0].TargetMinutes)
 }
 
@@ -137,7 +143,7 @@ func TestReplaceStaffSchedule_RollsBackWhenAnEntryIsInvalid(t *testing.T) {
 	require.NoError(t, capability.ReplaceStaffSchedule(ctx, workforce.ReplaceStaffSchedule{
 		StaffID: staff.ID,
 		Entries: []workforce.StaffWorkScheduleEntry{
-			{WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
+			{WeekIndex: 0, RotationLength: 1, DayOfWeek: dayMonday, TargetMinutes: 300},
 		},
 	}))
 
@@ -145,7 +151,7 @@ func TestReplaceStaffSchedule_RollsBackWhenAnEntryIsInvalid(t *testing.T) {
 	err := capability.ReplaceStaffSchedule(ctx, workforce.ReplaceStaffSchedule{
 		StaffID: staff.ID,
 		Entries: []workforce.StaffWorkScheduleEntry{
-			{WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayTuesday, TargetMinutes: 240},
+			{WeekIndex: 0, RotationLength: 1, DayOfWeek: dayTuesday, TargetMinutes: 240},
 			{WeekIndex: 0, RotationLength: 1, DayOfWeek: 9, TargetMinutes: 240},
 		},
 	})
@@ -154,6 +160,6 @@ func TestReplaceStaffSchedule_RollsBackWhenAnEntryIsInvalid(t *testing.T) {
 	current, err := capability.CurrentStaffSchedule(ctx, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, current, 1)
-	assert.Equal(t, configModel.DayMonday, current[0].DayOfWeek)
+	assert.Equal(t, dayMonday, current[0].DayOfWeek)
 	assert.Equal(t, 300, current[0].TargetMinutes)
 }

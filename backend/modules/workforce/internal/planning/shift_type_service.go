@@ -7,16 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// shiftTypeNameUniqueIndex is the case-insensitive unique index from migration
-// 1.15.170 (schedule.shift_types on (tenant_id, LOWER(name))). Two concurrent
-// creates can both pass the nameTaken pre-check and then race on INSERT; the
-// loser hits this index and must surface as ErrShiftTypeNameTaken (409), not a
-// raw 500.
-const shiftTypeNameUniqueIndex = "uniq_shift_types_tenant_name"
 
 var (
 	// ErrShiftTypeNotFound signals that the requested shift type does not exist.
@@ -87,7 +80,7 @@ func (s *shiftTypeService) GetShiftType(ctx context.Context, id int64) (*ShiftTy
 	}
 	shiftType, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftTypeNotFound
 		}
 		return nil, fmt.Errorf("find shift type: %w", err)
@@ -117,11 +110,14 @@ func (s *shiftTypeService) nameTaken(ctx context.Context, name string, excludeID
 	return false, nil
 }
 
-// isShiftTypeNameConflict reports whether err is a Postgres unique violation
-// on the per-tenant case-insensitive name index. errors.As inside the helper
-// traverses the *base.DatabaseError wrapper the repository adds.
+// isShiftTypeNameConflict reports whether the write lost the race on the
+// case-insensitive unique index from migration 1.15.170 (schedule.shift_types
+// on (tenant_id, LOWER(name))). Two concurrent creates can both pass the
+// nameTaken pre-check; the Workforce store classifies the loser's unique
+// violation as workforce.ErrShiftTypeNameTaken, and the row adapter keeps it
+// in the chain, so it surfaces as ErrShiftTypeNameTaken (409), not a raw 500.
 func isShiftTypeNameConflict(err error) bool {
-	return base.IsUniqueViolationOn(err, shiftTypeNameUniqueIndex)
+	return errors.Is(err, workforce.ErrShiftTypeNameTaken)
 }
 
 func (s *shiftTypeService) CreateShiftType(ctx context.Context, shiftType *ShiftType) (*ShiftType, error) {
@@ -152,7 +148,7 @@ func (s *shiftTypeService) UpdateShiftType(ctx context.Context, shiftType *Shift
 	}
 	existing, err := s.repo.FindByID(ctx, shiftType.ID)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftTypeNotFound
 		}
 		return nil, fmt.Errorf("find shift type: %w", err)
@@ -187,7 +183,7 @@ func (s *shiftTypeService) DeleteShiftType(ctx context.Context, id int64) error 
 	}
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return ErrShiftTypeNotFound
 		}
 		return fmt.Errorf("find shift type: %w", err)

@@ -3,7 +3,6 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -90,19 +89,11 @@ func (r staffAbsenceRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r staffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*StaffAbsence, error) {
-	filter, err := staffAbsenceFilterFromOptions(options)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
-	}
+func (r staffAbsenceRepository) ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 	return r.list(ctx, "list with options", filter)
 }
 
-func (r staffAbsenceRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	filter, err := staffAbsenceFilterFromOptions(options)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count with options", Err: err}
-	}
+func (r staffAbsenceRepository) CountWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) (int, error) {
 	count, err := r.workforce.CountStaffAbsences(ctx, filter)
 	if err != nil {
 		return 0, rowReadError("count with options", err, nil)
@@ -240,108 +231,6 @@ func (r staffAbsenceRepository) list(ctx context.Context, op string, filter work
 		result = append(result, absenceToLegacy(value))
 	}
 	return result, nil
-}
-
-// staffAbsenceFilterFromOptions translates the generic query options the
-// retained callers still build into the typed capability filter. Only the
-// columns and operators those callers use are accepted; anything else is an
-// error rather than a silently ignored predicate.
-func staffAbsenceFilterFromOptions(options *modelBase.QueryOptions) (workforce.StaffAbsenceFilter, error) {
-	filter := workforce.StaffAbsenceFilter{}
-	if options == nil {
-		return filter, nil
-	}
-	if options.Filter != nil {
-		if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-			return filter, errors.New("nested staff absence filters are not supported")
-		}
-		for _, condition := range options.Filter.Conditions() {
-			if err := applyStaffAbsenceCondition(&filter, condition); err != nil {
-				return filter, err
-			}
-		}
-	}
-	if options.Sorting != nil {
-		for _, field := range options.Sorting.Fields {
-			switch field.Field {
-			case "id", "staff_id", "date_start", "date_end", "requested_at":
-				filter.Order = append(filter.Order, workforce.StaffAbsenceOrder{
-					Field: workforce.StaffAbsenceOrderField(field.Field), Descending: field.Direction == modelBase.SortDesc,
-				})
-			default:
-				return filter, fmt.Errorf("unsupported staff absence sort field %q", field.Field)
-			}
-		}
-	}
-	if options.Pagination != nil && options.Pagination.PageSize > 0 {
-		filter.Limit = options.Pagination.PageSize
-		if options.Pagination.Page > 1 {
-			filter.Offset = (options.Pagination.Page - 1) * options.Pagination.PageSize
-		}
-	}
-	return filter, nil
-}
-
-func applyStaffAbsenceCondition(filter *workforce.StaffAbsenceFilter, condition modelBase.FilterCondition) error {
-	switch {
-	case condition.Field == "staff_id" && condition.Operator == modelBase.OpEqual:
-		id, ok := conditionInt64(condition.Value)
-		if !ok {
-			return errors.New("staff_id filter must be an integer")
-		}
-		filter.StaffID = id
-	case condition.Field == "staff_id" && condition.Operator == modelBase.OpIn:
-		ids, ok := conditionInt64List(condition.Value)
-		if !ok {
-			return errors.New("staff_id filter must be a list of integers")
-		}
-		filter.StaffIDs = ids
-	case condition.Field == "status" && condition.Operator == modelBase.OpEqual:
-		status, ok := condition.Value.(string)
-		if !ok {
-			return errors.New("status filter must be a string")
-		}
-		filter.Statuses = []string{status}
-	case condition.Field == "status" && condition.Operator == modelBase.OpIn:
-		statuses, ok := conditionStringList(condition.Value)
-		if !ok {
-			return errors.New("status filter must be a list of strings")
-		}
-		filter.Statuses = statuses
-	case condition.Field == "absence_type" && condition.Operator == modelBase.OpEqual:
-		absenceType, ok := condition.Value.(string)
-		if !ok {
-			return errors.New("absence_type filter must be a string")
-		}
-		filter.Types = []string{absenceType}
-	case condition.Field == "date_start" && condition.Operator == modelBase.OpLessThanOrEqual:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_start filter must be a calendar date")
-		}
-		filter.OverlapTo = date
-	case condition.Field == "date_end" && condition.Operator == modelBase.OpGreaterThanOrEqual:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_end filter must be a calendar date")
-		}
-		filter.OverlapFrom = date
-	case condition.Field == "date_end" && condition.Operator == modelBase.OpLessThan:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_end filter must be a calendar date")
-		}
-		filter.DateEndBefore = date
-	case condition.Field == "date_start" && condition.Operator == modelBase.OpLessThan:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_start filter must be a calendar date")
-		}
-		filter.DateStartBefore = date
-	default:
-		return fmt.Errorf("unsupported staff absence filter %s %s", condition.Field, condition.Operator)
-	}
-	return nil
 }
 
 // staffAbsenceAuditRepository serves StaffAbsenceAuditRepository from the

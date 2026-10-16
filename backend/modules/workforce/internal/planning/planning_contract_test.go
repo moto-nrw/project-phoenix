@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -77,10 +76,10 @@ func (f planningOverview) GetOverview(c context.Context, a, b calendar.Date) (*p
 
 type planningExport struct {
 	planexport.Service
-	export func(context.Context, planexport.Params) (listexport.File, error)
+	export func(context.Context, planexport.Params) (planexport.File, error)
 }
 
-func (f planningExport) ExportDienstplan(c context.Context, p planexport.Params) (listexport.File, error) {
+func (f planningExport) ExportDienstplan(c context.Context, p planexport.Params) (planexport.File, error) {
 	return f.export(c, p)
 }
 func newPlanningFacade(deps planning.PlanningDependencies) workforce.StaffShiftPlanning {
@@ -277,8 +276,8 @@ func TestPlanningOverviewAndExportRetainPublicResults(t *testing.T) {
 			require.Equal(t, to, b)
 			return &planning.StaffScheduleOverview{From: a, To: b, DienstplanInUse: true, UsedWeeks: []calendar.Date{a}, Assignments: []planning.StaffScheduleAssignment{{Date: a, ActivityTitle: "Betreuung", UncoveredIntervals: []timetable.ShiftCoverageInterval{{}}}}, WeeklySummaries: []planning.StaffWeeklySummary{{WeekStart: a, PlannedMinutes: 300}}}, nil
 		}),
-		PlanExport: planningExport{export: func(context.Context, planexport.Params) (listexport.File, error) {
-			return listexport.File{Filename: "plan.pdf", ContentType: "application/pdf", Data: []byte("document")}, nil
+		PlanExport: planningExport{export: func(context.Context, planexport.Params) (planexport.File, error) {
+			return planexport.File{Filename: "plan.pdf", ContentType: "application/pdf", Data: []byte("document")}, nil
 		}},
 	})
 	overview, err := p.Overview(ctx, from.String(), to.String())

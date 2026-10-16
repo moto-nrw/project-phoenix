@@ -19,7 +19,7 @@ import (
 // owner's presence-joined block reads and staff-assignment reads, the room
 // names and roster counts of the tenant transaction under test and the given
 // staff names. The
-// Dienstplan-only and colour reads stay empty; Workforce's behaviour suite
+// Dienstplan-only and colour reads stay empty; plan_export_dienstplan_test.go
 // proves the Dienstplan side (#2706).
 func planExportBetreuungsplanSources(t *testing.T, db *bun.DB, tx bun.IDB, staff planexport.StaffNameReader, renderer planexport.Renderer) planExportSources {
 	t.Helper()

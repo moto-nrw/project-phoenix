@@ -6,9 +6,12 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 )
+
+// deviceOnlineWindowMinutesKey is the Settings Platform registry key the
+// online window resolves; the literal pins the registry contract.
+const deviceOnlineWindowMinutesKey = "iot.device_online_window_minutes"
 
 // stubResolver drives the device-online window resolution without a database.
 // It is a pure in-memory stub: no entity IDs, no DB rows.
@@ -20,14 +23,14 @@ type stubResolver struct {
 }
 
 func (s stubResolver) HasTenantOverride(_ context.Context, key string) (bool, error) {
-	if key != configModel.KeyDeviceOnlineWindowMinutes {
+	if key != deviceOnlineWindowMinutesKey {
 		return false, nil
 	}
 	return s.hasOverride, s.hasOverrideErr
 }
 
 func (s stubResolver) ResolveInt(_ context.Context, key string) (int, error) {
-	if key != configModel.KeyDeviceOnlineWindowMinutes {
+	if key != deviceOnlineWindowMinutesKey {
 		return 0, nil
 	}
 	return s.minutes, s.resolveErr

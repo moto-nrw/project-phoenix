@@ -12,12 +12,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -235,7 +235,7 @@ func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReview
 		People: f.sf.PeopleDirectory,
 		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.
-			wide, _ := authorize.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
+			wide, _ := securityruntime.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
 				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.sf.UserContext)
 			return requestreviewcompose.ReviewScope{SchoolWide: wide}, nil
 		},

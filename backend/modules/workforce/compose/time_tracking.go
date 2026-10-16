@@ -46,6 +46,7 @@ type (
 	StaffScheduleQuery          = timetracking.StaffScheduleQuery
 	TimeExportStaff             = timetracking.TimeExportStaff
 	TimeExportStaffQuery        = timetracking.TimeExportStaffQuery
+	TimeTrackingAuditCursor     = timetracking.TimeTrackingAuditCursor
 	TimeTrackingAuditEntry      = timetracking.TimeTrackingAuditEntry
 	TimeTrackingAuditFilter     = timetracking.TimeTrackingAuditFilter
 	TimeTrackingAuditReader     = timetracking.TimeTrackingAuditReader

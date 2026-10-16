@@ -44,6 +44,7 @@ type ParentAnnouncementConfig struct {
 	ReminderNotifier notifications.DurableReceiptService
 	Preferences      notifications.PreferenceService
 	Deliveries       ParentAnnouncementDeliveryRecorder
+	Fingerprints     staff.Fingerprints
 	ParentsURL       string
 	Logger           *slog.Logger
 }
@@ -59,7 +60,7 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig) communication.ParentAn
 		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: cfg.Notifier,
 		ReminderNotifier: cfg.ReminderNotifier,
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
-		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger,
+		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints,
 	})}
 }
 

@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -55,6 +54,16 @@ type EmailAccounts interface {
 	ListAccountEmails(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 }
 
+// PermissionMatch reports whether the granted permission names satisfy the
+// required one under the Security Runtime's wildcard rules. Delivery does not
+// interpret permission names itself; the root binds the runtime's matcher. A
+// nil match grants nothing.
+type PermissionMatch func(required string, granted []string) bool
+
+func (match PermissionMatch) permits(required string, granted []string) bool {
+	return match != nil && match(required, granted)
+}
+
 // EmailRecipientResolver resolves the addresses of one opt-in e-mail.
 type EmailRecipientResolver interface {
 	// Recipients returns the addresses one mail of the type goes to in the
@@ -67,11 +76,12 @@ type EmailRecipientResolver interface {
 type emailRecipientResolver struct {
 	subscribers EmailSubscribers
 	accounts    EmailAccounts
+	permissions PermissionMatch
 }
 
 // NewEmailRecipientResolver builds the resolver for opt-in e-mail types.
-func NewEmailRecipientResolver(subscribers EmailSubscribers, accounts EmailAccounts) EmailRecipientResolver {
-	return &emailRecipientResolver{subscribers: subscribers, accounts: accounts}
+func NewEmailRecipientResolver(subscribers EmailSubscribers, accounts EmailAccounts, permissions PermissionMatch) EmailRecipientResolver {
+	return &emailRecipientResolver{subscribers: subscribers, accounts: accounts, permissions: permissions}
 }
 
 func (s *emailRecipientResolver) Recipients(ctx context.Context, notificationType string, additional []string) ([]string, error) {
@@ -109,7 +119,7 @@ func (s *emailRecipientResolver) Recipients(ctx context.Context, notificationTyp
 	}
 	permitted := make([]int64, 0, len(active))
 	for _, accountID := range active {
-		if authorize.HasPermission(def.Permission, names[accountID]) {
+		if s.permissions.permits(def.Permission, names[accountID]) {
 			permitted = append(permitted, accountID)
 		}
 	}

@@ -304,8 +304,8 @@ var modulePassthroughBudgets = map[string]int{
 
 // modulePassthroughComposeBudgetTotal is the sum of
 // modulePassthroughComposeBudgets. Shrink-only, like every entry; raised by
-// ADR 0060.
-const modulePassthroughComposeBudgetTotal = 2395
+// ADR 0061.
+const modulePassthroughComposeBudgetTotal = 2394
 
 // modulePassthroughComposeBudgets is the composition register (#4071): owner
 // composition directory → pass-throughs measured below it. First measured on
@@ -331,7 +331,7 @@ var modulePassthroughComposeBudgets = map[string]int{
 	"modules/facilities/compose":           15,
 	"modules/feedback/compose":             8,
 	"modules/filestorage/compose":          26,
-	// Raised by ADR 0060: the operator status lifecycle (#4047).
+	// Raised by ADR 0061: the operator status lifecycle (#4047).
 	"modules/identityaccess/compose":        486,
 	"modules/mealplan/compose":              7,
 	"modules/organizationtenancy/compose":   39,
@@ -346,7 +346,7 @@ var modulePassthroughComposeBudgets = map[string]int{
 	"modules/settings/compose":              20,
 	"modules/studentpresence/compose":       151,
 	"modules/timetable/compose":             404,
-	"modules/workforce/compose":             339,
+	"modules/workforce/compose":             338,
 	"workflows/openroommove/compose":        1,
 	"workflows/parentportal/compose":        22,
 	"workflows/shiftplansync/compose":       3,

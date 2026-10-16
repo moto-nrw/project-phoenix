@@ -6,10 +6,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -256,7 +256,7 @@ func TestStudentService_ReplaceCompanions_ExtensionRecordsCompanionAudit(t *test
 	history, err := trail.GetChangeHistory(ctx, companion.ID)
 	require.NoError(t, err)
 	require.Len(t, history, 1)
-	assert.Equal(t, auditModels.StudentFieldDepartureDays, history[0].FieldName)
+	assert.Equal(t, peopledirectory.StudentFieldDepartureDays, history[0].FieldName)
 	assert.Equal(t, account.ID, history[0].EditedBy)
 	assert.Equal(t, "Clara Confirm", history[0].EditedByName)
 }

@@ -64,8 +64,9 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 		ParentPortalRepositories: carePlanCompose.NewParentPortalRepositories(carePlanCompose.ParentPortalDependencies{
 			DB: pool, Directory: ParentPortalDirectory{People: owners.People},
 			AccountSchools: identity.ListActiveAccountSchoolIDs,
-			Phases:         owners.Enrollment, Applications: owners.Enrollment,
-			Accounts: IdentityAccountDirectory{Accounts: identity},
+			Phases:         ParentPortalEnrollments{enrollment: owners.Enrollment},
+			Applications:   ParentPortalEnrollments{enrollment: owners.Enrollment},
+			Accounts:       IdentityAccountDirectory{Accounts: identity},
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
 			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),

@@ -549,7 +549,7 @@ func (f masterDataFixture) requestStatusPill(t *testing.T, guardianAccountID int
 func (f masterDataFixture) decisionsWithEmitter(t *testing.T, shares careplanCompose.ShareVisibility) *careplanCompose.MasterDataDecisions {
 	t.Helper()
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db),
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db),
 		messagingOnSettings{}, broadcaster, slog.Default())
 	return f.decisions(t, func(o *api.MasterDataDecisionTestOptions) {
 		o.Emitter, o.Broadcaster, o.Shares = emitter, broadcaster, shares

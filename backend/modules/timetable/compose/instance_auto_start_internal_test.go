@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/constants"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
@@ -183,7 +182,7 @@ func TestAutoStart_RunForTenant_StartsSchulhofLikeAnyRoom(t *testing.T) {
 		InstanceStaffRepo: &autoStartStaffRepo{counts: map[int64]int{311: 1, 312: 1}},
 		Lifecycle:         starter,
 		Rooms: &autoStartRoomRepo{rooms: map[int64]string{
-			401: constants.SchulhofRoomName,
+			401: "Schulhof", // the system yard room (Facilities SchulhofRoomName)
 			402: "Lernraum",
 		}},
 		Conflicts: startConflictsFunc(func(_ context.Context, subject timetable.StartConflictSubject) ([]timetable.InstanceConflictWarning, error) {

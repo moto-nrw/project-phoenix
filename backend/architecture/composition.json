@@ -28,7 +28,6 @@
     "phoenix cleanup timetable stats",
     "phoenix cleanup tokens",
     "phoenix cleanup visits",
-    "phoenix demo",
     "phoenix gendoc",
     "phoenix migrate",
     "phoenix migrate backfill",
@@ -38,15 +37,10 @@
     "phoenix migrate reset",
     "phoenix migrate status",
     "phoenix migrate validate",
-    "phoenix seed",
     "phoenix seed-parents",
     "phoenix serve",
     "phoenix settings",
     "phoenix settings overrides",
-    "phoenix simulate",
-    "phoenix simulate full-day",
-    "phoenix simulate live",
-    "phoenix simulate status",
     "phoenix worker"
   ],
   "constructor_calls": [

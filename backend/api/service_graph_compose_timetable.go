@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -109,8 +108,8 @@ func composePresence(b graphBuild) (graphBuild, error) {
 		ActivityCatRepo:    arrivalTimetable.NewCategoryCount(repos.ActivityCategory),
 		EducationGroupRepo: b.Presence.AttendanceEducationGroups, DeviceRepo: b.Presence.SessionDevices(b.settingsService),
 		StaffNames: b.Presence.AttendanceStaffNames(b.graph.Users), DB: b.DB.Pool(),
-		Broadcaster: b.graph.RealtimeHub, Tracker: b.ProductEvents,
-		WorkSessionService: b.graph.WorkSession.AutoCheckIn, AttendanceSyncer: attendanceSync,
+		Broadcaster: NewPresenceEvents(b.graph.RealtimeHub, logger), Tracker: b.ProductEvents,
+		WorkSessionService: presenceAutoCheckIn{checkIn: b.graph.WorkSession.AutoCheckIn}, AttendanceSyncer: attendanceSync,
 		TimetableBridgeCompleter: b.graph.TimetableBridge, Logger: logger, Now: b.now,
 	},
 		// Auto-clear of sick / excused flags respects the tenant's
@@ -172,10 +171,10 @@ func composeShiftPlanning(b graphBuild) (graphBuild, error) {
 		Workforce: b.WorkTime, Staff: NewPlanStaffDirectory(b.People.Staff), CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
 		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms:          facilitiesCompose.NewRoomRepository(b.Rooms),
+		Rooms:          facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRepository(b.Rooms)),
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.ActivityGroup),
-		WorkSchedules:  workforceRepositoryAdapter.NewStaffWorkScheduleRepository(b.WorkTime),
-		WorkModels:     workforceRepositoryAdapter.NewWorkTimeModelRepository(b.WorkTime),
+		WorkSchedules:  b.WorkTime,
+		WorkModels:     b.WorkTime,
 		Holidays:       schoolCalendarCompose.NonWorkingDays{Calendar: b.Calendar}, NonWorkingDays: b.Calendar,
 		CategoryLinker: arrivalTimetable.ShiftTypeCategoryLinker(b.graph.Activities.SetCategoryShiftTypeLinks),
 		DB:             b.DB.Pool(), Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "shift_planning"),

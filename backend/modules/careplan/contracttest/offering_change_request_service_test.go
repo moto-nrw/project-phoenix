@@ -1347,7 +1347,7 @@ func TestOfferingChangeRequestService_PreviewDecision_ReportsOnlyUncoveredManual
 	assert.False(t, preview.ArrivalExpectationsFollowBookings)
 
 	otherTenantCtx := testpkg.TenantContext(testpkg.Tenant(t) + 1)
-	foreignRows, err := (manualPlanningFixture{db: env.db}).ListManualPlanningOccurrences(
+	foreignRows, err := (api.PlanningQuery{DB: testpkg.NewDatabase(t, env.db)}).ListManualPlanningOccurrences(
 		otherTenantCtx, fx.studentID, fx.switchDate.String(), string(env.sourcePhase.ServiceEndDate),
 	)
 	require.NoError(t, err)
@@ -1468,13 +1468,11 @@ func TestOfferingChangeRequestService_Decide_RefusesAConfirmedDateBeforeTheCareP
 	assert.Equal(t, enrollmentModels.OfferingChangeStatusPending, stillPending.Status)
 }
 
-type manualPlanningFixture struct{ db *bun.DB }
-
 func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	student := testpkg.CreateTestStudent(t, db, "Planning", "Validation", "2a")
-	reader := enrollmentTest.NewManualPlanningQuery(testpkg.Database{}.Pool())
+	reader := api.PlanningQuery{}
 	for _, tc := range []struct {
 		name, from, to string
 	}{
@@ -1493,18 +1491,6 @@ func TestManualPlanningReaderRejectsInvalidCalendarWindows(t *testing.T) {
 	rows, err := reader.ListManualPlanningOccurrences(testpkg.Ctx(t), 0, "2026-09-01", "2026-09-30")
 	require.EqualError(t, err, "student id must be positive")
 	assert.Nil(t, rows)
-}
-
-func (r manualPlanningFixture) ListManualPlanningOccurrences(ctx context.Context, studentID int64, from, to string) ([]careplanCompose.ManualPlanningOccurrence, error) {
-	rows, err := enrollmentTest.NewManualPlanningQuery(r.db).ListManualPlanningOccurrences(ctx, studentID, from, to)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]careplanCompose.ManualPlanningOccurrence, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, careplanCompose.ManualPlanningOccurrence{ActivityGroupID: row.ActivityGroupID, ActivityGroupName: row.ActivityGroupName, InstanceID: row.InstanceID, Date: row.Date})
-	}
-	return result, nil
 }
 
 // offeringChangePayload decodes the stored payload of a request row.

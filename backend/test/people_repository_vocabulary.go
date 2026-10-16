@@ -10,9 +10,13 @@ import "github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 const (
 	GuardianPermissionEnrollmentSubmit = securityruntime.GuardianPermissionEnrollmentSubmit
+	GuardianPermissionNotesWrite       = securityruntime.GuardianPermissionNotesWrite
 	GuardianPermissionPollResponse     = securityruntime.GuardianPermissionPollResponse
 	GuardianPermissionPortalAccess     = securityruntime.GuardianPermissionPortalAccess
+	GuardianPermissionSickNoteSubmit   = securityruntime.GuardianPermissionSickNoteSubmit
+	GuardianRoleEmergency              = securityruntime.GuardianRoleEmergency
 	GuardianRoleLegalGuardian          = securityruntime.GuardianRoleLegalGuardian
 	GuardianRolePickupOnly             = securityruntime.GuardianRolePickupOnly
+	GuardianRolePrimaryGuardian        = securityruntime.GuardianRolePrimaryGuardian
 	GuardianRoleSocialWorker           = securityruntime.GuardianRoleSocialWorker
 )

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 )
@@ -38,7 +37,7 @@ func newClassListRenameLookup(renames map[string]string) classListRenameLookup {
 	normalized := make(map[string]string, len(renames))
 	ambiguous := make(map[string]bool)
 	for from, to := range renames {
-		key := schoolclass.Normalize(from)
+		key := schoolstructure.NormalizeClass(from)
 		if existing, seen := normalized[key]; seen && existing != to {
 			ambiguous[key] = true
 			continue
@@ -57,7 +56,7 @@ func (l classListRenameLookup) target(schoolClass string) (string, bool) {
 	if to, ok := l.exact[strings.TrimSpace(schoolClass)]; ok {
 		return to, true
 	}
-	to, ok := l.normalized[schoolclass.Normalize(schoolClass)]
+	to, ok := l.normalized[schoolstructure.NormalizeClass(schoolClass)]
 	return to, ok
 }
 
@@ -66,7 +65,7 @@ func (l classListRenameLookup) target(schoolClass string) (string, bool) {
 func classListEntryKey(firstName, lastName, schoolClass string) string {
 	return strings.ToLower(strings.TrimSpace(firstName)) + "\x00" +
 		strings.ToLower(strings.TrimSpace(lastName)) + "\x00" +
-		schoolclass.Normalize(schoolClass)
+		schoolstructure.NormalizeClass(schoolClass)
 }
 
 func classListDisplayValue(firstName, lastName, schoolClass string) string {

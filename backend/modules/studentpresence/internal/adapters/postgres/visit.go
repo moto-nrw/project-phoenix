@@ -95,6 +95,10 @@ func (s *Store) ListVisits(ctx context.Context, filter ports.VisitFilter) ([]*po
 	return visitRecordsFromRows(rows), stats, nil
 }
 
+// openVisitPerStudentIndex is the partial unique index of migration 1.15.47
+// that allows one open visit per student and tenant.
+const openVisitPerStudentIndex = "uniq_active_visits_open_per_student"
+
 func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
@@ -108,6 +112,9 @@ func (s *Store) RecordVisit(ctx context.Context, row *ports.Visit) (ports.Stats,
 	started := time.Now()
 	result, err := db.NewInsert().Model(stored).ModelTableExpr("active.visits").Exec(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if isUniqueViolationOn(err, openVisitPerStudentIndex) {
+		return stats, fmt.Errorf("record visit: %w", errors.Join(ports.ErrOpenVisitExists, err))
+	}
 	if err != nil {
 		return stats, fmt.Errorf("record visit: %w", err)
 	}

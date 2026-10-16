@@ -4,13 +4,27 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// recordRepository is the identity-addressed write and read of one time
+// record type the row adapters serve. FindByID and Delete take the untyped
+// ID of the retained repository contract.
+type recordRepository[T any] interface {
+	Create(ctx context.Context, entity T) error
+	FindByID(ctx context.Context, id any) (T, error)
+	Update(ctx context.Context, entity T) error
+	Delete(ctx context.Context, id any) error
+}
+
 // WorkSessionRepository defines operations for managing staff work sessions
 type WorkSessionRepository interface {
-	base.Repository[*WorkSession]
+	recordRepository[*WorkSession]
+
+	// ListWithFilter returns the blocks the Workforce filter selects, in its
+	// order.
+	ListWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) ([]*WorkSession, error)
 
 	// LockStaffBalanceWrites serializes all work-session and break mutations
 	// with absence and adjustment mutations for the same staff member.
@@ -65,16 +79,20 @@ type WorkSessionRepository interface {
 	// UpdateBreakMinutes sets the break_minutes cache field on a session
 	UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error
 
-	// Generic query helpers promoted from the embedded base repository.
-	// Used by the time-tracking retention cleanup.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	// Retention helpers of the time-tracking cleanup: the count of the
+	// blocks the filter selects, the oldest filing date and the delete.
+	CountWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) (int, error)
 	OldestBefore(ctx context.Context, dateColumn string, cutoff *calendar.Date) (*calendar.Date, error)
 	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff calendar.Date) (int64, error)
 }
 
 // StaffAbsenceRepository defines operations for managing staff absences
 type StaffAbsenceRepository interface {
-	base.Repository[*StaffAbsence]
+	recordRepository[*StaffAbsence]
+
+	// ListWithFilter returns the absences the Workforce filter selects, in
+	// its order.
+	ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error)
 
 	// LockStaffAbsenceWrites serializes absence lifecycle writes for one staff
 	// member inside the ambient tenant transaction. It also takes the shared
@@ -111,9 +129,9 @@ type StaffAbsenceRepository interface {
 	// once decided, the deciding person.
 	ListRequests(ctx context.Context, filter AbsenceRequestFilter) ([]*AbsenceRequestRow, error)
 
-	// Generic query helpers promoted from the embedded base repository.
-	// Used by the time-tracking retention cleanup.
-	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
+	// Retention helpers of the time-tracking cleanup, as for work sessions;
+	// CountWithFilter also counts the open requests.
+	CountWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) (int, error)
 	OldestBefore(ctx context.Context, dateColumn string, cutoff *calendar.Date) (*calendar.Date, error)
 	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff calendar.Date) (int64, error)
 }
@@ -125,7 +143,11 @@ type StaffAbsenceAuditRepository interface {
 // StaffBalanceAdjustmentRepository defines operations for Stundenkonto
 // correction transactions (#1420).
 type StaffBalanceAdjustmentRepository interface {
-	base.Repository[*StaffBalanceAdjustment]
+	recordRepository[*StaffBalanceAdjustment]
+
+	// ListWithFilter returns the adjustments the Workforce filter selects,
+	// ordered by effective_date, then ID.
+	ListWithFilter(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]*StaffBalanceAdjustment, error)
 
 	// LockStaffBalanceWrites serializes balance-adjustment writes for one
 	// staff member inside the ambient tenant transaction. Every adjustment
@@ -143,7 +165,7 @@ type StaffBalanceAdjustmentRepository interface {
 
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement
 type StaffVacationQuotaRepository interface {
-	base.Repository[*StaffVacationQuota]
+	recordRepository[*StaffVacationQuota]
 
 	// GetByStaffAndYear returns the quota row for a specific staff/year, or nil
 	GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationQuota, error)
@@ -160,7 +182,7 @@ type StaffVacationQuotaRepository interface {
 // (#2132). One row per staff and year, append-only at the service level —
 // corrections are delete + re-create with a deletion tombstone.
 type StaffVacationOpeningRepository interface {
-	base.Repository[*StaffVacationOpening]
+	recordRepository[*StaffVacationOpening]
 
 	// GetByStaffAndYear returns the opening row for a staff/year, or nil.
 	GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error)
@@ -172,7 +194,7 @@ type StaffVacationOpeningRepository interface {
 
 // WorkSessionBreakRepository defines operations for managing work session breaks
 type WorkSessionBreakRepository interface {
-	base.Repository[*WorkSessionBreak]
+	recordRepository[*WorkSessionBreak]
 
 	// GetBySessionID returns all breaks for a given session ordered by started_at
 	GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error)

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type activitySessionRow struct {
@@ -149,11 +150,31 @@ func (s *Store) StartActivitySession(ctx context.Context, start ports.ActivitySe
 	started := time.Now()
 	err = db.NewInsert().Model(&row).ModelTableExpr(`active.activity_sessions`).Returning(activitySessionColumns).Scan(ctx)
 	stats := ports.Stats{Queries: 1, StatementDuration: time.Since(started)}
+	if isUniqueViolationOn(err, "uq_activity_sessions_instance", "uq_activity_sessions_active_group") {
+		// One session per instance and live group: a second start races the first.
+		return ports.ActivitySession{}, stats, fmt.Errorf("start activity session: %w", errors.Join(ports.ErrActivitySessionExists, err))
+	}
 	if err != nil {
 		return ports.ActivitySession{}, stats, fmt.Errorf("start activity session: %w", err)
 	}
 	stats.Rows = 1
 	return row.record(), stats, nil
+}
+
+// isUniqueViolationOn reports that the driver refused a write on one of the
+// named unique constraints or indexes.
+func isUniqueViolationOn(err error, constraints ...string) bool {
+	var postgresError pgdriver.Error
+	if !errors.As(err, &postgresError) || !postgresError.IntegrityViolation() {
+		return false
+	}
+	name := postgresError.Field('n')
+	for _, constraint := range constraints {
+		if name == constraint {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Store) CompleteActivitySession(ctx context.Context, completion ports.ActivitySessionCompletion) (ports.ActivitySession, bool, ports.Stats, error) {

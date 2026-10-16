@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -125,7 +125,7 @@ func TestCareLifecycle_ConfirmAuditsOnlyCareEnd(t *testing.T) {
 	edits, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).StudentFieldEdit.GetByStudentID(ctx, student.ID)
 	require.NoError(t, err)
 	require.Len(t, edits, 1)
-	assert.Equal(t, auditModels.StudentFieldCareEnd, edits[0].FieldName)
+	assert.Equal(t, peopledirectory.StudentFieldCareEnd, edits[0].FieldName)
 }
 
 func loadStudent(t *testing.T, db *bun.DB, ctx context.Context, id int64) *userModels.Student {

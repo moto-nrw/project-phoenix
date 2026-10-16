@@ -75,7 +75,7 @@ func ResolveScheduleAnchor(staffAnchor *CalendarDate, entries []*StaffWorkSchedu
 // valid_from <= day and valid_until is unset or after the day (valid_until
 // is exclusive, matching the repository predicate). The boolean reports
 // whether an entry MATCHED the day's rotation week + weekday (the historical
-// WeeklyTargetFromSchedule semantics) — a date-valid schedule that simply
+// workforce.WeeklyTargetFromSchedule semantics) — a date-valid schedule that simply
 // has no row for this day/rotation returns (0, false), so callers can
 // distinguish "day off per plan" from a plain zero.
 func DailyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *CalendarDate, date CalendarDate) (int, bool) {
@@ -126,54 +126,4 @@ func DailyTargetFromModel(model *WorkTimeModel, anchor CalendarDate, date Calend
 		}
 	}
 	return total, true
-}
-
-// WeeklyTargetFromSchedule sums the target minutes a staff member's schedule
-// entries yield for the week starting at weekStart (a Monday). The boolean
-// reports whether any entry applied at all, so callers can distinguish a
-// zero-minute week from "no schedule".
-func WeeklyTargetFromSchedule(entries []*StaffWorkSchedule, staffAnchor *CalendarDate, weekStart CalendarDate) (int, bool) {
-	total := 0
-	found := false
-	for offset := 0; offset < 7; offset++ {
-		date := weekStart.AddDays(offset)
-		dayTarget, matched := DailyTargetFromSchedule(entries, staffAnchor, date)
-		if !matched {
-			continue
-		}
-		total += dayTarget
-		found = true
-	}
-	return total, found
-}
-
-// WeeklyTargetsFromModel resolves the weekly target minutes a work-time model
-// yields for each given week start (Mondays), keyed by that week start. Weeks
-// whose rotation index has no entries are absent from the result.
-func WeeklyTargetsFromModel(model *WorkTimeModel, anchor CalendarDate, weekStarts []CalendarDate) map[CalendarDate]int {
-	if model == nil || len(model.Entries) == 0 || len(weekStarts) == 0 {
-		return nil
-	}
-	rotation := model.RotationLength
-	if rotation < 1 {
-		rotation = 1
-	}
-	targetsByRotationWeek := make(map[int]int, rotation)
-	for _, e := range model.Entries {
-		if e == nil {
-			continue
-		}
-		targetsByRotationWeek[e.WeekIndex] += e.TargetMinutes
-	}
-	targets := make(map[CalendarDate]int, len(weekStarts))
-	for _, weekStart := range weekStarts {
-		rotationWeek := ResolveWeekIndex(rotation, MondayOf(anchor), MondayOf(weekStart))
-		if target, ok := targetsByRotationWeek[rotationWeek]; ok {
-			targets[weekStart] = target
-		}
-	}
-	if len(targets) == 0 {
-		return nil
-	}
-	return targets
 }

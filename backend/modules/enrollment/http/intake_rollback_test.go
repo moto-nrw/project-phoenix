@@ -13,7 +13,6 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -127,7 +126,7 @@ func TestPublicIntakeRollsBackAfterEveryRequestInviteGuardianAndChildWrite(t *te
 			testpkg.OwnTenant(t)
 			env, cleanup := setupRequestTest(t)
 			defer cleanup()
-			env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
+			env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 			failure := errors.New("injected failure after intake write")
 			writes := &failingIntakeWrites{
 				IntakeRequests: env.config.Requests, IntakeChildren: env.config.Children,
@@ -238,8 +237,8 @@ func TestPublicIntakeRollsBackAfterEachSubmissionEmailEnqueue(t *testing.T) {
 			testpkg.OwnTenant(t)
 			env, cleanup := setupRequestTest(t)
 			defer cleanup()
-			env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.test"
-			env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
+			env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.test"
+			env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 			failure := errors.New("injected after persisted submission email")
 			outbox := &failingIntakeOutbox{delivery: newTestEnrollmentDelivery(t, env.db), tenantID: testpkg.Tenant(t), failAfter: failAfter, failure: failure}
 			config := env.config
@@ -306,7 +305,7 @@ func TestPublicIntakeRollsBackAfterEachOfferingLinkWrite(t *testing.T) {
 			testpkg.OwnTenant(t)
 			env, cleanup := setupRequestTest(t)
 			defer cleanup()
-			env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
+			env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 			ctx := testpkg.Ctx(t)
 			var offeringIDs []int64
 			for _, name := range []string{"First", "Second"} {

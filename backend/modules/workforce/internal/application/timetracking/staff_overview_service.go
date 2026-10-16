@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -757,12 +757,9 @@ func (s *staffOverviewService) expectedClockedIn(
 // ListPendingRequests returns, counted through the generic filter API so no
 // rows are loaded.
 func (s *staffOverviewService) countPendingRequests(ctx context.Context) (int, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter = options.Filter.In("status",
-		AbsenceStatusRequested,
-		AbsenceStatusQuestion,
-	)
-	count, err := s.absenceRepo.CountWithOptions(ctx, options)
+	count, err := s.absenceRepo.CountWithFilter(ctx, workforce.StaffAbsenceFilter{
+		Statuses: []string{AbsenceStatusRequested, AbsenceStatusQuestion},
+	})
 	if err != nil {
 		return 0, fmt.Errorf("failed to count pending absence requests: %w", err)
 	}

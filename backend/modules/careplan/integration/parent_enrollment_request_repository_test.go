@@ -14,11 +14,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -140,7 +138,7 @@ func listByAccount(t *testing.T, db *bun.DB, accountID int64) []*parentModels.En
 // returns the affected row count.
 func backfill(t *testing.T, db *bun.DB, accountID int64, email string) int {
 	t.Helper()
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db})
 	var n int
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		got, bErr := repo.BackfillGuardianAccountID(ctx, accountID, email)
@@ -377,15 +375,15 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	relationship := &usersModels.StudentGuardian{
+	relationship := &testpkg.StudentGuardian{
+		TenantID:          testpkg.Tenant(t),
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
-		GuardianRole:      authorize.GuardianRolePickupOnly,
+		GuardianRole:      testpkg.GuardianRolePickupOnly,
 		Permissions:       map[string]interface{}{},
 	}
-	relationship.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, relationship))
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-permission-"+t.Name())
 	insertEnrollment(t, db, enrollmentRow{
@@ -417,17 +415,17 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	relationship := &usersModels.StudentGuardian{
+	relationship := &testpkg.StudentGuardian{
+		TenantID:          testpkg.Tenant(t),
 		StudentID:         visible.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "parent",
-		GuardianRole:      authorize.GuardianRoleLegalGuardian,
+		GuardianRole:      testpkg.GuardianRoleLegalGuardian,
 		Permissions: map[string]interface{}{
-			authorize.GuardianPermissionEnrollmentsView: true,
+			careplan.GuardianPermissionEnrollmentsView: true,
 		},
 	}
-	relationship.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, relationship))
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mixed-permission-"+t.Name())
 	requestID := insertEnrollment(t, db, enrollmentRow{
@@ -499,7 +497,7 @@ func TestEnrollmentRequestRepository_ListByAccount_RejectsZeroAccount(t *testing
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db})
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, listErr := repo.ListByAccount(ctx, 0)
 		return listErr
@@ -731,7 +729,7 @@ func TestEnrollmentRequestRepository_Backfill_RejectsZeroAccount(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), enrollmentCompose.New(), staticAccountDirectory{db: db})
+	repo := parentRepo.NewEnrollmentRequestRepository(staticParentRuntime(db), api.NewParentPortalEnrollments(), staticAccountDirectory{db: db})
 	err := tenant.WithAdminTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, func(ctx context.Context, _ bun.Tx) error {
 		_, bErr := repo.BackfillGuardianAccountID(ctx, 0, "x@example.com")
 		return bErr

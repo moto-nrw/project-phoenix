@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 48,
+  "policy_epoch": 49,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -497,9 +497,9 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/enrollment/selection",
-      "owner": "enrollment",
-      "role": "contract",
+      "path": "modules/careplan/selection",
+      "owner": "care-plan",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1057,6 +1057,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "cmd/devtools",
+      "owner": "dev-tools",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "constants",
       "owner": "legacy-shared",
       "role": "domain",
@@ -1137,13 +1144,6 @@
       "path": "modules/organizationtenancy/internal/adapters/postgres",
       "owner": "organization-tenancy",
       "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/organizationtenancy/internal/adapters/secrets",
-      "owner": "organization-tenancy",
-      "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2163,6 +2163,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableprojection/compose",
+      "owner": "timetable-legacy-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/timetableprojection/integration",
       "owner": "timetable-legacy-view",
       "role": "test-support",
@@ -2187,6 +2194,13 @@
       "path": "modules/presenceprojection",
       "owner": "presence-legacy-view",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/presenceprojection/compose",
+      "owner": "presence-legacy-view",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -5946,17 +5960,6 @@
       "target_role": "contract"
     },
     {
-      "id": "enrollment.application.native-selection-contract",
-      "description": "Share the native selection calculation with the retained adjustment entry point (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "enrollment",
-      "source_role": "application",
-      "target_owner": "enrollment",
-      "target_role": "contract"
-    },
-    {
       "id": "request-review-view.compose.audit-corrections.public",
       "description": "Render the native Audit correction history without retained audit models (#3179).",
       "scopes": [
@@ -6141,17 +6144,6 @@
       "source_role": "e2e-test",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "care-plan.integration-test.enrollment-compose",
-      "description": "Parent enrollment compatibility tests exercise the Enrollment write owner.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "workflow-integration-test",
-      "target_owner": "enrollment",
-      "target_role": "compose"
     },
     {
       "id": "enrollment.integration-test.enrollment.postgres",
@@ -7259,6 +7251,93 @@
       "source_role": "cli",
       "target_owner": "dev-tools",
       "target_role": "contract"
+    },
+    {
+      "id": "dev-tools.compose.cli",
+      "description": "The dev tools binary starts the seeder and the simulator. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "dev-tools",
+      "target_role": "cli"
+    },
+    {
+      "id": "dev-tools.compose.http-client",
+      "description": "The dev tools binary drives the server through its HTTP API. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "dev-tools.compose.transaction-runtime",
+      "description": "The demo process opens its own phoenix_demo connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.organization-tenancy",
+      "description": "The demo process composes the demo school state and queue on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.identity-access",
+      "description": "The demo process composes the demo access expiry on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.student-presence",
+      "description": "The demo process composes the presence reads of its ticks on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.tenant-runtime",
+      "description": "The demo process reads presence inside a tenant-scoped transaction. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "dev-tools.compose.security-runtime",
+      "description": "The dev tools binary draws generated seed credentials from the cryptographic entropy Security Runtime owns (#3364). The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "public"
     },
     {
       "id": "external.cli-config.cli",
@@ -10059,50 +10138,6 @@
       "source_role": "compose",
       "target_owner": "people-directory",
       "target_role": "public"
-    },
-    {
-      "id": "communication.test-support.application",
-      "description": "Communication test support returns the consumer-facing emitter shell.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "communication",
-      "target_role": "application"
-    },
-    {
-      "id": "communication.test-support.delivery-public",
-      "description": "Communication test support accepts the realtime broadcaster under test.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "communication.test-support.tenant-runtime",
-      "description": "Communication test support accepts the unit of work the detached parent-event paths run under.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.adapter-test.communication-support",
-      "description": "Student route tests compose the real guardian wake through Communication test support (#2731).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "adapter-test",
-      "target_owner": "communication",
-      "target_role": "test-support"
     },
     {
       "id": "communication.integration-test.organization-compose",

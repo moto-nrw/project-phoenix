@@ -336,7 +336,7 @@ func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
 	absenceRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, Date, Date) ([]*StaffAbsence, error) {
 		return nil, errors.New("single-staff absence query must not run")
 	}
-	breakRepo.listFunc = func(context.Context, *QueryOptions) ([]*WorkSessionBreak, error) {
+	breakRepo.getBySessionIDsFunc = func(context.Context, []int64) (map[int64][]*WorkSessionBreak, error) {
 		breakLoads++
 		return nil, nil
 	}
@@ -389,7 +389,7 @@ func TestDayExportRowsByStaffIDsStampsCustomAbsenceLabels(t *testing.T) {
 			Status:        AbsenceStatusApproved,
 		}}}, nil
 	}
-	breakRepo.listFunc = func(context.Context, *QueryOptions) ([]*WorkSessionBreak, error) {
+	breakRepo.getBySessionIDsFunc = func(context.Context, []int64) (map[int64][]*WorkSessionBreak, error) {
 		return nil, nil
 	}
 	auditRepo.countManualBySessionIDsFunc = func(context.Context, []int64) (map[int64]int, error) {

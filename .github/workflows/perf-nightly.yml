@@ -139,9 +139,11 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Build backend binary
+      - name: Build backend and dev tools binaries
         working-directory: backend
-        run: go build -o "${RUNNER_TEMP}/phoenix" .
+        run: |
+          go build -o "${RUNNER_TEMP}/phoenix" .
+          go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
 
       - name: Run migrations
         working-directory: backend
@@ -168,7 +170,7 @@ jobs:
       - name: Seed demo data
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" seed \
+          "${RUNNER_TEMP}/devtools" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin 1234 \
@@ -180,7 +182,7 @@ jobs:
       - name: Simulate a full care day
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
 
       - name: Enable corepack
         run: corepack enable
