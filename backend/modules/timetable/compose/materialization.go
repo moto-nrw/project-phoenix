@@ -8,8 +8,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -81,7 +79,7 @@ type MaterializationDependencies struct {
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Staffing       StaffingAnnouncer
-	DB             *bun.DB
+	Transactions   TenantTransactions
 	Logger         *slog.Logger
 }
 
@@ -100,7 +98,7 @@ type materializationService struct {
 	exceptionRepo  schedule.ActivityExceptionRepository
 	timeframeRepo  schedule.TimeframeRepository
 	lock           timetable.RecurrenceWriteLock
-	db             *bun.DB
+	transactions   TenantTransactions
 	staffing       StaffingAnnouncer
 	logger         *slog.Logger
 }
@@ -112,7 +110,7 @@ func NewMaterialization(deps MaterializationDependencies) (timetable.Materializa
 		deps.ExceptionRepo == nil || deps.TimeframeRepo == nil {
 		return nil, errors.New("timetable materialization: required repository is nil")
 	}
-	if deps.DB != nil && deps.RecurrenceLock == nil {
+	if deps.Transactions != nil && deps.RecurrenceLock == nil {
 		return nil, errors.New("timetable materialization: recurrence lock is required with a database")
 	}
 	return &materializationService{
@@ -129,7 +127,7 @@ func NewMaterialization(deps MaterializationDependencies) (timetable.Materializa
 		exceptionRepo:  deps.ExceptionRepo,
 		timeframeRepo:  deps.TimeframeRepo,
 		lock:           deps.RecurrenceLock,
-		db:             deps.DB,
+		transactions:   deps.Transactions,
 		staffing:       deps.Staffing,
 		logger:         deps.Logger,
 	}, nil
@@ -161,7 +159,7 @@ func (s *materializationService) MaterializeForTenant(
 	if err := validateMaterializationWindow(from, to); err != nil {
 		return nil, err
 	}
-	if s.db != nil {
+	if s.transactions != nil {
 		if tenantID <= 0 {
 			return nil, &ScheduleError{Op: materializeForTenantOp, Err: errors.New("no tenant in context")}
 		}
@@ -203,7 +201,7 @@ func (s *materializationService) materializeForTenantInTransaction(
 	source timetable.MaterializationSource,
 ) (*timetable.MaterializationResult, error) {
 	var result *timetable.MaterializationResult
-	err := tenant.WithTenantTx(ctx, s.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.transactions.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var err error
 		result, err = s.MaterializeForTenant(txCtx, from, to, source)
 		return err

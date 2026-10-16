@@ -6,8 +6,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/uptrace/bun"
-
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -25,7 +23,7 @@ type TemplateSeriesSeeding interface {
 // InstanceSeriesConversionDependencies are the capabilities the conversion
 // coordinates; it adds transactionality and ordering, not persistence rules.
 type InstanceSeriesConversionDependencies struct {
-	DB             *bun.DB
+	Transactions   TenantTransactions
 	InstanceRepo   scheduleModel.ActivityInstanceRepository
 	Lifecycle      timetable.InstancePlanning
 	Templates      TemplateSeriesSeeding
@@ -39,7 +37,7 @@ type instanceSeriesConversion struct {
 // NewInstanceSeriesConversion composes the conversion of a one-off
 // occurrence into a series.
 func NewInstanceSeriesConversion(deps InstanceSeriesConversionDependencies) (timetable.InstanceSeriesConversion, error) {
-	if deps.DB == nil || deps.InstanceRepo == nil || deps.Lifecycle == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
+	if deps.Transactions == nil || deps.InstanceRepo == nil || deps.Lifecycle == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
 		return nil, errors.New("timetable instance series conversion: required dependency is nil")
 	}
 	return &instanceSeriesConversion{deps: deps}, nil
@@ -64,7 +62,7 @@ func (s *instanceSeriesConversion) ConvertInstanceToSeries(ctx context.Context, 
 		return nil, fmt.Errorf("convert instance to series: no tenant in context")
 	}
 	var result timetable.ConvertInstanceToSeriesResult
-	err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.deps.Transactions.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var err error
 		result, err = s.convertLocked(txCtx, in)
 		return err

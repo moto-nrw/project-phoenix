@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // The template writes of the Timetable owner (#3424 slice S2) behind
@@ -266,7 +265,7 @@ type TemplateServiceDependencies struct {
 	SchoolClasses          SchoolClassRules
 	Staffing               StaffingAnnouncer
 	Logger                 *slog.Logger
-	DB                     *bun.DB
+	Transactions           TenantTransactions
 	Today                  func() calendar.Date
 }
 

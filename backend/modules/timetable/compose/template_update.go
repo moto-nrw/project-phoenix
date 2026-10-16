@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/uptrace/bun"
-
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -95,7 +93,7 @@ func (s *TemplateService) UpdateTemplate(ctx context.Context, in TemplateUpdateI
 		return err
 	}
 
-	return tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	return s.deps.Transactions.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 		return s.updateTemplateLocked(txCtx, in, tenantID, targetsProvided)
 	})
 }
@@ -126,7 +124,7 @@ func (s *TemplateService) validateTemplateUpdateRequest(ctx context.Context, in 
 	if tenantID <= 0 {
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("no tenant in context")}
 	}
-	if s.deps.DB == nil {
+	if s.deps.Transactions == nil {
 		return 0, &ScheduleError{Op: updateTemplateOp, Err: errors.New("database is not configured")}
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
@@ -696,12 +694,12 @@ func (s *TemplateService) ArchiveTemplate(ctx context.Context, templateID int64)
 	if tenantID <= 0 {
 		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("no tenant in context")}
 	}
-	if s.deps.DB == nil || s.deps.ActivityGroupRepo == nil {
+	if s.deps.Transactions == nil || s.deps.ActivityGroupRepo == nil {
 		return 0, &ScheduleError{Op: archiveTemplateOp, Err: errors.New("template service is not configured")}
 	}
 
 	var archived int64
-	err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := s.deps.Transactions.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 		if err := s.lockRecurrence(txCtx, archiveTemplateOp); err != nil {
 			return err
 		}

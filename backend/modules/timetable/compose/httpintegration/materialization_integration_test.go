@@ -679,7 +679,7 @@ func newTestMaterialization(t *testing.T, db *bun.DB, repos *api.RepositoryTestF
 		ExceptionRepo:  timetableRepos.ActivityException,
 		TimeframeRepo:  timetableRepos.Timeframe,
 		RecurrenceLock: api.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, db)),
-		DB:             db,
+		Transactions:   compose.NewTenantTransactions(db),
 		Logger:         slog.Default(),
 	})
 	require.NoError(t, err)

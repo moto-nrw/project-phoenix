@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -83,7 +81,7 @@ func (s *TemplateService) CreateTemplate(ctx context.Context, in CreateTemplateI
 	}
 
 	var result timetable.CreateTemplateResult
-	err = tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = s.deps.Transactions.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 		return s.createTemplateLocked(txCtx, in, tenantID, &result)
 	})
 	if err != nil {
@@ -100,7 +98,7 @@ func (s *TemplateService) validateTemplateCreateRequest(ctx context.Context, in 
 	if tenantID <= 0 {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("no tenant in context")}
 	}
-	if s.deps.DB == nil {
+	if s.deps.Transactions == nil {
 		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("database is not configured")}
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||

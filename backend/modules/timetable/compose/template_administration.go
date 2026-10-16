@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -42,7 +40,7 @@ type TemplateAdministrationDependencies struct {
 	SchoolClasses        SchoolClassRules
 	Staffing             StaffingAnnouncer
 	Logger               *slog.Logger
-	DB                   *bun.DB
+	Transactions         TenantTransactions
 	Today                func() calendar.Date
 }
 
@@ -57,7 +55,7 @@ var _ timetable.TemplateAdministration = (*templateAdministration)(nil)
 func NewTemplateAdministration(deps TemplateAdministrationDependencies) (timetable.TemplateAdministration, error) {
 	if deps.Groups == nil || deps.Categories == nil || deps.Schedules == nil || deps.Enrollments == nil ||
 		deps.Supervisors == nil || deps.Instances == nil || deps.InstanceStaff == nil || deps.Participants == nil ||
-		deps.Timeframes == nil || deps.EducationGroups == nil || deps.RecurrenceLock == nil || deps.DB == nil {
+		deps.Timeframes == nil || deps.EducationGroups == nil || deps.RecurrenceLock == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template administration: required dependency is nil")
 	}
 	split, err := NewTemplateSplitService(TemplateSplitDependencies{
@@ -77,7 +75,7 @@ func NewTemplateAdministration(deps TemplateAdministrationDependencies) (timetab
 		SchoolClasses:        deps.SchoolClasses,
 		Staffing:             deps.Staffing,
 		Logger:               deps.Logger,
-		DB:                   deps.DB,
+		Transactions:         deps.Transactions,
 		Today:                deps.Today,
 	})
 	if err != nil {
@@ -102,7 +100,7 @@ func NewTemplateAdministration(deps TemplateAdministrationDependencies) (timetab
 			SchoolClasses:          deps.SchoolClasses,
 			Staffing:               deps.Staffing,
 			Logger:                 deps.Logger,
-			DB:                     deps.DB,
+			Transactions:           deps.Transactions,
 			Today:                  deps.Today,
 		}),
 		split: split,

@@ -1209,7 +1209,7 @@ func newMaterializationForTest(
 		StudentRepo:    studentRepo,
 		ExceptionRepo:  exceptionRepo,
 		TimeframeRepo:  timeframeRepo,
-		DB:             db,
+		Transactions:   NewTenantTransactions(db),
 		Staffing:       staffing,
 		Logger:         logger,
 	})

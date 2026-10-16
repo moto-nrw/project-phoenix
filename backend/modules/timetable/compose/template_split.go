@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/uptrace/bun"
-
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -81,7 +79,7 @@ type TemplateSplitDependencies struct {
 	SchoolClasses        SchoolClassRules
 	Staffing             StaffingAnnouncer
 	Logger               *slog.Logger
-	DB                   *bun.DB
+	Transactions         TenantTransactions
 	Today                func() calendar.Date
 }
 
@@ -98,7 +96,7 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitServ
 	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
 		deps.SupervisorRepo == nil || deps.InstanceRepo == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.Deviations == nil || deps.RecurrenceLock == nil ||
-		deps.CareOfferings.ValidateSeries == nil || deps.CareOfferings.ValidateOfferingSource == nil || deps.DB == nil {
+		deps.CareOfferings.ValidateSeries == nil || deps.CareOfferings.ValidateOfferingSource == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template split: required dependency is nil")
 	}
 	if err := deps.SchoolClasses.validate(); err != nil {
@@ -111,7 +109,7 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitServ
 		deps:                 deps,
 		lockTenantRecurrence: deps.RecurrenceLock.LockRecurrenceWrites,
 		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
-			return tenant.WithTenantTx(ctx, deps.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+			return deps.Transactions.InTenant(ctx, tenant.FromContext(ctx), func(txCtx context.Context) error {
 				return fn(txCtx)
 			})
 		},
