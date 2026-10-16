@@ -116,7 +116,7 @@ func composeCaregivers(b graphBuild) (graphBuild, error) {
 	// and Timetable line: the shift-plan-sync workflow serves the
 	// substitution module's schedule port (#3418).
 	schedule, err := shiftplansyncCompose.NewSubstitution(shiftplansyncCompose.SubstitutionDependencies{
-		Deviations: b.staffDeviations, Staff: people.Staff, Broadcaster: b.graph.RealtimeHub,
+		Deviations: b.staffDeviations, Staff: NewPlanStaffDirectory(people.Staff), Broadcaster: b.graph.RealtimeHub,
 		Logger:            b.Logger.With("service", "schedule-substitution"),
 		ActivityInstances: arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:     arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
