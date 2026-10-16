@@ -1,4 +1,4 @@
-package httpadapter
+package api
 
 import (
 	"bytes"
@@ -22,6 +22,8 @@ import (
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -42,34 +44,47 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 	return tenantID
 }
 
-// DisplaySettings is the tenant settings service over the test database in
-// the terms the display suites use it: the routes' feature toggle, the
-// tenant facts a display token reads, and the switch of display.enabled
-// for the tenant in the context.
-type DisplaySettings struct {
-	FeatureEnabled func(context.Context) (bool, error)
-	TenantFacts    func(devicefleetLegacy.SchoolDirectory) devicefleetCompose.TenantFacts
-	Enable         func(context.Context) error
-	Reset          func(context.Context) error
+// displaySettings holds only Settings, not a multi-owner test service graph.
+type displaySettings struct {
+	service settingsCompose.SettingsService
 }
 
-// DisplayComposition is what the display suites take from the root's graph
-// over the test database: the fleet dependencies with the rooms the fleet
-// reads, the retained rows the dashboard reads, and Care Plan with the
-// approved offerings its pickup schedule projects.
-type DisplayComposition struct {
-	Fleet             devicefleetCompose.Dependencies
-	Dashboard         devicefleetLegacy.DashboardDependencies
-	CarePlan          careplan.Capability
-	ApprovedOfferings careplan.ApprovedBookingReader
+func (s displaySettings) FeatureEnabled(ctx context.Context) (bool, error) {
+	return DisplayFeatureEnabled(s.service)(ctx)
+}
+func (s displaySettings) Enable(ctx context.Context) error {
+	return s.service.SetValue(ctx, settings.KeyDisplayEnabled, true, nil, nil)
+}
+func (s displaySettings) Reset(ctx context.Context) error {
+	return s.service.ResetValue(ctx, settings.KeyDisplayEnabled, nil, nil)
+}
+func (s displaySettings) TenantFacts(schools devicefleetLegacy.SchoolDirectory) devicefleetCompose.TenantFacts {
+	return devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{Schools: schools, Settings: s.service})
 }
 
-// RootCompositions are the typed root's compositions the internal suites run
-// over. The root imports this package, so these internal tests cannot import
-// it; root_composition_test.go (package httpadapter_test) binds them.
-var RootCompositions struct {
-	Settings func(t *testing.T, db testpkg.Database) DisplaySettings
-	Display  func(t *testing.T, db testpkg.Database) DisplayComposition
+// Retain the existing fixture call sites and assertions without a mutable hook.
+type displayTestCompositions struct{}
+
+var RootCompositions displayTestCompositions
+
+func (displayTestCompositions) Settings(t *testing.T, database testpkg.Database) displaySettings {
+	t.Helper()
+	service := NewSettingsTestService(testpkg.SettingsRuntime(t, database.Pool()))
+	testpkg.SetTenantRuntime(t, service, database.Pool())
+	return displaySettings{service: service}
+}
+
+func newDisplayComposition(t *testing.T, database testpkg.Database) (devicefleetCompose.Dependencies, devicefleetLegacy.DashboardDependencies, careplan.Capability, careplan.ApprovedBookingReader) {
+	t.Helper()
+	repos, err := NewDisplayTestRepositories(database, testpkg.SettingsRuntime(t, database.Pool()))
+	require.NoError(t, err)
+	approvedOfferings, err := NewApprovedOfferingTestProjection(database, repos.Enrollment())
+	require.NoError(t, err)
+	rooms, err := NewFacilities(database)
+	require.NoError(t, err)
+	carePlan, err := NewCarePlan(database, MustNewPeopleDirectory(database), repos.InstanceStudent)
+	require.NoError(t, err)
+	return devicefleetCompose.Dependencies{Rooms: rooms}, devicefleetLegacy.DashboardDependencies{ActiveGroups: repos.ActiveGroup, Templates: repos.ActivityGroup, Instances: repos.ActivityInstance}, carePlan, approvedOfferings
 }
 
 // enableDisplayFeature turns on the opt-in display.enabled setting (issue
@@ -86,15 +101,14 @@ func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
 	t.Helper()
-	display := RootCompositions.Display(t, testpkg.NewDatabase(t, db))
+	fleetInputs, dashboard, carePlan, approvedOfferings := newDisplayComposition(t, testpkg.NewDatabase(t, db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	settings := RootCompositions.Settings(t, testpkg.NewDatabase(t, db))
-	pickup, err := careplanCompose.NewPickupSchedules(db, display.CarePlan, newPickupBaselineService(display.CarePlan, display.ApprovedOfferings), nil, nil, nil)
+	pickup, err := careplanCompose.NewPickupSchedules(db, carePlan, newPickupBaselineService(carePlan, approvedOfferings), nil, nil, nil)
 	require.NoError(t, err)
-	dashboard := display.Dashboard
 	dashboard.PickupSchedule = pickup
-	dependencies := display.Fleet
+	dependencies := fleetInputs
 	dependencies.DB = db
 	dependencies.Presence = presence
 	dependencies.Dashboard = devicefleetLegacy.NewDashboardSources(dashboard)
@@ -103,7 +117,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	dependencies.Observe = func(devicefleetCompose.Observation) {}
 	fleet, err := devicefleetCompose.New(dependencies)
 	require.NoError(t, err)
-	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settings.FeatureEnabled).Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(NewDisplayHTTPRouter(fleet, settings.FeatureEnabled))
 }
 
 // displaySchools reads the display facts straight from the seeded

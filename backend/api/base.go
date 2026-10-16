@@ -57,7 +57,6 @@ import (
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	displayHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/httpadapter"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
@@ -1446,10 +1445,11 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 func newDeviceAuthentication(modules moduleServices) *deviceauth.Authenticators {
 	svc := modules.services
 	return deviceauth.New(deviceauth.Dependencies{
-		Devices:     svc.IoT.Fleet(),
-		Schools:     deviceSchoolDirectory{schools: modules.organizations},
-		Settings:    svc.Settings,
-		FallbackPIN: os.Getenv("OGS_DEVICE_PIN"),
+		Devices:      svc.IoT.Fleet(),
+		Schools:      deviceSchoolDirectory{schools: modules.organizations},
+		SchoolErrors: devicefleetCompose.NewSchoolReadErrors(),
+		Settings:     svc.Settings,
+		FallbackPIN:  os.Getenv("OGS_DEVICE_PIN"),
 	})
 }
 
@@ -1737,7 +1737,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the service graph composes it and the IoT service hands it
 	// back here (#2676).
-	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), DisplayFeatureEnabled(svc.Settings)).Router())
+	tenant.Mount("/display", NewDisplayHTTPRouter(svc.IoT.Fleet(), DisplayFeatureEnabled(svc.Settings)))
 	// Dateframes belong to the School Calendar, timeframes and recurrence
 	// rules to the Timetable owner; timeframe changes stay guarded by the
 	// recurrence gate and the Care Plan catalog's care-offering check.
