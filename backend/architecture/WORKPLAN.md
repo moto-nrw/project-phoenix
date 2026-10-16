@@ -302,6 +302,16 @@ keine neue Reichweite, keine höheren Budgets oder Root-Service-Graph-Felder.
 Die drei #4004-Retirements sind in `display-http-owner-4078.json` belegt.
 Routen, Responses, IoT-Strings, Statuscodes und Goldens bleiben unverändert.
 
+#4078-Vorbereitung für School-HTTP: Die bisherigen JWT-Claim-Prüfungen, der
+stabile Quota-Identity-Read und die unveränderten Opaque-Token-Primitiven liegen
+in `modules/identityaccess/tokenprimitives` unter dem öffentlichen Identity-&-Access-
+Vertrag. Session Tokens behalten alle APIs und nativen SDK-Typen und delegieren
+unverändert. Der Quota-Read liefert typisierte Fakten, keinen öffentlichen Filter-Map.
+Token-Authentifizierung, Claims, Token-Entropie, Fingerprint und Quota-Format bleiben
+gleich. Keine Owner-/Key-/Regel-/Budgetänderung, keine Selektoren. Die noch ownerweite
+Krypto-Regel wird erst mit dem School-Owner-Schnitt rollen-/scope-eng eingegrenzt;
+dessen gelöschte Inbound-Regeln finanzieren die nötigen engeren Nachfolger.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der

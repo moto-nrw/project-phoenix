@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 type CommonClaims struct {
@@ -233,7 +233,7 @@ func (c *AppClaims) ParseClaims(claims map[string]any) error {
 		return err
 	}
 
-	c.Sub, err = getRequiredString(claims, jwt.SubjectKey)
+	c.Sub, err = getRequiredString(claims, tokenprimitives.SubjectKey)
 	if err != nil {
 		return err
 	}
