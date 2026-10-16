@@ -3862,7 +3862,7 @@ they cover, 945 → 938 rules: `care-plan.application.public`,
 The existing per-owner rules into the tenant runtime and into other domains
 stay; they already have the accepted shape.
 
-Epoch 52 adds `timetable-activities.postgres.transaction-runtime`: the
+Epoch 53 adds `timetable-activities.postgres.transaction-runtime`: the
 Timetable composition stops importing `models/base` and `internal/sliceutil`
 (both #4004 keys go). List options, the store error, the not-found sentinel
 and the ID helpers are Timetable's own values in `internal/domain`; the
