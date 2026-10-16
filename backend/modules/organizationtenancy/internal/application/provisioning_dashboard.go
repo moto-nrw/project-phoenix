@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // GetProvisioningStats returns the platform-wide counts of the operator
@@ -157,9 +157,9 @@ func (p *Provisioning) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*
 		for _, row := range rows {
 			portal := organizationtenancy.PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
 			switch row.Portal {
-			case deliveryModels.PushPortalStaff:
+			case domain.PWAPortalStaff:
 				usage.Staff = portal
-			case deliveryModels.PushPortalParent:
+			case domain.PWAPortalParent:
 				usage.Parent = portal
 			}
 		}
