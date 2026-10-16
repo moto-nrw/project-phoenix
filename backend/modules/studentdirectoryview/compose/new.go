@@ -5,5 +5,5 @@ package compose
 
 import "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 
-// NewCareReader builds the reader the root binds to Care Plan.
-func NewCareReader() studentdirectoryview.CareReader { return studentdirectoryview.CareReader{} }
+// NewReader builds the reader the root binds to Care Plan and People Directory.
+func NewReader() studentdirectoryview.Reader { return studentdirectoryview.Reader{} }

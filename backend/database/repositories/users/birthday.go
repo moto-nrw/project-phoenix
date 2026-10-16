@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
-
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
@@ -66,7 +64,7 @@ func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	}
 
 	var rows []birthdayRow
-	query := studentdirectoryview.ModelQuery(r.runtime.DB(ctx), r.runtime.TenantID(ctx), &rows).
+	query := r.students.StudentModelRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx), &rows).
 		ColumnExpr(`"student".id AS id`).
 		ColumnExpr(`"person".first_name AS first_name, "person".last_name AS last_name`).
 		ColumnExpr(`"person".birthday AS birthday`).
