@@ -12,7 +12,8 @@ import (
 
 // The expiry of the public demo (#3470) on an injected clock: it runs at
 // once, then once per hour, hides the schools left without a link, never the
-// standing school, and tries a failed hiding again.
+// standing school, tries a failed hiding again, and erases the visitors of
+// the schools out of use with every run (#4048).
 
 type fakeDemoExpiryRuntime struct {
 	expired []struct {
@@ -22,10 +23,14 @@ type fakeDemoExpiryRuntime struct {
 	expiries int
 	retired  [][]string
 	retire   error
+	// calls is the order of the steps: "expire", "retire".
+	calls  []string
+	erased int
 }
 
 func (r *fakeDemoExpiryRuntime) ExpireDemoAccesses(context.Context) (int, []string, error) {
 	r.expiries++
+	r.calls = append(r.calls, "expire")
 	if len(r.expired) == 0 {
 		return 0, nil, nil
 	}
@@ -34,12 +39,15 @@ func (r *fakeDemoExpiryRuntime) ExpireDemoAccesses(context.Context) (int, []stri
 	return next.deleted, next.orphaned, nil
 }
 
-func (r *fakeDemoExpiryRuntime) RetireDemoSchools(_ context.Context, slugs []string) (int, error) {
+func (r *fakeDemoExpiryRuntime) RetireDemoSchools(_ context.Context, slugs []string) (int, int, error) {
+	r.calls = append(r.calls, "retire")
 	if r.retire != nil {
-		return 0, r.retire
+		return 0, 0, r.retire
 	}
-	r.retired = append(r.retired, slugs)
-	return len(slugs), nil
+	if len(slugs) > 0 {
+		r.retired = append(r.retired, slugs)
+	}
+	return len(slugs), r.erased, nil
 }
 
 func TestDemoExpiryRunsAtOnceAndThenHourly(t *testing.T) {
@@ -98,4 +106,26 @@ func TestDemoExpiryTriesAFailedHidingAgain(t *testing.T) {
 
 	assert.Equal(t, 2, runtime.expiries)
 	assert.Equal(t, [][]string{{"ogs-nord-k3m9xp", "ogs-sued-a1b2c3"}}, runtime.retired, "the remembered school is hidden with the new one")
+}
+
+// Every run retires, with or without a school to hide: the retirement also
+// erases the visitors of the demo schools out of use (#4048), and a failed
+// order has no school to hide.
+func TestDemoExpiryRetiresEveryRunToEraseTheVisitors(t *testing.T) {
+	t.Parallel()
+	clock := time.Date(2026, 9, 22, 8, 0, 0, 0, time.UTC)
+	runtime := &fakeDemoExpiryRuntime{expired: []struct {
+		deleted  int
+		orphaned []string
+	}{
+		{deleted: 1, orphaned: []string{"ogs-nord-k3m9xp"}},
+	}, erased: 1}
+	expiry := newDemoExpiry(runtime, func() time.Time { return clock })
+
+	require.NoError(t, expiry.run(t.Context()))
+	clock = clock.Add(time.Hour)
+	require.NoError(t, expiry.run(t.Context()))
+
+	assert.Equal(t, []string{"expire", "retire", "expire", "retire"}, runtime.calls)
+	assert.Equal(t, [][]string{{"ogs-nord-k3m9xp"}}, runtime.retired)
 }

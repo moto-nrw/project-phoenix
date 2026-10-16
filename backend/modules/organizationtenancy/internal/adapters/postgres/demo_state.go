@@ -261,13 +261,25 @@ func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]st
 	return names, nil
 }
 
-// RetireMany hides the schools of the named orders (#3470): the demo process
-// calls it for the schools whose last demo access expired. It returns how
-// many schools it hid; schools hidden before count nothing. An order that
-// still waits for its seed is closed as failed, so it holds no place either;
-// an order being seeded right now is left alone and finishes as a ready
-// school nobody enters.
-func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, error) {
+// RetireMany hides the schools of the named orders (#3470), then erases the
+// visitors of every order out of use (#4048). The demo process calls it each
+// hour with the schools whose last demo access expired, or with none. It
+// returns how many schools it hid and how many orders it erased.
+func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (hidden, erased int, err error) {
+	if hidden, err = s.hide(ctx, names); err != nil {
+		return 0, 0, err
+	}
+	if erased, err = s.eraseClosedVisitors(ctx); err != nil {
+		return hidden, 0, err
+	}
+	return hidden, erased, nil
+}
+
+// hide hides the schools of the named orders. Schools hidden before count
+// nothing. An order that still waits for its seed is closed as failed, so it
+// holds no place either; an order being seeded right now is left alone and
+// finishes as a ready school nobody enters.
+func (s *DemoStateStore) hide(ctx context.Context, names []string) (int, error) {
 	if len(names) == 0 {
 		return 0, nil
 	}
@@ -287,6 +299,17 @@ func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (int, e
 		return 0, fmt.Errorf("close waiting demo school orders: %w", err)
 	}
 	return int(hidden), nil
+}
+
+// eraseClosedVisitors erases the visitors of the orders out of use (#4048)
+// and returns how many orders it deleted. The database function names the
+// rule and the places the visitor's name is replaced.
+func (s *DemoStateStore) eraseClosedVisitors(ctx context.Context) (int, error) {
+	var erased int
+	if err := s.db.NewRaw(`SELECT platform.erase_closed_demo_visitors()`).Scan(ctx, &erased); err != nil {
+		return 0, fmt.Errorf("erase demo visitors: %w", err)
+	}
+	return erased, nil
 }
 
 // DemoOrderStore is the serving backend's side of the queue. Its role may

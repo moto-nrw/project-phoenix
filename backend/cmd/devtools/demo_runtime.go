@@ -40,7 +40,7 @@ type demoSchoolQueue interface {
 	ReturnDemoSchoolOrder(ctx context.Context, slug string) error
 	ReadyDemoSchools(context.Context) ([]string, error)
 	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
-	RetireDemoSchools(ctx context.Context, slugs []string) (int, error)
+	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 }
 
 type demoAccessExpiry interface {
@@ -129,8 +129,10 @@ func (d *DemoRuntime) ExpireDemoAccesses(ctx context.Context) (int, []string, er
 	return d.expiry.ExpireDemoAccesses(ctx)
 }
 
-// RetireDemoSchools hides the named demo schools and returns how many it hid.
-func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (int, error) {
+// RetireDemoSchools hides the named demo schools, then erases the visitors
+// of the demo schools out of use (#4048). It returns how many schools it hid
+// and how many orders it erased.
+func (d *DemoRuntime) RetireDemoSchools(ctx context.Context, slugs []string) (int, int, error) {
 	return d.queue.RetireDemoSchools(ctx, slugs)
 }
 

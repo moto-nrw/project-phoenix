@@ -57,21 +57,26 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 
 	// The demo process hides the schools whose last access expired; an order
 	// still waiting for its seed is closed, and an unknown slug is passed over.
-	hidden, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
+	// No access names either order any more, so both lose their visitor
+	// (#4048).
+	hidden, erased, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
 	require.NoError(t, err)
 	assert.Equal(t, 1, hidden)
+	assert.Equal(t, 2, erased)
 	assert.True(t, schoolHidden(t, db, firstID))
 	assert.False(t, schoolHidden(t, db, secondID))
-	assert.Equal(t, organizationtenancy.DemoSchoolFailed, demoSchoolProgress(t, db, waiting).Status, "a waiting order nobody can enter is not seeded")
+	assert.Nil(t, demoSchoolProgress(t, db, waiting), "a waiting order nobody can enter is closed and erased, not seeded")
 	none, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	assert.Nil(t, none)
-	hidden, err = queue.RetireDemoSchools(ctx, []string{first})
+	hidden, erased, err = queue.RetireDemoSchools(ctx, []string{first})
 	require.NoError(t, err)
 	assert.Zero(t, hidden, "a school hidden before counts nothing")
-	hidden, err = queue.RetireDemoSchools(ctx, nil)
+	assert.Zero(t, erased, "an order erased before counts nothing")
+	hidden, erased, err = queue.RetireDemoSchools(ctx, nil)
 	require.NoError(t, err)
 	assert.Zero(t, hidden)
+	assert.Zero(t, erased)
 
 	ready, err := queue.ReadyDemoSchools(ctx)
 	require.NoError(t, err)
@@ -79,7 +84,7 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	active, err := queue.ActiveDemoSchools(ctx, entered.Add(-time.Minute))
 	require.NoError(t, err)
 	assert.Equal(t, []string{second}, active, "a hidden school is not simulated, even if it was just entered")
-	assert.Equal(t, organizationtenancy.DemoSchoolReady, demoSchoolProgress(t, db, first).Status, "the order keeps its progress; the school itself is what is gone")
+	assert.Nil(t, demoSchoolProgress(t, db, first), "the order of a hidden school no access names is erased (#4048)")
 
 	// The capacity: the hidden school and the closed order hold no place,
 	// the remaining ready school does.

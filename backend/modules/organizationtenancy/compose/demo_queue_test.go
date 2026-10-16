@@ -207,7 +207,7 @@ func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 
 	// An expired access cannot retire the school that the next attempt still
 	// needs to rename before it can rebuild the same slug.
-	hidden, err := queue.RetireDemoSchools(ctx, []string{slug})
+	hidden, _, err := queue.RetireDemoSchools(ctx, []string{slug})
 	require.NoError(t, err)
 	assert.Zero(t, hidden)
 	assert.False(t, schoolHidden(t, db, firstSchoolID))

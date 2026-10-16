@@ -123,8 +123,12 @@ type DemoQueueEngine interface {
 	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
 	// RetireDemoSchools soft-deletes the schools of the named orders (#3470)
 	// and returns how many it hid. A hidden school is neither ticked nor
-	// counted, and cannot be entered.
-	RetireDemoSchools(ctx context.Context, slugs []string) (int, error)
+	// counted, and cannot be entered. Then it removes the visitor of every
+	// closed order no demo access names any more (#4048): the order with its
+	// names, account ids and credentials, and the visitor's name in the hidden
+	// schools. It does so with no slugs too, and returns how many orders it
+	// removed.
+	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 }
 
 // DemoSchoolQueue hands the demo process its orders. Only the process that
