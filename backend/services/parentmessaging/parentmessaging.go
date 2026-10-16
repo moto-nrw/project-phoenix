@@ -13,12 +13,14 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // parentNotesSettingKey is the tenant setting that switches parent-OGS
 // messaging on. It mirrors the settings registry's key; a Communication test
 // pins the two together.
-const parentNotesSettingKey = "operations.parent_notes_enabled"
+const parentNotesSettingKey = communication.ParentNotesSettingKey
 
 // Pill vocabulary. The values are the users.parent_messages column values and
 // mirror the People Directory model constants; a Communication test pins the
@@ -87,15 +89,7 @@ func MessagingEnabled(ctx context.Context, settings SettingsResolver, logger *sl
 // MessagingEnabledForTenant is MessagingEnabled for an explicit tenant, for
 // callers running outside tenant middleware. Same key, same fail-OPEN contract.
 func MessagingEnabledForTenant(ctx context.Context, settings TenantSettingsResolver, tenantID int64, logger *slog.Logger) bool {
-	enabled, err := settings.ResolveBoolForTenant(ctx, tenantID, parentNotesSettingKey)
-	if err != nil {
-		loggerOr(logger).Warn("parent messaging: resolve enabled for tenant failed, failing open (counting as enabled)",
-			slog.Int64("tenant_id", tenantID),
-			slog.String("error", err.Error()),
-		)
-		return true
-	}
-	return enabled
+	return communication.ParentMessagingEnabledForTenant(ctx, settings, tenantID, logger)
 }
 
 func loggerOr(logger *slog.Logger) *slog.Logger {
