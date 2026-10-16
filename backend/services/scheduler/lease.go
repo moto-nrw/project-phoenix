@@ -8,76 +8,11 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 )
 
-// ErrLeaseNotHeld reports that a lease term ended: it expired, was released,
-// or a newer holder took it over. A job transaction that sees it must not
-// commit.
-var ErrLeaseNotHeld = errors.New("worker lease is not held")
-
-// LeaseTerm is one holder's tenure of the Worker lease. Until is database
-// time and is evidence only; the holder decides locally with its own
-// monotonic clock when to stop (see leadership.validUntil).
-type LeaseTerm struct {
-	Name   string
-	Holder string
-	Token  int64
-	Until  time.Time
-}
-
-// LeaseStore is the Worker's port to its lease (#2726). Acquire, Renew and
-// Release run in their own administrative transaction. Assert runs inside the
-// job transaction open in ctx and returns ErrLeaseNotHeld unless term still
-// holds the lease for at least margin.
-type LeaseStore interface {
-	Acquire(ctx context.Context, name, holder string, ttl time.Duration) (LeaseTerm, bool, error)
-	Renew(ctx context.Context, term LeaseTerm, ttl time.Duration) (LeaseTerm, bool, error)
-	Release(ctx context.Context, term LeaseTerm) error
-	Assert(ctx context.Context, term LeaseTerm, margin time.Duration) error
-}
-
-// LeaseEvidence receives the runtime evidence of the lease. The composition
-// root binds it to metrics; nil functions are skipped.
-type LeaseEvidence struct {
-	// Term reports the term this process holds; held is false in standby.
-	Term func(held bool, token int64, until time.Time)
-	// Operation reports one acquire, renew or release with its outcome
-	// (ok, busy, lost, error) and latency.
-	Operation func(operation, outcome string, latency time.Duration)
-	// Leadership reports a change: acquired, lost, expired, fenced, released.
-	Leadership func(change string)
-	// Standby reports how long this process waited before it led.
-	Standby func(time.Duration)
-	// Suppressed reports a job run or commit that did not happen because
-	// this process did not hold the lease: standby or fenced.
-	Suppressed func(reason string)
-	// Ready reports readiness, which equals holding the lease.
-	Ready func(bool)
-	// Drain reports how long a graceful stop waited for running jobs.
-	Drain func(time.Duration)
-}
-
-// WorkerLease configures the leadership every Worker process runs under.
-// Only the holder of the lease named Name runs jobs.
-//
-// A crashed holder is replaced after at most TTL + RetryEvery, a released
-// one after at most RetryEvery. The holder stops on its own TTL-FenceMargin
-// after its last successful acquire or renew, measured on its monotonic
-// clock from before the statement was sent, so it stops before the database
-// lets a standby in, whatever either clock says. Commits additionally assert
-// the term with FenceMargin of database time to spare.
-type WorkerLease struct {
-	Store       LeaseStore
-	Name        string
-	Holder      string
-	TTL         time.Duration
-	RenewEvery  time.Duration
-	RetryEvery  time.Duration
-	FenceMargin time.Duration
-	Evidence    LeaseEvidence
-}
-
-func (lease WorkerLease) validate() error {
+func validateWorkerLease(lease ports.WorkerLease) error {
 	switch {
 	case isNilDependency(lease.Store):
 		return errors.New("worker dependency lease store is required")
@@ -96,7 +31,7 @@ const leaseReleaseTimeout = 5 * time.Second
 // leadership elects this process as the single Worker leader. Job runs ask
 // current() and run under the term's context, which ends when the term ends.
 type leadership struct {
-	config WorkerLease
+	config ports.WorkerLease
 	logger *slog.Logger
 	parent context.Context
 
@@ -117,13 +52,13 @@ type leadership struct {
 // leaseRun is one term as this process holds it. validUntil is local
 // monotonic time; ctx ends when the term ends.
 type leaseRun struct {
-	term       LeaseTerm
+	term       ports.LeaseTerm
 	validUntil time.Time
 	ctx        context.Context
 	cancel     context.CancelFunc
 }
 
-func newLeadership(config WorkerLease, logger *slog.Logger, parent context.Context) *leadership {
+func newLeadership(config ports.WorkerLease, logger *slog.Logger, parent context.Context) *leadership {
 	runCtx, stopRun := context.WithCancel(context.Background())
 	l := &leadership{config: config, logger: logger, parent: parent, runCtx: runCtx, stopRun: stopRun, stopped: make(chan struct{}), acquired: make(chan struct{})}
 	l.since.Store(time.Now().UnixNano())
@@ -185,10 +120,10 @@ func (l *leadership) step(ctx context.Context) time.Duration {
 	return max(0, min(l.config.RetryEvery, time.Until(validUntil)))
 }
 
-func (l *leadership) snapshot() (LeaseTerm, bool, time.Time) {
+func (l *leadership) snapshot() (ports.LeaseTerm, bool, time.Time) {
 	run := l.running.Load()
 	if run == nil {
-		return LeaseTerm{}, false, time.Time{}
+		return ports.LeaseTerm{}, false, time.Time{}
 	}
 	return run.term, true, run.validUntil
 }
@@ -224,7 +159,7 @@ func (l *leadership) acquire(ctx context.Context) bool {
 	return true
 }
 
-func (l *leadership) renew(ctx context.Context, term LeaseTerm, validUntil time.Time) bool {
+func (l *leadership) renew(ctx context.Context, term ports.LeaseTerm, validUntil time.Time) bool {
 	started := time.Now()
 	callCtx, cancel := context.WithDeadline(ctx, validUntil)
 	defer cancel()
@@ -267,7 +202,7 @@ func (l *leadership) renew(ctx context.Context, term LeaseTerm, validUntil time.
 	return false
 }
 
-func (l *leadership) lead(term LeaseTerm, validUntil time.Time) {
+func (l *leadership) lead(term ports.LeaseTerm, validUntil time.Time) {
 	termCtx, cancel := context.WithCancel(l.parent)
 	standby := time.Since(time.Unix(0, l.since.Load()))
 	l.mu.Lock()
@@ -290,7 +225,7 @@ func (l *leadership) lead(term LeaseTerm, validUntil time.Time) {
 	l.ready(true)
 }
 
-func (l *leadership) expire(term LeaseTerm) {
+func (l *leadership) expire(term ports.LeaseTerm) {
 	if _, held, validUntil := l.snapshot(); held && !time.Now().Before(validUntil) {
 		l.stepDown(term, "expired")
 	}
@@ -304,7 +239,7 @@ func (l *leadership) nextAcquisition() <-chan struct{} {
 
 // stepDown ends term at once: its context is cancelled, so its running jobs
 // stop and their transactions roll back. A later term is left alone.
-func (l *leadership) stepDown(term LeaseTerm, reason string) {
+func (l *leadership) stepDown(term ports.LeaseTerm, reason string) {
 	l.mu.Lock()
 	run := l.running.Load()
 	if run == nil || run.term.Token != term.Token {
@@ -356,20 +291,20 @@ func (l *leadership) release(ctx context.Context) {
 
 // current returns the running term and its context. ok is false in standby
 // and once the local validity of the term has passed.
-func (l *leadership) current() (LeaseTerm, context.Context, bool) {
+func (l *leadership) current() (ports.LeaseTerm, context.Context, bool) {
 	run := l.running.Load()
 	if run == nil || !time.Now().Before(run.validUntil) {
-		return LeaseTerm{}, nil, false
+		return ports.LeaseTerm{}, nil, false
 	}
 	return run.term, run.ctx, true
 }
 
 // fence returns the commit guard of term: every job transaction asserts the
 // term before it commits, and a stale term ends at once.
-func (l *leadership) fence(term LeaseTerm) func(context.Context) error {
+func (l *leadership) fence(term ports.LeaseTerm) func(context.Context) error {
 	return func(ctx context.Context) error {
 		err := l.config.Store.Assert(ctx, term, l.config.FenceMargin)
-		if errors.Is(err, ErrLeaseNotHeld) {
+		if errors.Is(err, ports.ErrLeaseNotHeld) {
 			l.suppress("fenced")
 			l.stepDown(term, "fenced")
 		}

@@ -5,29 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 )
 
 var errSchedulerSettingsBatchUnsupported = errors.New("scheduler settings resolver does not support batch snapshots")
 
-// SettingsSnapshot is an opaque handle on one school's settings, resolved
-// ahead of a tick. Only the source that resolved it can bind it.
-type SettingsSnapshot any
-
-// SettingsSnapshotSource is the batch read a SettingsResolver may also
-// offer. The root binds the Settings Platform's cross-tenant read, so one
-// query per minute serves every school; a school without a snapshot in the
-// result fails its tick.
-type SettingsSnapshotSource interface {
-	ResolveSettingsSnapshots(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]SettingsSnapshot, error)
-	// BindSettingsSnapshot returns a context whose settings reads the
-	// snapshot serves, including the reads of the owners a job calls. A
-	// snapshot it did not resolve is an error, never a silent database read.
-	BindSettingsSnapshot(ctx context.Context, snapshot SettingsSnapshot) (context.Context, error)
-}
-
 type schedulerMinuteSnapshot struct {
 	tenantIDs []int64
-	settings  map[int64]SettingsSnapshot
+	settings  map[int64]ports.SettingsSnapshot
 }
 
 type schedulerMinuteSnapshotLoad struct {
@@ -148,7 +134,7 @@ func (s *Scheduler) loadMinuteSnapshot(ctx context.Context) (*schedulerMinuteSna
 		return result, fmt.Errorf("list active tenants: %w", err)
 	}
 
-	batch, ok := s.settings.(SettingsSnapshotSource)
+	batch, ok := s.settings.(ports.SettingsSnapshotSource)
 	if !ok {
 		return result, errSchedulerSettingsBatchUnsupported
 	}

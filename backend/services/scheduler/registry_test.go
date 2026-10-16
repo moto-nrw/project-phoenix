@@ -3,16 +3,18 @@ package scheduler
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type registryJob struct {
-	id      JobID
+	id      ports.JobID
 	started *int
 }
 
-func (job registryJob) ID() JobID { return job.id }
+func (job registryJob) ID() ports.JobID { return job.id }
 
 func (job registryJob) Start() {
 	if job.started != nil {
@@ -25,13 +27,13 @@ func TestNewRegistryAcceptsCompleteJobs(t *testing.T) {
 
 	started := 0
 	registry, err := NewRegistry(
-		[]JobID{"alpha", "beta"},
+		[]ports.JobID{"alpha", "beta"},
 		registryJob{id: "alpha", started: &started},
 		registryJob{id: "beta", started: &started},
 	)
 
 	require.NoError(t, err)
-	assert.Equal(t, []JobID{"alpha", "beta"}, registry.IDs())
+	assert.Equal(t, []ports.JobID{"alpha", "beta"}, registry.IDs())
 	registry.Start()
 	assert.Equal(t, 2, started)
 }
@@ -40,7 +42,7 @@ func TestNewRegistryRejectsMissingJob(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewRegistry(
-		[]JobID{"alpha", "beta"},
+		[]ports.JobID{"alpha", "beta"},
 		registryJob{id: "alpha"},
 	)
 
@@ -51,7 +53,7 @@ func TestNewRegistryRejectsDuplicateJob(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewRegistry(
-		[]JobID{"alpha"},
+		[]ports.JobID{"alpha"},
 		registryJob{id: "alpha"},
 		registryJob{id: "alpha"},
 	)
@@ -63,7 +65,7 @@ func TestNewRegistryRejectsDuplicateRequiredID(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewRegistry(
-		[]JobID{"alpha", "alpha"},
+		[]ports.JobID{"alpha", "alpha"},
 		registryJob{id: "alpha"},
 	)
 
@@ -73,7 +75,7 @@ func TestNewRegistryRejectsDuplicateRequiredID(t *testing.T) {
 func TestNewRegistryRejectsEmptyRequiredID(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewRegistry([]JobID{""}, registryJob{id: ""})
+	_, err := NewRegistry([]ports.JobID{""}, registryJob{id: ""})
 
 	require.ErrorContains(t, err, "empty required worker job ID")
 }
@@ -82,7 +84,7 @@ func TestNewRegistryRejectsNilJob(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewRegistry(
-		[]JobID{"alpha"},
+		[]ports.JobID{"alpha"},
 		registryJob{id: "alpha"},
 		nil,
 	)
@@ -94,7 +96,7 @@ func TestNewRegistryRejectsTypedNilJob(t *testing.T) {
 	t.Parallel()
 
 	var job *registryJob
-	_, err := NewRegistry([]JobID{"alpha"}, job)
+	_, err := NewRegistry([]ports.JobID{"alpha"}, job)
 
 	require.ErrorContains(t, err, "nil worker job at index 0")
 }
@@ -103,7 +105,7 @@ func TestNewRegistryRejectsUnknownJob(t *testing.T) {
 	t.Parallel()
 
 	_, err := NewRegistry(
-		[]JobID{"alpha"},
+		[]ports.JobID{"alpha"},
 		registryJob{id: "alpha"},
 		registryJob{id: "beta"},
 	)
