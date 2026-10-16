@@ -10,7 +10,6 @@ import (
 	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	peoplecompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -61,6 +60,8 @@ type Access interface {
 type Dependencies struct {
 	DB     *bun.DB
 	Access Access
+	// People is the People Directory the person is unlinked in.
+	People staffoffboarding.People
 	// Employment binds School Membership to Workforce's staff employment
 	// profile (#2753); the composition root supplies it.
 	Employment  membershipcompose.StaffEmployment
@@ -130,10 +131,6 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	if err != nil {
 		return nil, err
 	}
-	people, err := peoplecompose.New(peoplecompose.Dependencies{DB: deps.DB, Observe: func(peoplecompose.Observation) {}})
-	if err != nil {
-		return nil, err
-	}
 	presence, err := presencecompose.New(presencecompose.Dependencies{DB: deps.DB, Observe: func(presencecompose.Observation) {}})
 	if err != nil {
 		return nil, err
@@ -172,7 +169,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	return staffoffboarding.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
 		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
-		Membership: retirement, Workforce: work, Timetable: timetable, People: people,
+		Membership: retirement, Workforce: work, Timetable: timetable, People: deps.People,
 		LockSupervision: presence.LockStaffSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
 			p, err := deps.Access.PreviewStaffOffboarding(ctx, id)

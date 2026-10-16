@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -29,7 +31,7 @@ func NewStudentPresence(db transactionruntime.Database, observe func(presenceCom
 	pool := db.Pool()
 	// The roster reads and the care-day row lock are People Directory reads;
 	// they need none of the owner's write owners or audit seams.
-	students := peopleCompose.MustNewReads(pool)
+	students := peopleCompose.MustNewReads(pool, studentDirectoryView.NewReader())
 	rooms, err := facilitiesCompose.NewUnobserved(pool)
 	if err != nil {
 		return nil, err
@@ -108,7 +110,7 @@ func NewPartialAbsencePreview(db transactionruntime.Database) timetableCompose.P
 	if err != nil {
 		panic(fmt.Sprintf("partial absence preview: compose care plan exception queries: %v", err))
 	}
-	return newPartialAbsencePreview(MustPresenceReads(db), peopleCompose.MustNewReads(db.Pool()), exceptions)
+	return newPartialAbsencePreview(MustPresenceReads(db), peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), exceptions)
 }
 
 // NewPickupReviewBlocks previews the blocks a pickup change under review

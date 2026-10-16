@@ -188,7 +188,7 @@ func composeCareLifecycle(b graphBuild) (graphBuild, error) {
 	b.graph.EnrollmentPhase = b.enrollmentPhases
 	b.graph.StudentAudit = peopleCompose.NewStudentAuditService(b.Identity.AuditActor, b.People.StudentAudit)
 	lifecycle, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
-		StudentDirectory: studentDirectoryView.NewCareReader(),
+		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               b.DB.Pool(), Records: b.CarePlan, Owners: b.CarePlanWiring.LifecycleOwners, LockCareBookingWrites: lock,
 		BookingsAuthoritative: b.bookingsAuthoritative, Fingerprint: securityruntime.Fingerprint,
 		Logger: b.Logger.With("service", "care_lifecycle"),
@@ -508,7 +508,7 @@ func (b *graphBuild) calendarDependencies() CalendarDependencies {
 // publishes (#2601). A graph composed without the photo lifecycle hands the
 // portal none.
 func composeParentPortal(b graphBuild) (graphBuild, error) {
-	profiles, err := careplanCompose.NewStudentProfiles(b.DB.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
+	profiles, err := careplanCompose.NewStudentProfiles(b.DB.Pool(), studentDirectoryView.NewReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return b, fmt.Errorf("compose parent portal care profiles: %w", err)
 	}

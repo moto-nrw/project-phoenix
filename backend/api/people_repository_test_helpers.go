@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -288,6 +290,6 @@ func NewUnboundStudentRepository(db transactionruntime.Database) usersModels.Stu
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))
 	}
 	return peopleCompose.NewStudentRepository(peopleCompose.StudentRepositoryDependencies{
-		DB: db.Pool(), Directory: MustNewPeopleDirectory(db), Enrollment: enrollment,
+		DB: db.Pool(), Students: studentDirectoryView.NewReader(), Directory: MustNewPeopleDirectory(db), Enrollment: enrollment,
 	})
 }

@@ -18,7 +18,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	if students == nil || slots == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +28,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	}
 	studentLock, studentNotFound := peopleCompose.CareStudentLock(students)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
-		StudentDirectory: studentDirectoryView.NewCareReader(),
+		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents,
 		StatusSlots:    CarePlanStatusSlots(slots),

@@ -11,8 +11,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/uptrace/bun"
 )
 
@@ -45,7 +43,9 @@ type GuardianStudentAccessCommand interface {
 // GuardianRelationshipRepository implements StudentGuardianRepository
 // over the three owners.
 type GuardianRelationshipRepository struct {
-	runtime Runtime
+	runtime  Runtime
+	students StudentDirectoryRows
+	links    GuardianLinkRows
 	// activeMemberships supplies bounded account-school facts for permission checks.
 	activeMemberships SchoolMembershipLookup
 	pickup            GuardianPickupPermissionCommand
@@ -83,8 +83,8 @@ func WithGuardianDefaultRole(apply func(*users.StudentGuardian)) GuardianRelatio
 
 // NewGuardianRelationshipRepository creates the relationship store. Reads work
 // without the owner commands; a write fails closed until they are bound.
-func NewGuardianRelationshipRepository(runtime Runtime, options ...GuardianRelationshipOption) StudentGuardianRepository {
-	repository := &GuardianRelationshipRepository{runtime: requireRuntime(runtime)}
+func NewGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) StudentGuardianRepository {
+	repository := &GuardianRelationshipRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students), links: requireGuardianLinkRows(links)}
 	for _, option := range options {
 		option(repository)
 	}
@@ -583,7 +583,7 @@ func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID
 // --- queries ------------------------------------------------------------------
 
 func (r *GuardianRelationshipRepository) linkQuery(ctx context.Context, model any) *bun.SelectQuery {
-	return guardianlinkview.ModelQuery(r.runtime.DB(ctx), 0, model)
+	return r.links.GuardianLinkModelRows(r.runtime.DB(ctx), 0, model)
 }
 
 // FindByID retrieves one relationship with its three halves.
@@ -713,7 +713,7 @@ func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx cont
 		ORDER BY p.last_name ASC, p.first_name ASC`
 	var rows []*users.GuardianLinkedChild
 	db := r.runtime.DB(ctx)
-	if err := db.NewRaw(query, studentdirectoryview.Query(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(query, r.students.StudentRows(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
 		return nil, &DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
 	}
 	return rows, nil
@@ -759,7 +759,7 @@ func (r *GuardianRelationshipRepository) AccountHasStudentPermission(ctx context
 		)`
 	db := r.runtime.DB(ctx)
 	var granted bool
-	if err := db.NewRaw(query, guardianlinkview.Query(db, tenantID), studentID, accountID, permission).Scan(ctx, &granted); err != nil {
+	if err := db.NewRaw(query, r.links.GuardianLinkRows(db, tenantID), studentID, accountID, permission).Scan(ctx, &granted); err != nil {
 		return false, fmt.Errorf("student guardian: account permission for student: %w", err)
 	}
 	return granted, nil
@@ -817,7 +817,7 @@ func (r *GuardianRelationshipRepository) FilterAccountsWithStudentAccess(ctx con
 	db := r.runtime.DB(ctx)
 	var granted []int64
 	if err := db.NewRaw(query,
-		guardianlinkview.Query(db, tenantID),
+		r.links.GuardianLinkRows(db, tenantID),
 		bun.List(studentIDs),
 		bun.List(guardianAccountIDs),
 		permission,
@@ -896,7 +896,7 @@ func (r *GuardianRelationshipRepository) GuardianEmailHasStudentPermission(ctx c
 				AND COALESCE((sg.permissions ->> ?)::boolean, false) = TRUE`
 	db := r.runtime.DB(ctx)
 	var rows []struct{ AccountID *int64 }
-	if err := db.NewRaw(query, guardianlinkview.Query(db, tenantID), studentID, normalizedEmail, permission).Scan(ctx, &rows); err != nil {
+	if err := db.NewRaw(query, r.links.GuardianLinkRows(db, tenantID), studentID, normalizedEmail, permission).Scan(ctx, &rows); err != nil {
 		return false, fmt.Errorf("student guardian: email permission for student: %w", err)
 	}
 	accountIDs := make([]int64, 0, len(rows))
@@ -932,7 +932,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 	}
 
 	var rows []users.GuardianEmergencyContactRow
-	query := guardianlinkview.Query(r.runtime.DB(ctx), 0).
+	query := r.links.GuardianLinkRows(r.runtime.DB(ctx), 0).
 		ColumnExpr(`"student_guardian".student_id`).
 		ColumnExpr(`"guardian".id AS guardian_profile_id`).
 		ColumnExpr(`"guardian".first_name`).
@@ -976,7 +976,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 // assigned looks complete while missing exactly the rows that need work.
 func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Context) ([]users.GuardianPaymentAssignment, error) {
 	var rows []users.GuardianPaymentAssignment
-	query := studentdirectoryview.Query(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
+	query := r.students.StudentRows(r.runtime.DB(ctx), r.runtime.TenantID(ctx)).
 		ColumnExpr(`"student".id AS student_id`).
 		ColumnExpr(`"student_person".first_name AS student_first_name`).
 		ColumnExpr(`"student_person".last_name AS student_last_name`).
