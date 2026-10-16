@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -299,7 +299,7 @@ func (s *staffBalanceAdjustmentService) DeleteAdjustment(ctx context.Context, st
 	if err != nil {
 		// Only a genuine missing row is a 404; a database or transaction
 		// failure must stay a 500 (#1420 review).
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return fmt.Errorf("%w: id %d", ErrAdjustmentNotFound, adjustmentID)
 		}
 		return fmt.Errorf("failed to load balance adjustment: %w", err)
@@ -468,7 +468,7 @@ func (s *staffBalanceAdjustmentService) ResetBalance(ctx context.Context, staffI
 		DecidedAt:     time.Now(),
 	}
 	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
-		if modelBase.IsUniqueViolationOn(err, resetUniqueConstraintName) {
+		if isUniqueViolationOn(err, resetUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %s", ErrBalanceAlreadyReset, effectiveDate.String())
 		}
 		return nil, fmt.Errorf("failed to create balance reset: %w", err)
@@ -506,7 +506,7 @@ func (s *staffBalanceAdjustmentService) CreateOpeningBalance(ctx context.Context
 		DecidedAt:     time.Now(),
 	}
 	if err := s.adjustmentRepo.Create(ctx, adjustment); err != nil {
-		if modelBase.IsUniqueViolationOn(err, openingUniqueConstraintName) {
+		if isUniqueViolationOn(err, openingUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %s", ErrOpeningAlreadyExists, effectiveDate.String())
 		}
 		return nil, fmt.Errorf("failed to create opening balance: %w", err)
@@ -605,11 +605,9 @@ func (s *staffBalanceAdjustmentService) rejectConflictingRebaselines(ctx context
 // listOpenings lists all opening bookings for a staff member regardless of
 // date — the one-opening-ever guard (#2132).
 func (s *staffBalanceAdjustmentService) listOpenings(ctx context.Context, staffID int64) ([]*StaffBalanceAdjustment, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter.
-		Equal("staff_id", staffID).
-		Equal("type", BalanceAdjustmentTypeOpening)
-	openings, err := s.adjustmentRepo.List(ctx, options)
+	openings, err := s.adjustmentRepo.ListWithFilter(ctx, workforce.StaffBalanceAdjustmentFilter{
+		StaffID: staffID, Types: []string{BalanceAdjustmentTypeOpening},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to check existing opening balances: %w", err)
 	}
@@ -636,17 +634,10 @@ func (s *staffBalanceAdjustmentService) hasDependentReset(ctx context.Context, a
 // silently shift the balance they pinned — the shared dependent-booking
 // guard treats them identically (#1420, #2132).
 func (s *staffBalanceAdjustmentService) listRebaselinesOnOrAfter(ctx context.Context, staffID int64, effectiveDate calendar.Date) ([]*StaffBalanceAdjustment, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter.
-		Equal("staff_id", staffID).
-		In("type", BalanceAdjustmentTypeReset, BalanceAdjustmentTypeOpening).
-		GreaterThanOrEqual("effective_date", effectiveDate)
-	sorting := &modelBase.Sorting{}
-	sorting.AddField("effective_date", modelBase.SortAsc)
-	sorting.AddField("id", modelBase.SortAsc)
-	options.Sorting = sorting
-
-	resets, err := s.adjustmentRepo.List(ctx, options)
+	resets, err := s.adjustmentRepo.ListWithFilter(ctx, workforce.StaffBalanceAdjustmentFilter{
+		StaffID: staffID, Types: []string{BalanceAdjustmentTypeReset, BalanceAdjustmentTypeOpening},
+		EffectiveFrom: effectiveDate.String(),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to check dependent balance resets: %w", err)
 	}

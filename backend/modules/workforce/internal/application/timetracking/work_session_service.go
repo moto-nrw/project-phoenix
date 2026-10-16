@@ -14,7 +14,6 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -442,11 +441,10 @@ func (s *workSessionService) now() time.Time {
 // lookup here avoids a per-field repository method while retaining the
 // chronological block order required by the caller.
 func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*WorkSession, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter.Equal("staff_id", staffID).Equal("date", date)
-	options.Sorting = (&modelBase.Sorting{}).AddField("check_in_time", modelBase.SortAsc)
-
-	sessions, err := s.repo.List(ctx, options)
+	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{
+		StaffID: staffID, Date: date.String(),
+		Order: []workforce.WorkSessionOrder{{Field: workforce.WorkSessionOrderCheckInTime}},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list work sessions by staff and date: %w", err)
 	}
@@ -693,7 +691,7 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason
 // one authority avoids two lookups disagreeing about whether a stamp exists.
 func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (calendar.Date, error) {
 	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
-	if err != nil && !modelBase.IsNoRows(err) {
+	if err != nil && !isRecordNotFound(err) {
 		return calendar.Date(""), fmt.Errorf(errGetCurrentSession, err)
 	}
 	if open != nil {
@@ -710,7 +708,7 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errors.New(errNoActiveSession)
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -976,7 +974,7 @@ func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, da
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDateForUpdate(ctx, staffID, day)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errors.New(errNoActiveSession)
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -1044,7 +1042,7 @@ func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day 
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errors.New(errNoActiveSession)
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -1514,7 +1512,7 @@ func formatBlockEnd(checkOut *time.Time) string {
 }
 
 func (s *workSessionService) handleSessionNotFoundError(err error) error {
-	if modelBase.IsNoRows(err) {
+	if isRecordNotFound(err) {
 		return fmt.Errorf("session not found")
 	}
 	return fmt.Errorf("failed to get session: %w", err)
@@ -1657,7 +1655,7 @@ func (s *workSessionService) applySimpleFieldUpdates(uc *sessionUpdateContext, u
 func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -1673,7 +1671,7 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest open session: %w", err)
@@ -2211,7 +2209,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	for _, listedSession := range openSessions {
 		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
 		if err != nil {
-			if modelBase.IsNoRows(err) {
+			if isRecordNotFound(err) {
 				s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
 					slog.Int64("session_id", listedSession.ID),
 					slog.Int64("staff_id", listedSession.StaffID))
@@ -2365,7 +2363,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// a block that crossed Berlin midnight is still running, and starting a
 	// supervision must return it instead of running into "already checked in".
 	currentSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
-	if err != nil && !modelBase.IsNoRows(err) {
+	if err != nil && !isRecordNotFound(err) {
 		return nil, fmt.Errorf("failed to check current session: %w", err)
 	}
 
@@ -2726,13 +2724,11 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if len(expiredBreaks) == 0 {
 		return 0, nil
 	}
-	sessionIDs := make([]interface{}, 0, len(expiredBreaks))
+	sessionIDs := make([]int64, 0, len(expiredBreaks))
 	for _, brk := range expiredBreaks {
 		sessionIDs = append(sessionIDs, brk.SessionID)
 	}
-	sessions, err := s.repo.List(ctx, &modelBase.QueryOptions{
-		Filter: modelBase.NewFilter().Where("id", modelBase.OpIn, sessionIDs),
-	})
+	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{IDs: sessionIDs})
 	if err != nil {
 		return 0, fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
 	}

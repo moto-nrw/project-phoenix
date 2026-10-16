@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -402,7 +403,7 @@ type absStaffAbsenceRepoMock struct {
 	findByIDFunc               func(ctx context.Context, id any) (*StaffAbsence, error)
 	updateFunc                 func(ctx context.Context, entity *StaffAbsence) error
 	deleteFunc                 func(ctx context.Context, id any) error
-	listFunc                   func(ctx context.Context, options *QueryOptions) ([]*StaffAbsence, error)
+	listFunc                   func(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error)
 	getByStaffAndDateRangeFunc func(ctx context.Context, staffID int64, from, to Date) ([]*StaffAbsence, error)
 	getByStaffAndDateFunc      func(ctx context.Context, staffID int64, date Date) (*StaffAbsence, error)
 	getByDateRangeFunc         func(ctx context.Context, from, to Date) ([]*StaffAbsence, error)
@@ -446,9 +447,9 @@ func (m *absStaffAbsenceRepoMock) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (m *absStaffAbsenceRepoMock) List(ctx context.Context, options *QueryOptions) ([]*StaffAbsence, error) {
+func (m *absStaffAbsenceRepoMock) ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
+		return m.listFunc(ctx, filter)
 	}
 	return nil, nil
 }
@@ -533,10 +534,6 @@ func (m *absVacationQuotaRepoMock) Delete(context.Context, any) error {
 	return nil
 }
 
-func (m *absVacationQuotaRepoMock) List(context.Context, *QueryOptions) ([]*StaffVacationQuota, error) {
-	return nil, nil
-}
-
 // GetByStaffIDsAndYear satisfies the batched interface method (#1417).
 func (m *absVacationQuotaRepoMock) GetByStaffIDsAndYear(context.Context, []int64, int) (map[int64]*StaffVacationQuota, error) {
 	return nil, nil
@@ -576,7 +573,7 @@ type absWorkSessionRepoMock struct {
 	findByIDFunc            func(ctx context.Context, id any) (*WorkSession, error)
 	updateFunc              func(ctx context.Context, entity *WorkSession) error
 	deleteFunc              func(ctx context.Context, id any) error
-	listFunc                func(ctx context.Context, options *QueryOptions) ([]*WorkSession, error)
+	listFunc                func(ctx context.Context, filter workforce.WorkSessionFilter) ([]*WorkSession, error)
 	getCurrentByStaffIDFunc func(ctx context.Context, staffID int64) (*WorkSession, error)
 	getHistoryByStaffIDFunc func(ctx context.Context, staffID int64, from, to Date) ([]*WorkSession, error)
 	getOpenSessionsFunc     func(ctx context.Context, beforeDate Date) ([]*WorkSession, error)
@@ -617,9 +614,9 @@ func (m *absWorkSessionRepoMock) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (m *absWorkSessionRepoMock) List(ctx context.Context, options *QueryOptions) ([]*WorkSession, error) {
+func (m *absWorkSessionRepoMock) ListWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) ([]*WorkSession, error) {
 	if m.listFunc != nil {
-		return m.listFunc(ctx, options)
+		return m.listFunc(ctx, filter)
 	}
 	return nil, nil
 }
@@ -1629,17 +1626,14 @@ func TestAbsListAbsences_ByStatus(t *testing.T) {
 	svc, absRepo, _ := absSetupService()
 	staffID := int64(100)
 
-	absRepo.listFunc = func(_ context.Context, options *QueryOptions) ([]*StaffAbsence, error) {
-		filteredStaffID, ok := options.Filter.Get("staff_id")
-		require.True(t, ok)
-		assert.Equal(t, staffID, filteredStaffID)
-		status, ok := options.Filter.Get("status")
-		require.True(t, ok)
-		assert.Equal(t, AbsenceStatusQuestion, status)
-		require.NotNil(t, options.Sorting)
-		require.Len(t, options.Sorting.Fields, 1)
-		assert.Equal(t, "requested_at", options.Sorting.Fields[0].Field)
-		assert.Equal(t, SortDesc, options.Sorting.Fields[0].Direction)
+	absRepo.listFunc = func(_ context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
+		assert.Equal(t, staffID, filter.StaffID)
+		assert.Equal(t, []string{AbsenceStatusQuestion}, filter.Statuses)
+		assert.Empty(t, filter.OverlapFrom, "a status listing is not bounded by dates")
+		assert.Empty(t, filter.OverlapTo, "a status listing is not bounded by dates")
+		require.Len(t, filter.Order, 1)
+		assert.Equal(t, workforce.StaffAbsenceOrderRequestedAt, filter.Order[0].Field)
+		assert.True(t, filter.Order[0].Descending)
 
 		return []*StaffAbsence{{
 			Model:     Model{ID: 17},
@@ -2069,7 +2063,7 @@ func TestAbsUpsertVacationQuota_RejectsInvalidPrecision(t *testing.T) {
 
 // Generic query helper stubs (interface additions for the issue #585
 // cleanup refactor) — unused by these tests.
-func (m *absStaffAbsenceRepoMock) CountWithOptions(context.Context, *QueryOptions) (int, error) {
+func (m *absStaffAbsenceRepoMock) CountWithFilter(context.Context, workforce.StaffAbsenceFilter) (int, error) {
 	return 0, nil
 }
 
@@ -2081,7 +2075,7 @@ func (m *absStaffAbsenceRepoMock) DeleteOlderThan(context.Context, string, Date)
 	return 0, nil
 }
 
-func (m *absWorkSessionRepoMock) CountWithOptions(context.Context, *QueryOptions) (int, error) {
+func (m *absWorkSessionRepoMock) CountWithFilter(context.Context, workforce.WorkSessionFilter) (int, error) {
 	return 0, nil
 }
 

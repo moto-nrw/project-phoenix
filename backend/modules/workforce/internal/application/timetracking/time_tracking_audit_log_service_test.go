@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
@@ -18,6 +17,16 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+)
+
+// The feed's source names (the Audit Platform's audit log sources).
+const (
+	sourceSessionEdit = "session_edit"
+	sourceAbsence     = "absence"
+	sourceAdjustment  = "adjustment"
+	sourceMonthClose  = "month_close"
+	sourceMonthReopen = "month_reopen"
+	sourceDeletion    = "deletion"
 )
 
 type auditLogFixture struct {
@@ -91,14 +100,14 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	// writer (work_session_service stamps every edit of a save with the same
 	// `now`); the feed groups on that equality.
 	editedAt := time.Date(2025, time.August, 5, 14, 0, 0, 0, time.UTC)
-	edits := []*auditModels.WorkSessionEdit{
+	edits := []*timetracking.WorkSessionEdit{
 		{SessionID: session.ID, StaffID: staffA.ID, EditedBy: admin.ID, FieldName: "check_in_time", OldValue: &oldIn, NewValue: &newIn, Notes: &note, CreatedAt: editedAt},
 		{SessionID: session.ID, StaffID: staffA.ID, EditedBy: admin.ID, FieldName: "check_out_time", OldValue: &oldOut, NewValue: &newOut, Notes: &note, CreatedAt: editedAt},
 	}
 	for _, e := range edits {
 		e.SetTenantID(tenantID)
 	}
-	require.NoError(t, api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit.CreateBatch(ctx, edits))
+	require.NoError(t, api.NewWorkSessionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).WorkSessionEdit).CreateBatch(ctx, edits))
 
 	// Absence + status-transition audit row (actor = ACCOUNT id).
 	absence := &timetracking.StaffAbsence{
@@ -186,12 +195,12 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 
 	// One event per source; the two edit rows and the two close snapshots
 	// each collapse into a single event.
-	require.Len(t, bySource[auditModels.AuditLogSourceSessionEdit], 1, "two field edits of one save must group to one event")
-	require.Len(t, bySource[auditModels.AuditLogSourceAbsence], 1)
-	require.Len(t, bySource[auditModels.AuditLogSourceAdjustment], 1, "the deleted adjustment must vanish from the ledger source")
-	require.Len(t, bySource[auditModels.AuditLogSourceMonthClose], 1, "school-wide close must group to one event")
-	require.Len(t, bySource[auditModels.AuditLogSourceMonthReopen], 1)
-	require.Len(t, bySource[auditModels.AuditLogSourceDeletion], 1)
+	require.Len(t, bySource[sourceSessionEdit], 1, "two field edits of one save must group to one event")
+	require.Len(t, bySource[sourceAbsence], 1)
+	require.Len(t, bySource[sourceAdjustment], 1, "the deleted adjustment must vanish from the ledger source")
+	require.Len(t, bySource[sourceMonthClose], 1, "school-wide close must group to one event")
+	require.Len(t, bySource[sourceMonthReopen], 1)
+	require.Len(t, bySource[sourceDeletion], 1)
 
 	// Descending order over the merged feed.
 	for i := 1; i < len(page.Events); i++ {
@@ -201,7 +210,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 		assert.Positive(t, event.EntryID, "every API event must expose its unique source entry id")
 	}
 
-	edit := bySource[auditModels.AuditLogSourceSessionEdit][0]
+	edit := bySource[sourceSessionEdit][0]
 	require.NotNil(t, edit.Staff)
 	assert.Equal(t, f.staffA, edit.Staff.ID)
 	assert.Equal(t, "Audit Leitung", edit.Actor.Name)
@@ -221,12 +230,12 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 	require.Len(t, editDetail.Fields, 2)
 
 	// Absence actor arrives as an account id and must resolve to the admin.
-	absence := bySource[auditModels.AuditLogSourceAbsence][0]
+	absence := bySource[sourceAbsence][0]
 	require.NotNil(t, absence.Actor.StaffID)
 	assert.Equal(t, f.admin, *absence.Actor.StaffID)
 	assert.Equal(t, "Attest liegt vor", absence.Reason)
 
-	closeEvent := bySource[auditModels.AuditLogSourceMonthClose][0]
+	closeEvent := bySource[sourceMonthClose][0]
 	assert.Nil(t, closeEvent.Staff, "school-wide close names no single person")
 	var closeDetail struct {
 		Year         int `json:"year"`
@@ -236,7 +245,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 	require.NoError(t, json.Unmarshal(closeEvent.Detail, &closeDetail))
 	assert.Equal(t, 2, closeDetail.AccountCount)
 
-	deletion := bySource[auditModels.AuditLogSourceDeletion][0]
+	deletion := bySource[sourceDeletion][0]
 	require.NotNil(t, deletion.Staff)
 	assert.Equal(t, f.staffB, deletion.Staff.ID)
 	require.NotNil(t, deletion.Actor.StaffID)
@@ -246,7 +255,7 @@ func TestTimeTrackingAuditLog_MergedFeed(t *testing.T) {
 		Payload       json.RawMessage `json:"payload"`
 	}
 	require.NoError(t, json.Unmarshal(deletion.Detail, &deletionDetail))
-	assert.Equal(t, auditModels.TimeTrackingDeletionSourceBalanceAdjustment, deletionDetail.DeletedSource)
+	assert.Equal(t, "balance_adjustment", deletionDetail.DeletedSource)
 	assert.Contains(t, string(deletionDetail.Payload), `"minutes_delta"`)
 }
 
@@ -259,9 +268,9 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{StaffID: f.staffA})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
-		assert.Len(t, bySource[auditModels.AuditLogSourceSessionEdit], 1)
-		assert.Len(t, bySource[auditModels.AuditLogSourceMonthClose], 1, "staffA is inside the grouped close")
-		assert.Empty(t, bySource[auditModels.AuditLogSourceDeletion], "the deletion hit staffB only")
+		assert.Len(t, bySource[sourceSessionEdit], 1)
+		assert.Len(t, bySource[sourceMonthClose], 1, "staffA is inside the grouped close")
+		assert.Empty(t, bySource[sourceDeletion], "the deletion hit staffB only")
 	})
 
 	t.Run("actor filter", func(t *testing.T) {
@@ -278,7 +287,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 
 	t.Run("source filter", func(t *testing.T) {
 		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{
-			Sources: []string{auditModels.AuditLogSourceAdjustment, auditModels.AuditLogSourceDeletion},
+			Sources: []string{sourceAdjustment, sourceDeletion},
 		})
 		require.NoError(t, err)
 		require.Len(t, page.Events, 2)
@@ -290,8 +299,8 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{From: &from, To: &to})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
-		assert.Len(t, bySource[auditModels.AuditLogSourceMonthClose], 1)
-		assert.Empty(t, bySource[auditModels.AuditLogSourceMonthReopen], "reopen happened on Sep 2")
+		assert.Len(t, bySource[sourceMonthClose], 1)
+		assert.Empty(t, bySource[sourceMonthReopen], "reopen happened on Sep 2")
 	})
 
 	t.Run("to date includes the final fractional second", func(t *testing.T) {
@@ -302,9 +311,9 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 			9001: finalFraction,
 			9002: nextMidnight,
 		} {
-			require.NoError(t, api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion.Create(f.ctx, &auditModels.TimeTrackingDeletion{
+			require.NoError(t, api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).TimeTrackingDeletion).Create(f.ctx, &timetracking.TimeTrackingDeletionEvent{
 				StaffID:    f.staffA,
-				Source:     auditModels.TimeTrackingDeletionSourceAbsence,
+				Source:     "absence",
 				SourceID:   sourceID,
 				DeletedBy:  f.admin,
 				Payload:    json.RawMessage(`{"test":true}`),
@@ -316,7 +325,7 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{
 			From:    &day,
 			To:      &day,
-			Sources: []string{auditModels.AuditLogSourceDeletion},
+			Sources: []string{sourceDeletion},
 		})
 		require.NoError(t, err)
 		require.Len(t, page.Events, 1)

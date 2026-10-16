@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -142,7 +141,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 		return nil, fmt.Errorf("%w: %s", ErrVacationOpeningInvalid, err.Error())
 	}
 	if err := s.openingRepo.Create(ctx, opening); err != nil {
-		if modelBase.IsUniqueViolationOn(err, vacationOpeningUniqueConstraintName) {
+		if isUniqueViolationOn(err, vacationOpeningUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %d", ErrVacationOpeningExists, year)
 		}
 		return nil, fmt.Errorf("failed to create vacation opening: %w", err)

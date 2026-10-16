@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -177,13 +178,13 @@ type typeFilteringBalanceAdjustmentRepo struct {
 	listCalls int
 }
 
-func (r *typeFilteringBalanceAdjustmentRepo) List(ctx context.Context, options *QueryOptions) ([]*StaffBalanceAdjustment, error) {
+func (r *typeFilteringBalanceAdjustmentRepo) ListWithFilter(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]*StaffBalanceAdjustment, error) {
 	r.listCalls++
 	if r.listCalls == 1 {
 		*r.events = append(*r.events, "list")
 		return nil, nil
 	}
-	return r.recordingBalanceAdjustmentRepo.List(ctx, options)
+	return r.recordingBalanceAdjustmentRepo.ListWithFilter(ctx, filter)
 }
 
 func TestStaffBalanceAdjustmentService_OpeningRejectsExistingLaterReset(t *testing.T) {
@@ -233,11 +234,11 @@ type failingBalanceAdjustmentRepo struct {
 	createErr error
 }
 
-func (r *failingBalanceAdjustmentRepo) List(ctx context.Context, options *QueryOptions) ([]*StaffBalanceAdjustment, error) {
+func (r *failingBalanceAdjustmentRepo) ListWithFilter(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]*StaffBalanceAdjustment, error) {
 	if r.listErr != nil {
 		return nil, r.listErr
 	}
-	return r.recordingBalanceAdjustmentRepo.List(ctx, options)
+	return r.recordingBalanceAdjustmentRepo.ListWithFilter(ctx, filter)
 }
 
 func (r *failingBalanceAdjustmentRepo) Create(ctx context.Context, adjustment *StaffBalanceAdjustment) error {

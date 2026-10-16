@@ -3,14 +3,12 @@ package timetracking
 import (
 	"errors"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
 )
 
 // WorkSessionBreak represents a single break period within a work session
 type WorkSessionBreak struct {
-	base.Model `bun:"schema:active,table:work_session_breaks"`
-	base.TenantModel
+	Model `bun:"schema:active,table:work_session_breaks"`
+	TenantModel
 	SessionID       int64      `bun:"session_id,notnull" json:"session_id"`
 	StartedAt       time.Time  `bun:"started_at,notnull" json:"started_at"`
 	EndedAt         *time.Time `bun:"ended_at" json:"ended_at,omitempty"`

@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
@@ -37,7 +36,6 @@ type overviewFixture struct {
 	db        *testpkg.DB
 	repos     *api.RepositoryTestFactory
 	workforce workforce.Capability
-	rows      api.TimetableTestRepositories
 	ctx       context.Context
 	staff     []int64
 	svc       timetracking.StaffOverviewService
@@ -55,14 +53,12 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
-	require.NoError(t, err)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
 	today := calendar.TodayDate()
 
 	f := &overviewFixture{
-		tenantID: tenantID, db: db, repos: repos, workforce: owners.Workforce, rows: rows, ctx: ctx, today: today,
+		tenantID: tenantID, db: db, repos: repos, workforce: owners.Workforce, ctx: ctx, today: today,
 	}
 
 	t.Cleanup(func() {
@@ -169,15 +165,11 @@ func (f *overviewFixture) reopenSession(t *testing.T, staffID int64, date calend
 // addShift plans a shift that covers the whole day, so it also covers "now".
 func (f *overviewFixture) addShift(t *testing.T, staffID int64, date calendar.Date) {
 	t.Helper()
-	shift := &scheduleModels.StaffShift{
-		StaffID:   staffID,
-		Date:      scheduleModels.Date(date),
-		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(2000, time.January, 1, 23, 59, 59, 999999000, time.UTC),
-		CreatedBy: staffID,
-	}
-	shift.SetTenantID(f.tenantID)
-	require.NoError(t, f.rows.StaffShift.Create(f.ctx, shift))
+	_, err := f.workforce.CreateStaffShift(f.ctx, workforce.StaffShift{
+		TenantID: f.tenantID, StaffID: staffID, Date: date.String(),
+		StartTime: "00:00:00", EndTime: "23:59:59", CreatedBy: staffID,
+	})
+	require.NoError(t, err)
 }
 
 func (f *overviewFixture) addAbsence(t *testing.T, staffID int64, absenceType, status string, start, end calendar.Date) {
