@@ -11,7 +11,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -1067,7 +1066,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 				return false
 			}, "the rejected request must explain that the direct correction replaced it")
 
-			rejectionEmails := env.outbox.ByKind(platformModels.EmailKindEnrollmentChangeRequestRejected)
+			rejectionEmails := env.outbox.ByKind(capability.MailKindChangeRequestRejected)
 			require.Len(t, rejectionEmails, 1)
 			assert.Equal(t, result.Request.ID, rejectionEmails[0].RelatedEntityID)
 
@@ -1525,7 +1524,7 @@ func TestChangeRequestService_Approve_WaitlistsNonApprovedChildMovedOntoFullOffe
 	require.NoError(t, err)
 	require.Len(t, links, 1)
 	assert.Equal(t, offering.ID, links[0].CareOfferingID)
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(capability.MailKindDecisionDigest)
 	require.Len(t, digests, 1)
 	assert.Equal(t, []string{child.FirstName + " " + child.LastName}, digests[0].Payload["waitlisted_names"])
 }

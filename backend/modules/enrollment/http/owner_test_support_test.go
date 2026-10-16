@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 )
@@ -35,6 +34,7 @@ type (
 	TestDecisionGuardianAccess     = enrollmentTest.DecisionGuardianAccess
 	TestDecisionStudentEnrollment  = enrollmentTest.DecisionStudentEnrollment
 	TestDecisionBookings           = enrollmentTest.DecisionBookings
+	TestMail                       = enrollmentTest.Mail
 )
 
 // Owner compositions the suites drive.
@@ -55,30 +55,26 @@ func NewTestFormSchemas(records enrollmentTest.FormSchemaRecords) capability.For
 // NewTestNotifications composes the parent mails the way the root does: the
 // owner pins the mode, the suite's settings choose it, the suite's outbox
 // records the mails and the school directory brands them.
-func NewTestNotifications(modes enrollmentTest.NotificationModePin, settings enrollmentTest.NotificationSettings, outbox platformModels.OutboxEnqueuer, schools capability.SchoolDirectory) capability.Notifications {
+func NewTestNotifications(modes enrollmentTest.NotificationModePin, settings enrollmentTest.NotificationSettings, outbox testMailOutbox, schools capability.SchoolDirectory) capability.Notifications {
 	return enrollmentTest.NewNotifications(enrollmentTest.NotificationDependencies{Branding: api.EnrollmentMailBranding,
 		Modes:    modes,
 		Settings: settings,
-		Outbox:   testMailOutbox{outbox: outbox},
+		Outbox:   outbox,
 		Schools:  schools,
 	})
 }
 
 // NewTestFlowNotifications composes the parent mails like
 // NewTestNotifications; without an outbox the mails are not recorded.
-func NewTestFlowNotifications(modes enrollmentTest.NotificationModePin, settings enrollmentTest.NotificationSettings, outbox platformModels.OutboxEnqueuer, schools capability.SchoolDirectory) capability.Notifications {
+func NewTestFlowNotifications(modes enrollmentTest.NotificationModePin, settings enrollmentTest.NotificationSettings, outbox testMailOutbox, schools capability.SchoolDirectory) capability.Notifications {
 	deps := enrollmentTest.NotificationDependencies{Branding: api.EnrollmentMailBranding, Modes: modes, Settings: settings, Schools: schools}
 	if outbox != nil {
-		deps.Outbox = testMailOutbox{outbox: outbox}
+		deps.Outbox = outbox
 	}
 	return enrollmentTest.NewNotifications(deps)
 }
 
-type testMailOutbox struct{ outbox platformModels.OutboxEnqueuer }
-
-func (o testMailOutbox) EnqueueMail(ctx context.Context, mail enrollmentTest.Mail) error {
-	return o.outbox.EnqueueOutbox(ctx, platformModels.OutboxEnqueueRequest{
-		Kind: mail.Kind, Payload: mail.Payload, RelatedEntityType: mail.RelatedEntityType,
-		RelatedEntityID: mail.RelatedEntityID, IdempotencyKey: mail.IdempotencyKey,
-	})
+// testMailOutbox records or fails Enrollment's parent mails in a suite.
+type testMailOutbox interface {
+	EnqueueMail(ctx context.Context, mail TestMail) error
 }

@@ -9,19 +9,26 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
+// The notification types the calendar addresses its guardian notifications
+// and the guardians' opt-outs by.
+const (
+	notificationTypeParentAppointment         = "parent_appointment"
+	notificationTypeParentAppointmentReminder = "parent_appointment_reminder"
+)
+
 type reminderCaptureNotifier struct {
-	events []notifications.Event
+	events []calendarCompose.Notification
 	err    error
 }
 
-func (n *reminderCaptureNotifier) Notify(_ context.Context, event notifications.Event) error {
+func (n *reminderCaptureNotifier) Notify(_ context.Context, event calendarCompose.Notification) error {
 	if n.err != nil {
 		return n.err
 	}
@@ -29,13 +36,11 @@ func (n *reminderCaptureNotifier) Notify(_ context.Context, event notifications.
 	return nil
 }
 
-func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event notifications.Event) error {
+func (n *reminderCaptureNotifier) NotifySynchronously(ctx context.Context, event calendarCompose.Notification) error {
 	return n.Notify(ctx, event)
 }
 
-type reminderPreferences struct {
-	notifications.PreferenceService
-}
+type reminderPreferences struct{}
 
 func (reminderPreferences) FilterNotOptedOut(_ context.Context, _ string, accountIDs []int64) ([]int64, error) {
 	return accountIDs, nil
@@ -50,7 +55,6 @@ func (reminderPreferences) FilterOptedIn(_ context.Context, _ string, accountIDs
 // behind the same explicit-opt-out gate, so a type-blind double would suppress
 // both and no test could tell which gate it proved.
 type optedOutAppointmentPreferences struct {
-	notifications.PreferenceService
 	optedOutType string
 }
 
@@ -155,7 +159,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointmentReminder}
+	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointmentReminder}
 	cfg.ReminderNotifier = notifier
 	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Consent")
@@ -184,7 +188,7 @@ func TestCalendarServiceIntegration_AppointmentReminderEmailHonorsOptOut(t *test
 	assert.Zero(t, queued, "reminders must respect an explicit guardian opt-out")
 	assert.Len(t, outbox.enqueued, 1)
 	require.Len(t, notifier.events, 1, "an e-mail opt-out must not suppress an opted-in push")
-	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, notificationTypeParentAppointmentReminder, notifier.events[0].Type)
 }
 
 func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmail(t *testing.T) {
@@ -233,7 +237,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutGuardianEmai
 	require.NoError(t, err)
 	assert.Zero(t, queued, "an e-mail-less guardian has no outbox e-mail to queue")
 	require.Len(t, notifier.events, 1)
-	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, notificationTypeParentAppointmentReminder, notifier.events[0].Type)
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 
 	queued, err = api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(ctx, startsAt.Add(-5*time.Minute), startsAt.Add(5*time.Minute))
@@ -338,7 +342,7 @@ func TestCalendarServiceIntegration_AppointmentReminderPushesWithoutOutbox(t *te
 	require.NoError(t, err)
 	assert.Zero(t, queued, "without an outbox there is no e-mail to queue")
 	require.Len(t, notifier.events, 1, "the push must not depend on the e-mail outbox")
-	assert.Equal(t, notifications.TypeParentAppointmentReminder, notifier.events[0].Type)
+	assert.Equal(t, notificationTypeParentAppointmentReminder, notifier.events[0].Type)
 	assert.Equal(t, []int64{parentChain.AccountID}, notifier.events[0].Audience.GuardianAccountIDs)
 }
 
@@ -352,7 +356,7 @@ func TestCalendarServiceIntegration_AppointmentReminderRetriesPushAfterMissingSu
 	db := testpkg.SetupTestDB(t)
 
 	outbox := &recordingOutbox{}
-	notifier := &reminderCaptureNotifier{err: notifications.ErrNoWebPushSubscribers}
+	notifier := &reminderCaptureNotifier{err: api.CalendarNoPushAudience()}
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
@@ -400,7 +404,7 @@ func TestCalendarServiceIntegration_AppointmentLifecycleEmailHonorsOptOut(t *tes
 	cfg := calendarTestConfig(t, db)
 	cfg.Outbox = outbox
 	cfg.ParentsURL = "https://parents.test"
-	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notifications.TypeParentAppointment}
+	cfg.Preferences = optedOutAppointmentPreferences{optedOutType: notificationTypeParentAppointment}
 	service := api.NewCalendarPortal(cfg)
 	_, organizerAccount := testpkg.CreateTestCalendarStaff(t, db, "Reminder", "Organizer")
 	parentChain := testpkg.CreateTestParentGuardianChain(t, db)
