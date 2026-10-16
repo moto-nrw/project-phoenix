@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 )
@@ -74,9 +73,9 @@ func classListEntryMatchesSearch(entry ClassListEntry, search string) bool {
 		return true
 	}
 	fullName := entry.FirstName + " " + entry.LastName
-	return strutil.ContainsFold(entry.FirstName, search) ||
-		strutil.ContainsFold(entry.LastName, search) ||
-		strutil.ContainsFold(fullName, search)
+	return containsFold(entry.FirstName, search) ||
+		containsFold(entry.LastName, search) ||
+		containsFold(fullName, search)
 }
 
 // classListEntryExportRow renders one entry: name with the "Keine Betreuung"

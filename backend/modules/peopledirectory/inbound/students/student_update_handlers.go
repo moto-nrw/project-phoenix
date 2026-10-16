@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -107,13 +106,13 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *Student) {
 		student.GroupID = req.GroupID
 	}
 	if req.AddressStreet != nil {
-		student.AddressStreet = strutil.TrimToNil(*req.AddressStreet)
+		student.AddressStreet = trimToNil(*req.AddressStreet)
 	}
 	if req.AddressCity != nil {
-		student.AddressCity = strutil.TrimToNil(*req.AddressCity)
+		student.AddressCity = trimToNil(*req.AddressCity)
 	}
 	if req.AddressPostalCode != nil {
-		student.AddressPostalCode = strutil.TrimToNil(*req.AddressPostalCode)
+		student.AddressPostalCode = trimToNil(*req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
@@ -430,7 +429,7 @@ func (rs *Resource) writeStudentUpdate(ctx context.Context, update *studentUpdat
 	effectiveConsent := reconcilePhotoConsentRequest(req.PhotoConsentGiven, update.snapshot, fresh)
 	rs.applyPhotoConsent(ctx, effectiveConsent, fresh)
 
-	if err := rs.persistStudentStatusHistory(ctx, fresh, req, update.wasSick, update.wasExcused, update.now, strutil.TrimPtrToNil(req.SickReason)); err != nil {
+	if err := rs.persistStudentStatusHistory(ctx, fresh, req, update.wasSick, update.wasExcused, update.now, trimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(update.snapshot.ID, err)
 		return false, err
 	}
