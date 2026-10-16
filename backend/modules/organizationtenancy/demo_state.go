@@ -16,8 +16,10 @@ var ErrDemoCapacityReached = errors.New("demo capacity reached")
 // DemoSchoolState retains the complete synthetic seed contract. It is never
 // exposed through a tenant or operator HTTP endpoint: it includes credentials.
 type DemoSchoolState struct {
-	SchoolID int64
-	SeedJSON []byte
+	SchoolID               int64
+	SeedJSON               []byte
+	VisitorAccountID       int64
+	VisitorParentAccountID int64
 }
 
 type DemoStateEngine interface {
@@ -74,12 +76,12 @@ func (d *DemoSchools) UpdateDemoSchool(ctx context.Context, name string, state D
 // RememberDemoSchoolFields and UpdateDemoSchoolFields save the state from its
 // fields, for callers that hold this capability through the owner's
 // composition but not the state type (the dev tools, ADR 0060).
-func (d *DemoSchools) RememberDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte) error {
-	return d.RememberDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON})
+func (d *DemoSchools) RememberDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte, visitorAccountID, visitorParentAccountID int64) error {
+	return d.RememberDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON, VisitorAccountID: visitorAccountID, VisitorParentAccountID: visitorParentAccountID})
 }
 
-func (d *DemoSchools) UpdateDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte) error {
-	return d.UpdateDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON})
+func (d *DemoSchools) UpdateDemoSchoolFields(ctx context.Context, name string, schoolID int64, seedJSON []byte, visitorAccountID, visitorParentAccountID int64) error {
+	return d.UpdateDemoSchool(ctx, name, DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON, VisitorAccountID: visitorAccountID, VisitorParentAccountID: visitorParentAccountID})
 }
 
 func (d *DemoSchools) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
@@ -113,9 +115,6 @@ type DemoQueueEngine interface {
 	// FinishDemoSchoolOrder opens the school and names the visitor's
 	// caregiver and parent account; zero names none.
 	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
-	// RecordDemoSchoolVisitor retains the identities while the seed is still
-	// preparing, so a failed first tick can be erased later.
-	RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
 	FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (failed bool, err error)
 	// ReturnDemoSchoolOrder hands a claimed order back without counting the
 	// attempt, when something other than the order stopped the seed.

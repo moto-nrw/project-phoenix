@@ -15,15 +15,19 @@ import (
 type DemoStateStore struct{ db *bun.DB }
 
 type DemoState struct {
-	TenantID int64  `bun:"tenant_id"`
-	SeedJSON string `bun:"seed_state"`
+	TenantID               int64  `bun:"tenant_id"`
+	SeedJSON               string `bun:"seed_state"`
+	VisitorAccountID       int64  `bun:"visitor_account_id"`
+	VisitorParentAccountID int64  `bun:"visitor_parent_account_id"`
 }
 
 func NewDemoStateStore(db *bun.DB) *DemoStateStore { return &DemoStateStore{db: db} }
 
 func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, error) {
 	var state DemoState
-	err := s.db.NewRaw(`SELECT tenant_id, seed_state FROM platform.demo_school_states WHERE name = ? AND seed_state IS NOT NULL`, name).Scan(ctx, &state)
+	err := s.db.NewRaw(`SELECT tenant_id, seed_state, COALESCE(visitor_account_id, 0) AS visitor_account_id,
+		COALESCE(visitor_parent_account_id, 0) AS visitor_parent_account_id
+		FROM platform.demo_school_states WHERE name = ? AND seed_state IS NOT NULL`, name).Scan(ctx, &state)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
@@ -71,8 +75,13 @@ func (s *DemoStateStore) Remember(ctx context.Context, name string, state DemoSt
 // without allowing a caller to replace another school's state.
 func (s *DemoStateStore) Update(ctx context.Context, name string, state DemoState) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET seed_state = ?::jsonb
-		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, name, state.TenantID).Exec(ctx)
+		SET seed_state = ?::jsonb,
+			visitor_account_id = COALESCE(NULLIF(?, 0), visitor_account_id),
+			visitor_parent_account_id = COALESCE(NULLIF(?, 0), visitor_parent_account_id),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+		WHERE name = ? AND tenant_id = ?`, state.SeedJSON, state.VisitorAccountID, state.VisitorParentAccountID,
+		state.VisitorAccountID, state.VisitorParentAccountID, name, state.TenantID).Exec(ctx)
 	if err != nil {
 		return errors.New("could not update demo school state")
 	}
@@ -210,25 +219,6 @@ func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccount
 		visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("finish demo school order: %w", err)
-	}
-	return nil
-}
-
-// RecordVisitor retains the seeded visitor identities before the first tick.
-// A tick failure still leaves a final failed order enough information to erase
-// the school's copied names after its demo access expires.
-func (s *DemoStateStore) RecordVisitor(ctx context.Context, name string, visitorAccountID, visitorParentAccountID int64) error {
-	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0),
-			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
-			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
-		WHERE name = ? AND status = 'preparing'`,
-		visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
-	if err != nil {
-		return fmt.Errorf("record demo school visitor: %w", err)
-	}
-	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
-		return errors.New("demo school order does not exist")
 	}
 	return nil
 }

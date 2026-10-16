@@ -269,7 +269,10 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.schools.RecordDemoSchoolVisitor(ctx, order.Slug, school.visitorID, school.visitorParentID); err != nil {
+	if err := s.schools.UpdateDemoSchool(ctx, order.Slug, DemoSchoolRecord{
+		SchoolID: school.schoolID, SeedJSON: school.seedJSON,
+		VisitorAccountID: school.visitorID, VisitorParentAccountID: school.visitorParentID,
+	}); err != nil {
 		return nil, err
 	}
 	if err := school.run(ctx, true, true, func() {}); err != nil {

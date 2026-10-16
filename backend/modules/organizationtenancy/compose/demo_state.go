@@ -23,7 +23,7 @@ func (e demoStateEngine) LoadDemoSchool(ctx context.Context, name string) (*orga
 	if err != nil || state == nil {
 		return nil, err
 	}
-	return &organizationtenancy.DemoSchoolState{SchoolID: state.TenantID, SeedJSON: []byte(state.SeedJSON)}, nil
+	return &organizationtenancy.DemoSchoolState{SchoolID: state.TenantID, SeedJSON: []byte(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID}, nil
 }
 
 func (e demoStateEngine) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
@@ -31,11 +31,11 @@ func (e demoStateEngine) ReserveDemoSchool(ctx context.Context, name string, sch
 }
 
 func (e demoStateEngine) RememberDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {
-	return e.store.Remember(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON)})
+	return e.store.Remember(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID})
 }
 
 func (e demoStateEngine) UpdateDemoSchool(ctx context.Context, name string, state organizationtenancy.DemoSchoolState) error {
-	return e.store.Update(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON)})
+	return e.store.Update(ctx, name, postgres.DemoState{TenantID: state.SchoolID, SeedJSON: string(state.SeedJSON), VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID})
 }
 
 func (e demoStateEngine) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {

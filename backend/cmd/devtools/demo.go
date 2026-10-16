@@ -143,6 +143,8 @@ func runStandingDemo(ctx context.Context, schools *DemoRuntime, baseURL, heartbe
 // the visitor's name (#3463, #3468).
 type demoSchool struct {
 	slug            string
+	schoolID        int64
+	seedJSON        []byte
 	state           *simulate.SeedState
 	client          *seedapi.Client
 	ticker          *simulate.DemoTicker
@@ -197,7 +199,7 @@ func loadDemoSchool(ctx context.Context, schools *DemoRuntime, slug, baseURL str
 		return nil, fmt.Errorf("stored demo has no admin")
 	}
 	return &demoSchool{
-		slug: slug, state: state, client: client, ticker: ticker,
+		slug: slug, schoolID: saved.SchoolID, seedJSON: saved.SeedJSON, state: state, client: client, ticker: ticker,
 		visitorID: seedapi.VisitorAccountID(profile), visitorParentID: visitorParentID,
 	}, nil
 }

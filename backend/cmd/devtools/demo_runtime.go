@@ -12,8 +12,10 @@ import (
 )
 
 type DemoSchoolRecord struct {
-	SchoolID int64
-	SeedJSON []byte
+	SchoolID               int64
+	SeedJSON               []byte
+	VisitorAccountID       int64
+	VisitorParentAccountID int64
 }
 
 type DemoVisit struct {
@@ -36,7 +38,6 @@ type demoSchoolQueue interface {
 	RequeueDeferredDemoSchoolOrders(context.Context) error
 	RequeueDeferredDemoSchoolOrder(context.Context, string) error
 	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
-	RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
 	FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error)
 	ReturnDemoSchoolOrder(ctx context.Context, slug string) error
 	ReadyDemoSchools(context.Context) ([]string, error)
@@ -91,13 +92,13 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 			if state == nil || err != nil {
 				return nil, err
 			}
-			return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
+			return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON, VisitorAccountID: state.VisitorAccountID, VisitorParentAccountID: state.VisitorParentAccountID}, nil
 		},
 		storeSchool: func(ctx context.Context, name string, record DemoSchoolRecord, update bool) error {
 			if update {
-				return schools.UpdateDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
+				return schools.UpdateDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON, record.VisitorAccountID, record.VisitorParentAccountID)
 			}
-			return schools.RememberDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
+			return schools.RememberDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON, record.VisitorAccountID, record.VisitorParentAccountID)
 		},
 		claimOrder: func(ctx context.Context) (*DemoSchoolOrder, error) {
 			order, err := queue.ClaimDemoSchoolOrder(ctx)
@@ -169,10 +170,6 @@ func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrde
 // FinishDemoSchoolOrder opens the school for its demo access.
 func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
 	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID, visitorParentAccountID)
-}
-
-func (d *DemoRuntime) RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
-	return d.queue.RecordDemoSchoolVisitor(ctx, slug, visitorAccountID, visitorParentAccountID)
 }
 
 // FailDemoSchoolOrder queues the order again until maxAttempts are used.
