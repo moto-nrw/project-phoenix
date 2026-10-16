@@ -3853,6 +3853,12 @@
       "legacy": "identity.operator_invitation_invalid"
     },
     {
+      "code": "identity.operator_self_deactivation",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.operator_self_deactivation"
+    },
+    {
       "code": "identity.invitation_rate_limited",
       "class": "unavailable",
       "parameters": [],

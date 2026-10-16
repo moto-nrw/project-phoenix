@@ -294,10 +294,11 @@ func operatorTestSessions(t *testing.T, operators identityoperator.OperatorLooku
 func operatorRouteAccessToken(t *testing.T, operatorID int) string {
 	t.Helper()
 	token, err := routetest.TestTokenAuth(t).CreateJWT(routetest.Claims{
-		ID:    operatorID,
-		Sub:   "operator-route-test",
-		Roles: []string{"operator"},
-		Scope: "platform",
+		ID:       operatorID,
+		Sub:      "operator-route-test",
+		Roles:    []string{"operator"},
+		Scope:    "platform",
+		FamilyID: "operator-route-test-family",
 	})
 	require.NoError(t, err)
 	return token

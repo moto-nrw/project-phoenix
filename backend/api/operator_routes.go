@@ -401,6 +401,8 @@ func (rs operatorIdentityRoutes) mountInvitationRoutes(r chi.Router) {
 		r.Post("/{id}/resend", rs.invitations.ResendInvitation)
 		r.Delete("/{id}", rs.invitations.RevokeInvitation)
 	})
+	r.Post("/operators/{id}/deactivate", rs.invitations.DeactivateOperator)
+	r.Post("/operators/{id}/reactivate", rs.invitations.ReactivateOperator)
 }
 
 // mountOperatorAnnouncementRoutes registers announcements management.
