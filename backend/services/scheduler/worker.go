@@ -63,7 +63,7 @@ type WorkerDependencies struct {
 	CareExitEffector          CareExitEffector
 	OutboxWorker              OutboxWorkerRunner
 	RolloverDeadlineRunner    RolloverDeadlineRunner
-	ReminderNotifications     ReminderNotificationDeps
+	ReminderNotifications     ReminderNotificationTick
 	// Lease elects the single Worker that runs jobs (#2726). Every Worker
 	// process, embedded in Serve or standalone, runs under it.
 	Lease WorkerLease
@@ -170,7 +170,7 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(!isNilDependency(s.studentStatusDayRepo), "status-flag-clear", s.scheduleStatusFlagClearTask)
 	add(!isNilDependency(s.materializer), "timetable-materialization", s.scheduleMaterializationTask)
 	add(!isNilDependency(s.instanceRepo) && !isNilDependency(s.instanceRoomRepo) && !isNilDependency(s.overdueBroadcaster), "instance-overdue", s.scheduleInstanceOverdueTask)
-	add(s.reminderNotifications.complete(), "reminder-notifications", s.scheduleReminderNotificationTask)
+	add(s.reminderNotifications != nil, "reminder-notifications", s.scheduleReminderNotificationTask)
 	add(!isNilDependency(s.autoStart), "timetable-auto-start", s.scheduleAutoStartTask)
 	add(!isNilDependency(s.autoEnd), "timetable-auto-end", s.scheduleAutoEndTask)
 	add(!isNilDependency(s.studentLifecycleRepo), "activate-students", s.scheduleActivateStudentsTask)

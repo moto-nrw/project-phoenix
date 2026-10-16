@@ -4285,6 +4285,33 @@ unchanged.
 composition surface falls from 1,746 to 1,743. The evidence record is
 `relocate-operator-router-4064.json`.
 
+### The Worker contract names no other owner (#4067)
+
+ADR 0056 point 4 moves the contract the root fills into a
+`scheduler-runtime`/`contract` package. The contract may not name another
+owner's types: a platform importing a domain, a workflow or another owner's
+`application` role is never a rule (ADR 0057). Each Worker dependency typed
+by another owner therefore becomes a port the Worker declares and the root
+binds (ADR 0058 point 2) before the contract moves. #4067 carries every key
+with source `services/scheduler`, whichever carrier names it (#4072, #4075).
+
+Step 1, the personal reminder notifications. The producer that turns the
+reminder list into notifications joins the reminder batch with the
+notification audience, so it moves into Reminder Delivery as
+`workflows/reminderdelivery.PersonalReminderNotifications`. Its notices and
+ports use the workflow's own vocabulary; the root binds the notification
+service, the consent of the notification preferences, the staff and admin
+accounts and the on-duty staff, which Workforce answers
+(`workforce.OnDutyStaffIDs`). The Worker keeps the minute tick, the
+notification feature flag gate and the on-duty setting, and calls the
+producer through `scheduler.ReminderNotificationTick`. Construction refuses
+an incomplete producer instead of silently not registering the tick.
+`services/scheduler -> modules/delivery/application/notifications` and
+`-> modules/workforce` in production and internal test, and
+`-> workflows/reminderdelivery` in internal test leave `legacy.jsonl`,
+519 -> 514. The composition surface falls from 1,743 to 1,742. The evidence
+record is `scheduler-reminder-notifications-4067.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
