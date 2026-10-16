@@ -25,7 +25,7 @@
   "tests": [
     "Moved HTTP and calendar E2E suites pass.",
     "TestFullProductionRouterGolden and TestSchoolScopeRejectedOnAllAPIRoutes pass with unchanged golden files.",
-    "Architecture check passes: 480 -> 477 keys; composition 1740 -> 1740; no budget increase.",
+    "Architecture check passes: 498 -> 495 keys; composition 1740 -> 1740; no budget increase.",
     "Scoped golangci-lint reports 0 issues. scripts/test-changed.sh origin/development without --fast is the required full changed-package gate."
   ],
   "runtime_evidence": {
