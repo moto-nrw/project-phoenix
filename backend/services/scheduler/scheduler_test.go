@@ -10,7 +10,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -2101,25 +2100,23 @@ type fakeMaterializer struct {
 	lastFrom         calendar.Date
 	lastTo           calendar.Date
 	lastWeeksAhead   int
-	lastSource       timetable.MaterializationSource
 	returnErr        error
-	returnResult     *timetable.MaterializationResult
+	returnResult     *MaterializationRun
 }
 
-func (f *fakeMaterializer) MaterializeForTenant(_ context.Context, from, to calendar.Date, source timetable.MaterializationSource) (*timetable.MaterializationResult, error) {
+func (f *fakeMaterializer) MaterializeScheduledWindow(_ context.Context, from, to calendar.Date) (*MaterializationRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.materializeCalls++
 	f.lastFrom = from
 	f.lastTo = to
-	f.lastSource = source
 	if f.returnErr != nil {
 		return nil, f.returnErr
 	}
 	if f.returnResult != nil {
 		return f.returnResult, nil
 	}
-	return &timetable.MaterializationResult{From: from, To: to}, nil
+	return &MaterializationRun{}, nil
 }
 
 func (f *fakeMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int) (calendar.Date, calendar.Date) {
@@ -2131,10 +2128,6 @@ func (f *fakeMaterializer) ResolveWindow(baseDate calendar.Date, weeksAhead int)
 	from := baseDate.AddDays(7)
 	to := from.AddDays(weeksAhead*7 - 1)
 	return from, to
-}
-
-func (f *fakeMaterializer) DetectEditedInWindow(_ context.Context, _ int64, _, _ calendar.Date, _ bool) ([]timetable.EditedOccurrence, error) {
-	return nil, nil
 }
 
 // fakeSettingsResolver implements SettingsResolver for deterministic tests.
@@ -2332,7 +2325,7 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	t.Parallel()
 
 	m := &fakeMaterializer{
-		returnResult: &timetable.MaterializationResult{
+		returnResult: &MaterializationRun{
 			InstancesCreated: 7,
 			CandidatesRaced:  2,
 			DurationMS:       123,
@@ -2359,8 +2352,6 @@ func TestCheckAndRunMaterialization_HappyPath(t *testing.T) {
 	assert.Equal(t, 1, m.materializeCalls, "materializer must be called exactly once")
 	assert.Equal(t, 1, m.resolveCalls, "ResolveWindow must be called exactly once")
 	assert.Equal(t, 3, m.lastWeeksAhead, "weeks-ahead setting must propagate to ResolveWindow")
-	assert.Equal(t, timetable.MaterializationSourceScheduler, m.lastSource,
-		"source tag must be scheduler (not manual) for scheduled runs")
 
 	// Verify lastMaterialization was stamped so the next poll skips.
 	_, ok := s.lastMaterialization.Load(schedulerUnitTenantID)
@@ -2373,7 +2364,7 @@ func TestCheckAndRunMaterialization_ZeroCounters(t *testing.T) {
 	// When the result has zero created and zero raced, the success info log
 	// is suppressed — but the call still counts and the today-mark is set.
 	m := &fakeMaterializer{
-		returnResult: &timetable.MaterializationResult{
+		returnResult: &MaterializationRun{
 			InstancesCreated: 0,
 			CandidatesRaced:  0,
 		},
@@ -2431,7 +2422,7 @@ func TestCheckAndRunMaterialization_OnlyRacedCounter(t *testing.T) {
 	// Triggers the "successful completion" info log branch where
 	// InstancesCreated==0 but CandidatesRaced>0.
 	m := &fakeMaterializer{
-		returnResult: &timetable.MaterializationResult{
+		returnResult: &MaterializationRun{
 			CandidatesRaced: 4,
 			DurationMS:      55,
 		},

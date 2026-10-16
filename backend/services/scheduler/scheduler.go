@@ -11,9 +11,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
 // AuthCleanup exposes the identity maintenance the composition root binds:
@@ -177,8 +175,8 @@ type Scheduler struct {
 	staffDocumentFileCleaner   StaffDocumentFileCleaner
 	studentDocumentFileCleaner StudentDocumentFileCleaner
 	fileStoreCleaner           FileStoreCleaner
-	materializer               timetable.MaterializationCapability
-	timetableCleanup           timetable.TimetableCleanup
+	materializer               TimetableMaterializer
+	timetableCleanup           TimetableCleanup
 	calendarFeedCleanup        CalendarFeedCleaner
 	timeTrackingCleanup        TimeTrackingCleanupService
 	studentChangeLogCleanup    StudentChangeLogCleanup
@@ -186,8 +184,8 @@ type Scheduler struct {
 	staffMessageCleanup        StaffMessageCleanup
 	bookingConsistency         BookingConsistencyAudit
 	enrollmentRejectedCleanup  RejectedEnrollmentCleaner
-	autoStart                  timetable.InstanceAutoStart
-	autoEnd                    timetable.InstanceAutoEnd
+	autoStart                  InstanceAutoStart
+	autoEnd                    InstanceAutoEnd
 	settings                   SettingsResolver
 	schoolRepo                 TenantDirectory
 	tenantRuntime              TenantRuntime
@@ -263,13 +261,13 @@ type Scheduler struct {
 	// appointmentReminderScannedAt holds the upper bound of each tenant's last
 	// successful scan. Failed scans deliberately leave their tenant's boundary
 	// untouched so the next tick retries its bounded window.
-	appointmentReminders         reminder.Command
+	appointmentReminders         AppointmentReminderCommand
 	appointmentReminderScannedAt map[int64]time.Time
 	appointmentReminderScanMu    sync.Mutex
 
 	// Scheduled parent-announcement reminders (#3162). Same bookkeeping as the
 	// appointment reminders: one successful-scan boundary per tenant.
-	announcementReminders         reminder.ParentAnnouncementCommand
+	announcementReminders         ParentAnnouncementReminderCommand
 	announcementReminderScannedAt map[int64]time.Time
 	announcementReminderScanMu    sync.Mutex
 }
@@ -1986,7 +1984,7 @@ func (s *Scheduler) checkAndRunMaterializationWithContext(ctx context.Context, t
 			slog.String("to", to.String()),
 		)
 
-		result, err := s.materializer.MaterializeForTenant(tenantCtx, from, to, timetable.MaterializationSourceScheduler)
+		result, err := s.materializer.MaterializeScheduledWindow(tenantCtx, from, to)
 		if err != nil {
 			// Keep the today-mark so every subsequent minute does not retry a
 			// known-failing run. It naturally expires on the next scheduler day.
@@ -2168,14 +2166,14 @@ func (s *Scheduler) runAutoEndForTenant(ctx context.Context, tenantID int64) err
 // --- Instance overdue tick (WP-B9) ---
 
 // DayInstance is one timetable block of a day as the overdue tick reads it.
-// Status is the block's composed status: planned until a session starts it.
-// StartTime carries the block's wall clock.
+// Planned reports the block's composed status: planned until a session starts
+// it. StartTime carries the block's wall clock.
 type DayInstance struct {
 	ID        int64
 	Date      calendar.Date
 	StartTime time.Time
 	RoomID    int64
-	Status    string
+	Planned   bool
 }
 
 // DayInstanceReader returns the timetable blocks of the school in ctx on day.
@@ -2284,7 +2282,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	roomIDs := make(map[int64]struct{})
 
 	for _, inst := range instances {
-		if inst.Status != timetable.InstanceStatusPlanned {
+		if !inst.Planned {
 			continue
 		}
 		instanceStart := combineDayAndTime(today, inst.StartTime)
