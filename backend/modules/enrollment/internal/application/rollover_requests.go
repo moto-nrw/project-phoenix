@@ -8,7 +8,6 @@ import (
 	"time"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -280,7 +279,7 @@ func (s *Rollovers) enqueueRenewalEmail(ctx context.Context, newPhase *enrollmen
 }
 
 func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment.Phase, req *enrollmentModels.Request, childNames []string) map[string]any {
-	schoolName, logoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
+	schoolName, logoURL, footerLogoURL := schoolBrand(ctx, s.deps.Notifications, req.TenantID, s.deps.ParentsURL)
 	deadlineStr := ""
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
@@ -293,7 +292,7 @@ func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment
 		enrollment.EnrollmentPayloadPhaseName:         newPhase.Name,
 		enrollment.EnrollmentPayloadStatusURL:         enrollment.StatusURL(s.deps.ParentsURL, req.StatusToken),
 		enrollment.EnrollmentPayloadLogoURL:           logoURL,
-		enrollment.EnrollmentPayloadMotoLogoURL:       emailbranding.MotoLogoURL(s.deps.ParentsURL),
+		enrollment.EnrollmentPayloadMotoLogoURL:       footerLogoURL,
 		enrollment.EnrollmentPayloadChildNames:        childNames,
 		enrollment.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
 		enrollment.EnrollmentPayloadRolloverDeadline:  deadlineStr,
