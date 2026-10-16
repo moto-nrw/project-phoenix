@@ -78,7 +78,7 @@ if [ "${#affected[@]}" -gt 0 ]; then
   backend_go_log=$(mktemp "${TMPDIR:-/tmp}/phoenix-test-changed-go.XXXXXX")
   backend_go_phase=1
   (cd backend && go test \
-    -p "$package_workers" -parallel 8 "${affected[@]}") 2>&1 | tee "$backend_go_log"
+    -p "$package_workers" -parallel 8 -tags=testhooks "${affected[@]}") 2>&1 | tee "$backend_go_log"
   backend_go_phase=0
 else
   echo "==> backend: keine Go-Änderungen"
