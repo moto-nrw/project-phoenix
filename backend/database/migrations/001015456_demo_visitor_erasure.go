@@ -40,11 +40,10 @@ func init() {
 //   - deletes the order itself with the name, the account ids and the
 //     credentials of its seed state.
 //
-// The names are matched in every hidden school of the Demo-Träger, not only
-// in the school of the order: a seed that failed and was repeated left its
-// first school behind without a link to the order
-// (cmd/devtools/demo_scheduler.go, ReplaceAbandoned). Visible schools are
-// never touched. The Demo-Träger is
+// The visitor is matched by the caregiver and parent account IDs, never by a
+// name. Their ID histories cover a seed that failed and was repeated: that
+// seed left its first school behind (cmd/devtools/demo_scheduler.go,
+// ReplaceAbandoned). Visible schools are never touched. The Demo-Träger is
 // the organization of the schools the demo has orders for; a database
 // without demo orders has none, so the function changes nothing there.
 //
@@ -58,10 +57,13 @@ func init() {
 // retention functions of 1.15.454), so the demo role gets no write grant on
 // any of the tables; only phoenix_demo may call it. Unlike those functions it
 // writes tables of other owners (People Directory, Enrollment, Audit
-// Platform, Communication, Delivery Platform). That is a deliberate exception
-// for the demo environment, which holds no school data of its own; #4130
-// decides whether it stays.
+// Platform, Communication, Delivery Platform). ADR 0061 records this narrow
+// demo-only workflow; it does not transfer ownership of those tables.
 const demoVisitorErasureUpSQL = `
+		ALTER TABLE platform.demo_school_states
+			ADD COLUMN IF NOT EXISTS visitor_account_ids BIGINT[] NOT NULL DEFAULT '{}',
+			ADD COLUMN IF NOT EXISTS visitor_parent_account_ids BIGINT[] NOT NULL DEFAULT '{}';
+
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
 		LANGUAGE plpgsql
@@ -72,46 +74,47 @@ const demoVisitorErasureUpSQL = `
 		DECLARE
 			hidden_schools BIGINT[];
 			visitor RECORD;
-			visitor_name TEXT;
 			erased INTEGER := 0;
 		BEGIN
-			SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
-			FROM platform.schools AS school
-			WHERE school.deleted_at IS NOT NULL
-				AND school.organization_id IN (
-					SELECT demo_school.organization_id
-					FROM platform.demo_school_states AS state
-					JOIN platform.schools AS demo_school ON demo_school.id = state.tenant_id);
-
 			FOR visitor IN
-				SELECT state.name, state.first_name, state.last_name
+				SELECT state.name, state.tenant_id,
+					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
+					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids
 				FROM platform.demo_school_states AS state
 				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
 				WHERE (state.status = 'failed' OR (state.status = 'ready' AND school.deleted_at IS NOT NULL))
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
 				FOR UPDATE OF state
 			LOOP
-				IF visitor.first_name <> '' AND visitor.last_name <> '' THEN
-					visitor_name := visitor.first_name || ' ' || visitor.last_name;
+				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
+					SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
+					FROM platform.schools AS school
+					WHERE school.deleted_at IS NOT NULL
+						AND school.organization_id = (SELECT organization_id FROM platform.schools WHERE id = visitor.tenant_id);
 					UPDATE users.persons SET first_name = 'Demo', last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
-						AND first_name = visitor.first_name AND last_name = visitor.last_name;
+						AND account_id = ANY (visitor.visitor_account_ids);
 					UPDATE users.guardian_profiles SET first_name = 'Demo', last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
-						AND first_name = visitor.first_name AND last_name = visitor.last_name;
+						AND account_id = ANY (visitor.visitor_parent_account_ids);
 					UPDATE enrollment.requests SET guardian_first_name = 'Demo', guardian_last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
-						AND guardian_first_name = visitor.first_name AND guardian_last_name = visitor.last_name;
+						AND guardian_account_id = ANY (visitor.visitor_parent_account_ids);
 					UPDATE audit.guardian_changes SET actor_name_snapshot = 'Demo Besuch'
-					WHERE tenant_id = ANY (hidden_schools) AND actor_name_snapshot = visitor_name;
-					UPDATE users.parent_messages SET sender_name = 'Demo Besuch'
-					WHERE tenant_id = ANY (hidden_schools) AND sender_name = visitor_name;
-					DELETE FROM users.parent_announcement_declaration_submissions
-					WHERE tenant_id = ANY (hidden_schools) AND signer_name = visitor_name;
-					DELETE FROM platform.email_outbox
 					WHERE tenant_id = ANY (hidden_schools)
-						AND strpos(payload::text, visitor.first_name) > 0
-						AND strpos(payload::text, visitor.last_name) > 0;
+						AND actor_account_id = ANY (visitor.visitor_parent_account_ids);
+					UPDATE users.parent_messages SET sender_name = 'Demo Besuch'
+					WHERE tenant_id = ANY (hidden_schools)
+						AND sender_account_id = ANY (visitor.visitor_parent_account_ids);
+					DELETE FROM users.parent_announcement_declaration_submissions
+					WHERE tenant_id = ANY (hidden_schools)
+						AND account_id = ANY (visitor.visitor_parent_account_ids);
+					DELETE FROM platform.email_outbox AS outbox
+					WHERE outbox.tenant_id = ANY (hidden_schools)
+						AND EXISTS (
+							SELECT 1 FROM platform.email_delivery AS delivery
+							WHERE delivery.outbox_id = outbox.id
+								AND delivery.account_id = ANY (visitor.visitor_parent_account_ids));
 				END IF;
 				DELETE FROM platform.demo_school_states WHERE name = visitor.name;
 				erased := erased + 1;
@@ -132,7 +135,10 @@ func demoVisitorErasureUp(ctx context.Context, db *bun.DB) error {
 }
 
 func demoVisitorErasureDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS platform.erase_closed_demo_visitors()`); err != nil {
+	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS platform.erase_closed_demo_visitors();
+		ALTER TABLE platform.demo_school_states
+			DROP COLUMN IF EXISTS visitor_account_ids,
+			DROP COLUMN IF EXISTS visitor_parent_account_ids;`); err != nil {
 		return fmt.Errorf("drop demo visitor erasure: %w", err)
 	}
 	return nil

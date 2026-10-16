@@ -38,35 +38,52 @@ var visitorTraceCounts = map[string]string{
 		WHERE tenant_id = ?0 AND payload->>'last_name' = '` + visitorLast + `'`,
 }
 
+type visitorAccounts struct {
+	caregiver int64
+	parent    int64
+}
+
 // leaveVisitorTraces writes one row per place of visitorTraceCounts into the
 // school, the way its seed leaves them: the visitor is a caregiver and the
 // parent of a child, wrote a message and changed the child's guardians.
-func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) {
+func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccounts {
 	t.Helper()
 	ctx := t.Context()
-	testpkg.CreateTestPersonForTenant(t, db, schoolID, visitorFirst, visitorLast)
+	caregiver := testpkg.CreateTestAccount(t, db, fmt.Sprintf("betreuer-%d@example.org", schoolID))
+	person := testpkg.CreateTestPersonForTenant(t, db, schoolID, visitorFirst, visitorLast)
 	student := testpkg.CreateTestStudentForTenant(t, db, schoolID, "Mia", "Schneider", "2a")
 	guardian := testpkg.CreateTestGuardianProfileForTenant(t, db, schoolID, visitorFirst, visitorLast, fmt.Sprintf("eltern-%d@example.org", schoolID))
 	parent := testpkg.CreateTestAccount(t, db, fmt.Sprintf("eltern-konto-%d@example.org", schoolID))
+	_, err := db.NewRaw(`UPDATE users.persons SET account_id = ? WHERE id = ?`, caregiver.ID, person.ID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, parent.ID, guardian.ID).Exec(ctx)
+	require.NoError(t, err)
 	for _, statement := range []string{
 		`WITH phase AS (
 			INSERT INTO enrollment.phases (tenant_id, name, service_start_date, service_end_date)
 			VALUES (?0, 'Anmeldung', DATE '2026-08-01', DATE '2027-07-31') RETURNING id)
-		INSERT INTO enrollment.requests (tenant_id, phase_id, guardian_first_name, guardian_last_name, guardian_email, status_token)
-		SELECT ?0, id, '` + visitorFirst + `', '` + visitorLast + `', 'eltern@example.org', 'token-' || ?0 FROM phase`,
+		INSERT INTO enrollment.requests (tenant_id, phase_id, guardian_first_name, guardian_last_name, guardian_email, guardian_account_id, status_token)
+		SELECT ?0, id, '` + visitorFirst + `', '` + visitorLast + `', 'eltern@example.org', ?3, 'token-' || ?0 FROM phase`,
 		`INSERT INTO audit.guardian_changes (tenant_id, student_id, guardian_profile_id, change_type, field_name, actor_name_snapshot)
 			VALUES (?0, ?1, ?2, 'updated', 'phone', '` + visitorFull + `')`,
 		`WITH thread AS (
 			INSERT INTO users.parent_message_threads (tenant_id, student_id, guardian_account_id) VALUES (?0, ?1, ?3) RETURNING id)
 		INSERT INTO users.parent_messages (tenant_id, thread_id, student_id, sender_account_id, sender_kind, sender_name, body)
 		SELECT ?0, id, ?1, ?3, 'guardian', '` + visitorFull + `', 'Hallo' FROM thread`,
-		`INSERT INTO platform.email_outbox (tenant_id, kind, recipient, payload, status)
+		`WITH outbox AS (
+			INSERT INTO platform.email_outbox (tenant_id, kind, recipient, payload, status)
 			VALUES (?0, 'parent_message', '{}'::jsonb,
-				jsonb_build_object('first_name', '` + visitorFirst + `', 'last_name', '` + visitorLast + `'), 'sent')`,
+				jsonb_build_object('first_name', '` + visitorFirst + `', 'last_name', '` + visitorLast + `'), 'sent')
+			RETURNING id)
+		INSERT INTO platform.email_delivery (tenant_id, related_entity_type, related_entity_id, outbox_id, account_id, recipient_email)
+		SELECT ?0, 'parent_message', ?1, id, ?3, 'eltern@example.org' FROM outbox`,
 	} {
 		_, err := db.NewRaw(statement, schoolID, student.ID, guardian.ID, parent.ID).Exec(ctx)
 		require.NoError(t, err, statement)
 	}
+	_, err = db.NewRaw(`UPDATE audit.guardian_changes SET actor_account_id = ? WHERE tenant_id = ?`, parent.ID, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	return visitorAccounts{caregiver: caregiver.ID, parent: parent.ID}
 }
 
 // visitorTraces counts, per place, the rows of the school that still hold
@@ -120,12 +137,15 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	db := testpkg.SetupIsolatedTestDB(t)
 	retiredID, _ := testpkg.CreateTestTenant(t, db)
 	abandonedID := schoolOfOrganization(t, db, retiredID, true)
+	unrelatedID := schoolOfOrganization(t, db, retiredID, true)
 	openID := schoolOfOrganization(t, db, retiredID, false)
+	failedID := schoolOfOrganization(t, db, retiredID, false)
 	foreignID, _ := testpkg.CreateTestTenant(t, db)
 	_, err := db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, foreignID).Exec(t.Context())
 	require.NoError(t, err)
-	for _, schoolID := range []int64{retiredID, abandonedID, openID, foreignID} {
-		leaveVisitorTraces(t, db, schoolID)
+	accounts := make(map[int64]visitorAccounts)
+	for _, schoolID := range []int64{retiredID, abandonedID, unrelatedID, openID, failedID, foreignID} {
+		accounts[schoolID] = leaveVisitorTraces(t, db, schoolID)
 	}
 	queue, err := NewDemoSchoolQueue(db)
 	require.NoError(t, err)
@@ -137,10 +157,16 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	_, err = queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(ctx, retired, organizationtenancy.DemoSchoolState{SchoolID: retiredID, SeedJSON: []byte(`{}`)}))
-	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, retired, 11, 12))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, retired, accounts[retiredID].caregiver, accounts[retiredID].parent))
+	_, err = db.NewRaw(`UPDATE platform.demo_school_states
+		SET visitor_account_ids = ARRAY[?], visitor_parent_account_ids = ARRAY[?] WHERE name = ?`,
+		accounts[abandonedID].caregiver, accounts[abandonedID].parent, retired).Exec(ctx)
+	require.NoError(t, err)
 	failed := orderDemoSchool(t, db, "OGS Ost")
 	_, err = queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
+	require.NoError(t, schools.ReserveDemoSchool(ctx, failed, failedID))
+	require.NoError(t, queue.RecordDemoSchoolVisitor(ctx, failed, accounts[failedID].caregiver, accounts[failedID].parent))
 	closed, err := queue.FailDemoSchoolOrder(ctx, failed, 1)
 	require.NoError(t, err)
 	require.True(t, closed)
@@ -172,6 +198,8 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 
 	assert.Equal(t, everyTrace(0), visitorTraces(t, db, retiredID), "the retired school")
 	assert.Equal(t, everyTrace(0), visitorTraces(t, db, abandonedID), "the school an earlier attempt abandoned")
+	assert.Equal(t, everyTrace(0), visitorTraces(t, db, failedID), "the final failed school")
+	assert.Equal(t, everyTrace(1), visitorTraces(t, db, unrelatedID), "a different visitor with the same name")
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, openID), "a school still open")
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, foreignID), "a hidden school outside the Demo-Träger")
 

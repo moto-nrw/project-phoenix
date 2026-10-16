@@ -113,6 +113,9 @@ type DemoQueueEngine interface {
 	// FinishDemoSchoolOrder opens the school and names the visitor's
 	// caregiver and parent account; zero names none.
 	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
+	// RecordDemoSchoolVisitor retains the identities while the seed is still
+	// preparing, so a failed first tick can be erased later.
+	RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
 	FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (failed bool, err error)
 	// ReturnDemoSchoolOrder hands a claimed order back without counting the
 	// attempt, when something other than the order stopped the seed.

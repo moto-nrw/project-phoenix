@@ -162,6 +162,8 @@ func (s *DemoStateStore) ReleaseClaims(ctx context.Context) error {
 func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
 		SET status = 'preparing', claimed_at = NULL, seed_state = NULL,
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[visitor_account_id], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[visitor_parent_account_id], NULL),
 			visitor_account_id = NULL, visitor_parent_account_id = NULL
 		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
 			AND (? = '' OR name = ?)`, name, name).Exec(ctx)
@@ -200,10 +202,33 @@ func (s *DemoStateStore) Claim(ctx context.Context) (*DemoOrder, error) {
 // caregiver and parent account (#3468).
 func (s *DemoStateStore) Finish(ctx context.Context, name string, visitorAccountID, visitorParentAccountID int64) error {
 	_, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET status = 'ready', claimed_at = NULL, visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0) WHERE name = ?`,
-		visitorAccountID, visitorParentAccountID, name).Exec(ctx)
+		SET status = 'ready', claimed_at = NULL,
+			visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+		WHERE name = ?`,
+		visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("finish demo school order: %w", err)
+	}
+	return nil
+}
+
+// RecordVisitor retains the seeded visitor identities before the first tick.
+// A tick failure still leaves a final failed order enough information to erase
+// the school's copied names after its demo access expires.
+func (s *DemoStateStore) RecordVisitor(ctx context.Context, name string, visitorAccountID, visitorParentAccountID int64) error {
+	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
+		SET visitor_account_id = NULLIF(?, 0), visitor_parent_account_id = NULLIF(?, 0),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+		WHERE name = ? AND status = 'preparing'`,
+		visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
+	if err != nil {
+		return fmt.Errorf("record demo school visitor: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return errors.New("demo school order does not exist")
 	}
 	return nil
 }
@@ -219,14 +244,17 @@ func (s *DemoStateStore) Fail(ctx context.Context, name string, maxAttempts int)
 			WHERE name = ? AND status = 'preparing' FOR UPDATE
 		), changed AS (
 			UPDATE platform.demo_school_states
-			SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END, claimed_at = NULL, tenant_id = NULL, seed_state = NULL
+			SET status = CASE WHEN attempts >= ? THEN 'failed' ELSE 'preparing' END,
+				claimed_at = NULL,
+				tenant_id = CASE WHEN attempts >= ? THEN target.tenant_id ELSE NULL END,
+				seed_state = NULL
 			FROM target WHERE platform.demo_school_states.name = target.name
 			RETURNING target.tenant_id, platform.demo_school_states.status
 		), retired AS (
 			UPDATE platform.schools SET deleted_at = NOW()
 			WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM changed WHERE status = 'failed')
 		)
-		SELECT status = 'failed' FROM changed`, name, maxAttempts).Scan(ctx, &failed)
+		SELECT status = 'failed' FROM changed`, name, maxAttempts, maxAttempts).Scan(ctx, &failed)
 	if err != nil {
 		return false, fmt.Errorf("fail demo school order: %w", err)
 	}

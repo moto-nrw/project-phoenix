@@ -230,6 +230,8 @@ func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, failed)
 	assert.True(t, schoolHidden(t, db, secondSchoolID))
+	assert.Equal(t, secondSchoolID, demoSchoolProgress(t, db, slug).SchoolID,
+		"the final failed order retains its school until visitor erasure")
 }
 
 func TestDemoSchoolQueueRetiresReplacementReservedBeforeStateWrite(t *testing.T) {

@@ -51,6 +51,10 @@ func (e demoQueueEngine) FinishDemoSchoolOrder(ctx context.Context, slug string,
 	return e.store.Finish(ctx, slug, visitorAccountID, visitorParentAccountID)
 }
 
+func (e demoQueueEngine) RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
+	return e.store.RecordVisitor(ctx, slug, visitorAccountID, visitorParentAccountID)
+}
+
 func (e demoQueueEngine) FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error) {
 	return e.store.Fail(ctx, slug, maxAttempts)
 }

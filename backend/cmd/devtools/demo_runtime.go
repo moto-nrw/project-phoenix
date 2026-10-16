@@ -36,6 +36,7 @@ type demoSchoolQueue interface {
 	RequeueDeferredDemoSchoolOrders(context.Context) error
 	RequeueDeferredDemoSchoolOrder(context.Context, string) error
 	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
+	RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
 	FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error)
 	ReturnDemoSchoolOrder(ctx context.Context, slug string) error
 	ReadyDemoSchools(context.Context) ([]string, error)
@@ -168,6 +169,10 @@ func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrde
 // FinishDemoSchoolOrder opens the school for its demo access.
 func (d *DemoRuntime) FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
 	return d.queue.FinishDemoSchoolOrder(ctx, slug, visitorAccountID, visitorParentAccountID)
+}
+
+func (d *DemoRuntime) RecordDemoSchoolVisitor(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error {
+	return d.queue.RecordDemoSchoolVisitor(ctx, slug, visitorAccountID, visitorParentAccountID)
 }
 
 // FailDemoSchoolOrder queues the order again until maxAttempts are used.
