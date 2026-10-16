@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -487,7 +486,7 @@ func TestChangeRequestService_Approve_RejectsActiveDuplicateAfterRename(t *testi
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
+	env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 
 	first := validSubmission(t, env.phaseID)
 	first.GuardianEmail = "duplicate-approval@example.com"
@@ -653,7 +652,7 @@ func TestChangeRequestService_Create_PreservesGradeCapabilityForInactiveConditio
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	repoFactory := flowRepositories(t, env.db)
-	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+	env.settings.boolValues[settingKeyCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
 	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, offering))
@@ -705,7 +704,7 @@ func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEn
 
 	// The parent cannot submit offering fields while the capability is off.
 	// Creation must still freeze the persisted hidden link in both snapshots.
-	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	env.settings.boolValues[settingKeyCareOfferingsEnabled] = false
 	phone := "+49 221 444555"
 	proposed := proposedChangeSubmission(t, env, result)
 	proposed.GuardianPhone = &phone
@@ -725,7 +724,7 @@ func TestChangeRequestService_Approve_PreservesHiddenOfferingsAcrossDisabledToEn
 
 	// Re-enabling the UI capability must not reinterpret the frozen proposal
 	// as an offering removal or make the base snapshot look stale.
-	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
+	env.settings.boolValues[settingKeyCareOfferingsEnabled] = true
 	_, err = svc.Approve(ctx, created.ChangeRequest.ID, enrollmentAPI.ReviewChangeRequestInput{
 		Note:           "Freigegeben.",
 		ActorAccountID: env.creatorID,
@@ -806,7 +805,7 @@ func TestChangeRequestService_Approve_AppliesPinnedOfferingChangeToApprovedChild
 	require.True(t, created.ChangeRequest.CareOfferingsEnabledAtCreation)
 
 	careOfferingsEnabled = false
-	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	env.settings.boolValues[settingKeyCareOfferingsEnabled] = false
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentAPI.UpdateChildOfferingsInput{
 		RequestID:      result.Request.ID,
 		ChildID:        result.Children[0].ID,
@@ -844,7 +843,7 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+	env.settings.boolValues[settingKeyCollectGradeLevel] = false
 
 	submission := enrollmentAPI.SubmitRequest{
 		TenantID:          testpkg.Tenant(t),
@@ -882,7 +881,7 @@ func TestChangeRequestService_Approve_ReplacesOffenPlaceholderWithNewGrade(t *te
 	// Grade collection is enabled later. The parent provides a grade but no
 	// concrete class, so the approval sync must replace the neutral placeholder
 	// instead of treating it as a customized class name.
-	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
+	env.settings.boolValues[settingKeyCollectGradeLevel] = true
 	grade := int16(3)
 	proposed := submission
 	proposed.Children[0].ID = result.Children[0].ID
@@ -1004,7 +1003,7 @@ func TestChangeRequestService_CorrectApprovedChildData_RejectsOpenParentChangeRe
 			env, cleanup := setupDecisionTest(t)
 			defer cleanup()
 			ctx := testpkg.Ctx(t)
-			env.settings.boolValues[configModel.KeyEnrollmentChangeRequestEmailNotificationsEnabled] = true
+			env.settings.boolValues[settingKeyChangeRequestEmailNotificationsEnabled] = true
 
 			submission, result := createApprovedAdminCorrectionFixture(t, env, "open-correction-"+openStatus+"@example.com")
 			svc := newChangeRequestServiceWithDecisionForTest(t, env)
@@ -1254,7 +1253,7 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
+	env.settings.boolValues[settingKeyCollectSchoolClass] = true
 	env.sourcePhase.AvailableSchoolClasses = []string{"2a", "2b", "3a"}
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 
@@ -1293,9 +1292,9 @@ func TestChangeRequestService_CorrectApprovedChildData_PreservesHistoricalTarget
 
 	// These current rules no longer describe the historical submission. An
 	// unrelated correction must neither revalidate nor erase its target data.
-	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
-	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = false
-	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 1
+	env.settings.boolValues[settingKeyCollectGradeLevel] = false
+	env.settings.boolValues[settingKeyCollectSchoolClass] = false
+	env.settings.intValues[settingKeyGradeLevelMax] = 1
 	env.sourcePhase.AvailableSchoolClasses = []string{"3a"}
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(ctx, enrollmentAPI.OwnerPhaseForTest(env.sourcePhase)))
 

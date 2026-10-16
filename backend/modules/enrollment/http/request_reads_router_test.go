@@ -15,7 +15,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -330,7 +329,7 @@ func TestSubmit_AdminNotificationLinksToAdminDetail(t *testing.T) {
 	t.Parallel()
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.com"
+	env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.com"
 
 	result, err := env.svc.Submit(testpkg.Ctx(t), validSubmission(t, env.phaseID))
 	require.NoError(t, err)

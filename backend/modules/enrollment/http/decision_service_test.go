@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -67,23 +66,23 @@ type stubActivationSettings struct {
 const decisionTestToday calendar.Date = "2026-08-24"
 
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModel.KeyEnrollmentDefaultActivationMode {
+	if key == settingKeyDefaultActivationMode {
 		return s.mode, nil
 	}
-	if key == configModel.KeyEnrollmentNotifyPerDecision {
+	if key == settingKeyNotifyPerDecision {
 		if s.notificationMode != "" {
 			return s.notificationMode, nil
 		}
-		return configModel.EnrollmentNotifyPerDecisionImmediate, nil
+		return settingValueNotifyImmediate, nil
 	}
 	return "", nil
 }
 
 func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	if key == configModel.KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
+	if key == settingKeyCareOfferingsEnabled && s.careOfferingsEnabled != nil {
 		return *s.careOfferingsEnabled, nil
 	}
-	if key == configModel.KeyEnrollmentBookingsAuthoritative {
+	if key == settingKeyBookingsAuthoritative {
 		return s.bookingsAuthoritative != nil && *s.bookingsAuthoritative, nil
 	}
 	return true, nil
@@ -190,7 +189,7 @@ func (registryDefaultDecisionSettings) ResolveString(context.Context, string) (s
 }
 
 func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string) (bool, error) {
-	return key == configModel.KeyEnrollmentCareOfferingsEnabled, nil
+	return key == settingKeyCareOfferingsEnabled, nil
 }
 
 // testBookings composes the booking materialization over the env's catalog
@@ -322,7 +321,7 @@ func testBookingsAuthority(settings api.EnrollmentDecisionSettings) func(context
 		if settings == nil {
 			return false, nil
 		}
-		return settings.ResolveBool(ctx, configModel.KeyEnrollmentBookingsAuthoritative)
+		return settings.ResolveBool(ctx, settingKeyBookingsAuthoritative)
 	}
 }
 
@@ -908,7 +907,7 @@ func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDi
 	t.Parallel()
 
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
-		notificationMode: configModel.EnrollmentNotifyPerDecisionDigest,
+		notificationMode: settingValueNotifyDigest,
 	})
 	defer cleanup()
 	submitted := submitDecisionSiblings(t, env, "concurrent-digest@example.com")
@@ -951,7 +950,7 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 	t.Parallel()
 
 	settings := newStubRequestSettings()
-	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
 	env, cleanup := setupDecisionTestWithSettings(t, settings)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -965,7 +964,7 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
 
 	settings.mu.Lock()
-	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
 	settings.mu.Unlock()
 	_, err = env.decision.Decide(ctx, enrollmentAPI.DecideInput{
 		RequestID: submitted.Request.ID, ChildID: submitted.Children[1].ID,
@@ -978,14 +977,14 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), submitted.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
-	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyDigest, *stored.DecisionNotificationMode)
 }
 
 func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.T) {
 	t.Parallel()
 
 	settings := newStubRequestSettings()
-	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
 	env, cleanup := setupDecisionTestWithSettings(t, settings)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -998,7 +997,7 @@ func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.
 	require.NoError(t, err)
 
 	settings.mu.Lock()
-	settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
 	settings.mu.Unlock()
 	_, err = env.decision.Decide(ctx, enrollmentAPI.DecideInput{
 		RequestID: submitted.Request.ID, ChildID: submitted.Children[1].ID,
@@ -1011,14 +1010,14 @@ func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), submitted.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
-	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionImmediate, *stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyImmediate, *stored.DecisionNotificationMode)
 }
 
 func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testing.T) {
 	t.Parallel()
 
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
-		notificationMode: configModel.EnrollmentNotifyPerDecisionDigest,
+		notificationMode: settingValueNotifyDigest,
 	})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -1070,8 +1069,8 @@ func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *
 		mode string
 		kind string
 	}{
-		{name: "digest", mode: configModel.EnrollmentNotifyPerDecisionDigest, kind: platformModels.EmailKindEnrollmentDecisionDigest},
-		{name: "immediate", mode: configModel.EnrollmentNotifyPerDecisionImmediate, kind: platformModels.EmailKindEnrollmentRejected},
+		{name: "digest", mode: settingValueNotifyDigest, kind: platformModels.EmailKindEnrollmentDecisionDigest},
+		{name: "immediate", mode: settingValueNotifyImmediate, kind: platformModels.EmailKindEnrollmentRejected},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -2278,7 +2277,7 @@ func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) 
 	t.Parallel()
 
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
-		mode: configModel.EnrollmentActivationModeImmediate,
+		mode: settingValueActivationImmediate,
 	})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -2313,7 +2312,7 @@ func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *te
 	t.Parallel()
 
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
-		mode: configModel.EnrollmentActivationModeScheduled,
+		mode: settingValueActivationScheduled,
 	})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

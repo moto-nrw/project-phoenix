@@ -7,7 +7,6 @@ import (
 
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -69,7 +68,7 @@ func TestRequestService_LoadPublicFormBootstrap_CapabilityFailureIsStageError(t 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
-	env.settings.boolErrors[configModel.KeyEnrollmentCollectGradeLevel] = errors.New("boom")
+	env.settings.boolErrors[settingKeyCollectGradeLevel] = errors.New("boom")
 
 	ctx := testpkg.Ctx(t)
 	_, err := env.svc.LoadPublicFormBootstrap(ctx, env.phaseID, time.Now(), "")
@@ -86,7 +85,7 @@ func TestRequestService_LoadManualEnrollmentBootstrap_CapabilityFailureIsRaw(t *
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 
-	env.settings.boolErrors[configModel.KeyEnrollmentCollectGradeLevel] = errors.New("boom")
+	env.settings.boolErrors[settingKeyCollectGradeLevel] = errors.New("boom")
 
 	ctx := testpkg.Ctx(t)
 	_, err := env.svc.LoadManualEnrollmentBootstrap(ctx, env.phaseID)

@@ -13,7 +13,6 @@ import (
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -46,7 +45,7 @@ func (s cleanupRetentionSettings) ResolveString(context.Context, string) (string
 }
 
 func (s cleanupRetentionSettings) ResolveInt(_ context.Context, key string) (int, error) {
-	if key != configModel.KeyEnrollmentRejectedRetentionDays {
+	if key != settingKeyRejectedRetentionDays {
 		return 0, fmt.Errorf("unexpected setting key %q", key)
 	}
 	return s.days, nil

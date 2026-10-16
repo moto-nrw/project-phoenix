@@ -37,3 +37,15 @@ func FillRandom(b []byte) error {
 func UploadFilenameSuffix() (string, error) {
 	return authorize.UploadFilenameSuffix()
 }
+
+// DeviceAPIKey returns a fresh device API key. Security Runtime owns the key
+// format and its entropy; the provisioning flows only hand the key out.
+func DeviceAPIKey() (string, error) {
+	return authorize.DeviceAPIKey()
+}
+
+// RandomLowerAlphanumeric returns n random lowercase letters and digits from
+// the cryptographic entropy source.
+func RandomLowerAlphanumeric(n int) (string, error) {
+	return authorize.RandomLowerAlphanumeric(n)
+}
