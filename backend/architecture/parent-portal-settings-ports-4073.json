@@ -5,13 +5,14 @@
   "prerequisites": [
     "#4070"
   ],
-  "owner_and_capability": "Parent Portal owns its four-operation school settings port and optional batch snapshot read contract. The root translates the Settings public snapshot without exposing the provider implementation to the workflow. Partial Refs #4073 cut, not carrier completion.",
+  "owner_and_capability": "Parent Portal owns its four-operation school settings port and optional batch snapshot read contract. The root translates the Settings public snapshot without exposing the provider implementation to the workflow. Partial Refs #4073 cut, not carrier completion. Parent Portal also owns the parent-request reason policy for submitting guardians and deciding staff, exposed as its RequestReasonPolicy value.",
   "affected_packages": [
     "api",
     "workflows/parentportal",
     "workflows/parentportal/care",
     "workflows/parentportal/messaging",
-    "workflows/parentportal/compose"
+    "workflows/parentportal/compose",
+    "services/config"
   ],
   "affected_tables": [
     "None: the same Settings owner resolves the same keys through the same tenant-scoped methods; no SQL or DDL change."
@@ -21,12 +22,14 @@
     "internal_test|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/care|github.com/moto-nrw/project-phoenix/services/config",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/care|github.com/moto-nrw/project-phoenix/services/config",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/compose|github.com/moto-nrw/project-phoenix/services/config",
-    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/services/config"
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/services/config",
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal|github.com/moto-nrw/project-phoenix/services/config"
   ],
-  "atomic_cutover": "SettingsService, SettingsSnapshot and BatchSettingsService are consumer-owned. Root BindParentSettings adapts the optional owner batch method, preserves its context, tenant, requested keys, errors and nil snapshots, and delegates the same transaction lock/fresh reads. Workflow guardian reason policy keeps the same strict unknown-policy behavior. Five services/config keys fall: 308 -> 303, #4073 54 -> 49; rules 937 -> 937, composition 1720 -> 1720, portal compose budget 508 -> 507 and total 89895 -> 89894. No new grants or package moves. One external workflow-suite services/config key remains for the existing staff-side reason helper, independently of the now workflow-owned settings stubs.",
+  "atomic_cutover": "SettingsService, SettingsSnapshot and BatchSettingsService are consumer-owned. Root BindParentSettings adapts the optional owner batch method, preserves its context, tenant, requested keys, errors and nil snapshots, and delegates the same transaction lock/fresh reads. RequestReasonPolicy.RequiresReason moves the unchanged policy function and its full staff/guardian/unknown-value test table from Settings into the workflow. Six services/config keys fall: 308 -> 302, #4073 54 -> 48; rules 937 -> 937, composition 1720 -> 1720, portal compose budget 508 -> 507 and total 89895 -> 89894. No new grants or package moves. The workflow no longer imports services/config in any scope; the old production helper and its test file are moved, not left reachable only from tests.",
   "tests": [
     "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref e5dc4c47e069cb99471531b8d2c4407a97401e99.",
-    "Pinned Go targeted workflow feature/reason/pickup suites and TestParentSettingsBindingPreservesBatchResults; full scripts/test-changed.sh origin/development without --fast before push. Existing assertions and fixture timeouts are unchanged."
+    "Pinned Go targeted workflow feature/reason/pickup suites and TestParentSettingsBindingPreservesBatchResults; full scripts/test-changed.sh origin/development without --fast before push. Existing assertions and fixture timeouts are unchanged.",
+    "The moved reason-policy table retains every assertion for staff and guardian sides, including empty and unknown values. Production deadcode gate must pass after removing the old Settings helper."
   ],
   "runtime_evidence": {
     "source": "Local workflow and binding verification against development e5dc4c47e069cb99471531b8d2c4407a97401e99; no production traffic, SQL benchmark or server smoke.",
@@ -37,10 +40,12 @@
       "backend/workflows/parentportal/care/settings_ports.go",
       "backend/workflows/parentportal/care/child_feature_settings.go",
       "backend/workflows/parentportal/parent_request_reason_policy_test.go",
-      "backend/workflows/parentportal/parent_pickup_change_cutoff_test.go"
+      "backend/workflows/parentportal/parent_pickup_change_cutoff_test.go",
+      "backend/workflows/parentportal/care/request_reason_policy.go",
+      "backend/workflows/parentportal/care/request_reason_policy_test.go"
     ],
     "workload": "Existing guardian feature, reason and cutoff behavior tests plus the root batch-contract test and the architecture/evidence gates.",
-    "thresholds": "Five exact keys retired without new rules or composition growth; identical tenant/context/key batch propagation, original errors and nil semantics; unchanged guardian permissions and fresh locked pickup-policy reads.",
+    "thresholds": "Six exact keys retired without new rules or composition growth; identical tenant/context/key batch propagation, original errors and nil semantics; unchanged guardian permissions and fresh locked pickup-policy reads.",
     "affected_rows": {
       "state": "not_applicable",
       "reason": "This port cut changes no persistence operation or data shape."
@@ -91,13 +96,13 @@
     },
     "rollback": {
       "state": "not_applicable",
-      "reason": "No persistence change; revert consumer ports, root binding and the five retirements together."
+      "reason": "No persistence change; revert consumer ports, root binding and the six retirements together."
     },
     "smoke": {
       "state": "measured",
       "result": "Focused workflow tests pass through existing test composition; no native server or browser smoke for this settings-port cut."
     }
   },
-  "rollback_and_cleanup": "Revert the settings-port cut and this evidence, restoring the five exact keys and provider types. No database cleanup, migration or setting rename is required.",
-  "exit_criterion": "Only these five keys are retired and covered. Required local gates and portal suites pass; #4073 remains open with 49 keys, including the staff-side settings test helper edge."
+  "rollback_and_cleanup": "Revert the settings-port cut and this evidence, restoring the six exact keys and provider types. No database cleanup, migration or setting rename is required.",
+  "exit_criterion": "All six services/config keys are retired and covered. Required local gates, production deadcode and portal suites pass; #4073 remains open with 48 other keys. Restore the policy helper/test with the port cut if reverting."
 }

@@ -152,5 +152,5 @@ func (s *Service) GuardianReasonRequired(ctx context.Context, tenantID int64) bo
 		)
 		return true
 	}
-	return guardianReasonRequired(policy)
+	return RequestReasonPolicy(policy).RequiresReason(false)
 }

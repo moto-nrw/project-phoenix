@@ -70,7 +70,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		MealPlanEnabled:              f.mealPlan,
 		MealRegistrationEnabled:      f.mealRegistration && child.HasPermission(authorize.GuardianPermissionMealParticipationManage),
 		NewsEnabled:                  f.news,
-		ReasonRequired:               guardianReasonRequired(f.reasonPolicy),
+		ReasonRequired:               RequestReasonPolicy(f.reasonPolicy).RequiresReason(false),
 	}
 }
 

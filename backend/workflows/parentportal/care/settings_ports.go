@@ -2,8 +2,6 @@ package care
 
 import (
 	"context"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // SettingsService reads the school settings used by the guardian flows.
@@ -26,14 +24,4 @@ type SettingsSnapshot interface {
 type BatchSettingsService interface {
 	SettingsService
 	ResolveManyForTenant(context.Context, int64, []string) (SettingsSnapshot, error)
-}
-
-// guardianReasonRequired retains the strict reading for unknown policies.
-func guardianReasonRequired(policy string) bool {
-	switch policy {
-	case configModels.ReasonPolicyNobody, configModels.ReasonPolicyStaff:
-		return false
-	default:
-		return true
-	}
 }
