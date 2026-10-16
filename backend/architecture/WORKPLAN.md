@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 204 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 16.10.2026 · Ratchet 201 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 57.283 in `compose`
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 86 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 32 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 29 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
@@ -21,9 +21,18 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 204 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 201 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Care-Integrationstests bauen Kind- und Messaging-Flows über die öffentliche Workflow-API.
+Dieselben Konstruktoren dienen der Produktionskomposition und delegieren unverändert an die
+bestehenden Flows. Test-Historien verwenden eigene Port-DTOs statt Enrollment-Typen;
+Deklarationshashes kommen über den bestehenden Root-Adapter zum Security Runtime und dieselben
+kanonischen Bytes. Testfälle, Assertions, Fixture-Werte und Zeitgrenzen bleiben gleich.
+Drei Keys fallen: 204 → 201, #4073 32 → 29. Regeln 877, Composition 1.657,
+Compose 57.283 LOC und alle Budgets bleiben unverändert. Keine neue Regel, Freigabe,
+Klassifizierung oder Checker-Ausnahme; auch keine Freigabe für eigene private Testziele.
 
 #4073: Angebotskatalog und Identität einer Angebotsänderung laufen über eigene Workflow-DTOs.
 Die Root übersetzt Enrollments öffentliche Reads. Die vorhandenen Owner-Codecs bleiben

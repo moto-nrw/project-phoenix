@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,9 +57,9 @@ func (s carePeriodRepoStub) CarePeriods(_ context.Context, _ int64) ([]*CarePeri
 	return s.periods, nil
 }
 
-// offeringBookings is the Enrollment offering history as the root hands it
-// to the parent portal.
-func offeringBookings(links []*capability.RequestChildOffering) []*OfferingBooking {
+// offeringBookings copies the workflow-owned history fixture, retaining
+// its nil entries and independent optional date values.
+func offeringBookings(links []*OfferingBooking) []*OfferingBooking {
 	result := make([]*OfferingBooking, 0, len(links))
 	for _, link := range links {
 		if link == nil {
@@ -69,11 +68,11 @@ func offeringBookings(links []*capability.RequestChildOffering) []*OfferingBooki
 		}
 		booking := &OfferingBooking{CareOfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
 		if link.ValidFrom != nil {
-			date := calendar.Date(*link.ValidFrom)
+			date := *link.ValidFrom
 			booking.ValidFrom = &date
 		}
 		if link.ValidUntil != nil {
-			date := calendar.Date(*link.ValidUntil)
+			date := *link.ValidUntil
 			booking.ValidUntil = &date
 		}
 		result = append(result, booking)
@@ -82,7 +81,7 @@ func offeringBookings(links []*capability.RequestChildOffering) []*OfferingBooki
 }
 
 type childOfferingRepoStub struct {
-	links []*capability.RequestChildOffering
+	links []*OfferingBooking
 	err   error
 }
 
@@ -94,7 +93,7 @@ func (s childOfferingRepoStub) OfferingHistory(_ context.Context, _ int64) ([]*O
 }
 
 type recordingChildOfferingRepoStub struct {
-	links        []*capability.RequestChildOffering
+	links        []*OfferingBooking
 	dates        []calendar.Date
 	historyCalls int
 	err          error
@@ -112,7 +111,7 @@ func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
 	_ context.Context,
 	_ int64,
 	onDate calendar.Date,
-) ([]*capability.RequestChildOffering, error) {
+) ([]*OfferingBooking, error) {
 	s.dates = append(s.dates, onDate)
 	return s.links, s.err
 }
@@ -120,7 +119,7 @@ func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
 func (s *recordingChildOfferingRepoStub) RequestChildOfferingHistory(
 	_ context.Context,
 	_ int64,
-) ([]*capability.RequestChildOffering, error) {
+) ([]*OfferingBooking, error) {
 	s.historyCalls++
 	return s.links, s.err
 }
@@ -128,7 +127,7 @@ func (s *recordingChildOfferingRepoStub) RequestChildOfferingHistory(
 func (s childOfferingRepoStub) ListByRequestChildID(
 	_ context.Context,
 	_ int64,
-) ([]*capability.RequestChildOffering, error) {
+) ([]*OfferingBooking, error) {
 	return s.links, s.err
 }
 
@@ -136,14 +135,14 @@ func (s childOfferingRepoStub) ListByRequestChildIDAtDate(
 	_ context.Context,
 	_ int64,
 	_ calendar.Date,
-) ([]*capability.RequestChildOffering, error) {
+) ([]*OfferingBooking, error) {
 	return s.links, s.err
 }
 
 func (s childOfferingRepoStub) RequestChildOfferingHistory(
 	_ context.Context,
 	_ int64,
-) ([]*capability.RequestChildOffering, error) {
+) ([]*OfferingBooking, error) {
 	return s.links, s.err
 }
 
@@ -332,8 +331,8 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 		ServiceStartDate: today.AddDays(-30),
 		ServiceEndDate:   today.AddDays(200),
 	}}}
-	ownerFutureStart := capability.Date(futureStart)
-	svc.OfferingHistory = childOfferingRepoStub{links: []*capability.RequestChildOffering{
+	ownerFutureStart := futureStart
+	svc.OfferingHistory = childOfferingRepoStub{links: []*OfferingBooking{
 		nil,
 		{CareOfferingID: 41, SelectedDays: []string{"fri", "mon", "fri", "bad"}},
 		{CareOfferingID: 42, SelectedDays: []string{"tue"}},
@@ -404,8 +403,8 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 		ServiceStartDate: today.AddDays(-20),
 		ServiceEndDate:   today.AddDays(-1),
 	}
-	periodEndExclusive := capability.Date(today)
-	links := &recordingChildOfferingRepoStub{links: []*capability.RequestChildOffering{{
+	periodEndExclusive := today
+	links := &recordingChildOfferingRepoStub{links: []*OfferingBooking{{
 		CareOfferingID: 1,
 		ValidUntil:     &periodEndExclusive,
 	}}}
@@ -458,7 +457,7 @@ func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
 			name: "care offering rows",
 			setup: func(svc *Service) {
 				svc.CarePeriods = currentCarePeriodStub()
-				svc.OfferingHistory = childOfferingRepoStub{links: []*capability.RequestChildOffering{{CareOfferingID: 1}}}
+				svc.OfferingHistory = childOfferingRepoStub{links: []*OfferingBooking{{CareOfferingID: 1}}}
 				svc.CareOfferingRepo = careOfferingRepoStub{err: dependencyErr}
 			},
 		},
