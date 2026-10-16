@@ -1,7 +1,4 @@
-// Package httpadapter binds the established display HTTP contract to the
-// shared authentication, tenant-transaction, permission, and rendering
-// middleware. The handler package itself stays free of those dependencies.
-package httpadapter
+package api
 
 import (
 	"context"
@@ -16,35 +13,32 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
-// Resource is the composed display HTTP resource.
-type Resource = displayHTTP.Resource
-
-// NewResource wires the display routes to the shared inbound middleware.
+// newDisplayHTTPResource wires the display routes to the shared inbound middleware.
 // displayEnabled resolves the current tenant's display.enabled toggle; the
 // routes run inside the tenant transaction middleware.
-func NewResource(displays devicefleet.Capability, displayEnabled func(context.Context) (bool, error)) *Resource {
+func newDisplayHTTPResource(displays devicefleet.Capability, displayEnabled func(context.Context) (bool, error)) *displayHTTP.Resource {
 	if displays == nil || displayEnabled == nil {
 		panic("display HTTP composition: all dependencies are required")
 	}
-	return displayHTTP.NewResource(displays, runtime(displayEnabled))
+	return displayHTTP.NewResource(displays, displayHTTPRuntime(displayEnabled))
 }
 
-func runtime(displayEnabled func(context.Context) (bool, error)) displayHTTP.Runtime {
+func displayHTTPRuntime(displayEnabled func(context.Context) (bool, error)) displayHTTP.Runtime {
 	return displayHTTP.Runtime{
-		Protected:      protectedRoutes,
+		Protected:      displayProtectedRoutes,
 		AnyPermission:  apiCommon.RequiresAnyPermission,
 		Permission:     apiCommon.RequiresPermission,
 		ParseID:        apiCommon.ParseInt64IDWithError,
-		Failure:        renderFailure,
+		Failure:        renderDisplayFailure,
 		FeatureEnabled: displayEnabled,
 		Read:           permissions.DisplayRead,
 		Manage:         permissions.DisplayManage,
 	}
 }
 
-// protectedRoutes mounts the JWT-authenticated admin group and hands the
+// displayProtectedRoutes mounts the JWT-authenticated admin group and hands the
 // tenant-transaction middleware to the routes that need it.
-func protectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middleware)) {
+func displayProtectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middleware)) {
 	r.Group(func(r chi.Router) {
 		r.Use(sessiontoken.Authenticator)
 		r.Use(apiCommon.ReadOnlyPreviewMiddleware)
@@ -54,7 +48,7 @@ func protectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middlew
 	})
 }
 
-func renderFailure(
+func renderDisplayFailure(
 	w http.ResponseWriter,
 	r *http.Request,
 	kind displayHTTP.FailureKind,
