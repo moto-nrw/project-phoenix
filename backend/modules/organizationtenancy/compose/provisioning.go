@@ -61,15 +61,16 @@ const (
 // ProvisioningDependencies are the owners operator provisioning works
 // through. Every field except Logger is required.
 type ProvisioningDependencies struct {
-	Organizations organizationtenancy.Capability
-	Identity      ProvisioningIdentity
-	Devices       ProvisioningDevices
-	People        ProvisioningPeople
-	Presence      ProvisioningPresence
-	Categories    ProvisioningCategories
-	Settings      ProvisioningSettings
-	Audit         OperatorAudit
-	Secrets       ports.ProvisioningSecrets
+	PWAUsageWindowDays int
+	Organizations      organizationtenancy.Capability
+	Identity           ProvisioningIdentity
+	Devices            ProvisioningDevices
+	People             ProvisioningPeople
+	Presence           ProvisioningPresence
+	Categories         ProvisioningCategories
+	Settings           ProvisioningSettings
+	Audit              OperatorAudit
+	Secrets            ports.ProvisioningSecrets
 	// ActiveAccountCounts supplies bounded distinct-account aggregates.
 	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
 	Logger              *slog.Logger
@@ -89,14 +90,11 @@ func NewProvisioning(dependencies ProvisioningDependencies) (organizationtenancy
 		}
 		return tx, nil
 	}, dependencies.ActiveAccountCounts)
-	provisioning, err := application.NewProvisioning(application.ProvisioningDependencies{
-		Organizations: dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
+	return application.NewProvisioning(application.ProvisioningDependencies{
+		PWAUsageWindowDays: dependencies.PWAUsageWindowDays,
+		Organizations:      dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
 		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,
 	})
-	if err != nil {
-		return nil, err
-	}
-	return provisioning, nil
 }

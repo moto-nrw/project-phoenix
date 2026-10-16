@@ -3,7 +3,6 @@ package notifications_test
 import (
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -90,15 +89,15 @@ func TestNotificationTypeCatalogue(t *testing.T) {
 
 	t.Run("tenant gates point at registered settings", func(t *testing.T) {
 		gated := map[string]string{
-			notifications.TypePickupUpcoming:            configModel.KeyRemindersPickupUpcomingEnabled,
-			notifications.TypePickupOverdue:             configModel.KeyRemindersPickupOverdueEnabled,
-			notifications.TypeActivityStart:             configModel.KeyRemindersActivityStartEnabled,
-			notifications.TypeActivityOverdue:           configModel.KeyRemindersActivityOverdueEnabled,
-			notifications.TypeStudentAbsenceReported:    configModel.KeyNotificationsAbsenceReportedEnabled,
-			notifications.TypeStaffParentMessage:        configModel.KeyParentNotesEnabled,
-			notifications.TypeParentMessage:             configModel.KeyParentNotesEnabled,
-			notifications.TypeParentRequestDecided:      configModel.KeyParentNotesEnabled,
-			notifications.TypeParentAppointmentReminder: configModel.KeyCalendarAppointmentReminderEnabled,
+			notifications.TypePickupUpcoming:            "reminders.pickup_upcoming_enabled",
+			notifications.TypePickupOverdue:             "reminders.pickup_overdue_enabled",
+			notifications.TypeActivityStart:             "reminders.activity_start_enabled",
+			notifications.TypeActivityOverdue:           "reminders.activity_overdue_enabled",
+			notifications.TypeStudentAbsenceReported:    "notifications.absence_reported_enabled",
+			notifications.TypeStaffParentMessage:        "operations.parent_notes_enabled",
+			notifications.TypeParentMessage:             "operations.parent_notes_enabled",
+			notifications.TypeParentRequestDecided:      "operations.parent_notes_enabled",
+			notifications.TypeParentAppointmentReminder: "calendar.appointment_reminder_enabled",
 		}
 		for key, expected := range gated {
 			def, ok := notifications.GetType(key)

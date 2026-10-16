@@ -3,7 +3,6 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
@@ -121,4 +120,7 @@ type SubstitutionAudit interface {
 }
 
 // GroupPublisher emits lossy post-commit group-access invalidations.
-type GroupPublisher = realtimeevents.Publisher
+type GroupPublisher interface {
+	QueueGroupAccessChanged(context.Context, string)
+	QueueActiveSupervisionChanged(context.Context, int64, string)
+}
