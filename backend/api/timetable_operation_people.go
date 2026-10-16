@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
@@ -17,13 +17,10 @@ type TimetableOperationPeople struct {
 	Membership schoolmembership.Capability
 }
 
-func (p TimetableOperationPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*users.Staff, error) {
+func (p TimetableOperationPeople) GetStaffByPersonID(ctx context.Context, personID int64) (*timetable.StaffMember, error) {
 	members, err := p.Membership.ListStaff(ctx, schoolmembership.StaffFilter{PersonIDs: []int64{personID}, MembershipOnly: true})
 	if err != nil || len(members) == 0 {
 		return nil, err
 	}
-	staff := &users.Staff{PersonID: members[0].PersonID, DeletedAt: members[0].DeletedAt}
-	staff.ID = members[0].ID
-	staff.SetTenantID(members[0].TenantID)
-	return staff, nil
+	return &timetable.StaffMember{ID: members[0].ID, PersonID: members[0].PersonID}, nil
 }

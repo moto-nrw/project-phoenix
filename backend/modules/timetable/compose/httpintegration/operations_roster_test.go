@@ -36,8 +36,8 @@ func TestTimetableOperationsRosterCombinesPlannedStudentsAndLiveDropIns(t *testi
 	deps.visitRepo.byActiveGroup[activeGroupID][0].ID = visitID
 	deps.students.byID[530] = &usersModels.Student{PersonID: 460, SchoolClass: "3a", GroupID: &groupID}
 	deps.students.byID[531] = &usersModels.Student{PersonID: 461, SchoolClass: "4b"}
-	deps.personService.people[460] = &usersModels.Person{FirstName: "Zoe", LastName: "Zimmer"}
-	deps.personService.people[461] = &usersModels.Person{FirstName: "Anna", LastName: "Anlauf"}
+	deps.personService.people[460] = &timetable.Person{FirstName: "Zoe", LastName: "Zimmer"}
+	deps.personService.people[461] = &timetable.Person{FirstName: "Anna", LastName: "Anlauf"}
 	deps.groups.names[groupID] = "OGS Blau"
 
 	roster, err := deps.service.Roster(context.Background(), 650, false, instanceID)
@@ -82,8 +82,8 @@ func TestTimetableOperationsRosterFlagsParallelPresence(t *testing.T) {
 	}
 	deps.students.byID[540] = &usersModels.Student{PersonID: 481, SchoolClass: "1a"}
 	deps.students.byID[541] = &usersModels.Student{PersonID: 482, SchoolClass: "1a"}
-	deps.personService.people[481] = &usersModels.Person{FirstName: "Mia", LastName: "Muster"}
-	deps.personService.people[482] = &usersModels.Person{FirstName: "Tom", LastName: "Test"}
+	deps.personService.people[481] = &timetable.Person{FirstName: "Mia", LastName: "Muster"}
+	deps.personService.people[482] = &timetable.Person{FirstName: "Tom", LastName: "Test"}
 
 	roster, err := deps.service.Roster(context.Background(), 660, false, instanceID)
 
@@ -120,9 +120,9 @@ func TestTimetableOperationsRosterLoadsEffectivePickupTimesForBlockDate(t *testi
 	deps.students.byID[548] = &usersModels.Student{PersonID: 490, SchoolClass: "1a"}
 	deps.students.byID[549] = &usersModels.Student{PersonID: 491, SchoolClass: "1a"}
 	deps.students.byID[550] = &usersModels.Student{PersonID: 492, SchoolClass: "1a"}
-	deps.personService.people[490] = &usersModels.Person{FirstName: "Wochenplan", LastName: "Kind"}
-	deps.personService.people[491] = &usersModels.Person{FirstName: "Tagesänderung", LastName: "Kind"}
-	deps.personService.people[492] = &usersModels.Person{FirstName: "Ohne", LastName: "Gehzeit"}
+	deps.personService.people[490] = &timetable.Person{FirstName: "Wochenplan", LastName: "Kind"}
+	deps.personService.people[491] = &timetable.Person{FirstName: "Tagesänderung", LastName: "Kind"}
+	deps.personService.people[492] = &timetable.Person{FirstName: "Ohne", LastName: "Gehzeit"}
 	weekly := time.Date(1, time.January, 1, 15, 0, 0, 0, time.UTC)
 	override := time.Date(1, time.January, 1, 13, 30, 0, 0, time.UTC)
 	// Care Plan's effective time: the weekly plan, a day exception, and a
@@ -160,7 +160,7 @@ func TestTimetableOperationsRosterKeepsAttendanceUsableWhenPickupTimesFail(t *te
 		{StudentID: 551, Status: scheduleModels.AttendanceStatusExpected},
 	}
 	deps.students.byID[551] = &usersModels.Student{PersonID: 494, SchoolClass: "2b"}
-	deps.personService.people[494] = &usersModels.Person{FirstName: "Nora", LastName: "Nutzbar"}
+	deps.personService.people[494] = &timetable.Person{FirstName: "Nora", LastName: "Nutzbar"}
 	deps.pickupService.err = errors.New("pickup lookup failed")
 
 	roster, err := deps.service.Roster(context.Background(), 665, false, instanceID)
@@ -187,7 +187,7 @@ func TestTimetableOperationsRosterSkipsParallelPresenceForInactiveInstance(t *te
 		{StudentID: 545, Status: scheduleModels.AttendanceStatusPresent},
 	}
 	deps.students.byID[545] = &usersModels.Student{PersonID: 484, SchoolClass: "2b"}
-	deps.personService.people[484] = &usersModels.Person{FirstName: "Lea", LastName: "Lang"}
+	deps.personService.people[484] = &timetable.Person{FirstName: "Lea", LastName: "Lang"}
 
 	roster, err := deps.service.Roster(context.Background(), 661, false, instanceID)
 
@@ -209,7 +209,7 @@ func TestTimetableOperationsRosterParallelPresenceLookupErrorFails(t *testing.T)
 		{StudentID: 546, Status: scheduleModels.AttendanceStatusExpected},
 	}
 	deps.students.byID[546] = &usersModels.Student{PersonID: 486, SchoolClass: "2b"}
-	deps.personService.people[486] = &usersModels.Person{FirstName: "Ben", LastName: "Berg"}
+	deps.personService.people[486] = &timetable.Person{FirstName: "Ben", LastName: "Berg"}
 	deps.studentRepo.parallelPresenceErr = errors.New("boom")
 
 	_, err := deps.service.Roster(context.Background(), 662, false, instanceID)
@@ -233,7 +233,7 @@ func TestTimetableOperationsTwoReadsAfterAttendanceWriteAgree(t *testing.T) {
 	deps.studentRepo.byInstance[instanceID] = []*scheduleModels.InstanceStudent{row}
 	deps.studentRepo.byInstanceStudent[instanceStudentKey{instanceID, 547}] = row
 	deps.students.byID[547] = &usersModels.Student{PersonID: 488, SchoolClass: "3c"}
-	deps.personService.people[488] = &usersModels.Person{FirstName: "Ida", LastName: "Igel"}
+	deps.personService.people[488] = &timetable.Person{FirstName: "Ida", LastName: "Igel"}
 
 	status := scheduleModels.AttendanceStatusAbsent
 	_, err := deps.service.PatchAttendance(context.Background(), 663, false, instanceID, 547, timetable.AttendancePatch{Status: &status})
@@ -272,7 +272,7 @@ func TestTimetableOperationsRosterFreezesCareDayVerdictOnCompletedInstance(t *te
 		{StudentID: 536, Status: scheduleModels.AttendanceStatusExpected, NotScheduled: true},
 	}
 	deps.students.byID[536] = &usersModels.Student{PersonID: 466, SchoolClass: "3a"}
-	deps.personService.people[466] = &usersModels.Person{FirstName: "Nora", LastName: "Neu"}
+	deps.personService.people[466] = &timetable.Person{FirstName: "Nora", LastName: "Neu"}
 	// The plan says "booked" today — a later edit. It must not win over the marker.
 	deps.careDayService.byStudent[536] = timetable.CareDayScheduled
 
@@ -302,7 +302,7 @@ func TestTimetableOperationsRosterCompletedWithoutMarkerReportsUnknown(t *testin
 		{StudentID: 537, Status: scheduleModels.AttendanceStatusAbsent},
 	}
 	deps.students.byID[537] = &usersModels.Student{PersonID: 467, SchoolClass: "3a"}
-	deps.personService.people[467] = &usersModels.Person{FirstName: "Ole", LastName: "Ohm"}
+	deps.personService.people[467] = &timetable.Person{FirstName: "Ole", LastName: "Ohm"}
 	deps.careDayService.byStudent[537] = timetable.CareDayNotScheduled
 
 	roster, err := deps.service.Roster(context.Background(), 657, false, instanceID)
@@ -333,8 +333,8 @@ func TestTimetableOperationsRosterReportsStatusDayAbsenceOnUnbookedDay(t *testin
 	}
 	deps.students.byID[538] = &usersModels.Student{PersonID: 468, SchoolClass: "3a"}
 	deps.students.byID[539] = &usersModels.Student{PersonID: 469, SchoolClass: "3a"}
-	deps.personService.people[468] = &usersModels.Person{FirstName: "Pia", LastName: "Plan"}
-	deps.personService.people[469] = &usersModels.Person{FirstName: "Rudi", LastName: "Rot"}
+	deps.personService.people[468] = &timetable.Person{FirstName: "Pia", LastName: "Plan"}
+	deps.personService.people[469] = &timetable.Person{FirstName: "Rudi", LastName: "Rot"}
 	deps.careDayService.byStudent[538] = timetable.CareDayNotScheduled
 	deps.careDayService.byStudent[539] = timetable.CareDayNotScheduled
 
@@ -371,7 +371,7 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	}
 	deps.activityGroups.byID[activityGroupID] = &activitiesModels.Group{EducationGroupID: &expectedGroupID}
 	deps.students.byID[studentID] = &usersModels.Student{PersonID: 462, SchoolClass: "3b", GroupID: &actualGroupID}
-	deps.personService.people[462] = &usersModels.Person{FirstName: "Nina", LastName: "Nachmittag"}
+	deps.personService.people[462] = &timetable.Person{FirstName: "Nina", LastName: "Nachmittag"}
 	deps.groups.names[expectedGroupID] = "Klasse 2a"
 	deps.groups.names[actualGroupID] = "Klasse 3b"
 	lateArrival := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
@@ -417,8 +417,8 @@ func TestTimetableOperationsRosterChecksAllGroupTargets(t *testing.T) {
 	}
 	deps.students.byID[studentID] = &usersModels.Student{PersonID: 464, GroupID: &secondGroupID}
 	deps.students.byID[outsideStudentID] = &usersModels.Student{PersonID: 465, GroupID: &outsideGroupID}
-	deps.personService.people[464] = &usersModels.Person{FirstName: "Mia", LastName: "Mehrfach"}
-	deps.personService.people[465] = &usersModels.Person{FirstName: "Noah", LastName: "Außerhalb"}
+	deps.personService.people[464] = &timetable.Person{FirstName: "Mia", LastName: "Mehrfach"}
+	deps.personService.people[465] = &timetable.Person{FirstName: "Noah", LastName: "Außerhalb"}
 
 	roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
 
@@ -460,7 +460,7 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 			{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
 		}
 		deps.students.byID[studentID] = &usersModels.Student{PersonID: 463, SchoolClass: "3c"}
-		deps.personService.people[463] = &usersModels.Person{FirstName: "Kai", LastName: "Kurz"}
+		deps.personService.people[463] = &timetable.Person{FirstName: "Kai", LastName: "Kurz"}
 		deps.arrivalService.byStudent[studentID] = &compose.ExpectedArrival{IsException: true}
 
 		roster, err := deps.service.Roster(context.Background(), 652, false, instanceID)
@@ -478,7 +478,7 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 			{StudentID: studentID, Status: scheduleModels.AttendanceStatusExpected},
 		}
 		deps.students.byID[studentID] = &usersModels.Student{PersonID: 464, SchoolClass: "3c"}
-		deps.personService.people[464] = &usersModels.Person{FirstName: "Eli", LastName: "Error"}
+		deps.personService.people[464] = &timetable.Person{FirstName: "Eli", LastName: "Error"}
 		deps.arrivalService.err = errors.New("arrival failed")
 
 		roster, err := deps.service.Roster(context.Background(), 653, false, instanceID)
