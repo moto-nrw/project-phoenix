@@ -21,7 +21,7 @@ import (
 // resolution, as the portal composition does in production.
 func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) messaging.ChildResolver {
 	return care.New(care.Config{
-		ChildRepo: repos.ParentChild, StudentRepo: repos.Student,
+		ChildRepo: repos.ParentChildReads(), StudentRepo: repos.Student,
 		RequestSharing: unusedRequestSharer{},
 	})
 }

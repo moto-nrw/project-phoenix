@@ -2,7 +2,6 @@ package care
 
 import (
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -11,12 +10,8 @@ import (
 // through the workflow port instead of importing the owner models (#3421).
 type (
 	AllowedDepartureModes    = usersModels.AllowedDepartureModes
-	ChildSummary             = parentModels.ChildSummary
 	DepartureDays            = usersModels.DepartureDays
 	DepartureMode            = usersModels.DepartureMode
-	EnrollablePhase          = parentModels.EnrollablePhase
-	EnrollmentRequestSummary = parentModels.EnrollmentRequestSummary
-	GuardianSubmitStatus     = parentModels.GuardianSubmitStatus
 	StudentDataChangeRequest = usersModels.StudentDataChangeRequest
 )
 
