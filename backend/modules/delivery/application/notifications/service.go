@@ -36,9 +36,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -625,7 +624,7 @@ func (r *router) withinActiveWindow(ctx context.Context, tenantID int64) (bool, 
 		return true, nil
 	}
 
-	now := timezone.Now()
+	now := calendar.Now()
 	nowMin := now.Hour()*60 + now.Minute()
 	return withinWindow(nowMin, start, end), nil
 }

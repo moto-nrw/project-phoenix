@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func newStudentStatusDayResponse(entry *absencerecords.StudentStatusDay) StudentStatusDayResponse {
@@ -85,7 +85,7 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	for _, response := range responses {
 		studentIDs = append(studentIDs, response.ID)
 	}
-	rows, err := rs.StudentStatusDayService.GetActiveByStudentIDsAndDate(ctx, studentIDs, timezone.DateFromTime(now))
+	rows, err := rs.StudentStatusDayService.GetActiveByStudentIDsAndDate(ctx, studentIDs, calendar.DateFromTime(now))
 	if err != nil {
 		return err
 	}
@@ -97,7 +97,7 @@ func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, respon
 	if response == nil || rs.StudentStatusDayService == nil {
 		return nil
 	}
-	date := timezone.DateFromTime(now)
+	date := calendar.DateFromTime(now)
 	rows, err := rs.StudentStatusDayService.GetActiveByStudentAndDateRange(ctx, response.ID, date, date)
 	if err != nil {
 		return err

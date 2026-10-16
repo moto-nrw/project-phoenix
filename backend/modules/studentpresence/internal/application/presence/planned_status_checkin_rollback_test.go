@@ -8,11 +8,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,14 +25,14 @@ type plannedStatusFault struct {
 	writes                int
 }
 
-func (r *plannedStatusFault) FindActiveByStudentAndDateRange(ctx context.Context, id int64, from, until timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *plannedStatusFault) FindActiveByStudentAndDateRange(ctx context.Context, id int64, from, until calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if r.readErr != nil {
 		return nil, r.readErr
 	}
 	return r.StudentStatusDayRepository.FindActiveByStudentAndDateRange(ctx, id, from, until)
 }
 
-func (r *plannedStatusFault) FindActiveByStudentIDsAndDate(ctx context.Context, ids []int64, day timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *plannedStatusFault) FindActiveByStudentIDsAndDate(ctx context.Context, ids []int64, day calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if r.readErr != nil {
 		return nil, r.readErr
 	}
@@ -167,7 +166,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		student.Sick, student.SickSince = &sick, &since
 	}
 	require.NoError(t, repos.Student.Update(ctx, student))
-	status := &absencerecords.StudentStatusDay{StudentID: student.ID, Date: timezone.TodayDate(), Status: absencerecords.StudentStatusDaySick, ReportedAt: time.Now(), Source: absencerecords.StudentStatusSourcePlanned}
+	status := &absencerecords.StudentStatusDay{StudentID: student.ID, Date: calendar.TodayDate(), Status: absencerecords.StudentStatusDaySick, ReportedAt: time.Now(), Source: absencerecords.StudentStatusSourcePlanned}
 	if kind == "planned" {
 		require.NoError(t, repos.StudentStatusDay.UpsertReported(ctx, status))
 	}
@@ -301,7 +300,7 @@ func (r *plannedStatusFault) UpsertReported(ctx context.Context, row *absencerec
 	r.upserts++
 	return r.upsertErr
 }
-func (r *plannedStatusFault) MarkCleared(ctx context.Context, id int64, status string, day timezone.Date, at time.Time, source string) error {
+func (r *plannedStatusFault) MarkCleared(ctx context.Context, id int64, status string, day calendar.Date, at time.Time, source string) error {
 	if err := r.StudentStatusDayRepository.MarkCleared(ctx, id, status, day, at, source); err != nil {
 		return err
 	}

@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +70,7 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 		},
 	}, configModel.CalendarDate("")))
 
-	today := configModel.CalendarDate(timezone.TodayDate().String())
+	today := configModel.CalendarDate(calendar.TodayDate().String())
 	entries, err := repo.GetByStaffIDAndDate(ctx, staff.ID, today)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)

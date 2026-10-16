@@ -9,8 +9,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -268,7 +268,7 @@ func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID in
 	return r.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID), false)
 }
 
-func (SettingsRuntimeAdapter) TodayTime() time.Time { return timezone.TodayDate().UTCMidnight() }
+func (SettingsRuntimeAdapter) TodayTime() time.Time { return calendar.TodayDate().UTCMidnight() }
 
 // LockStaffAssignment mirrors Membership.FindStaffForMutation for owner tests
 // that cannot compose Membership through this package without an import cycle.

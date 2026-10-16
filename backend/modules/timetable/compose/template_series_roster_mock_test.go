@@ -13,8 +13,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,9 +29,9 @@ const (
 
 var errSeriesMock = errors.New("repository exploded")
 
-func seriesMockAnchor() timezone.Date { return timezone.NewDate(2026, 8, 24).AddDays(7) }
+func seriesMockAnchor() calendar.Date { return calendar.NewDate(2026, 8, 24).AddDays(7) }
 
-func seriesMockUntil() timezone.Date { return timezone.NewDate(2026, 8, 24).AddDays(21) }
+func seriesMockUntil() calendar.Date { return calendar.NewDate(2026, 8, 24).AddDays(21) }
 
 // ---------------------------------------------------------------- fakes ----
 
@@ -161,7 +161,7 @@ func seriesMockGroup(id int64) *activitiesModel.Group {
 	return group
 }
 
-func seriesMockSchedule(groupID int64, from timezone.Date, until *timezone.Date) *activitiesModel.Schedule {
+func seriesMockSchedule(groupID int64, from calendar.Date, until *calendar.Date) *activitiesModel.Schedule {
 	start := activitiesModel.Date(from)
 	return &activitiesModel.Schedule{
 		Weekday:         activitiesModel.WeekdayMonday,
@@ -183,7 +183,7 @@ func seriesMockChain(
 			seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
 		}},
 		ActivityScheduleRepo: &seriesMockScheduleRepo{byGroup: map[int64][]*activitiesModel.Schedule{
-			seriesMockOldID:    {seriesMockSchedule(seriesMockOldID, timezone.NewDate(2026, 8, 24), &until)},
+			seriesMockOldID:    {seriesMockSchedule(seriesMockOldID, calendar.NewDate(2026, 8, 24), &until)},
 			seriesMockLivingID: {seriesMockSchedule(seriesMockLivingID, until, nil)},
 		}},
 		StudentEnrollmentRepo:  enrollments,
@@ -299,7 +299,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{
-					rows:     []*activitiesModel.StudentEnrollment{seriesMockEnrollmentRow(1, timezone.NewDate(2026, 8, 24), &until, nil)},
+					rows:     []*activitiesModel.StudentEnrollment{seriesMockEnrollmentRow(1, calendar.NewDate(2026, 8, 24), &until, nil)},
 					closeErr: errSeriesMock,
 				}, &seriesMockSupervisorRepo{})
 			},
@@ -312,7 +312,7 @@ func TestReconcileSeriesPredecessorRoster_RepositoryFailures(t *testing.T) {
 			build: func() *TemplateService {
 				until := seriesMockUntil()
 				return seriesMockChain(&seriesMockEnrollmentRepo{}, &seriesMockSupervisorRepo{
-					rows:     []*activitiesModel.SupervisorPlanned{seriesMockSupervisorRow(1, timezone.NewDate(2026, 8, 24), &until, nil)},
+					rows:     []*activitiesModel.SupervisorPlanned{seriesMockSupervisorRow(1, calendar.NewDate(2026, 8, 24), &until, nil)},
 					closeErr: errSeriesMock,
 				})
 			},
@@ -354,17 +354,17 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 	t.Parallel()
 
 	otherPeriod := int64(4242)
-	longPast := timezone.NewDate(2026, 8, 24).AddDays(-90)
-	pastEnd := timezone.NewDate(2026, 8, 24).AddDays(-60)
+	longPast := calendar.NewDate(2026, 8, 24).AddDays(-90)
+	pastEnd := calendar.NewDate(2026, 8, 24).AddDays(-60)
 	wednesday := activitiesModel.WeekdayWednesday
 	until := seriesMockUntil()
 
 	enrollments := &seriesMockEnrollmentRepo{rows: []*activitiesModel.StudentEnrollment{
 		// Another calendar period — owned by a different planning window.
-		seriesMockEnrollmentRow(11, timezone.NewDate(2026, 8, 24), &until, &otherPeriod),
+		seriesMockEnrollmentRow(11, calendar.NewDate(2026, 8, 24), &until, &otherPeriod),
 		// A weekday the edit does not describe.
 		func() *activitiesModel.StudentEnrollment {
-			row := seriesMockEnrollmentRow(12, timezone.NewDate(2026, 8, 24), &until, nil)
+			row := seriesMockEnrollmentRow(12, calendar.NewDate(2026, 8, 24), &until, nil)
 			row.Weekday = &wednesday
 			return row
 		}(),
@@ -372,9 +372,9 @@ func TestReconcileSeriesPredecessorRoster_SkipsUnrelatedRows(t *testing.T) {
 		seriesMockEnrollmentRow(13, longPast, &pastEnd, nil),
 	}}
 	supervisors := &seriesMockSupervisorRepo{rows: []*activitiesModel.SupervisorPlanned{
-		seriesMockSupervisorRow(21, timezone.NewDate(2026, 8, 24), &until, &otherPeriod),
+		seriesMockSupervisorRow(21, calendar.NewDate(2026, 8, 24), &until, &otherPeriod),
 		func() *activitiesModel.SupervisorPlanned {
-			row := seriesMockSupervisorRow(22, timezone.NewDate(2026, 8, 24), &until, nil)
+			row := seriesMockSupervisorRow(22, calendar.NewDate(2026, 8, 24), &until, nil)
 			row.Weekday = &wednesday
 			return row
 		}(),
@@ -402,8 +402,8 @@ func TestLoadTemplateSeriesSegments_SkipsBrokenSibling(t *testing.T) {
 	until := seriesMockUntil()
 	other := until.AddDays(7)
 	broken := []*activitiesModel.Schedule{
-		seriesMockSchedule(seriesMockOldID, timezone.NewDate(2026, 8, 24), &until),
-		seriesMockSchedule(seriesMockOldID, timezone.NewDate(2026, 8, 24), &other),
+		seriesMockSchedule(seriesMockOldID, calendar.NewDate(2026, 8, 24), &until),
+		seriesMockSchedule(seriesMockOldID, calendar.NewDate(2026, 8, 24), &other),
 	}
 	groupRepo := &seriesMockGroupRepo{groups: []*activitiesModel.Group{
 		seriesMockGroup(seriesMockOldID), seriesMockGroup(seriesMockLivingID),
@@ -435,7 +435,7 @@ func TestResolveLivingTemplateSegment_PropagatesLineageErrors(t *testing.T) {
 	assert.ErrorIs(t, err, errSeriesMock)
 }
 
-func seriesMockEnrollmentRow(id int64, from timezone.Date, until *timezone.Date, periodID *int64) *activitiesModel.StudentEnrollment {
+func seriesMockEnrollmentRow(id int64, from calendar.Date, until *calendar.Date, periodID *int64) *activitiesModel.StudentEnrollment {
 	row := &activitiesModel.StudentEnrollment{
 		StudentID:        seriesMockStudent,
 		ActivityGroupID:  seriesMockOldID,
@@ -447,7 +447,7 @@ func seriesMockEnrollmentRow(id int64, from timezone.Date, until *timezone.Date,
 	return row
 }
 
-func seriesMockSupervisorRow(id int64, from timezone.Date, until *timezone.Date, periodID *int64) *activitiesModel.SupervisorPlanned {
+func seriesMockSupervisorRow(id int64, from calendar.Date, until *calendar.Date, periodID *int64) *activitiesModel.SupervisorPlanned {
 	row := &activitiesModel.SupervisorPlanned{
 		StaffID:          seriesMockStaff,
 		GroupID:          seriesMockOldID,

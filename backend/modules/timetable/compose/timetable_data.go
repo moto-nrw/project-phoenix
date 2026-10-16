@@ -8,11 +8,11 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The planner's reads of the Timetable owner (#3424 slice S5) behind
@@ -53,13 +53,13 @@ type DataArrivalExceptions interface {
 // PickupBaselineProjector is the consumer-owned port to Care Plan's regular
 // pickup plan over an inclusive window (#2414, ADR 0005).
 type PickupBaselineProjector interface {
-	ProjectPickups(ctx context.Context, studentIDs []int64, from, to timezone.Date) (PickupBaselines, error)
+	ProjectPickups(ctx context.Context, studentIDs []int64, from, to calendar.Date) (PickupBaselines, error)
 }
 
 // PickupBaselines answers the regular pickup of a student on a date; ok is
 // false when no recurring pickup applies.
 type PickupBaselines interface {
-	RegularPickup(studentID int64, date timezone.Date) (pickup time.Time, ok bool)
+	RegularPickup(studentID int64, date calendar.Date) (pickup time.Time, ok bool)
 }
 
 // DataTemplates reads the Vorlagen list and writes the activity a
@@ -101,7 +101,7 @@ type RoomOccupancy interface {
 // DeviationEventReader is the consumer-owned port to the Audit Platform's
 // Änderungsprotokoll (#1886).
 type DeviationEventReader interface {
-	ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error)
+	ListDeviationEvents(ctx context.Context, from, to calendar.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error)
 }
 
 // AdvisoryLocks takes transaction-scoped advisory locks through the
@@ -166,7 +166,7 @@ func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (ti
 	return ScheduledInstanceOf(row), nil
 }
 
-func (d *timetableData) ListScheduledInstances(ctx context.Context, from, to timezone.Date) ([]timetable.ScheduledInstance, error) {
+func (d *timetableData) ListScheduledInstances(ctx context.Context, from, to calendar.Date) ([]timetable.ScheduledInstance, error) {
 	rows, err := d.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return nil, err
@@ -182,7 +182,7 @@ func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances
 	rows := &timetable.ScheduledInstanceRows{
 		Staff:        make(map[int64][]timetable.InstanceStaff, len(instances)),
 		Participants: make(map[int64][]timetable.ScheduledParticipant, len(instances)),
-		Cutoffs:      make(map[timezone.Date]map[int64]time.Time),
+		Cutoffs:      make(map[calendar.Date]map[int64]time.Time),
 	}
 	if len(instances) == 0 {
 		return rows, nil
@@ -227,9 +227,9 @@ func (d *timetableData) ListScheduledInstanceRows(ctx context.Context, instances
 	return rows, nil
 }
 
-func studentIDsByDate(instances []timetable.ScheduledInstance, participants map[int64][]timetable.ScheduledParticipant) map[timezone.Date][]int64 {
-	seen := make(map[timezone.Date]map[int64]struct{})
-	out := make(map[timezone.Date][]int64)
+func studentIDsByDate(instances []timetable.ScheduledInstance, participants map[int64][]timetable.ScheduledParticipant) map[calendar.Date][]int64 {
+	seen := make(map[calendar.Date]map[int64]struct{})
+	out := make(map[calendar.Date][]int64)
 	for _, instance := range instances {
 		for _, row := range participants[instance.ID] {
 			if seen[instance.Date] == nil {
@@ -251,7 +251,7 @@ func studentIDsByDate(instances []timetable.ScheduledInstance, participants map[
 // "Abholung 14:45" on the block the time falls into (#2360). A manual
 // partial absence can differ from the pickup time and never feeds the
 // marker.
-func (d *timetableData) partialAbsenceCutoffs(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]time.Time, error) {
+func (d *timetableData) partialAbsenceCutoffs(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]time.Time, error) {
 	if len(studentIDs) == 0 {
 		return map[int64]time.Time{}, nil
 	}
@@ -262,7 +262,7 @@ func (d *timetableData) partialAbsenceCutoffs(ctx context.Context, studentIDs []
 	cutoffs := make(map[int64]time.Time, len(rows))
 	for _, row := range rows {
 		if row != nil && row.ExcusedAuto && row.ExcusedFrom != nil {
-			cutoffs[row.StudentID] = timezone.NormalizeWallClock(*row.ExcusedFrom)
+			cutoffs[row.StudentID] = calendar.NormalizeWallClock(*row.ExcusedFrom)
 		}
 	}
 	return cutoffs, nil
@@ -334,7 +334,7 @@ func (d *timetableData) PatchSlotAttendance(ctx context.Context, participantID i
 	return d.deps.Participants.UpdateAttendanceFields(ctx, participantID, attendanceFieldPatch(patch))
 }
 
-func (d *timetableData) ListDeviationEvents(ctx context.Context, from, to timezone.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error) {
+func (d *timetableData) ListDeviationEvents(ctx context.Context, from, to calendar.Date, activityGroupID *int64, startTime *string) ([]timetable.DeviationEvent, error) {
 	return d.deps.DeviationEvents.ListDeviationEvents(ctx, from, to, activityGroupID, startTime)
 }
 

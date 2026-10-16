@@ -12,8 +12,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -47,7 +47,7 @@ func TestPendingExcusedNote_HiddenFromReadOnlySupervisor(t *testing.T) {
 	err := testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.resource.ExcusedRequestService.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
-			[]excusedrequests.Date{excusedrequests.Date(timezone.TodayDate())}, note,
+			[]excusedrequests.Date{excusedrequests.Date(calendar.TodayDate())}, note,
 		)
 		return e
 	})
@@ -100,7 +100,7 @@ func TestPendingExcusedNote_ShownToAbsenceReviewer(t *testing.T) {
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
 		_, e := tc.resource.ExcusedRequestService.CreateRequest(
 			txCtx, student.ID, submitterAccount.ID,
-			[]excusedrequests.Date{excusedrequests.Date(timezone.TodayDate())}, note,
+			[]excusedrequests.Date{excusedrequests.Date(calendar.TodayDate())}, note,
 		)
 		return e
 	}))

@@ -25,9 +25,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,7 +82,7 @@ func TestCleanupStaleAttendance_ClosesStaleRecords(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "cleanup-device-001")
 
 	// Create a stale attendance record (yesterday, no checkout)
-	yesterday := timezone.Today().AddDate(0, 0, -1)
+	yesterday := calendar.Today().AddDate(0, 0, -1)
 	checkInTime := yesterday.Add(8 * time.Hour) // 8:00 AM yesterday
 
 	var attendanceID int64
@@ -148,7 +147,7 @@ func TestPreviewAttendanceCleanup_ShowsStaleRecords(t *testing.T) {
 	device := testpkg.CreateTestDevice(t, db, "preview-device-001")
 
 	// Create a stale attendance record (2 days ago, no checkout)
-	twoDaysAgo := timezone.Today().AddDate(0, 0, -2)
+	twoDaysAgo := calendar.Today().AddDate(0, 0, -2)
 	checkInTime := twoDaysAgo.Add(9 * time.Hour) // 9:00 AM
 
 	var attendanceID int64
@@ -520,7 +519,7 @@ func TestCleanupStaleAttendance_CheckInAfterEndOfDay(t *testing.T) {
 	// Create a stale attendance record with check_in_time AFTER end-of-day
 	// Set date to 2 days ago, but check_in_time to 2 days ago at 23:59:59 + 10 seconds
 	// This simulates a data integrity issue where check-in happened after midnight
-	twoDaysAgo := timezone.Today().AddDate(0, 0, -2)
+	twoDaysAgo := calendar.Today().AddDate(0, 0, -2)
 	checkInTime := twoDaysAgo.Add(23*time.Hour + 59*time.Minute + 59*time.Second + 10*time.Second)
 
 	var attendanceID int64
@@ -574,7 +573,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 
 	// Create a stale attendance record (yesterday, no checkout). The DATE
 	// column takes a timezone.Date, which binds as a calendar-day literal.
-	yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
+	yesterday := calendar.NewDate(2026, 8, 24).AddDays(-1)
 	checkInTime := yesterday.UTCMidnight().Add(8 * time.Hour) // 8:00 UTC yesterday
 
 	var attendanceID int64
@@ -607,7 +606,7 @@ func TestCleanupStaleAttendance_CheckOutTimeIsBerlinEndOfDay(t *testing.T) {
 	// record.Date comes back as UTC midnight from the DATE column.
 	// The fix converts to Berlin before building 23:59:59, so the checkout
 	// must be 23:59:59 Berlin on the correct calendar date.
-	checkOutInBerlin := checkOutTime.In(timezone.Berlin)
+	checkOutInBerlin := checkOutTime.In(calendar.Berlin)
 
 	assert.Equal(t, 23, checkOutInBerlin.Hour(), "hour should be 23 in Berlin time")
 	assert.Equal(t, 59, checkOutInBerlin.Minute(), "minute should be 59")

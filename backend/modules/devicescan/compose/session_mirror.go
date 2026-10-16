@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -52,7 +52,7 @@ func (m mirrorTimetable) HasInstance(ctx context.Context, sessionID int64) (bool
 }
 
 func (m mirrorTimetable) CalendarParts(instant time.Time) (string, int) {
-	local := instant.In(timezone.Berlin)
+	local := instant.In(calendar.Berlin)
 	return local.Format("2006-01-02"), local.Hour()*60 + local.Minute()
 }
 
@@ -82,7 +82,7 @@ func (m mirrorTimetable) CreateInstance(ctx context.Context, input MirroredSessi
 	}
 	instance := &scheduleModel.ActivityInstance{
 		Date: date, ActivityGroupID: input.ActivityGroupID, Title: input.Title,
-		StartTime: timezone.NormalizeWallClock(start), EndTime: timezone.NormalizeWallClock(end), RoomID: input.RoomID,
+		StartTime: calendar.NormalizeWallClock(start), EndTime: calendar.NormalizeWallClock(end), RoomID: input.RoomID,
 		Status: scheduleModel.InstanceStatusActive, ActiveGroupID: input.ActiveGroupID, IsSpontaneous: true,
 		CreatedBy: input.CreatedBy, StartedBy: input.StartedBy, StartedAt: input.StartedAt,
 	}

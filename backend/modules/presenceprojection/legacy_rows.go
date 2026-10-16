@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -44,7 +44,7 @@ type legacyInstanceRow struct {
 	TenantID               int64         `bun:"tenant_id"`
 	CreatedAt              time.Time     `bun:"created_at"`
 	UpdatedAt              time.Time     `bun:"updated_at"`
-	Date                   timezone.Date `bun:"date"`
+	Date                   calendar.Date `bun:"date"`
 	ActivityGroupID        *int64        `bun:"activity_group_id"`
 	CalendarPeriodID       *int64        `bun:"calendar_period_id"`
 	Title                  string        `bun:"title"`

@@ -3,16 +3,16 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ListUnderstaffedInstances loads the window's planned and running blocks
 // with one read, their staff rows with a second, and returns the
 // understaffed ones with their counts. Completed and cancelled blocks are
 // history and never reported.
-func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to timezone.Date) ([]timetable.UnderstaffedInstance, error) {
+func (d *timetableData) ListUnderstaffedInstances(ctx context.Context, from, to calendar.Date) ([]timetable.UnderstaffedInstance, error) {
 	instances, err := d.deps.Instances.FindByTenantAndDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return nil, err

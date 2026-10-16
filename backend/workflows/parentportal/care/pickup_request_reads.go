@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error) {
@@ -71,7 +71,7 @@ func (s *Service) enrichLegacyPickupChangeRequest(ctx context.Context, studentID
 		return
 	}
 	dateRaw, _ := payload["date"].(string)
-	date, err := timezone.ParseDate(dateRaw)
+	date, err := calendar.ParseDate(dateRaw)
 	if err != nil {
 		s.Logger.Warn("parent: legacy pickup request has invalid date",
 			"request_id", row.ID,

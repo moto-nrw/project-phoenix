@@ -11,15 +11,15 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type attendanceExportOptions struct {
 	Format lists.Format
-	From   timezone.Date
-	To     timezone.Date
+	From   calendar.Date
+	To     calendar.Date
 }
 
 const (
@@ -89,7 +89,7 @@ func (rs *Resource) checkAttendanceExportAccess(w http.ResponseWriter, r *http.R
 	return true
 }
 
-func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezone.Date) (attendanceExportOptions, error) {
+func parseAttendanceExportOptions(r *http.Request, visibleDays int, today calendar.Date) (attendanceExportOptions, error) {
 	options := attendanceExportOptions{Format: lists.Format(strings.TrimSpace(r.URL.Query().Get("format")))}
 	if options.Format == "" {
 		options.Format = lists.FormatPDF
@@ -101,13 +101,13 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezo
 	options.From = options.To.AddDays(-(visibleDays - 1))
 	var err error
 	if raw := strings.TrimSpace(r.URL.Query().Get("from")); raw != "" {
-		options.From, err = timezone.ParseDate(raw)
+		options.From, err = calendar.ParseDate(raw)
 		if err != nil {
 			return options, errors.New("invalid from date format, expected YYYY-MM-DD")
 		}
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("to")); raw != "" {
-		options.To, err = timezone.ParseDate(raw)
+		options.To, err = calendar.ParseDate(raw)
 		if err != nil {
 			return options, errors.New("invalid to date format, expected YYYY-MM-DD")
 		}
@@ -125,7 +125,7 @@ func parseAttendanceExportOptions(r *http.Request, visibleDays int, today timezo
 }
 
 func (rs *Resource) buildAttendanceExportDocument(
-	ctx context.Context, studentID int64, from, to timezone.Date,
+	ctx context.Context, studentID int64, from, to calendar.Date,
 ) (lists.Document, error) {
 	slots, err := rs.StudentHistoryService.GetSlotAttendanceByStudentAndDateRange(ctx, studentID, from, to)
 	if err != nil {
@@ -182,13 +182,13 @@ func attendanceSessionExportColumns() []lists.Column {
 // exports read in order regardless of which source a row came from.
 func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows []*studentpresence.Attendance) []lists.Row {
 	type sortableExportRow struct {
-		date  timezone.Date
+		date  calendar.Date
 		clock string // HH:MM:SS in Berlin, orders rows within a day
 		row   lists.Row
 	}
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
 	notes := checkOutNotesByInstant(attendanceRows)
-	coverageByDate := make(map[timezone.Date][]slotCoverage, len(slots))
+	coverageByDate := make(map[calendar.Date][]slotCoverage, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
@@ -202,7 +202,7 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 			coverage.checkInNano = row.Attendance.CheckedInAt.UnixNano()
 			coverage.hasCheckIn = true
 		}
-		instanceDate := timezone.Date(row.Instance.Date)
+		instanceDate := calendar.Date(row.Instance.Date)
 		coverageByDate[instanceDate] = append(coverageByDate[instanceDate], coverage)
 		entries = append(entries, sortableExportRow{
 			date:  instanceDate,
@@ -211,12 +211,12 @@ func attendanceExportRows(slots []*studentpresence.HistorySlot, attendanceRows [
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if sessionCoveredBySlots(coverageByDate[timezone.Date(attendance.Date)], attendance.CheckInTime) {
+		if sessionCoveredBySlots(coverageByDate[calendar.Date(attendance.Date)], attendance.CheckInTime) {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
-			date:  timezone.Date(attendance.Date),
-			clock: attendance.CheckInTime.In(timezone.Berlin).Format("15:04:05"),
+			date:  calendar.Date(attendance.Date),
+			clock: attendance.CheckInTime.In(calendar.Berlin).Format("15:04:05"),
 			row:   unassignedExportRow(attendance),
 		})
 	}
@@ -274,7 +274,7 @@ func slotExportRow(row *studentpresence.HistorySlot, notes map[int64]string) lis
 // reserved for persisted walk-in slot rows (is_unplanned).
 func unassignedExportRow(attendance *studentpresence.Attendance) lists.Row {
 	return lists.Row{Values: map[lists.ColumnID]string{
-		attendanceColumnDate: timezone.Date(attendance.Date).Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
+		attendanceColumnDate: calendar.Date(attendance.Date).Format(attendanceExportDateLayout), attendanceColumnOffering: "Ohne Zuordnung",
 		attendanceColumnWindow: exportOptionalTime(&attendance.CheckInTime) + "–" + exportOptionalTime(attendance.CheckOutTime),
 		attendanceColumnStatus: "Anwesend", attendanceColumnCheckIn: exportOptionalTime(&attendance.CheckInTime),
 		attendanceColumnCheckOut: exportOptionalTime(attendance.CheckOutTime), attendanceColumnAssignment: "Nicht zugeordnet",
@@ -286,7 +286,7 @@ func exportOptionalTime(value *time.Time) string {
 	if value == nil {
 		return "–"
 	}
-	return value.In(timezone.Berlin).Format("15:04")
+	return value.In(calendar.Berlin).Format("15:04")
 }
 
 func attendanceSlotStatusLabel(status string, substatus *string) string {

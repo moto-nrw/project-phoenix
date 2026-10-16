@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ======== Enrollment Methods ========
@@ -41,7 +41,7 @@ func (s *Service) EnrollStudent(ctx context.Context, groupID, studentID int64) e
 	enrollment := &activities.StudentEnrollment{
 		StudentID:       studentID,
 		ActivityGroupID: groupID,
-		ValidFrom:       activities.Date(timezone.TodayDate()),
+		ValidFrom:       activities.Date(calendar.TodayDate()),
 	}
 	if err := s.enrollmentRepo.Create(ctx, enrollment); err != nil {
 		return &ActivityError{Op: "enroll student", Err: err}
@@ -216,7 +216,7 @@ func (s *Service) rejectAlumni(ctx context.Context, studentIDs []int64) error {
 // their row locks by lockStudentStatuses. IDs with no entry are left to the
 // foreign key, which is where a non-existent student has always been rejected.
 func rejectAlumniFrom(locked map[int64]*users.Student, studentIDs []int64) error {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	for _, studentID := range studentIDs {
 		student := locked[studentID]
 		if student == nil {
@@ -327,7 +327,7 @@ func (s *Service) careEnded(ctx context.Context, studentID int64) (bool, error) 
 	if err != nil || student == nil {
 		return false, err
 	}
-	return student.CareEndedOn(timezone.TodayDate()), nil
+	return student.CareEndedOn(calendar.TodayDate()), nil
 }
 
 func (s *Service) loadStudentForGate(ctx context.Context, studentID int64) (*users.Student, error) {
@@ -385,7 +385,7 @@ func (s *Service) addNewEnrollmentsInTx(ctx context.Context, txService ActivityS
 			enrollment := &activities.StudentEnrollment{
 				StudentID:       studentID,
 				ActivityGroupID: groupID,
-				ValidFrom:       activities.Date(timezone.TodayDate()),
+				ValidFrom:       activities.Date(calendar.TodayDate()),
 			}
 			if err := txService.(*Service).enrollmentRepo.Create(ctx, enrollment); err != nil {
 				return &ActivityError{Op: "create enrollment", Err: err}
@@ -430,7 +430,7 @@ func (s *Service) GetEnrolledStudents(ctx context.Context, groupID int64) ([]*us
 		// A departed child leaves the AG roster (#2487). Their booking was
 		// capped at their last care day; this keeps the roster read agreeing
 		// with the date-aware ones.
-		if student.CareEndedOn(timezone.TodayDate()) {
+		if student.CareEndedOn(calendar.TodayDate()) {
 			continue
 		}
 		student.Person = &users.Person{
@@ -487,7 +487,7 @@ func (s *Service) GetStudentEnrollments(ctx context.Context, studentID int64) ([
 
 // GetActiveStudentEnrollmentsByStudentIDs retrieves active activity groups for
 // multiple students on one calendar date.
-func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) (map[int64][]*activities.Group, error) {
+func (s *Service) GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]*activities.Group, error) {
 	result := make(map[int64][]*activities.Group, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return result, nil

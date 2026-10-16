@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ActivityGroupWithOccupancy wraps an activity group with its occupancy status
@@ -78,7 +78,7 @@ type ActivityService interface {
 	UpdateGroupEnrollments(ctx context.Context, groupID int64, studentIDs []int64) error
 	GetEnrolledStudents(ctx context.Context, groupID int64) ([]*users.Student, error)
 	GetStudentEnrollments(ctx context.Context, studentID int64) ([]*activities.Group, error)
-	GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate timezone.Date) (map[int64][]*activities.Group, error)
+	GetActiveStudentEnrollmentsByStudentIDs(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]*activities.Group, error)
 	GetAvailableGroups(ctx context.Context, studentID int64) ([]*activities.Group, error)
 
 	// Public operations

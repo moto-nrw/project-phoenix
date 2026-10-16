@@ -6,9 +6,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -72,7 +71,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		for _, studentID := range []int64{plannedExcusedStudent.ID, legacyOverlapStudent.ID} {
 			require.NoError(t, statusRepo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 				StudentID:  studentID,
-				Date:       timezone.NewDate(2026, 8, 24),
+				Date:       calendar.NewDate(2026, 8, 24),
 				Status:     absencerecords.StudentStatusDayExcused,
 				ReportedAt: now,
 				Source:     absencerecords.StudentStatusSourcePlanned,
@@ -122,7 +121,7 @@ func TestGetDashboardAnalytics(t *testing.T) {
 				// The DATE column must hold the Berlin calendar date; the driver
 				// binds raw time.Time values as UTC, which is one day behind
 				// Berlin between 00:00 and 02:00 local time.
-				timezone.NewDate(2026, 8, 24),
+				calendar.NewDate(2026, 8, 24),
 				absencerecords.StudentStatusDayClassTrip,
 				now,
 				absencerecords.StudentStatusSourcePlanned,
@@ -157,14 +156,14 @@ func TestGetDashboardAnalytics(t *testing.T) {
 		now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		require.NoError(t, statusRepo.UpsertReported(ctxA, &absencerecords.StudentStatusDay{
 			StudentID:  studentA.ID,
-			Date:       timezone.DateFromTime(now),
+			Date:       calendar.DateFromTime(now),
 			Status:     absencerecords.StudentStatusDayClassTrip,
 			ReportedAt: now,
 			Source:     absencerecords.StudentStatusSourcePlanned,
 		}))
 		require.NoError(t, statusRepo.UpsertReported(ctxB, &absencerecords.StudentStatusDay{
 			StudentID:  studentB.ID,
-			Date:       timezone.DateFromTime(now),
+			Date:       calendar.DateFromTime(now),
 			Status:     absencerecords.StudentStatusDayClassTrip,
 			ReportedAt: now,
 			Source:     absencerecords.StudentStatusSourcePlanned,

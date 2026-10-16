@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
-func (s *Service) loadCareException(ctx context.Context, studentID int64, date timezone.Date) (*CareException, error) {
+func (s *Service) loadCareException(ctx context.Context, studentID int64, date calendar.Date) (*CareException, error) {
 	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func applyDateArrivalLeg(out *CareException, arrival *careplan.ArrivalException)
 // this is not gated by parent_pickup_change_enabled: a parent may always see and
 // (via DeleteCareException) clear overrides they created, even after the school
 // switches the feature off, so existing entries never become stuck.
-func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*CareException, error) {
+func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID int64, from, to calendar.Date) ([]*CareException, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -104,9 +104,9 @@ func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID i
 // mergeCareExceptions joins pickup and arrival exception rows by date into the
 // parent-facing projection, sorted ascending by date.
 func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan.ArrivalException, accountID int64) []*CareException {
-	byDate := make(map[timezone.Date]*CareException)
-	order := make([]timezone.Date, 0, len(pickups)+len(arrivals))
-	get := func(date timezone.Date) *CareException {
+	byDate := make(map[calendar.Date]*CareException)
+	order := make([]calendar.Date, 0, len(pickups)+len(arrivals))
+	get := func(date calendar.Date) *CareException {
 		if ce, ok := byDate[date]; ok {
 			return ce
 		}
@@ -116,10 +116,10 @@ func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan
 		return ce
 	}
 	for _, p := range pickups {
-		applyPickupException(get(timezone.Date(p.ExceptionDate)), p, accountID)
+		applyPickupException(get(calendar.Date(p.ExceptionDate)), p, accountID)
 	}
 	for _, a := range arrivals {
-		applyArrivalException(get(timezone.Date(a.ExceptionDate)), a, accountID)
+		applyArrivalException(get(calendar.Date(a.ExceptionDate)), a, accountID)
 	}
 	sort.Slice(order, func(i, j int) bool { return order[i].Before(order[j]) })
 	out := make([]*CareException, 0, len(order))
@@ -177,12 +177,12 @@ func mergeDepartureExceptions(days []*CareException, departures []careplan.Depar
 	if len(departures) == 0 {
 		return days
 	}
-	byDate := make(map[timezone.Date]*CareException, len(days))
+	byDate := make(map[calendar.Date]*CareException, len(days))
 	for _, day := range days {
 		byDate[day.Date] = day
 	}
 	for _, departure := range departures {
-		date := timezone.Date(departure.ExceptionDate)
+		date := calendar.Date(departure.ExceptionDate)
 		day, ok := byDate[date]
 		if !ok {
 			day = &CareException{Date: date, Source: scheduleModels.ExceptionSourceStaff}

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	calendar "github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 

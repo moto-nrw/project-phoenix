@@ -15,16 +15,16 @@ const statusInactive = "inactive"
 func TestStudentStartedOnDate_UsesEnrollmentStartForPastDates(t *testing.T) {
 	t.Parallel()
 
-	date := calendar.TodayDate().AddDays(-1)
+	date := calendar.NewDate(2026, 8, 24).AddDays(-1)
 	fromBeforeDate := date.AddDays(-1)
-	fromToday := calendar.TodayDate()
+	fromToday := calendar.NewDate(2026, 8, 24)
 	untilBeforeDate := date.AddDays(-1)
 
-	assert.True(t, studentStartedOnDate(&fromBeforeDate, nil, "", date, calendar.TodayDate()),
+	assert.True(t, studentStartedOnDate(&fromBeforeDate, nil, "", date, calendar.NewDate(2026, 8, 24)),
 		"enrolled before the date")
-	assert.False(t, studentStartedOnDate(&fromToday, nil, "", date, calendar.TodayDate()),
+	assert.False(t, studentStartedOnDate(&fromToday, nil, "", date, calendar.NewDate(2026, 8, 24)),
 		"enrolled only after the date")
-	assert.True(t, studentStartedOnDate(nil, &untilBeforeDate, "", date, calendar.TodayDate()),
+	assert.True(t, studentStartedOnDate(nil, &untilBeforeDate, "", date, calendar.NewDate(2026, 8, 24)),
 		"the upper bound is the participation resolver's, not this rule's")
 }
 
@@ -44,7 +44,7 @@ func TestStudentStartedOnDate_IncludesImmediatelyActiveFutureStudentToday(t *tes
 func TestStudentStartedOnDate_ImmediateActivationOnlyFromTodayOnward(t *testing.T) {
 	t.Parallel()
 
-	today := calendar.TodayDate()
+	today := calendar.NewDate(2026, 8, 24)
 	yesterday := today.AddDays(-1)
 	nextWeek := today.AddDays(7)
 
@@ -59,5 +59,5 @@ func TestStudentStartedOnDate_ImmediateActivationOnlyFromTodayOnward(t *testing.
 func TestStudentStartedOnDate_ExcludesLegacyInactiveStudentWithoutEnrollmentBounds(t *testing.T) {
 	t.Parallel()
 
-	assert.False(t, studentStartedOnDate(nil, nil, statusInactive, calendar.TodayDate(), calendar.TodayDate()))
+	assert.False(t, studentStartedOnDate(nil, nil, statusInactive, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24)))
 }

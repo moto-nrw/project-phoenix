@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
@@ -23,9 +23,9 @@ func TestPurgeGraduatedStudent_CreatesDeletionAudits(t *testing.T) {
 
 	student := testpkg.CreateTestStudent(t, tc.db, "Purge", "Audited", "4a")
 	actor := testpkg.CreateTestAccount(t, tc.db, "graduate-purge-audit@example.com")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, tc.db, student.ID, actor.ID, calendar.TodayDate())
 	room := testpkg.CreateTestRoom(t, tc.db, "graduate-purge-audit-room")
-	instance := testpkg.CreateTestActivityInstance(t, tc.db, timezone.TodayDate().AddDays(-1), room.ID, testpkg.ActivityInstanceOpts{
+	instance := testpkg.CreateTestActivityInstance(t, tc.db, calendar.TodayDate().AddDays(-1), room.ID, testpkg.ActivityInstanceOpts{
 		Title:         "Retained graduate roster assignment",
 		IsSpontaneous: true,
 	})

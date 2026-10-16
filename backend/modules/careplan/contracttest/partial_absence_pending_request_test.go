@@ -5,12 +5,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,13 +28,13 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Pending")
 
-	day := timezone.NewDate(2026, 8, 24).AddDays(5)
+	day := calendar.NewDate(2026, 8, 24).AddDays(5)
 	ctx := testpkg.TenantContext(chain.TenantID)
 
 	req := &absencerecords.ExcusedAbsenceRequest{
 		StudentID:   chain.StudentID,
 		SubmittedBy: chain.AccountID,
-		Dates:       []timezone.Date{day},
+		Dates:       []calendar.Date{day},
 		Note:        "Familienfeier",
 		Status:      absencerecords.ExcusedRequestStatusPending,
 	}
@@ -45,7 +44,7 @@ func TestPartialAbsenceCreate_RefusesPendingFullDayRequest(t *testing.T) {
 	_, err = svc.CreatePartialAbsence(ctx, careplan.PartialAbsenceInput{
 		StudentID: chain.StudentID,
 		Date:      day,
-		FromTime:  timezone.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
+		FromTime:  calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC)),
 		Reason:    "Arzttermin",
 		StaffID:   staff.ID,
 	})

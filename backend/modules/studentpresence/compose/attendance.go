@@ -6,10 +6,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type engine struct {
@@ -30,7 +30,7 @@ func attendanceToPublic(row *ports.Attendance) studentpresence.Attendance {
 	}
 }
 func attendanceFromPublic(value studentpresence.Attendance) (*ports.Attendance, error) {
-	date, err := timezone.ParseDate(value.Date)
+	date, err := calendar.ParseDate(value.Date)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func (e engine) FindAttendance(ctx context.Context, id int64) (*studentpresence.
 func (e engine) ListAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error) {
 	for _, date := range []string{filter.FromDate, filter.UntilDate, filter.BeforeDate} {
 		if date != "" {
-			if _, err := timezone.ParseDate(date); err != nil {
+			if _, err := calendar.ParseDate(date); err != nil {
 				return nil, err
 			}
 		}
@@ -82,7 +82,7 @@ func (e engine) EnsureAttendance(ctx context.Context, input studentpresence.Atte
 	return attendanceToPublic(row), inserted, err
 }
 func (e engine) CloseAttendance(ctx context.Context, input studentpresence.AttendanceCheckout) ([]studentpresence.Attendance, error) {
-	if _, err := timezone.ParseDate(input.Date); err != nil {
+	if _, err := calendar.ParseDate(input.Date); err != nil {
 		return nil, err
 	}
 	rows, err := e.Service.CloseAttendance(ctx, ports.AttendanceCheckout(input))
@@ -93,11 +93,11 @@ func (e engine) CloseAttendance(ctx context.Context, input studentpresence.Atten
 }
 
 func (e engine) ListAttendanceDays(ctx context.Context, from, to string) ([]studentpresence.AttendanceDay, error) {
-	start, err := timezone.ParseDate(from)
+	start, err := calendar.ParseDate(from)
 	if err != nil {
 		return nil, err
 	}
-	end, err := timezone.ParseDate(to)
+	end, err := calendar.ParseDate(to)
 	if err != nil {
 		return nil, err
 	}

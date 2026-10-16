@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Cross-staff time-tracking export (#1417 Tranche 2b).
@@ -132,7 +132,7 @@ type staffTimeExportService struct {
 	renderWorkbook TimeTrackingWorkbookRenderer
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
-	todayFunc func() timezone.Date
+	todayFunc func() calendar.Date
 	// nowFunc is a test hook for the audit timestamp; production uses timezone.Now.
 	nowFunc func() time.Time
 }
@@ -157,18 +157,18 @@ func NewStaffTimeExportService(
 	}
 }
 
-func (s *staffTimeExportService) today() timezone.Date {
+func (s *staffTimeExportService) today() calendar.Date {
 	if s.todayFunc != nil {
 		return s.todayFunc()
 	}
-	return timezone.TodayDate()
+	return calendar.TodayDate()
 }
 
 func (s *staffTimeExportService) now() time.Time {
 	if s.nowFunc != nil {
 		return s.nowFunc()
 	}
-	return timezone.Now()
+	return calendar.Now()
 }
 
 // validate normalizes defaults and rejects everything the writers would
@@ -217,7 +217,7 @@ func (s *staffTimeExportService) validate(req *TimeExportRequest) error {
 
 // periodBounds returns the calendar range the request covers. For a
 // current-year export the range ends with the running month.
-func (s *staffTimeExportService) periodBounds(req TimeExportRequest) (from, to timezone.Date) {
+func (s *staffTimeExportService) periodBounds(req TimeExportRequest) (from, to calendar.Date) {
 	if req.Month != 0 {
 		key := monthKey{Year: req.Year, Month: req.Month}
 		return key.firstDay(), key.lastDay()
@@ -226,7 +226,7 @@ func (s *staffTimeExportService) periodBounds(req TimeExportRequest) (from, to t
 	if today := s.today(); req.Year == today.Year() {
 		last = monthOf(today)
 	}
-	return timezone.NewDate(req.Year, time.January, 1), last.lastDay()
+	return calendar.NewDate(req.Year, time.January, 1), last.lastDay()
 }
 
 func (s *staffTimeExportService) Export(ctx context.Context, req TimeExportRequest, actorAccountID int64, actorRole string) (*ExportFile, error) {
@@ -299,7 +299,7 @@ func (s *staffTimeExportService) exportMonths(ctx context.Context, req TimeExpor
 
 // exportDays renders the ArbZG evidence view: the per-day rows of the existing
 // single-staff export, one block per staff member, prefixed with the name.
-func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportRequest, from, to timezone.Date) (*ExportFile, int, int, error) {
+func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportRequest, from, to calendar.Date) (*ExportFile, int, int, error) {
 	staffMembers, err := s.staffRepo.ListExportStaff(ctx)
 	if err != nil {
 		return nil, 0, 0, fmt.Errorf("failed to list staff for export: %w", err)
@@ -350,7 +350,7 @@ func (s *staffTimeExportService) exportDays(ctx context.Context, req TimeExportR
 func (s *staffTimeExportService) writeAudit(
 	ctx context.Context,
 	req TimeExportRequest,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	actorAccountID int64,
 	actorRole string,
 	rowCount, staffCount int,

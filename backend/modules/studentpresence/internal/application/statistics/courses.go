@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Course participation (#2891), the third Statistik section.
@@ -39,7 +39,7 @@ import (
 // names (CourseDataFrom): the cleanup job may run late or the tenant may have
 // shortened the window, so the reported cutoff is enforced here rather than
 // trusted to be enforced by deletion.
-func (s *service) courseSection(ctx context.Context, filters studentpresence.StatisticsFilters, from, to, today timezone.Date, students []studentpresence.StatisticsStudentRow) ([]studentpresence.StatisticsCourseRow, []studentpresence.StatisticsCourseStudentRow, studentpresence.StatisticsCourseRow, error) {
+func (s *service) courseSection(ctx context.Context, filters studentpresence.StatisticsFilters, from, to, today calendar.Date, students []studentpresence.StatisticsStudentRow) ([]studentpresence.StatisticsCourseRow, []studentpresence.StatisticsCourseStudentRow, studentpresence.StatisticsCourseRow, error) {
 	var totals studentpresence.StatisticsCourseRow
 	totals.Name = totalsRowName
 	if s.cfg.Courses == nil || from.After(to) {

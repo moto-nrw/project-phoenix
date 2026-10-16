@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ShiftReplacementInput is one person covering part of a cancelled shift's gap.
@@ -249,8 +249,8 @@ func (s *staffShiftService) ApplyCancellation(ctx context.Context, input CancelS
 			if coverConsumed[i] || cover.StaffID != r.StaffID {
 				continue
 			}
-			if timezone.SameClockTime(cover.StartTime, r.StartTime) &&
-				timezone.SameClockTime(cover.EndTime, r.EndTime) {
+			if calendar.SameClockTime(cover.StartTime, r.StartTime) &&
+				calendar.SameClockTime(cover.EndTime, r.EndTime) {
 				reason = cover.ChangeReason
 				coverConsumed[i] = true
 				break

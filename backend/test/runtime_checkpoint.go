@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -205,7 +205,7 @@ func SampleCheckpointLocks(sample func(context.Context) (int, error)) func() Run
 // fixed calendar window. All IDs come from this test's owned fixtures.
 func CreateRuntimeCheckpointTimetable(t *testing.T, db *bun.DB, roomID int64) int64 {
 	t.Helper()
-	period := CreateTestCalendarPeriod(t, db, "Checkpoint September", timezone.Date("2026-09-01"), timezone.Date("2026-09-30"))
+	period := CreateTestCalendarPeriod(t, db, "Checkpoint September", calendar.Date("2026-09-01"), calendar.Date("2026-09-30"))
 	SetCalendarPeriodActive(t, db, period, true)
 	group := CreateTestActivityGroup(t, db, "Checkpoint Recurring Activity")
 	frame := CreateTestTimeframeForTenant(t, db, Tenant(t), "Checkpoint Afternoon")

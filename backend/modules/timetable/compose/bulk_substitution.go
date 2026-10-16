@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Sammel-Vertretung across several days (#2284).
@@ -34,7 +34,7 @@ import (
 // bulkDayPlan is the fully-classified Phase-A result for one selected date:
 // nothing here has written a row yet.
 type bulkDayPlan struct {
-	date        timezone.Date
+	date        calendar.Date
 	absencePlan []deviationAbsenceOp
 	subPlan     []deviationSubOp
 	subs        []timetable.DeviationSubstitutionInput
@@ -43,8 +43,8 @@ type bulkDayPlan struct {
 // ApplyBulkSubstitution applies the whole multi-day save atomically. Runs
 // inside the caller's tenant tx (TenantTxMiddleware).
 func (s *staffDeviations) ApplyBulkSubstitution(ctx context.Context, in timetable.BulkSubstitutionInput) (*timetable.BulkSubstitutionResult, error) {
-	dates, err := normalizeBulkDates(in.Dates, func() timezone.Date {
-		return timezone.DateFromTime(s.now())
+	dates, err := normalizeBulkDates(in.Dates, func() calendar.Date {
+		return calendar.DateFromTime(s.now())
 	})
 	if err != nil {
 		return nil, err
@@ -120,7 +120,7 @@ func staffField(label string) string {
 // locks: classify the day-wide absence or substitution without writing a row.
 // A day where the person has no plannable assignments classifies to an empty
 // plan and stays a no-op.
-func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []timezone.Date, reason *string) ([]bulkDayPlan, error) {
+func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []calendar.Date, reason *string) ([]bulkDayPlan, error) {
 	plans := make([]bulkDayPlan, 0, len(dates))
 	for _, date := range dates {
 		plan, err := s.planBulkDay(ctx, in, date, reason)
@@ -132,7 +132,7 @@ func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSub
 	return plans, nil
 }
 
-func (s *staffDeviations) planBulkDay(ctx context.Context, in timetable.BulkSubstitutionInput, date timezone.Date, reason *string) (bulkDayPlan, error) {
+func (s *staffDeviations) planBulkDay(ctx context.Context, in timetable.BulkSubstitutionInput, date calendar.Date, reason *string) (bulkDayPlan, error) {
 	if in.SubstituteStaffID == nil {
 		absences := []timetable.DeviationAbsenceInput{{
 			StaffID: in.AbsentStaffID,
@@ -250,16 +250,16 @@ func (s *staffDeviations) clearCoveredAcks(ctx context.Context, actor *int64, su
 // normalizeBulkDates validates, dedupes, and sorts the selected dates
 // ascending (the lock-ordering requirement). Past dates are historical record,
 // exactly like the single-day past-block guard.
-func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) ([]timezone.Date, error) {
+func normalizeBulkDates(dates []calendar.Date, clocks ...func() calendar.Date) ([]calendar.Date, error) {
 	if len(dates) == 0 {
 		return nil, timetable.DeviationBadRequest("dates must not be empty").WithCode(timetable.CodeDatesRequired).OnField("dates")
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	if len(clocks) > 0 && clocks[0] != nil {
 		today = clocks[0]()
 	}
-	seen := make(map[timezone.Date]bool, len(dates))
-	out := make([]timezone.Date, 0, len(dates))
+	seen := make(map[calendar.Date]bool, len(dates))
+	out := make([]calendar.Date, 0, len(dates))
 	for _, date := range dates {
 		if date.Before(today) {
 			return nil, timetable.DeviationBadRequest("dates must not be in the past").WithCode(timetable.CodeDatesInPast).OnField("dates").
@@ -281,7 +281,7 @@ func normalizeBulkDates(dates []timezone.Date, clocks ...func() timezone.Date) (
 
 // bulkDayError prefixes a per-day classification error with the failing date
 // so the all-or-nothing save tells the admin which day to deselect.
-func bulkDayError(date timezone.Date, err error) error {
+func bulkDayError(date calendar.Date, err error) error {
 	var de *timetable.DeviationError
 	if errors.As(err, &de) {
 		details := de.Details

@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Period values for the dashboard summary (#1417).
@@ -164,7 +164,7 @@ type staffOverviewService struct {
 	logger      *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
-	todayFunc func() timezone.Date
+	todayFunc func() calendar.Date
 }
 
 func NewStaffOverviewService(
@@ -206,11 +206,11 @@ func (s *staffOverviewService) getLogger() *slog.Logger {
 	return loggerOrDefault(s.logger)
 }
 
-func (s *staffOverviewService) today() timezone.Date {
+func (s *staffOverviewService) today() calendar.Date {
 	if s.todayFunc != nil {
 		return s.todayFunc()
 	}
-	return timezone.TodayDate()
+	return calendar.TodayDate()
 }
 
 // --- prefetch --------------------------------------------------------------
@@ -221,7 +221,7 @@ func (s *staffOverviewService) today() timezone.Date {
 func (s *staffOverviewService) buildPrefetch(
 	ctx context.Context,
 	staffMembers []OverviewStaff,
-	lower *timezone.Date,
+	lower *calendar.Date,
 	through monthKey,
 ) (*monthPrefetch, error) {
 	memo := newMemoSettingsResolver(s.settings)
@@ -286,7 +286,7 @@ func (s *staffOverviewService) buildPrefetch(
 	if prefetch.adjustments, err = s.adjustmentRepo.GetByStaffIDsAndDateRange(ctx, staffIDs, from, to); err != nil {
 		return nil, fmt.Errorf("failed to prefetch balance adjustments: %w", err)
 	}
-	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, timezone.Date(from), timezone.Date(to)); err != nil {
+	if prefetch.shifts, err = s.shiftRepo.FindByStaffIDsAndDateRange(ctx, staffIDs, calendar.Date(from), calendar.Date(to)); err != nil {
 		return nil, fmt.Errorf("failed to prefetch staff shifts: %w", err)
 	}
 	scheduleTargets, err := s.scheduleRepo.TargetsByStaff(ctx, staffIDs, from, to)
@@ -417,12 +417,12 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 	// Current-month views keep the annual semantics of the quota endpoint.
 	// Historical views stop at month end so later vacation does not rewrite
 	// an earlier Resturlaub. One extra query, constant in N.
-	vacationThrough := timezone.NewDate(key.Year, time.December, 31)
+	vacationThrough := calendar.NewDate(key.Year, time.December, 31)
 	if key.before(monthOf(today)) {
 		vacationThrough = key.lastDay()
 	}
 	vacationAbsences, err := s.absenceRepo.GetByStaffIDsAndDateRange(ctx, staffIDs,
-		timezone.NewDate(key.Year, time.January, 1),
+		calendar.NewDate(key.Year, time.January, 1),
 		vacationThrough,
 	)
 	if err != nil {
@@ -482,7 +482,7 @@ func (s *staffOverviewService) GetTimeTrackingOverview(ctx context.Context, filt
 func (s *staffOverviewService) remainingVacationDays(
 	staffID int64,
 	year int,
-	through timezone.Date,
+	through calendar.Date,
 	quota *StaffVacationQuota,
 	absences []*StaffAbsence,
 	opening *StaffVacationOpening,
@@ -507,7 +507,7 @@ func (s *staffOverviewService) prefetchVacationOpenings(ctx context.Context, sta
 
 // resolveOverviewMonth turns the requested year/month into the month to
 // compute. Both zero means "current month" so the parameter stays optional.
-func resolveOverviewMonth(filters OverviewFilters, today timezone.Date) (monthKey, error) {
+func resolveOverviewMonth(filters OverviewFilters, today calendar.Date) (monthKey, error) {
 	if filters.Year == 0 && filters.Month == 0 {
 		return monthOf(today), nil
 	}
@@ -618,7 +618,7 @@ func (s *staffOverviewService) GetDashboardSummary(ctx context.Context, period s
 
 	// period=week can reach into the previous month, so the prefetch window
 	// has to start no later than that Monday.
-	var lower *timezone.Date
+	var lower *calendar.Date
 	weekStart := today.StartOfISOWeek()
 	if period == OverviewPeriodWeek {
 		lower = &weekStart
@@ -668,7 +668,7 @@ func (s *staffOverviewService) addTodayCounters(
 	ctx context.Context,
 	summary *DashboardSummary,
 	activeIDs map[int64]bool,
-	today timezone.Date,
+	today calendar.Date,
 ) error {
 	presence, err := s.sessionRepo.GetTodayPresenceMap(ctx)
 	if err != nil {
@@ -732,20 +732,20 @@ func (s *staffOverviewService) addTodayCounters(
 func (s *staffOverviewService) expectedClockedIn(
 	ctx context.Context,
 	activeIDs map[int64]bool,
-	today timezone.Date,
+	today calendar.Date,
 ) (int, error) {
-	shiftDate := timezone.Date(today)
+	shiftDate := calendar.Date(today)
 	shifts, err := s.shiftRepo.FindByDateRange(ctx, shiftDate, shiftDate)
 	if err != nil {
 		return 0, fmt.Errorf("failed to load today's shifts: %w", err)
 	}
-	nowWall := timezone.NormalizeWallClock(timezone.Now())
+	nowWall := calendar.NormalizeWallClock(calendar.Now())
 	expected := make(map[int64]bool)
 	for _, shift := range shifts {
 		if shift.Cancelled || !activeIDs[shift.StaffID] {
 			continue
 		}
-		start, end := timezone.NormalizeWallClock(shift.StartTime), timezone.NormalizeWallClock(shift.EndTime)
+		start, end := calendar.NormalizeWallClock(shift.StartTime), calendar.NormalizeWallClock(shift.EndTime)
 		if !nowWall.Before(start) && !nowWall.After(end) {
 			expected[shift.StaffID] = true
 		}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The routes read and write a child's own row through People Directory's
@@ -35,7 +35,7 @@ type PersonRecords interface {
 	UnassignTag(ctx context.Context, personID int64) error
 	// ListStudentsForDay returns the children of the groups whose care covers
 	// date, as the day log counts them; today is the caller's calendar day.
-	ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today timezone.Date) ([]peopleModule.StudentRecord, error)
+	ListStudentsForDay(ctx context.Context, groupIDs []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error)
 	// StaffIDForPerson resolves the staff member of a person; found is false
 	// for a person who is no staff member.
 	StaffIDForPerson(ctx context.Context, personID int64) (staffID int64, found bool, err error)

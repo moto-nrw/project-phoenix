@@ -11,8 +11,8 @@ package absencerecords
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Broad day statuses. The values are the persisted column values.
@@ -50,7 +50,7 @@ const (
 
 // Date is the calendar date the absence records carry, so the adapters that
 // exchange them name it without the calendar package.
-type Date = timezone.Date
+type Date = calendar.Date
 
 // StudentStatusDay is one row of active.student_status_days.
 type StudentStatusDay struct {
@@ -59,7 +59,7 @@ type StudentStatusDay struct {
 	UpdatedAt  time.Time     `json:"updated_at"`
 	TenantID   int64         `json:"tenant_id"`
 	StudentID  int64         `json:"student_id"`
-	Date       timezone.Date `json:"date"`
+	Date       calendar.Date `json:"date"`
 	Status     string        `json:"status"`
 	ReportedAt time.Time     `json:"reported_at"`
 	ClearedAt  *time.Time    `json:"cleared_at,omitempty"`

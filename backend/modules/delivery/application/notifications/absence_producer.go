@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -48,7 +48,7 @@ type AbsenceReport struct {
 	Status string
 	// Dates the submission covers. The notification only fires when today is
 	// among them — a note for next Tuesday is planning data, not an interrupt.
-	Dates []timezone.Date
+	Dates []calendar.Date
 	// FromParent picks the wording. A family reporting is a different event
 	// from a colleague entering it.
 	FromParent bool
@@ -199,7 +199,7 @@ func absenceEventKey(report AbsenceReport, accountIDs []int64) string {
 	accounts := append([]int64(nil), accountIDs...)
 	sort.Slice(studentIDs, func(i, j int) bool { return studentIDs[i] < studentIDs[j] })
 	sort.Slice(accounts, func(i, j int) bool { return accounts[i] < accounts[j] })
-	dates := append([]timezone.Date(nil), report.Dates...)
+	dates := append([]calendar.Date(nil), report.Dates...)
 	sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
 	return fmt.Sprintf("student-absence:%d:%s:%t:%d:%v:%v:%v", report.TenantID, report.Status, report.FromParent, report.ActorAccountID, studentIDs, dates, accounts)
 }
@@ -278,8 +278,8 @@ func absenceDeepLink(report AbsenceReport) string {
 	return "/students"
 }
 
-func containsToday(dates []timezone.Date) bool {
-	today := timezone.TodayDate()
+func containsToday(dates []calendar.Date) bool {
+	today := calendar.TodayDate()
 	for _, d := range dates {
 		if d == today {
 			return true

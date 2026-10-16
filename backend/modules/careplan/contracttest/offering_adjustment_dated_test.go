@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -57,7 +57,7 @@ func submitApprovedAdjustmentChild(
 			{
 				FirstName:        "Kind",
 				LastName:         lastName,
-				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      offeringIDs,
 				OfferingDays:     offeringDays,
@@ -123,7 +123,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchCapsOldAndStartsNewGrou
 
 	// Mid-phase switch date: the phase starts in the future, so this is both
 	// after the materialized valid_from and not in the past.
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      requestID,
@@ -204,7 +204,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchKeepsUnchangedOffering(
 	require.Len(t, rows, 1)
 	keptRowID := rows[0].ID
 
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 
 	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      requestID,
@@ -260,7 +260,7 @@ func TestDecisionService_UpdateChildOfferings_CurrentCorrectionPreservesSchedule
 	requestID, childID, studentID := submitApprovedAdjustmentChild(
 		t, env, "current-correction@example.com", "CurrentCorrection", []*enrollmentModels.CareOffering{oldOffering},
 	)
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason: "Geplante Änderung", EffectiveFrom: &switchDate,
@@ -311,7 +311,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 		t, env, "dated-extend@example.com", "DatedExtend",
 		[]*enrollmentModels.CareOffering{keptOffering},
 	)
-	firstSwitch := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
+	firstSwitch := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(150)
 	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason: "Erste geplante Änderung", EffectiveFrom: &firstSwitch,
@@ -322,7 +322,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 	})
 	require.NoError(t, err)
 
-	secondSwitch := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(80)
+	secondSwitch := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(80)
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID: requestID, ChildID: childID, ActorAccountID: env.creatorID, ActorRole: "admin",
 		Reason: "Erste Planung ersetzt", EffectiveFrom: &secondSwitch,
@@ -337,7 +337,7 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchExtendsRetainedOffering
 	kept, ok := rows[keptGroup.ID]
 	require.True(t, ok)
 	require.NotNil(t, kept.ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *kept.ValidUntil,
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *kept.ValidUntil,
 		"the retained offering must not end at the superseded switch date")
 	_, firstStillPlanned := rows[firstAddedGroup.ID]
 	assert.False(t, firstStillPlanned)
@@ -369,8 +369,8 @@ func TestDecisionService_UpdateChildOfferings_DatedSwitchBeforePhaseStartDropsUn
 
 	// A switch that lands before the care period even starts: nothing was
 	// attended yet, so the superseded row has no interval worth keeping.
-	switchDate := timezone.NewDate(2026, 8, 24)
-	require.True(t, switchDate.Before(timezone.Date(env.sourcePhase.ServiceStartDate)),
+	switchDate := calendar.NewDate(2026, 8, 24)
+	require.True(t, switchDate.Before(calendar.Date(env.sourcePhase.ServiceStartDate)),
 		"fixture phase must still lie in the future for this case")
 
 	_, err := env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
@@ -411,9 +411,9 @@ func TestDecisionService_UpdateChildOfferings_RejectsEffectiveFromOutsideWindow(
 		[]*enrollmentModels.CareOffering{offering},
 	)
 
-	cases := map[string]timezone.Date{
-		"past":            timezone.NewDate(2026, 8, 24).AddDays(-1),
-		"after care ends": timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1),
+	cases := map[string]calendar.Date{
+		"past":            calendar.NewDate(2026, 8, 24).AddDays(-1),
+		"after care ends": calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1),
 	}
 	for name, switchDate := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -517,7 +517,7 @@ func TestChangeRequestService_ApproveKeepsAppliedOfferingSwitch(t *testing.T) {
 				ID:               childID,
 				FirstName:        "Kind",
 				LastName:         "SwitchKeeper",
-				DateOfBirth:      timezone.NewDate(2018, 4, 15),
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
 				TargetGradeLevel: testpkg.Int16Ptr(2),
 				OfferingIDs:      []int64{draftLinks[0].CareOfferingID},
 				OfferingDays: []enrollmentTest.SubmitOfferingDays{

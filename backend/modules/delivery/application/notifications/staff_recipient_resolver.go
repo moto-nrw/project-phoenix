@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StaffRecipientRequest describes a child-related staff notification. The
@@ -63,7 +63,7 @@ type staffAccountReader interface {
 // GroupSupervisors answers who supervises the given education groups on a
 // day. The composition root binds it over School Structure's group reads.
 type GroupSupervisors interface {
-	ListGroupSupervisors(ctx context.Context, groupIDs []int64, on timezone.Date) ([]StaffGroupPair, error)
+	ListGroupSupervisors(ctx context.Context, groupIDs []int64, on calendar.Date) ([]StaffGroupPair, error)
 }
 
 // StaffGroupPair pairs a staff member with one education group they
@@ -164,7 +164,7 @@ func (r *staffRecipientResolver) addGroupStaff(ctx context.Context, visibleByAcc
 	if len(groupIDs) == 0 {
 		return nil
 	}
-	pairs, err := r.groups.ListGroupSupervisors(ctx, groupIDs, timezone.TodayDate())
+	pairs, err := r.groups.ListGroupSupervisors(ctx, groupIDs, calendar.TodayDate())
 	if err != nil {
 		return fmt.Errorf("resolve supervising staff: %w", err)
 	}

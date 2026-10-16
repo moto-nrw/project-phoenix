@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -66,7 +66,7 @@ func TestGetStudentArrivalSchedules(t *testing.T) {
 		}()
 
 		// Insert an arrival exception
-		exceptionDate := timezone.NewDate(2026, 2, 15)
+		exceptionDate := calendar.NewDate(2026, 2, 15)
 		exceptionTime := time.Date(2000, 1, 1, 9, 0, 0, 0, time.UTC)
 		arztterminReason := "Arzttermin"
 		testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
@@ -372,7 +372,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "GuardianArrivalExc")
 
-		exceptionDate := timezone.NewDate(2026, 4, 17)
+		exceptionDate := calendar.NewDate(2026, 4, 17)
 		originalReason := "Parent arrival reason"
 		testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
 			TenantID:          chain.TenantID,
@@ -425,7 +425,7 @@ func TestCreateStudentArrivalException(t *testing.T) {
 
 		teacher, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "CreateRace", "StaffArrivalExc")
 
-		exceptionDate := timezone.NewDate(2026, 4, 18)
+		exceptionDate := calendar.NewDate(2026, 4, 18)
 		originalReason := "Other staff arrival reason"
 		originalTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
@@ -557,7 +557,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrExcTeacher3")
 
-		exceptionDate := timezone.NewDate(2026, 4, 15)
+		exceptionDate := calendar.NewDate(2026, 4, 15)
 		exceptionTime := time.Date(2000, 1, 1, 8, 0, 0, 0, time.UTC)
 		originalReason := "Original reason"
 		exception := testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
@@ -592,7 +592,7 @@ func TestUpdateStudentArrivalException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "GuardianArrivalExc")
 
-		exceptionDate := timezone.NewDate(2026, 4, 16)
+		exceptionDate := calendar.NewDate(2026, 4, 16)
 		originalReason := "Parent arrival reason"
 		exception := testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
 			TenantID:          chain.TenantID,
@@ -692,7 +692,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 	t.Run("success_deletes_exception", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrExcDelete", "Test", "AED1")
 
-		exceptionDate := timezone.NewDate(2026, 6, 15)
+		exceptionDate := calendar.NewDate(2026, 6, 15)
 		deleteReason := "To be deleted"
 		exception := testpkg.InsertStudentArrivalExceptionRow(t, tc.db, testpkg.StudentArrivalExceptionRow{
 			TenantID:      testpkg.Tenant(t),
@@ -714,7 +714,7 @@ func TestDeleteStudentArrivalException(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Delete", "GuardianArrivalExc")
 
-		exceptionDate := timezone.NewDate(2026, 6, 16)
+		exceptionDate := calendar.NewDate(2026, 6, 16)
 		arrivalTime, err := time.Parse("2006-01-02 15:04", "2000-01-01 08:15")
 		require.NoError(t, err)
 		originalReason := "Parent arrival delete reason"
@@ -896,7 +896,7 @@ func TestUpdateStudentArrivalNote(t *testing.T) {
 
 		_, account := testpkg.CreateTestTeacherWithAccount(t, tc.db, "Update", "ArrNoteTeacher2")
 
-		noteDate := timezone.NewDate(2026, 4, 15)
+		noteDate := calendar.NewDate(2026, 4, 15)
 		note := testpkg.InsertStudentArrivalNoteRow(t, tc.db, testpkg.StudentDatedNoteRow{
 			TenantID:  testpkg.Tenant(t),
 			StudentID: student.ID,
@@ -960,7 +960,7 @@ func TestDeleteStudentArrivalNote(t *testing.T) {
 	t.Run("success_deletes_note", func(t *testing.T) {
 		student := testpkg.CreateTestStudent(t, tc.db, "ArrNoteDelete", "Test", "AND1")
 
-		noteDate := timezone.NewDate(2026, 6, 15)
+		noteDate := calendar.NewDate(2026, 6, 15)
 		note := testpkg.InsertStudentArrivalNoteRow(t, tc.db, testpkg.StudentDatedNoteRow{
 			TenantID:  testpkg.Tenant(t),
 			StudentID: student.ID,

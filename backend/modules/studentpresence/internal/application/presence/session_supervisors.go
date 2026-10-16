@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -137,7 +137,7 @@ func primarySupervisorIDs(supervisorIDs map[int64]bool, currentSupervisors []*po
 
 // endAllCurrentSupervisors ends the current primary supervisors by setting end_date.
 func (s *service) endAllCurrentSupervisors(ctx context.Context, supervisors []*ports.GroupSupervisor) error {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	for _, supervisor := range supervisors {
 		if supervisor.Role != "supervisor" {
 			continue
@@ -188,7 +188,7 @@ func (s *service) reactivateSupervisor(ctx context.Context, supervisor *ports.Gr
 	}
 
 	supervisor.EndDate = nil
-	supervisor.StartDate = timezone.DateFromTime(now)
+	supervisor.StartDate = calendar.DateFromTime(now)
 	return s.SupervisorRepo.Update(ctx, supervisor)
 }
 
@@ -198,7 +198,7 @@ func (s *service) createNewSupervisor(ctx context.Context, activeGroupID, superv
 		StaffID:   supervisorID,
 		GroupID:   activeGroupID,
 		Role:      "supervisor",
-		StartDate: timezone.DateFromTime(now),
+		StartDate: calendar.DateFromTime(now),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	return s.SupervisorRepo.Create(ctx, supervisor)

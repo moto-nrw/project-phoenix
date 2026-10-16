@@ -10,10 +10,10 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -55,7 +55,7 @@ const materializeForTenantOp = "materialize for tenant"
 // CareBoundReader projects the last care day of a set of children. Narrow on
 // purpose — the materializer needs one DATE column, not student rows (#2487).
 type CareBoundReader interface {
-	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]timezone.Date, error)
+	FindCareBoundsByIDs(ctx context.Context, ids []int64) (map[int64]calendar.Date, error)
 }
 
 // MaterializationDependencies wires the materializer. The repositories are
@@ -143,7 +143,7 @@ func (s *materializationService) getLogger() *slog.Logger {
 // weeks. When baseDate is itself a Monday the window starts the following
 // Monday — by design, the scheduler never materialises the current partial
 // week (planning is always for the next block).
-func (s *materializationService) ResolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date) {
+func (s *materializationService) ResolveWindow(baseDate calendar.Date, weeksAhead int) (from, to calendar.Date) {
 	return resolveWindow(baseDate, weeksAhead)
 }
 
@@ -152,7 +152,7 @@ func (s *materializationService) ResolveWindow(baseDate timezone.Date, weeksAhea
 // otherwise production wiring opens an RLS-aware tenant transaction.
 func (s *materializationService) MaterializeForTenant(
 	ctx context.Context,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	source timetable.MaterializationSource,
 ) (*timetable.MaterializationResult, error) {
 	start := time.Now()
@@ -183,7 +183,7 @@ func (s *materializationService) MaterializeForTenant(
 	return s.materializeForTenantLocked(ctx, tenantID, from, to, source, start)
 }
 
-func validateMaterializationWindow(from, to timezone.Date) error {
+func validateMaterializationWindow(from, to calendar.Date) error {
 	if to.Before(from) {
 		return &ScheduleError{Op: materializeForTenantOp, Err: errors.New("to_date must not be before from_date")}
 	}
@@ -199,7 +199,7 @@ func validateMaterializationWindow(from, to timezone.Date) error {
 func (s *materializationService) materializeForTenantInTransaction(
 	ctx context.Context,
 	tenantID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	source timetable.MaterializationSource,
 ) (*timetable.MaterializationResult, error) {
 	var result *timetable.MaterializationResult
@@ -216,7 +216,7 @@ func (s *materializationService) materializeForTenantInTransaction(
 // enrollments — a single fetch per collection avoids the N+1 trap in the
 // candidate loop.
 type materializationWorld struct {
-	from, to      timezone.Date
+	from, to      calendar.Date
 	periods       []*schedule.CalendarPeriod
 	days          timetable.NonWorkingDays
 	existingIdx   map[existingKey]struct{}
@@ -230,7 +230,7 @@ type materializationWorld struct {
 func (s *materializationService) materializeForTenantLocked(
 	ctx context.Context,
 	tenantID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	source timetable.MaterializationSource,
 	start time.Time,
 ) (*timetable.MaterializationResult, error) {
@@ -319,7 +319,7 @@ func (s *materializationService) loadMaterializationPreconditions(
 // and closing days, its exceptions and every timeframe.
 func (s *materializationService) loadMaterializationWorld(
 	ctx context.Context,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	periods []*schedule.CalendarPeriod,
 ) (*materializationWorld, error) {
 	days, err := timetable.LoadNonWorkingDays(ctx, s.nonWorkingDays, from.String(), to.String())
@@ -399,7 +399,7 @@ type templateRoster struct {
 	enrollments      []*activities.StudentEnrollment
 	targetStudentIDs []int64
 	supervisors      []*activities.SupervisorPlanned
-	careBounds       map[int64]timezone.Date
+	careBounds       map[int64]calendar.Date
 }
 
 // loadTemplatePeople loads the people a template's occurrences receive:
@@ -440,7 +440,7 @@ func (s *materializationService) loadCareBounds(
 	ctx context.Context,
 	targetStudentIDs []int64,
 	enrollments []*activities.StudentEnrollment,
-) (map[int64]timezone.Date, error) {
+) (map[int64]calendar.Date, error) {
 	if s.careBounds == nil {
 		return nil, nil
 	}
@@ -470,7 +470,7 @@ func (s *materializationService) loadCareBounds(
 // careEndedOnDate reports whether the child's care had already ended on the
 // given day. The interval's upper bound is inclusive, so the last care day
 // itself still gets a roster row.
-func careEndedOnDate(bounds map[int64]timezone.Date, studentID int64, date timezone.Date) bool {
+func careEndedOnDate(bounds map[int64]calendar.Date, studentID int64, date calendar.Date) bool {
 	bound, ok := bounds[studentID]
 	return ok && date.After(bound)
 }
@@ -481,8 +481,8 @@ func careEndedOnDate(bounds map[int64]timezone.Date, studentID int64, date timez
 func expectedStudentIDsOn(
 	enrollments []*activities.StudentEnrollment,
 	targetStudentIDs []int64,
-	careBounds map[int64]timezone.Date,
-	date timezone.Date,
+	careBounds map[int64]calendar.Date,
+	date calendar.Date,
 	periodID int64,
 	planWeekday int,
 ) []int64 {
@@ -557,7 +557,7 @@ func (s *materializationService) materializeCandidate(
 	ctx context.Context,
 	tmpl *activities.Group,
 	sch *activities.Schedule,
-	date timezone.Date,
+	date calendar.Date,
 	roster templateRoster,
 	world *materializationWorld,
 	result *timetable.MaterializationResult,
@@ -620,7 +620,7 @@ func createInstanceError(
 	ctx context.Context,
 	tmpl *activities.Group,
 	sch *activities.Schedule,
-	date timezone.Date,
+	date calendar.Date,
 	period *schedule.CalendarPeriod,
 	effective materialParams,
 	err error,
@@ -649,7 +649,7 @@ func createInstanceError(
 // so a later series edit of the override could never propagate past
 // ReplanWeek's deviation snapshot. A non-NULL instance value is therefore
 // always a single-occurrence pin.
-func materializedInstance(tmpl *activities.Group, date timezone.Date, period *schedule.CalendarPeriod, effective materialParams) *schedule.ActivityInstance {
+func materializedInstance(tmpl *activities.Group, date calendar.Date, period *schedule.CalendarPeriod, effective materialParams) *schedule.ActivityInstance {
 	periodID := period.ID
 	templateID := tmpl.ID
 	return &schedule.ActivityInstance{
@@ -672,8 +672,8 @@ func (s *materializationService) copyExpectedStudents(
 	instanceID int64,
 	enrollments []*activities.StudentEnrollment,
 	targetStudentIDs []int64,
-	careBounds map[int64]timezone.Date,
-	date timezone.Date,
+	careBounds map[int64]calendar.Date,
+	date calendar.Date,
 	periodID int64,
 	planWeekday int,
 	result *timetable.MaterializationResult,
@@ -707,7 +707,7 @@ func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,
 	supervisors []*activities.SupervisorPlanned,
-	date timezone.Date,
+	date calendar.Date,
 	periodID int64,
 	planWeekday int,
 	result *timetable.MaterializationResult,

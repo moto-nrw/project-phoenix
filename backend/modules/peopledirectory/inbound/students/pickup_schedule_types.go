@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupScheduleResponse represents a pickup schedule in API responses
@@ -85,7 +85,7 @@ type PickupScheduleRequest struct {
 // BulkPickupScheduleRequest represents a request to update all weekly schedules
 type BulkPickupScheduleRequest struct {
 	Schedules     []PickupScheduleRequest `json:"schedules"`
-	EffectiveDate *timezone.Date          `json:"effective_date,omitempty"`
+	EffectiveDate *calendar.Date          `json:"effective_date,omitempty"`
 }
 
 type BulkPickupSchedulePatchRequest struct {
@@ -160,7 +160,7 @@ func (r *PickupNoteRequest) Bind(_ *http.Request) error {
 func (r *PickupNoteRequest) toModel(studentID, createdBy int64) *careplan.PickupNote {
 	note := &careplan.PickupNote{StudentID: studentID, Weekday: r.Weekday, Content: r.Content, CreatedBy: createdBy}
 	if r.Weekday == 0 {
-		noteDate, _ := timezone.ParseDate(r.NoteDate)
+		noteDate, _ := calendar.ParseDate(r.NoteDate)
 		note.NoteDate = careplan.Date(noteDate)
 	}
 	return note
@@ -288,7 +288,7 @@ func mapExceptionToResponse(e *careplan.PickupException) PickupExceptionResponse
 		resp.PickupTime = &formatted
 	}
 	if e.ExcusedFrom != nil {
-		formatted := timezone.NormalizeWallClock(*e.ExcusedFrom).Format("15:04")
+		formatted := calendar.NormalizeWallClock(*e.ExcusedFrom).Format("15:04")
 		resp.ExcusedFrom = &formatted
 	}
 	return resp

@@ -12,10 +12,10 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -138,8 +138,8 @@ func (rs *Resource) requireClassArrivalExceptionEditor(w http.ResponseWriter, r 
 }
 
 // parseClassArrivalExceptionDate reads the {date} path segment.
-func parseClassArrivalExceptionDate(w http.ResponseWriter, r *http.Request) (timezone.Date, bool) {
-	date, err := timezone.ParseDate(chi.URLParam(r, "date"))
+func parseClassArrivalExceptionDate(w http.ResponseWriter, r *http.Request) (calendar.Date, bool) {
+	date, err := calendar.ParseDate(chi.URLParam(r, "date"))
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date format, expected YYYY-MM-DD")))
 		return "", false
@@ -178,18 +178,18 @@ func (rs *Resource) getClassArrivalExceptions(w http.ResponseWriter, r *http.Req
 	common.Respond(w, r, http.StatusOK, resp, "Class arrival exceptions retrieved successfully")
 }
 
-func classArrivalExceptionWindow(r *http.Request) (timezone.Date, timezone.Date, error) {
-	from := timezone.TodayDate()
+func classArrivalExceptionWindow(r *http.Request) (calendar.Date, calendar.Date, error) {
+	from := calendar.TodayDate()
 	to := from.AddDays(classArrivalExceptionListDays)
 	if raw := r.URL.Query().Get("from"); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			return "", "", errors.New("invalid from format, expected YYYY-MM-DD")
 		}
 		from = parsed
 	}
 	if raw := r.URL.Query().Get("to"); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			return "", "", errors.New("invalid to format, expected YYYY-MM-DD")
 		}

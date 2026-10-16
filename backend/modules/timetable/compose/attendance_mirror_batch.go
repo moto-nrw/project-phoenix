@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The roomless and batch variants of the attendance mirror. The batch calls
@@ -29,7 +29,7 @@ type instanceLister interface {
 func (s *attendanceMirror) MirrorCheckOutAt(ctx context.Context, studentID int64, at time.Time) (err error) {
 	defer s.recoverMirrorPanic(ctx, "roomless attendance checkout mirror panic", "MirrorCheckOutAt panic", &err)
 
-	day := scheduleModel.Date(timezone.DateFromTime(at))
+	day := scheduleModel.Date(calendar.DateFromTime(at))
 	rows, err := s.instanceStudentRepo.FindByStudentAndDateRange(ctx, studentID, day, day)
 	if err != nil {
 		s.getLogger().Warn("roomless attendance checkout mirror: slot lookup failed",
@@ -157,7 +157,7 @@ func (s *attendanceMirror) MirrorCheckOutAtBatch(ctx context.Context, studentIDs
 		return nil
 	}
 
-	day := timezone.DateFromTime(at)
+	day := calendar.DateFromTime(at)
 	rows, err := s.instanceStudentRepo.FindByStudentIDsAndDate(ctx, studentIDs, scheduleModel.Date(day))
 	if err != nil {
 		s.getLogger().Warn("roomless attendance batch checkout mirror: slot lookup failed",

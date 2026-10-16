@@ -3,7 +3,7 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type OverviewStaff struct {
@@ -13,7 +13,7 @@ type OverviewStaff struct {
 	EmploymentType     *string
 	PersonnelNumber    *string
 	WorkTimeModelID    *int64
-	RotationAnchorDate *timezone.Date
+	RotationAnchorDate *calendar.Date
 }
 
 // OverviewStaffQuery selects the tenant's non-offboarded staff for reports.

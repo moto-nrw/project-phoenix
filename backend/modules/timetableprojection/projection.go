@@ -8,9 +8,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -59,7 +59,7 @@ func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs 
 // [from, until). A seat is held for the full enrollment window, independently
 // of individual days. excludeStudentID omits an existing seat of the child
 // currently being checked.
-func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until timezone.Date, excludeStudentID int64) (map[int64]int, error) {
+func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64, from, until calendar.Date, excludeStudentID int64) (map[int64]int, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}

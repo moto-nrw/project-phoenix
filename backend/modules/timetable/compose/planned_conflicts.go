@@ -7,9 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // DetectPlannedConflicts checks a hypothetical slot against the day's already
@@ -177,7 +177,7 @@ func plannedConflictWarning(kind string, resourceID int64, instance *scheduleMod
 
 // clockLabel renders a TIME value as HH:MM independent of its date anchor.
 func clockLabel(value time.Time) string {
-	return timezone.NormalizeWallClock(value).Format("15:04")
+	return calendar.NormalizeWallClock(value).Format("15:04")
 }
 
 func idSet(ids []int64) map[int64]struct{} {

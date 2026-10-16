@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,7 +25,7 @@ func checkoutNoteStay(checkIn, checkOut time.Time, note string) *studentpresence
 func TestDayLogCheckOutNote_KeepsEarlyNoteAcrossReturnInArrivalOrder(t *testing.T) {
 	t.Parallel()
 
-	day := timezone.NewDate(2026, 9, 29).BerlinMidnight()
+	day := calendar.NewDate(2026, 9, 29).BerlinMidnight()
 	// Stays arrive out of order: the second stay (no note) is listed first.
 	rows := []*studentpresence.Attendance{
 		checkoutNoteStay(day.Add(14*time.Hour), day.Add(16*time.Hour), ""),
@@ -40,7 +40,7 @@ func TestDayLogCheckOutNote_KeepsEarlyNoteAcrossReturnInArrivalOrder(t *testing.
 func TestClassifyDayLogStudent_CarriesCheckOutNote(t *testing.T) {
 	t.Parallel()
 
-	day := timezone.NewDate(2026, 9, 29).BerlinMidnight()
+	day := calendar.NewDate(2026, 9, 29).BerlinMidnight()
 	row := &dayLogStudent{}
 	classifyDayLogStudent(row, []*studentpresence.Attendance{
 		checkoutNoteStay(day.Add(8*time.Hour), day.Add(11*time.Hour), "Arzttermin"),
@@ -62,7 +62,7 @@ func TestDayLogExportDetails_ShowsCheckOutNote(t *testing.T) {
 func TestAttendanceExportRows_CarryCheckOutNote(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 9, 29)
+	date := calendar.NewDate(2026, 9, 29)
 	day := date.BerlinMidnight()
 	checkIn := day.Add(8 * time.Hour)
 	checkOut := day.Add(11 * time.Hour)

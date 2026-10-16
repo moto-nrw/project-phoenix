@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -163,7 +163,7 @@ func (rs *Resource) getAvailableTimeSlots(w http.ResponseWriter, r *http.Request
 	}
 
 	// Set date range for the next 7 days
-	startDate := timezone.Today()
+	startDate := calendar.Today()
 	endDate := startDate.AddDate(0, 0, 7)
 
 	// Find available time slots

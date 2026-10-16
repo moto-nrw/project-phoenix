@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -64,13 +64,13 @@ func mapDepartureExceptionToResponse(value careplan.DepartureException) Departur
 // listDepartureExceptions reads the day values the pickup data response
 // carries next to the pickup exceptions: the requested range, or today and
 // later without one, matching the pickup exceptions of the same response.
-func (rs *Resource) listDepartureExceptions(ctx context.Context, studentID int64, from, to timezone.Date, hasRange bool) ([]DepartureExceptionResponse, error) {
+func (rs *Resource) listDepartureExceptions(ctx context.Context, studentID int64, from, to calendar.Date, hasRange bool) ([]DepartureExceptionResponse, error) {
 	out := []DepartureExceptionResponse{}
 	filter := careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}}
 	if hasRange {
 		filter.From, filter.To = careplan.Date(from), careplan.Date(to)
 	} else {
-		filter.UpcomingFrom = careplan.Date(timezone.TodayDate())
+		filter.UpcomingFrom = careplan.Date(calendar.TodayDate())
 	}
 	rows, err := rs.PickupScheduleService.ListDayDepartures(ctx, filter)
 	if err != nil {
@@ -140,8 +140,8 @@ func (rs *Resource) deleteStudentDepartureException(w http.ResponseWriter, r *ht
 	common.Respond(w, r, http.StatusOK, nil, "Departure exception deleted successfully")
 }
 
-func departureExceptionDate(w http.ResponseWriter, r *http.Request) (timezone.Date, bool) {
-	date, err := timezone.ParseDate(chi.URLParam(r, "date"))
+func departureExceptionDate(w http.ResponseWriter, r *http.Request) (calendar.Date, bool) {
+	date, err := calendar.ParseDate(chi.URLParam(r, "date"))
 	if err != nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date, expected YYYY-MM-DD")))
 		return "", false

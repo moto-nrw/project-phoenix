@@ -8,8 +8,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -39,11 +39,11 @@ type Filter struct {
 	PageSize      int
 }
 
-func studentDateParam(value string) *timezone.Date {
+func studentDateParam(value string) *calendar.Date {
 	if value == "" {
 		return nil
 	}
-	day, err := timezone.ParseDate(value)
+	day, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil
 	}

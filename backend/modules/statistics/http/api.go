@@ -15,10 +15,10 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Resource is the statistics API resource.
@@ -135,11 +135,11 @@ func actorFromRequest(r *http.Request) studentpresence.StatisticsActor {
 // parseFilters reads from, to (YYYY-MM-DD, required) and group_id (repeatable).
 func parseFilters(r *http.Request) (studentpresence.StatisticsFilters, error) {
 	q := r.URL.Query()
-	from, err := timezone.ParseDate(strings.TrimSpace(q.Get("from")))
+	from, err := calendar.ParseDate(strings.TrimSpace(q.Get("from")))
 	if err != nil {
 		return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid from date: %w", err)
 	}
-	to, err := timezone.ParseDate(strings.TrimSpace(q.Get("to")))
+	to, err := calendar.ParseDate(strings.TrimSpace(q.Get("to")))
 	if err != nil {
 		return studentpresence.StatisticsFilters{}, fmt.Errorf("invalid to date: %w", err)
 	}

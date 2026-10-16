@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -118,7 +118,7 @@ func (s *service) rejectInactiveMoveStudents(ctx context.Context, studentIDs []i
 	if err != nil {
 		return &ActiveError{Op: opMoveStudents, Err: err}
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	for _, studentID := range studentIDs {
 		student := lockedStudents[studentID]
 		if student == nil {

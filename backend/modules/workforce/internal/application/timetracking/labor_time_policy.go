@@ -3,7 +3,7 @@ package timetracking
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // German labor-law (ArbZG) thresholds applied to staff work sessions. These are
@@ -74,7 +74,7 @@ func EvaluateWorkSessionsLaborTime(sessions []*WorkSession, breaksBySession map[
 		if gross <= 0 {
 			continue
 		}
-		from, to := timezone.DateFromTime(start), timezone.DateFromTime(end)
+		from, to := calendar.DateFromTime(start), calendar.DateFromTime(end)
 		worked := 0
 		for _, minutes := range netMinutesByDate(ws, breaks, end, from, to) {
 			worked += minutes
@@ -202,13 +202,13 @@ func netMinutesWithBreaks(ws *WorkSession, breaks []*WorkSessionBreak, now time.
 // total of a legacy row (see below) is consumed in session order. Filtering
 // the walk instead would carry that whole cache into the first included day
 // and understate it there (#2402).
-func netMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time.Time, from, to timezone.Date) map[timezone.Date]int {
-	minutesByDate := make(map[timezone.Date]int)
+func netMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time.Time, from, to calendar.Date) map[calendar.Date]int {
+	minutesByDate := make(map[calendar.Date]int)
 	cachedBreakMinutes := session.BreakMinutes
 	if !end.After(session.CheckInTime) {
 		return minutesByDate
 	}
-	for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
+	for day := calendar.DateFromTime(session.CheckInTime); !day.After(calendar.DateFromTime(end)); day = day.AddDays(1) {
 		start := session.CheckInTime
 		if midnight := day.BerlinMidnight(); start.Before(midnight) {
 			start = midnight

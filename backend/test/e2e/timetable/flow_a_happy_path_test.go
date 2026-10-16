@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -29,7 +29,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 
 	// --- Setup: period, room, staff, students, template --------------------
 	// Pick a Wednesday far enough ahead that the scheduler accepts the window.
-	target := nextWeekday(timezone.TodayDate(), 3, 7) // Wed, ≥7 days out
+	target := nextWeekday(calendar.TodayDate(), 3, 7) // Wed, ≥7 days out
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-A-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowA-Room")
@@ -185,7 +185,7 @@ func TestFlowA_PlanToReport(t *testing.T) {
 }
 
 // fetchOneInstance fetches the single materialized instance for (template, date).
-func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date timezone.Date) *testpkg.ActivityInstance {
+func fetchOneInstance(t *testing.T, s *scenario, templateID int64, date calendar.Date) *testpkg.ActivityInstance {
 	t.Helper()
 	rows := testpkg.ActivityInstancesWhere(t, s.tenantCtx(), s.db,
 		`"activity_instance".activity_group_id = ? AND "activity_instance".date = ? AND "activity_instance".tenant_id = ?`,

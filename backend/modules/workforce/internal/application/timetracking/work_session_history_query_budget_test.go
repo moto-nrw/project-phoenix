@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 			day := snapshotSessionDay + i + 1
 			checkIn := time.Date(snapshotYear, time.August, day, 8, 0, 0, 0, time.UTC)
 			checkOut := checkIn.Add(8 * time.Hour)
-			session := &timetracking.WorkSession{StaffID: f.staff, Date: timezone.NewDate(snapshotYear, time.August, day),
+			session := &timetracking.WorkSession{StaffID: f.staff, Date: calendar.NewDate(snapshotYear, time.August, day),
 				Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 				CheckInTime: checkIn, CheckOutTime: &checkOut, CreatedBy: f.staff}
 			session.SetTenantID(f.tenantID)
@@ -38,7 +38,7 @@ func TestWorkSessionHistoryQueryBudget(t *testing.T) {
 	ctx := counter.Context(f.ctx)
 	run := func() []string {
 		counter.Reset()
-		_, err := service.GetHistory(ctx, f.staff, timezone.NewDate(snapshotYear, time.August, 1), timezone.NewDate(snapshotYear, time.August, 31))
+		_, err := service.GetHistory(ctx, f.staff, calendar.NewDate(snapshotYear, time.August, 1), calendar.NewDate(snapshotYear, time.August, 31))
 		require.NoError(t, err)
 		return counter.Operation("SELECT")
 	}

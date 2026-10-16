@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type SessionLifecycle = devicescan.SessionLifecycle
@@ -43,7 +43,7 @@ func NewSupervisionQuery(source nativeSupervisionQuery) SupervisionQuery {
 type supervisionQuery struct{ source nativeSupervisionQuery }
 
 func (q supervisionQuery) ActiveSupervisions(ctx context.Context, sessionID int64) ([]Supervision, error) {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	day := today.String()
 	rows, err := q.source.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{sessionID}, ActiveOn: &day})
 	if err != nil {
@@ -76,7 +76,7 @@ func lifecycleSession(group *studentpresence.SessionDetail) application.Lifecycl
 }
 
 func lifecycleSupervisors(rows []studentpresence.GroupSupervision) []application.LifecycleSupervisor {
-	today := timezone.TodayDate().String()
+	today := calendar.TodayDate().String()
 	result := make([]application.LifecycleSupervisor, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, application.LifecycleSupervisor{StaffID: row.StaffID, Role: row.Role, Ended: supervisionEnded(row.EndDate, today)})
@@ -90,11 +90,11 @@ func supervisionEnded(endDate *string, today string) bool {
 	if endDate == nil {
 		return false
 	}
-	end, err := timezone.ParseDate(*endDate)
+	end, err := calendar.ParseDate(*endDate)
 	if err != nil {
 		return false
 	}
-	day, err := timezone.ParseDate(today)
+	day, err := calendar.ParseDate(today)
 	if err != nil {
 		return false
 	}

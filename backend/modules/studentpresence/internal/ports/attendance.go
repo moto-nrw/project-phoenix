@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Date exposes the canonical calendar-date value used by attendance storage ports.
-type Date = timezone.Date
+type Date = calendar.Date
 
 // Attendance is the owner's calendar-date-aware, persistence-independent record.
 type Attendance struct {

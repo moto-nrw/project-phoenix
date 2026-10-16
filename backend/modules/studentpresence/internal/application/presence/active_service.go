@@ -8,8 +8,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -167,8 +167,8 @@ func (s *service) now() time.Time {
 	return time.Now()
 }
 
-func (s *service) todayDate() timezone.Date {
-	return timezone.DateFromTime(s.now())
+func (s *service) todayDate() calendar.Date {
+	return calendar.DateFromTime(s.now())
 }
 
 // GetPresenceMode resolves the tenant value or registry default and propagates failures.

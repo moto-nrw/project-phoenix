@@ -9,9 +9,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -244,7 +244,7 @@ func (s *service) assignMultipleSupervisorsNonCritical(ctx context.Context, grou
 func (s *service) assignSupervisorNonCritical(ctx context.Context, groupID, staffID int64, startDate time.Time) {
 	supervisor := &ports.GroupSupervisor{
 		StaffID: staffID, GroupID: groupID, Role: "supervisor",
-		StartDate: timezone.DateFromTime(startDate),
+		StartDate: calendar.DateFromTime(startDate),
 	}
 	supervisor.SetTenantID(tenant.FromContext(ctx))
 	s.runBestEffortDB(ctx, "assign_supervisor", func() error {

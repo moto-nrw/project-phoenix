@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -31,16 +30,16 @@ import (
 func TestResolveWindow(t *testing.T) {
 	t.Parallel()
 
-	mustDate := func(y int, m time.Month, d int) timezone.Date {
-		return timezone.NewDate(y, m, d)
+	mustDate := func(y int, m time.Month, d int) calendar.Date {
+		return calendar.NewDate(y, m, d)
 	}
 
 	cases := []struct {
 		name         string
-		baseDate     timezone.Date
+		baseDate     calendar.Date
 		weeksAhead   int
-		expectedFrom timezone.Date
-		expectedTo   timezone.Date
+		expectedFrom calendar.Date
+		expectedTo   calendar.Date
 	}{
 		{
 			name:         "Monday → skips to following Monday",
@@ -110,7 +109,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 	t.Parallel()
 
 	d := func(y int, m time.Month, day int) activities.Date {
-		return activities.Date(timezone.NewDate(y, m, day))
+		return activities.Date(calendar.NewDate(y, m, day))
 	}
 	p100 := int64(100)
 	p200 := int64(200)
@@ -118,7 +117,7 @@ func TestIsEnrollmentValidOn(t *testing.T) {
 	validUntilApr21 := d(2026, time.April, 21)
 
 	target := d(2026, time.April, 20)
-	targetDay := timezone.NewDate(2026, 4, 20)
+	targetDay := calendar.NewDate(2026, 4, 20)
 
 	cases := []struct {
 		name   string
@@ -246,7 +245,7 @@ func TestEnrollmentStudentIsAlumnus_UnloadedStudent(t *testing.T) {
 func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, time.April, 20)
+	date := calendar.NewDate(2026, time.April, 20)
 	periodID := int64(400)
 	otherPeriodID := int64(401)
 	endedBefore := date.AddDays(-1)
@@ -259,7 +258,7 @@ func TestExpectedStudentIDsOn_AppliesSharedRosterRules(t *testing.T) {
 		{StudentID: 506, ValidFrom: activities.Date(date.AddDays(-1))},
 	}
 	targetStudentIDs := []int64{501, 507, 508, 507}
-	careBounds := map[int64]timezone.Date{506: endedBefore, 507: date, 508: endedBefore}
+	careBounds := map[int64]calendar.Date{506: endedBefore, 507: date, 508: endedBefore}
 
 	assert.Equal(t, []int64{501, 507}, expectedStudentIDsOn(
 		enrollments, targetStudentIDs, careBounds, date, periodID, isoWeekday(date),
@@ -275,10 +274,10 @@ func TestIsSupervisorValidOn(t *testing.T) {
 	t.Parallel()
 
 	d := func(y int, m time.Month, day int) activities.Date {
-		return activities.Date(timezone.NewDate(y, m, day))
+		return activities.Date(calendar.NewDate(y, m, day))
 	}
 	target := d(2026, time.April, 20)
-	targetDay := timezone.NewDate(2026, 4, 20)
+	targetDay := calendar.NewDate(2026, 4, 20)
 	p100 := int64(100)
 	p200 := int64(200)
 	until := d(2026, time.April, 20) // exclusive
@@ -294,7 +293,7 @@ func TestIsSupervisorValidOn(t *testing.T) {
 func TestEffectivePrimarySupervisorPrefersTheMostSpecificScope(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.April, 20)
+	monday := calendar.NewDate(2026, time.April, 20)
 	tuesday := monday.AddDays(1)
 	periodID := int64(100)
 	mondayWeekday := activities.WeekdayMonday
@@ -412,11 +411,11 @@ func TestExtractTimeOfDay(t *testing.T) {
 func TestPeriodSelection(t *testing.T) {
 	t.Parallel()
 
-	d := func(y int, m time.Month, day int) timezone.Date {
-		return timezone.NewDate(y, m, day)
+	d := func(y int, m time.Month, day int) calendar.Date {
+		return calendar.NewDate(y, m, day)
 	}
 
-	mkPeriod := func(id int64, start, end timezone.Date) *schedule.CalendarPeriod {
+	mkPeriod := func(id int64, start, end calendar.Date) *schedule.CalendarPeriod {
 		p := &schedule.CalendarPeriod{StartDate: schedule.Date(start), EndDate: schedule.Date(end), IsActive: true}
 		p.ID = id
 		return p
@@ -510,7 +509,7 @@ func TestPeriodSelection(t *testing.T) {
 func TestIsoWeekday(t *testing.T) {
 	t.Parallel()
 
-	mon := timezone.NewDate(2026, 4, 20)
+	mon := calendar.NewDate(2026, 4, 20)
 	assert.Equal(t, 1, isoWeekday(mon))
 	assert.Equal(t, 2, isoWeekday(mon.AddDays(1)))
 	assert.Equal(t, 3, isoWeekday(mon.AddDays(2)))
@@ -697,7 +696,7 @@ func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
 
 	svc, saturday := newMaterializationBranchServiceForSchedule(
 		materializationFakeInstanceRepo{inserted: true},
-		timezone.NewDate(2026, time.April, 25),
+		calendar.NewDate(2026, time.April, 25),
 		activities.WeekdaySaturday,
 	)
 
@@ -718,7 +717,7 @@ func TestMaterializeForTenant_SkipsLegacyWeekendSchedules(t *testing.T) {
 func TestMaterializeForTenant_WeekendFollowsFriday(t *testing.T) {
 	t.Parallel()
 
-	saturday := timezone.NewDate(2026, time.April, 25)
+	saturday := calendar.NewDate(2026, time.April, 25)
 	following := func(follows bool) context.Context {
 		return calendar.WithWeekendPlan(tenant.WithTenantID(context.Background(), 300),
 			func(context.Context) (bool, error) { return follows, nil })
@@ -743,7 +742,7 @@ func TestMaterializeForTenant_WeekendFollowsFriday(t *testing.T) {
 func TestMaterializeForTenant_WeekendPlanResolutionFails(t *testing.T) {
 	t.Parallel()
 
-	saturday := timezone.NewDate(2026, time.April, 25)
+	saturday := calendar.NewDate(2026, time.April, 25)
 	svc, _ := newMaterializationBranchServiceForSchedule(materializationFakeInstanceRepo{inserted: true}, saturday, activities.WeekdayFriday)
 	ctx := calendar.WithWeekendPlan(tenant.WithTenantID(context.Background(), 300),
 		func(context.Context) (bool, error) { return false, errors.New("settings unavailable") })
@@ -754,7 +753,7 @@ func TestMaterializeForTenant_WeekendPlanResolutionFails(t *testing.T) {
 func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 4, 20)
+	date := calendar.NewDate(2026, 4, 20)
 
 	t.Run("warns and no-ops without active periods", func(t *testing.T) {
 		svc := newMaterializationForTest(
@@ -815,7 +814,7 @@ func TestMaterializeForTenant_PreconditionWarnings(t *testing.T) {
 func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 4, 20)
+	date := calendar.NewDate(2026, 4, 20)
 	period := &schedule.CalendarPeriod{
 		StartDate: schedule.Date(date.AddDays(-30)),
 		EndDate:   schedule.Date(date.AddDays(30)),
@@ -970,17 +969,17 @@ func TestMaterializeForTenant_ErrorBranches(t *testing.T) {
 func TestMaterializationServiceMethodsAndCopyBranches(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 4, 20)
+	date := calendar.NewDate(2026, 4, 20)
 	validFrom := activities.Date(date)
 	periodID := int64(400)
 
 	t.Run("interface ResolveWindow delegates to pure resolver", func(t *testing.T) {
 		svc, _ := newMaterializationBranchService(materializationFakeInstanceRepo{inserted: false})
 
-		from, to := svc.ResolveWindow(timezone.NewDate(2026, 4, 22), 1)
+		from, to := svc.ResolveWindow(calendar.NewDate(2026, 4, 22), 1)
 
-		assert.Equal(t, timezone.NewDate(2026, 4, 27), from)
-		assert.Equal(t, timezone.NewDate(2026, 5, 3), to)
+		assert.Equal(t, calendar.NewDate(2026, 4, 27), from)
+		assert.Equal(t, calendar.NewDate(2026, 5, 3), to)
 	})
 
 	t.Run("nil logger falls back to slog default", func(t *testing.T) {
@@ -1083,16 +1082,16 @@ func (r *materializationCountingStaffRepo) Create(_ context.Context, row *schedu
 	return nil
 }
 
-func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (timetable.MaterializationCapability, timezone.Date) {
-	date := timezone.NewDate(2026, 4, 20)
+func newMaterializationBranchService(instanceRepo materializationFakeInstanceRepo) (timetable.MaterializationCapability, calendar.Date) {
+	date := calendar.NewDate(2026, 4, 20)
 	return newMaterializationBranchServiceForSchedule(instanceRepo, date, activities.WeekdayMonday)
 }
 
 func newMaterializationBranchServiceForSchedule(
 	instanceRepo materializationFakeInstanceRepo,
-	date timezone.Date,
+	date calendar.Date,
 	weekday int,
-) (timetable.MaterializationCapability, timezone.Date) {
+) (timetable.MaterializationCapability, calendar.Date) {
 	start := time.Date(2024, time.January, 1, 14, 0, 0, 0, time.UTC)
 	end := time.Date(2024, time.January, 1, 15, 0, 0, 0, time.UTC)
 	roomID := int64(700)
@@ -1148,8 +1147,8 @@ func newMaterializationBranchServiceForSchedule(
 func TestScheduleEndedOn(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, time.June, 15)
-	until := activities.Date(timezone.NewDate(2026, time.June, 15))
+	date := calendar.NewDate(2026, time.June, 15)
+	until := activities.Date(calendar.NewDate(2026, time.June, 15))
 
 	assert.False(t, scheduleEndedOn(nil, date), "nil schedule never matches")
 	assert.False(t, scheduleEndedOn(&activities.Schedule{}, date), "nil valid_until = open-ended")
@@ -1169,8 +1168,8 @@ func TestScheduleEndedOn(t *testing.T) {
 func TestScheduleNotStartedOn(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, time.August, 13)
-	from := activities.Date(timezone.NewDate(2026, time.August, 13))
+	date := calendar.NewDate(2026, time.August, 13)
+	from := activities.Date(calendar.NewDate(2026, time.August, 13))
 
 	assert.False(t, scheduleNotStartedOn(nil, date), "nil schedule never matches")
 	assert.False(t, scheduleNotStartedOn(&activities.Schedule{}, date), "nil valid_from = open start")

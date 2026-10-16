@@ -12,8 +12,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Tagesinformationen (#2180) — HTTP-Fläche der Hinweise fürs Team:
@@ -208,7 +208,7 @@ func toNoticeResponse(view noticeFields, includeAcknowledgedCount bool) noticeRe
 func (rs *StaffNoticeResource) todayFor(reader string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
-		views, err := rs.Service.StaffNoticesOn(ctx, rs.noticeAccountID(ctx), timezone.TodayDate().String(), reader)
+		views, err := rs.Service.StaffNoticesOn(ctx, rs.noticeAccountID(ctx), calendar.TodayDate().String(), reader)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
 			return
@@ -358,7 +358,7 @@ func decodeNoticeInput(r *http.Request) (timetable.StaffNoticeInput, error) {
 		return timetable.StaffNoticeInput{}, errors.New("invalid request body")
 	}
 
-	validFrom, err := timezone.ParseDate(req.ValidFrom)
+	validFrom, err := calendar.ParseDate(req.ValidFrom)
 	if err != nil {
 		return timetable.StaffNoticeInput{}, errors.New("valid_from must be a date (YYYY-MM-DD)")
 	}
@@ -378,7 +378,7 @@ func decodeNoticeInput(r *http.Request) (timetable.StaffNoticeInput, error) {
 		in.Active = *req.Active
 	}
 	if req.ValidUntil != nil && *req.ValidUntil != "" {
-		until, err := timezone.ParseDate(*req.ValidUntil)
+		until, err := calendar.ParseDate(*req.ValidUntil)
 		if err != nil {
 			return timetable.StaffNoticeInput{}, errors.New("valid_until must be a date (YYYY-MM-DD)")
 		}

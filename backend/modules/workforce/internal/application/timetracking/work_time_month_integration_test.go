@@ -6,12 +6,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +58,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	checkOut := checkIn.Add(8 * time.Hour)
 	session := &timetracking.WorkSession{
 		StaffID:     staff.ID,
-		Date:        timezone.NewDate(2026, time.June, 1),
+		Date:        calendar.NewDate(2026, time.June, 1),
 		Status:      workforce.WorkSessionStatusPresent,
 		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
@@ -73,8 +72,8 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeSick,
 		Status:      workforce.AbsenceStatusReported,
-		DateStart:   timezone.NewDate(2026, time.June, 15),
-		DateEnd:     timezone.NewDate(2026, time.June, 15),
+		DateStart:   calendar.NewDate(2026, time.June, 15),
+		DateEnd:     calendar.NewDate(2026, time.June, 15),
 		CreatedBy:   staff.ID,
 	}
 	absence.SetTenantID(tenantID)
@@ -106,7 +105,7 @@ func TestWorkTimeMonthSummary_DB(t *testing.T) {
 	lateCheckIn := time.Date(2026, 6, 8, 8, 0, 0, 0, time.UTC)
 	lateCheckOut := lateCheckIn.Add(4 * time.Hour)
 	lateSession := &timetracking.WorkSession{
-		StaffID: staff.ID, Date: timezone.NewDate(2026, time.June, 8),
+		StaffID: staff.ID, Date: calendar.NewDate(2026, time.June, 8),
 		Status: workforce.WorkSessionStatusPresent, Source: workforce.WorkSessionSourceApp,
 		CheckInTime: lateCheckIn, CheckOutTime: &lateCheckOut,
 		CreatedBy: staff.ID,

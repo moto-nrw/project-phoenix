@@ -3,8 +3,8 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +20,7 @@ func TestStaffAbsenceListContract(t *testing.T) {
 
 	t.Run("lists all staff absences", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,
@@ -39,7 +39,7 @@ func TestStaffAbsenceListContract(t *testing.T) {
 
 	t.Run("lists with query options", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absence := workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,

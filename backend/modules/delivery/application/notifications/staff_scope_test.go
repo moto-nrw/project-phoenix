@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +36,7 @@ func settingsWithWindow(start, end string) *settingsDouble {
 // inactiveWindow returns a valid one-minute window on the opposite side of
 // the clock. A fixed 00:00-00:01 fixture is active when CI runs at midnight.
 func inactiveWindow() (string, string) {
-	start := timezone.Now().Add(12 * time.Hour)
+	start := calendar.Now().Add(12 * time.Hour)
 	return start.Format("15:04"), start.Add(time.Minute).Format("15:04")
 }
 

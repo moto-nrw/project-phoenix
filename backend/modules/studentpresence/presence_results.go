@@ -3,7 +3,7 @@ package studentpresence
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimeoutResult represents the result of processing a session timeout.
@@ -71,7 +71,7 @@ type DailyAttendanceStatus struct {
 	//   "on_yard"        — row exists, CheckOutTime nil, YardSince non-nil (on premises, outside the building)
 	//   "checked_out"    — CheckOutTime non-nil (formally left school)
 	Status       string        `json:"status"`
-	Date         timezone.Date `json:"date"`
+	Date         calendar.Date `json:"date"`
 	CheckInTime  *time.Time    `json:"check_in_time"`
 	CheckOutTime *time.Time    `json:"check_out_time"`
 	// YardSince, when non-nil, marks the moment the student moved to the
@@ -136,7 +136,7 @@ type AttendanceCleanupResult struct {
 	CompletedAt      time.Time      `json:"completed_at"`
 	RecordsClosed    int            `json:"records_closed"`
 	StudentsAffected int            `json:"students_affected"`
-	OldestRecordDate *timezone.Date `json:"oldest_record_date,omitempty"`
+	OldestRecordDate *calendar.Date `json:"oldest_record_date,omitempty"`
 	Success          bool           `json:"success"`
 	Errors           []string       `json:"errors,omitempty"`
 }
@@ -145,7 +145,7 @@ type AttendanceCleanupResult struct {
 type AttendanceCleanupPreview struct {
 	TotalRecords   int            `json:"total_records"`
 	StudentRecords map[int64]int  `json:"student_records"` // studentID -> count
-	OldestRecord   *timezone.Date `json:"oldest_record,omitempty"`
+	OldestRecord   *calendar.Date `json:"oldest_record,omitempty"`
 	RecordsByDate  map[string]int `json:"records_by_date"` // date -> count
 }
 
@@ -155,7 +155,7 @@ type SupervisorCleanupResult struct {
 	CompletedAt      time.Time      `json:"completed_at"`
 	RecordsClosed    int            `json:"records_closed"`
 	StaffAffected    int            `json:"staff_affected"`
-	OldestRecordDate *timezone.Date `json:"oldest_record_date,omitempty"`
+	OldestRecordDate *calendar.Date `json:"oldest_record_date,omitempty"`
 	Success          bool           `json:"success"`
 	Errors           []string       `json:"errors,omitempty"`
 }
@@ -164,6 +164,6 @@ type SupervisorCleanupResult struct {
 type SupervisorCleanupPreview struct {
 	TotalRecords  int            `json:"total_records"`
 	StaffRecords  map[int64]int  `json:"staff_records"` // staffID -> count
-	OldestRecord  *timezone.Date `json:"oldest_record,omitempty"`
+	OldestRecord  *calendar.Date `json:"oldest_record,omitempty"`
 	RecordsByDate map[string]int `json:"records_by_date"` // date -> count
 }

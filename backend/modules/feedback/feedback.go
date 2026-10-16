@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -19,17 +19,17 @@ const (
 
 type Date string
 
-func Today() Date { return Date(timezone.TodayDate().String()) }
+func Today() Date { return Date(calendar.TodayDate().String()) }
 
 // TimestampParts returns the Berlin calendar day and wall-clock time stored
 // for one feedback instant, including across midnight and DST transitions.
 func TimestampParts(instant time.Time) (Date, string) {
-	local := instant.In(timezone.Berlin)
-	return Date(timezone.DateFromTime(local).String()), local.Format("15:04:05")
+	local := instant.In(calendar.Berlin)
+	return Date(calendar.DateFromTime(local).String()), local.Format("15:04:05")
 }
 
 func ParseDate(value string) (Date, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return "", err
 	}
@@ -257,8 +257,8 @@ func validateFilter(filter Filter) (Filter, error) {
 		*value = parsed
 	}
 	if filter.DayFrom != nil && filter.DayTo != nil {
-		start, _ := timezone.ParseDate(string(*filter.DayFrom))
-		end, _ := timezone.ParseDate(string(*filter.DayTo))
+		start, _ := calendar.ParseDate(string(*filter.DayFrom))
+		end, _ := calendar.ParseDate(string(*filter.DayTo))
 		if start.After(end) {
 			return Filter{}, &InvalidDateRangeError{StartDate: *filter.DayFrom, EndDate: *filter.DayTo}
 		}

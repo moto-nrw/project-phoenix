@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentStatusDayService owns status-day persistence and the absence-overview
@@ -46,7 +46,7 @@ func (s *StudentStatusDayService) UpsertReported(ctx context.Context, entry *abs
 		if err := s.lockStatusDate(ctx, entry.StudentID, entry.Date.String()); err != nil {
 			return err
 		}
-		if err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []timezone.Date{entry.Date}); err != nil {
+		if err := s.ensureNoPartialAbsenceConflicts(ctx, entry.StudentID, []calendar.Date{entry.Date}); err != nil {
 			return err
 		}
 	}

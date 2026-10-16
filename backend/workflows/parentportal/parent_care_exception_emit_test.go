@@ -11,11 +11,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -59,7 +59,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	// A future in-window date; a fixed clock time is fine (wall-clock only).
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	date := today.AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
@@ -122,7 +122,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	date := timezone.TodayDate().AddDays(3)
+	date := calendar.TodayDate().AddDays(3)
 	pickup := time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC)
 
 	_, err := svc.SubmitCareExceptionWithReason(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, &pickup, "Arzttermin")

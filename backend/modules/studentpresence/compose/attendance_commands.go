@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (e engine) RecordAttendance(ctx context.Context, value studentpresence.Attendance) (studentpresence.Attendance, error) {
@@ -41,7 +41,7 @@ func (e engine) EnsureAttendanceBatch(ctx context.Context, values []studentprese
 func (e engine) HasAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) (bool, error) {
 	for _, date := range []string{filter.FromDate, filter.UntilDate, filter.BeforeDate} {
 		if date != "" {
-			if _, err := timezone.ParseDate(date); err != nil {
+			if _, err := calendar.ParseDate(date); err != nil {
 				return false, err
 			}
 		}
@@ -49,7 +49,7 @@ func (e engine) HasAttendance(ctx context.Context, filter studentpresence.Attend
 	return e.Service.HasAttendance(ctx, ports.AttendanceFilter(filter))
 }
 func (e engine) ListOpenAttendanceStudentIDs(ctx context.Context, date string) ([]int64, error) {
-	if _, err := timezone.ParseDate(date); err != nil {
+	if _, err := calendar.ParseDate(date); err != nil {
 		return nil, err
 	}
 	return e.Service.ListOpenAttendanceStudentIDs(ctx, date)

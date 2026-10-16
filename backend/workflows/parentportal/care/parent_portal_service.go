@@ -14,9 +14,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -134,7 +134,7 @@ type ChildFeatureFlags struct {
 // override for the day. Source is "guardian" for parent-authored entries and
 // "staff" for ones the team set.
 type CareException struct {
-	Date         timezone.Date
+	Date         calendar.Date
 	PickupTime   *time.Time
 	ArrivalTime  *time.Time
 	Reason       *string

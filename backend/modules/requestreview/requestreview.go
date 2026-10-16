@@ -14,7 +14,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrNotConfigured reports a missing queue or access port.
@@ -50,7 +50,7 @@ type service struct{ deps Dependencies }
 // the first call, never as a partial list.
 func New(deps Dependencies) Query {
 	if deps.Today == nil {
-		deps.Today = func() Date { return Date(timezone.TodayDate()) }
+		deps.Today = func() Date { return Date(calendar.TodayDate()) }
 	}
 	return &service{deps: deps}
 }

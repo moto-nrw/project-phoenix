@@ -7,10 +7,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // GroupSubstitution is the retained row of education.group_substitution.
@@ -22,7 +22,7 @@ type GroupSubstitution struct {
 	GroupID              int64
 	RegularStaffID       *int64
 	SubstituteStaffID    int64
-	StartDate, EndDate   timezone.Date
+	StartDate, EndDate   calendar.Date
 	Reason               string
 }
 
@@ -121,7 +121,7 @@ func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[stri
 		switch field {
 		case "active":
 			if active, ok := value.(bool); ok && active {
-				filter.On = timezone.TodayDate().String()
+				filter.On = calendar.TodayDate().String()
 			}
 		case "date":
 			if date, ok := conditionDate(value); ok {
@@ -155,7 +155,7 @@ func (r *groupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 func (r *groupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error) {
 	rows, err := r.list(ctx, "list active substitution blockers", workforce.GroupSubstitutionFilter{
 		SubstituteStaffID: staffID, TargetType: workforce.GroupSubstitutionTypeGroupHandover,
-		EndsOnOrAfter: timezone.TodayDate().String(),
+		EndsOnOrAfter: calendar.TodayDate().String(),
 	})
 	if err != nil {
 		return nil, err
@@ -296,7 +296,7 @@ func applySubstitutionToLegacy(entity *GroupSubstitution, value workforce.GroupS
 	entity.GroupID = value.GroupID
 	entity.RegularStaffID = value.RegularStaffID
 	entity.SubstituteStaffID = value.SubstituteStaffID
-	entity.StartDate = timezone.Date(value.StartDate)
-	entity.EndDate = timezone.Date(value.EndDate)
+	entity.StartDate = calendar.Date(value.StartDate)
+	entity.EndDate = calendar.Date(value.EndDate)
 	entity.Reason = value.Reason
 }

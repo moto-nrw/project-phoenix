@@ -17,10 +17,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -97,7 +97,7 @@ func TestResumeCare_RefusesAFullKinderkontingent(t *testing.T) {
 	rr := authExec(t, tc, testutil.NewAuthenticatedRequest(t, http.MethodPost, path, body), testutil.AdminTestClaims(1), []string{"admin:*"})
 
 	requireQuotaResponse(t, rr.Code, rr.Body.Bytes(), 1, 1)
-	var until *timezone.Date
+	var until *calendar.Date
 	require.NoError(t, tc.db.NewSelect().TableExpr("users.student_school_memberships").Column("enrolled_until").
 		Where("student_profile_id = ? AND deleted_at IS NULL", ended.ID).Scan(testpkg.Ctx(t), &until))
 	require.NotNil(t, until, "the care stays ended")

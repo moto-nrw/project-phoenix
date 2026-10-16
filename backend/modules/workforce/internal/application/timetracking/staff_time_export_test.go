@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -157,9 +156,9 @@ func TestMonthExportRows_ClosedMonthCarriesFrozenValue(t *testing.T) {
 
 	f := newOverviewFixture(t, 1)
 	staffID := f.staff[0]
-	closedMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	closedMonth := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{
-		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
+		accountStart: calendar.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
@@ -313,7 +312,7 @@ func TestStaffTimeExport_DayRowsMatchSingleExport(t *testing.T) {
 	}, actorID, "admin")
 	require.NoError(t, err)
 
-	monthStart := timezone.NewDate(f.today.Year(), f.today.Month(), 1)
+	monthStart := calendar.NewDate(f.today.Year(), f.today.Month(), 1)
 	singleRows, err := sessionSvc.DayExportRows(f.ctx, f.staff[0], monthStart, monthOfLastDay(f.today))
 	require.NoError(t, err)
 	require.NotEmpty(t, singleRows)
@@ -342,6 +341,6 @@ func TestStaffTimeExport_RejectsUnknownParameters(t *testing.T) {
 }
 
 // monthOfLastDay returns the last day of the month containing d.
-func monthOfLastDay(d timezone.Date) timezone.Date {
-	return timezone.NewDate(d.Year(), d.Month()+1, 1).AddDays(-1)
+func monthOfLastDay(d calendar.Date) calendar.Date {
+	return calendar.NewDate(d.Year(), d.Month()+1, 1).AddDays(-1)
 }

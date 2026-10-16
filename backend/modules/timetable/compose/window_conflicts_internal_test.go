@@ -24,14 +24,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-var windowTestDate = timezone.NewDate(2026, time.September, 7) // fixed Monday
+var windowTestDate = calendar.NewDate(2026, time.September, 7) // fixed Monday
 
 func windowInstance(id, roomID int64, startHHMM, endHHMM, status string) *scheduleModels.ActivityInstance {
 	parse := func(v string) time.Time {
@@ -87,7 +87,7 @@ func detectWindowConflicts(inputs []windowConflictInput) map[int64][]timetable.I
 	for _, input := range inputs {
 		block := timetable.WindowConflictBlock{
 			InstanceID: input.Instance.ID,
-			Date:       timezone.Date(input.Instance.Date),
+			Date:       calendar.Date(input.Instance.Date),
 			Title:      input.Instance.Title,
 			StartTime:  input.Instance.StartTime,
 			EndTime:    input.Instance.EndTime,

@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,7 +19,7 @@ func TestRecordStaffAbsenceAuditReturnsIDAndTenant(t *testing.T) {
 	workTime := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Workforce
 	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Audit", "Actor")
 	ctx := testpkg.TenantContext(staff.TenantID)
-	today := timezone.TodayDate().String()
+	today := calendar.TodayDate().String()
 	absence, err := workTime.CreateStaffAbsence(ctx, workforce.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeVacation,

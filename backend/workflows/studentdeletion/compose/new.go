@@ -12,7 +12,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	appointmentscompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
@@ -23,6 +22,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
@@ -117,7 +117,7 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 	}
 	today := deps.Today
 	if today == nil {
-		today = func() string { return timezone.TodayDate().String() }
+		today = func() string { return calendar.TodayDate().String() }
 	}
 	now := deps.Now
 	if now == nil {

@@ -6,11 +6,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -966,7 +965,7 @@ func TestActiveGroupRepository_FindWithSupervisors(t *testing.T) {
 			GroupID:   group.ID,
 			StaffID:   staff.ID,
 			Role:      "supervisor",
-			StartDate: timezone.DateFromTime(now),
+			StartDate: calendar.DateFromTime(now),
 			TenantID:  testpkg.Tenant(t),
 		}
 		_, err = db.NewInsert().

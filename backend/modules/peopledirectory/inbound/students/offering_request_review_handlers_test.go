@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // fakeOfferingChangeRequestService records the preview and decide calls; the
@@ -24,7 +24,7 @@ type fakeOfferingChangeRequestService struct {
 	careplan.OfferingChangeRequests
 	input                careplan.OfferingChangeDecisionInput
 	previewExcluded      []int64
-	previewEffectiveFrom *timezone.Date
+	previewEffectiveFrom *calendar.Date
 	preview              *careplan.OfferingChangePreview
 }
 
@@ -32,7 +32,7 @@ func (f *fakeOfferingChangeRequestService) PreviewDecision(
 	_ context.Context,
 	_ int64,
 	excluded []int64,
-	effectiveFrom *timezone.Date,
+	effectiveFrom *calendar.Date,
 ) (*careplan.OfferingChangePreview, error) {
 	f.previewExcluded = excluded
 	f.previewEffectiveFrom = effectiveFrom
@@ -44,8 +44,8 @@ func (f *fakeOfferingChangeRequestService) Decide(_ context.Context, input carep
 	return nil
 }
 
-func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context) (timezone.Date, error) {
-	return timezone.Date(""), nil
+func (f *fakeOfferingChangeRequestService) EarliestEffectiveFrom(context.Context) (calendar.Date, error) {
+	return calendar.Date(""), nil
 }
 
 func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
@@ -81,7 +81,7 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 			ActivityGroupID:   17,
 			ActivityGroupName: "Freie Hausaufgaben-Gruppe",
 			Days:              []string{"tue"},
-			FirstDate:         timezone.NewDate(2027, 2, 2),
+			FirstDate:         calendar.NewDate(2027, 2, 2),
 			OccurrenceCount:   8,
 		}},
 		ArrivalExpectationsFollowBookings: true,
@@ -207,7 +207,7 @@ func TestDecideOfferingChangeRequest_PassesTheConfirmedDate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, svc.input.EffectiveFrom)
-	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.input.EffectiveFrom)
+	assert.Equal(t, calendar.NewDate(2026, 9, 1), *svc.input.EffectiveFrom)
 }
 
 func TestDecideOfferingChangeRequest_PassesCompleteWithdrawalConfirmation(t *testing.T) {
@@ -299,5 +299,5 @@ func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code)
 	require.NotNil(t, svc.previewEffectiveFrom)
-	assert.Equal(t, timezone.NewDate(2026, 9, 1), *svc.previewEffectiveFrom)
+	assert.Equal(t, calendar.NewDate(2026, 9, 1), *svc.previewEffectiveFrom)
 }

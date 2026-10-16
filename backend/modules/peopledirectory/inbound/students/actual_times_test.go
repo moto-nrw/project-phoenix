@@ -5,8 +5,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // These tests cover the small pure helpers that thread today's actual
@@ -65,7 +65,7 @@ func TestApplyActualTimesFromAttendance_FormatsBothClocks(t *testing.T) {
 func TestApplyActualTimesFromAttendance_CheckedInOnly(t *testing.T) {
 	t.Parallel()
 
-	checkIn := time.Date(2026, 1, 15, 7, 12, 0, 0, timezone.Berlin) // already in Berlin
+	checkIn := time.Date(2026, 1, 15, 7, 12, 0, 0, calendar.Berlin) // already in Berlin
 
 	response := &StudentResponse{}
 	applyActualTimesFromAttendance(response, &studentpresence.DailyAttendanceStatus{

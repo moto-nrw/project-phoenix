@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,9 +21,9 @@ func TestStaffScheduleOverview_LeavesExternalCaregiversOut(t *testing.T) {
 	external := fakeStaff(2, "Ella", "Extern")
 	external.IsGuest = true
 	employee.ID, external.ID = 1, 2
-	monday := timezone.NewDate(2026, time.July, 6)
+	monday := calendar.NewDate(2026, time.July, 6)
 	instance := &timetable.ScheduledInstance{
-		Date: timezone.Date(monday), Title: "Musik-AG", StartTime: testClock(t, "14:00"), EndTime: testClock(t, "15:00"), Status: timetable.InstanceStatusPlanned,
+		Date: calendar.Date(monday), Title: "Musik-AG", StartTime: testClock(t, "14:00"), EndTime: testClock(t, "15:00"), Status: timetable.InstanceStatusPlanned,
 	}
 	instance.ID = 3
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
@@ -50,9 +50,9 @@ func TestStaffScheduleOverview_KeepsAccountBackedGuestStaff(t *testing.T) {
 	guest.IsGuest = true
 	guest.Person.AccountID = &accountID
 	employee.ID, guest.ID = 1, 2
-	monday := timezone.NewDate(2026, time.July, 6)
+	monday := calendar.NewDate(2026, time.July, 6)
 	instance := &timetable.ScheduledInstance{
-		Date: timezone.Date(monday), Title: "Robotik-AG", StartTime: testClock(t, "14:00"), EndTime: testClock(t, "15:00"), Status: timetable.InstanceStatusPlanned,
+		Date: calendar.Date(monday), Title: "Robotik-AG", StartTime: testClock(t, "14:00"), EndTime: testClock(t, "15:00"), Status: timetable.InstanceStatusPlanned,
 	}
 	instance.ID = 3
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
