@@ -5,8 +5,6 @@ import (
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
@@ -22,7 +20,7 @@ type EnrollmentSchoolDirectory struct {
 }
 
 func (d EnrollmentSchoolDirectory) FindSchool(ctx context.Context, id int64) (*enrollmentOwner.School, error) {
-	school, found, err := organizationTenancyCompose.FindSchool(ctx, d.Schools, id)
+	school, found, err := lookupSchool(ctx, d.Schools, id)
 	if err != nil || !found {
 		return nil, err
 	}
@@ -37,7 +35,7 @@ type SchoolContactDirectory struct {
 }
 
 func (d SchoolContactDirectory) FindSchoolContact(ctx context.Context, tenantID int64) (*deliveryCompose.SchoolContact, error) {
-	school, found, err := organizationTenancyCompose.FindSchool(ctx, d.Schools, tenantID)
+	school, found, err := lookupSchool(ctx, d.Schools, tenantID)
 	if err != nil || !found {
 		return nil, err
 	}
@@ -50,7 +48,7 @@ type schoolNameDirectory struct {
 }
 
 func (d schoolNameDirectory) FindSchoolName(ctx context.Context, id int64) (string, bool, error) {
-	school, found, err := organizationTenancyCompose.FindSchool(ctx, d.schools, id)
+	school, found, err := lookupSchool(ctx, d.schools, id)
 	return school.Name, found, err
 }
 
@@ -60,7 +58,7 @@ type displaySchoolDirectory struct {
 }
 
 func (d displaySchoolDirectory) FindDisplaySchool(ctx context.Context, tenantID int64) (devicefleetCompose.School, bool, error) {
-	school, found, err := organizationTenancyCompose.FindSchool(ctx, d.schools, tenantID)
+	school, found, err := lookupSchool(ctx, d.schools, tenantID)
 	if err != nil || !found {
 		return devicefleetCompose.School{}, found, err
 	}

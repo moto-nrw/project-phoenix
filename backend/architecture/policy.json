@@ -9783,50 +9783,6 @@
       "target_role": "public"
     },
     {
-      "id": "communication.compose.people-directory",
-      "description": "Communication resolves viewer display names through the People Directory facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "compose",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "communication.integration-test.organization-compose",
-      "description": "Communication integration tests compose target validation with Organization and Tenancy.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "organization-tenancy",
-      "target_role": "compose"
-    },
-    {
-      "id": "communication.integration-test.people-compose",
-      "description": "Communication integration tests compose viewer names with People Directory.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "people-directory",
-      "target_role": "compose"
-    },
-    {
-      "id": "communication.integration-test.tenant-runtime",
-      "description": "Communication integration tests verify outer UnitOfWork rollback.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "communication",
-      "source_role": "workflow-integration-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "communication.integration-test.support",
       "description": "Communication integration tests use hermetic database support.",
       "scopes": [
