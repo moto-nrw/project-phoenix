@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -6,10 +8,8 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The retained People Directory repository suites (database/repositories/users)
-// may not import that package (#2727). They compose the retained repositories
-// over the tenant runtime through the test support that forwards these
-// (services, api/testutil). Every entry goes with the last suite that uses it.
+// Retained People Directory repository suites compose through root test hooks
+// because they may not import database/repositories/users (#2727).
 
 // Option and value types of the retained People Directory repositories.
 type (
