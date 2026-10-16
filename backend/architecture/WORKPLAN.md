@@ -51,6 +51,11 @@ von `facilities/compose/httpadapter` bleibt als exakter #4004-Key bestehen: Die 
 Policy erlaubt der Komposition keine HTTP-Rolle. Inbound-Owner 30 → 29, Regeln 946 → 946;
 Keys und Budgets unverändert.
 
+#4078: `modules/emergencysnapshot/http` gehört zu `emergency-snapshot`.
+`inbound-emergency` und vier Regeln entfallen; drei gleich enge HTTP-Regeln erhalten
+Capability, Shared-HTTP-Runtime und Berechtigungsvertrag. Die Root-Reichweite steht bereits.
+Inbound-Owner 29 → 28, Regeln 946 → 945; Keys und Budgets unverändert.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
