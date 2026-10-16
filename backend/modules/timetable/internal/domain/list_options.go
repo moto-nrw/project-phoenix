@@ -49,7 +49,8 @@ type ListCondition struct {
 }
 
 // ListFilter holds the conditions of a list query and the alternative and
-// grouped filters the repositories reject as compound.
+// grouped filters the repositories reject as compound. Nothing builds a
+// grouped filter any more; the repositories still reject one.
 type ListFilter struct {
 	conditions []ListCondition
 	or         []ListFilter
@@ -71,32 +72,8 @@ func (f *ListFilter) Equal(field string, value any) *ListFilter {
 	return f.Where(field, ListOpEqual, value)
 }
 
-func (f *ListFilter) GreaterThan(field string, value any) *ListFilter {
-	return f.Where(field, ListOpGreaterThan, value)
-}
-
-func (f *ListFilter) LessThan(field string, value any) *ListFilter {
-	return f.Where(field, ListOpLessThan, value)
-}
-
-func (f *ListFilter) ILike(field, value string) *ListFilter {
-	return f.Where(field, ListOpILike, value)
-}
-
 func (f *ListFilter) In(field string, values ...any) *ListFilter {
 	return f.Where(field, ListOpIn, values)
-}
-
-// Or adds an alternative filter.
-func (f *ListFilter) Or(filter ListFilter) *ListFilter {
-	f.or = append(f.or, filter)
-	return f
-}
-
-// And adds a grouped filter.
-func (f *ListFilter) And(filter ListFilter) *ListFilter {
-	f.and = append(f.and, filter)
-	return f
 }
 
 func (f ListFilter) Conditions() []ListCondition { return slices.Clone(f.conditions) }
@@ -128,10 +105,4 @@ type ListSortField struct {
 // ListSorting is a sort order.
 type ListSorting struct {
 	Fields []ListSortField
-}
-
-// AddField appends a field to the sort order.
-func (s *ListSorting) AddField(field string, direction ListSortDirection) *ListSorting {
-	s.Fields = append(s.Fields, ListSortField{Field: field, Direction: direction})
-	return s
 }

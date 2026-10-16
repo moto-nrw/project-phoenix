@@ -1248,13 +1248,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "internal/sliceutil",
-      "owner": "legacy-shared",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/exporttransfer",
       "owner": "export-transfer",
       "role": "contract",
