@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 )
 
 // Planning carries the owner's planning capabilities the timetable HTTP
@@ -23,7 +24,7 @@ type Planning struct {
 // NewLifecycleSchedulers composes the scheduler's auto start and auto end
 // over the lifecycle, with the owner's start check.
 func NewLifecycleSchedulers(rows OwnerRows, lifecycle timetable.InstanceLifecycle, conflicts timetable.StartConflictQuery, logger *slog.Logger) (timetable.InstanceAutoStart, timetable.InstanceAutoEnd, error) {
-	autoStart, err := NewInstanceAutoStart(InstanceAutoStartDependencies{
+	autoStart, err := application.NewInstanceAutoStart(application.InstanceAutoStartDependencies{
 		InstanceRepo:      rows.Instances,
 		InstanceStaffRepo: rows.InstanceStaff,
 		Lifecycle:         lifecycle,
@@ -44,7 +45,7 @@ func NewLifecycleSchedulers(rows OwnerRows, lifecycle timetable.InstanceLifecycl
 // NewSubstituteConflictsOverRows composes the substitute time-overlap
 // advisories the instance lifecycle's staff move asks for over rows.
 func NewSubstituteConflictsOverRows(rows OwnerRows) (timetable.SubstituteConflictQuery, error) {
-	return NewSubstituteConflicts(SubstituteConflictDependencies{
+	return application.NewSubstituteConflicts(application.SubstituteConflictDependencies{
 		Instances: rows.Instances, InstanceStaff: rows.InstanceStaff,
 	})
 }

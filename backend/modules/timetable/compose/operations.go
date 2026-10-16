@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -208,7 +209,7 @@ type OperationDependencies struct {
 	EducationGroups      EducationGroupNames
 	Rooms                RoomNames
 	Settings             OperationSettings
-	CareDays             CareDays
+	CareDays             application.CareDays
 	Arrivals             EffectiveArrivals
 	Pickups              EffectivePickups
 	Lifecycle            OperationLifecycle
@@ -309,14 +310,6 @@ func retainedInstanceIDs(instances []*scheduleModels.ActivityInstance) []int64 {
 		ids = append(ids, instance.ID)
 	}
 	return ids
-}
-
-func indexInstanceStaffRows(rows []*scheduleModels.InstanceStaff) map[int64][]*scheduleModels.InstanceStaff {
-	byInstance := make(map[int64][]*scheduleModels.InstanceStaff)
-	for _, row := range rows {
-		byInstance[row.InstanceID] = append(byInstance[row.InstanceID], row)
-	}
-	return byInstance
 }
 
 func indexInstanceStudentRows(rows []*scheduleModels.InstanceStudent) map[int64][]*scheduleModels.InstanceStudent {
