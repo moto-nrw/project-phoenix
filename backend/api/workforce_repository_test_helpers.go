@@ -4,7 +4,6 @@ import (
 	"time"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCapability "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -24,9 +23,6 @@ type WorkforceTestRepositories struct {
 	StaffAbsenceAudit               workforceCompose.StaffAbsenceAuditRepository
 	TimeTrackingDeletion            auditModels.TimeTrackingDeletionRepository
 	TimeTrackingAuditLog            auditModels.TimeTrackingAuditLogRepository
-	StaffMasterData                 userModels.StaffMasterDataRepository
-	StaffQualification              userModels.StaffQualificationRepository
-	StaffFinancialData              userModels.StaffFinancialDataRepository
 	PersonnelNumberChange           auditModels.PersonnelNumberChangeCreator
 	StaffMasterDataChange           auditModels.StaffMasterDataChangeCreator
 	DataAccessLog                   auditModels.DataAccessLogRepository
@@ -56,8 +52,5 @@ func NewWorkforceTestRepositoriesWithMembers(db transactionruntime.Database, mem
 		StaffAbsenceTypeAllowance:       workforceCompose.NewStaffAbsenceTypeAllowanceRepository(db.Pool()),
 		StaffAbsenceTypeAllowanceChange: workforceCompose.NewStaffAbsenceTypeAllowanceChangeRepository(db.Pool()),
 		StaffMonthSnapshot:              workTime,
-		StaffAbsenceAudit:               workforceCompose.NewStaffAbsenceAuditRepository(workTime),
-		StaffMasterData:                 workforceCompose.NewStaffMasterDataRepository(workTime),
-		StaffQualification:              workforceCompose.NewStaffQualificationRepository(workTime),
-		StaffFinancialData:              workforceCompose.NewStaffFinancialDataRepository(workTime)}, nil
+		StaffAbsenceAudit:               workforceCompose.NewStaffAbsenceAuditRepository(workTime)}, nil
 }

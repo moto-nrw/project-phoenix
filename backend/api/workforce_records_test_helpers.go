@@ -1,10 +1,11 @@
 package api
 
 import (
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"context"
+	"errors"
+
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 )
 
@@ -19,12 +20,16 @@ func NewWorkTimeModelRepository(workTime workforceModule.Capability) configModel
 	return workforceRepositoryAdapter.NewWorkTimeModelRepository(workTime)
 }
 
-// NewStaffMasterDataRepository serves the retained staff master data.
-func NewStaffMasterDataRepository(workTime workforceModule.Capability) userModels.StaffMasterDataRepository {
-	return workforceCompose.NewStaffMasterDataRepository(workTime)
-}
-
-// NewStaffQualificationRepository serves the retained staff qualifications.
-func NewStaffQualificationRepository(workTime workforceModule.Capability) userModels.StaffQualificationRepository {
-	return workforceCompose.NewStaffQualificationRepository(workTime)
+// FindStaffMasterData reads a staff member's Stammdaten from Workforce; a
+// staff member without a row yet yields (nil, nil), an empty Stammdaten tab
+// being a normal state.
+func FindStaffMasterData(ctx context.Context, workTime workforceModule.Capability, staffID int64) (*workforceModule.StaffMasterData, error) {
+	value, err := workTime.FindStaffMasterData(ctx, staffID)
+	if errors.Is(err, workforceModule.ErrStaffMasterDataNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &value, nil
 }
