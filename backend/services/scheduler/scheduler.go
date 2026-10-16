@@ -259,16 +259,9 @@ type Scheduler struct {
 	// Rollover deadline resolver (phase rollover slice 1).
 	rolloverDeadlineRunner RolloverDeadlineRunner
 
-	// Personal reminder notifications. Anything missing prevents Worker
-	// construction. reminderNotified is the
-	// once-per-day re-fire guard (now per person), rotated on civil-date
-	// rollover like overdueEmitted. It is process-local: the Worker lease
-	// keeps one leader at a time (#2726), and a Worker that takes over starts
-	// with an empty guard.
-	reminderNotifications ReminderNotificationDeps
-	reminderNotified      sync.Map // reminderNotificationKey → time.Time
-	reminderNotifiedDay   calendar.Date
-	reminderNotifiedDayMu sync.Mutex
+	// Personal reminder notifications (Reminder Delivery). Nil → the tick
+	// does not register.
+	reminderNotifications ReminderNotificationTick
 
 	// Guardian appointment reminders (#1671).
 	// appointmentReminderScannedAt holds the upper bound of each tenant's last

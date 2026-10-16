@@ -27,6 +27,30 @@ func TestNotificationTypeKeysMatchReminders(t *testing.T) {
 	assert.Equal(t, reminders.TypeActivityOverdue, notifications.TypeActivityOverdue)
 }
 
+// TestPersonalReminderNoticesSpeakTheEventVocabulary pins the personal
+// reminder producer of workflows/reminderdelivery against the catalogue and
+// the event fields its notices are delivered as: every kind it sends is a
+// catalogue type people can agree to, and its priorities and audience scope
+// are the ones the notification service knows.
+func TestPersonalReminderNoticesSpeakTheEventVocabulary(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, reminders.TypeMyActivityStarting, notifications.TypeMyActivityStarting)
+	for _, notificationType := range []string{
+		reminders.TypePickupUpcoming,
+		reminders.TypePickupOverdue,
+		reminders.TypeActivityStart,
+		reminders.TypeActivityOverdue,
+		reminders.TypeMyActivityStarting,
+	} {
+		_, known := notifications.GetType(notificationType)
+		assert.True(t, known, "%s is not in the notification catalogue", notificationType)
+	}
+	assert.Equal(t, reminders.NoticePriorityNormal, notifications.PriorityNormal)
+	assert.Equal(t, reminders.NoticePriorityHigh, notifications.PriorityHigh)
+	assert.Equal(t, reminders.NoticeScopeStaff, string(notifications.ScopeStaff))
+}
+
 func TestNotificationTypeCatalogue(t *testing.T) {
 	t.Parallel()
 

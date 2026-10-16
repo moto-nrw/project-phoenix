@@ -255,7 +255,11 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, err
 	}
-	return scheduler.NewWorker(workerDependencies(graph, reads, workerRoots{
+	reminderNotifications, err := newPersonalReminderTick(graph, reads, runtime, logger.With("service", "scheduler"))
+	if err != nil {
+		return nil, fmt.Errorf("compose personal reminder notifications: %w", err)
+	}
+	return scheduler.NewWorker(workerDependencies(graph, reads, reminderNotifications, workerRoots{
 		logger:    logger.With("service", "scheduler"),
 		billing:   billing,
 		lease:     lease,
@@ -279,7 +283,7 @@ type workerRoots struct {
 
 // workerDependencies builds the Worker's complete typed input in one literal;
 // no dependency is filled in after construction (#2749).
-func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots) scheduler.WorkerDependencies {
+func workerDependencies(graph *serveGraph, reads workerReads, reminderNotifications scheduler.ReminderNotificationTick, roots workerRoots) scheduler.WorkerDependencies {
 	services, identity := graph.services, reads.identity
 	return scheduler.WorkerDependencies{
 		Logger:                    roots.logger,
@@ -329,14 +333,7 @@ func workerDependencies(graph *serveGraph, reads workerReads, roots workerRoots)
 		StudentStatusDayRepo:      reads.studentStatusDays,
 		OverdueBroadcaster:        services.RealtimeHub,
 		StudentLifecycleRepo:      schedulerStudentLifecycle(reads),
-		ReminderNotifications: scheduler.ReminderNotificationDeps{
-			Computer:     services.Reminders,
-			Notifier:     services.Notifications,
-			Preferences:  services.NotificationPreferences,
-			Staff:        reads.staff,
-			Accounts:     identity,
-			WorkSessions: reads.workSessions,
-		},
+		ReminderNotifications:     reminderNotifications,
 	}
 }
 

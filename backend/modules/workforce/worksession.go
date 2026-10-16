@@ -25,6 +25,21 @@ const (
 	WorkSessionDateColumn = "date"
 )
 
+// OnDutyStaffIDs returns the staff members of a presence map (staff ID →
+// status, as GetTodayPresenceMap answers) who are working right now. It
+// matches the two real statuses positively: the map also carries a synthetic
+// "checked out" value, and an unknown future status must not silently count
+// as working.
+func OnDutyStaffIDs(presence map[int64]string) map[int64]struct{} {
+	onDuty := make(map[int64]struct{}, len(presence))
+	for staffID, status := range presence {
+		if status == WorkSessionStatusPresent || status == WorkSessionStatusHomeOffice {
+			onDuty[staffID] = struct{}{}
+		}
+	}
+	return onDuty
+}
+
 // Stundenkonto correction transaction types (#1420, #2132).
 const (
 	BalanceAdjustmentTypePayout   = "payout"
