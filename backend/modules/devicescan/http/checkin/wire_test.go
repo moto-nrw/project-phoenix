@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	checkinAPI "github.com/moto-nrw/project-phoenix/api/iot/checkin"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
 )
 
 // The wire goldens pin the exact status code and body bytes PyrePortal

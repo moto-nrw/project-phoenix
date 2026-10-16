@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 55,
+  "policy_epoch": 56,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -768,7 +768,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/inbound",
+      "path": "modules/dataimport/http",
       "owner": "data-import",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -782,7 +782,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/checkin",
+      "path": "modules/devicescan/http/checkin",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -803,14 +803,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/data",
+      "path": "modules/devicescan/http/data",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/internal/shared",
+      "path": "modules/devicescan/http/internal/shared",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -824,7 +824,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/staffclock",
+      "path": "modules/devicescan/http/staffclock",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -15199,6 +15199,26 @@
   ],
   "relocations": [
     {
+      "from": "api/iot/checkin",
+      "to": "modules/devicescan/http/checkin",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/data",
+      "to": "modules/devicescan/http/data",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/internal/shared",
+      "to": "modules/devicescan/http/internal/shared",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/staffclock",
+      "to": "modules/devicescan/http/staffclock",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15211,6 +15231,11 @@
     {
       "from": "modules/careplan/inbound/parent",
       "to": "workflows/parentportal/http",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "modules/dataimport/inbound",
+      "to": "modules/dataimport/http",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {

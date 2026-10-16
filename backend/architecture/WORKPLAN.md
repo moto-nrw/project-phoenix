@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 270 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
+Stand 16.10.2026 · Ratchet 270 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 56 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.661 in `compose`
 
@@ -146,6 +146,17 @@ Aufruf wechseln; alle Assertions und Produktionshandler bleiben unverändert.
 Drei Regeln entfallen, ohne Nachfolger. Inbound-Owner 17 → 16, Regeln 915 → 912;
 270 Keys, #4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben gleich.
 Keine IoT-Zeichenkette, Route oder Response ändert sich.
+
+#4078: Data-Import-HTTP und die vier übernommenen IoT-Pakete liegen nach
+ADR 0020 unter `modules/dataimport/http` bzw. `modules/devicescan/http`.
+Alle 61 Go-Dateinamen, Owner, Produktions- und Testrollen bleiben gleich.
+Nur Import- und Registry-Pfade folgen den Dateien; der Funktionslängen-Eintrag
+behält seinen Wert 66, historische Retirement-Keys bleiben unverändert.
+Der IoT-Deklarations-Lookup folgt zwei verschobenen Dateien; kanonische
+Golden-Identitäten, Code-Tabelle, Header und Assertions bleiben unverändert.
+Epoche 55 → 56; 16 Inbound-Owner, 912 Regeln, 270 Keys, #4078 6,
+Composition 1.664 und alle Budgets bleiben unverändert. Keine Route, Response,
+IoT-Zeichenkette oder Assertion ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

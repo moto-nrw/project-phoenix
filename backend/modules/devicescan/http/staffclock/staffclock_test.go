@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	staffclockAPI "github.com/moto-nrw/project-phoenix/api/iot/staffclock"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )

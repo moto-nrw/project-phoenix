@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	shared "github.com/moto-nrw/project-phoenix/api/iot/internal/shared"
+	shared "github.com/moto-nrw/project-phoenix/modules/devicescan/http/internal/shared"
 )
 
 func TestErrorMessageConstants(t *testing.T) {
