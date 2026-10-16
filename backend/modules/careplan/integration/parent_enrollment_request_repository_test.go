@@ -14,10 +14,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentRepo "github.com/moto-nrw/project-phoenix/database/repositories/parent"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -376,15 +375,15 @@ func TestEnrollmentRequestRepository_ListByAccount_FiltersMaterializedChildWitho
 	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	relationship := &usersModels.StudentGuardian{
+	relationship := &testpkg.StudentGuardian{
+		TenantID:          testpkg.Tenant(t),
 		StudentID:         student.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "other",
-		GuardianRole:      authorize.GuardianRolePickupOnly,
+		GuardianRole:      testpkg.GuardianRolePickupOnly,
 		Permissions:       map[string]interface{}{},
 	}
-	relationship.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, relationship))
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-permission-"+t.Name())
 	insertEnrollment(t, db, enrollmentRow{
@@ -416,17 +415,17 @@ func TestEnrollmentRequestRepository_ListByAccount_HidesMixedPermissionMateriali
 	factory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	require.NoError(t, factory.GuardianProfile.LinkAccount(ctx, profile.ID, account.ID))
-	relationship := &usersModels.StudentGuardian{
+	relationship := &testpkg.StudentGuardian{
+		TenantID:          testpkg.Tenant(t),
 		StudentID:         visible.ID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "parent",
-		GuardianRole:      authorize.GuardianRoleLegalGuardian,
+		GuardianRole:      testpkg.GuardianRoleLegalGuardian,
 		Permissions: map[string]interface{}{
-			authorize.GuardianPermissionEnrollmentsView: true,
+			careplan.GuardianPermissionEnrollmentsView: true,
 		},
 	}
-	relationship.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, factory.StudentGuardian.Create(ctx, relationship))
+	require.NoError(t, testpkg.InsertTestStudentGuardian(ctx, db, relationship))
 
 	phaseID := insertTestPhase(t, db, tenantA, "phase-list-mixed-permission-"+t.Name())
 	requestID := insertEnrollment(t, db, enrollmentRow{

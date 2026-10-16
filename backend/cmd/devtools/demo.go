@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"context"
@@ -16,7 +16,6 @@ import (
 	"syscall"
 	"time"
 
-	backendapi "github.com/moto-nrw/project-phoenix/api"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -45,7 +44,7 @@ var demoCmd = &cobra.Command{
 			return err
 		}
 		defer func() { _ = db.Close() }()
-		schools, err := backendapi.NewDemoRuntime(db, time.Now)
+		schools, err := NewDemoRuntime(db, time.Now)
 		if err != nil {
 			return err
 		}
@@ -113,7 +112,7 @@ func writeDemoHeartbeat(path string) error {
 	return os.WriteFile(path, []byte(time.Now().UTC().Format(time.RFC3339)+"\n"), 0o600)
 }
 
-func runStandingDemo(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
+func runStandingDemo(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
 	saved, err := schools.LoadDemoSchool(ctx, standingDemoSlug)
 	if err != nil {
 		return err
@@ -151,7 +150,7 @@ type demoSchool struct {
 	visitorParentID int64
 }
 
-func loadDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, slug, baseURL string) (*demoSchool, error) {
+func loadDemoSchool(ctx context.Context, schools *DemoRuntime, slug, baseURL string) (*demoSchool, error) {
 	saved, err := schools.LoadDemoSchool(ctx, slug)
 	if err != nil {
 		return nil, err
@@ -249,12 +248,12 @@ func (s *demoSchool) run(ctx context.Context, once, stopOnLogin bool, ticked fun
 // provisionDemoSchool seeds the school of options and stores its state under
 // its slug. Tenant slug and school name come from the caller. With
 // options.DeferHistory it returns the seed still to run; otherwise nil.
-func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, adapter seedapi.Adapter, options seedapi.SeedOptions) (func(context.Context) error, error) {
+func provisionDemoSchool(ctx context.Context, schools *DemoRuntime, adapter seedapi.Adapter, options seedapi.SeedOptions) (func(context.Context) error, error) {
 	email, password, pin := demoProvisioningCredentials()
 	if err := checkDemoProvisioning(email, password, pin); err != nil {
 		return nil, err
 	}
-	staffPassword, err := seedapi.GenerateSeedPassword(backendapi.SecureRandomSource())
+	staffPassword, err := seedapi.GenerateSeedPassword(secureRandomSource())
 	if err != nil {
 		return nil, err
 	}
@@ -280,7 +279,7 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 		if err != nil {
 			return err
 		}
-		record := backendapi.DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw}
+		record := DemoSchoolRecord{SchoolID: profile.School.ID, SeedJSON: raw}
 		if stateSaved {
 			return schools.UpdateDemoSchool(ctx, slug, record)
 		}
@@ -290,7 +289,7 @@ func provisionDemoSchool(ctx context.Context, schools *backendapi.DemoRuntime, a
 		stateSaved = true
 		return nil
 	}
-	result, err := seedapi.NewSeeder(adapter, backendapi.SecureRandomSource(), false, options).Seed(ctx, email, password, pin)
+	result, err := seedapi.NewSeeder(adapter, secureRandomSource(), false, options).Seed(ctx, email, password, pin)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +311,7 @@ func checkDemoProvisioning(email, password, pin string) error {
 	return nil
 }
 
-func demoVisitsQuery(runtime *backendapi.DemoRuntime, schoolID int64, profile *seedapi.SeedProfile) (func(context.Context) ([]simulate.DemoVisit, error), error) {
+func demoVisitsQuery(runtime *DemoRuntime, schoolID int64, profile *seedapi.SeedProfile) (func(context.Context) ([]simulate.DemoVisit, error), error) {
 	var webDeviceID int64
 	for _, device := range profile.Devices {
 		if device.Protected && device.DeviceType == "virtual" {
@@ -323,7 +322,7 @@ func demoVisitsQuery(runtime *backendapi.DemoRuntime, schoolID int64, profile *s
 		return nil, fmt.Errorf("demo school has no protected web device")
 	}
 	return func(ctx context.Context) ([]simulate.DemoVisit, error) {
-		var rows []backendapi.DemoVisit
+		var rows []DemoVisit
 		today := timezone.TodayDate()
 		ctx = tenant.WithTenantID(tenant.WithUnitOfWork(ctx, runtime.TenantRuntime()), schoolID)
 		err := tenant.WithinCurrentTenant(ctx, func(ctx context.Context) error {

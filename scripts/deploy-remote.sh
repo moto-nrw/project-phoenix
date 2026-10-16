@@ -19,9 +19,9 @@ trap cleanup_operation EXIT
 [ -s .env.new ] && [ -s docker-compose.yml.new ] || { echo 'New configuration is missing' >&2; exit 1; }
 
 # Pull before stopping the old application. Its configuration remains intact.
-frontend_tag="$DEPLOY_SHA"
-if [[ "$DEPLOY_DIR" = demo ]]; then frontend_tag="demo-$DEPLOY_SHA"; fi
-sed "s|phoenix-server:[^ ]*|phoenix-server:${DEPLOY_SHA}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${frontend_tag}|" docker-compose.yml.new > docker-compose.yml.pinned
+image_tag="$DEPLOY_SHA"
+if [[ "$DEPLOY_DIR" = demo ]]; then image_tag="demo-$DEPLOY_SHA"; fi
+sed "s|phoenix-server:[^ ]*|phoenix-server:${image_tag}|; s|phoenix-frontend:[^ ]*|phoenix-frontend:${image_tag}|" docker-compose.yml.new > docker-compose.yml.pinned
 mv docker-compose.yml.pinned docker-compose.yml.new
 if ! bash "$script_dir/release-backup.sh" keep-images; then
   echo 'Keeping the running images failed; the running release was not touched' >&2

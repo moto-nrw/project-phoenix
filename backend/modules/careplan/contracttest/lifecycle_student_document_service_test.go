@@ -5,12 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -115,23 +115,23 @@ func (s *studentDocumentScenario) input(category string) careplan.CreateStudentD
 	}
 }
 
-func (s *studentDocumentScenario) auditRows(t *testing.T) []*auditModels.StudentFieldEdit {
+func (s *studentDocumentScenario) auditRows(t *testing.T) []*testpkg.StudentFieldEdit {
 	t.Helper()
-	var rows []*auditModels.StudentFieldEdit
+	var rows []*testpkg.StudentFieldEdit
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.student_field_edits AS "student_field_edit"`).
 		Where(`"student_field_edit".student_id = ?`, s.studentID).
-		Where(`"student_field_edit".field_name LIKE ?`, auditModels.StudentFieldDocumentPrefix+"%").
+		Where(`"student_field_edit".field_name LIKE ?`, testpkg.AuditStudentFieldDocumentPrefix+"%").
 		Order("id ASC").
 		Scan(context.Background())
 	require.NoError(t, err)
 	return rows
 }
 
-func (s *studentDocumentScenario) accessLogRows(t *testing.T) []*auditModels.DataAccessLog {
+func (s *studentDocumentScenario) accessLogRows(t *testing.T) []*testpkg.DataAccessLog {
 	t.Helper()
-	var rows []*auditModels.DataAccessLog
+	var rows []*testpkg.DataAccessLog
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
@@ -250,7 +250,7 @@ func TestStudentDocumentService_SensitiveDownloadsAreLogged(t *testing.T) {
 	logs := s.accessLogRows(t)
 	require.Len(t, logs, 2)
 	for _, entry := range logs {
-		assert.Equal(t, auditModels.ResourceTypeStudentDocumentDownload, entry.ResourceType)
+		assert.Equal(t, testpkg.AuditResourceTypeStudentDocumentDownload, entry.ResourceType)
 	}
 	assert.EqualValues(t, attest.ID, logs[0].Metadata["document_id"])
 	assert.EqualValues(t, custody.ID, logs[1].Metadata["document_id"])
@@ -397,12 +397,13 @@ func TestStudentDocumentService_AuditFieldCarriesCategory(t *testing.T) {
 	require.Len(t, rows, 2)
 
 	fields := []string{rows[0].FieldName, rows[1].FieldName}
-	assert.Contains(t, fields, auditModels.StudentDocumentField(careplan.StudentDocumentCategoryAttest))
-	assert.Contains(t, fields, auditModels.StudentDocumentField(careplan.StudentDocumentCategoryBetreuungsvertrag))
+	assert.Contains(t, fields, testpkg.AuditStudentFieldDocumentPrefix+careplan.StudentDocumentCategoryAttest)
+	assert.Contains(t, fields, testpkg.AuditStudentFieldDocumentPrefix+careplan.StudentDocumentCategoryBetreuungsvertrag)
 
 	// And the category survives the round trip a reader performs.
 	for _, row := range rows {
-		category := auditModels.StudentDocumentCategoryFromField(row.FieldName)
+		require.True(t, strings.HasPrefix(row.FieldName, testpkg.AuditStudentFieldDocumentPrefix))
+		category := strings.TrimPrefix(row.FieldName, testpkg.AuditStudentFieldDocumentPrefix)
 		require.NotEmpty(t, category, "every document row must name its category")
 		assert.True(t, careplan.IsValidStudentDocumentCategory(category))
 	}

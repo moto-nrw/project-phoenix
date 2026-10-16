@@ -86,7 +86,7 @@ Docker VM then competes with the IDE for memory; see
 The setup script prints the exact seed command with your credentials. It looks like this:
 
 ```bash
-scripts/dev-native.sh backend go run . seed \
+scripts/dev-native.sh backend go run ./cmd/devtools seed \
   --email operator@example.com \
   --password 'YOUR_PASSWORD' \
   --pin 1234 \
@@ -191,13 +191,13 @@ Each school's dedicated school-admin account remains isolated to that school.
 The simulator uses `vollbetrieb` without a flag. Select it explicitly with:
 
 ```bash
-scripts/dev-native.sh backend go run . simulate full-day --profile vollbetrieb
+scripts/dev-native.sh backend go run ./cmd/devtools simulate full-day --profile vollbetrieb
 ```
 
 Inspect the manual profile without starting an IoT simulation:
 
 ```bash
-scripts/dev-native.sh backend go run . simulate status --profile manuell
+scripts/dev-native.sh backend go run ./cmd/devtools simulate status --profile manuell
 ```
 
 Reset the development database before recreating this deterministic profile:
@@ -212,7 +212,7 @@ carries the slug in its domain (`anna.mueller@demo-ogs-nord.moto-ogs.de`), and
 the school joins the existing Demo-Träger:
 
 ```bash
-scripts/dev-native.sh backend go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://localhost:8080 \
+scripts/dev-native.sh backend go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://localhost:8080 \
   --profile vollbetrieb --tenant-slug ogs-nord --school-name 'OGS Nord' --state ogs-nord.seed-state.json
 ```
 

@@ -148,7 +148,7 @@ jobs:
             # Branch name (main for production)
             type=ref,event=branch,enable=${{ needs.check-environment.outputs.environment != 'demo' }}
             # Short SHA for traceability
-            type=sha,prefix=,format=short
+            type=sha,prefix=${{ needs.check-environment.outputs.environment == 'demo' && 'demo-' || '' }},format=short
             type=raw,value=demo,enable=${{ needs.check-environment.outputs.environment == 'demo' }}
             # 'staging' tag for staging deployments
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.environment == 'staging' }}
@@ -160,6 +160,8 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
+          # Only the demo image carries the dev tools binary (ADR 0060).
+          target: ${{ needs.check-environment.outputs.environment == 'demo' && 'demo' || 'production' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

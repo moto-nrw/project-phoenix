@@ -4496,6 +4496,14 @@ keeps three of the six: the session token runtime is
 root's session imports and both session rules are deleted; `dev-tools`/`cli`
 is another owner's private role, so `root-composition.cli.dev-tools` is
 deleted and `cmd -> seed/api` and `cmd -> simulate` are keys (#4096).
+Epoch 49 (ADR 0060, #4096) removes both keys: the dev tools are the binary
+`cmd/devtools`, the only package in `dev-tools`/`compose`. Its eight
+`dev-tools.compose.*` rules reach `dev-tools`/`cli`, the class `http-router`,
+the `compose` role of `transaction-runtime`, `organization-tenancy`,
+`identity-access` and `student-presence`, and the `public` role of
+`tenant-runtime` and `security-runtime`, all in production only. PR mode
+accepts them because they are anchored to a role only the candidate's new
+package uses.
 
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),
