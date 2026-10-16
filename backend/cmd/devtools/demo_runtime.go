@@ -16,14 +16,6 @@ type DemoSchoolRecord struct {
 	SeedJSON []byte
 }
 
-// demoSchoolState is the owner's state record as the dev tools hand it over.
-// The owner's type has this underlying struct; the dev tools reach only the
-// owners' compositions (ADR 0060), so they name the shape, not the type.
-type demoSchoolState = struct {
-	SchoolID int64
-	SeedJSON []byte
-}
-
 type DemoVisit struct {
 	StudentID   int64
 	Active, Web bool
@@ -101,11 +93,10 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 			return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
 		},
 		storeSchool: func(ctx context.Context, name string, record DemoSchoolRecord, update bool) error {
-			state := demoSchoolState{SchoolID: record.SchoolID, SeedJSON: record.SeedJSON}
 			if update {
-				return schools.UpdateDemoSchool(ctx, name, state)
+				return organizationcompose.UpdateDemoSchoolFields(ctx, schools, name, record.SchoolID, record.SeedJSON)
 			}
-			return schools.RememberDemoSchool(ctx, name, state)
+			return organizationcompose.RememberDemoSchoolFields(ctx, schools, name, record.SchoolID, record.SeedJSON)
 		},
 		claimOrder: func(ctx context.Context) (*DemoSchoolOrder, error) {
 			order, err := queue.ClaimDemoSchoolOrder(ctx)

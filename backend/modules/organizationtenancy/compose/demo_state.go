@@ -16,6 +16,19 @@ func NewDemoSchools(db *bun.DB) (*organizationtenancy.DemoSchools, error) {
 	return organizationtenancy.NewDemoSchools(demoStateEngine{store: postgres.NewDemoStateStore(db)}), nil
 }
 
+// RememberDemoSchoolFields stores a demo school's first complete state from
+// its fields. The dev tools reach the owner only through this composition
+// (ADR 0060), so they hand over fields instead of the owner's state type.
+func RememberDemoSchoolFields(ctx context.Context, schools *organizationtenancy.DemoSchools, name string, schoolID int64, seedJSON []byte) error {
+	return schools.RememberDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON})
+}
+
+// UpdateDemoSchoolFields replaces a reserved or stored demo school's state
+// from its fields, like RememberDemoSchoolFields.
+func UpdateDemoSchoolFields(ctx context.Context, schools *organizationtenancy.DemoSchools, name string, schoolID int64, seedJSON []byte) error {
+	return schools.UpdateDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: seedJSON})
+}
+
 type demoStateEngine struct{ store *postgres.DemoStateStore }
 
 func (e demoStateEngine) LoadDemoSchool(ctx context.Context, name string) (*organizationtenancy.DemoSchoolState, error) {

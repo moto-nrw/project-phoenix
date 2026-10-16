@@ -62,7 +62,10 @@ Measured on `01b434087e`, policy epoch 47:
    `inbound` owner's composition, which ADR 0057 point 1 and ADR 0059 point 6
    do not count as an owner composition. The binary names no owner's
    `public` type besides those two: it binds the owner calls whose signatures
-   carry owner types as functions inside `NewDemoRuntime`.
+   carry owner types as functions inside `NewDemoRuntime`; the state saves go
+   through `RememberDemoSchoolFields` and `UpdateDemoSchoolFields` of
+   Organisation & Tenancy's composition, which build the owner's state type
+   from explicit fields.
 
    `dev-tools.compose.security-runtime` is there for entropy. The seeder
    generates the staff passwords of demo schools, which are reachable from
