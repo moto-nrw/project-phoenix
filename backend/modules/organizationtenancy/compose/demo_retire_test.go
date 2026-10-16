@@ -159,6 +159,46 @@ func TestRetiringDemoSchoolWaitsForItsSeedLease(t *testing.T) {
 	assert.Equal(t, 1, result.erased)
 }
 
+func TestRetiringDemoSchoolsWaitsForVisitorErasureLease(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
+
+	tx, err := db.BeginTx(t.Context(), nil)
+	require.NoError(t, err)
+	_, err = tx.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0))`).Exec(t.Context())
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = tx.Rollback() })
+	type retirement struct {
+		hidden, erased int
+		err            error
+	}
+	started := make(chan struct{})
+	finished := make(chan retirement, 1)
+	go func() {
+		close(started)
+		hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+		finished <- retirement{hidden: hidden, erased: erased, err: err}
+	}()
+	<-started
+	select {
+	case result := <-finished:
+		t.Fatalf("erasure finished despite the global cleanup lease: %+v", result)
+	case <-time.After(100 * time.Millisecond):
+	}
+	require.NoError(t, tx.Rollback())
+
+	result := <-finished
+	require.NoError(t, result.err)
+	assert.Equal(t, 1, result.hidden)
+	assert.Equal(t, 1, result.erased)
+}
+
 // The serving backend hides the visitor's school when the visitor starts over
 // (#3470), inside its administrative transaction and with its restricted role.
 func TestDemoSchoolOrdersRetireOneSchoolForARestart(t *testing.T) {

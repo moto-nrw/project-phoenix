@@ -80,6 +80,7 @@ const demoVisitorErasureUpSQL = `
 			target_name TEXT;
 			erased INTEGER := 0;
 		BEGIN
+			PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0));
 			FOR visitor IN
 				SELECT state.name, state.tenant_id,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
@@ -170,6 +171,7 @@ const demoVisitorErasureUpSQL = `
 			hidden_count INTEGER := 0;
 			changed INTEGER;
 		BEGIN
+			PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0));
 			FOR target_name IN
 				SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS target(name) ORDER BY name
 			LOOP
