@@ -219,10 +219,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-users",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-work-time-models",
       "kind": "inbound"
     },
@@ -1942,7 +1938,7 @@
     },
     {
       "path": "modules/peopledirectory/http",
-      "owner": "inbound-users",
+      "owner": "people-directory",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -8486,17 +8482,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-users.to.people-directory",
-      "description": "inbound-users calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-work-time-models.to.workforce",
       "description": "inbound-work-time-models calls exactly one public capability.",
       "scopes": [
@@ -9554,28 +9539,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "inbound-users.http.security-contract",
-      "description": "The People Directory HTTP adapter binds its established permission contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.people-directory-http",
-      "description": "The production root constructs the People Directory HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-users",
-      "target_role": "http"
     },
     {
       "id": "delivery.application.same-owner-adapter",

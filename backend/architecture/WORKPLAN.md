@@ -66,7 +66,7 @@ Die Root-Reichweite steht bereits. Inbound-Owner 28 → 27, Regeln 945 → 943; 
 Owner `inbound-activities` und `inbound-database` entfallen. Fünf gleich enge
 Nachfolger ersetzen sechs Regeln; die Root-Reichweite steht bereits. Die Upload-Suite
 setzt denselben registrierten Schlüssel als Testwert statt über das fremde Modell.
-Inbound-Owner 27 → 24, Regeln 945 → 944, Keys 326 → 325, #4078 11 → 10; Budgets unverändert.
+Inbound-Owner 27 → 24, Regeln 938 → 937, Keys 316 → 315, #4078 11 → 10; Budgets unverändert.
 
 #4075: Die letzten zehn Delivery-Cutover-Keys sind entfernt. Enrollment bindet Mail-Branding,
 Organisation & Tenancy das PWA-Zeitfenster, School Structure die Ereignisse und die
@@ -76,6 +76,12 @@ Kindzugriff. Tests prüfen Settings- und HTTP-Verträge ohne fremde Implementier
 Keine neue oder gelöschte Regel, keine neuen Type-Aliase; `delivery-cutover.*` bleibt leer.
 Compose-LOC 89.901 → 89.899, Application-Passthroughs 718 → 717, Keys 326 → 316.
 `inbound-notifications` bleibt bei #4078; Scheduler und `cmd/devtools` sind unverändert.
+
+#4078: `modules/peopledirectory/http` gehört zu `people-directory`; `inbound-users`
+entfällt. Seine drei Regeln werden ohne neue Regel gelöscht: Die bestehenden
+People-Directory-Regeln tragen den öffentlichen Vertrag und den Berechtigungsvertrag,
+die stehende Root-Regel den Mount. Inbound-Owner 24 → 23, Regeln 937 → 934;
+Paketpfade, Go-Code, Keys (308), #4078-Keys (10) und Budgets bleiben unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
