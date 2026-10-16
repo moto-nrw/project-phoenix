@@ -1,11 +1,12 @@
-package compose_test
+package api
 
 import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+
 	iotcompose "github.com/moto-nrw/project-phoenix/api/iot/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -17,23 +18,23 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	t.Parallel()
 
 	db, data := setupIoTDataModule(t)
-	_, auth := setupAuthModule(t)
-	feedback, err := api.NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	_, auth := setupIoTSettingsModule(t)
+	feedback, err := NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
-	schools, err := api.NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	schools, err := NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), schools, auth.Settings, "1234")
-	resource := iotcompose.NewResource(iotcompose.ServiceDependencies{
-		Administration:           iotcompose.NewDeviceAdministration(data.IoT.Fleet()),
+	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), schools, auth, "1234")
+	resource := iotcompose.NewResource(iotcompose.ServiceDependencies{Runtime: NewIoTHTTPRuntime(), ErrorReports: NewIoTErrorReporter(nil),
+		Administration:           NewIoTAdministration(devicefleet.NewAdministration(data.IoT.Fleet())),
 		Configuration:            data.Configuration,
 		Rooms:                    data.RoomAvailability,
 		FeedbackService:          feedback.Feedback,
 		FeedbackStudents:         feedback.FeedbackStudents,
 		FeedbackResponseObserver: func(int, string) {},
-		DeviceScan:               iotcompose.RouterDeviceScan{},
-		StaffClock:               iotcompose.RouterStaffClock{},
+		DeviceScan:               routerDeviceScan{},
+		StaffClock:               routerStaffClock{},
 		DeviceAuthenticator:      deviceAuth.Device(),
 		DeviceOnlyAuthenticator:  deviceAuth.DeviceOnly(),
 	})

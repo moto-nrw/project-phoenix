@@ -1,4 +1,4 @@
-package compose
+package api
 
 import (
 	"testing"
@@ -9,21 +9,21 @@ import (
 
 func TestNewErrorReportRelayWithoutDSNIsUnconfigured(t *testing.T) {
 	t.Parallel()
-	relay, err := NewErrorReportRelay("  ")
+	relay, err := NewIoTErrorReportRelay("  ")
 	require.NoError(t, err)
 	assert.Nil(t, relay)
 }
 
 func TestNewErrorReportRelayRejectsMalformedDSN(t *testing.T) {
 	t.Parallel()
-	_, err := NewErrorReportRelay("https://sentry.example/not-a-project")
+	_, err := NewIoTErrorReportRelay("https://sentry.example/not-a-project")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "SENTRY_PYREPORTAL_DSN")
 }
 
 func TestNewErrorReportRelayAcceptsProjectDSN(t *testing.T) {
 	t.Parallel()
-	relay, err := NewErrorReportRelay("https://public@o1.ingest.de.sentry.io/4242")
+	relay, err := NewIoTErrorReportRelay("https://public@o1.ingest.de.sentry.io/4242")
 	require.NoError(t, err)
 	assert.NotNil(t, relay)
 }

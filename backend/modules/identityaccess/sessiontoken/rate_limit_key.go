@@ -5,8 +5,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/lestrrat-go/jwx/v3/transform"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // RateLimitKey buckets an authenticated request by its stable quota
@@ -40,21 +39,10 @@ func (a *TokenAuth) RateLimitKey(r *http.Request) string {
 	if err != nil {
 		return ""
 	}
-	if err := jwt.Validate(token); err != nil {
+	identity, ok := tokenprimitives.RateLimitIdentity(token)
+	if !ok {
 		return ""
 	}
 
-	claims := map[string]any{}
-	if err := transform.AsMap(token, claims); err != nil {
-		return ""
-	}
-	// JSON numbers decode as float64 (same contract as AppClaims.ParseClaims).
-	accountID, ok := claims["id"].(float64)
-	if !ok || accountID <= 0 {
-		return ""
-	}
-	scope, _ := claims["scope"].(string)
-	tenantID, _ := claims["tenant_id"].(float64)
-
-	return fmt.Sprintf("acct:%d:%s:%d", int64(accountID), scope, int64(tenantID))
+	return fmt.Sprintf("acct:%d:%s:%d", identity.AccountID, identity.Scope, identity.TenantID)
 }

@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 191 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 17.10.2026 · Ratchet 190 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 56.207 in `compose`
 
@@ -12,7 +12,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 83 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 23 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,17 +21,9 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 191 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 190 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
-
-#4073: Anfragefreigaben lesen nur einreichendes Konto, Kind und Anfrageart über einen eigenen Port.
-Die Root bindet Care Plans öffentlichen Read. Payload- und Snapshot-Dekodierung sowie bisherige
-Not-found- und JSON-Fehlerdiagnosen bleiben erhalten. Care verwendet eigene Ausnahmequellen und
-`time.Friday` statt Schedule-Modellen. Auswahl von Wochen- und Abholanfragen liegt in Care Plans
-Application; Compose übersetzt nur den Filter. Drei Keys fallen: 194 → 191, #4073 26 → 23.
-Regeln 865 unverändert. Care-Plan-Compose 4.334 → 4.333, Portal-Compose 506 → 505,
-Compose gesamt 56.209 → 56.207 LOC; kein Budget steigt. Keine neue Regel, Freigabe oder Alias.
 
 #4073: Parent-HTTP deklariert eigene Push-, Benachrichtigungs- und PWA-Ports.
 Die Root übersetzt Deliverys öffentlichen Geräte- und Einwilligungsvertrag; dieselben
@@ -317,6 +309,34 @@ unverändert 1.657. Compose sinkt um 95 LOC: 57.283 → 57.188, Device Fleet
 keine neue Reichweite, keine höheren Budgets oder Root-Service-Graph-Felder.
 Die drei #4004-Retirements sind in `display-http-owner-4078.json` belegt.
 Routen, Responses, IoT-Strings, Statuscodes und Goldens bleiben unverändert.
+
+#4078: IoT-Info und der IoT-HTTP-Host gehören Device Scan; `inbound-iot`
+entfällt. Root bindet die nativen HTTP-Blätter über typisierte Konstruktor-Ports,
+JWT-/Device-Guards, Tenant-Transaktion und Metrics. Der Host importiert keine
+fremde HTTP-Ressource. Device Fleets öffentlicher HTTP-Runtime-Facade liefert
+dieselben Principal-Fakten, den Fail-closed-Guard und den nativen Fehler-Renderer.
+Sentry-I/O bleibt im IoT-Adapter; Root bindet nur DSN-Parsing, Projekt-Tagging und
+die bisherigen Fehler-Wrapper. Kein zusätzlicher HTTP-Aufruf, Puffer oder Worker.
+Die echten Konstruktor-/Nil-Verträge bleiben im Owner; route-sized Tests bauen
+über Root und vorhandenen Test-Support. Alle 69 Assertions bleiben identisch.
+`TestFullProductionRouterGolden` bleibt vollständig identisch, Golden-Dateien
+ändern sich nicht. Nur der exakte umgezogene Metrics-Symbolname wird im bestehenden
+Provenienz-Normalisierer abgebildet. Achtzehn Regeln entfallen ohne Nachfolger;
+865 → 847, Inbound 8 → 7, Keys 194 → 193 (#4004 83 → 82), #4078 fünf unverändert.
+Composition 1.657 und alle Budgets bleiben gleich. Der einzelne #4004-Key ist
+in `iot-http-owner-4078.json` belegt. Testrollen, Routen, Middleware-Reihenfolge,
+Responses und PyrePortal-Strings bleiben gleich; keine Selektoren, Schemaänderung,
+neue Freigabe, mutable Hooks oder Root-Service-Graph-Felder.
+
+#4078-Vorbereitung für School-HTTP: Die bisherigen JWT-Claim-Prüfungen, der
+stabile Quota-Identity-Read und die unveränderten Opaque-Token-Primitiven liegen
+in `modules/identityaccess/tokenprimitives` unter dem öffentlichen Identity-&-Access-
+Vertrag. Session Tokens behalten alle APIs und nativen SDK-Typen und delegieren
+unverändert. Der Quota-Read liefert typisierte Fakten, keinen öffentlichen Filter-Map.
+Token-Authentifizierung, Claims, Token-Entropie, Fingerprint und Quota-Format bleiben
+gleich. Keine Owner-/Key-/Regel-/Budgetänderung, keine Selektoren. Die noch ownerweite
+Krypto-Regel wird erst mit dem School-Owner-Schnitt rollen-/scope-eng eingegrenzt;
+dessen gelöschte Inbound-Regeln finanzieren die nötigen engeren Nachfolger.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

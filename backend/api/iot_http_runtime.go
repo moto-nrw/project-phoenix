@@ -1,4 +1,4 @@
-package compose
+package api
 
 import (
 	"context"
@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	"github.com/moto-nrw/project-phoenix/auth/device"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	devicesAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/http/devices"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
@@ -17,28 +17,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-func infoRuntime() iotAPI.Runtime {
-	return iotAPI.Runtime{Authenticated: func(ctx context.Context) bool { return device.DeviceFromCtx(ctx) != nil }, Success: common.Respond, Failure: renderDataFailure}
+func iotInfoRuntime() iotAPI.Runtime {
+	return iotAPI.Runtime{Authenticated: func(ctx context.Context) bool { _, _, _, _, ok := deviceauth.ContextDevice(ctx); return ok }, Success: common.Respond, Failure: renderIoTDataFailure}
 }
 
-func errorReportsRuntime() iotAPI.ErrorReportsRuntime {
+func iotErrorReportsRuntime() iotAPI.ErrorReportsRuntime {
 	return iotAPI.ErrorReportsRuntime{
 		Device: func(ctx context.Context) (int64, string, int64, bool) {
-			principal := device.DeviceFromCtx(ctx)
-			if principal == nil {
-				return 0, "", 0, false
-			}
-			return principal.ID, principal.DeviceID, principal.TenantID, true
+			id, deviceID, tenantID, _, ok := deviceauth.ContextDevice(ctx)
+			return id, deviceID, tenantID, ok
 		},
-		Failure:               renderErrorReportFailure,
+		Failure:               renderIoTErrorReportFailure,
 		SkipServerErrorReport: common.SkipServerErrorReport,
 	}
 }
 
-// renderErrorReportFailure renders the relay's rejections in the IoT error
+// renderIoTErrorReportFailure renders the relay's rejections in the IoT error
 // envelope. A 502 answers a stable text and keeps Sentry's failure as the
 // logged cause.
-func renderErrorReportFailure(w http.ResponseWriter, r *http.Request, status int, err error) {
+func renderIoTErrorReportFailure(w http.ResponseWriter, r *http.Request, status int, err error) {
 	switch status {
 	case http.StatusTooManyRequests:
 		common.RenderError(w, r, common.ErrorTooManyRequests(err))
@@ -47,27 +44,27 @@ func renderErrorReportFailure(w http.ResponseWriter, r *http.Request, status int
 	case http.StatusBadGateway:
 		common.RenderError(w, r, common.ErrorBadGatewayWrap(iotAPI.ErrErrorReportUndelivered.Error(), err))
 	default:
-		renderDataFailure(w, r, status, err, "")
+		renderIoTDataFailure(w, r, status, err, "")
 	}
 }
 
-func devicesRuntime() devicesAPI.Runtime {
-	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderDataFailure, ConflictOnField: renderConflictOnField, ConstraintViolation: common.IsConstraintViolation}
+func iotDevicesRuntime() devicesAPI.Runtime {
+	return devicesAPI.Runtime{ParseID: common.ParseIDParam, Permission: common.RequiresPermission, Success: common.Respond, Failure: renderIoTDataFailure, ConflictOnField: renderIoTConflictOnField, ConstraintViolation: common.IsConstraintViolation}
 }
 
-func sessionRuntime() sessionsAPI.Runtime {
+func iotSessionRuntime() sessionsAPI.Runtime {
 	return sessionsAPI.Runtime{ParseID: common.ParseIDParam,
-		Authenticated: func(ctx context.Context) bool { return device.DeviceFromCtx(ctx) != nil },
+		Authenticated: func(ctx context.Context) bool { _, _, _, _, ok := deviceauth.ContextDevice(ctx); return ok },
 		Success:       common.Respond,
-		Failure:       renderDataFailure,
-		Conflict:      renderSessionConflict,
+		Failure:       renderIoTDataFailure,
+		Conflict:      renderIoTSessionConflict,
 		MarkRollback:  tenant.MarkRollback,
 	}
 }
 
-// renderSessionConflict answers a session conflict in the shared error
+// renderIoTSessionConflict answers a session conflict in the shared error
 // envelope; the conflict travels as details.
-func renderSessionConflict(w http.ResponseWriter, r *http.Request, message string, info devicescan.ConflictInfoResponse) {
+func renderIoTSessionConflict(w http.ResponseWriter, r *http.Request, message string, info devicescan.ConflictInfoResponse) {
 	details := map[string]any{
 		"has_conflict":     info.HasConflict,
 		"conflict_message": info.ConflictMessage,
@@ -79,33 +76,30 @@ func renderSessionConflict(w http.ResponseWriter, r *http.Request, message strin
 	common.RenderError(w, r, common.ErrorConflictWithDetails(errors.New(message), common.CodeGeneralBusinessRejection, details))
 }
 
-func dataRuntime() dataAPI.Runtime {
+func iotDataRuntime() dataAPI.Runtime {
 	return dataAPI.Runtime{ParseID: common.ParseIDParam,
 		Device: func(ctx context.Context) (int64, string, bool) {
-			principal := device.DeviceFromCtx(ctx)
-			if principal == nil {
-				return 0, "", false
-			}
-			return principal.ID, principal.DeviceID, true
+			id, deviceID, _, _, ok := deviceauth.ContextDevice(ctx)
+			return id, deviceID, ok
 		},
 		Success: common.Respond,
-		Failure: renderDataFailure,
+		Failure: renderIoTDataFailure,
 	}
 }
 
-func renderConflictOnField(w http.ResponseWriter, r *http.Request, err error, code, field string) {
+func renderIoTConflictOnField(w http.ResponseWriter, r *http.Request, err error, code, field string) {
 	common.RenderError(w, r, common.ErrorConflictOnField(err, code, field))
 }
 
-func renderDataFailure(w http.ResponseWriter, r *http.Request, status int, err error, clientMessage string) {
+func renderIoTDataFailure(w http.ResponseWriter, r *http.Request, status int, err error, clientMessage string) {
 	// A classified kiosk refusal with a registered code keeps it (#3939).
 	if failure, ok := devicescan.IsFailure(err); ok && failure.Code != "" {
-		renderKioskFailure(w, r, status, failure.Code, err, nil, clientMessage)
+		renderIoTKioskFailure(w, r, status, failure.Code, err, nil, clientMessage)
 		return
 	}
 	switch status {
 	case http.StatusUnauthorized:
-		common.RenderError(w, r, device.ErrDeviceUnauthorized(err))
+		common.RenderError(w, r, deviceauth.Unauthorized(err))
 	case http.StatusBadRequest:
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case http.StatusNotFound:
@@ -123,25 +117,25 @@ func renderDataFailure(w http.ResponseWriter, r *http.Request, status int, err e
 	}
 }
 
-// staffClockRuntime binds the kiosk staff clock resource to the shared
+// iotStaffClockRuntime binds the kiosk staff clock resource to the shared
 // response envelope. The resource classifies; this renders (#2690).
-func staffClockRuntime() staffclockAPI.Runtime {
+func iotStaffClockRuntime() staffclockAPI.Runtime {
 	return staffclockAPI.Runtime{
 		Success: common.Respond,
-		Failure: renderKioskFailure,
+		Failure: renderIoTKioskFailure,
 	}
 }
 
-// checkinRuntime binds the kiosk scan and attendance resources to the same
+// iotCheckinRuntime binds the kiosk scan and attendance resources to the same
 // envelope (#2698).
-func checkinRuntime() checkinAPI.Runtime {
+func iotCheckinRuntime() checkinAPI.Runtime {
 	return checkinAPI.Runtime{
 		Success: common.Respond,
-		Failure: renderKioskFailure,
+		Failure: renderIoTKioskFailure,
 	}
 }
 
-func renderKioskFailure(w http.ResponseWriter, r *http.Request, status int, code string, err error, details map[string]string, clientMessage string) {
+func renderIoTKioskFailure(w http.ResponseWriter, r *http.Request, status int, code string, err error, details map[string]string, clientMessage string) {
 	switch status {
 	case http.StatusBadRequest:
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, code))
