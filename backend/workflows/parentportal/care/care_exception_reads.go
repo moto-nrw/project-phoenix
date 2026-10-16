@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"sort"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+)
+
+const (
+	exceptionSourceGuardian = "guardian"
+	exceptionSourceStaff    = "staff"
 )
 
 // loadCareException merges the pickup and arrival exceptions for one date into
@@ -24,13 +28,13 @@ func (s *Service) loadCareException(ctx context.Context, studentID int64, date c
 	if pickup == nil && arrival == nil {
 		return nil, nil
 	}
-	out := &CareException{Date: date, Source: scheduleModels.ExceptionSourceGuardian}
+	out := &CareException{Date: date, Source: exceptionSourceGuardian}
 	// Any staff-authored leg makes the day staff-owned for display purposes —
 	// the portal then shows it read-only rather than as a parent change.
 	pickupStaffOwned := applyDatePickupLeg(out, pickup)
 	arrivalStaffOwned := applyDateArrivalLeg(out, arrival)
 	if pickupStaffOwned || arrivalStaffOwned {
-		out.Source = scheduleModels.ExceptionSourceStaff
+		out.Source = exceptionSourceStaff
 	}
 	return out, nil
 }
@@ -43,11 +47,11 @@ func applyDatePickupLeg(out *CareException, pickup *careplan.PickupException) bo
 	}
 	out.PickupTime = pickup.PickupTime
 	out.PickupSource = pickup.Source
-	if pickup.Source == scheduleModels.ExceptionSourceGuardian {
+	if pickup.Source == exceptionSourceGuardian {
 		out.Reason = pickup.Reason
 	}
 	out.UpdatedAt = pickup.UpdatedAt
-	return pickup.Source == scheduleModels.ExceptionSourceStaff
+	return pickup.Source == exceptionSourceStaff
 }
 
 // applyDateArrivalLeg copies the arrival leg of one date into out and reports
@@ -57,13 +61,13 @@ func applyDateArrivalLeg(out *CareException, arrival *careplan.ArrivalException)
 		return false
 	}
 	out.ArrivalTime = arrival.ExpectedArrival
-	if out.Reason == nil && arrival.Source == scheduleModels.ExceptionSourceGuardian {
+	if out.Reason == nil && arrival.Source == exceptionSourceGuardian {
 		out.Reason = arrival.Reason
 	}
 	if arrival.UpdatedAt.After(out.UpdatedAt) {
 		out.UpdatedAt = arrival.UpdatedAt
 	}
-	return arrival.Source == scheduleModels.ExceptionSourceStaff
+	return arrival.Source == exceptionSourceStaff
 }
 
 // ListCareExceptions returns the merged pickup/arrival exceptions for the child
@@ -110,7 +114,7 @@ func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan
 		if ce, ok := byDate[date]; ok {
 			return ce
 		}
-		ce := &CareException{Date: date, Source: scheduleModels.ExceptionSourceGuardian}
+		ce := &CareException{Date: date, Source: exceptionSourceGuardian}
 		byDate[date] = ce
 		order = append(order, date)
 		return ce
@@ -134,7 +138,7 @@ func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan
 func applyPickupException(ce *CareException, p careplan.PickupException, accountID int64) {
 	ce.PickupTime = p.PickupTime
 	ce.PickupSource = p.Source
-	if p.Source == scheduleModels.ExceptionSourceGuardian && guardianAuthoredBy(p.CreatedByGuardian, accountID) {
+	if p.Source == exceptionSourceGuardian && guardianAuthoredBy(p.CreatedByGuardian, accountID) {
 		ce.Reason = p.Reason
 	}
 	// A pickup row with no time is an absence marker, not "no override". Carry
@@ -144,8 +148,8 @@ func applyPickupException(ce *CareException, p careplan.PickupException, account
 	if p.UpdatedAt.After(ce.UpdatedAt) {
 		ce.UpdatedAt = p.UpdatedAt
 	}
-	if p.Source == scheduleModels.ExceptionSourceStaff || p.HasManualPartialAbsence() {
-		ce.Source = scheduleModels.ExceptionSourceStaff
+	if p.Source == exceptionSourceStaff || p.HasManualPartialAbsence() {
+		ce.Source = exceptionSourceStaff
 	}
 }
 
@@ -153,7 +157,7 @@ func applyPickupException(ce *CareException, p careplan.PickupException, account
 // parent-facing projection.
 func applyArrivalException(ce *CareException, a careplan.ArrivalException, accountID int64) {
 	ce.ArrivalTime = a.ExpectedArrival
-	if ce.Reason == nil && a.Source == scheduleModels.ExceptionSourceGuardian && guardianAuthoredBy(a.CreatedByGuardian, accountID) {
+	if ce.Reason == nil && a.Source == exceptionSourceGuardian && guardianAuthoredBy(a.CreatedByGuardian, accountID) {
 		ce.Reason = a.Reason
 	}
 	// An arrival row with no expected time is a "not coming today" absence
@@ -165,8 +169,8 @@ func applyArrivalException(ce *CareException, a careplan.ArrivalException, accou
 	if a.UpdatedAt.After(ce.UpdatedAt) {
 		ce.UpdatedAt = a.UpdatedAt
 	}
-	if a.Source == scheduleModels.ExceptionSourceStaff {
-		ce.Source = scheduleModels.ExceptionSourceStaff
+	if a.Source == exceptionSourceStaff {
+		ce.Source = exceptionSourceStaff
 	}
 }
 
@@ -185,7 +189,7 @@ func mergeDepartureExceptions(days []*CareException, departures []careplan.Depar
 		date := calendar.Date(departure.ExceptionDate)
 		day, ok := byDate[date]
 		if !ok {
-			day = &CareException{Date: date, Source: scheduleModels.ExceptionSourceStaff}
+			day = &CareException{Date: date, Source: exceptionSourceStaff}
 			byDate[date] = day
 			days = append(days, day)
 		}
