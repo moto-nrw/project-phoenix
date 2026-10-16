@@ -1,4 +1,4 @@
-package inbound
+package api
 
 import (
 	"context"
@@ -13,9 +13,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewSubstitutionsResource wires /api/substitutions over the substitution
+// newSubstitutionsResource wires /api/substitutions over the substitution
 // operations capability.
-func NewSubstitutionsResource(substitutions workforce.Substitutions) *substitutionsHTTP.Resource {
+func newSubstitutionsResource(substitutions workforce.Substitutions) *substitutionsHTTP.Resource {
 	if substitutions == nil {
 		panic("substitutions HTTP composition: all dependencies are required")
 	}

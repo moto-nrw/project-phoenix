@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	staffshifts "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -22,63 +21,6 @@ import (
 
 // Error message constants
 const errInvalidSessionID = "invalid session ID"
-
-// Resource defines the time-tracking API resource: the staff member's own
-// stamps, history, absences and planning views under /api/time-tracking.
-type Resource struct {
-	WorkSessionService  workforce.WorkSessions
-	StaffAbsenceService workforce.StaffAbsences
-	PersonService       workforce.StaffDirectory
-	StaffShiftService   workforce.OwnShiftQuery
-	// StaffAssignmentService backs GET /assignments — the staff member's own
-	// Betreuungsplan blocks (Ort/Aufgabe) for a day (#1844).
-	StaffAssignmentService workforce.StaffAssignmentQuery
-	// WorkTimeMonthService backs GET /month-summary — the Monatskarte (#1842).
-	WorkTimeMonthService workforce.WorkTimeMonths
-	// Calendar backs GET /holidays and GET /closing-days — the tenant's public
-	// holidays (#1418 3a) and closure periods (#1418 3b) for calendar marking.
-	Calendar workforce.PlanningCalendar
-	// accountStartDate resolves the tenant's time-account start day ("" when
-	// unset) for GET /config; nil means the setting is not wired.
-	accountStartDate func(context.Context) (string, error)
-	identity         IdentityFunc
-	withinTenant     TenantTransaction
-}
-
-// Dependencies are the collaborators of the time-tracking resource.
-type Dependencies struct {
-	WorkSessions  workforce.WorkSessions
-	StaffAbsences workforce.StaffAbsences
-	Staff         workforce.StaffDirectory
-	WorkTimeMonth workforce.WorkTimeMonths
-	StaffShifts   workforce.OwnShiftQuery
-	Assignments   workforce.StaffAssignmentQuery
-	Calendar      workforce.PlanningCalendar
-	// AccountStartDate resolves the tenant's time-account start day; nil
-	// renders an empty start date.
-	AccountStartDate func(context.Context) (string, error)
-	Identity         IdentityFunc
-	WithinTenant     TenantTransaction
-}
-
-// NewResource creates a new time-tracking resource.
-func NewResource(deps Dependencies) *Resource {
-	if deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Staff == nil || deps.Identity == nil || deps.WithinTenant == nil {
-		panic("time tracking resource: work sessions, absences, staff directory, identity and tenant runtime are required")
-	}
-	return &Resource{
-		WorkSessionService:     deps.WorkSessions,
-		StaffAbsenceService:    deps.StaffAbsences,
-		PersonService:          deps.Staff,
-		StaffShiftService:      deps.StaffShifts,
-		StaffAssignmentService: deps.Assignments,
-		WorkTimeMonthService:   deps.WorkTimeMonth,
-		Calendar:               deps.Calendar,
-		accountStartDate:       deps.AccountStartDate,
-		identity:               deps.Identity,
-		withinTenant:           deps.WithinTenant,
-	}
-}
 
 // Router returns a configured router for time-tracking endpoints
 func (rs *Resource) Router() chi.Router {
@@ -822,7 +764,7 @@ func (rs *Resource) getOwnShifts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	common.Respond(w, r, http.StatusOK, staffshifts.ToShiftResponses(shifts), "Shifts retrieved successfully")
+	common.Respond(w, r, http.StatusOK, rs.shiftResponses(shifts), "Shifts retrieved successfully")
 }
 
 // renderShiftRangeError keeps the range reads' classification: a malformed or

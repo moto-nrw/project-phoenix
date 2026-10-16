@@ -162,7 +162,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 57296
+const moduleComposeBudgetTotal = 57283
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -231,7 +231,6 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableprojection/compose":             11,
 	"modules/transactionruntime/compose":              173,
 	"modules/workforce/compose":                       7021,
-	"modules/workforce/compose/httpadapter":           13,
 	"modules/workforce/compose/repositoryadapter":     274,
 	"workflows/gradetransition/compose":               180,
 	"workflows/openroommove/compose":                  81,
