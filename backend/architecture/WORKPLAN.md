@@ -35,6 +35,11 @@ Inbound-Owner 34 → 33, Regeln 952 → 951, Keys und Budgets unverändert. Der 
 Checker-Übergang für bestehende Paketpfade entfällt mit seinen Tests im letzten
 #4078-PR (`tool`-Kind), sobald kein Inbound-Owner mehr bleibt.
 
+#4078: Auch `modules/feedback/http` gehört seinem echten Owner `feedback`.
+`inbound-feedback` und seine drei Regeln entfallen; zwei gleich enge Eigen-HTTP-Regeln
+ersetzen die bisherigen Capability- und Berechtigungsverträge. Die stehende Root-Regel
+trägt den Mount. Inbound-Owner 33 → 32, Regeln 951 → 950; Keys und Budgets unverändert.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
