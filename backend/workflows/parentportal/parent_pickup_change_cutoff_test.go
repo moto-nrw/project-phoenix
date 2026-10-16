@@ -13,7 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -57,7 +56,7 @@ func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	return cutoffServiceDeps{db: db, repos: repos, base: base}
 }
 
-func (d cutoffServiceDeps) service(t *testing.T, settings configService.SettingsService, now func() time.Time) *parentService.Portal {
+func (d cutoffServiceDeps) service(t *testing.T, settings parentService.SettingsService, now func() time.Time) *parentService.Portal {
 	t.Helper()
 	cfg := d.base
 	cfg.CareExceptions = d.repos.CarePlan()

@@ -1,10 +1,13 @@
-package config
+package care
 
 import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
-// ReasonRequiredFor reports whether the given side of a parent request must
+// RequestReasonPolicy is the school policy for submitting families and deciding staff.
+type RequestReasonPolicy string
+
+// RequiresReason reports whether the given side of a parent request must
 // state a reason under the school's policy. staff=true asks for the deciding
 // staff member, staff=false for the submitting family.
 //
@@ -15,8 +18,8 @@ import (
 //
 // Rejections are NOT covered here — a refused request always carries a reason,
 // whatever the policy says.
-func ReasonRequiredFor(policy string, staff bool) bool {
-	switch policy {
+func (policy RequestReasonPolicy) RequiresReason(staff bool) bool {
+	switch string(policy) {
 	case configModels.ReasonPolicyNobody:
 		return false
 	case configModels.ReasonPolicyGuardians:

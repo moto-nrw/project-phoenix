@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -26,7 +25,7 @@ import (
 // the excused-approval gate (#1845) configurable, so the approval branch can be
 // exercised both ways.
 type excusedApprovalSettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	// requiresApproval keeps older error-path fixtures focused on the original
 	// excused-only gate; new tests set the two explicit switches below.
 	requiresApproval        bool
