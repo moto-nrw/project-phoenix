@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,8 +22,8 @@ func (s *InstanceLifecycleService) matchRegeneratedInstances(
 		return matches, nil
 	}
 	groupIDs, dates := regeneratedMatchKeys(snapshots, targetActivityGroupID)
-	options := modelBase.NewQueryOptions()
-	options.Filter = modelBase.NewFilter().
+	options := domain.NewListOptions()
+	options.Filter = domain.NewListFilter().
 		In("activity_group_id", anyArgs(groupIDs)...).
 		In("date", anyArgs(dates)...).
 		Equal("status", scheduleModel.InstanceStatusPlanned).
