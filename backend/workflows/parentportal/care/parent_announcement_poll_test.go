@@ -11,14 +11,14 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // seedPublishedPoll creates a school-wide poll with the given options, publishes
@@ -153,7 +153,7 @@ func TestAnnouncementPoll_CareEndedChildCannotRespond(t *testing.T) {
 	endCareFor(t, db, chain.StudentID)
 	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, chain.StudentID,
 		[]int64{poll.Options[0].ID}, *poll.PublishedAt)
-	require.ErrorIs(t, err, care.ErrChildCareEnded)
+	require.ErrorIs(t, err, parentportal.ErrChildCareEnded)
 }
 
 // A portal-visible child without a guardian who may answer remains visible to
@@ -249,7 +249,7 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 	require.NoError(t, err)
 
 	respondErr := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
-	assert.ErrorIs(t, respondErr, messaging.ErrPollClosed)
+	assert.ErrorIs(t, respondErr, parentportal.ErrPollClosed)
 }
 
 // A guardian may not answer for a child that is not theirs.
@@ -265,7 +265,7 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 
 	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, other.ID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrChildNotAnswerable)
+	assert.ErrorIs(t, err, parentportal.ErrChildNotAnswerable)
 }
 
 // A plain Mitteilung accepts no answers at all.
@@ -280,7 +280,7 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
 
 	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, ann.ID, chain.StudentID, nil, *ann.PublishedAt)
-	assert.ErrorIs(t, err, messaging.ErrAnnouncementNotAPoll)
+	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotAPoll)
 }
 
 // The unread badge keeps counting an open poll the guardian has already read but

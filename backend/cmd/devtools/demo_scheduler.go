@@ -21,6 +21,9 @@ const (
 	// (#3464). A visitor enters by redeeming the link; coming back later
 	// redeems it again and brings the simulation back.
 	demoInUseWindow = 30 * time.Minute
+	// demoSchoolSeedLeasePrefix is also used by the visitor-erasure database
+	// function. It holds one per-school lease for every write of a seed run.
+	demoSchoolSeedLeasePrefix = "demo school seed:"
 )
 
 // demoScheduler gives every demo access its own demo school (#3463): it
@@ -120,6 +123,20 @@ func (s *demoScheduler) startOrders(ctx context.Context) error {
 // on the same worker. A failed deferred seed is rebuilt cleanly instead of
 // replaying partial API writes in the open school.
 func (s *demoScheduler) prepare(ctx context.Context, order DemoSchoolOrder) {
+	if err := s.schools.WithDemoLease(ctx, demoSchoolSeedLeasePrefix+order.Slug, func(ctx context.Context) error {
+		s.prepareLeased(ctx, order)
+		return nil
+	}); err != nil && ctx.Err() == nil {
+		slog.Warn("demo school seed lease failed",
+			"school", order.Slug,
+			"error", err,
+		)
+	}
+}
+
+// prepareLeased seeds an order while its visitor-erasure lease is held. That
+// includes optional history and every success or failure state write.
+func (s *demoScheduler) prepareLeased(ctx context.Context, order DemoSchoolOrder) {
 	started := time.Now()
 	deferred, err := s.seedAndTick(ctx, order)
 	if ctx.Err() != nil {
@@ -267,6 +284,12 @@ func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) 
 	}
 	school, err := loadDemoSchool(ctx, s.schools, order.Slug, s.baseURL)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.schools.UpdateDemoSchool(ctx, order.Slug, DemoSchoolRecord{
+		SchoolID: school.schoolID, SeedJSON: school.seedJSON,
+		VisitorAccountID: school.visitorID, VisitorParentAccountID: school.visitorParentID,
+	}); err != nil {
 		return nil, err
 	}
 	if err := school.run(ctx, true, true, func() {}); err != nil {

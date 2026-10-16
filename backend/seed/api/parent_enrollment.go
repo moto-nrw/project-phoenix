@@ -207,6 +207,16 @@ func (s parentEnrollmentSeedStep) seedParentAccounts(ctx context.Context, rt *Ru
 		}
 		parents = append(parents, parent)
 		parentAuths[parent.Email] = auth
+		if idx == visitorGuardianIndex && s.seeder.options.SaveVisitor != nil {
+			staff := DemoStaff[visitorStaffIndex]
+			visitorAccountID := rt.FixedSeeder.accountIDs[staff.FirstName+" "+staff.LastName]
+			if visitorAccountID == 0 {
+				return nil, nil, fmt.Errorf("visitor caregiver account was not created")
+			}
+			if err := s.seeder.options.SaveVisitor(ctx, visitorAccountID, accountID); err != nil {
+				return nil, nil, fmt.Errorf("save visitor parent account: %w", err)
+			}
+		}
 	}
 	return parents, parentAuths, nil
 }
