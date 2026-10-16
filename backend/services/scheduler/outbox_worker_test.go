@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
@@ -39,7 +41,7 @@ func TestRunOutboxOnceReportsWorkerUnitOfWorkEvidence(t *testing.T) {
 	runner := &unitOfWorkOutboxRunner{backlog: 7}
 	var results []string
 	var logs bytes.Buffer
-	scheduler := newScheduler(WorkerDependencies{
+	scheduler := newScheduler(ports.WorkerDependencies{
 		Logger:        slog.New(slog.NewTextHandler(&logs, nil)),
 		TenantRuntime: unitTenantRuntime(),
 		OutboxWorker:  runner,
@@ -64,11 +66,11 @@ func TestRunOutboxOnceReportsFailure(t *testing.T) {
 
 	runner := &unitOfWorkOutboxRunner{err: errors.New("claim failed")}
 	var operation, outcome string
-	scheduler := newScheduler(WorkerDependencies{
+	scheduler := newScheduler(ports.WorkerDependencies{
 		Logger:        slog.Default(),
 		TenantRuntime: unitTenantRuntime(),
 		OutboxWorker:  runner,
-		Tracer: WorkerTracer{Failure: func(_ context.Context, gotOperation, gotOutcome string, _ error) {
+		Tracer: ports.WorkerTracer{Failure: func(_ context.Context, gotOperation, gotOutcome string, _ error) {
 			operation, outcome = gotOperation, gotOutcome
 		}},
 	})
@@ -83,7 +85,7 @@ func TestRunOutboxOncePassesRetryLimitOnEachTick(t *testing.T) {
 	t.Parallel()
 	runner := &unitOfWorkOutboxRunner{}
 	settings := &fakeSettingsResolver{intValues: map[string]int{settingEnrollmentOutboxMaxAttempts: 3}}
-	scheduler := newScheduler(WorkerDependencies{
+	scheduler := newScheduler(ports.WorkerDependencies{
 		Logger: slog.Default(), TenantRuntime: unitTenantRuntime(), OutboxWorker: runner, Settings: settings,
 	})
 	task := &ScheduledTask{}
@@ -99,11 +101,11 @@ func TestRunOutboxOncePropagatesJobCorrelationToFailure(t *testing.T) {
 
 	runner := &unitOfWorkOutboxRunner{err: errors.New("claim failed")}
 	correlated := false
-	scheduler := newScheduler(WorkerDependencies{
+	scheduler := newScheduler(ports.WorkerDependencies{
 		Logger:        slog.Default(),
 		TenantRuntime: unitTenantRuntime(),
 		OutboxWorker:  runner,
-		Tracer: WorkerTracer{
+		Tracer: ports.WorkerTracer{
 			StartJob: func(ctx context.Context, _ string) (context.Context, error) {
 				return context.WithValue(ctx, workerCorrelationKey{}, true), nil
 			},

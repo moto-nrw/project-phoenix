@@ -14,6 +14,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -110,12 +112,12 @@ func TestCheckAndRunBreakAutoEnd_ZeroCount(t *testing.T) {
 type fakeInstanceRepo struct {
 	mu        sync.Mutex
 	calls     int
-	instances []DayInstance
+	instances []ports.DayInstance
 	err       error
 }
 
 // read serves the overdue tick's day-instance port.
-func (f *fakeInstanceRepo) read(_ context.Context, _ calendar.Date) ([]DayInstance, error) {
+func (f *fakeInstanceRepo) read(_ context.Context, _ calendar.Date) ([]ports.DayInstance, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -181,8 +183,8 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 
 	today := calendar.NewDate(2026, 4, 20)
 	now := time.Date(today.Year(), today.Month(), today.Day(), 10, 30, 0, 0, time.Local)
-	newInstance := func(id, roomID int64) DayInstance {
-		return DayInstance{
+	newInstance := func(id, roomID int64) ports.DayInstance {
+		return ports.DayInstance{
 			ID:        id,
 			Date:      today,
 			StartTime: time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -194,7 +196,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 	// rooms by ID and treats both alike.
 	schulhofInstance := newInstance(151, 251)
 	normalInstance := newInstance(152, 252)
-	repo := &fakeInstanceRepo{instances: []DayInstance{schulhofInstance, normalInstance}}
+	repo := &fakeInstanceRepo{instances: []ports.DayInstance{schulhofInstance, normalInstance}}
 	roomRepo := &fakeOverdueRoomRepo{roomIDs: []int64{251, 252}}
 	spy := &recordingOverdue{}
 	s := unitScheduler(&Scheduler{
@@ -215,7 +217,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 	t.Parallel()
 
 	today := calendar.NewDate(2026, 4, 20)
-	inst := DayInstance{
+	inst := ports.DayInstance{
 		ID:        153,
 		Date:      today,
 		StartTime: time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
@@ -235,7 +237,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 			spy := &recordingOverdue{}
 			s := unitScheduler(&Scheduler{
 				logger:             slog.Default(),
-				instanceRepo:       (&fakeInstanceRepo{instances: []DayInstance{inst}}).read,
+				instanceRepo:       (&fakeInstanceRepo{instances: []ports.DayInstance{inst}}).read,
 				instanceRoomRepo:   tt.roomRepo.existing,
 				overdueBroadcaster: spy})
 
@@ -359,14 +361,14 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 type fakeAutoStartService struct {
-	run    func(context.Context) (*AutoStartRun, error)
+	run    func(context.Context) (*ports.AutoStartRun, error)
 	mu     sync.Mutex
 	calls  int
 	err    error
-	result *AutoStartRun
+	result *ports.AutoStartRun
 }
 
-func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*AutoStartRun, error) {
+func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*ports.AutoStartRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -376,13 +378,13 @@ func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*
 	if f.result != nil {
 		return f.result, f.err
 	}
-	return &AutoStartRun{}, f.err
+	return &ports.AutoStartRun{}, f.err
 }
 
 type autoStartFailureObservations struct {
 	returned []error
 	called   []int64
-	batches  []TenantBatchEvidence
+	batches  []ports.TenantBatchEvidence
 	reported error
 	runs     []string
 }
@@ -391,7 +393,7 @@ func TestAutoStartTenantFailureOutcomes(t *testing.T) {
 	t.Parallel()
 	for _, cancelled := range []bool{false, true} {
 		t.Run(fmt.Sprintf("cancelled=%t", cancelled), func(t *testing.T) {
-			const jobID JobID = "timetable-auto-start"
+			const jobID ports.JobID = "timetable-auto-start"
 			tenantIDs := []int64{81, 82}
 			commandErr := errors.New("auto-start command failed")
 			var cancel context.CancelFunc
@@ -400,13 +402,13 @@ func TestAutoStartTenantFailureOutcomes(t *testing.T) {
 					cancel()
 				}
 			})
-			s.workerTracer.Batch = func(event TenantBatchEvidence) { observed.batches = append(observed.batches, event) }
+			s.workerTracer.Batch = func(event ports.TenantBatchEvidence) { observed.batches = append(observed.batches, event) }
 			s.workerTracer.Failure = func(_ context.Context, name, outcome string, err error) {
 				assert.Equal(t, string(jobID), name)
 				assert.Equal(t, "command_failure", outcome)
 				observed.reported = err
 			}
-			s.workerTracer.Run = func(id JobID, outcome string, _ time.Duration) {
+			s.workerTracer.Run = func(id ports.JobID, outcome string, _ time.Duration) {
 				assert.Equal(t, jobID, id)
 				observed.runs = append(observed.runs, outcome)
 			}
@@ -435,23 +437,23 @@ func autoStartFailureScheduler(t *testing.T, tenantIDs []int64, commandErr error
 	s.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 		return &schedulerMinuteSnapshot{tenantIDs: tenantIDs}, errSchedulerSettingsBatchUnsupported
 	}
-	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*AutoStartRun, error) {
+	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*ports.AutoStartRun, error) {
 		id := testpkg.TenantIDFromContext(ctx)
 		observed.called = append(observed.called, id)
 		if id == tenantIDs[0] {
 			onFailure()
 			return nil, commandErr
 		}
-		_, stored := s.tenantBatchCursors.Load(JobID("timetable-auto-start"))
+		_, stored := s.tenantBatchCursors.Load(ports.JobID("timetable-auto-start"))
 		assert.False(t, stored, "failed tenant must not advance the successful cursor")
-		return &AutoStartRun{}, nil
+		return &ports.AutoStartRun{}, nil
 	}}
 	return s, observed
 }
 
 func assertAutoStartFailureOutcomes(t *testing.T, s *Scheduler, observed *autoStartFailureObservations, tenantIDs []int64, commandErr error, cancelled bool) {
 	t.Helper()
-	const jobID JobID = "timetable-auto-start"
+	const jobID ports.JobID = "timetable-auto-start"
 	require.NotEmpty(t, observed.returned)
 	assert.Same(t, commandErr, observed.returned[0])
 	assert.ErrorIs(t, observed.reported, commandErr)
@@ -532,7 +534,7 @@ func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
 func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeAutoStartService{result: &AutoStartRun{Checked: 2, Started: 1}}
+	svc := &fakeAutoStartService{result: &ports.AutoStartRun{Checked: 2, Started: 1}}
 	s := unitScheduler(&Scheduler{
 		autoStart: svc,
 		logger:    slog.Default(),
@@ -556,10 +558,10 @@ type fakeAutoEndService struct {
 	calls  int
 	grace  time.Duration
 	err    error
-	result *AutoEndRun
+	result *ports.AutoEndRun
 }
 
-func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*AutoEndRun, error) {
+func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*ports.AutoEndRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -567,7 +569,7 @@ func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace 
 	if f.result != nil {
 		return f.result, f.err
 	}
-	return &AutoEndRun{}, f.err
+	return &ports.AutoEndRun{}, f.err
 }
 
 func TestScheduleAutoEndTask_MissingService(t *testing.T) {
@@ -614,7 +616,7 @@ func TestCheckAndRunAutoEnd_DefaultDisabled(t *testing.T) {
 func TestCheckAndRunAutoEnd_PassesConfiguredGrace(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeAutoEndService{result: &AutoEndRun{Checked: 1, Completed: 1}}
+	svc := &fakeAutoEndService{result: &ports.AutoEndRun{Checked: 1, Completed: 1}}
 	s := unitScheduler(&Scheduler{
 		autoEnd: svc,
 		logger:  slog.Default(),
@@ -678,7 +680,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 
 	today := calendar.NewDate(2026, 4, 20)
 	startTime := time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC) // 10:00 local
-	inst := DayInstance{
+	inst := ports.DayInstance{
 		ID:        101,
 		Date:      today,
 		StartTime: startTime,
@@ -686,7 +688,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 		Planned:   true,
 	}
 
-	repo := &fakeInstanceRepo{instances: []DayInstance{inst}}
+	repo := &fakeInstanceRepo{instances: []ports.DayInstance{inst}}
 	spy := &recordingOverdue{}
 	spy.err = errors.New("forced failure")
 	s := unitScheduler(&Scheduler{

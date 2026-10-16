@@ -15,6 +15,8 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,11 +25,11 @@ import (
 type fakeTimetableCleanup struct {
 	mu           sync.Mutex
 	cleanupCalls int
-	result       *TimetableCleanupRun
+	result       *ports.TimetableCleanupRun
 	err          error
 }
 
-func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*TimetableCleanupRun, error) {
+func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*ports.TimetableCleanupRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cleanupCalls++
@@ -37,7 +39,7 @@ func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*
 	if f.result != nil {
 		return f.result, nil
 	}
-	return &TimetableCleanupRun{}, nil
+	return &ports.TimetableCleanupRun{}, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -250,7 +252,7 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{
-		result: &TimetableCleanupRun{
+		result: &ports.TimetableCleanupRun{
 			InstancesDeleted:  5,
 			ExceptionsDeleted: 2,
 			StudentsAffected:  3,
@@ -325,7 +327,7 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{
-		result: &TimetableCleanupRun{
+		result: &ports.TimetableCleanupRun{
 			InstancesDeleted:  0,
 			ExceptionsDeleted: 0,
 		},

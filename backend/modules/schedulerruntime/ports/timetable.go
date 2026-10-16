@@ -1,4 +1,4 @@
-package scheduler
+package ports
 
 import (
 	"context"
@@ -6,9 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// The Worker's ports onto Timetable and Reminder Delivery. They name only
-// what the jobs need; the root binds them to the owners (ADR 0058 point 2).
 
 // MaterializationRun reports one materialization of a school's timetable
 // window.

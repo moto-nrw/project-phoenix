@@ -11,43 +11,10 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// AuthCleanup exposes the identity maintenance the composition root binds:
-// the expired session sweep of the retained auth service plus the spent
-// reset links and stale rate-limit windows Identity & Access owns (#3332).
-type AuthCleanup interface {
-	CleanupExpiredTokens(ctx context.Context) (int, error)
-	DeleteSpentPasswordResetTokens(ctx context.Context) (int, error)
-	DeleteStalePasswordResetWindows(ctx context.Context) (int, error)
-}
-
-// InvitationCleaner exposes the school invitation maintenance Identity &
-// Access owns (#2722): the links whose expiry has passed.
-type InvitationCleaner interface {
-	DeleteExpiredSchoolInvitations(ctx context.Context) (int, error)
-}
-
-// StaffMessageCleanupResult reports the records removed by one tenant's
-// staff-message retention sweep.
-type StaffMessageCleanupResult struct {
-	MessagesDeleted int
-	ThreadsDeleted  int
-	RetentionDays   int
-}
-
-// StaffMessageCleanup is supplied by the composition root. The scheduler
-// owns when cleanup runs but remains independent of the Communication module.
-type StaffMessageCleanup func(context.Context) (StaffMessageCleanupResult, error)
-
-// RejectedEnrollmentCleaner removes the rejected enrollments of the tenant in
-// context after their retention window and reports how many requests, late
-// invites and outbox rows it removed. The composition root supplies it; the
-// scheduler owns when it runs but stays independent of Enrollment.
-type RejectedEnrollmentCleaner interface {
-	CleanupRejectedEnrollments(ctx context.Context) (requests int, lateInvites, outboxRows int64, err error)
-}
 
 // CleanupJob represents a single cleanup task that can be executed.
 type CleanupJob struct {
@@ -55,143 +22,42 @@ type CleanupJob struct {
 	Run         func(context.Context) (int, error)
 }
 
-// WorkerTracer is injected by the Worker composition root. The scheduler owns
-// job names and outcomes; the adapter owns correlation, logs, and metrics.
-type WorkerTracer struct {
-	StartJob func(context.Context, string) (context.Context, error)
-	Logger   func(context.Context) *slog.Logger
-	Failure  func(context.Context, string, string, error)
-	Run      func(JobID, string, time.Duration)
-	Batch    func(TenantBatchEvidence)
-	Backlog  func(JobID, int)
-}
-
-// TenantBatchEvidence is the bounded, low-cardinality runtime record emitted
-// after each tenant batch.
-type TenantBatchEvidence struct {
-	JobID     JobID
-	Duration  time.Duration
-	Processed int
-	Failed    int
-	Retries   int
-	Backlog   int
-	PoolWait  time.Duration
-}
-
 var errWorkerTraceStart = errors.New("start worker trace")
-
-// WorkSessionCleaner exposes the cleanup routine for stale work sessions.
-type WorkSessionCleaner interface {
-	CleanupOpenSessions(ctx context.Context) (int, error)
-}
-
-// BreakAutoEnder exposes the method to auto-end expired breaks.
-type BreakAutoEnder interface {
-	AutoEndExpiredBreaks(ctx context.Context) (int, error)
-}
-
-// AutoCheckouter exposes the method to close open work sessions at their
-// planned shift end (#1798).
-type AutoCheckouter interface {
-	AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error)
-}
-
-// EmailChangeTokenCleaner exposes the cleanup routine for operator e-mail
-// change links: expired links are spent so their operator can request a new
-// one, then the rows nobody counts any more are deleted.
-type EmailChangeTokenCleaner interface {
-	CleanupOperatorEmailChanges(ctx context.Context) (int, error)
-}
-
-// OperatorInvitationCleaner exposes the Identity & Access token maintenance
-// of the hourly cleanup: the operator invitation links and the fixed
-// retention of the short-lived sign-in data (#3954).
-type OperatorInvitationCleaner interface {
-	DeleteExpiredOperatorInvitations(ctx context.Context) (int, error)
-	SignInDataCleaner
-}
-
-// SignInDataCleaner exposes the fixed retention of the short-lived sign-in
-// data Identity & Access owns (#3954): invitations for parents, e-mail codes
-// and passkey ceremonies of accounts and operators, and expired operator
-// sessions.
-type SignInDataCleaner interface {
-	DeleteExpiredGuardianInvitations(ctx context.Context) (int, error)
-	DeleteExpiredMFAEmailChallenges(ctx context.Context) (int, error)
-	DeleteExpiredPasskeySessions(ctx context.Context) (int, error)
-	DeleteExpiredOperatorSessions(ctx context.Context, now time.Time) (int, error)
-}
-
-type CalendarFeedCleaner interface {
-	CleanupExpiredFeedTombstones(ctx context.Context) (int, error)
-}
-
-// FeedbackCleaner exposes the cleanup routine for old feedback entries.
-type FeedbackCleaner interface {
-	DeleteExpired(ctx context.Context) (int, error)
-}
-
-// StaffDocumentFileCleaner removes files whose staff-document metadata either
-// never committed or belongs to an offboarded staff member.
-type StaffDocumentFileCleaner interface {
-	CleanupOrphanedStaffDocumentFiles(ctx context.Context) (int, error)
-}
-
-// StudentDocumentFileCleaner removes objects whose child-document metadata
-// either never committed or was cascaded away by a child deletion.
-type StudentDocumentFileCleaner interface {
-	CleanupOrphanedStudentDocumentFiles(ctx context.Context) (int, error)
-}
-
-// FileStoreCleaner removes objects of the school file storage whose metadata
-// either never committed or was cascaded away by a folder deletion (#2596).
-type FileStoreCleaner interface {
-	CleanupOrphanedFiles(ctx context.Context) (int, error)
-}
-
-// SettingsResolver resolves setting values per tenant. The root binds the
-// Settings Platform service.
-type SettingsResolver interface {
-	ResolveString(ctx context.Context, key string) (string, error)
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
-	HasTenantOverride(ctx context.Context, key string) (bool, error)
-}
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
-	activeService              SessionMaintenance
-	cleanupService             PresenceCleanup
-	authCleanup                AuthCleanup
-	invitationCleanup          InvitationCleaner
-	workSessionCleanup         WorkSessionCleaner
-	breakAutoEnder             BreakAutoEnder
-	autoCheckouter             AutoCheckouter
-	feedbackCleaner            FeedbackCleaner
+	activeService              ports.SessionMaintenance
+	cleanupService             ports.PresenceCleanup
+	authCleanup                ports.AuthCleanup
+	invitationCleanup          ports.InvitationCleaner
+	workSessionCleanup         ports.WorkSessionCleaner
+	breakAutoEnder             ports.BreakAutoEnder
+	autoCheckouter             ports.AutoCheckouter
+	feedbackCleaner            ports.FeedbackCleaner
 	retention                  RetentionRun
-	cleanupRuns                CleanupRunLedger
+	cleanupRuns                ports.CleanupRunLedger
 	cleanupClock               func() time.Time
 	cleanupFailures            sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
-	staffDocumentFileCleaner   StaffDocumentFileCleaner
-	studentDocumentFileCleaner StudentDocumentFileCleaner
-	fileStoreCleaner           FileStoreCleaner
-	materializer               TimetableMaterializer
-	timetableCleanup           TimetableCleanup
-	calendarFeedCleanup        CalendarFeedCleaner
-	timeTrackingCleanup        TimeTrackingCleanupService
-	studentChangeLogCleanup    StudentChangeLogCleanup
-	pwaUsageCleanup            PWAUsageCleanup
-	staffMessageCleanup        StaffMessageCleanup
-	bookingConsistency         BookingConsistencyAudit
-	enrollmentRejectedCleanup  RejectedEnrollmentCleaner
-	autoStart                  InstanceAutoStart
-	autoEnd                    InstanceAutoEnd
-	settings                   SettingsResolver
-	schoolRepo                 TenantDirectory
-	tenantRuntime              TenantRuntime
+	staffDocumentFileCleaner   ports.StaffDocumentFileCleaner
+	studentDocumentFileCleaner ports.StudentDocumentFileCleaner
+	fileStoreCleaner           ports.FileStoreCleaner
+	materializer               ports.TimetableMaterializer
+	timetableCleanup           ports.TimetableCleanup
+	calendarFeedCleanup        ports.CalendarFeedCleaner
+	timeTrackingCleanup        ports.TimeTrackingCleanupService
+	studentChangeLogCleanup    ports.StudentChangeLogCleanup
+	pwaUsageCleanup            ports.PWAUsageCleanup
+	staffMessageCleanup        ports.StaffMessageCleanup
+	bookingConsistency         ports.BookingConsistencyAudit
+	enrollmentRejectedCleanup  ports.RejectedEnrollmentCleaner
+	autoStart                  ports.InstanceAutoStart
+	autoEnd                    ports.InstanceAutoEnd
+	settings                   ports.SettingsResolver
+	schoolRepo                 ports.TenantDirectory
+	tenantRuntime              ports.TenantRuntime
 	tenantRuntimeObserver      func(entryPoint, outcome string)
 	unitOfWorkObserver         func(entryPoint, kind, result string, duration time.Duration, retries int)
-	workerTracer               WorkerTracer
+	workerTracer               ports.WorkerTracer
 	tenantBatchCursors         sync.Map // job ID → last successful tenant ID
 	minuteSnapshotMu           sync.Mutex
 	minuteSnapshotLoad         *schedulerMinuteSnapshotLoad
@@ -230,54 +96,46 @@ type Scheduler struct {
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
 	// row. Cleared explicitly on day boundary; see checkAndRunOverdue.
-	instanceRepo         DayInstanceReader
-	instanceRoomRepo     ExistingRoomReader
-	instanceStudentRepo  InstanceCheckoutCloser
-	timetableBridge      TimetableBridgeCompleter
-	studentStatusDayRepo StudentStatusFlagArchiver
-	overdueBroadcaster   InstanceOverdueBroadcaster
+	instanceRepo         ports.DayInstanceReader
+	instanceRoomRepo     ports.ExistingRoomReader
+	instanceStudentRepo  ports.InstanceCheckoutCloser
+	timetableBridge      ports.TimetableBridgeCompleter
+	studentStatusDayRepo ports.StudentStatusFlagArchiver
+	overdueBroadcaster   ports.InstanceOverdueBroadcaster
 	overdueEmitted       sync.Map // overdueKey{tenantID, instanceID} → time.Time
 	overdueEmittedDay    calendar.Date
 	overdueEmittedDayMu  sync.Mutex
 
 	// Student lifecycle (parent-enrollment PR 2).
 	// Nil → activate-students task does not register.
-	studentLifecycleRepo  StudentLifecycleRepository
-	studentLifecycleAudit StudentLifecycleAuditor
-	careExitEffector      CareExitEffector
+	studentLifecycleRepo  ports.StudentLifecycleRepository
+	studentLifecycleAudit ports.StudentLifecycleAuditor
+	careExitEffector      ports.CareExitEffector
 
 	// Outbox worker (parent-enrollment PR 5).
 	// Nil → outbox task does not register.
-	outboxWorker OutboxWorkerRunner
+	outboxWorker ports.OutboxWorkerRunner
 
 	// Rollover deadline resolver (phase rollover slice 1).
-	rolloverDeadlineRunner RolloverDeadlineRunner
+	rolloverDeadlineRunner ports.RolloverDeadlineRunner
 
 	// Personal reminder notifications (Reminder Delivery). Nil → the tick
 	// does not register.
-	reminderNotifications ReminderNotificationTick
+	reminderNotifications ports.ReminderNotificationTick
 
 	// Guardian appointment reminders (#1671).
 	// appointmentReminderScannedAt holds the upper bound of each tenant's last
 	// successful scan. Failed scans deliberately leave their tenant's boundary
 	// untouched so the next tick retries its bounded window.
-	appointmentReminders         AppointmentReminderCommand
+	appointmentReminders         ports.AppointmentReminderCommand
 	appointmentReminderScannedAt map[int64]time.Time
 	appointmentReminderScanMu    sync.Mutex
 
 	// Scheduled parent-announcement reminders (#3162). Same bookkeeping as the
 	// appointment reminders: one successful-scan boundary per tenant.
-	announcementReminders         ParentAnnouncementReminderCommand
+	announcementReminders         ports.ParentAnnouncementReminderCommand
 	announcementReminderScannedAt map[int64]time.Time
 	announcementReminderScanMu    sync.Mutex
-}
-
-// OutboxWorkerRunner is the narrow contract the scheduler needs from the
-// platform outbox worker. Defined here so the scheduler doesn't import
-// services/platform.
-type OutboxWorkerRunner interface {
-	RunOnce(ctx context.Context, batchSize, maxAttempts int) (int, error)
-	Backlog(ctx context.Context) (int, error)
 }
 
 // overdueKey composites tenant + instance so the sync.Map key cannot collide
@@ -300,7 +158,7 @@ type ScheduledTask struct {
 
 // newScheduler builds the Worker from its complete typed dependencies in one
 // literal; no dependency is wired after construction (#2749).
-func newScheduler(deps WorkerDependencies) *Scheduler {
+func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 	lifecycleCtx, stopLifecycle := context.WithCancel(context.Background())
 	scheduler := &Scheduler{
 		tasks:                         make(map[string]*ScheduledTask),
@@ -312,7 +170,6 @@ func newScheduler(deps WorkerDependencies) *Scheduler {
 		appointmentReminderScannedAt:  make(map[int64]time.Time),
 		announcementReminders:         deps.AppointmentReminders,
 		announcementReminderScannedAt: make(map[int64]time.Time),
-		retention:                     deps.Retention,
 		cleanupRuns:                   deps.CleanupRuns,
 
 		cleanupService:             deps.ActiveCleanup,
@@ -403,7 +260,7 @@ func (s *Scheduler) workerLogger(ctx context.Context) *slog.Logger {
 	return s.getLogger()
 }
 
-func (s *Scheduler) observeWorkerRun(jobID JobID, outcome string, duration time.Duration) {
+func (s *Scheduler) observeWorkerRun(jobID ports.JobID, outcome string, duration time.Duration) {
 	if s.workerTracer.Run != nil {
 		s.workerTracer.Run(jobID, outcome, duration)
 	}
@@ -431,14 +288,6 @@ func (s *Scheduler) observeTenantRuntime(outcome string) {
 	if s.tenantRuntimeObserver != nil {
 		s.tenantRuntimeObserver("worker", outcome)
 	}
-}
-
-// TimetableBridgeCompleter finalizes attendance and completes the schedule-side
-// instances of ended active.groups in one step. Implemented by the Timetable
-// owner's timetable.EndedSessionCompletion, the same completion the
-// force-start path uses, so both paths leave identical rows behind (#1747).
-type TimetableBridgeCompleter interface {
-	CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error)
 }
 
 // forEachTenant executes fn for each active tenant inside its tenant runtime.
@@ -533,7 +382,7 @@ func (s *Scheduler) forEachTenantSettings(ctx context.Context, opName string, fn
 		return nil
 	}
 
-	source, _ := s.settings.(SettingsSnapshotSource)
+	source, _ := s.settings.(ports.SettingsSnapshotSource)
 	return s.forEachKnownTenant(ctx, minuteSnapshot.tenantIDs, opName, func(txCtx context.Context, tenantID int64) error {
 		snapshot := minuteSnapshot.settings[tenantID]
 		if snapshot == nil || source == nil {
@@ -760,13 +609,13 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 	ctx = startJobRunReport(ctx, task.Name)
 	failures := &jobCommandFailures{}
 	ctx = context.WithValue(ctx, jobCommandFailuresKey{}, failures)
-	ctx = context.WithValue(ctx, workerJobIDKey{}, JobID(task.Name))
+	ctx = context.WithValue(ctx, workerJobIDKey{}, ports.JobID(task.Name))
 	started := time.Now()
 	defer func() {
 		duration := time.Since(started)
 		if recovered := recover(); recovered != nil {
 			err := fmt.Errorf("worker job panic: %v", recovered)
-			s.observeWorkerRun(JobID(task.Name), "panic", duration)
+			s.observeWorkerRun(ports.JobID(task.Name), "panic", duration)
 			s.traceWorkerFailure(ctx, task.Name, "panic", err)
 			s.workerLogger(ctx).ErrorContext(ctx, "worker job run failed",
 				slog.String("job_id", task.Name),
@@ -778,7 +627,7 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			return
 		}
 		if commandErr := failures.result(); commandErr != nil {
-			s.observeWorkerRun(JobID(task.Name), "failed", duration)
+			s.observeWorkerRun(ports.JobID(task.Name), "failed", duration)
 			s.traceWorkerFailure(ctx, task.Name, "command_failure", commandErr)
 			s.workerLogger(ctx).ErrorContext(ctx, "worker job command failed",
 				slog.String("job_id", task.Name),
@@ -790,7 +639,7 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 			}
 			return
 		}
-		s.observeWorkerRun(JobID(task.Name), "completed", duration)
+		s.observeWorkerRun(ports.JobID(task.Name), "completed", duration)
 		s.workerLogger(ctx).DebugContext(ctx, "worker job run completed",
 			slog.String("job_id", task.Name),
 			slog.Duration("duration", duration),
@@ -1073,7 +922,7 @@ func (s *Scheduler) executeCleanupForTenant(ctx context.Context, tenantID int64)
 // tenant transaction created by the scheduler runtime. If this sync fails, callers
 // return the error so the active close rolls back too instead of leaving the
 // planner in a stale "active" state.
-func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *DailySessionsEnded) (int, error) {
+func (s *Scheduler) completeTimetableInstancesForEndedSessions(ctx context.Context, result *ports.DailySessionsEnded) (int, error) {
 	if result == nil || len(result.EndedActiveGroupIDs) == 0 {
 		return 0, nil
 	}
@@ -1237,7 +1086,7 @@ func (s *Scheduler) runCleanupJobs(ctx context.Context) error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
-func buildCleanupJobs(authService AuthCleanup, invitationService InvitationCleaner, emailChangeCleaner EmailChangeTokenCleaner, operatorInvitationCleaner OperatorInvitationCleaner) []CleanupJob {
+func buildCleanupJobs(authService ports.AuthCleanup, invitationService ports.InvitationCleaner, emailChangeCleaner ports.EmailChangeTokenCleaner, operatorInvitationCleaner ports.OperatorInvitationCleaner) []CleanupJob {
 	var jobs []CleanupJob
 
 	if authService != nil {
@@ -1301,7 +1150,7 @@ func buildCleanupJobs(authService AuthCleanup, invitationService InvitationClean
 
 // signInDataCleanupJobs deletes the short-lived sign-in data after its fixed
 // window. Operator sessions go at their expiry, as account sessions do.
-func signInDataCleanupJobs(cleaner SignInDataCleaner) []CleanupJob {
+func signInDataCleanupJobs(cleaner ports.SignInDataCleaner) []CleanupJob {
 	return []CleanupJob{
 		{Description: "Guardian invitation cleanup", Run: cleaner.DeleteExpiredGuardianInvitations},
 		{Description: "MFA email code cleanup", Run: cleaner.DeleteExpiredMFAEmailChallenges},
@@ -2165,31 +2014,6 @@ func (s *Scheduler) runAutoEndForTenant(ctx context.Context, tenantID int64) err
 
 // --- Instance overdue tick (WP-B9) ---
 
-// DayInstance is one timetable block of a day as the overdue tick reads it.
-// Planned reports the block's composed status: planned until a session starts
-// it. StartTime carries the block's wall clock.
-type DayInstance struct {
-	ID        int64
-	Date      calendar.Date
-	StartTime time.Time
-	RoomID    int64
-	Planned   bool
-}
-
-// DayInstanceReader returns the timetable blocks of the school in ctx on day.
-// The root binds the retained activity-instance reads.
-type DayInstanceReader func(ctx context.Context, day calendar.Date) ([]DayInstance, error)
-
-// ExistingRoomReader returns which of roomIDs name a room of the school in
-// ctx. The root binds the Facilities room reads.
-type ExistingRoomReader func(ctx context.Context, roomIDs []int64) ([]int64, error)
-
-// InstanceCheckoutCloser stamps the checkout on the open slot attendance of
-// the ended active groups. The root binds the retained instance-student rows.
-type InstanceCheckoutCloser interface {
-	CloseOpenCheckoutsByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, checkedOutAt time.Time) (int, error)
-}
-
 //
 // Purpose: emit instance_overdue (realtimeevents) once per planned instance that
 // has exceeded its start_time by the tenant-configured threshold. Drives the
@@ -2278,7 +2102,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 	}
 
 	cutoff := time.Duration(threshold) * time.Minute
-	candidates := make([]DayInstance, 0, len(instances))
+	candidates := make([]ports.DayInstance, 0, len(instances))
 	roomIDs := make(map[int64]struct{})
 
 	for _, inst := range instances {
@@ -2340,7 +2164,7 @@ func (s *Scheduler) runOverdueForTenant(ctx context.Context, tenantID int64, thr
 // emitInstanceOverdue builds the SSE envelope and fires it tenant-wide:
 // a planned instance has no bridged active.group yet, so there is no group-
 // scoped topic to route through. Admin dashboard subscribers pick it up.
-func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst DayInstance) {
+func (s *Scheduler) emitInstanceOverdue(ctx context.Context, tenantID int64, inst ports.DayInstance) {
 	instanceStart := inst.StartTime.Format("15:04:05")
 	if err := s.overdueBroadcaster.BroadcastInstanceOverdue(tenantID, inst.ID, inst.Date.String(), instanceStart, inst.RoomID); err != nil {
 		s.getLogger().Warn("overdue tick: broadcast failed",
@@ -2542,19 +2366,6 @@ func (s *Scheduler) checkAndRunTimeTrackingCleanup(ctx context.Context, task *Sc
 //
 // Per-tenant iteration via forEachTenantSettings; dedupe via
 // lastStudentChangeLogCleanup. Mirrors the time-tracking cleanup task.
-
-// StudentChangeLogCleanupResult reports one tenant's change-history sweep.
-type StudentChangeLogCleanupResult struct {
-	EditsDeleted     int
-	StudentsAffected int
-	RetentionDays    int
-	DurationMS       int64
-}
-
-// StudentChangeLogCleanup removes the tenant's change history past its
-// retention. The root binds the People Directory sweep; the scheduler owns
-// when it runs.
-type StudentChangeLogCleanup func(context.Context) (StudentChangeLogCleanupResult, error)
 
 // scheduleStudentChangeLogCleanupTask registers the daily change-history
 // cleanup when a StudentChangeLogCleanupService has been wired in. Nil → no
