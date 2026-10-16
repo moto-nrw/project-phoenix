@@ -35,7 +35,7 @@ func buildModule(t *testing.T, db *bun.DB, observers ...func(Observation)) *time
 		observe = observers[0]
 	}
 	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
+	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: observe})
 	require.NoError(t, err)
 	return module
 }
@@ -493,7 +493,7 @@ func TestModuleResolvesTargetStudentsThroughPeopleDirectory(t *testing.T) {
 			{ID: nonMember.ID, SchoolClass: nonMember.SchoolClass},
 		}, nil
 	})
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
+	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: &fixedSessions{}, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	class := "2b"
 	insertGroupTarget(t, db, testpkg.Tenant(t), group.ID, timetable.TargetGroupTypeSchoolClass, &class)
@@ -779,7 +779,7 @@ func (s *fixedSessions) ExecutionFacts(_ context.Context, instanceIDs, participa
 func buildModuleWithSessions(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) *timetable.Module {
 	t.Helper()
 	students := StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return []TargetStudent{}, nil })
-	module, err := New(Dependencies{DB: db, Students: students, Rooms: testRooms(), Sessions: sessions, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
+	module, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db, Students: students, Rooms: testRooms(), Sessions: sessions, LockStaffAssignment: func(context.Context, int64) error { return nil }, Observe: func(Observation) {}})
 	require.NoError(t, err)
 	return module
 }

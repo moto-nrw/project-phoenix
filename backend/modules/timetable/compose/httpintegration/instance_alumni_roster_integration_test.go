@@ -16,9 +16,9 @@ import (
 	"testing"
 	"time"
 
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +29,7 @@ func graduate(t *testing.T, s *lifecycleSetup, studentID int64) {
 	t.Helper()
 	_, err := s.db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("status = ?", string(usersModel.StudentStatusAlumnus)).
+		Set("status = ?", string(testpkg.StudentStatusAlumnus)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", studentID).
 		Exec(s.ctx)
 	require.NoError(t, err)

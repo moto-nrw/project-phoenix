@@ -57,13 +57,15 @@ func NewOfferingBookings() *careplan.OfferingBookings {
 	return carePlanCompose.NewOfferingBookings()
 }
 
-// NewCarePlan composes the owner capability for integration tests.
-func NewCarePlan(tb TB, db *bun.DB) careplan.Capability {
+// NewCarePlan composes the owner capability for integration tests. The
+// caller supplies the student directory reader; test support may not reach
+// the projection (ADR 0058).
+func NewCarePlan(tb TB, db *bun.DB, directory carePlanCompose.StudentDirectory) careplan.Capability {
 	tb.Helper()
 	students := newStudentDirectory(tb, db)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
-		StatusStudents: newStatusStudentDirectory(db, students), StatusSlots: emptyStatusSlots{},
+		StatusStudents: newStatusStudentDirectory(db, students, directory), StatusSlots: emptyStatusSlots{}, StudentDirectory: directory,
 		People:      studentNameFinder(students),
 		StudentLock: students.LockStudent, StudentNotFound: peopledirectory.ErrStudentNotFound,
 	})
@@ -79,12 +81,12 @@ type statusStudentDirectory struct {
 	care     careplan.StudentProfileCommands
 }
 
-func newStatusStudentDirectory(db *bun.DB, students peopledirectory.Capability) statusStudentDirectory {
+func newStatusStudentDirectory(db *bun.DB, students peopledirectory.Capability, directory carePlanCompose.StudentDirectory) statusStudentDirectory {
 	flags, ok := students.(peopledirectory.StudentStatusFlagCapability)
 	if !ok {
 		panic("test People Directory does not expose status flags")
 	}
-	care, err := carePlanCompose.NewStudentProfiles(db, func(carePlanCompose.Observation) {})
+	care, err := carePlanCompose.NewStudentProfiles(db, directory, func(carePlanCompose.Observation) {})
 	if err != nil {
 		panic(err)
 	}
@@ -140,17 +142,21 @@ func newStudentDirectory(tb TB, db *bun.DB) *peopledirectory.Module {
 }
 
 func studentNameFinder(students peopledirectory.Capability) carePlanCompose.StudentNameFinder {
-	return carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
-		values, err := students.ListStudentNamesByID(ctx, ids)
-		if err != nil {
-			return nil, err
-		}
-		result := make([]carePlanCompose.StudentName, 0, len(values))
-		for _, value := range values {
-			result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
-		}
-		return result, nil
-	})
+	return studentNames{students: students}
+}
+
+type studentNames struct{ students peopledirectory.Capability }
+
+func (n studentNames) ListStudentNamesByID(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+	values, err := n.students.ListStudentNamesByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]carePlanCompose.StudentName, 0, len(values))
+	for _, value := range values {
+		result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+	}
+	return result, nil
 }
 
 // ArrivalStudentRecords is the People projection arrival baselines read.

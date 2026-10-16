@@ -12,7 +12,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -242,7 +241,7 @@ func TestMaterializeForTenant_ExcludesGraduatedStudents(t *testing.T) {
 	// row is intentionally left in place (soft delete).
 	_, err := s.db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Set("status = ?", string(testpkg.StudentStatusAlumnus)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", s.students[0]).
 		Where("tenant_id = ?", s.tenantID).
 		Exec(s.ctx)

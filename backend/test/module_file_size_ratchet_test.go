@@ -55,7 +55,7 @@ var moduleFileSizeTrees = []string{"modules", "workflows"}
 var moduleFileSizeAllowlist = map[string]int{
 	"modules/appointments/appointments.go":                      846,
 	"modules/appointments/internal/adapters/postgres/store.go":  1011,
-	"modules/careplan/internal/adapters/postgres/requests.go":   847,
+	"modules/careplan/internal/adapters/postgres/requests.go":   838,
 	"modules/careplan/internal/application/excused_requests.go": 1567,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the size crossed the boundary with them.
@@ -68,7 +68,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/peopledirectory/http/guardian_handlers.go":                              1004,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1993,
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
-	"modules/timetable/compose/new.go":                                               1146,
+	"modules/timetable/compose/new.go":                                               1137,
 	"modules/timetable/timetable.go":                                                 1771,
 	"modules/workforce/inbound/timetracking/api.go":                                  863,
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    845,

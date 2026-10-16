@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 53,
+  "policy_epoch": 54,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -191,10 +191,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-parent",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-school",
       "kind": "inbound"
     },
@@ -216,10 +212,6 @@
     },
     {
       "id": "inbound-substitutions",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-users",
       "kind": "inbound"
     },
     {
@@ -404,6 +396,13 @@
       "path": "modules/studentdirectoryview",
       "owner": "student-directory-view",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/studentdirectoryview/compose",
+      "owner": "student-directory-view",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -878,7 +877,7 @@
     },
     {
       "path": "modules/careplan/inbound/parent",
-      "owner": "inbound-parent",
+      "owner": "parent-portal",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -1017,7 +1016,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/rotation",
+      "path": "modules/identityaccess/internal/application/rotation",
       "owner": "identity-access",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1935,7 +1934,7 @@
     },
     {
       "path": "modules/peopledirectory/http",
-      "owner": "inbound-users",
+      "owner": "people-directory",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -2193,10 +2192,24 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableenrollmentprovenance/compose",
+      "owner": "timetable-enrollment-provenance",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/parentrequestfeedprojection",
       "owner": "parent-request-feed-view",
       "role": "postgres",
       "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/parentrequestfeedprojection/compose",
+      "owner": "parent-request-feed-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -2504,6 +2517,13 @@
       "path": "modules/schedulerruntime/compose",
       "owner": "scheduler-runtime",
       "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/schedulerruntime/ports",
+      "owner": "scheduler-runtime",
+      "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -5626,17 +5646,6 @@
       "target_role": "public"
     },
     {
-      "id": "data-import.compose.school-name.organization-tenancy",
-      "description": "Bind the optional invitation school label to the native current-school query (#2744).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "data-import",
-      "source_role": "compose",
-      "target_owner": "organization-tenancy",
-      "target_role": "public"
-    },
-    {
       "id": "data-import.compose.opening-references.workforce",
       "description": "Bind opening-balance matching and duplicate detection to native tenant-scoped owner queries (#2744).",
       "scopes": [
@@ -8192,57 +8201,57 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-parent.to.care-plan",
-      "description": "inbound-parent calls exactly one public capability.",
+      "id": "parent-portal.to.care-plan",
+      "description": "Parent Portal HTTP calls the Care Plan public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.http.inbound-common",
+      "id": "parent-portal.http.inbound-common",
       "description": "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
-      "id": "inbound-parent.http.identity-adapter",
+      "id": "parent-portal.http.identity-adapter",
       "description": "The guardian portal routes authenticate the parent-scope session through the Identity & Access session adapter (ADR 0031, ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "http"
     },
     {
-      "id": "inbound-parent.http.tenant-runtime",
+      "id": "parent-portal.http.tenant-runtime",
       "description": "The guardian portal enrollment routes open their tenant and administrative transactions through the tenant runtime the request carries (ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.adapter-test.identity-adapter",
+      "id": "parent-portal.adapter-test.identity-adapter",
       "description": "The guardian portal handler suites put parent-scope claims on requests and mint session tokens through the Identity & Access session adapter (ADR 0051, #3421).",
       "scopes": [
         "internal_test",
         "external_test"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
@@ -8477,17 +8486,6 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "http"
-    },
-    {
-      "id": "inbound-users.to.people-directory",
-      "description": "inbound-users calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "people-directory",
-      "target_role": "public"
     },
     {
       "id": "inbound-work-time-models.to.workforce",
@@ -9615,28 +9613,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "inbound-users.http.security-contract",
-      "description": "The People Directory HTTP adapter binds its established permission contract.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-users",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.people-directory-http",
-      "description": "The production root constructs the People Directory HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-users",
-      "target_role": "http"
-    },
-    {
       "id": "delivery.application.same-owner-adapter",
       "description": "Delivery applications delegate localization and provider details to owned adapters.",
       "scopes": [
@@ -10590,38 +10566,15 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-parent.http.parent-portal-port",
+      "id": "parent-portal.http.parent-portal-port",
       "description": "Wire the guardian portal workflow (#3420): the guardian portal HTTP composition consumes the workflow vocabulary and the composed portal through its own port.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "parent-portal",
       "target_role": "port"
-    },
-    {
-      "id": "inbound-parent.adapter-test.parent-portal-port",
-      "description": "Wire the guardian portal workflow (#3420): handler tests match the workflow vocabulary.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "parent-portal",
-      "target_role": "port"
-    },
-    {
-      "id": "inbound-parent.adapter-test.parent-portal-compose",
-      "description": "Wire the guardian portal workflow (#3420): handler tests compose the real portal.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "parent-portal",
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.port.flows",
@@ -11754,12 +11707,12 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-portal.production.inbound-parent.http.school-calendar.contract",
+      "id": "calendar-portal.production.parent-portal.http.school-calendar.contract",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "school-calendar",
       "target_role": "contract"
@@ -12898,12 +12851,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.http.care-plan-absence-records",
+      "id": "parent-portal.http.care-plan-absence-records",
       "description": "The parent routes return the child's status days as the Care Plan absence records of modules/careplan/absencerecords (#3422).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "contract"
@@ -14505,6 +14458,16 @@
       "target_role": "contract"
     },
     {
+      "id": "root-composition.reach.platform.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "port"
+    },
+    {
       "id": "root-composition.reach.platform.http",
       "description": "ADR 0053 point 2: the typed roots import the http role of every platform owner.",
       "scopes": [
@@ -14836,6 +14799,17 @@
       "same_owner": true
     },
     {
+      "id": "owner-compose.platform.port",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
       "id": "owner-compose.platform.domain",
       "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role.",
       "scopes": [
@@ -15096,6 +15070,17 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.port",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
       "target_role": "port",
       "same_owner": true
     },
@@ -15543,6 +15528,11 @@
     }
   ],
   "relocations": [
+    {
+      "from": "auth/rotation",
+      "to": "modules/identityaccess/internal/application/rotation",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
     {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",

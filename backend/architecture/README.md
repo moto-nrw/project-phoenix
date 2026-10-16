@@ -3719,9 +3719,9 @@ check accepts the imports such a rule implies. None of the rules carries an
 
 | Reach | Acceptance function | Selectors | Rules in epoch 41 |
 |---|---|---|---|
-| The typed roots (point 2) | `reviewedRootCompositionRule` | `root-composition`, any role and scope, to the `compose`, `public`, `contract`, `port` and `http` roles of every `domain`, `platform`, `workflow` and `projection` owner, to `migrations`/`migration`, and to the root's own packages | 19 `root-composition.reach.*` |
-| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose` of a non-composition owner, production, every role of its own owner | 22 `owner-compose.*` |
-| A test of one owner (point 7.1) | `reviewedOwnTestRule` | the test scopes of an owner to its own `public`, `contract`, `compose`, `port`, `adapter` and `test-support`; its `test-support` role in production to the same roles except `test-support` | 31 `own-test.*`, 5 `own-test-support.*` |
+| The typed roots (point 2) | `reviewedRootCompositionRule` | `root-composition`, any role and scope, to the `compose`, `public`, `contract`, `port` and `http` roles of every `domain`, `platform`, `workflow` and `projection` owner, to `migrations`/`migration`, and to the root's own packages | 23 `root-composition.reach.*` |
+| An owner's composition (point 3) | `reviewedOwnerCompositionRule` | role `compose` of a non-composition owner, production, every role of its own owner | 27 `owner-compose.*` |
+| A test of one owner (point 7.1) | `reviewedOwnTestRule` | the test scopes of an owner to its own `public`, `contract`, `compose`, `port`, `adapter` and `test-support`; its `test-support` role in production to the same roles except `test-support` | 30 `own-test.*`, 5 `own-test-support.*` |
 | A test of several owners (point 7.2) | `reviewedRootTestRule` | the test scopes of every owner to `root-composition`/`compose` | 1 `root-test.domain.compose` |
 
 Three constraints shape the rules:
@@ -3862,24 +3862,21 @@ they cover, 945 → 938 rules: `care-plan.application.public`,
 The existing per-owner rules into the tenant runtime and into other domains
 stay; they already have the accepted shape.
 
-Epoch 51 adds `timetable-activities.postgres.transaction-runtime`: the
+Epoch 53 adds `timetable-activities.postgres.transaction-runtime`: the
 Timetable composition stops importing `models/base` and `internal/sliceutil`
 (both #4004 keys go). List options, the store error, the not-found sentinel
 and the ID helpers are Timetable's own values in `internal/domain`; the
 unique-violation classification is reached through the owner's postgres
 adapter, which delegates to the transaction runtime.
 
-Epoch 52 adds `timetable-activities.application.school-calendar.public`: the
-staff notices (#2180) move from the Timetable composition into
-`internal/application`, their repository and row mapping into
-`internal/adapters/postgres`; the week pattern comes from School Calendar's
-public contract, as it did in the composition.
-
-Epoch 53 moves the Timetable templates, the materialization, the series
-conversion, the roster maintenance and the conflict detection (10,567 LOC)
-from the composition into `internal/application`. The services take a
+Epoch 54 moves the staff notices (#2180), the Timetable templates, the
+materialization, the series conversion, the roster maintenance and the
+conflict detection (11,264 LOC) from the composition into
+`internal/application`; the staff notice repository and its row mapping go
+to `internal/adapters/postgres`. The template services take a
 `TenantTransactions` port instead of the database handle; the composition
 binds it to the tenant runtime. It adds
+`timetable-activities.application.school-calendar.public`,
 `timetable-activities.application.tenant-runtime`,
 `timetable-activities.application.transaction-runtime`,
 `timetable-activities.application.student-presence.public` and, for the moved
@@ -4454,6 +4451,24 @@ modules/timetable` in production and internal test and `->
 workflows/reminderdelivery` in production. `services/scheduler` carries no
 key any more, and #4072 has none left. The composition surface stays at
 1,740. The evidence record is `scheduler-timetable-reminder-ports-4067.json`.
+
+Step 4, the contract moves. The Worker's dependency struct, its ports and
+their results are defined types in `modules/schedulerruntime/ports`
+(`scheduler-runtime`/`port`, ADR 0056 amendment of 2026-10-16), together with
+`Worker`, the interface the roots run. `services/scheduler` names them and
+keeps the implementation. The roots import the ports and build the Worker
+through `modules/schedulerruntime/compose.NewWorker`; the setting keys come
+through `compose.SettingKeys`. The retention run is built inside `NewWorker`
+from `RetentionSteps` and `RetentionLog`, and the root implements the
+rollover runner, so neither constructor reaches the root. The composition
+merged into one file and fell from 85 to 83 LOC. Policy epoch 50 -> 51 adds
+the standing ADR 0053 reaches `root-composition.reach.platform.port`,
+`owner-compose.platform.port` and `own-test.platform.port`, accepted by
+`reviewedRootCompositionRule`, `reviewedOwnerCompositionRule` and
+`reviewedOwnTestRule`. `api -> services/scheduler` (#2750) leaves
+`legacy.jsonl`, 316 -> 315; no other key, no alias and no exception is
+added, and the composition surface stays at 1,720. The evidence record is
+`scheduler-runtime-ports-4067.json`.
 
 ## Changing the policy
 

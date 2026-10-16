@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +19,7 @@ import (
 // erroringSchoolRepo embeds the real directory and overrides only the active
 // listing so the administrative tenant-listing transaction returns an error.
 type erroringSchoolRepo struct {
-	TenantDirectory
+	ports.TenantDirectory
 	err error
 }
 

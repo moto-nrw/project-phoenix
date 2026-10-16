@@ -67,7 +67,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
 	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).ArchiveStudentStatusFlags":     23,
 	"modules/careplan/internal/adapters/postgres/status_days.go:(*statusDayStore).CountEffectiveStudentAbsences": 16,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":             20,
+	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals":    20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                        34,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                   20,
@@ -139,7 +139,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":                 29,
 	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                           21,
 
-	"modules/facilities/compose/legacy/projections.go:historyNames": 26,
+	"modules/facilities/compose/legacy/projections.go:historyNames": 24,
 
 	"modules/filestorage/internal/application/attachments.go:(*Service).DeleteAttachment": 29,
 	"modules/filestorage/internal/application/attachments.go:(*Service).UploadAttachment": 17,

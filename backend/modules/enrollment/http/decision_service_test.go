@@ -18,7 +18,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -125,7 +124,7 @@ func newDecisionServiceForTestWithDependencies(
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal TestCareWithdrawalReconciler,
 	studentConsents api.EnrollmentConsentAuditor,
-	outboxes ...platformModels.OutboxEnqueuer,
+	outboxes ...testMailOutbox,
 ) enrollmentAPI.DecisionService {
 	return newDecisionServiceForTestWithPickupExtensions(nil, env, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...)
 }
@@ -137,7 +136,7 @@ func newDecisionServiceForTestWithPickupExtensions(
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal TestCareWithdrawalReconciler,
 	studentConsents api.EnrollmentConsentAuditor,
-	outboxes ...platformModels.OutboxEnqueuer,
+	outboxes ...testMailOutbox,
 ) enrollmentAPI.DecisionService {
 	if careWithdrawal == nil {
 		careWithdrawal = newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
@@ -212,7 +211,7 @@ func newDecisionServiceForTestWithBookings(
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal TestCareWithdrawalReconciler,
 	studentConsents api.EnrollmentConsentAuditor,
-	outboxes ...platformModels.OutboxEnqueuer,
+	outboxes ...testMailOutbox,
 ) enrollmentAPI.DecisionService {
 	return newFlowDecisionService(newDecisionsForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...))
 }
@@ -227,10 +226,10 @@ func newDecisionsForTestWithBookings(
 	lockTemplateRecurrence func(context.Context) error,
 	careWithdrawal TestCareWithdrawalReconciler,
 	studentConsents api.EnrollmentConsentAuditor,
-	outboxes ...platformModels.OutboxEnqueuer,
+	outboxes ...testMailOutbox,
 ) *TestDecisions {
 	repoFactory := env.repos
-	var outbox platformModels.OutboxEnqueuer = env.outbox
+	var outbox testMailOutbox = env.outbox
 	if len(outboxes) > 0 {
 		outbox = outboxes[0]
 	}
@@ -939,7 +938,7 @@ func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDi
 		require.NoError(t, err)
 	}
 
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(capability.MailKindDecisionDigest)
 	require.Len(t, digests, 1)
 	rejectedNames, ok := digests[0].Payload["rejected_names"].([]string)
 	require.True(t, ok)
@@ -961,7 +960,7 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 		Status: capability.DecisionRejected, ReviewedBy: env.creatorID,
 	})
 	require.NoError(t, err)
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+	assert.Empty(t, env.outbox.ByKind(capability.MailKindDecisionDigest))
 
 	settings.mu.Lock()
 	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
@@ -972,8 +971,8 @@ func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) 
 	})
 	require.NoError(t, err)
 
-	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest), 1)
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentRejected))
+	assert.Len(t, env.outbox.ByKind(capability.MailKindDecisionDigest), 1)
+	assert.Empty(t, env.outbox.ByKind(capability.MailKindRejected))
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), submitted.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
@@ -1005,8 +1004,8 @@ func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.
 	})
 	require.NoError(t, err)
 
-	assert.Len(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentRejected), 2)
-	assert.Empty(t, env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest))
+	assert.Len(t, env.outbox.ByKind(capability.MailKindRejected), 2)
+	assert.Empty(t, env.outbox.ByKind(capability.MailKindDecisionDigest))
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), submitted.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
@@ -1054,7 +1053,7 @@ func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testin
 	})
 	require.NoError(t, err)
 
-	digests := env.outbox.ByKind(platformModels.EmailKindEnrollmentDecisionDigest)
+	digests := env.outbox.ByKind(capability.MailKindDecisionDigest)
 	require.Len(t, digests, 2)
 	assert.NotEqual(t, digests[0].IdempotencyKey, digests[1].IdempotencyKey)
 	assert.NotEmpty(t, digests[0].IdempotencyKey)
@@ -1069,8 +1068,8 @@ func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *
 		mode string
 		kind string
 	}{
-		{name: "digest", mode: settingValueNotifyDigest, kind: platformModels.EmailKindEnrollmentDecisionDigest},
-		{name: "immediate", mode: settingValueNotifyImmediate, kind: platformModels.EmailKindEnrollmentRejected},
+		{name: "digest", mode: settingValueNotifyDigest, kind: capability.MailKindDecisionDigest},
+		{name: "immediate", mode: settingValueNotifyImmediate, kind: capability.MailKindRejected},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

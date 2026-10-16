@@ -40,7 +40,7 @@ func (excusalBaseline) Project(_ context.Context, ids []int64, from, _ calendar.
 func TestNativePartialAbsenceCompositionRollsBackBlockFailures(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Partial", "Transaction", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Staff")
@@ -76,7 +76,7 @@ func TestNativePartialAbsenceCompositionRollsBackBlockFailures(t *testing.T) {
 func TestNativeExcusalCompositionRestoresAutomaticDerivationAfterManualOverride(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Auto", "Restore", "1a")
 	staff := testpkg.CreateTestStaff(t, db, "Auto", "Staff")

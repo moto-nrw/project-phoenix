@@ -34,7 +34,7 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch. The jobs call the same owner services through ports the root binds; the evidence is the Worker suites, the binding tests and the architecture check, not a benchmark rerun.",
     "sources": [
-      "backend/services/scheduler/presence_ports.go",
+      "backend/modules/schedulerruntime/ports/presence.go",
       "backend/api/scheduler_presence_ports.go",
       "backend/realtime/events.go",
       "backend/services/scheduler/scheduler.go"

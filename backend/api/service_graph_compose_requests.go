@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"strings"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -186,7 +188,8 @@ func composeCareLifecycle(b graphBuild) (graphBuild, error) {
 	b.graph.EnrollmentPhase = b.enrollmentPhases
 	b.graph.StudentAudit = peopleCompose.NewStudentAuditService(b.Identity.AuditActor, b.People.StudentAudit)
 	lifecycle, err := careplanCompose.NewCareLifecycle(careplanCompose.CareLifecycleDependencies{
-		DB: b.DB.Pool(), Records: b.CarePlan, Owners: b.CarePlanWiring.LifecycleOwners, LockCareBookingWrites: lock,
+		StudentDirectory: studentDirectoryView.NewCareReader(),
+		DB:               b.DB.Pool(), Records: b.CarePlan, Owners: b.CarePlanWiring.LifecycleOwners, LockCareBookingWrites: lock,
 		BookingsAuthoritative: b.bookingsAuthoritative, Fingerprint: securityruntime.Fingerprint,
 		Logger: b.Logger.With("service", "care_lifecycle"),
 	})
@@ -308,7 +311,7 @@ func composeEnrollmentRequests(b graphBuild) (graphBuild, error) {
 		Guardians: records, LateInviteRepo: records, CareOfferingRepo: b.enrollmentCareOfferings,
 		Capacity: b.enrollmentCapacity, Catalog: records, SchoolRepo: people.EnrollmentSchools,
 		Notifications: b.enrollmentNotifications, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
-		RateLimitRepo: records, OutboxEnqueuer: b.outbox(), Settings: b.settingsService,
+		RateLimitRepo: records, OutboxEnqueuer: intakeMailOutbox(b.outbox()), Settings: b.settingsService,
 		AdminSubscribers: b.Enrollment.AdminSubscribers(consent, b.identityAccess), ManualDecider: b.enrollmentDecisions,
 		FrontendURL: b.frontendURL, ParentsURL: b.parentsURL, Logger: b.Logger.With("service", "enrollment-request"),
 	})
@@ -350,13 +353,13 @@ func composeEnrollmentChanges(b graphBuild) (graphBuild, error) {
 		GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()), GuardianInvitations: b.Enrollment.GuardianInvitations(b.identityAccess),
 		PersonRepo: people.Persons, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
 		Decisions: b.enrollmentDecisions, BookingGates: b.late.careBookings, CompanionGraphLocker: b.CarePlanWiring.CompanionGraph,
-		Settings: b.settingsService, OutboxEnqueuer: b.outbox(), FrontendURL: b.frontendURL, ParentsURL: b.parentsURL,
+		Settings: b.settingsService, OutboxEnqueuer: intakeMailOutbox(b.outbox()), FrontendURL: b.frontendURL, ParentsURL: b.parentsURL,
 		Logger: b.Logger.With("service", "enrollment-change-request"),
 	})
 	b.graph.EnrollmentRollover = b.Enrollment.Rollovers(EnrollmentRolloverSources{
 		Bookings: b.Enrollment.CareBookings, Phases: records, Requests: records, Children: records,
 		Catalog: b.careOfferings, Notifications: b.enrollmentNotifications, PhaseEligibility: b.enrollmentPhases,
-		Outbox: b.outbox(), Settings: b.settingsService, Decisions: b.enrollmentDecisions, ParentsURL: b.parentsURL,
+		Outbox: intakeMailOutbox(b.outbox()), Settings: b.settingsService, Decisions: b.enrollmentDecisions, ParentsURL: b.parentsURL,
 		Logger: b.Logger.With("service", "enrollment-rollover"),
 	})
 	b.reviewPolicy = b.CarePlanWiring.ReviewPolicy(b.callerContext.ParentRequestReviews)
@@ -491,11 +494,11 @@ func (b *graphBuild) calendarDependencies() CalendarDependencies {
 		},
 		Appointments: b.Appointments, UserContext: b.userContext.Caller(),
 		Runtime: calendarCompose.NewTenantRuntime(b.DB.Pool()), CalendarRenderer: calendarCompose.NewCalendarRenderer(b.Calendar),
-		Outbox: b.late.emailOutbox, PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery),
+		Outbox: newCalendarOutbox(b.late.emailOutbox), PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery),
 		Settings: b.settingsService, CalDAVSettings: b.settingsService,
 		StaffFeedTombstoneRepo: schoolCalendarCompose.NewFeedHistory(b.DB.Pool()),
 		ParentsURL:             b.parentsURL, FrontendURL: b.frontendURL, CalDAVURL: b.publicAPIURL,
-		Notifier: b.graph.Notifications, ReminderNotifier: b.graph.Notifications,
+		Notifier: newCalendarNotifier(b.graph.Notifications), ReminderNotifier: newCalendarReminderNotifier(b.graph.Notifications),
 		Preferences: b.graph.NotificationPreferences, Logger: b.Logger.With("service", "calendar"),
 	}
 }
@@ -505,7 +508,7 @@ func (b *graphBuild) calendarDependencies() CalendarDependencies {
 // publishes (#2601). A graph composed without the photo lifecycle hands the
 // portal none.
 func composeParentPortal(b graphBuild) (graphBuild, error) {
-	profiles, err := careplanCompose.NewStudentProfiles(b.DB.Pool(), func(careplanCompose.Observation) {})
+	profiles, err := careplanCompose.NewStudentProfiles(b.DB.Pool(), studentDirectoryView.NewCareReader(), func(careplanCompose.Observation) {})
 	if err != nil {
 		return b, fmt.Errorf("compose parent portal care profiles: %w", err)
 	}

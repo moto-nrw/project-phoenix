@@ -12,6 +12,10 @@ import (
 	"strings"
 	"time"
 
+	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
+
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
@@ -87,6 +91,7 @@ import (
 	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	schoolCalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
@@ -111,7 +116,6 @@ import (
 	workforceHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
@@ -158,7 +162,7 @@ type moduleServices struct {
 	// the Worker's booking audit read through.
 	carePlan *carePlanModule.Module
 	// studentStatusDays archives the Worker's status flags over Care Plan.
-	studentStatusDays scheduler.StudentStatusFlagArchiver
+	studentStatusDays schedulerPorts.StudentStatusFlagArchiver
 	// companions is Care Plan's companion graph of the student routes;
 	// reviewPolicy is the parent request review reach (#4011).
 	companions   carePlanModule.StudentCompanions
@@ -246,7 +250,7 @@ func newTimetable(db transactionruntime.Database, students peopleModule.StudentQ
 			return err
 		},
 		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: NewPresenceFacts(db),
-		Observe: observe,
+		Observe: observe, Provenance: enrollmentProvenanceView.NewReader(),
 	})
 }
 
@@ -611,7 +615,7 @@ func composeFacilities(db transactionruntime.Database, usage facilitiesCompose.R
 }
 
 func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -620,9 +624,10 @@ func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 		return nil, err
 	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
+		StudentDirectory: studentDirectoryView.NewCareReader(),
+		DB:               db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents, StatusSlots: slots,
-		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
 			if err != nil {
 				return nil, err
@@ -814,8 +819,8 @@ type serveGraph struct {
 
 // documentSweeps are the Worker's file sweeps that route resources serve.
 type documentSweeps struct {
-	staff   scheduler.StaffDocumentFileCleaner
-	student scheduler.StudentDocumentFileCleaner
+	staff   schedulerPorts.StaffDocumentFileCleaner
+	student schedulerPorts.StudentDocumentFileCleaner
 }
 
 // routeInputs is what the route composition reads. It hands back none of the
@@ -1091,7 +1096,7 @@ func mountRouteGroups(root, tenant chi.Router, in routeInputs, limiters authRate
 // token and the staff's feed administration under /api.
 func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
-		DB: in.db.Pool(), FrontendURL: in.frontendURL, Now: time.Now,
+		DB: in.db.Pool(), Feed: newParentRequestFeed, FrontendURL: in.frontendURL, Now: time.Now,
 		NewToken: sessiontoken.NewOpaqueCapabilityToken, HashToken: sessiontoken.OpaqueCapabilityFingerprint,
 	})
 	if err != nil {
@@ -1372,14 +1377,14 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, modules.persons,
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, studentDirectoryView.NewCareReader(), modules.persons,
 		reviewScope, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, requestreviewcompose.ScheduleReviewDependencies{
+	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, studentDirectoryView.NewCareReader(), requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {
@@ -1451,7 +1456,7 @@ func newDeviceAuthentication(modules moduleServices) *deviceauth.Authenticators 
 
 // mountStudentRoutes serves /api/students and hands its resource back as the
 // Worker's student document sweep.
-func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module) (scheduler.StudentDocumentFileCleaner, error) {
+func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceauth.Authenticators, presence *studentpresence.Module) (schedulerPorts.StudentDocumentFileCleaner, error) {
 	svc, modules := in.modules.services, in.modules
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
@@ -1620,7 +1625,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 // mountStaffRoutes serves the staff administration, shift planning,
 // substitutions and time tracking, and hands the staff administration back
 // as the Worker's staff document sweep.
-func mountStaffRoutes(tenant chi.Router, in routeInputs) (scheduler.StaffDocumentFileCleaner, error) {
+func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDocumentFileCleaner, error) {
 	svc, workforce := in.modules.services, in.modules.workforce
 	staff, staffAdmin, err := newStaffComposition(in.modules.membership, workforce, svc, in.modules.identity, in.db, in.logger.With("handler", "staff"))
 	if err != nil {
@@ -1733,7 +1738,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the service graph composes it and the IoT service hands it
 	// back here (#2676).
-	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), svc.Settings).Router())
+	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), DisplayFeatureEnabled(svc.Settings)).Router())
 	// Dateframes belong to the School Calendar, timeframes and recurrence
 	// rules to the Timetable owner; timeframe changes stay guarded by the
 	// recurrence gate and the Care Plan catalog's care-offering check.
