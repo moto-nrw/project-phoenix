@@ -25,7 +25,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -86,7 +85,7 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 	return &apiContext{
 		t: t, db: db, files: svc.FileStore, router: router, admin: adminAccount.ID, member: memberAccount.ID,
 		setStaffUploadEnabled: func() error {
-			return svc.Settings.SetValue(testpkg.Ctx(t), configModel.KeyFilesStaffUploadEnabled, true, nil, nil)
+			return svc.Settings.SetValue(testpkg.Ctx(t), "files.staff_upload_enabled", true, nil, nil)
 		},
 	}
 }
