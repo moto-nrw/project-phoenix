@@ -163,10 +163,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-iot-data",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-iot-internal-shared",
       "kind": "inbound"
     },
@@ -820,7 +816,7 @@
     },
     {
       "path": "api/iot/data",
-      "owner": "inbound-iot-data",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7793,12 +7789,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-iot-data.to.process-device-scan",
-      "description": "inbound-iot-data calls exactly one public capability.",
+      "id": "process-device-scan.http.public",
+      "description": "Device-scan HTTP data routes call the existing owned scan capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-iot-data",
+      "source_owner": "process-device-scan",
       "source_role": "http",
       "target_owner": "process-device-scan",
       "target_role": "public"
@@ -8545,12 +8541,12 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-iot-data.to.feedback",
-      "description": "The IoT feedback endpoint submits through the public Feedback capability.",
+      "id": "process-device-scan.http.feedback",
+      "description": "Device-scan HTTP data routes call the existing public feedback capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-iot-data",
+      "source_owner": "process-device-scan",
       "source_role": "http",
       "target_owner": "feedback",
       "target_role": "public"
@@ -11812,14 +11808,14 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-iot.compose.inbound-iot-data.http",
+      "id": "inbound-iot.compose.device-scan-http",
       "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
       "scopes": [
         "production"
       ],
       "source_owner": "inbound-iot",
       "source_role": "compose",
-      "target_owner": "inbound-iot-data",
+      "target_owner": "process-device-scan",
       "target_role": "http"
     },
     {
