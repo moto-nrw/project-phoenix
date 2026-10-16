@@ -1,8 +1,10 @@
 package compose
 
 import (
+	workforcePostgres "github.com/moto-nrw/project-phoenix/database/repositories/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/uptrace/bun"
 )
 
 // TimeTrackingTestRows are the time-tracking row contracts over a Workforce
@@ -25,4 +27,12 @@ func NewTimeTrackingTestRows(capability workforce.Capability) TimeTrackingTestRo
 		VacationQuotas:   newVacationQuotaRows(capability),
 		VacationOpenings: newVacationOpeningRows(capability),
 	}
+}
+
+func NewStaffAbsenceTypeAllowanceRepository(db *bun.DB) *StaffAbsenceTypeAllowanceRepository {
+	return workforcePostgres.NewStaffAbsenceTypeAllowanceRepository(workforcePostgres.Database(databaseRuntime(db)))
+}
+
+func NewStaffAbsenceTypeAllowanceChangeRepository(db *bun.DB) *StaffAbsenceTypeAllowanceChangeRepository {
+	return workforcePostgres.NewStaffAbsenceTypeAllowanceChangeRepository(workforcePostgres.Database(databaseRuntime(db)))
 }
