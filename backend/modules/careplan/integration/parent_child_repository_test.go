@@ -12,8 +12,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -66,7 +66,7 @@ func ensureGuardianProfile(t *testing.T, db *bun.DB, accountID, tenantID int64) 
 // for the same triple.
 func linkChildToAccount(t *testing.T, db *bun.DB, accountID, tenantID, studentID int64) int64 {
 	return linkChildToAccountWithPermissions(t, db, accountID, tenantID, studentID, map[string]bool{
-		authorize.GuardianPermissionPortalAccess: true,
+		careplan.GuardianPermissionPortalAccess: true,
 	})
 }
 
