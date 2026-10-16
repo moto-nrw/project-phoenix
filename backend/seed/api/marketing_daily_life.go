@@ -47,8 +47,8 @@ func marketingRooms() []marketingRoom {
 
 func marketingSessions() []marketingSession {
 	return []marketingSession{
-		{title: "Bauecke", category: "Spiele", room: "bauraum", group: "fuchsbau", leader: "Miriam Sommer"},
-		{title: "Fußball", category: "Sport", room: "turnhalle", group: "eulennest", leader: "Jonas Albrecht"},
+		{title: "Bauecke", category: "Spiele", room: "bauraum", group: "fuchsbau", leader: "Hilal Özdemir"},
+		{title: "Fußball", category: "Sport", room: "turnhalle", group: "eulennest", leader: "Thore Gritzmann"},
 	}
 }
 
@@ -56,7 +56,7 @@ const (
 	marketingTeamMessage    = "Kannst du um 14 Uhr die Hausaufgabenbetreuung im Fuchsbau übernehmen? Ich bin beim Elterngespräch."
 	marketingParentQuestion = "Lina wird heute um 15 Uhr von ihrer Oma abgeholt. Ist das in Ordnung?"
 	marketingParentMessage  = "Emir hat heute seine Turnschuhe vergessen. Kann er trotzdem beim Fußball mitmachen?"
-	marketingStaffReply     = "Kein Problem, wir haben Ersatzschuhe in der Turnhalle. Viele Grüße, Jonas Albrecht"
+	marketingStaffReply     = "Kein Problem, wir haben Ersatzschuhe in der Turnhalle. Viele Grüße, Thore Gritzmann"
 	marketingNoticeTitle    = "Ausflug zur Stadtbücherei"
 	marketingNewsTitle      = "Herbstfest am Freitag"
 )
