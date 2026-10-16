@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"time"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -36,6 +37,16 @@ func NewRoutedTestAuditPersistence(db transactionruntime.Database) (*auditCompos
 		return nil, err
 	}
 	return NewTestAuditPersistence(db, command), nil
+}
+
+// ListTestTimeTrackingAuditEntries reads the staff member's time-tracking
+// audit feed from the given sources, for suites that may not name the Audit
+// filter themselves.
+func ListTestTimeTrackingAuditEntries(ctx context.Context, db transactionruntime.Database, staffID int64, sources ...string) ([]*auditModels.TimeTrackingAuditLogEntry, error) {
+	return NewTestAuditPersistence(db, nil).TimeTrackingAuditLog.ListEntries(ctx, auditModels.TimeTrackingAuditLogFilter{
+		StaffID: staffID,
+		Sources: sources,
+	})
 }
 
 // NewTestAuditStore composes the Audit append store over the test database

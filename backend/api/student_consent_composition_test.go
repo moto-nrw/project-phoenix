@@ -1,23 +1,21 @@
-package contracttest_test
+package api
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	api "github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
-// The cases below moved here with the consent story (#3349); they previously
-// drove services/users.studentConsentService. The projection itself now lives
-// with People Directory, the trail with Audit Platform.
+// The cases below pin the consent seam of this package (#3349): the
+// projection lives with People Directory, the trail with Audit Platform, and
+// the translation to the retained model types here.
 
 type stubStudentConsentTrail struct {
 	auditModels.StudentConsentChangeRepository
@@ -70,7 +68,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 	}
 	student.ID = 91
 
-	states, err := api.NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
+	states, err := NewStudentConsentsFor(directory, &stubStudentConsentTrail{}).
 		CurrentStates(context.Background(), student, true)
 
 	require.NoError(t, err)
@@ -80,10 +78,10 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 	}, directory.snapshot)
 	assert.True(t, directory.canPhoto)
 	require.Len(t, states, 4)
-	assert.Equal(t, userModels.StudentConsentStateGranted, states[0].State)
-	assert.Equal(t, userModels.StudentConsentStateGranted, states[1].State)
-	assert.Equal(t, userModels.StudentConsentStateNotRecorded, states[2].State)
-	assert.Equal(t, userModels.StudentConsentStateWithdrawn, states[3].State)
+	assert.Equal(t, peopleModule.StudentConsentStateGranted, states[0].State)
+	assert.Equal(t, peopleModule.StudentConsentStateGranted, states[1].State)
+	assert.Equal(t, peopleModule.StudentConsentStateNotRecorded, states[2].State)
+	assert.Equal(t, peopleModule.StudentConsentStateWithdrawn, states[3].State)
 	assert.Equal(t, withdrawnAt, *states[3].ChangedAt)
 	assert.False(t, states[3].CanWithdraw)
 	assert.True(t, states[3].CanGrant)
@@ -93,7 +91,7 @@ func TestStudentConsentsReturnTheCurrentSharedPortalState(t *testing.T) {
 func TestStudentConsentsRejectUnpersistedStudent(t *testing.T) {
 	t.Parallel()
 
-	seam := api.NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
+	seam := NewStudentConsentsFor(&stubStudentConsentDirectory{}, &stubStudentConsentTrail{})
 	_, err := seam.CurrentStates(context.Background(), &userModels.Student{}, false)
 	require.ErrorContains(t, err, "persisted student is required")
 	_, err = seam.CurrentStates(context.Background(), nil, false)
@@ -104,7 +102,7 @@ func TestStudentConsentsRecordOnlyBooleanStateTransitions(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := api.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	oldTime := time.Date(2025, time.September, 1, 8, 0, 0, 0, time.UTC)
 	newTime := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	actor := int64(42)
@@ -144,14 +142,14 @@ func TestStudentConsentsRecordGrantedFieldsOnCreate(t *testing.T) {
 	t.Parallel()
 
 	trail := &stubStudentConsentTrail{}
-	recorder := api.NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
+	recorder := NewStudentConsentsFor(&stubStudentConsentDirectory{}, trail)
 	grantedAt := time.Date(2026, time.August, 31, 9, 0, 0, 0, time.UTC)
 	after := &userModels.Student{EmailContactAcceptedAt: &grantedAt}
 	after.ID = 88
 
 	err := recorder.RecordTransitions(
 		context.Background(), nil, after,
-		auditModels.StudentConsentSourceImport, nil, grantedAt,
+		"import", nil, grantedAt,
 	)
 	require.NoError(t, err)
 	require.Len(t, trail.entries, 1)

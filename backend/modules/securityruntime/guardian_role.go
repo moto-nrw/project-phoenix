@@ -20,6 +20,8 @@ const (
 // Parent-portal permissions a relationship role preset grants.
 const (
 	GuardianPermissionPortalAccess     = authorize.GuardianPermissionPortalAccess
+	GuardianPermissionSickNoteSubmit   = authorize.GuardianPermissionSickNoteSubmit
+	GuardianPermissionNotesWrite       = authorize.GuardianPermissionNotesWrite
 	GuardianPermissionEnrollmentSubmit = authorize.GuardianPermissionEnrollmentSubmit
 	GuardianPermissionPollResponse     = authorize.GuardianPermissionPollResponse
 )
