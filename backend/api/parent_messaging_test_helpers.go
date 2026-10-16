@@ -40,6 +40,6 @@ func NewParentMessagingTestRepositories(db transactionruntime.Database) (ParentM
 		Message: parentStore.NewParentMessageRepository(db.Pool()),
 		// The three guardian-facing projections resolve the school's staff
 		// accounts through School Membership, exactly as the service graph binds them.
-		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), ParentStaffMembers{Membership: membership}.List, persons),
+		Read: parentStore.NewStaffParentMessageReadRepository(db.Pool(), guardianLinkView.NewReader(), ParentStaffMembers{Membership: membership}.List, persons),
 	}, nil
 }

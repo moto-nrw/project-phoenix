@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"slices"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -17,10 +15,21 @@ import (
 // ErrInvalidTenantID reports a missing or non-positive projection tenant.
 var ErrInvalidTenantID = errors.New("timetable projection: tenant ID must be positive")
 
+// courseGroupType is the activities.groups type of a course.
+const courseGroupType = "activity"
+
+// CourseGroup is a locked course group in the projection's own vocabulary:
+// an active course and its participant limit, nil when the course has none.
+type CourseGroup struct {
+	ID               int64
+	Active           bool
+	ParticipantLimit *int
+}
+
 // LockCourseGroups serializes capacity checks and the enrollment write for
 // every shared course group. IDs are ordered so overlapping approvals cannot
 // deadlock.
-func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64) ([]enrollmentModels.CourseGroup, error) {
+func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs []int64) ([]CourseGroup, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -28,31 +37,37 @@ func LockCourseGroups(ctx context.Context, db bun.IDB, tenantID int64, groupIDs 
 	slices.Sort(ids)
 	ids = slices.Compact(ids)
 	if len(ids) == 0 {
-		return []enrollmentModels.CourseGroup{}, nil
+		return []CourseGroup{}, nil
 	}
-	var groups []*activitiesModels.Group
-	err := db.NewSelect().Model(&groups).ModelTableExpr(`activities.groups AS "group"`).
+	var groups []struct {
+		ID              int64 `bun:"id"`
+		MaxParticipants int   `bun:"max_participants"`
+	}
+	err := db.NewSelect().TableExpr(`activities.groups AS "group"`).
+		ColumnExpr(`"group".id, COALESCE("group".max_participants, 0) AS max_participants`).
 		Where(`"group".tenant_id = ?`, tenantID).
 		Where(`"group".id IN (?)`, bun.List(ids)).
-		Where(`"group".type = ?`, activitiesModels.GroupTypeActivity).
+		Where(`"group".type = ?`, courseGroupType).
 		Where(`"group".archived_at IS NULL`).
 		OrderExpr(`"group".id`).
 		For("UPDATE").
-		Scan(ctx)
+		Scan(ctx, &groups)
 	if err != nil {
 		return nil, fmt.Errorf("timetable projection: lock course groups: %w", err)
 	}
-	locked := make([]enrollmentModels.CourseGroup, 0, len(groups))
+	locked := make([]CourseGroup, 0, len(groups))
 	for _, group := range groups {
-		if group != nil {
-			locked = append(locked, enrollmentModels.CourseGroup{
-				ID:               group.ID,
-				Active:           true,
-				ParticipantLimit: group.ParticipantLimit(),
-			})
-		}
+		locked = append(locked, CourseGroup{ID: group.ID, Active: true, ParticipantLimit: participantLimit(group.MaxParticipants)})
 	}
 	return locked, nil
+}
+
+// participantLimit maps the stored zero of an unlimited course to nil.
+func participantLimit(limit int) *int {
+	if limit <= 0 {
+		return nil
+	}
+	return &limit
 }
 
 // CountActiveCourseEnrollments returns each course's peak roster occupancy in

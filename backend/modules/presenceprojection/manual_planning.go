@@ -4,8 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -22,7 +20,7 @@ type ManualPlanningOccurrence struct {
 // ListManualPlanningOccurrences lists the manually planned care blocks of a
 // child in the date range that no session has started yet and that the
 // attendance does not mark as a walk-in or as not scheduled.
-func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to calendar.Date) ([]ManualPlanningOccurrence, error) {
+func (Reader) ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, studentID int64, from, to calendar.Date) ([]ManualPlanningOccurrence, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -51,7 +49,7 @@ func ListManualPlanningOccurrences(ctx context.Context, db bun.IDB, tenantID, st
 		  AND activity_group.is_template = TRUE AND activity_group.type = ?
 		  AND COALESCE(jsonb_array_length(activity_group.source_care_offering_ids), 0) = 0
 		ORDER BY activity_group.name, activity_group.id, activity_instance.date, activity_instance.id`,
-		tenantID, studentID, from, to, scheduleModels.InstanceStatusPlanned, activitiesModels.GroupTypeCare).Scan(ctx, &rows)
+		tenantID, studentID, from, to, statusPlanned, careGroupType).Scan(ctx, &rows)
 	if err != nil {
 		return nil, fmt.Errorf("presence projection: list manual planning occurrences: %w", err)
 	}

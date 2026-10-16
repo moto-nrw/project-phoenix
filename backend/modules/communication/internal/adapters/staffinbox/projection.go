@@ -14,7 +14,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -111,7 +110,7 @@ type inboxRow struct {
 // for Ben and as "Ben" for Anna, so the join picks the participant that is NOT
 // the viewer. Threads without any message are skipped — a get-or-create that
 // was never followed by a send must not clutter the inbox.
-func (p *Projection) ListInbox(ctx context.Context, accountID int64, onlyUnread bool) ([]*domain.StaffInboxThread, error) {
+func (p *Projection) ListInbox(ctx context.Context, accountID int64, onlyUnread bool) ([]*StaffInboxThread, error) {
 	db, tenantID, err := p.database(ctx)
 	if err != nil {
 		return nil, err
@@ -161,9 +160,9 @@ func (p *Projection) ListInbox(ctx context.Context, accountID int64, onlyUnread 
 	if err := query.Scan(ctx); err != nil {
 		return nil, fmt.Errorf("list staff message inbox: %w", err)
 	}
-	threads := make([]*domain.StaffInboxThread, 0, len(rows))
+	threads := make([]*StaffInboxThread, 0, len(rows))
 	for _, row := range rows {
-		threads = append(threads, &domain.StaffInboxThread{
+		threads = append(threads, &StaffInboxThread{
 			ThreadID: row.ThreadID, TenantID: row.TenantID,
 			CounterpartAccountID: row.CounterpartAccountID, CounterpartName: row.CounterpartName,
 			LastMessageAt: row.LastMessageAt, LastMessageBody: row.LastMessageBody,
