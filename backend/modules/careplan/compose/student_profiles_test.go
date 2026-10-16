@@ -19,7 +19,7 @@ func TestStudentCareProfileJoinsCallerRollbackAndTenant(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "CareProfile", "Rollback", "1a")
 	var membershipID int64
 	require.NoError(t, db.NewRaw("SELECT id FROM users.student_school_memberships WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL", testpkg.Tenant(t), student.ID).Scan(ctx, &membershipID))
-	commands, err := NewStudentProfiles(db, func(Observation) {})
+	commands, err := NewStudentProfiles(db, testpkg.StudentDirectory{}, func(Observation) {})
 	require.NoError(t, err)
 	input := careplan.StudentCareProfile{MembershipID: membershipID, HealthInfo: testpkg.StrPtr("original")}
 	require.NoError(t, commands.SaveStudentCareProfile(ctx, input, nil))
@@ -71,7 +71,7 @@ func seedHealthSchool(t *testing.T, db *bun.DB, commands careplan.StudentProfile
 func TestSetStudentHealthInfoWritesOnlyTheTenantsCareRow(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	commands, err := NewStudentProfiles(db, func(Observation) {})
+	commands, err := NewStudentProfiles(db, testpkg.StudentDirectory{}, func(Observation) {})
 	require.NoError(t, err)
 	healthOf := func(t *testing.T, ctx context.Context, membershipID int64) *string {
 		t.Helper()

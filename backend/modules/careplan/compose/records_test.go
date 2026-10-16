@@ -37,7 +37,8 @@ func TestCompanionFacadePreservesNamesIsolationAndQueryCount(t *testing.T) {
 	}}}
 	var observations []Observation
 	module, err := New(Dependencies{
-		DB: db, Observe: func(value Observation) { observations = append(observations, value) },
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db, Observe: func(value Observation) { observations = append(observations, value) },
 		AmbientDB: func(context.Context) bun.IDB { return db }, People: people,
 		StatusStudents: emptyPeopleDirectory{}, StatusSlots: emptyStatusSlots{},
 		StudentLock:     func(context.Context, int64) error { return nil },

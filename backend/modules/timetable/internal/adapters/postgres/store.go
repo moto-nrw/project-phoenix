@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	enrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -341,7 +340,7 @@ func capStudentEnrollments(ctx context.Context, db bun.IDB, tenantID int64, stud
 	return nil
 }
 
-func (s *Store) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error) {
+func (s *ProvenanceStore) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (int64, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -352,7 +351,7 @@ func (s *Store) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studen
 	stats := domain.OperationStats{}
 	if len(requestedChildIDs) > 0 {
 		started := time.Now()
-		requestChildIDs, err = enrollmentprovenance.ExistingRequestChildIDs(ctx, db, tenantID, requestedChildIDs)
+		requestChildIDs, err = s.provenance.ExistingRequestChildIDs(ctx, db, tenantID, requestedChildIDs)
 		stats.Queries++
 		stats.StatementDuration += time.Since(started)
 		if err != nil {

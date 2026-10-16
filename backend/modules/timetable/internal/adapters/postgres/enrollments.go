@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	enrollmentprovenance "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -153,7 +152,7 @@ func (s *Store) DeleteStudentEnrollment(ctx context.Context, id int64) (domain.O
 	return execMeasuredWrite(ctx, db.NewDelete().Table("activities.student_enrollments").Where("tenant_id = ?", tenantID).Where("id = ?", id), "delete student enrollment")
 }
 
-func (s *Store) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, domain.OperationStats, error) {
+func (s *ProvenanceStore) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, domain.OperationStats, error) {
 	if len(groupIDs) == 0 {
 		return 0, domain.OperationStats{}, nil
 	}
@@ -163,7 +162,7 @@ func (s *Store) BackfillStudentEnrollmentSource(ctx context.Context, studentID, 
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	ids, err := enrollmentprovenance.EligibleEnrollmentIDs(ctx, db, tenantID, studentID, requestChildID, groupIDs)
+	ids, err := s.provenance.EligibleEnrollmentIDs(ctx, db, tenantID, studentID, requestChildID, groupIDs)
 	stats.StatementDuration = time.Since(started)
 	if err != nil || len(ids) == 0 {
 		return 0, stats, err

@@ -25,15 +25,6 @@ const (
 	dataTargetDeparture           = "departure"
 )
 
-type requestStore struct{ *Store }
-
-func NewRequestStore(store *Store) *requestStore {
-	if store == nil {
-		panic("care plan request store: store is required")
-	}
-	return &requestStore{Store: store}
-}
-
 type excusedAbsenceRequestRow struct {
 	bun.BaseModel  `bun:"table:excused_absence_requests,alias:excused_absence_request"`
 	ID             int64          `bun:"id,pk,autoincrement"`
@@ -204,7 +195,7 @@ func requestDBError(op string, err error) error {
 	return fmt.Errorf("care plan postgres: %s: %w", op, err)
 }
 
-func applyRequestQueueFilters(query *bun.SelectQuery, alias, keysetColumn string, filter *careplan.RequestQueueFilter) *bun.SelectQuery {
+func applyRequestQueueFilters(directory StudentDirectory, query *bun.SelectQuery, alias, keysetColumn string, filter *careplan.RequestQueueFilter) *bun.SelectQuery {
 	studentColumn := bun.Ident(alias + ".student_id")
 	instantColumn := bun.Ident(alias + "." + keysetColumn)
 	idColumn := bun.Ident(alias + ".id")
@@ -215,7 +206,7 @@ func applyRequestQueueFilters(query *bun.SelectQuery, alias, keysetColumn string
 		query = query.Where("? IN (?)", studentColumn, bun.List(filter.StudentIDs))
 	}
 	if search := strings.TrimSpace(filter.Search); search != "" {
-		query = filterRequestQueueStudentName(query, alias, search)
+		query = filterRequestQueueStudentName(directory, query, alias, search)
 	}
 	if !filter.BeforeInstant.IsZero() {
 		query = query.Where("(?, ?) < (?, ?)", instantColumn, idColumn, filter.BeforeInstant, filter.BeforeID)
@@ -304,7 +295,7 @@ func (s *requestStore) ListExcusedAbsenceRequests(ctx context.Context, filter ca
 	if !filter.RecentSince.IsZero() {
 		query = query.Where(`COALESCE("excused_absence_request".reviewed_at, "excused_absence_request".updated_at) >= ?`, filter.RecentSince)
 	}
-	query = applyExcusedRequestOptions(query, filter)
+	query = applyExcusedRequestOptions(s.directory, query, filter)
 	started := time.Now()
 	err = query.Scan(ctx)
 	stats := requestStats(started, int64(len(rows)))
@@ -314,13 +305,13 @@ func (s *requestStore) ListExcusedAbsenceRequests(ctx context.Context, filter ca
 	return excusedRequestsToPublic(rows), stats, nil
 }
 
-func applyExcusedRequestOptions(query *bun.SelectQuery, filter careplan.ExcusedAbsenceRequestFilter) *bun.SelectQuery {
+func applyExcusedRequestOptions(directory StudentDirectory, query *bun.SelectQuery, filter careplan.ExcusedAbsenceRequestFilter) *bun.SelectQuery {
 	if filter.Queue != nil {
 		if len(filter.Statuses) == 1 && filter.Statuses[0] == requestPending {
 			query = applyRequestUrgency(query, filter.Queue, `"excused_absence_request".dates @> ?::jsonb`, `["`+filter.Queue.UrgentDate+`"]`)
-			return applyRequestQueueFilters(query, "excused_absence_request", "created_at", filter.Queue)
+			return applyRequestQueueFilters(directory, query, "excused_absence_request", "created_at", filter.Queue)
 		}
-		return applyRequestQueueFilters(query, "excused_absence_request", "updated_at", filter.Queue)
+		return applyRequestQueueFilters(directory, query, "excused_absence_request", "updated_at", filter.Queue)
 	}
 	if filter.Options != nil {
 		query = applyStudentScheduleOptions(query, filter.Options, "excused_absence_request")
@@ -479,7 +470,7 @@ func (s *requestStore) ListCareScheduleRequests(ctx context.Context, filter care
 	if len(filter.Statuses) > 0 {
 		query = query.Where(`"care_schedule_change_request".status IN (?)`, bun.List(filter.Statuses))
 	}
-	query, err = applyCareScheduleRequestOptions(query, filter)
+	query, err = applyCareScheduleRequestOptions(s.directory, query, filter)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err
 	}
@@ -492,7 +483,7 @@ func (s *requestStore) ListCareScheduleRequests(ctx context.Context, filter care
 	return careScheduleRequestsToPublic(rows), stats, nil
 }
 
-func applyCareScheduleRequestOptions(query *bun.SelectQuery, filter careplan.CareScheduleRequestFilter) (*bun.SelectQuery, error) {
+func applyCareScheduleRequestOptions(directory StudentDirectory, query *bun.SelectQuery, filter careplan.CareScheduleRequestFilter) (*bun.SelectQuery, error) {
 	if !filter.RecentSince.IsZero() {
 		return query.Where(`("care_schedule_change_request".status = ? OR "care_schedule_change_request".updated_at >= ?)`, requestPending, filter.RecentSince).
 			OrderExpr(`"care_schedule_change_request".created_at DESC`).OrderExpr(`"care_schedule_change_request".id DESC`), nil
@@ -502,7 +493,7 @@ func applyCareScheduleRequestOptions(query *bun.SelectQuery, filter careplan.Car
 	}
 	if len(filter.Statuses) == 1 && filter.Statuses[0] == requestPending {
 		if filter.Queue.UrgentOnly == nil {
-			return applyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filter.Queue), nil
+			return applyRequestQueueFilters(directory, query, "care_schedule_change_request", "created_at", filter.Queue), nil
 		}
 		date, err := time.Parse(time.DateOnly, filter.Queue.UrgentDate)
 		if err != nil {
@@ -517,9 +508,9 @@ func applyCareScheduleRequestOptions(query *bun.SelectQuery, filter careplan.Car
 			("care_schedule_change_request".request_kind = 'pickup_change' AND "care_schedule_change_request".payload->>'date' = ?)
 			OR ("care_schedule_change_request".request_kind <> 'pickup_change' AND "care_schedule_change_request".payload->'weekdays' @> ?::jsonb)
 		`, filter.Queue.UrgentDate, weekdayJSON)
-		return applyRequestQueueFilters(query, "care_schedule_change_request", "created_at", filter.Queue), nil
+		return applyRequestQueueFilters(directory, query, "care_schedule_change_request", "created_at", filter.Queue), nil
 	}
-	return applyRequestQueueFilters(query, "care_schedule_change_request", "updated_at", filter.Queue), nil
+	return applyRequestQueueFilters(directory, query, "care_schedule_change_request", "updated_at", filter.Queue), nil
 }
 
 func (s *requestStore) CreateCareScheduleRequest(ctx context.Context, value careplan.CareScheduleChangeRequest) (careplan.CareScheduleChangeRequest, carePlanCompose.RequestStoreStats, error) {
@@ -657,9 +648,9 @@ func (s *requestStore) ListStudentDataRequests(ctx context.Context, filter carep
 	if filter.Queue != nil {
 		if len(filter.Statuses) == 1 && filter.Statuses[0] == requestPending {
 			query = applyRequestUrgency(query, filter.Queue, "FALSE")
-			query = applyRequestQueueFilters(query, "student_data_change_request", "created_at", filter.Queue)
+			query = applyRequestQueueFilters(s.directory, query, "student_data_change_request", "created_at", filter.Queue)
 		} else {
-			query = applyRequestQueueFilters(query, "student_data_change_request", "updated_at", filter.Queue)
+			query = applyRequestQueueFilters(s.directory, query, "student_data_change_request", "updated_at", filter.Queue)
 		}
 	} else {
 		query = query.OrderExpr(`"student_data_change_request".created_at DESC`).OrderExpr(`"student_data_change_request".id DESC`)

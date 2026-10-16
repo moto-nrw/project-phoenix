@@ -53,7 +53,7 @@ func TestPhaseExpiryProjection_ListSnapshots_CountsWholeCohortAtFirstAffectedDat
 			}
 		}
 		childRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
-		offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db))
+		offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{}))
 		linkRepo := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 		for _, fixture := range []struct {
 			student *testpkg.Student
@@ -196,7 +196,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	offering.CountsAsCare = false
 	offering.CountsAsCareSet = true
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db)).Create(ctx, offering)
+		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{})).Create(ctx, offering)
 	}))
 
 	validFrom := calendar.Date(phase.ServiceStartDate)
@@ -213,7 +213,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	secondOffering := makeOffering(phase.ID, uniqueOfferingName("second-offering"))
 	secondOffering.AvailableDays = []string{"tue"}
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db)).Create(ctx, secondOffering)
+		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{})).Create(ctx, secondOffering)
 	}))
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
 		return api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, &capability.RequestChildOffering{
@@ -282,7 +282,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	offering.IsActive = false
 	secondOffering.IsActive = false
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db))
+		offeringRepo := newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{}))
 		if updateErr := offeringRepo.Update(ctx, offering); updateErr != nil {
 			return updateErr
 		}
@@ -301,7 +301,7 @@ func TestPhaseExpiryProjection_ListSnapshots_FindsMondayAfterFridayForNonCareOff
 	assert.Empty(t, snapshots, "inactive offerings must not trigger a warning")
 	offering.IsActive = true
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
-		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db)).Update(ctx, offering)
+		return newCareOfferingFixtures(testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{})).Update(ctx, offering)
 	}))
 
 	require.NoError(t, runInTenantTx(t, db, tenantID, func(ctx context.Context) error {
@@ -371,7 +371,7 @@ func newPhaseExpiryProjection(t *testing.T, db *bun.DB) *TestPhaseExpirySnapshot
 	owner := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant)
 	students, err := api.NewPeopleDirectory(testpkg.MustDatabase(db))
 	require.NoError(t, err)
-	return NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db)}, owner)
+	return NewTestPhaseExpirySnapshots(owner, expiryStudentDirectory{students}, phaseExpiryCareOfferingDirectory{testutil.NewTestCarePlan(t, db, testpkg.StudentDirectory{})}, owner)
 }
 
 // Fixture-only lifecycle setup: the report tests do not exercise lifecycle commands.

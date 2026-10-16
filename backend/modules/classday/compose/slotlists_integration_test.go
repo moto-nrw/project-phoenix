@@ -268,7 +268,7 @@ func newTestServiceWithCustomAccess(db *bun.DB, rooms roomReader, settings compo
 // schedule services stay behind the compatibility bindings.
 func newTestServiceWithParticipation(db *bun.DB, rooms roomReader, settings compose.SettingsReader, userCtx slotListUserContext, participation carePlanTest.CareParticipationResolver) classday.SlotLists {
 	people := newTestPeople(db)
-	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db)
+	carePlan := carePlanTest.NewCarePlan(slotListTestTB{}, db, testpkg.StudentDirectory{})
 	arrivals := carePlanTest.NewArrivalQueries(slotListTestTB{}, db, carePlan)
 	service := compose.NewSlotLists(compose.SlotListDependencies{
 		Timetable:       slotListTimetableRows{rows: timetabletest.NewLegacyRows(slotListTestTB{}, db)},
