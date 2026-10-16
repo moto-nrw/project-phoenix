@@ -21,9 +21,7 @@ package classday
 import (
 	"context"
 	"errors"
-
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"time"
 )
 
 // Date is a calendar day in "YYYY-MM-DD" form. The projection resolves it in
@@ -68,22 +66,64 @@ var ErrListDrifted = errors.New("Die Liste hat sich seit der Vorschau geändert.
 var ErrTimetableDisabled = errors.New("timetable feature is disabled")
 
 // Format is the file format a slot list export renders to.
-type Format = listexport.Format
-
-// File is a rendered slot list export.
-type File = listexport.File
+type Format string
 
 // The export formats a slot list renders to.
 const (
-	FormatPDF  = listexport.FormatPDF
-	FormatXLSX = listexport.FormatXLSX
+	FormatPDF  Format = "pdf"
+	FormatXLSX Format = "xlsx"
 )
+
+// File is a rendered slot list export.
+type File struct {
+	Data        []byte
+	ContentType string
+	Filename    string
+}
+
+// ExportColumnID names a printed column of a slot list export.
+type ExportColumnID string
+
+// The columns a slot list export prints.
+const (
+	ExportColumnName           ExportColumnID = "name"
+	ExportColumnSchoolClass    ExportColumnID = "school_class"
+	ExportColumnGroup          ExportColumnID = "group"
+	ExportColumnSlot           ExportColumnID = "slot"
+	ExportColumnPlannedPickup  ExportColumnID = "planned_pickup"
+	ExportColumnPresenceStatus ExportColumnID = "presence_status"
+)
+
+// ExportColumn is one printed column: its id and header label.
+type ExportColumn struct {
+	ID    ExportColumnID
+	Label string
+}
+
+// ExportRow is one printed row; a row with a GroupTitle opens a section and
+// carries no values.
+type ExportRow struct {
+	GroupTitle string
+	Values     map[ExportColumnID]string
+}
+
+// ExportDocument is a slot list as the export prints it. The projection
+// fills it; the renderer the root binds turns it into a file.
+type ExportDocument struct {
+	Title       string
+	Subtitle    string
+	GeneratedAt time.Time
+	Filters     []string
+	Columns     []ExportColumn
+	Rows        []ExportRow
+	Footer      string
+}
 
 // SlotLists builds slot lists for preview (JSON) and export (PDF/XLSX).
 type SlotLists interface {
 	BuildList(ctx context.Context, params Params) (*Result, error)
 	ListOptions(ctx context.Context, date Date) (*OptionsResult, error)
-	RenderList(ctx context.Context, params Params, format listexport.Format) (listexport.File, error)
+	RenderList(ctx context.Context, params Params, format Format) (File, error)
 }
 
 // Target selects which data domain a list is built from.
@@ -124,12 +164,14 @@ func (t Target) Label() string {
 // templates/instances. Empty means the manual "Freie Angebotsauswahl" flow.
 type ListKind string
 
+// The values are the list kinds Timetable & Activities stores on a template
+// and its instances (activities.groups.list_kind).
 const (
 	ListKindNone         ListKind = ""
-	ListKindEdgeHours    ListKind = activitiesModel.ListKindEdgeHours
-	ListKindLearningTime ListKind = activitiesModel.ListKindLearningTime
-	ListKindActivity     ListKind = activitiesModel.ListKindActivity
-	ListKindMensa        ListKind = activitiesModel.ListKindMensa
+	ListKindEdgeHours    ListKind = "edge_hours"
+	ListKindLearningTime ListKind = "learning_time"
+	ListKindActivity     ListKind = "activity"
+	ListKindMensa        ListKind = "mensa"
 )
 
 var AllListKinds = []ListKind{
@@ -139,12 +181,25 @@ var AllListKinds = []ListKind{
 	ListKindMensa,
 }
 
+// Valid reports a known list kind; empty means "no list kind".
 func (k ListKind) Valid() bool {
-	return activitiesModel.IsValidListKind(string(k))
+	return k == ListKindNone || k.Label() != ""
 }
 
+// Label returns the German display name of the list kind, empty for none.
 func (k ListKind) Label() string {
-	return activitiesModel.ListKindLabel(string(k))
+	switch k {
+	case ListKindEdgeHours:
+		return "Randstunden"
+	case ListKindLearningTime:
+		return "Lernzeit"
+	case ListKindActivity:
+		return "AG-Angebote"
+	case ListKindMensa:
+		return "Mensa"
+	default:
+		return ""
+	}
 }
 
 // PickupCohort selects the configured Ganztag pickup bucket.
