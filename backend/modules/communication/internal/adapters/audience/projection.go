@@ -30,7 +30,7 @@ type announcementRow struct {
 	TargetRoles     []string   `bun:"target_roles,array"`
 	TargetOrgIDs    []int64    `bun:"target_org_ids,array"`
 	TargetTenantIDs []int64    `bun:"target_tenant_ids,array"`
-	CreatedBy       int64      `bun:"created_by"`
+	CreatedBy       *int64     `bun:"created_by"`
 	CreatedAt       time.Time  `bun:"created_at"`
 	UpdatedAt       time.Time  `bun:"updated_at"`
 }
@@ -201,7 +201,14 @@ func toDomain(row announcementRow) domain.Announcement {
 		Severity: row.Severity, Version: row.Version, Active: row.Active,
 		PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt,
 		TargetRoles: row.TargetRoles, TargetOrgIDs: row.TargetOrgIDs,
-		TargetTenantIDs: row.TargetTenantIDs, CreatedBy: row.CreatedBy,
+		TargetTenantIDs: row.TargetTenantIDs, CreatedBy: zeroID(row.CreatedBy),
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
+}
+
+func zeroID(value *int64) int64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
