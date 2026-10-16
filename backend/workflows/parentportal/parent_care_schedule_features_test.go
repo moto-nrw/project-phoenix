@@ -62,7 +62,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		ArrivalSchedules:       sf.ArrivalSchedule,
 		PickupSchedules:        sf.PickupSchedule,
 		CareRequests:           sf.CareRequests,
-		CareRequestRepo:        repos.CareScheduleChangeRequest,
+		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
 		FamilyProtectionEvents: repos.FamilyProtection,
 		ParentRequestShares:    repos.ParentRequestShare,
 		StatusDayRepo:          repos.StudentStatusDay,
