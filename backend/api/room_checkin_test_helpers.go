@@ -7,6 +7,8 @@ import (
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -60,4 +62,12 @@ func NewCheckinTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Logger:     logger,
 	})
 	return CheckinTestModule{ActiveTestModule: module, DeviceScan: scan, Rosters: rosters}, nil
+}
+
+// NewCheckinTestPresence builds the same unobserved presence reader used by
+// the kiosk contract suite, without exposing its composition dependency.
+func NewCheckinTestPresence(db transactionruntime.Database) (*studentpresence.Module, error) {
+	return presenceCompose.New(presenceCompose.Dependencies{
+		DB: db.Pool(), Observe: func(presenceCompose.Observation) {},
+	})
 }

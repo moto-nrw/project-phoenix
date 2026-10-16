@@ -139,6 +139,14 @@ HTTP-Pakete. Pfade, Produktions-/Testrollen, Go-Code, Verträge und Assertions
 bleiben unverändert. Inbound-Owner 19 → 17, Regeln 918 → 915; 270 Keys,
 #4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben unverändert.
 
+#4078: IoT-Check-in gehört zu `process-device-scan`; `inbound-iot-checkin`
+entfällt. Die Root-Testunterstützung baut für die bestehende Kiosk-Suite exakt
+wie zuvor das unbeobachtete Student-Presence-Modul. Nur Import und Konstruktor-
+Aufruf wechseln; alle Assertions und Produktionshandler bleiben unverändert.
+Drei Regeln entfallen, ohne Nachfolger. Inbound-Owner 17 → 16, Regeln 915 → 912;
+270 Keys, #4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben gleich.
+Keine IoT-Zeichenkette, Route oder Response ändert sich.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
