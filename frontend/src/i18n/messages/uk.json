@@ -2350,7 +2350,7 @@
         "username_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
         "password_mismatch": "Не вдалося зберегти: {object}. Перевірте введені дані.",
         "operator_invitation_invalid": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-        "operator_self_deactivation": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+        "operator_self_deactivation": "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
         "invitation_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_rate_limited": "{object} зараз недоступний. Спробуйте ще раз.",
         "email_change_same_email": "Не вдалося зберегти: {object}. Перевірте введені дані.",

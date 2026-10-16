@@ -1426,6 +1426,8 @@ export const ERROR_CATALOG = {
         "This enrollment cannot be changed right now. Please contact the school.",
       "enrollment.change_request_status_changed":
         "The status of this change request has changed. Please reload the page.",
+      "identity.operator_self_deactivation":
+        "You cannot deactivate your own account. Ask another team member to do this.",
     },
   },
   ru: {
@@ -1688,6 +1690,8 @@ export const ERROR_CATALOG = {
         "Эту запись сейчас нельзя изменить. Обратитесь в школу.",
       "enrollment.change_request_status_changed":
         "Статус этого запроса на изменение изменился. Обновите страницу.",
+      "identity.operator_self_deactivation":
+        "Вы не можете деактивировать свою учётную запись. Попросите об этом другого участника команды.",
     },
   },
   sq: {
@@ -1963,6 +1967,8 @@ export const ERROR_CATALOG = {
         "Ky regjistrim nuk mund të ndryshohet tani. Ju lutemi kontaktoni shkollën.",
       "enrollment.change_request_status_changed":
         "Gjendja e kësaj kërkese për ndryshim ka ndryshuar. Ju lutemi ringarkoni faqen.",
+      "identity.operator_self_deactivation":
+        "Nuk mund ta çaktivizoni llogarinë tuaj. Kërkojini një personi tjetër nga ekipi ta bëjë këtë.",
     },
   },
   pl: {
@@ -2226,6 +2232,8 @@ export const ERROR_CATALOG = {
         "Tego zapisu nie można teraz zmienić. Skontaktuj się ze szkołą.",
       "enrollment.change_request_status_changed":
         "Stan tej prośby o zmianę się zmienił. Odśwież stronę.",
+      "identity.operator_self_deactivation":
+        "Nie możesz dezaktywować własnego konta. Poproś o to inną osobę z zespołu.",
     },
   },
   tr: {
@@ -2495,6 +2503,8 @@ export const ERROR_CATALOG = {
         "Bu kayıt şu anda değiştirilemez. Lütfen okulla iletişime geçin.",
       "enrollment.change_request_status_changed":
         "Bu değişiklik talebinin durumu değişti. Lütfen sayfayı yenileyin.",
+      "identity.operator_self_deactivation":
+        "Kendi hesabınızı devre dışı bırakamazsınız. Bunu ekipten başka bir kişiden isteyin.",
     },
   },
   uk: {
@@ -2755,6 +2765,8 @@ export const ERROR_CATALOG = {
         "Цей запис зараз не можна змінити. Зверніться до школи.",
       "enrollment.change_request_status_changed":
         "Статус цього запиту на зміну змінився. Оновіть сторінку.",
+      "identity.operator_self_deactivation":
+        "Ви не можете деактивувати власний обліковий запис. Попросіть іншу людину з команди зробити це.",
     },
   },
 } as const;
