@@ -13,7 +13,6 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -23,7 +22,7 @@ import (
 // reasonPolicySettings turns the absence approval gate on and serves one
 // configured value of operations.parent_request_reason_policy.
 type reasonPolicySettings struct {
-	configService.SettingsService
+	parentService.SettingsService
 	policy string
 }
 
@@ -136,7 +135,7 @@ func TestStaffApprovalReasonFollowsReasonPolicy(t *testing.T) {
 					RequestID:      res.PendingRequest.ID,
 					Approve:        true,
 					ReviewedBy:     chain.AccountID,
-					ReasonRequired: configService.ReasonRequiredFor(tc.policy, true),
+					ReasonRequired: parentService.RequestReasonPolicy(tc.policy).RequiresReason(true),
 				})
 				return err
 			})
