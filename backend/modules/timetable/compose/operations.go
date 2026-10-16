@@ -8,11 +8,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -256,7 +256,7 @@ func (s *operations) logger() *slog.Logger {
 func (s *operations) loadInstance(ctx context.Context, instanceID int64) (*scheduleModels.ActivityInstance, error) {
 	inst, err := s.deps.Instances.FindByID(ctx, instanceID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrTimetableOperationNotFound
 		}
 		return nil, err
@@ -285,7 +285,7 @@ func (s *operations) resolveStaffID(ctx context.Context, accountID int64) (int64
 	}
 	staff, err := s.deps.People.GetStaffByPersonID(ctx, person.ID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return 0, false, nil
 		}
 		return 0, false, err

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // ClosingDayRangeListing serves the date-typed range finder of the legacy
@@ -25,15 +25,15 @@ type DateframeOptionsListing struct {
 	Source func(context.Context, DateframeListing) ([]*schedule.Dateframe, error)
 }
 
-func (l DateframeOptionsListing) List(ctx context.Context, options *modelBase.QueryOptions) ([]*schedule.Dateframe, error) {
+func (l DateframeOptionsListing) List(ctx context.Context, options *domain.ListOptions) ([]*schedule.Dateframe, error) {
 	listing, err := dateframeListingFromOptions(options)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list", Err: err}
+		return nil, &domain.StoreError{Op: "list", Err: err}
 	}
 	return l.Source(ctx, listing)
 }
 
-func dateframeListingFromOptions(options *modelBase.QueryOptions) (DateframeListing, error) {
+func dateframeListingFromOptions(options *domain.ListOptions) (DateframeListing, error) {
 	listing := DateframeListing{}
 	if options == nil {
 		return listing, nil
@@ -48,9 +48,9 @@ func dateframeListingFromOptions(options *modelBase.QueryOptions) (DateframeList
 				return listing, fmt.Errorf("unsupported dateframe filter %q %s", condition.Field, condition.Operator)
 			}
 			switch condition.Operator {
-			case modelBase.OpEqual:
+			case domain.ListOpEqual:
 				listing.Name = value
-			case modelBase.OpILike:
+			case domain.ListOpILike:
 				listing.NamePattern = value
 			default:
 				return listing, fmt.Errorf("unsupported dateframe filter %q %s", condition.Field, condition.Operator)
@@ -63,7 +63,7 @@ func dateframeListingFromOptions(options *modelBase.QueryOptions) (DateframeList
 	}
 	if options.Sorting != nil {
 		for _, field := range options.Sorting.Fields {
-			listing.Sort = append(listing.Sort, DateframeSortField{Field: field.Field, Descending: field.Direction == modelBase.SortDesc})
+			listing.Sort = append(listing.Sort, DateframeSortField{Field: field.Field, Descending: field.Direction == domain.ListSortDesc})
 		}
 	}
 	return listing, nil

@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -88,7 +88,7 @@ func (c substituteConflicts) loadSubstitutionWarnings(
 	}
 	for _, id := range foreignIDs {
 		if foreignByID[id] == nil {
-			return nil, fmt.Errorf("load substitute conflict instance %d: %w", id, modelBase.ErrNotFound)
+			return nil, fmt.Errorf("load substitute conflict instance %d: %w", id, domain.ErrRecordNotFound)
 		}
 	}
 	return mergeSubstitutionWarnings(probes, rowsByStaff, foreignByID), nil

@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // The correction of a completed block's attendance (#2898) behind
@@ -144,7 +144,7 @@ func (s *attendanceCorrections) checkCorrectionPreconditions(reason string) (str
 func (s *attendanceCorrections) loadCorrectableEntry(ctx context.Context, instanceID, studentID int64) (*scheduleModel.InstanceStudent, error) {
 	current, err := s.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrAttendanceEntryNotFound
 		}
 		return nil, fmt.Errorf("load attendance entry: %w", err)
@@ -180,7 +180,7 @@ func (s *attendanceCorrections) loadCorrectableEntry(ctx context.Context, instan
 func (s *attendanceCorrections) requireCompletedInstance(ctx context.Context, instanceID int64) error {
 	instance, err := s.deps.Instances.FindByID(ctx, instanceID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return timetable.ErrCorrectionInstanceNotFound
 		}
 		return fmt.Errorf("load instance: %w", err)

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -99,7 +99,7 @@ func (s *staffDeviations) validateBulkStaff(ctx context.Context, in timetable.Bu
 func (s *staffDeviations) ensureStaffExists(ctx context.Context, staffID int64, label string) error {
 	staff, err := s.deps.Staff.FindByID(ctx, staffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return timetable.DeviationNotFound(fmt.Sprintf("%s not found", label)).WithCode(timetable.CodeStaffNotFound).OnField(staffField(label))
 		}
 		return timetable.DeviationInternal("load staff failed", err)

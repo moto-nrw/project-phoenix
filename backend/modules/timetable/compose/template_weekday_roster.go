@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // resolvedRosterRow is one roster membership ready to persist: a person plus
@@ -150,7 +150,7 @@ func sharedRosterRows(personIDs []int64, primaryID *int64) []resolvedRosterRow {
 }
 
 func scopedRosterRows(personIDs []int64, primaryID *int64, weekday *int) []resolvedRosterRow {
-	unique := sliceutil.UniquePositive(personIDs)
+	unique := domain.UniquePositiveIDs(personIDs)
 	rows := make([]resolvedRosterRow, 0, len(unique))
 	for _, personID := range unique {
 		rows = append(rows, resolvedRosterRow{
