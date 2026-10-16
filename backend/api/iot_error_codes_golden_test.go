@@ -31,8 +31,8 @@ import (
 )
 
 // iotErrorContract is one registry code PyrePortal branches on and the
-// backend file (relative to the backend module root) whose declaration
-// emits it on an /api/iot route.
+// canonical source identity whose declaration emits it on an /api/iot
+// route. Physical source lookup follows the relocations below.
 type iotErrorContract struct {
 	code string
 	file string
@@ -43,6 +43,13 @@ const (
 	staffClockErrors   = "api/iot/staffclock/errors.go"
 	deviceScanOpenRoom = "modules/devicescan/open_room.go"
 )
+
+// Keep declaration identities in the golden stable across ADR 0020 moves.
+// Only the physical source lookup follows the relocated packages.
+var iotErrorCodeSourceFiles = map[string]string{
+	checkinCapacity:  "modules/devicescan/http/checkin/capacity_errors.go",
+	staffClockErrors: "modules/devicescan/http/staffclock/errors.go",
+}
 
 // iotErrorCodes are the registry codes the kiosk branches on: the check-in
 // conflicts, STAFF_CLOCK_MESSAGES and the destination booking into a
@@ -122,7 +129,11 @@ func (d *declaredLiterals) find(code string) string {
 
 func parseDeclaredLiterals(t *testing.T, rel string) *declaredLiterals {
 	t.Helper()
-	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join("..", filepath.FromSlash(rel)), nil, parser.SkipObjectResolution)
+	source := rel
+	if relocated, ok := iotErrorCodeSourceFiles[rel]; ok {
+		source = relocated
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), filepath.Join("..", filepath.FromSlash(source)), nil, parser.SkipObjectResolution)
 	require.NoErrorf(t, err, "parse %s — if the file moved, update the IoT error contract table in the same commit", rel)
 
 	decls := &declaredLiterals{}

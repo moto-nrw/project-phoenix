@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 55,
+  "policy_epoch": 56,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -156,10 +156,6 @@
     },
     {
       "id": "inbound-iot",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-iot-sessions",
       "kind": "inbound"
     },
     {
@@ -768,7 +764,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "modules/dataimport/inbound",
+      "path": "modules/dataimport/http",
       "owner": "data-import",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -782,7 +778,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/checkin",
+      "path": "modules/devicescan/http/checkin",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -803,14 +799,14 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/data",
+      "path": "modules/devicescan/http/data",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/internal/shared",
+      "path": "modules/devicescan/http/internal/shared",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -818,13 +814,13 @@
     },
     {
       "path": "api/iot/sessions",
-      "owner": "inbound-iot-sessions",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/iot/staffclock",
+      "path": "modules/devicescan/http/staffclock",
       "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -2197,6 +2193,13 @@
     },
     {
       "path": "modules/timetable/internal/ports",
+      "owner": "timetable-activities",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/timetable/ports",
       "owner": "timetable-activities",
       "role": "port",
       "internal_test_role": "module-internal-test",
@@ -6162,17 +6165,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-iot-sessions.to.session-end",
-      "description": "The kiosk session end endpoint calls exactly one owner facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-sessions",
-      "source_role": "http",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
       "id": "open-room-move.port.facilities",
       "description": "Open-room move ports name the Facilities room lock through its public contract (#3066).",
       "scopes": [
@@ -7706,17 +7698,6 @@
         "production"
       ],
       "source_owner": "process-device-scan",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot-sessions.to.process-device-scan",
-      "description": "inbound-iot-sessions calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-sessions",
       "source_role": "http",
       "target_owner": "process-device-scan",
       "target_role": "public"
@@ -11664,17 +11645,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-iot.compose.inbound-iot-sessions.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-iot-sessions",
-      "target_role": "http"
-    },
-    {
       "id": "inbound-iot.compose.device-fleet.http",
       "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
       "scopes": [
@@ -11705,17 +11675,6 @@
       "source_owner": "inbound-iot",
       "source_role": "compose",
       "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.session-end.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "session-end",
       "target_role": "public"
     },
     {
@@ -15082,6 +15041,26 @@
   ],
   "relocations": [
     {
+      "from": "api/iot/checkin",
+      "to": "modules/devicescan/http/checkin",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/data",
+      "to": "modules/devicescan/http/data",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/internal/shared",
+      "to": "modules/devicescan/http/internal/shared",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/iot/staffclock",
+      "to": "modules/devicescan/http/staffclock",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -15094,6 +15073,11 @@
     {
       "from": "modules/careplan/inbound/parent",
       "to": "workflows/parentportal/http",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "modules/dataimport/inbound",
+      "to": "modules/dataimport/http",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {

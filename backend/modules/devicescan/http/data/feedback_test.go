@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	dataAPI "github.com/moto-nrw/project-phoenix/api/iot/data"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

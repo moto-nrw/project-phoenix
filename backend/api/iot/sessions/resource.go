@@ -4,17 +4,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
 // Resource is the HTTP adapter for manual kiosk session controls.
 type Resource struct {
 	Lifecycle  devicescan.SessionLifecycle
-	SessionEnd sessionend.Command
+	SessionEnd EndSession
 	runtime    Runtime
 }
 
-func NewResource(lifecycle devicescan.SessionLifecycle, end sessionend.Command, runtime Runtime) *Resource {
+func NewResource(lifecycle devicescan.SessionLifecycle, end EndSession, runtime Runtime) *Resource {
 	if runtime.ParseID == nil || runtime.Authenticated == nil || runtime.Success == nil || runtime.Failure == nil || runtime.Conflict == nil || runtime.MarkRollback == nil {
 		panic("IoT sessions: runtime is required")
 	}

@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 213 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
+Stand 16.10.2026 · Ratchet 213 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 56 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.410 in `compose`
 
@@ -31,7 +31,7 @@ bleiben bei Security Runtimes gemeinsamem Prädikat. Personenfilter und Audience
 liegen nun in Care Plans Application statt in Compose; Record-Codecs liegen im eigenen
 Postgres-Adapter. Admin-Transaktionen, Beziehungsschutz,
 Fehler, Nil-/Leerslices, Kalenderdaten, JSON und Statusgrund-Redaktion bleiben gleich.
-Fünf `models/parent`-Keys fallen: 218 → 213, #4073 40 → 35, Regeln 902 unverändert,
+Fünf `models/parent`-Keys fallen: 218 → 213, #4073 40 → 35, Regeln 898 unverändert,
 Composition 1.657 unverändert. Compose: Care Plan 4.509 → 4.334, Parent Portal 507 → 506,
 gesamt 67.586 → 67.410 LOC; beide Register und die Summe sinken entsprechend.
 Keine neue Freigabe, Klassifizierung, Rolle oder Paketverschiebung.
@@ -165,6 +165,35 @@ Aufruf wechseln; alle Assertions und Produktionshandler bleiben unverändert.
 Drei Regeln entfallen, ohne Nachfolger. Inbound-Owner 17 → 16, Regeln 915 → 912;
 270 Keys, #4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben gleich.
 Keine IoT-Zeichenkette, Route oder Response ändert sich.
+
+#4078: Data-Import-HTTP und die vier übernommenen IoT-Pakete liegen nach
+ADR 0020 unter `modules/dataimport/http` bzw. `modules/devicescan/http`.
+Alle 61 Go-Dateinamen, Owner, Produktions- und Testrollen bleiben gleich.
+Import- und Registry-Pfade folgen den Dateien; der Funktionslängen-Eintrag
+behält seinen Wert 66, historische Retirement-Keys bleiben unverändert.
+Der IoT-Deklarations-Lookup folgt zwei verschobenen Dateien; kanonische
+Golden-Identitäten, Code-Tabelle, Header und Assertions bleiben unverändert.
+Der PyrePortal-Quellscan liest dieselben zwei verschobenen Dateien zusätzlich
+über seine bestehende Quellliste; Code-Liste und Assertions bleiben gleich.
+Der bisher nur unter `api/` liegende 139-Zeilen-Feedback-Handler wird für die
+Modulgrenze in private Schritte unter 60 Zeilen geteilt, ohne neue Allowlist.
+Row-Lock, Graduierten-Prüfung, Zeitstempel und Antworten bleiben in gleicher
+Reihenfolge; ein Inlining-Audit reproduziert alle ursprünglichen Statements.
+Epoche 55 → 56; 16 Inbound-Owner, 902 Regeln, 218 Keys, #4078 6,
+Composition 1.657 und alle Budgets bleiben unverändert. Keine Route, Response,
+IoT-Zeichenkette oder Assertion ändert sich.
+
+#4078: `api/iot/sessions` gehört jetzt als HTTP-Adapter zu
+`process-device-scan`; `inbound-iot-sessions` entfällt. Der Adapter erhält
+Session End über seinen eigenen Callback, den Root an denselben Workflow
+bindet. Close-Zeitpunkt, unveränderter Fehler, Status und Rollback bleiben
+gleich. Drei bisher interne Handlerfälle laufen über diese Root-Bindung und
+den öffentlichen Router; ihre elf Assertions und die 25 Assertions der
+HTTP-Suite bleiben vollständig unverändert. Die vorhandene Root-Testkomposition
+liefert die identischen Workflow-Werte, ohne neue Testrolle oder Regel.
+Vier Regeln entfallen ohne Nachfolger. Inbound-Owner 16 → 15, Regeln
+902 → 898; #4078 6, #4079 15, Composition 1.657 und alle Budgets bleiben
+gleich. Keine Route, Response oder IoT-Zeichenkette ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
