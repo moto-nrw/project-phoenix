@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 50,
+  "policy_epoch": 51,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -9024,6 +9024,17 @@
       "source_owner": "timetable-activities",
       "source_role": "compose",
       "target_class": "orm-sql"
+    },
+    {
+      "id": "timetable-activities.postgres.transaction-runtime",
+      "description": "Timetable & Activities' postgres adapter classifies unique violations through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.compose.tenant-runtime",
