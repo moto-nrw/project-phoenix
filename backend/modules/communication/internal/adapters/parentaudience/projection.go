@@ -29,13 +29,6 @@ import (
 // cross-tenant work, where the query relies on its explicit school filter.
 type Database func(context.Context) (bun.IDB, int64, error)
 
-// PendingApplicants supplies Enrollment's undecided applications: the
-// pending_enrollment target reaches them although no student row exists yet.
-type PendingApplicants interface {
-	PendingAnnouncementApplicants(context.Context) ([]PendingAnnouncementApplicant, error)
-	PendingAnnouncementApplicantsForSchools(context.Context, []int64) ([]PendingAnnouncementApplicant, error)
-}
-
 // Projection answers every parent-announcement read that spans owners.
 type Projection struct {
 	database   Database

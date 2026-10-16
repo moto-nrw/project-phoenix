@@ -1,6 +1,7 @@
 package parentaudience
 
 import (
+	"context"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -8,6 +9,13 @@ import (
 
 // The projection answers in its own vocabulary (ADR 0058); Communication's
 // parent store maps the rows onto its repository contract.
+
+// PendingApplicants supplies Enrollment's undecided applications: the
+// pending_enrollment target reaches them although no student row exists yet.
+type PendingApplicants interface {
+	PendingAnnouncementApplicants(context.Context) ([]PendingAnnouncementApplicant, error)
+	PendingAnnouncementApplicantsForSchools(context.Context, []int64) ([]PendingAnnouncementApplicant, error)
+}
 
 // GuardianLinks is the student-guardian relationship with its parents-portal
 // permissions (#2756) as a row source the audience joins as sg in its own
