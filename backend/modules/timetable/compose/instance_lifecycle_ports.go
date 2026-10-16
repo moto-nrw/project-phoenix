@@ -17,7 +17,7 @@ import (
 // composition root hands this view over.
 
 // NewOperationLifecycle is the lifecycle as the operational commands drive it.
-func NewOperationLifecycle(s *application.InstanceLifecycleService) OperationLifecycle {
+func NewOperationLifecycle(s *application.InstanceLifecycleService) application.OperationLifecycle {
 	return operationLifecycle{lifecycle: s}
 }
 
@@ -65,7 +65,7 @@ func (l operationLifecycle) Complete(ctx context.Context, instanceID, accountID 
 	if err != nil || instance == nil {
 		return nil, err
 	}
-	scheduled := ScheduledInstanceOf(instance)
+	scheduled := application.ScheduledInstanceOf(instance)
 	return &scheduled, nil
 }
 
