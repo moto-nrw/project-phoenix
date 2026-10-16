@@ -192,10 +192,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-parent",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-school",
       "kind": "inbound"
     },
@@ -882,7 +878,7 @@
     },
     {
       "path": "modules/careplan/inbound/parent",
-      "owner": "inbound-parent",
+      "owner": "parent-portal",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -8213,57 +8209,57 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-parent.to.care-plan",
-      "description": "inbound-parent calls exactly one public capability.",
+      "id": "parent-portal.to.care-plan",
+      "description": "Parent Portal HTTP calls the Care Plan public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.http.inbound-common",
+      "id": "parent-portal.http.inbound-common",
       "description": "The guardian portal routes render, gate and bind requests through the shared HTTP runtime of api/common, as every other HTTP adapter does (ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
-      "id": "inbound-parent.http.identity-adapter",
+      "id": "parent-portal.http.identity-adapter",
       "description": "The guardian portal routes authenticate the parent-scope session through the Identity & Access session adapter (ADR 0031, ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "http"
     },
     {
-      "id": "inbound-parent.http.tenant-runtime",
+      "id": "parent-portal.http.tenant-runtime",
       "description": "The guardian portal enrollment routes open their tenant and administrative transactions through the tenant runtime the request carries (ADR 0051, #3421).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.adapter-test.identity-adapter",
+      "id": "parent-portal.adapter-test.identity-adapter",
       "description": "The guardian portal handler suites put parent-scope claims on requests and mint session tokens through the Identity & Access session adapter (ADR 0051, #3421).",
       "scopes": [
         "internal_test",
         "external_test"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
       "target_role": "http"
@@ -10512,38 +10508,15 @@
       "target_role": "application"
     },
     {
-      "id": "inbound-parent.http.parent-portal-port",
+      "id": "parent-portal.http.parent-portal-port",
       "description": "Wire the guardian portal workflow (#3420): the guardian portal HTTP composition consumes the workflow vocabulary and the composed portal through its own port.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "parent-portal",
       "target_role": "port"
-    },
-    {
-      "id": "inbound-parent.adapter-test.parent-portal-port",
-      "description": "Wire the guardian portal workflow (#3420): handler tests match the workflow vocabulary.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "parent-portal",
-      "target_role": "port"
-    },
-    {
-      "id": "inbound-parent.adapter-test.parent-portal-compose",
-      "description": "Wire the guardian portal workflow (#3420): handler tests compose the real portal.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-parent",
-      "source_role": "adapter-test",
-      "target_owner": "parent-portal",
-      "target_role": "compose"
     },
     {
       "id": "parent-portal.port.flows",
@@ -11676,12 +11649,12 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-portal.production.inbound-parent.http.school-calendar.contract",
+      "id": "calendar-portal.production.parent-portal.http.school-calendar.contract",
       "description": "Calendar portal uses native contracts and composition seams. End-to-end tests exercise the concrete delivery and persistence boundaries.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "school-calendar",
       "target_role": "contract"
@@ -12820,12 +12793,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-parent.http.care-plan-absence-records",
+      "id": "parent-portal.http.care-plan-absence-records",
       "description": "The parent routes return the child's status days as the Care Plan absence records of modules/careplan/absencerecords (#3422).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-parent",
+      "source_owner": "parent-portal",
       "source_role": "http",
       "target_owner": "care-plan",
       "target_role": "contract"
