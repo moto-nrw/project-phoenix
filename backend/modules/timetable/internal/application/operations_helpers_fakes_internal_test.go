@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		settings:       &helperSettings{},
 		announcer:      &helperAnnouncer{},
 	}
-	deps.service = &operations{deps: OperationDependencies{
+	deps.service = &operations{caller: sessionlessCaller{}, deps: OperationDependencies{
 		Instances: deps.instanceRepo,
 		People:    deps.personService,
 		Templates: deps.activityGroups,
@@ -220,3 +220,28 @@ func (careRuleDays) Expected(status timetable.CareDayStatus) bool {
 func (careRuleDays) ExemptFromAbsence(status timetable.CareDayStatus) bool {
 	return status == timetable.CareDayNotScheduled
 }
+
+// sessionlessCaller is the caller of a request without a session token: no
+// portal, no admin, no OGS actor. The two settings-backed gates resolve the
+// settings first, so a settings fault fails them the way the shared rules do.
+type sessionlessCaller struct{}
+
+func (sessionlessCaller) AssignmentBoundPortal(context.Context) bool { return false }
+func (sessionlessCaller) AdministrativeAccess(context.Context) bool  { return false }
+func (sessionlessCaller) OGSActorToken(context.Context, int64) bool  { return false }
+
+func (sessionlessCaller) SchoolWideActionScope(ctx context.Context, settings OperationSettings, scopeKey string) (bool, error) {
+	if _, err := settings.ResolveString(ctx, scopeKey); err != nil {
+		return false, err
+	}
+	return false, nil
+}
+
+func (sessionlessCaller) OperationalOverview(ctx context.Context, settings OperationSettings, assignmentBound, administrative, _ bool) (bool, error) {
+	if _, err := settings.ResolveString(ctx, "operations.overview_scope"); err != nil {
+		return false, err
+	}
+	return administrative && !assignmentBound, nil
+}
+
+func (sessionlessCaller) IsPersonNotFound(error) bool { return false }
