@@ -3914,16 +3914,22 @@ composition reach, `root-composition.reach.domain.port`; 902 → 906 rules.
 
 The retained repository adapters that run on the Timetable capability alone,
 the Care Plan and Workforce row adapters, the end-of-session completion, the
-cleanup and the legacy repository vocabulary (6,041 LOC) follow, again
-without a rule. `application.NewCapabilityRepositories` builds the
-capability-only adapters; the composition adds the instance and participant
-adapters, which also run on the database and Student Presence. The four
+cleanup and the legacy repository vocabulary follow, again without a rule.
+`application.NewCapabilityRepositories` builds the capability-only adapters;
+the composition adds the instance and participant adapters, which also run on
+the database and Student Presence. The data and dependency types the roots
+name go to `modules/timetable/ports`; the composition builds the adapters
+through constructors that return ports interfaces, without aliases. The
 `legacy_*.go` files that move keep their names and budgets under their new
-paths.
+paths; `legacy_repository_options.go` splits, the pickup exception and student
+status day values the roots name going to the ports package with their own
+entry. `legacy_errors.go` stays in the composition: only its retained activity
+service uses it.
 The same change moves the capability engine (the mapping of the public
 vocabulary onto the domain, `application.Engine`) and the attendance mirror;
 the mirror reports a recovered panic through a port the composition binds to
-Sentry (`compose/attendance_mirror_report.go`).
+Sentry (`compose/attendance_mirror_report.go`). The Timetable composition goes
+from 14,106 to 6,198 LOC.
 
 ### Enrollment wiring out of services (#4012)
 
