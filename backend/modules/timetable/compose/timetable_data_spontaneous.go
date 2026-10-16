@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -18,7 +18,7 @@ const spontaneousCategoryName = "Spontan"
 
 func (d *timetableData) SpontaneousRoomExists(ctx context.Context, roomID int64) (bool, error) {
 	_, ok, err := d.deps.Rooms.RoomName(ctx, roomID)
-	if err != nil && modelBase.IsNoRows(err) {
+	if err != nil && domain.IsRecordNotFound(err) {
 		return false, nil
 	}
 	return ok, err
@@ -47,7 +47,7 @@ func (d *timetableData) ResolveSpontaneousActivity(ctx context.Context, title st
 	}
 	if existing, err := d.deps.Templates.FindByName(ctx, title); err == nil && existing != nil {
 		return &existing.ID, nil
-	} else if err != nil && !modelBase.IsNoRows(err) {
+	} else if err != nil && !domain.IsRecordNotFound(err) {
 		return nil, err
 	}
 	category, err := d.ensureSpontaneousActivityCategory(ctx)
@@ -81,7 +81,7 @@ func (d *timetableData) ensureSpontaneousActivityCategory(ctx context.Context) (
 			return nil, timetable.ErrSpontaneousCategoryArchived
 		}
 		return existing, nil
-	} else if err != nil && !modelBase.IsNoRows(err) {
+	} else if err != nil && !domain.IsRecordNotFound(err) {
 		return nil, err
 	}
 	category := &activitiesModels.Category{

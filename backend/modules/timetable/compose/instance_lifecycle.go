@@ -10,12 +10,12 @@ import (
 	"github.com/uptrace/bun"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -293,7 +293,7 @@ func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx contex
 func (s *InstanceLifecycleService) loadForTransition(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrInstanceNotFound
 		}
 		return nil, &ScheduleError{Op: "load instance", Err: err}
@@ -349,12 +349,12 @@ func LifecycleInstanceOf(row *scheduleModel.ActivityInstance) *timetable.Lifecyc
 }
 
 type legacyListRepository[T any] interface {
-	List(context.Context, *modelBase.QueryOptions) ([]T, error)
+	List(context.Context, *domain.ListOptions) ([]T, error)
 }
 
 // legacyList reads through the retained repositories' List(options), which
 // they serve beside their model interfaces.
-func legacyList[T any](ctx context.Context, repository any, options *modelBase.QueryOptions) ([]T, error) {
+func legacyList[T any](ctx context.Context, repository any, options *domain.ListOptions) ([]T, error) {
 	lister, ok := repository.(legacyListRepository[T])
 	if !ok {
 		return nil, fmt.Errorf("legacy list capability is not configured for %T", repository)

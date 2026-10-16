@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // The retained models/schedule student-schedule repositories over the Care
@@ -61,15 +61,15 @@ func (c CarePlanRows) scheduleError(op string, err error) error {
 // careScheduleListFilter reads the retained listing options: the page, the
 // sort order and one student_id equality, the shape the retained callers
 // list with. Any other condition is refused rather than dropped.
-func careScheduleListFilter(options *modelBase.QueryOptions) (CareScheduleFilter, error) {
+func careScheduleListFilter(options *domain.ListOptions) (CareScheduleFilter, error) {
 	return narrowListOptions(options, "care schedule",
 		func(f *CareScheduleFilter, limit, offset int) { f.Limit, f.Offset = limit, offset },
-		func(f *CareScheduleFilter, field modelBase.SortField) {
-			f.Sort = append(f.Sort, CareScheduleSort{Field: field.Field, Descending: field.Direction == modelBase.SortDesc})
+		func(f *CareScheduleFilter, field domain.ListSortField) {
+			f.Sort = append(f.Sort, CareScheduleSort{Field: field.Field, Descending: field.Direction == domain.ListSortDesc})
 		},
-		func(f *CareScheduleFilter, condition modelBase.FilterCondition) error {
+		func(f *CareScheduleFilter, condition domain.ListCondition) error {
 			id, ok := condition.Value.(int64)
-			if condition.Field != "student_id" || condition.Operator != modelBase.OpEqual || !ok || f.StudentIDs != nil {
+			if condition.Field != "student_id" || condition.Operator != domain.ListOpEqual || !ok || f.StudentIDs != nil {
 				return fmt.Errorf("unsupported care schedule filter %s %s", condition.Field, condition.Operator)
 			}
 			f.StudentIDs = []int64{id}
@@ -78,7 +78,7 @@ func careScheduleListFilter(options *modelBase.QueryOptions) (CareScheduleFilter
 }
 
 // listWithOptions serves a retained List over one of the owner's listings.
-func listWithOptions[T, R any](ctx context.Context, rows CarePlanRows, options *modelBase.QueryOptions, list func(context.Context, CareScheduleFilter) ([]T, error), convert func(T) R) ([]R, error) {
+func listWithOptions[T, R any](ctx context.Context, rows CarePlanRows, options *domain.ListOptions, list func(context.Context, CareScheduleFilter) ([]T, error), convert func(T) R) ([]R, error) {
 	filter, err := careScheduleListFilter(options)
 	var values []T
 	if err == nil {
