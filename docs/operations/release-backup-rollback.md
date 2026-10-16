@@ -47,6 +47,11 @@ After migration and healthchecks, `.deploy-state` records `BACKUP_ID`. This is
 the matching pre-deployment snapshot, not whichever dump happens to be newest.
 Automatic rollback uses the same snapshot if migration or startup fails.
 
+Only a healthy, recorded release then removes every image no container uses,
+including the previous release's. Rollbacks do not depend on them: verification
+pulls missing snapshot images by digest before anything is stopped. A failed
+prune prints a warning and leaves the deployment's result unchanged.
+
 ## Manual rollback
 
 1. Run **Manual Rollback** on the deployed branch. Production and demo require `main`.

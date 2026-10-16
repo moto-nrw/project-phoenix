@@ -13,6 +13,7 @@ const sidecar = existsSync('docker-compose.yml') && readFileSync('docker-compose
 if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'pull' && (args[0] === 'pull' || args.includes('pull'))) ||
     (fail === 'tag' && args[0] === 'tag') ||
+    (fail === 'prune' && args[0] === 'image' && args[1] === 'prune') ||
     // The preflight and the migration are both `compose run migrate`; only the
     // trailing command separates them, so each failure mode names its own.
     (fail === 'migrate' && isCompose && args.includes('run') && !call.includes('migrate preflight')) ||

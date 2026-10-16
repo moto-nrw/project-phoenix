@@ -43,9 +43,13 @@ services:
       ]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 1s
+      # Postgres logs every probe connection. Probe each second only while it
+      # starts, so deploys and restores still see it healthy at once.
+      interval: 10s
       timeout: 1s
       retries: 5
+      start_period: 30s
+      start_interval: 1s
     logging:
       driver: journald
       options:
