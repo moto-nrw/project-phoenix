@@ -537,7 +537,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		MealPlan: b.MealPlan, StudentRepo: people.Students, CarePlan: b.CarePlan, People: b.Persons,
 		PickupAutoExcusal: b.pickupAutoExcusal, Settings: BindParentSettings(b.settingsService), Broadcaster: b.graph.RealtimeHub,
 		PersonRepo: people.Persons, ChangeRequestRepo: NewStudentDataChangeRequestRepository(b.CarePlan),
-		CareRequestRepo: b.CarePlanWiring.CareScheduleRequests, ExcusedRequestRepo: b.CarePlanWiring.ExcusedRequestRows,
+		CareRequestRepo: NewParentCareRequestReads(b.CarePlan), ExcusedRequestRepo: b.CarePlanWiring.ExcusedRequestRows,
 		OfferingChangeRequestRepo: NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(b.CarePlan)),
 		FamilyProtectionEvents:    peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool()),
 		ParentRequestShares:       peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool()),

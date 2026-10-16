@@ -2,9 +2,9 @@ package care
 
 import (
 	"context"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -182,5 +182,5 @@ func planWeekdayOf(ctx context.Context, today calendar.Date) (int, bool, error) 
 	if err != nil {
 		return 0, false, err
 	}
-	return weekday, weekday <= scheduleModels.WeekdayFriday, nil
+	return weekday, weekday <= int(time.Friday), nil
 }

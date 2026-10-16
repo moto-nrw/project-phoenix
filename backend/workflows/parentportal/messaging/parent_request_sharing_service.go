@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -442,18 +441,18 @@ func (s *Service) masterDataShareIdentity(ctx context.Context, requestID int64) 
 }
 
 func (s *Service) careRequestShareIdentity(ctx context.Context, requestType string, requestID int64) (int64, int64, string, error) {
-	row, err := s.CareRequestRepo.FindByID(ctx, requestID)
-	if err != nil || row == nil {
-		return 0, 0, "", requestLookupError(err)
+	submittedBy, studentID, kind, err := s.CareRequestRepo.FindIdentity(ctx, requestID)
+	if err != nil {
+		return 0, 0, "", err
 	}
-	expected := scheduleModels.CareRequestKindWeeklySchedule
+	expected := "weekly_schedule"
 	if requestType == RequestSharePickupChange {
-		expected = scheduleModels.CareRequestKindPickupChange
+		expected = "pickup_change"
 	}
-	if row.RequestKind != expected {
+	if kind != expected {
 		return 0, 0, "", ErrRequestSharingNotFound
 	}
-	return row.SubmittedBy, row.StudentID, requestType, nil
+	return submittedBy, studentID, requestType, nil
 }
 
 func (s *Service) offeringShareIdentity(ctx context.Context, requestID int64) (int64, int64, string, error) {
