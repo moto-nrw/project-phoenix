@@ -5,12 +5,12 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // These test-support builders share the root's adapter wiring without invoking

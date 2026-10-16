@@ -44,7 +44,6 @@ import (
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
@@ -120,6 +119,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/observability"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
+	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
 )
