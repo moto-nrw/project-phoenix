@@ -8,8 +8,6 @@ import (
 // mondayAnchor is a Monday (same anchor week the ResolveWeekIndex tests use).
 var mondayAnchor = newTestDate(2026, time.January, 5)
 
-func datePtr(d CalendarDate) *CalendarDate { return &d }
-
 func scheduleEntry(weekIndex, rotation, day, minutes int, validFrom CalendarDate, validUntil *CalendarDate) *StaffWorkSchedule {
 	return &StaffWorkSchedule{
 		WeekIndex:      weekIndex,
