@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,7 +18,7 @@ type PickupApprovalRecords interface {
 	SaveDepartureException(context.Context, careplan.DepartureException) (careplan.DepartureException, error)
 }
 
-func NewPickupApprovalExceptions(records PickupApprovalRecords) (PickupApprovalExceptions, error) {
+func NewPickupApprovalExceptions(records PickupApprovalRecords) (ports.PickupApprovalExceptions, error) {
 	if records == nil {
 		return nil, errors.New("pickup approval exceptions: records are required")
 	}

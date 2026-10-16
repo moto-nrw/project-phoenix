@@ -61,8 +61,12 @@ func (p *editedPickup) PickupTime(_ context.Context, _ int64, date calendar.Date
 	return &clock, nil
 }
 
-func (p *editedPickup) DepartureModes(context.Context, int64, calendar.Date) ([]string, error) {
-	return []string{"alone"}, nil
+func (p *editedPickup) DayDepartureMode(context.Context, int64, calendar.Date) (string, bool, error) {
+	return "alone", true, nil
+}
+
+func (p *editedPickup) WeeklyDepartureModes(context.Context, int64) (map[string][]string, error) {
+	return nil, nil
 }
 
 func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) {

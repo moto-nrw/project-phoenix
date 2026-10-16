@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -33,12 +32,4 @@ type RequestRecords interface {
 	compose.RequestDecisionRecords
 	compose.RequestCorrectionRecords
 	compose.PickupApprovalRecords
-}
-
-func (s *careScheduleRequestService) requestRow(ctx context.Context, id int64) (*carerequests.Request, error) {
-	request, err := s.requestRecords.FindCareScheduleRequest(ctx, id, false)
-	if err != nil {
-		return nil, legacyEditError(err)
-	}
-	return &request, nil
 }

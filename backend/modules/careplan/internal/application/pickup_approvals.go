@@ -73,7 +73,7 @@ func (s *PickupApprovals) lockApprovalDay(ctx context.Context, input carerequest
 // the name of the deciding staff member.
 func (s *PickupApprovals) applyLegs(ctx context.Context, input carerequests.PickupApproval, change carerequests.PickupChange) (carerequests.PickupApplied, error) {
 	var applied carerequests.PickupApplied
-	staffID, err := s.People.ActingStaffID(ctx)
+	staffID, err := actingStaffID(ctx, s.People, pickupRequestStaff)
 	if err != nil {
 		return applied, err
 	}

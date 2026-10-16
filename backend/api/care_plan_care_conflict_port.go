@@ -61,15 +61,11 @@ func (a requestConflictPlans) LockStudentAndExceptionDay(ctx context.Context, st
 	}
 	return a.s.dayLocker.LockStudentAndExceptionDay(ctx, studentID, date)
 }
-func (a requestConflictPlans) ActingStaffID(ctx context.Context) (int64, error) {
+func (a requestConflictPlans) CurrentStaffID(ctx context.Context) (int64, bool, error) {
 	if a.s.userContext == nil {
-		return 0, errors.New("schedule: pickup change dependencies not configured")
+		return 0, false, errors.New("schedule: pickup change dependencies not configured")
 	}
-	staffID, err := a.s.resolvePickupChangeStaff(ctx)
-	if err != nil {
-		return 0, err
-	}
-	return staffID, nil
+	return a.s.userContext.CurrentStaffID(ctx)
 }
 func (a requestConflictPlans) SaveApprovedException(ctx context.Context, tenantID, studentID int64, date timezone.Date, pickup time.Time, reason string, staffID int64) (int64, error) {
 	approvals, err := a.s.pickupApprovals()
