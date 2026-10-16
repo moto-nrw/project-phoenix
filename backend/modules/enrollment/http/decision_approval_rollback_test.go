@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
@@ -20,7 +19,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-type approvalOutboxFunc func(context.Context, platformModels.OutboxEnqueueRequest) error
+type approvalOutboxFunc func(context.Context, TestMail) error
 
 // accountBeforeRosterBookings runs the check when the decision asks Care
 // Plan's booking materialization to resync the class-filtered rosters.
@@ -76,7 +75,7 @@ func TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync(t *testing.
 	require.NoError(t, err)
 }
 
-func (f approvalOutboxFunc) EnqueueOutbox(ctx context.Context, request platformModels.OutboxEnqueueRequest) error {
+func (f approvalOutboxFunc) EnqueueMail(ctx context.Context, request TestMail) error {
 	return f(ctx, request)
 }
 
@@ -188,7 +187,7 @@ func TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization(t *test
 	reached := false
 	var txDB bun.IDB
 	failing := newDecisionServiceForTestWithDependencies(env.rolloverTestEnv, nil, nil, nil, nil,
-		approvalOutboxFunc(func(txCtx context.Context, _ platformModels.OutboxEnqueueRequest) error {
+		approvalOutboxFunc(func(txCtx context.Context, _ TestMail) error {
 			reached = true
 			pending := approvalOwnerSnapshot(t, txCtx, txDB, testpkg.Tenant(t))
 			for _, table := range []string{"enrollment.request_children", "users.student_profiles", "users.student_school_memberships", "users.student_care_profiles", "users.persons", "users.student_guardian_relationships", "users.student_guardian_pickup_permissions", "auth.guardian_student_access", "activities.student_enrollments", "schedule.instance_students", "auth.account_tenants", "auth.account_roles"} {

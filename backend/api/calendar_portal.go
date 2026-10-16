@@ -11,6 +11,7 @@ import (
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // NewCalendarPortal adapts the existing composition's dependencies to the
@@ -50,15 +51,64 @@ func NewCalendarPortal(d CalendarDependencies) calendarCompose.Application {
 		cfg.UserContext = calendarIdentityPort{d.UserContext}
 	}
 	if d.Outbox != nil {
-		cfg.Outbox = calendarOutboxPort{CalendarOutbox: d.Outbox, tenantID: runtime.TenantID}
+		cfg.Outbox = d.Outbox
 	}
 	if d.Notifier != nil {
-		cfg.Notifier = calendarNotificationPort{d.Notifier}
+		cfg.Notifier = d.Notifier
 	}
 	if d.ReminderNotifier != nil {
-		cfg.ReminderNotifier = calendarSynchronousNotificationPort{d.ReminderNotifier}
+		cfg.ReminderNotifier = d.ReminderNotifier
 	}
 	return calendarCompose.New(cfg)
+}
+
+// CalendarNotifier, CalendarReminderNotifier and CalendarPreferences are the
+// calendar's guardian notification ports in its own terms; the root binds
+// them to Delivery (newCalendarNotifier, newCalendarReminderNotifier).
+type CalendarNotifier interface {
+	Notify(context.Context, calendarCompose.Notification) error
+}
+
+type CalendarReminderNotifier interface {
+	NotifySynchronously(context.Context, calendarCompose.Notification) error
+}
+
+type CalendarPreferences interface {
+	FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+	FilterOptedIn(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+}
+
+// calendarDeliveryOutbox is Delivery's mail outbox the calendar's mails go to.
+type calendarDeliveryOutbox interface {
+	Enqueue(context.Context, deliveryCompose.MailEnqueueRequest) (*deliveryCompose.MailEnqueued, error)
+	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
+}
+
+// newCalendarOutbox binds the calendar's mail outbox to Delivery's; nil
+// without an outbox.
+func newCalendarOutbox(outbox calendarDeliveryOutbox) CalendarOutbox {
+	if outbox == nil {
+		return nil
+	}
+	return calendarOutboxPort{calendarDeliveryOutbox: outbox}
+}
+
+// newCalendarNotifier binds the calendar's guardian notification to
+// Delivery's; nil without a notifier.
+func newCalendarNotifier(source deliveryCompose.NotificationService) CalendarNotifier {
+	if source == nil {
+		return nil
+	}
+	return calendarNotificationPort{source}
+}
+
+// newCalendarReminderNotifier binds the calendar's reminder push to
+// Delivery's synchronous notification; nil without a notifier.
+func newCalendarReminderNotifier(source deliveryCompose.SynchronousNotificationService) CalendarReminderNotifier {
+	if source == nil {
+		return nil
+	}
+	return calendarSynchronousNotificationPort{source}
 }
 
 // calendarCalDAVPolicy reads whether CalDAV is enabled for the tenant.
@@ -117,16 +167,15 @@ func (p calendarIdentityPort) MissingStaff(err error) bool {
 }
 
 type calendarOutboxPort struct {
-	CalendarOutbox
-	tenantID func(context.Context) int64
+	calendarDeliveryOutbox
 }
 
 func (p calendarOutboxPort) Enqueue(ctx context.Context, req calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error) {
-	value, err := p.CalendarOutbox.Enqueue(ctx, deliveryCompose.MailEnqueueRequest{Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType, RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey})
+	value, err := p.calendarDeliveryOutbox.Enqueue(ctx, deliveryCompose.MailEnqueueRequest{Kind: req.Kind, Payload: req.Payload, RelatedEntityType: req.RelatedEntityType, RelatedEntityID: req.RelatedEntityID, IdempotencyKey: req.IdempotencyKey})
 	if value == nil {
 		return nil, err
 	}
-	return &calendarCompose.EmailOutbox{ID: value.ID, TenantID: p.tenantID(ctx), Kind: req.Kind, Payload: req.Payload}, err
+	return &calendarCompose.EmailOutbox{ID: value.ID, TenantID: tenant.FromContext(ctx), Kind: req.Kind, Payload: req.Payload}, err
 }
 func calendarOutbox(value *deliveryCompose.MailIntent) *calendarCompose.EmailOutbox {
 	if value == nil {

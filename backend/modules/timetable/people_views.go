@@ -76,6 +76,14 @@ type LifecycleStudent struct {
 	EnrolledUntil *calendar.Date
 }
 
+// OperationStudent is the part of a child the operational day names and
+// filters: the person, the school class and the lifecycle facts.
+type OperationStudent struct {
+	LifecycleStudent
+	PersonID    int64
+	SchoolClass string
+}
+
 // IsAlumnus reports whether the child has graduated out of care.
 func (s *LifecycleStudent) IsAlumnus() bool {
 	return s != nil && s.Alumnus
