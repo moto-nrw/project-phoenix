@@ -78,7 +78,7 @@ type rosterSources struct {
 	visits     []studentpresence.Visit
 	studentIDs []int64
 	students   map[int64]*usersModels.Student
-	persons    map[int64]*usersModels.Person
+	persons    map[int64]*timetable.Person
 	groupNames map[int64]string
 	template   *rosterTemplateGroup
 }
@@ -428,7 +428,7 @@ func applyRosterStudentIdentity(row *timetable.OperationRosterRow, studentID int
 		}
 	}
 	if person := src.persons[st.PersonID]; person != nil {
-		row.StudentName = person.GetFullName()
+		row.StudentName = person.FullName()
 	}
 }
 

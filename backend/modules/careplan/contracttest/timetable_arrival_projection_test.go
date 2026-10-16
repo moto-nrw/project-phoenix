@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -118,7 +119,7 @@ func exceptionConflictsWithArrivalBaseline(
 		Exceptions:        env.timetable.ActivityException,
 		Schedules:         env.timetable.ActivitySchedule,
 		Shifts:            unusedConflictShifts{},
-		Staff:             env.repos.Staff,
+		Staff:             api.NewTimetableStaff(env.repos.Staff),
 		CalendarPeriods:   env.repos.CalendarPeriod,
 		ArrivalExceptions: env.repos.StudentArrivalException,
 		ArrivalBaselines:  arrivalBaselineProjector{reader: bookingModeArrivalBaseline(t, env, authoritative)},

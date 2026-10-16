@@ -18,7 +18,7 @@ type Service struct {
 	enrollmentRepo  activities.StudentEnrollmentRepository
 	activeGroupRepo activityOccupancy
 	staffRepo       LifecycleStaff
-	studentRepo     LifecycleStudents
+	studentRepo     RosterStudents
 }
 
 type activityOccupancy interface {
@@ -34,7 +34,7 @@ func NewService(
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	activeGroupRepo activityOccupancy,
 	staffRepo LifecycleStaff,
-	studentRepo LifecycleStudents,
+	studentRepo RosterStudents,
 ) (*Service, error) {
 	return &Service{
 		timetable:       timetableCapability,

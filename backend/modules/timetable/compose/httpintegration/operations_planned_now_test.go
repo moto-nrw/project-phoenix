@@ -25,9 +25,9 @@ func TestTimetableOperationsPlannedNowFiltersByAssignmentAndWindow(t *testing.T)
 	outsideWindowID := int64(321)
 
 	deps := newTimetableOpsDeps()
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 410
-	deps.personService.staffByPersonID[410] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[410] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[410].ID = assignedID
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{
 		instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(10*time.Minute), now.Add(time.Hour)),
@@ -66,9 +66,9 @@ func TestTimetableOperationsPlannedNowKeepsSpontaneousAfterEnd(t *testing.T) {
 	assignedID := int64(212)
 	instanceID := int64(340)
 	deps := newTimetableOpsDeps()
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 411
-	deps.personService.staffByPersonID[411] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[411] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[411].ID = assignedID
 	inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-time.Hour), now)
 	inst.IsSpontaneous = true
@@ -283,7 +283,7 @@ func TestTimetableOperationsPlannedNowSupportsUpcomingOptions(t *testing.T) {
 		{StudentID: 527, Status: scheduleModels.AttendanceStatusExpected},
 	}
 	deps.students.byID[527] = &usersModels.Student{PersonID: 437, SchoolClass: "2a"}
-	deps.personService.people[437] = &usersModels.Person{FirstName: "Lina", LastName: "Lang"}
+	deps.personService.people[437] = &timetable.Person{FirstName: "Lina", LastName: "Lang"}
 	pickup := time.Date(1, time.January, 1, 15, 20, 0, 0, time.UTC)
 	deps.pickupService.byStudent[527] = &pickup
 
@@ -448,7 +448,7 @@ func TestTimetableOperationsPlannedNowDayScopeFollowsOperationalOverview(t *test
 	activityGroup.ID = activityGroupID
 	deps.activityGroups.byID[activityGroupID] = activityGroup
 	deps.groups.names[educationGroupID] = "Gruppe Sonne"
-	substitute := &usersModels.Staff{Person: &usersModels.Person{FirstName: "Vera", LastName: "Vertretung"}}
+	substitute := &timetable.StaffMember{Person: &timetable.Person{FirstName: "Vera", LastName: "Vertretung"}}
 	substitute.ID = 998
 	deps.personService.staffWithPerson[998] = substitute
 
@@ -537,9 +537,9 @@ func TestTimetableOperationsPlannedNowCountsChildrenStillThere(t *testing.T) {
 	assignedID := int64(213)
 	instanceID := int64(341)
 	deps := newTimetableOpsDeps()
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 412
-	deps.personService.staffByPersonID[412] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[412] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[412].ID = assignedID
 	inst := instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, now.Add(-time.Hour), now.Add(time.Hour))
 	deps.instanceRepo.byDate = []*scheduleModels.ActivityInstance{inst}
