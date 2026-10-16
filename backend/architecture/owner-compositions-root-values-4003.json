@@ -34,7 +34,7 @@
   "runtime_evidence": {
     "source": "Local run on the PR branch. The root mounts the same resources, hands the same decoder value and binds the same job runtime and lease store as before; only the package that constructs them moves. The evidence is the suites, the architecture check and a localhost smoke run of the native backend, not a benchmark rerun.",
     "sources": [
-      "backend/modules/schedulerruntime/compose/worker_lease.go",
+      "backend/modules/schedulerruntime/compose/compose.go",
       "backend/modules/schedulerruntime/compose/worker_lease_test.go",
       "backend/modules/workforce/compose/httpadapter/routes.go",
       "backend/modules/dataimport/compose/files.go",

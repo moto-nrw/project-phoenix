@@ -8,6 +8,8 @@ import (
 	"slices"
 	"sync"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 )
 
 const (
@@ -103,7 +105,7 @@ type batchRuntimeEvidence struct {
 type tenantBatchExecution struct {
 	ctx       context.Context
 	outcomes  []TenantOutcome
-	evidence  TenantBatchEvidence
+	evidence  ports.TenantBatchEvidence
 	err       error
 	cancelled bool
 }
@@ -197,7 +199,7 @@ func (s *Scheduler) runTenantBatches(
 ) TenantBatchResult {
 	result := TenantBatchResult{Outcomes: make([]TenantOutcome, 0, len(tenantIDs))}
 	failures := representativeTenantErrors{}
-	stableJobID := workerJobID(ctx, JobID(jobID))
+	stableJobID := workerJobID(ctx, ports.JobID(jobID))
 	if command == nil || isNilDependency(command) {
 		result.Err = errors.New("tenant command is required")
 		result.Backlog = len(tenantIDs)
@@ -247,7 +249,7 @@ func (s *Scheduler) runTenantBatches(
 func (s *Scheduler) runTenantBatch(
 	ctx context.Context,
 	tenantIDs []int64,
-	jobID JobID,
+	jobID ports.JobID,
 	command TenantCommand,
 ) tenantBatchExecution {
 	started := time.Now()
@@ -268,7 +270,7 @@ func (s *Scheduler) runTenantBatch(
 	}
 
 	retries, poolWait := runtimeEvidence.snapshot()
-	batch.evidence = TenantBatchEvidence{
+	batch.evidence = ports.TenantBatchEvidence{
 		JobID: jobID, Duration: time.Since(started), Processed: len(batch.outcomes),
 		Failed: failedTenantOutcomes(batch.outcomes), Retries: retries, PoolWait: poolWait,
 	}
@@ -287,7 +289,7 @@ func failedTenantOutcomes(outcomes []TenantOutcome) int {
 
 func (s *Scheduler) runTenantCommand(
 	ctx context.Context,
-	jobID JobID,
+	jobID ports.JobID,
 	tenantID int64,
 	command TenantCommand,
 	evidence *batchRuntimeEvidence,
@@ -333,7 +335,7 @@ func (s *Scheduler) runTenantCommand(
 	return outcome
 }
 
-func (s *Scheduler) resumeTenantIDs(jobID JobID, tenantIDs []int64) []int64 {
+func (s *Scheduler) resumeTenantIDs(jobID ports.JobID, tenantIDs []int64) []int64 {
 	value, ok := s.tenantBatchCursors.Load(jobID)
 	if !ok {
 		return tenantIDs
@@ -369,7 +371,7 @@ func classifyTenantOutcome(err error, retries int) TenantOutcomeClassification {
 	}
 }
 
-func (s *Scheduler) reportTenantCommandFailure(ctx context.Context, jobID JobID, outcome TenantOutcome) {
+func (s *Scheduler) reportTenantCommandFailure(ctx context.Context, jobID ports.JobID, outcome TenantOutcome) {
 	if outcome.Classification != TenantOutcomeMissingTenant {
 		s.observeTenantRuntime("transaction_failure")
 	}
@@ -387,19 +389,19 @@ func (s *Scheduler) reportTenantCommandFailure(ctx context.Context, jobID JobID,
 	)
 }
 
-func (s *Scheduler) observeTenantBatch(evidence TenantBatchEvidence) {
+func (s *Scheduler) observeTenantBatch(evidence ports.TenantBatchEvidence) {
 	if s.workerTracer.Batch != nil {
 		s.workerTracer.Batch(evidence)
 	}
 }
 
-func (s *Scheduler) observeTenantBacklog(jobID JobID, backlog int) {
+func (s *Scheduler) observeTenantBacklog(jobID ports.JobID, backlog int) {
 	if s.workerTracer.Backlog != nil {
 		s.workerTracer.Backlog(jobID, backlog)
 	}
 }
 
-func (s *Scheduler) logTenantBatch(ctx context.Context, evidence TenantBatchEvidence) {
+func (s *Scheduler) logTenantBatch(ctx context.Context, evidence ports.TenantBatchEvidence) {
 	level := slog.LevelDebug
 	if evidence.Failed > 0 {
 		level = slog.LevelWarn
@@ -415,8 +417,8 @@ func (s *Scheduler) logTenantBatch(ctx context.Context, evidence TenantBatchEvid
 	)
 }
 
-func workerJobID(ctx context.Context, fallback JobID) JobID {
-	jobID, _ := ctx.Value(workerJobIDKey{}).(JobID)
+func workerJobID(ctx context.Context, fallback ports.JobID) ports.JobID {
+	jobID, _ := ctx.Value(workerJobIDKey{}).(ports.JobID)
 	if jobID == "" {
 		return fallback
 	}

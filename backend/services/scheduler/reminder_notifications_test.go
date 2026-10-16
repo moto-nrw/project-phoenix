@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +29,7 @@ func (r *recordingTick) notify(_ context.Context, tenantID int64, _ time.Time, o
 	r.calls = append(r.calls, tickCall{tenantID: tenantID, onDutyOnly: onDutyOnly})
 }
 
-func reminderTickScheduler(settings SettingsResolver) (*Scheduler, *recordingTick) {
+func reminderTickScheduler(settings ports.SettingsResolver) (*Scheduler, *recordingTick) {
 	tick := &recordingTick{}
 	sched := unitScheduler(&Scheduler{
 		tasks:                 make(map[string]*ScheduledTask),

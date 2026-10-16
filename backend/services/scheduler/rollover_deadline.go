@@ -6,34 +6,6 @@ import (
 	"time"
 )
 
-// RolloverDeadlineRunner is the narrow contract the scheduler needs
-// from the enrollment rollover service. Defined here so the scheduler
-// doesn't import the full enrollment service package — mirrors the
-// opt-in shape used by StudentLifecycleRepository.
-type RolloverDeadlineRunner interface {
-	RunDeadlineWorker(ctx context.Context, asOf time.Time) (any, error)
-}
-
-// rolloverDeadlineRunner adapts the real service's typed return value
-// (*enrollment.DeadlineWorkerSummary) to a generic `any` so the
-// scheduler doesn't pull the enrollment package's type into its
-// public surface. The factory passes a small lambda when wiring.
-type rolloverDeadlineRunner struct {
-	run func(ctx context.Context, asOf time.Time) (any, error)
-}
-
-func (r *rolloverDeadlineRunner) RunDeadlineWorker(ctx context.Context, asOf time.Time) (any, error) {
-	return r.run(ctx, asOf)
-}
-
-// NewRolloverDeadlineRunner adapts a typed (ctx, asOf) → (T, error)
-// callable into the scheduler's narrow runner interface. Used by the
-// factory to wire enrollment.RolloverService.RunDeadlineWorker without
-// the scheduler depending on the enrollment package.
-func NewRolloverDeadlineRunner(fn func(ctx context.Context, asOf time.Time) (any, error)) RolloverDeadlineRunner {
-	return &rolloverDeadlineRunner{run: fn}
-}
-
 // scheduleRolloverDeadlineTask registers the per-tenant tick. Reuses
 // the existing operations.session_cleanup_interval_minutes signal as
 // a "background cadence" knob would be heavier than this needs —

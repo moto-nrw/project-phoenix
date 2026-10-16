@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,8 +25,8 @@ func TestStudentChangeLogCleanup_DeleteFailureRollsBackDeletionAudit(t *testing.
 	deleteErr := errors.New("delete failed")
 	var results []string
 	s := unitScheduler(&Scheduler{
-		studentChangeLogCleanup: func(context.Context) (StudentChangeLogCleanupResult, error) {
-			return StudentChangeLogCleanupResult{}, deleteErr
+		studentChangeLogCleanup: func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
+			return ports.StudentChangeLogCleanupResult{}, deleteErr
 		},
 		cleanupClock: func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
@@ -59,9 +61,9 @@ func TestStudentChangeLogCleanup_CommitsAndMarksTheDay(t *testing.T) {
 
 	calls := 0
 	s := unitScheduler(&Scheduler{
-		studentChangeLogCleanup: func(context.Context) (StudentChangeLogCleanupResult, error) {
+		studentChangeLogCleanup: func(context.Context) (ports.StudentChangeLogCleanupResult, error) {
 			calls++
-			return StudentChangeLogCleanupResult{EditsDeleted: 2, StudentsAffected: 1, RetentionDays: 90}, nil
+			return ports.StudentChangeLogCleanupResult{EditsDeleted: 2, StudentsAffected: 1, RetentionDays: 90}, nil
 		},
 		cleanupClock: func() time.Time { return scheduleNow },
 		settings: &fakeSettingsResolver{
