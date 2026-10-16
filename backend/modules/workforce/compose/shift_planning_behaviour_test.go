@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -26,21 +26,21 @@ import (
 // owner's public vocabulary (#3424); the calendar periods and the rooms are
 // the School Calendar and Facilities owners the root binds.
 
-type planningStaffDirectory struct{ staff *usersModels.Staff }
+type planningStaffDirectory struct{ staff *workforce.PlanStaff }
 
-func (d planningStaffDirectory) FindByID(_ context.Context, id any) (*usersModels.Staff, error) {
+func (d planningStaffDirectory) FindByID(_ context.Context, id any) (*workforce.PlanStaff, error) {
 	if value, ok := id.(int64); ok && value == d.staff.ID {
 		return d.staff, nil
 	}
 	return nil, sql.ErrNoRows
 }
 
-func (d planningStaffDirectory) ListAllWithPerson(context.Context) ([]*usersModels.Staff, error) {
-	return []*usersModels.Staff{d.staff}, nil
+func (d planningStaffDirectory) ListAllWithPerson(context.Context) ([]*workforce.PlanStaff, error) {
+	return []*workforce.PlanStaff{d.staff}, nil
 }
 
-func (d planningStaffDirectory) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*usersModels.Staff, error) {
-	return map[int64]*usersModels.Staff{d.staff.ID: d.staff}, nil
+func (d planningStaffDirectory) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*workforce.PlanStaff, error) {
+	return map[int64]*workforce.PlanStaff{d.staff.ID: d.staff}, nil
 }
 
 // planningTimetable stands in for the Timetable owner: the Dienstplan reads
@@ -89,8 +89,10 @@ func buildPlanningWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 func planningDependencies(t *testing.T, ctx context.Context, db *bun.DB, capability workforce.Capability, staffID int64) compose.ShiftPlanningDependencies {
 	t.Helper()
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	staff, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners).Staff.FindWithPerson(ctx, staffID)
+	staffByID, err := api.NewPlanStaffDirectory(api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners).Staff).FindWithPersonByIDs(ctx, []int64{staffID})
 	require.NoError(t, err)
+	staff := staffByID[staffID]
+	require.NotNil(t, staff)
 	return compose.ShiftPlanningDependencies{
 		Workforce: capability, Staff: planningStaffDirectory{staff: staff},
 		CalendarPeriods: owners.Calendar, Instances: planningTimetable{},

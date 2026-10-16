@@ -12,7 +12,6 @@ import (
 	"time"
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -176,8 +175,8 @@ func newSeriesServiceForTest(m seriesServiceMocks) StaffShiftSeriesService {
 		m.shifts = &seriesShiftMockRepo{}
 	}
 	if m.staff == nil {
-		m.staff = &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*usersModels.Staff, error) {
-			staff := &usersModels.Staff{}
+		m.staff = &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*workforce.PlanStaff, error) {
+			staff := &workforce.PlanStaff{}
 			staff.ID = 5
 			return staff, nil
 		}}
@@ -229,7 +228,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 
 	t.Run("staff lookup failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
-			staff: &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*usersModels.Staff, error) {
+			staff: &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*workforce.PlanStaff, error) {
 				return nil, dbErr
 			}},
 		})
@@ -240,7 +239,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 
 	t.Run("staff missing", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
-			staff: &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*usersModels.Staff, error) {
+			staff: &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*workforce.PlanStaff, error) {
 				return nil, modelBase.ErrNotFound
 			}},
 		})

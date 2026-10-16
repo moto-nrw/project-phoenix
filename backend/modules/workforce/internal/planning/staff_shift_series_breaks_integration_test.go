@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -67,7 +68,7 @@ func (e *seriesTestEnv) breakSeriesService() planning.StaffShiftSeriesService {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	return planning.NewStaffShiftSeriesService(
-		e.seriesRows, e.exceptionRows, e.shiftRows, e.repos.Staff, planning.SchoolCalendarPeriods(calendar),
+		e.seriesRows, e.exceptionRows, e.shiftRows, api.NewPlanStaffDirectory(e.repos.Staff), planning.SchoolCalendarPeriods(calendar),
 		nil, workforceCompose.NewStaffShiftLock(e.db), slog.Default(), e.shifts,
 		planning.WithStaffShiftSeriesToday(today),
 		planning.WithStaffShiftSeriesNonWorkingDays(planning.SchoolCalendarNonWorkingDays(unificationDayCalendar{SeriesCalendarReads: calendar})),

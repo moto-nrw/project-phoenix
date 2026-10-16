@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
@@ -167,27 +166,48 @@ type txStaffRoster struct {
 	tx bun.IDB
 }
 
-func (r txStaffRoster) ListAllWithPerson(ctx context.Context) ([]*usersModels.Staff, error) {
-	var rows []*usersModels.Staff
-	if err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`(SELECT m.id, m.tenant_id, m.person_id, m.created_at, m.updated_at, m.deleted_at, p.staff_notes, p.employment_type, p.work_time_model_id, p.personnel_number, p.rotation_anchor_date, p.birthday_display_opt_out FROM users.staff_school_memberships AS m JOIN users.staff_employment_profiles AS p ON p.tenant_id = m.tenant_id AND p.membership_id = m.id) AS "staff"`).Scan(ctx); err != nil {
+// txStaffRow and txPersonRow scan the staff and person columns the roster
+// reads.
+type txStaffRow struct {
+	bun.BaseModel      `bun:"alias:staff"`
+	ID                 int64          `bun:"id"`
+	PersonID           int64          `bun:"person_id"`
+	WorkTimeModelID    *int64         `bun:"work_time_model_id"`
+	RotationAnchorDate *calendar.Date `bun:"rotation_anchor_date,type:date"`
+}
+
+type txPersonRow struct {
+	bun.BaseModel `bun:"alias:person"`
+	FirstName     string `bun:"first_name"`
+	LastName      string `bun:"last_name"`
+	AccountID     *int64 `bun:"account_id"`
+}
+
+func (r txStaffRoster) ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error) {
+	var rows []txStaffRow
+	if err := r.tx.NewSelect().Model(&rows).ModelTableExpr(`(SELECT m.id, m.tenant_id, m.person_id, m.created_at, m.updated_at, m.deleted_at, p.staff_notes, p.employment_type, p.work_time_model_id, p.personnel_number, p.rotation_anchor_date, p.birthday_display_opt_out FROM users.staff_school_memberships AS m JOIN users.staff_employment_profiles AS p ON p.tenant_id = m.tenant_id AND p.membership_id = m.id) AS "staff"`).Where(`"staff".deleted_at IS NULL`).Scan(ctx); err != nil {
 		return nil, err
 	}
+	staff := make([]*workforce.PlanStaff, 0, len(rows))
 	for _, row := range rows {
-		person := &usersModels.Person{}
+		person := &txPersonRow{}
 		if err := r.tx.NewSelect().Model(person).ModelTableExpr(`users.persons AS "person"`).Where(`"person".id = ?`, row.PersonID).Scan(ctx); err != nil {
 			return nil, err
 		}
-		row.Person = person
+		staff = append(staff, &workforce.PlanStaff{
+			ID: row.ID, PersonID: row.PersonID, WorkTimeModelID: row.WorkTimeModelID, RotationAnchorDate: row.RotationAnchorDate,
+			Person: &workforce.PlanStaffPerson{FirstName: person.FirstName, LastName: person.LastName, AccountID: person.AccountID},
+		})
 	}
-	return rows, nil
+	return staff, nil
 }
 
-func (r txStaffRoster) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Staff, error) {
+func (r txStaffRoster) FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error) {
 	rows, err := r.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, err
 	}
-	out := make(map[int64]*usersModels.Staff, len(ids))
+	out := make(map[int64]*workforce.PlanStaff, len(ids))
 	for _, row := range rows {
 		for _, id := range ids {
 			if row.ID == id {
