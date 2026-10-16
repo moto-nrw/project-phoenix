@@ -8,7 +8,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -97,7 +96,7 @@ type Config struct {
 	Locales  Locales
 
 	// Best-effort notifiers, called after the commit only.
-	AbsenceNotifier notificationsSvc.AbsenceNotifier
+	AbsenceNotifier AbsenceNotifier
 	Emitter         *parentmessaging.Emitter
 	StudentUpdates  StudentUpdates
 	SelfService     SelfServiceEvents
