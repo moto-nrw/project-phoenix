@@ -167,10 +167,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-emergency",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-filestore",
       "kind": "inbound"
     },
@@ -800,7 +796,7 @@
     },
     {
       "path": "modules/emergencysnapshot/http",
-      "owner": "inbound-emergency",
+      "owner": "emergency-snapshot",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7779,12 +7775,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-emergency.to.emergency-snapshot",
-      "description": "inbound-emergency calls exactly one public capability.",
+      "id": "emergency-snapshot.http.public",
+      "description": "The Emergency Snapshot HTTP adapter calls its own public projection capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-emergency",
+      "source_owner": "emergency-snapshot",
       "source_role": "http",
       "target_owner": "emergency-snapshot",
       "target_role": "public"
@@ -12096,37 +12092,26 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-emergency.http-common",
-      "description": "Emergency snapshot handlers reuse common HTTP rendering, the tenant middleware chain and the permission gates (#2704).",
+      "id": "emergency-snapshot.http.common",
+      "description": "The Emergency Snapshot HTTP adapter uses the shared HTTP runtime.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-emergency",
+      "source_owner": "emergency-snapshot",
       "source_role": "http",
       "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
-      "id": "inbound-emergency.security-contract",
-      "description": "Emergency snapshot handlers name the users:read permission (#2704).",
+      "id": "emergency-snapshot.http.security-contract",
+      "description": "The Emergency Snapshot HTTP adapter binds the established permission contract.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-emergency",
+      "source_owner": "emergency-snapshot",
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "root-composition.to.inbound-emergency-http",
-      "description": "The production root constructs the emergency snapshot HTTP adapter (#2704).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-emergency",
-      "target_role": "http"
     },
     {
       "id": "inbound-iot.compose.inbound-common.http",
