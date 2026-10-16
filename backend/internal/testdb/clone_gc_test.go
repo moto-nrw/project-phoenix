@@ -14,21 +14,23 @@ func TestCloneGCDefersLockedOrphan(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	name := ClonePrefix + SanitizeRunID("") + "_busy"
-	createBareClone(t, ctx, cfg, name)
-	t.Cleanup(func() { dropBareClone(t, cfg, name) })
-
 	maint := openSQL(cfg.MaintenanceDSN())
 	defer func() { _ = maint.Close() }()
-	blocker, err := maint.BeginTx(ctx, nil)
-	require.NoError(t, err)
-	defer func() { _ = blocker.Rollback() }()
-	_, err = blocker.ExecContext(ctx, `SELECT oid FROM pg_database WHERE datname = $1 FOR UPDATE`, name)
-	require.NoError(t, err)
-
 	conn, unlock, err := acquireLifecycleLock(ctx, maint)
 	require.NoError(t, err)
 	defer unlock()
+
+	name := ClonePrefix + SanitizeRunID("") + "_busy"
+	_, err = conn.ExecContext(ctx, `CREATE DATABASE `+quoteIdentifier(name))
+	require.NoError(t, err)
+	t.Cleanup(func() { dropBareClone(t, cfg, name) })
+
+	blocker, err := maint.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = blocker.Rollback() }()
+	var oid int64
+	err = blocker.QueryRowContext(ctx, `SELECT oid FROM pg_database WHERE datname = $1 FOR UPDATE`, name).Scan(&oid)
+	require.NoError(t, err)
 
 	gcCtx, gcCancel := context.WithTimeout(ctx, 3*time.Second)
 	defer gcCancel()
