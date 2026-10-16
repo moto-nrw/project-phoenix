@@ -155,7 +155,7 @@ consumer-owned ports the Worker declares onto the owners
 report and the dependency struct the root fills. The `contract` role would
 have needed a new grant from the Worker's `application` role into its own
 `contract`, which no standing reach covers; the Worker's own `port` is
-already admitted by `platform.application-port`. Policy epoch 50 adds the
+already admitted by `platform.application-port`. Policy epoch 51 adds the
 three standing ADR 0053 reaches the `port` role was missing for platform
 owners, accepted by the existing acceptors: `root-composition.reach.platform.port`
 (point 2), `owner-compose.platform.port` (point 3) and
