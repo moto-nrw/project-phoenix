@@ -12,13 +12,13 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 105 |
-| [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone` | 87 |
+| [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone` | 85 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 10 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 12 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 11 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 7 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
