@@ -186,6 +186,11 @@ func stableMiddlewareTable(table string) string {
 		}
 		names := strings.Split(chain, " > ")
 		for j, name := range names {
+			// Same middleware body, relocated from the IoT binding package into Root.
+			if name == "api.iotMetricsMiddleware" {
+				names[j] = "api/iot/compose.iotMetricsMiddleware"
+				continue
+			}
 			if !strings.HasSuffix(name, "#") {
 				continue
 			}

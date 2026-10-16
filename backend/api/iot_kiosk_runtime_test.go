@@ -1,4 +1,4 @@
-package compose
+package api
 
 import (
 	"encoding/json"
@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 )
 
 // A session conflict answered 409 inside the success envelope until #2507.
@@ -21,9 +20,7 @@ func TestSessionConflictAnswersInTheSharedErrorEnvelope(t *testing.T) {
 
 	device := int64(4711)
 	recorder := httptest.NewRecorder()
-	renderSessionConflict(recorder, httptest.NewRequest(http.MethodPost, "/api/iot/session/start", nil), "Session conflict detected", devicescan.ConflictInfoResponse{
-		HasConflict: true, ConflictingDevice: &device, ConflictMessage: "Activity is already running", CanOverride: true,
-	})
+	renderIoTSessionConflict(recorder, httptest.NewRequest(http.MethodPost, "/api/iot/session/start", nil), "Session conflict detected", iotSessionConflictInfo(true, &device, "Activity is already running", true))
 
 	require.Equal(t, http.StatusConflict, recorder.Code)
 	assert.Empty(t, routetest.ProblemEnvelopeViolations(recorder.Body.Bytes(), recorder.Code, false), recorder.Body.String())
