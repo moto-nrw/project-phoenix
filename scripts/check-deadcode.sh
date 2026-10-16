@@ -10,9 +10,9 @@ run_deadcode() {
 
   set +e
   if [[ "$mode" == "tests" ]]; then
-    output=$(go tool deadcode -test ./...)
+    output=$(go tool deadcode -tags=testhooks -test ./...)
   else
-    output=$(go tool deadcode ./...)
+    output=$(go tool deadcode -tags= ./...)
   fi
   status=$?
   set -e

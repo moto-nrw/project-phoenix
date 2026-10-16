@@ -50,9 +50,10 @@ type LegacyReference struct {
 }
 
 type Build struct {
-	GOOS       string `json:"goos"`
-	GOARCH     string `json:"goarch"`
-	CGOEnabled *bool  `json:"cgo_enabled"`
+	GOOS       string   `json:"goos"`
+	GOARCH     string   `json:"goarch"`
+	CGOEnabled *bool    `json:"cgo_enabled"`
+	Tags       []string `json:"tags,omitempty"`
 }
 
 type Owner struct {
@@ -141,6 +142,7 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 }
 
 var (
+	buildTagPattern   = regexp.MustCompile(`^[A-Za-z0-9_.]+$`)
 	identifierPattern = regexp.MustCompile(`^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$`)
 	allowedOwnerKinds = map[string]bool{
 		"domain": true, "platform": true, "workflow": true, "projection": true,
@@ -268,6 +270,11 @@ func (p *Policy) validateHeader() error {
 	}
 	if p.Build.CGOEnabled == nil || *p.Build.CGOEnabled {
 		return fmt.Errorf("build.cgo_enabled must be explicitly false")
+	}
+	for _, tag := range p.Build.Tags {
+		if !buildTagPattern.MatchString(tag) {
+			return fmt.Errorf("build.tags contains invalid Go build tag %q", tag)
+		}
 	}
 	if p.Owners == nil || p.Roles == nil || p.Packages == nil || p.DataObjects == nil || p.ReadProjections == nil || p.LegacyComposition == nil || p.SharedKernelTypes == nil || p.ExternalClasses == nil || p.ExternalPackages == nil || p.Rules == nil {
 		return fmt.Errorf("owners, roles, packages, data_objects, read_projections, legacy_composition, shared_kernel_types, external_classes, external_packages, and rules are required")

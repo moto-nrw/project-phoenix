@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package api
 
 // The operator provisioning suites pin the identity adapter the root binds

@@ -53,8 +53,9 @@ import (
 // that moves packages between owners therefore cannot remove a struct from
 // the inventory it still holds in the base.
 type compositionOwnership struct {
-	roots    map[string]bool
-	policies []compositionOwnerPolicy
+	roots     map[string]bool
+	policies  []compositionOwnerPolicy
+	buildTags []string
 }
 
 type compositionOwnerPolicy struct {
@@ -68,6 +69,7 @@ func newCompositionOwnership(policies ...*Policy) *compositionOwnership {
 		if policy == nil {
 			continue
 		}
+		ownership.buildTags = append(ownership.buildTags, policy.Build.Tags...)
 		classification := compositionOwnerPolicy{owners: map[string]string{}, ignore: map[string]bool{}}
 		for _, owner := range policy.Owners {
 			if owner.Kind == "kernel" {
@@ -253,7 +255,7 @@ func rootStructInventoryWith(directory string, ownership *compositionOwnership, 
 		Dir: directory, Tests: true,
 		Mode: packages.NeedName | packages.NeedFiles | packages.NeedCompiledGoFiles | packages.NeedSyntax |
 			packages.NeedTypes | packages.NeedTypesInfo,
-		Env: standaloneModuleEnvironment(append(fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled}), inherited...)),
+		Env: standaloneModuleEnvironment(append(fixedBuildEnvironment(Build{GOOS: "linux", GOARCH: "amd64", CGOEnabled: &cgoEnabled, Tags: ownership.buildTags}), inherited...)),
 	}, patterns...)
 	if err != nil {
 		return nil, fmt.Errorf("load root packages: %w", err)
