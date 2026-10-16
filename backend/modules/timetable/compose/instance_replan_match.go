@@ -4,6 +4,7 @@ import (
 	"context"
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -85,7 +86,7 @@ func matchRegeneratedCandidate(candidates []*scheduleModel.ActivityInstance, sta
 		return candidates[0]
 	}
 	for _, candidate := range candidates {
-		if formatTimeOfDay(candidate.StartTime) == startTime {
+		if application.FormatTimeOfDay(candidate.StartTime) == startTime {
 			return candidate
 		}
 	}
@@ -102,7 +103,7 @@ func (p seriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantI
 	return p.lifecycle.acquireSubstituteDayLocks(ctx, tenantID, from, to)
 }
 
-func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (PreservedDeviations, error) {
+func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (application.PreservedDeviations, error) {
 	id := templateID
 	snapshots, occurrences, err := p.lifecycle.snapshotDeviations(ctx, from, to, &id)
 	if err != nil {

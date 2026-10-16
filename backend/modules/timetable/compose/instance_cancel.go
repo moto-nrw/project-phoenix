@@ -8,6 +8,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -42,7 +43,7 @@ func (s *InstanceLifecycleService) cancel(ctx context.Context, instanceID int64,
 	}
 	if instance.Status == scheduleModel.InstanceStatusActive {
 		if err := s.deps.ActiveService.EndActivitySession(ctx, *instance.ActiveGroupID); err != nil {
-			return nil, &ScheduleError{Op: "cancel instance: end active.group", Err: err}
+			return nil, &application.ScheduleError{Op: "cancel instance: end active.group", Err: err}
 		}
 	}
 	previousStatus := instance.Status
@@ -51,7 +52,7 @@ func (s *InstanceLifecycleService) cancel(ctx context.Context, instanceID int64,
 	instance.CompletedAt = &now
 	instance.CancelReason = reason
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "cancel_reason"); err != nil {
-		return nil, &ScheduleError{Op: "cancel instance: update", Err: err}
+		return nil, &application.ScheduleError{Op: "cancel instance: update", Err: err}
 	}
 	if err := s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
@@ -98,11 +99,11 @@ func (s *InstanceLifecycleService) lockCancellationState(ctx context.Context, in
 		if instance.ActiveGroupID == nil {
 			// A running block without a session is data corruption; abort
 			// rather than "cancel" a session that never ran.
-			return &ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
+			return &application.ScheduleError{Op: "cancel instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 		}
 		group, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
 		if err != nil {
-			return &ScheduleError{Op: "cancel instance: lock group", Err: err}
+			return &application.ScheduleError{Op: "cancel instance: lock group", Err: err}
 		}
 		if group == nil || group.EndTime != nil {
 			return fmt.Errorf("%w: active group is not open", timetable.ErrInvalidInstanceTransition)
@@ -110,7 +111,7 @@ func (s *InstanceLifecycleService) lockCancellationState(ctx context.Context, in
 	}
 	if s.deps.RecoveryRepo != nil {
 		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
-			return &ScheduleError{Op: "cancel instance: lock attendance", Err: err}
+			return &application.ScheduleError{Op: "cancel instance: lock attendance", Err: err}
 		}
 	}
 	return nil
@@ -150,7 +151,7 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 		}
 	}
 	if err := s.deps.InstanceRepo.Delete(ctx, instance.ID); err != nil {
-		return &ScheduleError{Op: "delete instance", Err: err}
+		return &application.ScheduleError{Op: "delete instance", Err: err}
 	}
 	s.getLogger().Info("instance deleted",
 		slog.Int64("tenant_id", tenant.FromContext(ctx)),
@@ -168,7 +169,7 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date calendar.Date) error {
 	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
 	if err != nil {
-		return &ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
+		return &application.ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
 	}
 	templateBacked := 0
 	for _, row := range rows {
@@ -187,7 +188,7 @@ func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Con
 func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date calendar.Date, reason string) error {
 	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
 	if err != nil {
-		return &ScheduleError{Op: "delete instance: check slot exception", Err: err}
+		return &application.ScheduleError{Op: "delete instance: check slot exception", Err: err}
 	}
 	if existing != nil {
 		if existing.ExceptionType == scheduleModel.ActivityExceptionCancelled {
@@ -199,7 +200,7 @@ func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Cont
 		existing.RoomID = nil
 		existing.Reason = &reason
 		if err := s.deps.ExceptionRepo.Update(ctx, existing); err != nil {
-			return &ScheduleError{Op: "delete instance: cancel existing exception", Err: err}
+			return &application.ScheduleError{Op: "delete instance: cancel existing exception", Err: err}
 		}
 		s.getLogger().Info("deleted instance: existing exception converted to cancellation",
 			slog.Int64("activity_group_id", activityGroupID),
@@ -215,7 +216,7 @@ func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Cont
 	}
 	exc.SetTenantID(tenant.FromContext(ctx))
 	if err := s.deps.ExceptionRepo.Create(ctx, exc); err != nil {
-		return &ScheduleError{Op: "delete instance: create cancellation exception", Err: err}
+		return &application.ScheduleError{Op: "delete instance: create cancellation exception", Err: err}
 	}
 	s.getLogger().Info("deleted instance: slot consumed via cancelled exception",
 		slog.Int64("activity_group_id", activityGroupID),

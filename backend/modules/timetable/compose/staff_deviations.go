@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -148,7 +149,7 @@ func (s *staffDeviations) now() time.Time {
 }
 
 func (s *staffDeviations) getLogger() *slog.Logger {
-	return orDefaultLogger(s.deps.Logger)
+	return application.OrDefaultLogger(s.deps.Logger)
 }
 
 // acquireSubstituteDayLock takes the shared (tenant, date) advisory lock that
@@ -225,13 +226,13 @@ func recordDeviationEvent(ctx context.Context, protocol DeviationProtocol, in de
 	}
 	var err error
 	if event.OldValue, err = marshalDeviationValue(in.oldValue); err != nil {
-		return &ScheduleError{Op: "log deviation event: marshal old value", Err: err}
+		return &application.ScheduleError{Op: "log deviation event: marshal old value", Err: err}
 	}
 	if event.NewValue, err = marshalDeviationValue(in.newValue); err != nil {
-		return &ScheduleError{Op: "log deviation event: marshal new value", Err: err}
+		return &application.ScheduleError{Op: "log deviation event: marshal new value", Err: err}
 	}
 	if err := protocol.RecordDeviationEvent(ctx, event); err != nil {
-		return &ScheduleError{Op: "log deviation event", Err: fmt.Errorf("event_type %s: %w", in.eventType, err)}
+		return &application.ScheduleError{Op: "log deviation event", Err: fmt.Errorf("event_type %s: %w", in.eventType, err)}
 	}
 	return nil
 }

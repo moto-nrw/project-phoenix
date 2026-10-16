@@ -9,6 +9,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -82,7 +83,7 @@ func NewAttendanceCorrections(deps AttendanceCorrectionDependencies) (timetable.
 }
 
 func (s *attendanceCorrections) getLogger() *slog.Logger {
-	return orDefaultLogger(s.deps.Logger)
+	return application.OrDefaultLogger(s.deps.Logger)
 }
 
 // CorrectInstanceStudentAttendance changes a child's attendance in a COMPLETED
