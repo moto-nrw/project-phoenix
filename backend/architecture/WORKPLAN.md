@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 217 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 58 ·
+Stand 16.10.2026 · Ratchet 217 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.469 in `compose`
 
@@ -183,6 +183,15 @@ liefert die identischen Workflow-Werte, ohne neue Testrolle oder Regel.
 Vier Regeln entfallen ohne Nachfolger. Inbound-Owner 16 → 15, Regeln
 902 → 898; #4078 6, #4079 15, Composition 1.657 und alle Budgets bleiben
 gleich. Keine Route, Response oder IoT-Zeichenkette ändert sich.
+
+#4078: Die bereits übernommenen HTTP-Pakete für Geräteverwaltung und
+Kiosk-Sessions liegen nach ADR 0020 unter `modules/devicefleet/http/devices`
+und `modules/devicescan/http/sessions`. Alle 20 Go-Dateinamen, Owner und
+Produktions- sowie Testrollen bleiben identisch. Ein AST-Audit über alle
+24 verschobenen oder importierenden Dateien zeigt ausschließlich neue
+Importpfade. Epoche 58 → 59; Regeln, Legacy-Keys, Composition und Budgets
+bleiben gleich. Keine Route, Response, IoT-Zeichenkette oder Assertion ändert
+sich; die vorangehende Sessions-Owner-Übernahme muss zuerst gemergt sein.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

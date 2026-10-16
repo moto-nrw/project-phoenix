@@ -7,8 +7,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/iot/devices"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/modules/devicefleet/http/devices"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
