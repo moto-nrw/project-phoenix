@@ -8,7 +8,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -96,7 +95,7 @@ type Config struct {
 
 	// Best-effort notifiers, called after the commit only.
 	AbsenceNotifier AbsenceNotifier
-	Emitter         *parentmessaging.Emitter
+	Emitter         ChildEvents
 	StudentUpdates  StudentUpdates
 	SelfService     SelfServiceEvents
 

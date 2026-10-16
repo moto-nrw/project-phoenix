@@ -53,3 +53,31 @@ func (e *recordingEngine) StudentsWithPortalGuardian(_ context.Context, ids []in
 func (e *recordingEngine) ObserveGuardianOperation(operation string, _ time.Duration, err error) {
 	e.observed = append(e.observed, operation+":"+peopledirectory.ErrorCode(err))
 }
+
+// The guardian lifecycle commands carry no facade rule of their own; the
+// recording engine only completes the engine contract for them.
+
+func (e *recordingEngine) DeleteGuardianProfile(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) LinkGuardianProfileToAccount(context.Context, int64, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) LinkInvitedGuardian(context.Context, peopledirectory.InvitedGuardianLink) (bool, error) {
+	e.calls++
+	return false, nil
+}
+
+func (e *recordingEngine) PromoteGuardianLinkToLegalGuardian(context.Context, int64) error {
+	e.calls++
+	return nil
+}
+
+func (e *recordingEngine) DeleteStudentGuardianLink(context.Context, int64) error {
+	e.calls++
+	return nil
+}

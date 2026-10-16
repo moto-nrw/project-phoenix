@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -91,7 +90,7 @@ func (s *Service) ListMessageThreads(ctx context.Context, accountID int64) ([]*u
 // resolved once per distinct tenant (cached in-loop). The fail-OPEN direction (a
 // resolve failure counts the tenant as enabled — hiding a real unread behind a
 // transient settings hiccup is worse than briefly over-counting) and the setting
-// key both live in parentmessaging.MessagingEnabledForTenant, shared with the
+// key both live in the Communication policy behind MessagingEnabled, shared with the
 // staff side. ResolveBoolForTenant opens its own tenant tx, so this runs OUTSIDE
 // the admin tx above.
 func (s *Service) suppressDisabledUnread(ctx context.Context, rows []*usersModels.InboxThread) {
@@ -102,7 +101,7 @@ func (s *Service) suppressDisabledUnread(ctx context.Context, rows []*usersModel
 		}
 		on, cached := enabled[row.TenantID]
 		if !cached {
-			on = parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, row.TenantID, s.Logger)
+			on = s.MessagingEnabled(ctx, row.TenantID)
 			enabled[row.TenantID] = on
 		}
 		if !on {
@@ -187,13 +186,13 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 	// signal is suppressed). The flag is per-tenant, so a guardian with one child
 	// at an enabled school and one at a disabled school sees only the former's
 	// unread. The per-tenant resolve fails OPEN and shares its key with the
-	// row-pill path via parentmessaging.MessagingEnabledForTenant (which wraps its
+	// row-pill path via MessagingEnabled (which wraps its
 	// own tenant tx, so it runs outside the admin tx above): a transient settings
 	// hiccup must not make the badge vanish while the thread-list rows keep showing
 	// unread pills.
 	enabledTenantIDs := make([]int64, 0, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
-		if parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, tenantID, s.Logger) {
+		if s.MessagingEnabled(ctx, tenantID) {
 			enabledTenantIDs = append(enabledTenantIDs, tenantID)
 		}
 	}
@@ -303,7 +302,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 	// blip does not 500 a guardian's reply while the badge and thread list keep
 	// rendering unread — the write side agrees with the read side. A genuine
 	// disabled flag still returns ErrNotesDisabled.
-	if !parentmessaging.MessagingEnabledForTenant(ctx, s.Settings, child.TenantID, s.Logger) {
+	if !s.MessagingEnabled(ctx, child.TenantID) {
 		return nil, care.ErrNotesDisabled
 	}
 

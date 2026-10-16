@@ -44,20 +44,22 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.Staf
 	require.NoError(t, err)
 	repos = repos.WithSchoolProjections(organizationTenancy)
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := messaging.New(messaging.Config{
-		Children:            childResolver(db, repos),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		Settings: messagingSettingsStub{
-			boolValues: map[string]bool{
-				care.KeyParentSickNoteEnabled: true,
-				care.KeyParentNotesEnabled:    enabled,
-			},
-			stringValues: map[string]string{
-				care.KeyGuardianParentInviteMode: care.ParentInviteModeDisabled,
-			},
+	settings := messagingSettingsStub{
+		boolValues: map[string]bool{
+			care.KeyParentSickNoteEnabled: true,
+			care.KeyParentNotesEnabled:    enabled,
 		},
+		stringValues: map[string]string{
+			care.KeyGuardianParentInviteMode: care.ParentInviteModeDisabled,
+		},
+	}
+	svc := messaging.New(messaging.Config{
+		MessagingEnabled:      api.BindParentMessagingGate(settings, slog.Default()),
+		Children:              childResolver(db, repos),
+		ChildRepo:             repos.ParentChild,
+		StudentRepo:           repos.Student,
+		GuardianProfileRepo:   repos.GuardianProfile,
+		Settings:              settings,
 		MessageThreadRepo:     repos.ParentMessageThread,
 		MessageRepo:           communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:       repos.ParentMessageRead,

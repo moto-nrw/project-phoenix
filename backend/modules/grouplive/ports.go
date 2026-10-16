@@ -50,9 +50,8 @@ type GroupRecord struct {
 	RoomID *int64
 }
 
-// GroupDirectory lists groups. SupervisedGroups and TenantGroups deliver
-// their rows in German dictionary order (DIN 5007-1), which selectGroup and
-// the response order rely on.
+// GroupDirectory lists groups. The projection sorts the rows of
+// SupervisedGroups and TenantGroups with Dependencies.Collate.
 type GroupDirectory interface {
 	// SupervisedGroups are the caller's own groups, including substitutions.
 	SupervisedGroups(ctx context.Context) ([]GroupRecord, error)

@@ -7,9 +7,7 @@ import (
 	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	emergencysnapshotCompose "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -44,7 +42,7 @@ func composeViews(b graphBuild) (graphBuild, error) {
 	// facades are its tenant-safe reads, the retained student and guardian
 	// repositories, the presence-mode read and the renderer its
 	// compatibility bindings.
-	emergency, err := emergencysnapshotCompose.New(emergencysnapshotCompose.Sources{
+	emergency, err := newEmergencySnapshot(emergencySnapshotSources{
 		Presence: b.Presence.Presence, PresenceMode: b.graph.Active, Students: b.People.Students, Persons: b.Persons,
 		Contacts: b.People.StudentGuardians, Rooms: b.Rooms, Renderer: b.Platform.ListExport, Now: b.now,
 		Logger: b.Logger.With("module", "emergency-snapshot"),
@@ -104,7 +102,7 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 		ParentAnnouncementCommand: b.graph.ParentAnnouncement,
 	}
 	b.graph.AbsenceOverview = presenceservice.NewStatusDayOverviews(b.CarePlanWiring.StatusDays, b.People.StatusDayPeople(b.graph.Users))
-	live, err := groupliveCompose.New(groupliveCompose.Sources{
+	live, err := newGroupLive(groupLiveSources{
 		Presence: b.Presence.Presence, People: b.People.GroupRosterPeople(b.graph.Users), Education: b.graph.Education,
 		Substitutions: b.graph.Substitution, UserContext: b.identity.GroupLiveCaller, Active: b.graph.Active,
 		Settings: b.settingsService, Pickups: b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule,
@@ -117,10 +115,12 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.OGSGroupLive = live
 	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{
+		Access: newSupervisionAccess(b.settingsService, b.identity.SupervisionCaller),
 		Active: b.graph.Active, ActiveGroups: b.Presence.OpenRoomSessions, OpenVisits: b.graph.Active,
 		Rooms: b.Presence.OpenRooms, UserContext: b.identity.SupervisionCaller, Education: b.graph.Education,
-		Schulhof: b.graph.Schulhof, Operations: b.graph.TimetableOperations, Settings: b.settingsService,
-		Pickups: b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule, Now: b.now,
+		Yard: newSupervisionYard(b.graph.Schulhof), Operations: b.graph.TimetableOperations,
+		Settings: newSupervisionSettings(b.settingsService),
+		Pickups:  b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule, Now: b.now,
 	})
 	if err != nil {
 		return b, fmt.Errorf("compose supervision dashboard projection: %w", err)
