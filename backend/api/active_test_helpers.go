@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
@@ -243,4 +244,18 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: newSupervisionYard(yard)},
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations,
 		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
+}
+
+// Session-end HTTP fixtures use the same values the root binds in production.
+type iotTestSessionLifecycle = devicescan.SessionLifecycle
+type iotTestSessionToEnd = devicescan.SessionToEnd
+type iotTestSessionEndResult = sessionend.Result
+type iotTestSessionConflict = devicescan.ConflictInfoResponse
+
+func iotSessionEndTestFailures() (notFound, alreadyEnded error) {
+	return sessionend.ErrSessionNotFound, sessionend.ErrSessionAlreadyEnded
+}
+
+func iotSessionEndTestInvalidRequest(message string) error {
+	return devicescan.InvalidRequest(message)
 }
