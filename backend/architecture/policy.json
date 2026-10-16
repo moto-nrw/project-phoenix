@@ -159,10 +159,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-iot-checkin",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-iot-sessions",
       "kind": "inbound"
     },
@@ -787,7 +783,7 @@
     },
     {
       "path": "api/iot/checkin",
-      "owner": "inbound-iot-checkin",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -5867,17 +5863,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-iot-checkin.adapter-test.student-presence-compose",
-      "description": "Kiosk checkout contract tests verify attendance and visit state through the production presence facade.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-iot-checkin",
-      "source_role": "adapter-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
-    },
-    {
       "id": "emergency-snapshot.adapter-test.presence-compose",
       "description": "Emergency snapshot adapter tests construct the Student Presence facade for migrated visit and attendance records (#2704).",
       "scopes": [
@@ -7774,17 +7759,6 @@
       "source_owner": "feedback",
       "source_role": "http",
       "target_owner": "feedback",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot-checkin.to.process-device-scan",
-      "description": "inbound-iot-checkin calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-checkin",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
       "target_role": "public"
     },
     {
@@ -11771,17 +11745,6 @@
       "source_owner": "inbound-iot",
       "source_role": "compose",
       "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.inbound-iot-checkin.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-iot-checkin",
       "target_role": "http"
     },
     {
