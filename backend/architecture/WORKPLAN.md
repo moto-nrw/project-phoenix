@@ -122,6 +122,15 @@ Inbound-Owner 21 → 20, Regeln 925 → 918, Keys 273 → 270,
 #4078 9 → 6; Composition 1.664, Budgets und #4079 bleiben unverändert.
 Retirement-Nachweis: `statistics-http-owner-4078.json`.
 
+#4078: Die IoT-Datenrouten (`api/iot/data`) gehören zu `process-device-scan`;
+`inbound-iot-data` entfällt. Drei bestehende Regeln werden gleich eng ersetzt:
+Eigen-Public, das öffentliche Feedback und die bestehende IoT-Komposition zum
+HTTP-Adapter. Pfad, Produktions- und Testrollen bleiben gleich; kein Go-Code,
+keine Route, Response, IoT-Zeichenkette oder Assertion ändert sich.
+Inbound-Owner 20 → 19, Regeln 918 → 918; 270 Keys, #4078 6, Composition 1.664,
+Epoche 55 und alle Budgets bleiben unverändert. Die physische Relocation folgt
+separat gemäß ADR 0020.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
