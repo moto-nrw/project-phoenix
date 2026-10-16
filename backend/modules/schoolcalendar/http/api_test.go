@@ -10,10 +10,9 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -202,7 +201,7 @@ func TestListMyParsesDateRange(t *testing.T) {
 	t.Parallel()
 
 	service := &fakeCalendarService{
-		listStaffEvents: []calendarSvc.Event{{ID: "appointment:1:2026-01-05", Source: calModels.EventSourceAppointment, Title: "Planning"}},
+		listStaffEvents: []calendarSvc.Event{{ID: "appointment:1:2026-01-05", Source: calendarSvc.EventSourceAppointment, Title: "Planning"}},
 	}
 	rs := &Resource{service: service}
 	req := httptest.NewRequest(http.MethodGet, "/my?from=2026-01-05&to=2026-01-11", nil)
@@ -314,7 +313,7 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 	assert.Equal(t, "09:15", service.gotCreate.StartTime.Format("15:04"))
 	assert.Equal(t, "10:30", service.gotCreate.EndTime.Format("15:04"))
 	require.NotNil(t, service.gotCreate.Recurrence)
-	assert.Equal(t, calModels.RecurrenceFrequencyWeekly, service.gotCreate.Recurrence.Frequency)
+	assert.Equal(t, appointmentcap.RecurrenceFrequencyWeekly, service.gotCreate.Recurrence.Frequency)
 	require.Len(t, service.gotCreate.Targets, 1)
 	require.NotNil(t, service.gotCreate.Targets[0].ID)
 	assert.Equal(t, targetID, *service.gotCreate.Targets[0].ID)
@@ -531,7 +530,7 @@ func TestRespondPassesRecipientAndStatus(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(42), service.gotRespondID)
-	assert.Equal(t, calModels.ResponseStatusAccepted, service.gotRespondStatus)
+	assert.Equal(t, appointmentcap.ResponseStatusAccepted, service.gotRespondStatus)
 }
 
 func TestRespondRejectsInvalidRecipientID(t *testing.T) {
