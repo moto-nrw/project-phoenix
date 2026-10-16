@@ -5,6 +5,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -235,7 +236,7 @@ func validateScopeInstance(date calendar.Date, instance *scheduleModel.ActivityI
 	if calendar.Date(instance.Date) != date {
 		return timetable.DeviationBadRequest("alle ausgewählten Termine müssen am bearbeiteten Tag liegen").WithCode(timetable.CodeInstancesOtherDay).OnField("instance_ids")
 	}
-	if !isPlannableInstance(instance) {
+	if !application.IsPlannableInstance(instance) {
 		return timetable.DeviationConflict(timetable.CodeInstanceNotEditable, msgInstanceNotEditable)
 	}
 	return nil

@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 2731
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3816
+const moduleLegacyFileBudgetTotal = 3806
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -149,7 +149,7 @@ var moduleLegacyFileBudgets = map[string]int{
 	"modules/timetable/compose/legacy_errors.go":                              121,
 	"modules/timetable/compose/legacy_group_update.go":                        47,
 	"modules/timetable/compose/legacy_interface.go":                           90,
-	"modules/timetable/compose/legacy_repository_options.go":                  531,
+	"modules/timetable/compose/legacy_repository_options.go":                  521,
 	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
 	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
 	"modules/workforce/internal/planning/legacy_helpers.go":                   47,
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0062.
-const moduleComposeBudgetTotal = 89856
+const moduleComposeBudgetTotal = 78592
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -221,7 +221,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
-	"modules/timetable/compose":                       36297,
+	"modules/timetable/compose":                       25033,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,

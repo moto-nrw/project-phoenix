@@ -177,8 +177,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// to 3103 by ADR 0062.
-const modulePassthroughOwnerBudgetTotal = 3103
+// to 3094 by ADR 0062.
+const modulePassthroughOwnerBudgetTotal = 3094
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -355,7 +355,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// s.store call.
 	//
 	// ADR 0061: application 98 + modules/timetable/compose 402.
-	"modules/timetable": 500,
+	"modules/timetable": 491,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	//

@@ -7,6 +7,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -142,5 +143,5 @@ type TemplateRows struct {
 	Timeframes      scheduleModels.TimeframeRepository
 	CalendarPeriods scheduleModels.CalendarPeriodRepository
 	Exceptions      scheduleModels.ActivityExceptionRepository
-	EducationGroups EducationGroupDirectory
+	EducationGroups application.EducationGroupDirectory
 }
