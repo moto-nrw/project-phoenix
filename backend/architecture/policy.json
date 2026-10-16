@@ -203,10 +203,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-statistics",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-substitutions",
       "kind": "inbound"
     },
@@ -929,7 +925,7 @@
     },
     {
       "path": "modules/statistics/http",
-      "owner": "inbound-statistics",
+      "owner": "student-presence",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -6496,18 +6492,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound.adapter-test.domain.contract",
-      "description": "Adapter tests may fake domain contracts (inbound sources; a platform reaches no domain owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
-      "source_role": "adapter-test",
-      "target_owner_kind": "domain",
-      "target_role": "contract"
-    },
-    {
       "id": "projection.adapter-test.domain.contract",
       "description": "Adapter tests may fake domain contracts (projection sources; a platform reaches no domain owner, ADR 0057).",
       "scopes": [
@@ -11363,72 +11347,6 @@
       "source_owner": "calendar-view",
       "source_role": "adapter-test",
       "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-statistics.http-common",
-      "description": "Statistics handlers reuse common HTTP rendering, the tenant group and the permission gates (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-statistics.http.student-presence-public",
-      "description": "Statistics handlers call the Statistik report through the public Student Presence contract (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-statistics.security-contract",
-      "description": "Statistics handlers name the report permissions (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "inbound-statistics.identity-adapter",
-      "description": "Statistics handlers read the authenticated account claims (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-statistics.adapter-test.identity-adapter",
-      "description": "Statistics handler tests construct tenant claims (#2703).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-statistics",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.inbound-statistics-http",
-      "description": "The production root constructs the statistics HTTP adapter (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-statistics",
       "target_role": "http"
     },
     {
