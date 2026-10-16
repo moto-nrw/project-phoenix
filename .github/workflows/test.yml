@@ -103,6 +103,10 @@ jobs:
       # budgets, without mixing architecture/migrations into application work.
       matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}') }}
     runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+    env:
+      # Keep sibling package clones in one run, as the local test wrappers do.
+      # Generation GC must not collect them while this shard is still running.
+      PHX_TEST_RUN_ID: ci-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.shard }}
     permissions:
       contents: read
       checks: write
