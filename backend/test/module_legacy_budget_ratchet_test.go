@@ -131,33 +131,33 @@ const moduleLegacyFileBudgetTotal = 3806
 // modules/presenceprojection #4077 and modules/workforce/internal/planning
 // #4076. No file gets a new entry.
 var moduleLegacyFileBudgets = map[string]int{
-	"api/legacy_builders_test_helpers.go":                                     23,
-	"api/legacy_token_adapter.go":                                             73,
-	"database/repositories/users/legacy_composition_support.go":               35,
-	"database/repositories/users/legacy_types.go":                             14,
-	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
-	"modules/presenceprojection/legacy_rows.go":                               357,
-	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
-	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
-	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 169,
-	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
-	"modules/timetable/compose/legacy_activity_service.go":                    538,
-	"modules/timetable/compose/legacy_category_operations.go":                 138,
-	"modules/timetable/compose/legacy_composition_support.go":                 63,
-	"modules/timetable/compose/legacy_composition_support_test_helpers.go":    70,
-	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
-	"modules/timetable/compose/legacy_errors.go":                              121,
-	"modules/timetable/compose/legacy_group_update.go":                        47,
-	"modules/timetable/compose/legacy_interface.go":                           90,
-	"modules/timetable/compose/legacy_repository_options.go":                  521,
-	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
-	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
-	"modules/workforce/internal/planning/legacy_helpers.go":                   47,
+	"api/legacy_builders_test_helpers.go":                                               23,
+	"api/legacy_token_adapter.go":                                                       73,
+	"database/repositories/users/legacy_composition_support.go":                         35,
+	"database/repositories/users/legacy_types.go":                                       14,
+	"modules/peopledirectory/compose/legacy_repository_runtime.go":                      98,
+	"modules/presenceprojection/legacy_rows.go":                                         357,
+	"modules/schoolstructure/compose/legacy_group_catalog.go":                           71,
+	"modules/schoolstructure/compose/legacy_group_contract.go":                          67,
+	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go":           169,
+	"modules/schoolstructure/compose/legacy_repository_runtime.go":                      53,
+	"modules/timetable/compose/legacy_activity_service.go":                              538,
+	"modules/timetable/compose/legacy_category_operations.go":                           138,
+	"modules/timetable/internal/application/legacy_composition_support.go":              63,
+	"modules/timetable/internal/application/legacy_composition_support_test_helpers.go": 70,
+	"modules/timetable/compose/legacy_enrollment_operations.go":                         570,
+	"modules/timetable/internal/application/legacy_errors.go":                           121,
+	"modules/timetable/compose/legacy_group_update.go":                                  47,
+	"modules/timetable/compose/legacy_interface.go":                                     90,
+	"modules/timetable/internal/application/legacy_repository_options.go":               521,
+	"modules/timetable/compose/legacy_schedule_operations.go":                           118,
+	"modules/timetable/compose/legacy_supervisor_operations.go":                         523,
+	"modules/workforce/internal/planning/legacy_helpers.go":                             47,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 67793
+const moduleComposeBudgetTotal = 61752
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -220,7 +220,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
-	"modules/timetable/compose":                       14251,
+	"modules/timetable/compose":                       8210,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,

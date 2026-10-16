@@ -180,3 +180,11 @@ func (r PresenceReads) ListLegacyParticipants(ctx context.Context, filter Legacy
 	}
 	return presenceprojection.ListLegacyParticipants(ctx, db, tenantID, presenceprojection.LegacyParticipantFilter(filter))
 }
+
+func mustPresenceReads(db *bun.DB) PresenceReads {
+	reads, err := NewPresenceReads(db)
+	if err != nil {
+		panic(err)
+	}
+	return reads
+}

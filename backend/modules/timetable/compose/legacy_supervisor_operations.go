@@ -94,7 +94,7 @@ func (s *Service) unsetPrimarySupervisorsInTx(ctx context.Context, txService Act
 // validateStaffExists checks if a staff member exists before creating supervisor
 func (s *Service) validateStaffExists(ctx context.Context, staffID int64) error {
 	if _, err := s.staffRepo.FindByID(ctx, staffID); err != nil {
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return ErrStaffNotFound
 		}
 		return &ActivityError{Op: "validate staff", Err: err}
@@ -107,7 +107,7 @@ func (s *Service) GetSupervisor(ctx context.Context, id int64) (*activities.Supe
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return nil, &ActivityError{Op: opGetSupervisor, Err: ErrSupervisorNotFound}
 		}
 		return nil, &ActivityError{Op: opGetSupervisor, Err: err}
@@ -183,7 +183,7 @@ func (s *Service) UpdateSupervisor(ctx context.Context, supervisor *activities.S
 func (s *Service) findExistingSupervisor(ctx context.Context, txService ActivityService, supervisorID int64) (*activities.SupervisorPlanned, error) {
 	existingSupervisor, err := txService.(*Service).supervisorRepo.FindByID(ctx, supervisorID)
 	if err != nil {
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return nil, ErrSupervisorNotFound
 		}
 		return nil, &ActivityError{Op: opFindSupervisor, Err: err}
@@ -222,7 +222,7 @@ func (s *Service) handlePrimaryStatusChangeInTx(ctx context.Context, txService A
 func (s *Service) DeleteSupervisor(ctx context.Context, id int64) error {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return &ActivityError{Op: opDeleteSupervisor, Err: ErrSupervisorNotFound}
 		}
 		return &ActivityError{Op: opDeleteSupervisor, Err: err}
@@ -370,7 +370,7 @@ func (s *Service) findNewPrimarySupervisor(supervisors []*activities.SupervisorP
 func (s *Service) SetPrimarySupervisor(ctx context.Context, id int64) error {
 	supervisor, err := s.supervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return &ActivityError{Op: "set primary supervisor", Err: ErrSupervisorNotFound}
 		}
 		return &ActivityError{Op: "set primary supervisor", Err: err}

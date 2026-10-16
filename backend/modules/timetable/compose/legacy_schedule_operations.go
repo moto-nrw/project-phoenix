@@ -38,7 +38,7 @@ func (s *Service) GetSchedule(ctx context.Context, id int64) (*activities.Schedu
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return nil, &ActivityError{Op: opGetSchedule, Err: ErrScheduleNotFound}
 		}
 		return nil, &ActivityError{Op: opGetSchedule, Err: err}
@@ -62,7 +62,7 @@ func (s *Service) DeleteSchedule(ctx context.Context, id int64) error {
 	// Check if schedule exists
 	schedule, err := s.scheduleRepo.FindByID(ctx, id)
 	if err != nil {
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return &ActivityError{Op: "delete schedule", Err: ErrScheduleNotFound}
 		}
 		return &ActivityError{Op: "delete schedule", Err: err}
@@ -84,7 +84,7 @@ func (s *Service) UpdateSchedule(ctx context.Context, schedule *activities.Sched
 	// Check if schedule exists
 	existingSchedule, err := s.scheduleRepo.FindByID(ctx, schedule.ID)
 	if err != nil {
-		if isRepositoryNotFound(err) {
+		if IsRepositoryNotFound(err) {
 			return nil, &ActivityError{Op: opUpdateSchedule, Err: ErrScheduleNotFound}
 		}
 		return nil, &ActivityError{Op: opUpdateSchedule, Err: err}

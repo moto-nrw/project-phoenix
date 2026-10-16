@@ -3898,6 +3898,15 @@ the shared authorization rules stay in the composition behind the
 application's `OperationCaller` port (`compose/operation_caller.go`), so the
 moved code imports neither `auth/authorize` nor the session token adapter.
 
+The retained repository adapters that run on the Timetable capability alone,
+the Care Plan and Workforce row adapters, the end-of-session completion, the
+cleanup and the legacy repository vocabulary (6,041 LOC) follow, again
+without a rule. `application.NewCapabilityRepositories` builds the
+capability-only adapters; the composition adds the instance and participant
+adapters, which also run on the database and Student Presence. The four
+`legacy_*.go` files that move keep their names and budgets under their new
+paths.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

@@ -300,15 +300,15 @@ func TestTimetableCleanupBoundsTheAuditSample(t *testing.T) {
 	audit := &recordingDeletionAudit{}
 	cleanup := f.cleanup(t, TimetableCleanupDependencies{Audit: audit})
 	student := f.student(t, "Sample")
-	for range cleanupAuditSampleCap + 2 {
+	for range CleanupAuditSampleCap + 2 {
 		f.attachStudent(t, f.instance(t, 400, scheduleModels.InstanceStatusCompleted, nil), student, nil)
 	}
 
 	_, err := cleanup.CleanupExpiredTimetableData(f.ctx)
 	require.NoError(t, err)
 	require.Len(t, audit.records, 1)
-	assert.Equal(t, cleanupAuditSampleCap+2, audit.records[0].RecordsDeleted)
-	assert.Len(t, audit.records[0].InstanceIDsSample, cleanupAuditSampleCap)
+	assert.Equal(t, CleanupAuditSampleCap+2, audit.records[0].RecordsDeleted)
+	assert.Len(t, audit.records[0].InstanceIDsSample, CleanupAuditSampleCap)
 }
 
 func TestTimetableCleanupTenantIsolation(t *testing.T) {
