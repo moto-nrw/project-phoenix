@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -41,7 +40,7 @@ type Dependencies struct {
 	EnrollablePhaseRepo   parentModels.EnrollablePhaseRepository
 	EnrollmentSettings    care.EnrollmentSettings
 	EnrollmentRequestRepo parentModels.EnrollmentRequestRepository
-	Settings              configService.SettingsService
+	Settings              care.SettingsService
 
 	StudentRepo         care.StudentReads
 	PersonRepo          care.PersonReads
