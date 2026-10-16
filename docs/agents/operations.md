@@ -82,7 +82,10 @@ The seeder is **dev-only**. Staging/production infrastructure belongs in data
 migrations or the admin UI, never the seeder. The one deployed exception is the
 public demo environment (`APP_ENV=demo`, ADR 0029): `seed`, `simulate`,
 `seed-parents`, and the seed-token exposure name `demo` in their allow-lists;
-`staging` and `production` stay rejected. See Cleanup CLI below for cleanup
+`staging` and `production` stay rejected. `seed`, `simulate` and `demo` live
+in the dev tools binary `cmd/devtools` (ADR 0060): run them with
+`go run ./cmd/devtools <cmd>`. The production image does not contain it; only
+the demo image does. See Cleanup CLI below for cleanup
 command shapes: some commands delete data and silently ignore extra arguments.
 
 ## Cleanup CLI
@@ -95,7 +98,7 @@ does not make it a dry-run.
 # CLI (run inside the container via `docker compose run server go run . <cmd>`)
 go run . migrate status|validate|reset
 go run . migrate backfill request-child-storage [--tenant ID] [--verify-only] [--restart]  # resumable #2713 copy; see docs/operations/enrollment-storage-backfill-2713.md
-go run . seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
+go run ./cmd/devtools seed --email <op-email> --password <pw> --pin 1234   # flags required; seeds via the HTTP API, server must be running
 go run . cleanup preview|stats      # visit-retention dry-run / statistics
 go run . cleanup visits             # REAL deletion — there is no `cleanup visits preview`; extra args are silently ignored
 go run . cleanup timetable|time-tracking [preview|stats]      # nested dry-runs exist only for these two

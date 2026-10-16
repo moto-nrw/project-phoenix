@@ -160,6 +160,8 @@ jobs:
         with:
           context: ./backend
           file: ./backend/Dockerfile
+          # Only the demo image carries the dev tools binary (ADR 0060).
+          target: ${{ needs.check-environment.outputs.environment == 'demo' && 'demo' || 'production' }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

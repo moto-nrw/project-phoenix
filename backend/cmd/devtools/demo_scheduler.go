@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"sync"
 	"time"
 
-	backendapi "github.com/moto-nrw/project-phoenix/api"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 )
 
@@ -28,7 +27,7 @@ const (
 // seeds queued orders with a bounded number of workers and keeps one ticker
 // per school in use (#3464). It runs under the demo lease, so it is the only one.
 type demoScheduler struct {
-	schools   *backendapi.DemoRuntime
+	schools   *DemoRuntime
 	baseURL   string
 	heartbeat string
 	adapter   *sharedOperatorSession
@@ -42,7 +41,7 @@ type demoScheduler struct {
 	failedRequeues *demoDeferredRequeues
 }
 
-func runDemoSchools(ctx context.Context, schools *backendapi.DemoRuntime, baseURL, heartbeat string, once bool) error {
+func runDemoSchools(ctx context.Context, schools *DemoRuntime, baseURL, heartbeat string, once bool) error {
 	// Every order is seeded with this configuration. A broken one stops the
 	// process here instead of failing each visitor's order in turn.
 	if err := checkDemoProvisioning(demoProvisioningCredentials()); err != nil {
@@ -120,7 +119,7 @@ func (s *demoScheduler) startOrders(ctx context.Context) error {
 // The past (time-tracking history, course dates) follows once it is open,
 // on the same worker. A failed deferred seed is rebuilt cleanly instead of
 // replaying partial API writes in the open school.
-func (s *demoScheduler) prepare(ctx context.Context, order backendapi.DemoSchoolOrder) {
+func (s *demoScheduler) prepare(ctx context.Context, order DemoSchoolOrder) {
 	started := time.Now()
 	deferred, err := s.seedAndTick(ctx, order)
 	if ctx.Err() != nil {
@@ -247,7 +246,7 @@ func (s *demoScheduler) seedDeferred(ctx context.Context, slug string, deferred 
 	return nil
 }
 
-func (s *demoScheduler) seedAndTick(ctx context.Context, order backendapi.DemoSchoolOrder) (func(context.Context) error, error) {
+func (s *demoScheduler) seedAndTick(ctx context.Context, order DemoSchoolOrder) (func(context.Context) error, error) {
 	if order.Attempts > demoSeedAttempts {
 		return nil, fmt.Errorf("demo school order used its attempts")
 	}

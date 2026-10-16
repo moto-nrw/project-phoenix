@@ -278,7 +278,7 @@ and reports `demo_restarted` instead of `demo_entered`. Every access of the
 old school moves to the new one (`school_slug`), so earlier links of the
 address lead there too, and the old school's `account_id` and
 `parent_account_id` are forgotten. Expiry runs in the demo process once an
-hour on an injected clock (`cmd/demo_expiry.go`): accesses past `expires_at`
+hour on an injected clock (`cmd/devtools/demo_expiry.go`): accesses past `expires_at`
 are deleted, and a demo school no remaining access enters is soft-deleted
 through its owner. The standing school is never hidden. A hidden school
 holds no place against the capacity, gets no ticker, and cannot be entered:

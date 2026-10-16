@@ -528,9 +528,11 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
-      - name: Build backend binary
+      - name: Build backend and dev tools binaries
         working-directory: backend
-        run: go build -o "${RUNNER_TEMP}/phoenix" .
+        run: |
+          go build -o "${RUNNER_TEMP}/phoenix" .
+          go build -o "${RUNNER_TEMP}/devtools" ./cmd/devtools
 
       - name: Run migrations
         working-directory: backend
@@ -599,7 +601,7 @@ jobs:
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" seed \
+          "${RUNNER_TEMP}/devtools" seed \
             --email "${OPERATOR_EMAIL}" \
             --password "${OPERATOR_PASSWORD}" \
             --pin "${OGS_DEVICE_PIN}" \
@@ -612,20 +614,20 @@ jobs:
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
 
       - name: Verify manual attendance profile
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate status --profile manuell
+          "${RUNNER_TEMP}/devtools" simulate status --profile manuell
 
       - name: Read enrollment demo profiles
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-wochenplan
-          "${RUNNER_TEMP}/phoenix" simulate status --profile anmeldung-buchungen
+          "${RUNNER_TEMP}/devtools" simulate status --profile anmeldung-wochenplan
+          "${RUNNER_TEMP}/devtools" simulate status --profile anmeldung-buchungen
 
       # The public demo (#3456) seeds one such school per visitor into a
       # database that already holds others. The duration is what a visitor
@@ -636,7 +638,7 @@ jobs:
         run: |
           for slug in demo-smoke-eins demo-smoke-zwei; do
             started=$(date +%s)
-            "${RUNNER_TEMP}/phoenix" seed \
+            "${RUNNER_TEMP}/devtools" seed \
               --email "${OPERATOR_EMAIL}" \
               --password "${OPERATOR_PASSWORD}" \
               --pin "${OGS_DEVICE_PIN}" \
@@ -647,7 +649,7 @@ jobs:
               --staff-password 'SeedSmoke1234%' \
               --state "${RUNNER_TEMP}/${slug}.seed-state.json"
             seeded=$(date +%s)
-            "${RUNNER_TEMP}/phoenix" simulate full-day --profile vollbetrieb \
+            "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
               --state "${RUNNER_TEMP}/${slug}.seed-state.json"
             finished=$(date +%s)
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
@@ -662,8 +664,8 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             'DELETE FROM platform.operator_mfa_email_challenges WHERE consumed_at IS NOT NULL'
           # The standing school is the fallback of #3463 and keeps its coverage.
-          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
-          "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once --demo-standing-school
+          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once --demo-standing-school
 
       # One demo school per demo access (#3463): queue what the serving backend
       # queues for three prospects, let the demo process seed them with its
@@ -678,7 +680,7 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "INSERT INTO platform.demo_school_states (name, school_name, first_name, last_name)
              SELECT 'ogs-smoke-' || i || '-k3m9x' || i, 'OGS Smoke ' || i, 'Kim', 'Beispiel' FROM generate_series(1, 3) AS i"
-          LOG_LEVEL=info "${RUNNER_TEMP}/phoenix" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
+          LOG_LEVEL=info "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --once 2>&1 | grep -E 'demo school (ready|order failed)' || true
           not_ready=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%' AND status <> 'ready'")
           visitors=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM users.persons p JOIN platform.demo_school_states d ON d.tenant_id = p.tenant_id JOIN users.staff_school_memberships s ON s.tenant_id = p.tenant_id AND s.person_id = p.id WHERE d.name LIKE 'ogs-smoke-%' AND p.first_name = 'Kim' AND p.last_name = 'Beispiel'")
           echo "demo schools not ready: ${not_ready}, staff named after the visitor: ${visitors}"

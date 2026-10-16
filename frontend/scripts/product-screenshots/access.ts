@@ -127,7 +127,7 @@ export function loadStackAccess(options: LoadAccessOptions = {}): StackAccess {
 
   if (!existsSync(statePath)) {
     throw new Error(
-      `${statePath} fehlt. Zuerst den Stack seeden: scripts/dev-native.sh backend go run . seed ...`,
+      `${statePath} fehlt. Zuerst den Stack seeden: scripts/dev-native.sh backend go run ./cmd/devtools seed ...`,
     );
   }
   const state = JSON.parse(readFileSync(statePath, "utf8")) as SeedStateJson;

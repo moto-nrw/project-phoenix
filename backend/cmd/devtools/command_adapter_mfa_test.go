@@ -1,4 +1,4 @@
-package api
+package main
 
 import (
 	"context"
@@ -65,8 +65,7 @@ func TestLoginOperator_EnrollmentRequired_Success(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	auth, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, AuthBearer, auth.Kind)
@@ -106,8 +105,7 @@ func TestLoginOperator_EnrollmentRequired_StatusFieldOnlyTriggersFlow(t *testing
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	auth, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, "final", auth.Token)
@@ -137,8 +135,7 @@ func TestLoginOperator_EnrollStartFails(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enroll start")
@@ -171,8 +168,7 @@ func TestLoginOperator_EnrollConfirmFails(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enroll confirm")
@@ -205,8 +201,7 @@ func TestLoginOperator_EnrollConfirm_NoToken(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no access token")
@@ -257,8 +252,7 @@ func TestLoginOperator_VerifyRequired_Success(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	auth, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.NoError(t, err)
 	assert.Equal(t, "verified-jwt", auth.Token)
@@ -287,8 +281,7 @@ func TestLoginOperator_VerifyFails(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "mfa verify")
@@ -315,8 +308,7 @@ func TestLoginOperator_Verify_NoToken(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, mailpit.URL)
+	a := newMailpitAdapter(api.URL, mailpit.URL)
 	_, err := a.LoginOperator(context.Background(), "op@test.de", "secret")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "no access token")
@@ -347,8 +339,7 @@ func TestLoginOperator_MailpitDown_EnrollmentSurfaces(t *testing.T) {
 	})
 	defer api.Close()
 
-	a := NewCommandAdapter(api.URL, false)
-	useMailpit(a, "http://127.0.0.1:1")
+	a := newMailpitAdapter(api.URL, "http://127.0.0.1:1")
 	ctx, cancel := context.WithTimeout(context.Background(), 1200*time.Millisecond)
 	defer cancel()
 	_, err := a.LoginOperator(ctx, "op@test.de", "secret")
@@ -362,10 +353,14 @@ func TestLoginOperator_MailpitDown_EnrollmentSurfaces(t *testing.T) {
 // Test helpers
 // =============================================================================
 
-func useMailpit(adapter *Adapter, baseURL string) {
+// newMailpitAdapter is the command adapter reading its second-factor codes
+// from the mailpit fake at mailpitURL instead of the configured mailpit.
+func newMailpitAdapter(apiURL, mailpitURL string) *Adapter {
+	adapter := NewCommandAdapter(apiURL, false)
 	adapter.fetchLatestMFACode = func(ctx context.Context, recipient string, notBefore time.Time) (string, error) {
-		return fetchLatestMFACodeAt(ctx, baseURL, recipient, notBefore)
+		return fetchLatestMFACodeAt(ctx, mailpitURL, recipient, notBefore)
 	}
+	return adapter
 }
 
 // newCodeMailpitServer returns a mailpit fake that always reports a

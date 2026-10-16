@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"context"
@@ -6,15 +6,14 @@ import (
 	"fmt"
 	"os"
 
-	backendapi "github.com/moto-nrw/project-phoenix/api"
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/moto-nrw/project-phoenix/simulate"
 )
 
-type seedCommandAdapter struct{ inner *backendapi.Adapter }
+type seedCommandAdapter struct{ inner *Adapter }
 
 func newSeedCommandAdapter(baseURL string, verbose bool) seedCommandAdapter {
-	return seedCommandAdapter{inner: backendapi.NewCommandAdapter(baseURL, verbose)}
+	return seedCommandAdapter{inner: NewCommandAdapter(baseURL, verbose)}
 }
 
 func (a seedCommandAdapter) BaseURL() string { return a.inner.BaseURL() }
@@ -47,16 +46,16 @@ func (a seedCommandAdapter) RawUpload(ctx context.Context, auth seedapi.AuthRef,
 	return raw, status, commandSeedError(err)
 }
 
-func commandSeedAuth(auth backendapi.AuthRef) seedapi.AuthRef {
+func commandSeedAuth(auth AuthRef) seedapi.AuthRef {
 	return seedapi.AuthRef{Kind: seedapi.AuthKind(auth.Kind), Label: auth.Label, Token: auth.Token, APIKey: auth.APIKey, PIN: auth.PIN}
 }
 
-func commandAPIAuth(auth seedapi.AuthRef) backendapi.AuthRef {
-	return backendapi.AuthRef{Kind: backendapi.AuthKind(auth.Kind), Label: auth.Label, Token: auth.Token, APIKey: auth.APIKey, PIN: auth.PIN}
+func commandAPIAuth(auth seedapi.AuthRef) AuthRef {
+	return AuthRef{Kind: AuthKind(auth.Kind), Label: auth.Label, Token: auth.Token, APIKey: auth.APIKey, PIN: auth.PIN}
 }
 
 func commandSeedError(err error) error {
-	var apiErr *backendapi.APIError
+	var apiErr *APIError
 	if errors.As(err, &apiErr) {
 		return &seedapi.APIError{Method: apiErr.Method, Path: apiErr.Path, StatusCode: apiErr.StatusCode, Code: apiErr.Code, Message: apiErr.Message, Body: apiErr.Body, RetryAfter: apiErr.RetryAfter}
 	}
@@ -67,7 +66,7 @@ func commandSeedWrappedError(err error, operation string) error {
 	if err == nil {
 		return nil
 	}
-	var apiErr *backendapi.APIError
+	var apiErr *APIError
 	if !errors.As(err, &apiErr) {
 		return err
 	}
