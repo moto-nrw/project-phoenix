@@ -25,7 +25,7 @@
     "services/scheduler: the Worker suites pass against the moved types, including the lease, retention (newRetentionRun) and NewWorker construction tests.",
     "modules/schedulerruntime/compose: the lease store suite against ports.LeaseTerm; api: the retention suites drive the owners' steps and the deletion log through workerRetention.runSteps.",
     "test: TestModuleLegacyBudgetRatchet with the compose budget lowered to 83 and the total to 89899; TestCompositionInventory with the root's Worker constructor now behind the composition.",
-    "scripts/backend-architecture.sh check: green with 315 legacy violations (316 before), composition surface 1721 -> 1721; golangci-lint on the affected packages; scripts/check-backend-quality.sh quality; scripts/test-changed.sh origin/development; scripts/backend-architecture.sh validate-ticket --all."
+    "scripts/backend-architecture.sh check: green with 315 legacy violations (316 before), composition surface 1720 -> 1720; golangci-lint on the affected packages; scripts/check-backend-quality.sh quality; scripts/test-changed.sh origin/development; scripts/backend-architecture.sh validate-ticket --all."
   ],
   "runtime_evidence": {
     "source": "Local run on the PR branch. The Worker is the same code with its contract types in another package; the evidence is the Worker, composition and api suites and the architecture check, not a benchmark rerun.",
@@ -96,5 +96,5 @@
     }
   },
   "rollback_and_cleanup": "Revert the commit; the contract types return to services/scheduler, policy epoch 50, the three reach rules and the baseline entry return. No data cleanup.",
-  "exit_criterion": "api -> services/scheduler is absent from legacy.jsonl, the typed roots import no scheduler-runtime application package, no alias and no exception is added, and scripts/backend-architecture.sh check passes with 315 legacy violations and a composition surface of at most 1721."
+  "exit_criterion": "api -> services/scheduler is absent from legacy.jsonl, the typed roots import no scheduler-runtime application package, no alias and no exception is added, and scripts/backend-architecture.sh check passes with 315 legacy violations and a composition surface of at most 1720."
 }

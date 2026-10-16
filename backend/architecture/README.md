@@ -4446,7 +4446,7 @@ the standing ADR 0053 reaches `root-composition.reach.platform.port`,
 `reviewedRootCompositionRule`, `reviewedOwnerCompositionRule` and
 `reviewedOwnTestRule`. `api -> services/scheduler` (#2750) leaves
 `legacy.jsonl`, 316 -> 315; no other key, no alias and no exception is
-added, and the composition surface stays at 1,721. The evidence record is
+added, and the composition surface stays at 1,720. The evidence record is
 `scheduler-runtime-ports-4067.json`.
 
 ## Changing the policy
