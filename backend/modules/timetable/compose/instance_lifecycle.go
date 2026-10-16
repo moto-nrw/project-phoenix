@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -186,7 +187,7 @@ func lifecycleCollaboratorsWired(deps InstanceLifecycleDependencies) bool {
 // SeriesDeviations exposes the re-plan's deviation snapshot and reapply
 // machinery (#1840) to the template split, which preserves Vertretungsplan
 // overrides with it.
-func (s *InstanceLifecycleService) SeriesDeviations() SeriesDeviations {
+func (s *InstanceLifecycleService) SeriesDeviations() application.SeriesDeviations {
 	return seriesDeviationPreserver{lifecycle: s}
 }
 
@@ -198,7 +199,7 @@ func (s *InstanceLifecycleService) now() time.Time {
 }
 
 func (s *InstanceLifecycleService) getLogger() *slog.Logger {
-	return orDefaultLogger(s.deps.Logger)
+	return application.OrDefaultLogger(s.deps.Logger)
 }
 
 // hasTx reports whether the caller already runs inside the tenant
@@ -259,7 +260,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLockPair(ctx context.Cont
 func (s *InstanceLifecycleService) lockDayAndReload(ctx context.Context, instance *scheduleModel.ActivityInstance, op string) (*scheduleModel.ActivityInstance, error) {
 	lockedDate := instance.Date
 	if err := s.acquireSubstituteDayLock(ctx, calendar.Date(lockedDate)); err != nil {
-		return nil, &ScheduleError{Op: op + ": lock day", Err: err}
+		return nil, &application.ScheduleError{Op: op + ": lock day", Err: err}
 	}
 	reloaded, err := s.loadForTransition(ctx, instance.ID)
 	if err != nil {
@@ -282,7 +283,7 @@ func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx contex
 		return nil
 	}
 	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
-		return &ScheduleError{Op: op + ": lock recurrence", Err: err}
+		return &application.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil
 }
@@ -296,7 +297,7 @@ func (s *InstanceLifecycleService) loadForTransition(ctx context.Context, instan
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrInstanceNotFound
 		}
-		return nil, &ScheduleError{Op: "load instance", Err: err}
+		return nil, &application.ScheduleError{Op: "load instance", Err: err}
 	}
 	if instance == nil {
 		return nil, timetable.ErrInstanceNotFound
@@ -326,11 +327,11 @@ func (s *InstanceLifecycleService) GetPlannedStudentIDsByDate(ctx context.Contex
 // error classification: a failed read aborts the transition.
 func detectStartConflicts(ctx context.Context, query timetable.StartConflictQuery, instance *scheduleModel.ActivityInstance) ([]timetable.InstanceConflictWarning, error) {
 	if query == nil {
-		return nil, &ScheduleError{Op: "detect start conflicts", Err: errors.New("start conflict detection is not configured")}
+		return nil, &application.ScheduleError{Op: "detect start conflicts", Err: errors.New("start conflict detection is not configured")}
 	}
 	warnings, err := query.DetectStartConflicts(ctx, timetable.StartConflictSubject{InstanceID: instance.ID, RoomID: instance.RoomID})
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect start conflicts", Err: err}
+		return nil, &application.ScheduleError{Op: "detect start conflicts", Err: err}
 	}
 	return warnings, nil
 }

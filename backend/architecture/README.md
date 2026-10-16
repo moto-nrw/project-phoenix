@@ -3875,6 +3875,17 @@ staff notices (#2180) move from the Timetable composition into
 `internal/adapters/postgres`; the week pattern comes from School Calendar's
 public contract, as it did in the composition.
 
+Epoch 53 moves the Timetable templates, the materialization, the series
+conversion, the roster maintenance and the conflict detection (10,567 LOC)
+from the composition into `internal/application`. The services take a
+`TenantTransactions` port instead of the database handle; the composition
+binds it to the tenant runtime. It adds
+`timetable-activities.application.tenant-runtime`,
+`timetable-activities.application.transaction-runtime`,
+`timetable-activities.application.student-presence.public` and, for the moved
+internal tests, `timetable-activities.module-internal-test.tenant-runtime`
+(the internal-test mirror of the reach, ADR 0058 addendum point 4).
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
