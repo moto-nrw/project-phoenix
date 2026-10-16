@@ -16,6 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // testContext holds shared test dependencies.
@@ -38,7 +39,7 @@ func setupSSERoute(t *testing.T) *testContext {
 	resource := sseAPI.NewResource(
 		hub,
 		svc.UserContext,
-		db,
+		tenant.WithinTenant,
 		slog.Default(),
 	)
 
