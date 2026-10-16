@@ -60,9 +60,9 @@ func NewOfferingBookings() *careplan.OfferingBookings {
 // NewCarePlan composes the owner capability for integration tests. The
 // caller supplies the student directory reader; test support may not reach
 // the projection (ADR 0058).
-func NewCarePlan(tb TB, db *bun.DB, directory carePlanCompose.StudentDirectory) careplan.Capability {
+func NewCarePlan(tb TB, db *bun.DB, directory StudentDirectory) careplan.Capability {
 	tb.Helper()
-	students := newStudentDirectory(tb, db)
+	students := newStudentDirectory(tb, db, directory)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
 		DB: db, Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db),
 		StatusStudents: newStatusStudentDirectory(db, students, directory), StatusSlots: emptyStatusSlots{}, StudentDirectory: directory,
@@ -130,10 +130,19 @@ func (emptyStatusSlots) ApplyStatusDay(context.Context, int64, careplan.Date, in
 
 func (emptyStatusSlots) ReleaseStatusDay(context.Context, int64) (int, error) { return 0, nil }
 
-func newStudentDirectory(tb TB, db *bun.DB) *peopledirectory.Module {
+// StudentDirectory is the student directory projection both Care Plan and
+// People Directory read. Test support may not reach the projection, so the
+// caller passes it.
+type StudentDirectory interface {
+	carePlanCompose.StudentDirectory
+	StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery
+}
+
+func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) *peopledirectory.Module {
 	tb.Helper()
 	students, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db, Observe: func(peopleCompose.Observation) {},
+		StudentDirectory: directory,
+		DB:               db, Observe: func(peopleCompose.Observation) {},
 	})
 	if err != nil {
 		tb.Fatalf("compose test People Directory: %v", err)

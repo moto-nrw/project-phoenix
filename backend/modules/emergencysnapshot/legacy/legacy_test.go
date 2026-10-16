@@ -285,7 +285,7 @@ func TestPersonIdentityFilteringMatchesRetainedReader(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Filtering", "Parity", "3a")
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	old := usersRepo.NewPersonRepository(peopleCompose.NewLegacyRepositoryRuntime(db))
 	ids := []int64{student.PersonID}
@@ -416,7 +416,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 		})
 	}
 
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
 	facilitiesModule, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
@@ -459,7 +459,8 @@ type ownerStudentSource struct{ directory peopledirectory.Capability }
 func newOwnerStudentSource(t *testing.T, db *bun.DB) ownerStudentSource {
 	t.Helper()
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
-		DB: db, Observe: func(peopleCompose.Observation) {},
+		StudentDirectory: testpkg.StudentDirectory{},
+		DB:               db, Observe: func(peopleCompose.Observation) {},
 	})
 	require.NoError(t, err)
 	return ownerStudentSource{directory: directory}

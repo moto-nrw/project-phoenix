@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strconv"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
@@ -50,6 +52,7 @@ func ComposePeopleDirectory(directory peopleCompose.Dependencies, owners PeopleD
 	directory.StudentCompanions = NewStudentCompanionSeam(owners.Companions)
 	directory.GuardianLinkOwners = owners.GuardianLinks
 	directory.GuardianLinkRows = guardianLinkView.NewReader()
+	directory.StudentDirectory = studentDirectoryView.NewReader()
 	capability, err := peopleCompose.NewWithGuardianMemberships(directory, owners.GuardianMemberships)
 	if err != nil {
 		return nil, nil, err

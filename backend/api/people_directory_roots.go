@@ -204,6 +204,6 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 // (#4007).
 func NewStaffMembershipRuntime(f *serviceGraph, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
 	return bindStaffMembershipRuntime(f, offboardingcompose.Dependencies{
-		DB: db.Pool(), Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
+		DB: db.Pool(), People: peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())),
 	}, identity, logger, hooks)
 }

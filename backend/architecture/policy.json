@@ -5609,28 +5609,6 @@
       "target_role": "compose"
     },
     {
-      "id": "student-directory-view.postgres.people-public",
-      "description": "Keep the existing student result contract during the owner storage cutover (#2759).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-directory-view",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "public"
-    },
-    {
-      "id": "student-directory-view.postgres.departure-contract",
-      "description": "Read the existing weekday departure value types (#2759).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-directory-view",
-      "source_role": "postgres",
-      "target_owner": "people-directory",
-      "target_role": "contract"
-    },
-    {
       "id": "workforce.domain.vacation-opening-contract",
       "description": "Validate import and native ledger takeovers with the same Workforce value contract (#2744).",
       "scopes": [

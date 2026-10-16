@@ -24,6 +24,9 @@ type Observation = ports.Observation
 // relationship (#2756).
 type GuardianLinkOwners = ports.GuardianLinkOwners
 
+// StudentDirectoryRows is the student directory projection the root binds.
+type StudentDirectoryRows = postgres.StudentDirectory
+
 // GuardianMembershipQuery maps requested accounts to portal-capable schools.
 // The result is reachability evidence, not child-level authorization.
 type GuardianMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
@@ -32,6 +35,7 @@ type Dependencies struct {
 	StudentOwners              StudentOwners
 	StudentClassWriteGateQuery func(context.Context) (*bun.SelectQuery, error)
 	DB                         *bun.DB
+	StudentDirectory           StudentDirectoryRows
 	Observe                    func(Observation)
 	// StudentFieldAudit is the Audit Platform seam behind the per-child
 	// change history. Optional: without it the change-history capability
@@ -85,7 +89,7 @@ func New(dependencies Dependencies) (*peopledirectory.Module, error) {
 // Dependencies field: only the guardian reachability read needs it, while
 // all other People Directory graphs stay independent of Identity & Access.
 func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianMembershipQuery) (*peopledirectory.Module, error) {
-	if dependencies.DB == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.StudentDirectory == nil {
 		return nil, errors.New("people directory compose: all dependencies are required")
 	}
 	database := func(ctx context.Context) (bun.IDB, int64, error) {
@@ -114,7 +118,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	if dependencies.StudentNoteDeletionAudit != nil {
 		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
 	}
-	students := application.NewStudents(postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
+	students := application.NewStudents(postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships), dependencies.GuardianLinkRows), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
@@ -132,10 +136,10 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		now = time.Now
 	}
 	studentPhotos := application.NewStudentPhotos(
-		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
+		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
 	studentNotes := application.NewStudentNotes(
 		noteStore, postgres.New(database),
-		postgres.NewStudentStore(database, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
+		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
 	return peopledirectory.NewModule(engine{
 		service: service, students: students, guardians: guardians,
@@ -352,8 +356,8 @@ func mapError(err error) error {
 // owners or audit seams, for the student reads and the row lock other owners'
 // compositions take. Composing only fails on a missing dependency, which is a
 // programming error at wiring time.
-func MustNewReads(db *bun.DB) *peopledirectory.Module {
-	module, err := New(Dependencies{DB: db, Observe: func(Observation) {}})
+func MustNewReads(db *bun.DB, students StudentDirectoryRows) *peopledirectory.Module {
+	module, err := New(Dependencies{DB: db, StudentDirectory: students, Observe: func(Observation) {}})
 	if err != nil {
 		panic(fmt.Sprintf("compose people directory reads: %v", err))
 	}
