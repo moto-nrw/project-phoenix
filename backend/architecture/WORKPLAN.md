@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 197 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 16.10.2026 · Ratchet 195 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 57.188 in `compose`
 
@@ -16,12 +16,12 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 29 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 5 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 3 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 197 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 195 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -460,3 +460,13 @@ Die Keys bleiben bei ihren Carriern. Jede Produktionsdatei von `services` gehör
 - [ ] [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition löschen, leeren Ratchet beweisen — 3 (#2742: `models -> models/education` im internen Test entfernt)
 - [x] [#2745](https://github.com/moto-nrw/project-phoenix/issues/2745) API-Aggregat — 0 (`api.API` und `api.New` gelöscht, `api` aus `legacy_composition`; jede Ressource wird gemountet, wo sie gebaut wird, `serveGraph` hält nur Router, Pool, Runtime und die Worker-Komposition (#2749); fünf #2750-Keys der reinen Feldtypen weg, 206 → 201, Composition 591 → 490)
 - [x] [#2749](https://github.com/moto-nrw/project-phoenix/issues/2749) Scheduler-Setter, breite Test-Composition — 0 (die `Scheduler.Set*`-Methoden und `SetupAPITest` waren mit den Blockern schon weg; `newScheduler` baut den Scheduler und `api.workerDependencies` die `WorkerDependencies` jetzt in je einem Literal, die fünf Verdrahtungsfunktionen danach sind gelöscht; die Felder für Intervall und Schwelle der Sitzungsbereinigung las nur noch Testcode, sie sind gelöscht, das Pausen-Intervall entsteht beim Registrieren des Jobs; Caller-Inventar `callers/scheduler-setters-2749.json`, Composition 219 → 140, Keys 39 → 39; übrig: die Tageswechsel-Caches der Overdue- und Erinnerungs-Sperren (Job-Zustand) und der interne Testbauer `unitScheduler`; die Factory-Lesezugriffe des Workers über `serveGraph` fallen mit #2747)
+
+#4078: School Portal wird Identity & Access HTTP. Root bindet Class Day,
+Supervisions und Notifications über reine Router-Ports und normalisiert optionale
+native Nil-Pointer vor der Interface-Konversion. Das Verhalten der Auth-/MFA-/Reset-
+Handler bleibt unverändert; Root bindet die native Tenant-Kontext-Funktion. Die externen Router- und Tenant-Vertragstests bauen
+über Root; der native Timetable-Wert bleibt derselbe. Konfigurationswerte und
+Schedule-Fixtures kommen aus vorhandenen öffentlichen Settings-/Test-Fassaden.
+Zwei #4078-Keys entfallen; dreizehn Regeln werden durch sechs engere Crypto-
+Rollen-/Scope-Regeln ersetzt. HTTP und Adapter-Tests erhalten keine Crypto-Freigabe.
+Keine Selektoren, neuen Graph-Felder, Routen-, Response- oder Golden-Änderungen.

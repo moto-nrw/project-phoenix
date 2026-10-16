@@ -162,10 +162,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-school",
-      "kind": "inbound"
-    },
-    {
       "id": "legacy-composition",
       "kind": "composition"
     },
@@ -852,7 +848,7 @@
     },
     {
       "path": "modules/schoolportal",
-      "owner": "inbound-school",
+      "owner": "identity-access",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -7026,17 +7022,6 @@
       "source_role": "adapter"
     },
     {
-      "id": "external.crypto.identity-access",
-      "description": "identity-access may use classified cryptographic dependencies.",
-      "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "identity-access",
-      "target_class": "crypto"
-    },
-    {
       "id": "external.crypto.security-runtime",
       "description": "security-runtime may use classified cryptographic dependencies.",
       "scopes": [
@@ -9337,28 +9322,6 @@
       "target_role": "test-support"
     },
     {
-      "id": "inbound-school.adapter-test.inbound-notifications-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-notifications",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.http.inbound-notifications-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "inbound-notifications",
-      "target_role": "http"
-    },
-    {
       "id": "root-composition.compose.inbound-notifications-http",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -10507,105 +10470,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-school.http-common",
-      "description": "School-portal handlers reuse common HTTP rendering, request binding and the security principal middleware (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.identity-adapter",
-      "description": "School-portal handlers verify school-scope tokens and read enrollment claims (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.tenant-runtime",
-      "description": "School-portal MFA enrollment pins the tenant of the enrollment claims for the audit trail (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-school.to.class-day-http",
-      "description": "The School Portal mounts the Class Day HTTP surface.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "class-day-view",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.to.timetable-http",
-      "description": "The school portal mounts the assignment-bound supervision surface of the timetable routes (#2527, #2701, #2732).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "http",
-      "target_owner": "timetable-activities",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.http-common",
-      "description": "School-portal handler tests read the common MFA request shapes (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.timetable-http",
-      "description": "School-portal handler tests construct the supervision surface they mount (#2527, #2701, #2732).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "timetable-activities",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.class-day-http",
-      "description": "School Portal external handler tests construct the Class Day HTTP surface they mount.",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "class-day-view",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-school.adapter-test.identity-adapter",
-      "description": "School-portal handler tests construct claims of every portal scope (#2701).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "inbound-school",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "class-day-view.internal-test.people-directory-public",
       "description": "Class-day application tests build directory students for the candidate rules (#2701).",
       "scopes": [
@@ -10670,17 +10534,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "student-presence",
       "target_role": "compose"
-    },
-    {
-      "id": "root-composition.to.school-portal-http",
-      "description": "The production root constructs the school-portal HTTP adapter (#2701).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-school",
-      "target_role": "http"
     },
     {
       "id": "process-device-scan.application.public",
@@ -14635,6 +14488,66 @@
       "source_owner": "delivery-platform",
       "source_role": "application",
       "target_class": "delivery"
+    },
+    {
+      "id": "external.crypto.identity-access.production.compose",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "compose",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.application",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.domain",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "domain",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.production.public",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "public",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.internal_test.module-internal-test",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_class": "crypto"
+    },
+    {
+      "id": "external.crypto.identity-access.external_test.e2e-test",
+      "description": "Existing Identity & Access token primitives and implementation use cryptography only in this role and scope; HTTP receives no crypto grant.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "e2e-test",
+      "target_class": "crypto"
     }
   ],
   "relocations": [

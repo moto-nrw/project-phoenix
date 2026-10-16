@@ -1,4 +1,4 @@
-package schoolportal_test
+package api
 
 import (
 	"fmt"
@@ -31,9 +31,9 @@ import (
 // unmounted.
 func setupSchoolArrivalExceptionRoute(t *testing.T) (*testpkg.DB, *schoolportal.Resource) {
 	t.Helper()
-	db, services := setupSchoolModule(t)
+	db, services := setupSchoolPortalModule(t)
 	classDay := classdayhttp.NewResource(services.ClassDay, nil)
-	return db, schoolportal.NewResource(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
+	return db, NewSchoolPortalHTTP(services.SchoolAuth, services.SchoolMFA, schoolportal.PasswordResetRuntime{}, classDay, nil, nil, nil, nil)
 }
 
 func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
