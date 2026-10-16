@@ -27,9 +27,13 @@ services:
     healthcheck:
       # The init-only server accepts sockets before restarting; wait for TCP.
       test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "postgres"]
-      interval: 1s
+      # Postgres logs every probe connection. Probe each second only while it
+      # starts, so deploys and restores still see it healthy at once.
+      interval: 10s
       timeout: 1s
       retries: 5
+      start_period: 30s
+      start_interval: 1s
     logging:
       driver: journald
       options:

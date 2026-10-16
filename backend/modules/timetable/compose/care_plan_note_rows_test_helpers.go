@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
+	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 type CareArrivalNoteRows struct{ rows CarePlanRows }
@@ -124,8 +124,8 @@ func (r CareArrivalNoteRows) Update(ctx context.Context, row *scheduleModels.Stu
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalNote(ctx, arrivalNoteToPublic(row)))
 }
 
-func (r CareArrivalNoteRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
-	return r.list(ctx, CareScheduleFilter{Options: options}, "list with options")
+func (r CareArrivalNoteRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
+	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListArrivalNotes, arrivalNoteToLegacy)
 }
 
 func (r CareArrivalNoteRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentArrivalNote, error) {
@@ -194,8 +194,8 @@ func (r CarePickupNoteRows) Update(ctx context.Context, row *scheduleModels.Stud
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupNote(ctx, pickupNoteToPublic(row)))
 }
 
-func (r CarePickupNoteRows) List(ctx context.Context, options *userModels.QueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
-	return r.list(ctx, CareScheduleFilter{Options: options}, "list with options")
+func (r CarePickupNoteRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
+	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupNotes, pickupNoteToLegacy)
 }
 
 func (r CarePickupNoteRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupNote, error) {

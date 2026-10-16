@@ -182,7 +182,8 @@ keys through 1Password/Signal, never Slack/email.
    concurrently on one host, so they never share a script directory; demo runs
    on its own VM with the same layout.
 4. Deployment pulls images, runs `migrate preflight`, backs up the DB, migrates,
-   starts, and healthchecks; failures after the backup trigger rollback.
+   starts, and healthchecks; failures after the backup trigger rollback. A
+   healthy release finally prunes unused images; a failed prune only warns.
 
 The preflight runs while the previous release is still serving and runs no
 migration. It asks every pending migration that declares a `Precondition` whether
