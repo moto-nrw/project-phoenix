@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -7,23 +7,23 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-func (e engine) ReadEnrollmentStudent(ctx context.Context, id int64, lock string) (peopledirectory.EnrollmentRecord, error) {
+func (e Engine) ReadEnrollmentStudent(ctx context.Context, id int64, lock string) (peopledirectory.EnrollmentRecord, error) {
 	value, err := e.students.ReadEnrollment(ctx, id, lock)
-	return peopledirectory.EnrollmentRecord(value), mapError(err)
+	return peopledirectory.EnrollmentRecord(value), MapError(err)
 }
 
-func (e engine) LockEnrollmentClassWrites(ctx context.Context) error {
-	return mapError(e.students.LockEnrollmentClassWrites(ctx))
+func (e Engine) LockEnrollmentClassWrites(ctx context.Context) error {
+	return MapError(e.students.LockEnrollmentClassWrites(ctx))
 }
 
-func (e engine) ApplyEnrollmentProfile(ctx context.Context, id int64, input peopledirectory.EnrollmentProfilePatch) error {
-	return mapError(e.students.ApplyEnrollmentProfile(ctx, id, domain.EnrollmentProfilePatch(input)))
+func (e Engine) ApplyEnrollmentProfile(ctx context.Context, id int64, input peopledirectory.EnrollmentProfilePatch) error {
+	return MapError(e.students.ApplyEnrollmentProfile(ctx, id, domain.EnrollmentProfilePatch(input)))
 }
 
-func (e engine) CreateEnrollmentStudent(ctx context.Context, input peopledirectory.EnrollmentStudent) (peopledirectory.CreatedEnrollmentStudent, error) {
+func (e Engine) CreateEnrollmentStudent(ctx context.Context, input peopledirectory.EnrollmentStudent) (peopledirectory.CreatedEnrollmentStudent, error) {
 	value, err := e.students.CreateEnrollment(ctx, enrollmentInput(input))
 	if err != nil {
-		return peopledirectory.CreatedEnrollmentStudent{}, mapError(err)
+		return peopledirectory.CreatedEnrollmentStudent{}, MapError(err)
 	}
 	return peopledirectory.CreatedEnrollmentStudent{
 		ID: value.ID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, TenantID: value.TenantID,
@@ -32,8 +32,8 @@ func (e engine) CreateEnrollmentStudent(ctx context.Context, input peopledirecto
 	}, nil
 }
 
-func (e engine) RenewEnrollmentStudent(ctx context.Context, id int64, input peopledirectory.EnrollmentStudent) error {
-	return mapError(e.students.RenewEnrollment(ctx, id, enrollmentInput(input)))
+func (e Engine) RenewEnrollmentStudent(ctx context.Context, id int64, input peopledirectory.EnrollmentStudent) error {
+	return MapError(e.students.RenewEnrollment(ctx, id, enrollmentInput(input)))
 }
 
 func enrollmentInput(input peopledirectory.EnrollmentStudent) domain.EnrollmentStudent {

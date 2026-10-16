@@ -3943,6 +3943,13 @@ repositories (calendar periods, closing days, date frames) follow; their
 not-found shape keeps `sql.ErrNoRows` through `transactionruntime.ErrNoRows`.
 The composition goes to 4,218 LOC.
 
+People Directory follows the same way. The engine that serves the public
+capability over the application services (the mapping of the public
+vocabulary onto the domain and of the domain errors onto the contract,
+`application.Engine`, `application.MapError`) and the adapter of the Audit
+Platform's change trail move from `modules/peopledirectory/compose` into
+`internal/application`; the composition goes from 8,943 to 7,947 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
