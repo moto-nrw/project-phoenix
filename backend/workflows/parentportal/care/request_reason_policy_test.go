@@ -4,8 +4,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 func TestReasonRequiredForFollowsPolicy(t *testing.T) {
@@ -16,10 +14,10 @@ func TestReasonRequiredForFollowsPolicy(t *testing.T) {
 		wantStaff   bool
 		wantParents bool
 	}{
-		{configModels.ReasonPolicyNobody, false, false},
-		{configModels.ReasonPolicyGuardians, false, true},
-		{configModels.ReasonPolicyStaff, true, false},
-		{configModels.ReasonPolicyBoth, true, true},
+		{ReasonPolicyNobody, false, false},
+		{ReasonPolicyGuardians, false, true},
+		{ReasonPolicyStaff, true, false},
+		{ReasonPolicyBoth, true, true},
 		// An unknown or empty value must not silently switch the requirement
 		// off: the strictest reading wins.
 		{"", true, true},
