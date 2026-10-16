@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -54,7 +53,7 @@ type CarePlanWiring struct {
 	CompanionGraph enrollmentCompose.CompanionGraphCoordinator
 	// The retained care schedule and excused-absence request rows the
 	// parents portal reads.
-	CareScheduleRequests arrivalTimetable.CareScheduleRequestRows
+	CareScheduleRequests timetablePorts.CareScheduleRequestRows
 	ExcusedRequestRows   ExcusedRequestReads
 
 	// Bindings over the values this graph composes.

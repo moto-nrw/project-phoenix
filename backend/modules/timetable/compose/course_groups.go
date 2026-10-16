@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -38,11 +39,11 @@ func (q courseGroupQueries) ListCourseGroups(ctx context.Context, filter timetab
 	values, stats, err := q.store.ListCourseGroups(ctx, domain.CourseGroupFilter{LegacyGroupIDs: filter.LegacyGroupIDs, SourceOfferingIDs: filter.SourceOfferingIDs, EffectiveOn: filter.EffectiveOn})
 	q.observe(Observation{Operation: "list_course_groups", Duration: time.Since(started), Stats: stats, Err: err})
 	if err != nil {
-		return nil, mapError(err)
+		return nil, application.MapError(err)
 	}
 	result := make([]timetable.CourseGroup, 0, len(values))
 	for _, value := range values {
-		result = append(result, courseGroupToPublic(value))
+		result = append(result, application.CourseGroupToPublic(value))
 	}
 	return result, nil
 }

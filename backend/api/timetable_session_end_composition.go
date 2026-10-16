@@ -20,7 +20,7 @@ func NewTimetableEndedSessionCompletion(rows timetableCompose.OwnerRows, careDay
 	if err != nil {
 		return nil, err
 	}
-	return timetableCompose.NewEndedSessionCompletion(timetableCompose.EndedSessionCompletionDependencies{
+	return timetableCompose.NewEndedSessionCompletion(timetablePorts.EndedSessionCompletionDependencies{
 		Instances:    instances,
 		Participants: rows.Participants,
 		CareDays:     newTimetableCareDays(careDays),
