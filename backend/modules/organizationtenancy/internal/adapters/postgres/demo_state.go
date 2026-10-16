@@ -182,6 +182,7 @@ func (s *DemoStateStore) RequeueDeferred(ctx context.Context, name string) error
 		SET status = 'preparing', claimed_at = NULL, seed_state = NULL,
 			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[visitor_account_id], NULL),
 			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[visitor_parent_account_id], NULL),
+			visitor_school_ids = array_remove(visitor_school_ids || ARRAY[tenant_id], NULL),
 			visitor_account_id = NULL, visitor_parent_account_id = NULL
 		WHERE status IN ('preparing', 'ready') AND seed_state->>'deferred_seed_pending' = 'true'
 			AND (? = '' OR name = ?)`, name, name).Exec(ctx)

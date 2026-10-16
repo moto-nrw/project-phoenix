@@ -202,8 +202,16 @@ func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 		SchoolID: firstSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	// A state that existed when 1.15.456 was installed has no school history
+	// yet. Requeueing it must preserve the school before a replacement uses
+	// tenant_id.
+	_, err = db.NewRaw(`UPDATE platform.demo_school_states SET visitor_school_ids = '{}' WHERE name = ?`, slug).Exec(ctx)
+	require.NoError(t, err)
 	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
 	assert.Equal(t, firstSchoolID, demoSchoolProgress(t, db, slug).SchoolID, "the failed school stays available for final cleanup")
+	var preserved bool
+	require.NoError(t, db.NewRaw(`SELECT ? = ANY(visitor_school_ids) FROM platform.demo_school_states WHERE name = ?`, firstSchoolID, slug).Scan(ctx, &preserved))
+	assert.True(t, preserved, "requeue retains a pre-migration deferred school's identity for visitor erasure")
 
 	second, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
