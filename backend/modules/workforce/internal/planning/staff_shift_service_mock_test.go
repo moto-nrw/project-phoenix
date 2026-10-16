@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -112,14 +112,14 @@ func (m *shiftMockRepo) RepointDetachedSeriesFrom(context.Context, int64, int64,
 }
 
 type shiftMockStaffRepo struct {
-	findByIDFunc func(ctx context.Context, id interface{}) (*usersModels.Staff, error)
+	findByIDFunc func(ctx context.Context, id interface{}) (*workforce.PlanStaff, error)
 }
 
-func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*usersModels.Staff, error) {
+func (m *shiftMockStaffRepo) FindByID(ctx context.Context, id interface{}) (*workforce.PlanStaff, error) {
 	if m.findByIDFunc != nil {
 		return m.findByIDFunc(ctx, id)
 	}
-	return &usersModels.Staff{}, nil
+	return &workforce.PlanStaff{}, nil
 }
 
 func (m *shiftMockStaffRepo) ListAccountIDsByStaffIDs(_ context.Context, _ []int64) (map[int64]int64, error) {
@@ -130,59 +130,10 @@ func (m *shiftMockStaffRepo) ListAllStaffAccountIDs(_ context.Context) (map[int6
 	return map[int64]int64{}, nil
 }
 
-// The remaining StaffRepository methods are unused by the shift service.
-func (m *shiftMockStaffRepo) Create(context.Context, *usersModels.Staff) error { return nil }
-func (m *shiftMockStaffRepo) FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Staff, error) {
-	return m.FindByID(ctx, id)
-}
-func (m *shiftMockStaffRepo) FindByPersonID(context.Context, int64) (*usersModels.Staff, error) {
-	return nil, errors.New("not implemented")
-}
-func (m *shiftMockStaffRepo) Update(context.Context, *usersModels.Staff) error { return nil }
-func (m *shiftMockStaffRepo) Delete(context.Context, interface{}) error        { return nil }
-func (m *shiftMockStaffRepo) List(context.Context, map[string]interface{}) ([]*usersModels.Staff, error) {
+func (m *shiftMockStaffRepo) ListAllWithPerson(context.Context) ([]*workforce.PlanStaff, error) {
 	return nil, nil
 }
-func (*shiftMockStaffRepo) FindReachableCalendarStaffIDs(context.Context, []int64) (map[int64]bool, error) {
-	return map[int64]bool{}, nil
-}
-
-// Birthday display (#1542) — irrelevant to shift planning, stubbed to satisfy
-// the interface.
-func (*shiftMockStaffRepo) FindBirthdaysOn(context.Context, []usersModels.MonthDay) ([]usersModels.BirthdayEntry, error) {
-	return nil, nil
-}
-
-func (*shiftMockStaffRepo) ListBirthdaysForExport(context.Context) ([]usersModels.BirthdayEntry, error) {
-	return nil, nil
-}
-
-func (*shiftMockStaffRepo) SetBirthdayDisplayOptOut(context.Context, int64, bool) error {
-	return nil
-}
-
-func (m *shiftMockStaffRepo) ListAllWithPerson(context.Context) ([]*usersModels.Staff, error) {
-	return nil, nil
-}
-func (m *shiftMockStaffRepo) UpdateNotes(context.Context, int64, string) error { return nil }
-func (m *shiftMockStaffRepo) FindWithPerson(context.Context, int64) (*usersModels.Staff, error) {
-	return nil, errors.New("not implemented")
-}
-func (m *shiftMockStaffRepo) FindByIDs(context.Context, []int64) (map[int64]*usersModels.Staff, error) {
-	return nil, nil
-}
-func (m *shiftMockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*usersModels.Staff, error) {
-	return nil, nil
-}
-func (m *shiftMockStaffRepo) ListStaffWithPermission(context.Context, string) ([]*usersModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-
-func (m *shiftMockStaffRepo) GetStaffContactInfo(context.Context, int64) (*usersModels.StaffWithRoleInfo, error) {
-	return nil, nil
-}
-
-func (m *shiftMockStaffRepo) ListStaffByRoles(context.Context, []string) ([]*usersModels.StaffWithRoleInfo, error) {
+func (m *shiftMockStaffRepo) FindWithPersonByIDs(context.Context, []int64) (map[int64]*workforce.PlanStaff, error) {
 	return nil, nil
 }
 
@@ -303,7 +254,7 @@ func TestShiftService_CreateRejectsUnknownStaff(t *testing.T) {
 	t.Parallel()
 
 	svc, _, staffRepo := shiftServiceFixture()
-	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
 		return nil, modelBase.ErrNotFound
 	}
 
@@ -316,7 +267,7 @@ func TestShiftService_CreatePropagatesStaffLookupError(t *testing.T) {
 	t.Parallel()
 
 	svc, _, staffRepo := shiftServiceFixture()
-	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
 		return nil, errors.New("connection reset")
 	}
 
@@ -330,7 +281,7 @@ func TestShiftService_CreateRejectsNilStaff(t *testing.T) {
 	t.Parallel()
 
 	svc, _, staffRepo := shiftServiceFixture()
-	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*usersModels.Staff, error) {
+	staffRepo.findByIDFunc = func(_ context.Context, _ interface{}) (*workforce.PlanStaff, error) {
 		return nil, nil
 	}
 
