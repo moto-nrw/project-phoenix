@@ -150,7 +150,7 @@ type AdminRequestChild struct {
 // The attribute and validity fields carry the same facts the parent
 // portal renders for this booking (#2185), in the same wire shape:
 // ValidUntil is the INCLUSIVE last covered day, matching
-// modules/careplan/inbound/parent/care_offerings_handlers.go. The stored column is
+// workflows/parentportal/http/care_offerings_handlers.go. The stored column is
 // exclusive; one JSON name must not mean two different days depending
 // on which endpoint answered.
 //

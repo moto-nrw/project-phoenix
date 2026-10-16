@@ -12,11 +12,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // relAcctHandlerSettings is a configurable settings stub for the related-
