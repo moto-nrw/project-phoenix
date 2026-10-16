@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
