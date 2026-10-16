@@ -15,8 +15,6 @@ package notifications
 import (
 	"sort"
 	"sync"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // Portals a notification type can belong to.
@@ -220,7 +218,7 @@ func init() {
 		Description: "Kurz bevor ein Kind abgeholt wird, das Sie gerade betreuen.",
 		Group:       GroupPickup,
 		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyRemindersPickupUpcomingEnabled,
+		TenantGate:  settingRemindersPickupUpcomingEnabled,
 		SortOrder:   1,
 	})
 	RegisterType(TypeDefinition{
@@ -229,7 +227,7 @@ func init() {
 		Description: "Wenn ein Kind nach seiner Abholzeit noch da ist.",
 		Group:       GroupPickup,
 		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyRemindersPickupOverdueEnabled,
+		TenantGate:  settingRemindersPickupOverdueEnabled,
 		SortOrder:   2,
 	})
 
@@ -242,7 +240,7 @@ func init() {
 		Description: "Kurz bevor eine geplante Aktivität in einem Raum startet, den Sie gerade beaufsichtigen.",
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyRemindersActivityStartEnabled,
+		TenantGate:  settingRemindersActivityStartEnabled,
 		SortOrder:   1,
 	})
 	RegisterType(TypeDefinition{
@@ -251,7 +249,7 @@ func init() {
 		Description: "Wenn eine geplante Aktivität überfällig ist und noch niemand sie gestartet hat.",
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyRemindersActivityOverdueEnabled,
+		TenantGate:  settingRemindersActivityOverdueEnabled,
 		SortOrder:   2,
 	})
 	RegisterType(TypeDefinition{
@@ -269,7 +267,7 @@ func init() {
 		Description: "Wenn für ein Kind aus Ihren Gruppen eine Krankmeldung oder Entschuldigung für heute eingetragen wird.",
 		Group:       GroupChildren,
 		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyNotificationsAbsenceReportedEnabled,
+		TenantGate:  settingAbsenceReportedEnabled,
 		SortOrder:   1,
 	})
 	RegisterType(TypeDefinition{
@@ -278,7 +276,7 @@ func init() {
 		Description: "Wenn Eltern der OGS eine neue Nachricht schreiben.",
 		Group:       GroupMessages,
 		Portal:      PortalStaff,
-		TenantGate:  configModel.KeyParentNotesEnabled,
+		TenantGate:  settingParentNotesEnabled,
 		SortOrder:   1,
 	})
 
@@ -291,7 +289,7 @@ func init() {
 		Description:  "Wenn Ihnen jemand aus dem Team eine Nachricht im Team-Chat schreibt.",
 		Group:        GroupMessages,
 		Portal:       PortalStaff,
-		TenantGate:   configModel.KeyStaffMessagingEnabled,
+		TenantGate:   settingStaffMessagingEnabled,
 		SortOrder:    2,
 		SchoolPortal: true,
 	})
@@ -317,7 +315,7 @@ func init() {
 		Description: "Wenn die OGS Ihnen zu einem Kind schreibt.",
 		Group:       GroupMessages,
 		Portal:      PortalParent,
-		TenantGate:  configModel.KeyParentNotesEnabled,
+		TenantGate:  settingParentNotesEnabled,
 		SortOrder:   2,
 	})
 
@@ -338,7 +336,7 @@ func init() {
 		Description: "Kurz vor einem Termin, zu dem Sie eingeladen sind.",
 		Group:       GroupAppointments,
 		Portal:      PortalParent,
-		TenantGate:  configModel.KeyCalendarAppointmentReminderEnabled,
+		TenantGate:  settingCalendarAppointmentReminder,
 		SortOrder:   2,
 	})
 
@@ -360,7 +358,7 @@ func init() {
 		Description: "Wenn die OGS über eine Ihrer Anfragen entschieden hat, etwa zu Betreuungszeiten, Stammdaten oder einer Abmeldung.",
 		Group:       GroupChildren,
 		Portal:      PortalParent,
-		TenantGate:  configModel.KeyParentNotesEnabled,
+		TenantGate:  settingParentNotesEnabled,
 		SortOrder:   1,
 	})
 }

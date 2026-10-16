@@ -425,7 +425,7 @@ func composeNotifications(b graphBuild) (graphBuild, error) {
 		),
 	)
 	b.graph.Notifications = notifier
-	preferences := deliveryCompose.NewPreferenceService(b.notificationConsent, b.settingsService, b.DB.Pool(), b.identityAccess)
+	preferences := deliveryCompose.NewPreferenceService(b.notificationConsent, b.settingsService, b.DB.Pool(), b.identityAccess, securityruntime.HasPermission)
 	b.graph.NotificationPreferences = preferences
 	recipients := deliveryCompose.NewStaffRecipientResolver(preferences, deliveryStudentGroups{students: b.People.Students},
 		b.People.Groups, b.People.Staff, b.identityAccess, b.settingsService,

@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -133,6 +131,7 @@ type preferenceService struct {
 	settings       PreferenceSettings
 	db             *bun.DB
 	accountTenants GuardianSchools
+	permissions    PermissionMatch
 	tenantRuntime  *tenant.UnitOfWork
 }
 
@@ -148,18 +147,21 @@ func (s *preferenceService) withTenantRuntime(ctx context.Context) context.Conte
 }
 
 // NewPreferenceService builds the consent service. db and accountTenants are
-// needed only for the guardian portal, which is cross-tenant.
+// needed only for the guardian portal, which is cross-tenant; permissions only
+// for the e-mail decisions, which require the type's permission.
 func NewPreferenceService(
 	consent ConsentStore,
 	settings PreferenceSettings,
 	db *bun.DB,
 	accountTenants GuardianSchools,
+	permissions PermissionMatch,
 ) PreferenceService {
 	return &preferenceService{
 		consent:        consent,
 		settings:       settings,
 		db:             db,
 		accountTenants: accountTenants,
+		permissions:    permissions,
 	}
 }
 
@@ -173,7 +175,7 @@ func (s *preferenceService) GetForAccount(ctx context.Context, accountID int64, 
 		return nil, fmt.Errorf("load notification preferences: %w", err)
 	}
 
-	tenantEnabled, err := s.resolveBool(ctx, configModel.KeyNotificationsDispatchEnabled)
+	tenantEnabled, err := s.resolveBool(ctx, settingDispatchEnabled)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +244,7 @@ func (s *preferenceService) SetForPortalAccount(ctx context.Context, accountID i
 }
 
 func (s *preferenceService) EmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string) (bool, error) {
-	if err := checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {
+	if err := s.checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {
 		return false, err
 	}
 	stored, err := s.consent.StoredConsent(ctx, accountID)
@@ -253,7 +255,7 @@ func (s *preferenceService) EmailSubscribed(ctx context.Context, accountID int64
 }
 
 func (s *preferenceService) SetEmailSubscribed(ctx context.Context, accountID int64, permissions []string, notificationType string, enabled bool) error {
-	if err := checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {
+	if err := s.checkOwnEmailDecision(accountID, permissions, notificationType); err != nil {
 		return err
 	}
 	if err := s.consent.RecordConsent(ctx, accountID, notificationType, enabled); err != nil {
@@ -264,7 +266,7 @@ func (s *preferenceService) SetEmailSubscribed(ctx context.Context, accountID in
 
 // checkOwnEmailDecision admits a decision on a known e-mail type by an
 // account that holds the type's permission.
-func checkOwnEmailDecision(accountID int64, permissions []string, notificationType string) error {
+func (s *preferenceService) checkOwnEmailDecision(accountID int64, permissions []string, notificationType string) error {
 	if accountID <= 0 {
 		return errors.New("account id is required")
 	}
@@ -272,7 +274,7 @@ func checkOwnEmailDecision(accountID int64, permissions []string, notificationTy
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
 	}
-	if !authorize.HasPermission(def.Permission, permissions) {
+	if !s.permissions.permits(def.Permission, permissions) {
 		return fmt.Errorf("%w: %s", ErrEmailPermissionRequired, notificationType)
 	}
 	return nil
@@ -449,7 +451,7 @@ func (s *preferenceService) GetForParent(ctx context.Context, accountID int64) (
 		}
 		// Any school allowing dispatch is enough for the card to stop saying
 		// "your school switched this off".
-		tenantEnabled, err := s.resolveBool(tenantCtx, configModel.KeyNotificationsDispatchEnabled)
+		tenantEnabled, err := s.resolveBool(tenantCtx, settingDispatchEnabled)
 		if err != nil {
 			return err
 		}

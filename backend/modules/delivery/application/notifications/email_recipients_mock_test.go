@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,7 +136,7 @@ func TestEmailRecipientResolver(t *testing.T) {
 		t.Parallel()
 		consent := &fakeEmailSubscribers{optedIn: map[string][]int64{testEmailType: {emailAccountA, emailAccountB, emailAccountC}}}
 		accounts := newAccounts()
-		svc := notifications.NewEmailRecipientResolver(consent, accounts)
+		svc := notifications.NewEmailRecipientResolver(consent, accounts, securityruntime.HasPermission)
 
 		got, err := svc.Recipients(emailCtx(), testEmailType, []string{"extern@example.test", "leitung@schule.test", "EXTERN@example.test"})
 
@@ -150,7 +151,7 @@ func TestEmailRecipientResolver(t *testing.T) {
 	t.Run("nobody switched on keeps the extra addresses", func(t *testing.T) {
 		t.Parallel()
 		accounts := newAccounts()
-		svc := notifications.NewEmailRecipientResolver(&fakeEmailSubscribers{}, accounts)
+		svc := notifications.NewEmailRecipientResolver(&fakeEmailSubscribers{}, accounts, securityruntime.HasPermission)
 
 		got, err := svc.Recipients(emailCtx(), testEmailType, []string{" extern@example.test "})
 
@@ -161,7 +162,7 @@ func TestEmailRecipientResolver(t *testing.T) {
 
 	t.Run("a push type or an unknown type is refused", func(t *testing.T) {
 		t.Parallel()
-		svc := notifications.NewEmailRecipientResolver(&fakeEmailSubscribers{}, newAccounts())
+		svc := notifications.NewEmailRecipientResolver(&fakeEmailSubscribers{}, newAccounts(), securityruntime.HasPermission)
 		for _, key := range []string{notifications.TypePickupUpcoming, "unknown_type"} {
 			_, err := svc.Recipients(emailCtx(), key, nil)
 			require.ErrorIs(t, err, notifications.ErrUnknownNotificationType, key)
@@ -171,7 +172,7 @@ func TestEmailRecipientResolver(t *testing.T) {
 	t.Run("without a school in context nothing is resolved", func(t *testing.T) {
 		t.Parallel()
 		consent := &fakeEmailSubscribers{optedIn: map[string][]int64{testEmailType: {emailAccountA}}}
-		svc := notifications.NewEmailRecipientResolver(consent, newAccounts())
+		svc := notifications.NewEmailRecipientResolver(consent, newAccounts(), securityruntime.HasPermission)
 
 		_, err := svc.Recipients(context.Background(), testEmailType, nil)
 
@@ -182,7 +183,7 @@ func TestEmailRecipientResolver(t *testing.T) {
 	t.Run("a consent read failure is reported", func(t *testing.T) {
 		t.Parallel()
 		boom := errors.New("boom")
-		svc := notifications.NewEmailRecipientResolver(&fakeEmailSubscribers{listErr: boom}, newAccounts())
+		svc := notifications.NewEmailRecipientResolver(&fakeEmailSubscribers{listErr: boom}, newAccounts(), securityruntime.HasPermission)
 
 		_, err := svc.Recipients(emailCtx(), testEmailType, []string{"extern@example.test"})
 
@@ -194,7 +195,7 @@ func TestEmailSubscriptionOwnDecision(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakePreferenceRepo{stored: map[string]bool{testEmailType: true, notifications.TypePickupUpcoming: true}}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 	granted := []string{testEmailPermission}
 
 	on, err := svc.EmailSubscribed(emailCtx(), emailAccountA, granted, testEmailType)
