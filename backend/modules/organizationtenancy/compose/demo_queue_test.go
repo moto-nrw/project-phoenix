@@ -202,15 +202,16 @@ func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 		SchoolID: firstSchoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	// A state that existed when 1.15.456 was installed has no school history
+	// yet. Requeueing it must preserve the school before a replacement uses
+	// tenant_id.
+	_, err = db.NewRaw(`UPDATE platform.demo_school_states SET visitor_school_ids = '{}' WHERE name = ?`, slug).Exec(ctx)
+	require.NoError(t, err)
 	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
 	assert.Equal(t, firstSchoolID, demoSchoolProgress(t, db, slug).SchoolID, "the failed school stays available for final cleanup")
-
-	// An expired access cannot retire the school that the next attempt still
-	// needs to rename before it can rebuild the same slug.
-	hidden, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
-	assert.Zero(t, hidden)
-	assert.False(t, schoolHidden(t, db, firstSchoolID))
+	var preserved bool
+	require.NoError(t, db.NewRaw(`SELECT ? = ANY(visitor_school_ids) FROM platform.demo_school_states WHERE name = ?`, firstSchoolID, slug).Scan(ctx, &preserved))
+	assert.True(t, preserved, "requeue retains a pre-migration deferred school's identity for visitor erasure")
 
 	second, err := queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
@@ -230,6 +231,35 @@ func TestDemoSchoolQueueRetiresTheFinalDeferredSeedFailure(t *testing.T) {
 	require.NoError(t, err)
 	assert.True(t, failed)
 	assert.True(t, schoolHidden(t, db, secondSchoolID))
+	assert.Equal(t, secondSchoolID, demoSchoolProgress(t, db, slug).SchoolID,
+		"the final failed order retains its school until visitor erasure")
+}
+
+func TestDemoSchoolQueueRetiresDeferredSchoolAfterAccessExpires(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{"deferred_seed_pending":true}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+	require.NoError(t, queue.RequeueDeferredDemoSchoolOrder(ctx, slug))
+
+	hidden, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Equal(t, 1, hidden)
+	assert.Equal(t, 1, erased)
+	assert.True(t, schoolHidden(t, db, schoolID))
+	assert.Nil(t, demoSchoolProgress(t, db, slug), "an expired deferred order cannot be provisioned again")
 }
 
 func TestDemoSchoolQueueRetiresReplacementReservedBeforeStateWrite(t *testing.T) {
@@ -257,7 +287,7 @@ func TestDemoSchoolQueueRetiresReplacementReservedBeforeStateWrite(t *testing.T)
 	assert.Equal(t, 2, second.Attempts)
 	// Bootstrap created the replacement, but a later core step failed before
 	// the complete seed state could be written.
-	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, replacementSchoolID))
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, replacementSchoolID, 0, 0))
 	failed, err := queue.FailDemoSchoolOrder(ctx, slug, 2)
 	require.NoError(t, err)
 	assert.True(t, failed)
@@ -277,7 +307,7 @@ func TestDemoSchoolQueueCompletesReservedState(t *testing.T) {
 	slug := orderDemoSchool(t, db, "OGS Nord")
 	_, err = queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
-	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, schoolID))
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, schoolID, 0, 0))
 	want := organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{"profile":"vollbetrieb"}`)}
 	require.NoError(t, schools.UpdateDemoSchool(ctx, slug, want))
 	got, err := schools.LoadDemoSchool(ctx, slug)

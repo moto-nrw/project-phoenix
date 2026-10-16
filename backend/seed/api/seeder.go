@@ -52,6 +52,9 @@ type SeedOptions struct {
 	// SaveBootstrap persists the created school before later seed steps can
 	// fail. It is only used by the queued public-demo provisioner.
 	SaveBootstrap func(context.Context, int64) error
+	// SaveVisitor records the visitor accounts as soon as the seed creates
+	// them, so a later failed step can still erase their copied data.
+	SaveVisitor func(context.Context, int64, int64) error
 	// DeferHistory leaves the deferred steps out of Seed: the school is usable
 	// without them, and SeedResult.Deferred runs them afterwards.
 	DeferHistory bool
