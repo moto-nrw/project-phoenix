@@ -131,6 +131,14 @@ Inbound-Owner 20 → 19, Regeln 918 → 918; 270 Keys, #4078 6, Composition 1.66
 Epoche 55 und alle Budgets bleiben unverändert. Die physische Relocation folgt
 separat gemäß ADR 0020.
 
+#4078: IoT-Staffclock und die gemeinsamen IoT-HTTP-Fehler gehören zu
+`process-device-scan`; `inbound-iot-staffclock` und `inbound-iot-internal-shared`
+entfallen. Drei überflüssige Regeln werden gelöscht, ohne Nachfolger: Die
+stehenden Scan-Public- und IoT-Kompositionsregeln decken die reklassifizierten
+HTTP-Pakete. Pfade, Produktions-/Testrollen, Go-Code, Verträge und Assertions
+bleiben unverändert. Inbound-Owner 19 → 17, Regeln 918 → 915; 270 Keys,
+#4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben unverändert.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
