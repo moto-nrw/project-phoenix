@@ -50,7 +50,7 @@
       "declaration": "newWorker",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        258
+        262
       ],
       "tables": []
     },
