@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 )
 
 // The withdrawal commands deliberately do not open a transaction: like the
@@ -17,12 +18,12 @@ func (e engine) FindWithdrawalCompletion(ctx context.Context, id int64, lock boo
 }
 
 func (e engine) ListPendingWithdrawals(ctx context.Context, filter careplan.WithdrawalListFilter) ([]careplan.WithdrawalCompletion, int, error) {
-	values, total, err := e.service.ListWithdrawals(ctx, careplan.WithdrawalStatePending, filter)
+	values, total, err := application.ListWithdrawals(ctx, e.service, e.withdrawals, careplan.WithdrawalStatePending, filter)
 	return values, total, mapError(err)
 }
 
 func (e engine) ListResolvedWithdrawals(ctx context.Context, filter careplan.WithdrawalListFilter) ([]careplan.WithdrawalCompletion, int, error) {
-	values, total, err := e.service.ListWithdrawals(ctx, careplan.WithdrawalStateResolved, filter)
+	values, total, err := application.ListWithdrawals(ctx, e.service, e.withdrawals, careplan.WithdrawalStateResolved, filter)
 	return values, total, mapError(err)
 }
 

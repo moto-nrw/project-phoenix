@@ -12,6 +12,10 @@ import (
 	"strings"
 	"time"
 
+	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
+
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
@@ -246,7 +250,7 @@ func newTimetable(db transactionruntime.Database, students peopleModule.StudentQ
 			return err
 		},
 		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: NewPresenceFacts(db),
-		Observe: observe,
+		Observe: observe, Provenance: enrollmentProvenanceView.NewReader(),
 	})
 }
 
@@ -611,7 +615,7 @@ func composeFacilities(db transactionruntime.Database, usage facilitiesCompose.R
 }
 
 func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Module, slots carePlanCompose.StatusSlotDirectory) (*carePlanModule.Module, error) {
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -620,9 +624,10 @@ func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 		return nil, err
 	}
 	return carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
+		StudentDirectory: studentDirectoryView.NewCareReader(),
+		DB:               db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents, StatusSlots: slots,
-		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
 			if err != nil {
 				return nil, err
@@ -1091,7 +1096,7 @@ func mountRouteGroups(root, tenant chi.Router, in routeInputs, limiters authRate
 // token and the staff's feed administration under /api.
 func mountRequestFeed(root, tenant chi.Router, in routeInputs) error {
 	requestFeed, err := requestFeedCompose.New(requestFeedCompose.Dependencies{
-		DB: in.db.Pool(), FrontendURL: in.frontendURL, Now: time.Now,
+		DB: in.db.Pool(), Feed: newParentRequestFeed, FrontendURL: in.frontendURL, Now: time.Now,
 		NewToken: sessiontoken.NewOpaqueCapabilityToken, HashToken: sessiontoken.OpaqueCapabilityFingerprint,
 	})
 	if err != nil {
@@ -1372,14 +1377,14 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review access: %w", err)
 	}
-	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, modules.persons,
+	masterDataReviews, err := requestreviewcompose.NewMasterDataReviews(pool, studentDirectoryView.NewCareReader(), modules.persons,
 		reviewScope, carePlanCompose.Today, func(observation requestreviewcompose.CareObservation) {
 			observability.ObserveCarePlanOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.Conflicts, observation.Stats.StatementDuration, carePlanModule.ErrorCode(observation.Err), observation.Err)
 		})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("master data review queue: %w", err)
 	}
-	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, requestreviewcompose.ScheduleReviewDependencies{
+	careReviews, err := requestreviewcompose.NewScheduleReviews(pool, studentDirectoryView.NewCareReader(), requestreviewcompose.ScheduleReviewDependencies{
 		People: modules.persons,
 		Scope:  reviewScope,
 		BookingsAuthoritative: func(ctx context.Context) (bool, error) {

@@ -23,6 +23,7 @@ type AmbientDatabase func(context.Context) bun.IDB
 type StatusStudentDirectory = postgres.StatusStudentDirectory
 type StatusStudent = postgres.StatusStudent
 type StatusSlotDirectory = postgres.StatusSlotDirectory
+type StudentDirectory = postgres.StudentDirectory
 
 // StudentName is the display projection Care Plan needs for companion links.
 // Composition translates the People Directory result at its boundary.
@@ -36,27 +37,22 @@ type StudentNameFinder interface {
 	ListStudentNamesByID(context.Context, []int64) ([]StudentName, error)
 }
 
-type StudentNameFinderFunc func(context.Context, []int64) ([]StudentName, error)
-
-func (f StudentNameFinderFunc) ListStudentNamesByID(ctx context.Context, ids []int64) ([]StudentName, error) {
-	return f(ctx, ids)
-}
-
 type Dependencies struct {
-	DB              *bun.DB
-	Observe         func(Observation)
-	AmbientDB       AmbientDatabase
-	StatusStudents  StatusStudentDirectory
-	StatusSlots     StatusSlotDirectory
-	People          StudentNameFinder
-	StudentLock     careplanning.StudentLock
-	StudentNotFound error
+	DB               *bun.DB
+	Observe          func(Observation)
+	AmbientDB        AmbientDatabase
+	StatusStudents   StatusStudentDirectory
+	StatusSlots      StatusSlotDirectory
+	People           StudentNameFinder
+	StudentLock      careplanning.StudentLock
+	StudentNotFound  error
+	StudentDirectory StudentDirectory
 }
 
 func New(dependencies Dependencies) (*careplan.Module, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil || dependencies.AmbientDB == nil || dependencies.StatusStudents == nil || dependencies.StatusSlots == nil ||
-		dependencies.People == nil || dependencies.StudentLock == nil || dependencies.StudentNotFound == nil {
-		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, status-student directory, status-slot directory, and student lock are required")
+		dependencies.People == nil || dependencies.StudentLock == nil || dependencies.StudentNotFound == nil || dependencies.StudentDirectory == nil {
+		return nil, errors.New("care plan compose: database, observer, ambient database resolver, people directory, status-student directory, status-slot directory, student lock, and student directory are required")
 	}
 	bindCareLocks(dependencies)
 	store := postgres.New(carePlanDatabase(dependencies.DB))
@@ -64,8 +60,8 @@ func New(dependencies Dependencies) (*careplan.Module, error) {
 	statusDays := postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots)
 	module := careplan.NewModule(engine{
 		OfferingBookings: NewOfferingBookings(),
-		exceptionQueries: queries, requests: postgres.NewRequestStore(store), statusDays: statusDays,
-		observe: dependencies.Observe, people: dependencies.People, database: dependencies.DB,
+		exceptionQueries: queries, requests: postgres.NewRequestStore(store, dependencies.StudentDirectory), statusDays: statusDays,
+		withdrawals: postgres.NewDirectoryStore(store, dependencies.StudentDirectory), observe: dependencies.Observe, people: dependencies.People, database: dependencies.DB,
 	})
 	return module, nil
 }
@@ -108,11 +104,12 @@ func carePlanDatabase(db *bun.DB) postgres.Database {
 type engine struct {
 	*careplan.OfferingBookings
 	*exceptionQueries
-	requests   RequestStore
-	statusDays StatusDayStore
-	observe    func(Observation)
-	people     StudentNameFinder
-	database   *bun.DB
+	requests    RequestStore
+	statusDays  StatusDayStore
+	withdrawals ports.WithdrawalList
+	observe     func(Observation)
+	people      StudentNameFinder
+	database    *bun.DB
 }
 
 func (e engine) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {

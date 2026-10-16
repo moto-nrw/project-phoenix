@@ -67,20 +67,20 @@ const moduleFuncLenThreshold = 60
 // Seeded 2026-09-18 from merge commit ecf0003369. Shrink-only: lower or
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
-	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                          117,
-	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                       211,
-	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                 67,
-	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                     159,
-	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":          83,
-	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*Store).ListWithdrawals":     71,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":               73,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                154,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":           67,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":           74,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":   92,
-	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews": 100,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":           70,
-	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                  66,
+	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                               117,
+	"modules/careplan/inbound/parent/api.go:(*Resource).RouterWithAuthRateLimiter":                            211,
+	"modules/careplan/inbound/parent/child_write_handlers.go:(*Resource).submitSickNote":                      67,
+	"modules/careplan/inbound/parent/child_write_handlers.go:renderParentWriteError":                          159,
+	"modules/careplan/inbound/parent/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":               83,
+	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals": 71,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                    73,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                     154,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                67,
+	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                74,
+	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":        92,
+	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":      100,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).ListPending":                70,
+	"modules/careplan/internal/application/schedule_reviews.go:(*ScheduleReviews).plan":                       66,
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.

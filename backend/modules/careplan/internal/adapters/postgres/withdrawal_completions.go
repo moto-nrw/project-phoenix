@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
 	"github.com/uptrace/bun"
 )
 
@@ -171,7 +170,7 @@ func (s *Store) FindWithdrawalCompletion(ctx context.Context, id int64, lock boo
 // former inner joins did; resolved tasks stay visible without one. The search
 // and the page window apply inside the joined statement, so a request reads
 // one page of tasks and their children, never the tenant's whole queue.
-func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, domain.OperationStats, error) {
+func (s *DirectoryStore) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, domain.OperationStats, error) {
 	if state != careplan.WithdrawalStatePending && state != careplan.WithdrawalStateResolved {
 		return nil, 0, domain.OperationStats{}, fmt.Errorf("care plan postgres: unsupported withdrawal list state %q", state)
 	}
@@ -182,7 +181,7 @@ func (s *Store) ListWithdrawals(ctx context.Context, state string, filter domain
 	pending := state == careplan.WithdrawalStatePending
 	build := func() *bun.SelectQuery {
 		query := db.NewSelect().TableExpr(tableExprWithdrawalCompletions)
-		directory := studentdirectoryview.StudentDisplayQuery(db, tenantID)
+		directory := s.directory.StudentDisplayRows(db, tenantID)
 		if pending {
 			query = query.Join(`JOIN (?) AS "student" ON "student".tenant_id = "care_withdrawal_completion".tenant_id AND "student".id = "care_withdrawal_completion".student_id AND "student".first_name IS NOT NULL`, directory)
 		} else {

@@ -514,9 +514,11 @@ func (s *Service) EndStudentEnrollmentsForCareExit(ctx context.Context, studentI
 	return result, err
 }
 
-func (s *Service) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (result int, err error) {
+// RestoreStudentEnrollmentsForCareExit restores a cancelled care exit's
+// enrollments through the provenance store.
+func RestoreStudentEnrollmentsForCareExit(ctx context.Context, s *Service, store ports.EnrollmentProvenanceStore, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (result int, err error) {
 	err = s.runWrite(ctx, "restore_student_enrollments_for_care_exit", true, func(txCtx context.Context, stats *domain.OperationStats) error {
-		rows, queryStats, restoreErr := s.store.RestoreStudentEnrollmentsForCareExit(txCtx, studentIDs, periodIDs, removals)
+		rows, queryStats, restoreErr := store.RestoreStudentEnrollmentsForCareExit(txCtx, studentIDs, periodIDs, removals)
 		stats.Add(queryStats)
 		result = int(rows)
 		return restoreErr

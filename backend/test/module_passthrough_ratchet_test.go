@@ -169,7 +169,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 
 // modulePassthroughBudgetTotal is the sum of modulePassthroughBudgets.
 // Shrink-only, like every entry.
-const modulePassthroughBudgetTotal = 717
+const modulePassthroughBudgetTotal = 714
 
 // modulePassthroughBudgets is the register: module directory → pass-throughs
 // measured there. Sorted alphabetically so later diffs stay readable.
@@ -198,7 +198,7 @@ var modulePassthroughBudgets = map[string]int{
 	// composition, the dead ListWithdrawalCompletionKeys, the People stranding
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
-	"modules/careplan": 111,
+	"modules/careplan": 110,
 	// The caller and arrival-exception ports reached straight through, most
 	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
 	// day report is built in the projection instead of forwarded to the
@@ -285,7 +285,7 @@ var modulePassthroughBudgets = map[string]int{
 	// all: service.go (23), instance_students.go (21), activity_instances.go
 	// (14) and 19 more files, every one of them s.run around a single
 	// s.store call.
-	"modules/timetable": 100,
+	"modules/timetable": 98,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	//
@@ -304,7 +304,7 @@ var modulePassthroughBudgets = map[string]int{
 
 // modulePassthroughComposeBudgetTotal is the sum of
 // modulePassthroughComposeBudgets. Shrink-only, like every entry.
-const modulePassthroughComposeBudgetTotal = 2392
+const modulePassthroughComposeBudgetTotal = 2388
 
 // modulePassthroughComposeBudgets is the composition register (#4071): owner
 // composition directory → pass-throughs measured below it. First measured on
@@ -317,7 +317,7 @@ const modulePassthroughComposeBudgetTotal = 2392
 var modulePassthroughComposeBudgets = map[string]int{
 	"modules/appointments/compose":          36,
 	"modules/auditlog/compose":              1,
-	"modules/careplan/compose":              188,
+	"modules/careplan/compose":              186,
 	"modules/careplan/requestfeed/compose":  4,
 	"modules/classday/compose":              15,
 	"modules/communication/composition":     66,
@@ -343,7 +343,7 @@ var modulePassthroughComposeBudgets = map[string]int{
 	"modules/schoolstructure/compose":       72,
 	"modules/settings/compose":              20,
 	"modules/studentpresence/compose":       151,
-	"modules/timetable/compose":             404,
+	"modules/timetable/compose":             402,
 	"modules/workforce/compose":             338,
 	"workflows/openroommove/compose":        1,
 	"workflows/parentportal/compose":        22,
