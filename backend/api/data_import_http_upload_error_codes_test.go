@@ -10,7 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

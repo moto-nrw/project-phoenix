@@ -53,7 +53,7 @@ import (
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"

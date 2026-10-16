@@ -15,7 +15,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 

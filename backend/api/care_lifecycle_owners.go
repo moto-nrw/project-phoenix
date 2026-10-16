@@ -14,7 +14,6 @@ import (
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // CareLifecycleOwnerSources are the owners the Care Plan lifecycle (#3427)
@@ -30,7 +29,7 @@ type CareLifecycleOwnerSources struct {
 	Timetable  timetable.Capability
 	Calendar   schoolcalendar.Query
 	Presence   *studentpresence.Module
-	PlanReads  timetableCompose.PresenceReads
+	PlanReads  presenceProjectionReads
 	Enrollment EnrollmentBookingProjection
 }
 

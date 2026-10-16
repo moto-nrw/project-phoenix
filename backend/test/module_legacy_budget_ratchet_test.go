@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 1226
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3806
+const moduleLegacyFileBudgetTotal = 3802
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -136,7 +136,7 @@ var moduleLegacyFileBudgets = map[string]int{
 	"database/repositories/users/legacy_composition_support.go":               35,
 	"database/repositories/users/legacy_types.go":                             14,
 	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
-	"modules/presenceprojection/legacy_rows.go":                               357,
+	"modules/presenceprojection/legacy_rows.go":                               353,
 	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
 	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
 	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 169,
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 67614
+const moduleComposeBudgetTotal = 67578
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -219,7 +219,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       14251,
+	"modules/timetable/compose":                       14215,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
@@ -254,8 +254,8 @@ var moduleLegacyBudgets = map[string]int{
 	// #4077 moved the adapters into the root; the German name order stays
 	// until #4086 settles internal/collation.
 	"modules/grouplive/legacy": 11,
-	// #4077 moved the adapters into the root; the German room order stays
-	// until #4086 settles internal/collation.
+	// No ticket today. #4077 moved the access, settings and yard adapters
+	// into the root.
 	"modules/supervisiondashboard/legacy": 11,
 	// No ticket today — and the largest tree of the twelve.
 	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556

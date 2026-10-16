@@ -25,31 +25,6 @@ func NewPresenceReads(db *bun.DB) (PresenceReads, error) {
 	return PresenceReads{database: databaseRuntime(db)}, nil
 }
 
-// OpenParticipant is a participant whose block presence is still open.
-type OpenParticipant struct {
-	ParticipantID int64
-	StudentID     int64
-}
-
-// CourseInstanceRow counts the occurrences of one course in a period.
-type CourseInstanceRow struct {
-	CourseID           int64
-	Name               string
-	CategoryName       string
-	MaxParticipants    int
-	HeldInstances      int
-	CancelledInstances int
-}
-
-// CourseParticipationRow aggregates one child's attendance in one course.
-type CourseParticipationRow struct {
-	CourseID    int64
-	StudentID   int64
-	PresentDays int
-	AbsentDays  int
-	OpenDays    int
-}
-
 func (r PresenceReads) CountNonAbsentParticipants(ctx context.Context, instanceIDs []int64) (map[int64]int, error) {
 	db, tenantID, err := r.database(ctx)
 	if err != nil {
@@ -63,7 +38,10 @@ func (r PresenceReads) ListParallelPresence(ctx context.Context, excludedInstanc
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListParallelPresence(ctx, db, tenantID, excludedInstanceID, calendar.Date(date), studentIDs)
+	rows, err := presenceprojection.ListParallelPresence(ctx, db, tenantID, excludedInstanceID, calendar.Date(date), studentIDs)
+	return convertRows(rows, func(row presenceprojection.ParallelPresence) scheduleModels.ParallelPresence {
+		return scheduleModels.ParallelPresence(row)
+	}), err
 }
 
 func (r PresenceReads) ListPartialAbsenceBlocks(ctx context.Context, studentID int64, date string, from time.Time, enrolled bool, autoExceptionIDs []int64) ([]scheduleModels.PartialAbsenceBlock, error) {
@@ -71,7 +49,10 @@ func (r PresenceReads) ListPartialAbsenceBlocks(ctx context.Context, studentID i
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListPartialAbsenceBlocks(ctx, db, tenantID, studentID, calendar.Date(date), from, enrolled, autoExceptionIDs)
+	rows, err := presenceprojection.ListPartialAbsenceBlocks(ctx, db, tenantID, studentID, calendar.Date(date), from, enrolled, autoExceptionIDs)
+	return convertRows(rows, func(row presenceprojection.PartialAbsenceBlock) scheduleModels.PartialAbsenceBlock {
+		return scheduleModels.PartialAbsenceBlock(row)
+	}), err
 }
 
 func (r PresenceReads) ListScheduledInstancesForStudent(ctx context.Context, studentID int64, from, to string) ([]*scheduleModels.ScheduledInstanceRow, error) {
@@ -79,7 +60,10 @@ func (r PresenceReads) ListScheduledInstancesForStudent(ctx context.Context, stu
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListScheduledInstancesForStudent(ctx, db, tenantID, studentID, calendar.Date(from), calendar.Date(to))
+	rows, err := presenceprojection.ListScheduledInstancesForStudent(ctx, db, tenantID, studentID, calendar.Date(from), calendar.Date(to))
+	return convertRows(rows, func(row presenceprojection.ScheduledInstance) *scheduleModels.ScheduledInstanceRow {
+		return &scheduleModels.ScheduledInstanceRow{Instance: legacyInstance(row.Instance), Attendance: legacyParticipant(row.Participant)}
+	}), err
 }
 
 func (r PresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to string) (bool, error) {
@@ -88,69 +72,6 @@ func (r PresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to stri
 		return false, err
 	}
 	return presenceprojection.HasPlannedSlotsInRange(ctx, db, tenantID, calendar.Date(from), calendar.Date(to))
-}
-
-func (r PresenceReads) ListOpenParticipants(ctx context.Context, studentIDs []int64) ([]OpenParticipant, error) {
-	db, tenantID, err := r.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := presenceprojection.ListOpenParticipants(ctx, db, tenantID, studentIDs)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]OpenParticipant, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, OpenParticipant{ParticipantID: row.ParticipantID, StudentID: row.StudentID})
-	}
-	return result, nil
-}
-
-// LatestAttendedBlockDate returns the ISO day of the last block the child was
-// checked in to, or nil.
-func (r PresenceReads) LatestAttendedBlockDate(ctx context.Context, studentID int64) (*string, error) {
-	db, tenantID, err := r.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	day, err := presenceprojection.LatestAttendedBlockDate(ctx, db, tenantID, studentID)
-	if err != nil || day == nil {
-		return nil, err
-	}
-	text := day.String()
-	return &text, nil
-}
-
-func (r PresenceReads) CourseInstances(ctx context.Context, from, to, today string) ([]CourseInstanceRow, error) {
-	db, tenantID, err := r.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := presenceprojection.CourseInstances(ctx, db, tenantID, calendar.Date(from), calendar.Date(to), calendar.Date(today))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]CourseInstanceRow, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, CourseInstanceRow(row))
-	}
-	return result, nil
-}
-
-func (r PresenceReads) CourseParticipation(ctx context.Context, from, to, today string) ([]CourseParticipationRow, error) {
-	db, tenantID, err := r.database(ctx)
-	if err != nil {
-		return nil, err
-	}
-	rows, err := presenceprojection.CourseParticipation(ctx, db, tenantID, calendar.Date(from), calendar.Date(to), calendar.Date(today))
-	if err != nil {
-		return nil, err
-	}
-	result := make([]CourseParticipationRow, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, CourseParticipationRow(row))
-	}
-	return result, nil
 }
 
 // LegacyInstanceFilter selects activity instances the way the retained
@@ -168,7 +89,8 @@ func (r PresenceReads) ListLegacyInstances(ctx context.Context, filter LegacyIns
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListLegacyInstances(ctx, db, tenantID, presenceprojection.LegacyInstanceFilter(filter))
+	rows, err := presenceprojection.ListLegacyInstances(ctx, db, tenantID, presenceprojection.LegacyInstanceFilter(filter))
+	return convertRows(rows, legacyInstance), err
 }
 
 // ListLegacyParticipants lists participants joined with their attendance in
@@ -178,5 +100,47 @@ func (r PresenceReads) ListLegacyParticipants(ctx context.Context, filter Legacy
 	if err != nil {
 		return nil, err
 	}
-	return presenceprojection.ListLegacyParticipants(ctx, db, tenantID, presenceprojection.LegacyParticipantFilter(filter))
+	rows, err := presenceprojection.ListLegacyParticipants(ctx, db, tenantID, presenceprojection.LegacyParticipantFilter(filter))
+	return convertRows(rows, legacyParticipant), err
+}
+
+// convertRows maps the projection's rows onto the retained DTOs; a failed
+// read returns nil.
+func convertRows[Row, DTO any](rows []Row, convert func(Row) DTO) []DTO {
+	if rows == nil {
+		return nil
+	}
+	result := make([]DTO, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, convert(row))
+	}
+	return result
+}
+
+func legacyInstance(row presenceprojection.Instance) *scheduleModels.ActivityInstance {
+	instance := &scheduleModels.ActivityInstance{
+		Date: scheduleModels.Date(row.Date), ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
+		Title: row.Title, Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime, RoomID: row.RoomID,
+		RequiredStaff: row.RequiredStaff, Status: row.Status, ActiveGroupID: row.ActiveGroupID, ListKind: row.ListKind,
+		IsSpontaneous: row.IsSpontaneous, UnderstaffedAck: row.UnderstaffedAck, UnderstaffedNote: row.UnderstaffedNote,
+		CancelReason: row.CancelReason, Notes: row.Notes, IdempotencyKey: row.IdempotencyKey,
+		IdempotencyFingerprint: row.IdempotencyFingerprint, CreatedBy: row.CreatedBy, TemplateType: row.TemplateType,
+		TemplateRequiredStaff: row.TemplateRequiredStaff, StartedBy: row.StartedBy, StartedAt: row.StartedAt,
+		CompletedAt: row.CompletedAt, CompletedBy: row.CompletedBy, ReopenUntil: row.ReopenUntil, CompletionSnapshot: row.CompletionSnapshot,
+	}
+	instance.ID, instance.CreatedAt, instance.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
+	instance.SetTenantID(row.TenantID)
+	return instance
+}
+
+func legacyParticipant(row presenceprojection.Participant) *scheduleModels.InstanceStudent {
+	participant := &scheduleModels.InstanceStudent{
+		InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID, Status: row.Status,
+		Substatus: row.Substatus, Note: row.Note, CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt,
+		IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
+		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
+	}
+	participant.ID, participant.CreatedAt, participant.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
+	participant.SetTenantID(row.TenantID)
+	return participant
 }
