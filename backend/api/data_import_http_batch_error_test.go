@@ -1,4 +1,4 @@
-package compose_test
+package api
 
 import (
 	"context"
@@ -8,11 +8,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +21,7 @@ func TestBatchFailureResponseRetainsCommittedProgressAndRowErrors(t *testing.T) 
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	_, module := setupImportModule(t, db)
-	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, module.PeopleDirectory, module.Membership, nil)})
+	resource := importAPI.NewResource(importAPI.Dependencies{Students: module.Import, Staff: module.StaffImport, ClassList: module.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(module.PeopleDirectory, module.Membership, nil)})
 	_, account := testpkg.CreateTestTeacherWithAccount(t, db, "Batch", "Admin")
 	_, err := db.ExecContext(context.Background(), `ALTER TABLE users.class_list_entries ADD CONSTRAINT refuse_batch CHECK (first_name <> 'Refused')`)
 	require.NoError(t, err)

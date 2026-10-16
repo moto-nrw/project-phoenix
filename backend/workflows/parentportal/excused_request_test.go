@@ -11,7 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -35,11 +35,11 @@ type excusedApprovalSettings struct {
 
 func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64, key string) (bool, error) {
 	switch key {
-	case configModels.KeyParentSickNoteEnabled, configModels.KeyParentSickReportsEnabled, configModels.KeyParentExcusedReportsEnabled:
+	case parentService.KeyParentSickNoteEnabled, parentService.KeyParentSickReportsEnabled, parentService.KeyParentExcusedReportsEnabled:
 		return true, nil
-	case configModels.KeyParentSickRequiresApproval:
+	case parentService.KeyParentSickRequiresApproval:
 		return s.sickRequiresApproval, nil
-	case configModels.KeyParentExcusedRequiresApproval:
+	case parentService.KeyParentExcusedRequiresApproval:
 		return s.requiresApproval || s.excusedRequiresApproval, nil
 	default:
 		return false, nil
@@ -47,8 +47,8 @@ func (s excusedApprovalSettings) ResolveBoolForTenant(_ context.Context, _ int64
 }
 
 func (s excusedApprovalSettings) ResolveStringForTenant(_ context.Context, _ int64, key string) (string, error) {
-	if key == configModels.KeyGuardianParentInviteMode {
-		return configModels.ParentInviteModeDisabled, nil
+	if key == parentService.KeyGuardianParentInviteMode {
+		return parentService.ParentInviteModeDisabled, nil
 	}
 	return "", nil
 }

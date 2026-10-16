@@ -5,8 +5,6 @@ import (
 	"strconv"
 
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // parentSettingsStub answers ResolveBoolForTenant / ResolveStringForTenant
@@ -30,7 +28,7 @@ func (s parentSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, key
 	if v, ok := s.boolValues[key]; ok {
 		return v, nil
 	}
-	if key == configModels.KeyParentSickReportsEnabled || key == configModels.KeyParentExcusedReportsEnabled {
+	if key == parentService.KeyParentSickReportsEnabled || key == parentService.KeyParentExcusedReportsEnabled {
 		return true, nil
 	}
 	return s.boolDefault, nil

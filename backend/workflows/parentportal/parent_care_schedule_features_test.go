@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -45,14 +45,14 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		PersonRepo:          repos.Person,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled:           true,
-				configModels.KeyParentNotesEnabled:              true,
-				configModels.KeyParentCareArrivalRequestEnabled: true,
-				configModels.KeyParentCarePickupRequestEnabled:  true,
-				configModels.KeyParentCareModeRequestEnabled:    true,
+				parentService.KeyParentSickNoteEnabled:           true,
+				parentService.KeyParentNotesEnabled:              true,
+				parentService.KeyParentCareArrivalRequestEnabled: true,
+				parentService.KeyParentCarePickupRequestEnabled:  true,
+				parentService.KeyParentCareModeRequestEnabled:    true,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		MealPlan:               availableMealPlan(false),

@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -19,9 +18,9 @@ import (
 
 func weeklyPlanSettings(bookingsAuthoritative bool) map[string]bool {
 	return map[string]bool{
-		configModels.KeyEnrollmentBookingsAuthoritative: bookingsAuthoritative,
-		configModels.KeyParentCarePickupRequestEnabled:  true,
-		configModels.KeyParentCareModeRequestEnabled:    true,
+		care.KeyEnrollmentBookingsAuthoritative: bookingsAuthoritative,
+		care.KeyParentCarePickupRequestEnabled:  true,
+		care.KeyParentCareModeRequestEnabled:    true,
 	}
 }
 

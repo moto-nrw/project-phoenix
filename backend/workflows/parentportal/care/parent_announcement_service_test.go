@@ -13,12 +13,14 @@ import (
 	"testing"
 	"time"
 
+	care "github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -43,7 +45,7 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*me
 		AnnouncementRepo:      repos.ParentAnnouncement,
 		StudentRepo:           repos.Student,
 		Settings: messagingSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentNewsEnabled: newsEnabled},
+			boolValues: map[string]bool{care.KeyParentNewsEnabled: newsEnabled},
 		},
 		Logger: slog.Default(),
 	})

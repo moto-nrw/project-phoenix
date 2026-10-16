@@ -17,7 +17,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -51,11 +51,11 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.Staf
 		GuardianProfileRepo: repos.GuardianProfile,
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled: true,
-				configModels.KeyParentNotesEnabled:    enabled,
+				care.KeyParentSickNoteEnabled: true,
+				care.KeyParentNotesEnabled:    enabled,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				care.KeyGuardianParentInviteMode: care.ParentInviteModeDisabled,
 			},
 		},
 		MessageThreadRepo:     repos.ParentMessageThread,
