@@ -9,9 +9,9 @@ import (
 
 // Router returns a configured router for SSE endpoints
 
-// eventsHandler handles Server-Sent Events connections
+// StaffEvents handles Server-Sent Events connections
 // Orchestrates: connection setup → subscription resolution → event streaming
-func (rs *Resource[E, C]) eventsHandler(w http.ResponseWriter, r *http.Request) {
+func (rs *Resource[E, C]) StaffEvents(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel, ok := rs.runtime.TokenDeadline(r.Context())
 	if !ok {
 		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")

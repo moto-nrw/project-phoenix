@@ -357,7 +357,7 @@ func TestResource_EventsHandler(t *testing.T) {
 	hub := realtime.NewHub(slog.Default())
 	resource := NewResource(hub, nil, testSSETransportRuntime(), slog.Default())
 
-	handler := resource.eventsHandler
+	handler := resource.StaffEvents
 	assert.NotNil(t, handler)
 }
 

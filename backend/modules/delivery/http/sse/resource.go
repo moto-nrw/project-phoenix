@@ -3,7 +3,6 @@ package sse
 import (
 	"context"
 	"log/slog"
-	"net/http"
 )
 
 // SubscriptionResolver resolves the caller's live-update topics through the
@@ -60,12 +59,3 @@ func NewResource[E Event, C Client[E]](
 		logger:  logger,
 	}
 }
-
-// StaffEvents returns the staff stream handler for Root's authenticated mount.
-func (rs *Resource[E, C]) StaffEvents() http.HandlerFunc { return rs.eventsHandler }
-
-// ParentEvents returns the guardian stream handler for Root's portal mount.
-func (rs *Resource[E, C]) ParentEvents() http.HandlerFunc { return rs.parentEventsHandler }
-
-// SchoolEvents returns the school stream handler for Root's portal mount.
-func (rs *Resource[E, C]) SchoolEvents() http.HandlerFunc { return rs.schoolEventsHandler }

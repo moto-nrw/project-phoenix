@@ -119,7 +119,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/delivery/application/notifications/service.go:(*router).NotifySynchronously":                                                       62,
 	"modules/delivery/application/notifications/service.go:validate":                                                                            69,
 	"modules/delivery/application/notifications/types.go:init":                                                                                  151,
-	"modules/delivery/http/sse/school_api.go:(*Resource).schoolEventsHandler":                                                                   66,
 	"modules/devicescan/internal/application/systemspace.go:(*Service).systemActivity":                                                          68,
 	"modules/enrollment/form_schema.go:(*FormField).validateQuestion":                                                                           83,
 	"modules/enrollment/form_schema.go:(*FormLegalBlock).Validate":                                                                              67,

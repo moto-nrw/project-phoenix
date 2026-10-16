@@ -271,7 +271,8 @@ Regelzahl 877 → 875, Inbound-Owner 10 → 9, Keys 204 → 203, #4078 6 → 5.
 Keine neue Reichweite, kein Selektor, kein Root-Service-Graph-Feld. Composition
 bleibt 1.657. Der bereits gemergte typisierte Transaktionsport aus #4184 bleibt über die
 Root-Bindung erhalten; die vorhandene
-Längengrenze des School-Stream-Handlers sinkt von 71 auf 66. Der Einzel-Key
+Längen-Ausnahme des School-Stream-Handlers entfällt: Der unveränderte
+Registrierungsschritt ist benannt und der öffentliche Handler liegt unter 60 Zeilen. Der Einzel-Key
 ist in `delivery-sse-http-owner-4078.json` belegt. Routen, Responses und Goldens
 bleiben unverändert; Communication bleibt der letzte `inbound-*`-Schnitt.
 

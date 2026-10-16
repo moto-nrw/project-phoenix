@@ -1,4 +1,4 @@
-// These tests exercise eventsHandler directly (in-package) because they
+// These tests exercise StaffEvents directly (in-package) because they
 // deliberately bypass the JWT middleware chain: they inject claims via the
 // request context and drive the streaming loop with a context timeout. That
 // direct-handler invocation cannot run through the production Router(), so
@@ -85,7 +85,7 @@ func TestSSEEvents_InvalidStaffClaims(t *testing.T) {
 
 	// Mount handler directly to bypass JWT middleware
 	router := chi.NewRouter()
-	router.Get("/events", ctx.resource.eventsHandler)
+	router.Get("/events", ctx.resource.StaffEvents)
 
 	// Use teacher claims but with an account ID that doesn't have a staff record
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil,
@@ -115,7 +115,7 @@ func TestSSEEvents_StaffWithAccount(t *testing.T) {
 
 	// Mount handler directly to bypass JWT middleware
 	router := chi.NewRouter()
-	router.Get("/events", ctx.resource.eventsHandler)
+	router.Get("/events", ctx.resource.StaffEvents)
 
 	// Use teacher claims with a valid account ID that HAS a staff record
 	// Note: This test will actually enter the SSE streaming loop
@@ -139,7 +139,7 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 	_, account := testpkg.CreateTestPersonWithAccount(t, tctx.db, "Admin", "NoStaff")
 
 	router := chi.NewRouter()
-	router.Get("/events", tctx.resource.eventsHandler)
+	router.Get("/events", tctx.resource.StaffEvents)
 
 	// Admin without staff record should reach the streaming path (not 403).
 	// Use a context timeout so the event loop exits cleanly.
@@ -166,7 +166,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	tctx := setupEventsModule(t)
 
 	router := chi.NewRouter()
-	router.Get("/events", tctx.resource.eventsHandler)
+	router.Get("/events", tctx.resource.StaffEvents)
 
 	// Default claims have IsAdmin=true, so after the admin SSE fix they reach
 	// the streaming path. Use a context timeout so the event loop exits cleanly.
@@ -201,7 +201,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 
 	// Mount handler directly
 	router := chi.NewRouter()
-	router.Get("/events", tctx.resource.eventsHandler)
+	router.Get("/events", tctx.resource.StaffEvents)
 
 	// Create request with timeout context FIRST, then add claims on top
 	// This ensures the claims are in the context that will timeout
@@ -234,7 +234,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	_, account := testpkg.CreateTestTeacherWithAccount(t, tctx.db, "Header", "Test")
 
 	router := chi.NewRouter()
-	router.Get("/events", tctx.resource.eventsHandler)
+	router.Get("/events", tctx.resource.StaffEvents)
 
 	// Use context with timeout, then add claims
 	baseCtx, cancel := context.WithTimeout(testpkg.Ctx(t), 50*time.Millisecond)
