@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,13 +6,10 @@ import (
 	"fmt"
 	"log/slog"
 	"runtime/debug"
-	"strconv"
 	"time"
 
-	"github.com/getsentry/sentry-go"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -36,30 +33,35 @@ type AttendanceMirrorDependencies struct {
 	Instances    scheduleModel.ActivityInstanceRepository
 	Participants scheduleModel.InstanceStudentRepository
 	Logger       *slog.Logger
+	// ReportPanic reports a recovered panic to error tracking; the
+	// composition binds Sentry.
+	ReportPanic func(ctx context.Context, recovered any)
 }
 
 type attendanceMirror struct {
 	instanceRepo        scheduleModel.ActivityInstanceRepository
 	instanceStudentRepo scheduleModel.InstanceStudentRepository
 	logger              *slog.Logger
+	reportPanic         func(ctx context.Context, recovered any)
 }
 
 var _ timetable.AttendanceMirror = (*attendanceMirror)(nil)
 
 // NewAttendanceMirror composes the Timetable owner's attendance mirror.
 func NewAttendanceMirror(deps AttendanceMirrorDependencies) (timetable.AttendanceMirror, error) {
-	if deps.Instances == nil || deps.Participants == nil {
-		return nil, errors.New("timetable attendance mirror: required repository is nil")
+	if deps.Instances == nil || deps.Participants == nil || deps.ReportPanic == nil {
+		return nil, errors.New("timetable attendance mirror: required dependency is nil")
 	}
 	return &attendanceMirror{
 		instanceRepo:        deps.Instances,
 		instanceStudentRepo: deps.Participants,
 		logger:              deps.Logger,
+		reportPanic:         deps.ReportPanic,
 	}, nil
 }
 
 func (s *attendanceMirror) getLogger() *slog.Logger {
-	return application.OrDefaultLogger(s.logger)
+	return OrDefaultLogger(s.logger)
 }
 
 // recoverMirrorPanic returns unexpected failures to the transaction owner and
@@ -73,36 +75,9 @@ func (s *attendanceMirror) recoverMirrorPanic(ctx context.Context, logMessage, e
 			slog.Any("panic", r),
 			slog.String("stack", string(debug.Stack())),
 		)
-		reportMirrorPanic(ctx, r)
+		s.reportPanic(ctx, r)
 		*err = fmt.Errorf("%s: %v", errPrefix, r)
 	}
-}
-
-// reportMirrorPanic sends the panic to Sentry on the hub of the request or
-// job that ran the mirror, tagged with the school whose transaction it ran
-// in. The event is flushed, since a panic may precede the end of the process.
-func reportMirrorPanic(ctx context.Context, recovered any) {
-	hub := sentry.GetHubFromContext(ctx)
-	if hub == nil {
-		hub = sentry.CurrentHub()
-	}
-	hub.WithScope(func(scope *sentry.Scope) {
-		if schoolID := mirrorSchoolID(ctx); schoolID > 0 {
-			scope.SetTag("school_id", strconv.FormatInt(schoolID, 10))
-		}
-		hub.RecoverWithContext(ctx, recovered)
-	})
-	hub.Flush(2 * time.Second)
-}
-
-// mirrorSchoolID is the school whose tenant transaction the mirror ran in,
-// or 0 outside one.
-func mirrorSchoolID(ctx context.Context) int64 {
-	tenantID, err := tenant.TenantFromContext(ctx)
-	if err != nil {
-		return 0
-	}
-	return tenantID.Int64()
 }
 
 // MirrorCheckInForVisit mirrors a visit check-in onto its slot.

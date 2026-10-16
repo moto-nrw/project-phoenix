@@ -14,7 +14,7 @@
 //
 // This file closes the coverage gap by stubbing both repositories with
 // hand-rolled fakes that return the shapes each branch expects.
-package compose
+package application
 
 import (
 	"bytes"
@@ -341,7 +341,7 @@ func newSilentLogger() (*slog.Logger, *bytes.Buffer) {
 // newUnitSyncer builds the Timetable owner's attendance mirror over the fakes.
 func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) timetable.AttendanceMirror {
 	logger, _ := newSilentLogger()
-	syncer, err := NewAttendanceMirror(AttendanceMirrorDependencies{Instances: instRepo, Participants: isRepo, Logger: logger})
+	syncer, err := NewAttendanceMirror(AttendanceMirrorDependencies{Instances: instRepo, Participants: isRepo, Logger: logger, ReportPanic: ignoreMirrorPanic})
 	if err != nil {
 		panic(err)
 	}
@@ -1067,6 +1067,7 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 	svc, err := NewAttendanceMirror(AttendanceMirrorDependencies{
 		Instances:    &fakeInstanceRepo{instance: nil},
 		Participants: &fakeInstanceStudentRepo{},
+		ReportPanic:  ignoreMirrorPanic,
 	})
 	require.NoError(t, err)
 	require.NotPanics(t, func() {
@@ -1405,3 +1406,6 @@ func TestMirrorCheckOutForVisits_HandlesFailures(t *testing.T) {
 	})
 
 }
+
+// ignoreMirrorPanic stands in for the Sentry report the composition binds.
+func ignoreMirrorPanic(context.Context, any) {}

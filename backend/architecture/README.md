@@ -3906,6 +3906,10 @@ capability-only adapters; the composition adds the instance and participant
 adapters, which also run on the database and Student Presence. The four
 `legacy_*.go` files that move keep their names and budgets under their new
 paths.
+The same change moves the capability engine (the mapping of the public
+vocabulary onto the domain, `application.Engine`) and the attendance mirror;
+the mirror reports a recovered panic through a port the composition binds to
+Sentry (`compose/attendance_mirror_report.go`).
 
 ### Enrollment wiring out of services (#4012)
 

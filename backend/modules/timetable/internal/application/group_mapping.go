@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"

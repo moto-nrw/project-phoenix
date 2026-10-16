@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -23,30 +23,30 @@ func careExitRowsToDomain(values []timetable.CareExitRosterRow) []domain.CareExi
 	return result
 }
 
-func (e engine) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) error {
-	return mapError(e.service.LockPlannedRosterForCareExit(ctx, studentIDs, after))
+func (e Engine) LockPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) error {
+	return MapError(e.service.LockPlannedRosterForCareExit(ctx, studentIDs, after))
 }
 
-func (e engine) PreviewPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]timetable.CareExitRosterRow, error) {
+func (e Engine) PreviewPlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]timetable.CareExitRosterRow, error) {
 	values, err := e.service.PreviewPlannedRosterForCareExit(ctx, studentIDs, after)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	return careExitRowsToPublic(values), nil
 }
 
-func (e engine) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]timetable.CareExitRosterRow, error) {
+func (e Engine) RemovePlannedRosterForCareExit(ctx context.Context, studentIDs []int64, after string) ([]timetable.CareExitRosterRow, error) {
 	values, err := e.service.RemovePlannedRosterForCareExit(ctx, studentIDs, after)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	return careExitRowsToPublic(values), nil
 }
 
-func (e engine) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []timetable.CareExitRosterRow) ([]timetable.CareExitRosterRow, error) {
+func (e Engine) RestoreRosterForCareExit(ctx context.Context, studentIDs []int64, rows []timetable.CareExitRosterRow) ([]timetable.CareExitRosterRow, error) {
 	values, err := e.service.RestoreRosterForCareExit(ctx, studentIDs, careExitRowsToDomain(rows))
 	if err != nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	return careExitRowsToPublic(values), nil
 }
