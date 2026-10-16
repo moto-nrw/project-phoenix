@@ -40,8 +40,8 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*me
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := messaging.New(messaging.Config{
 		Children:              childResolver(db, repos),
-		ChildRepo:             repos.ParentChild,
-		EnrollmentRequestRepo: repos.ParentEnrollmentRequest,
+		ChildRepo:             repos.ParentChildReads(),
+		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
 		AnnouncementRepo:      repos.ParentAnnouncement,
 		StudentRepo:           repos.Student,
 		Settings: messagingSettingsStub{

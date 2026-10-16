@@ -15,6 +15,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
@@ -30,6 +31,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The roots below build owners from the database for the CLI roots, the
@@ -217,44 +219,44 @@ func (r ParentPortalRepositories) WithSchools(schools organizationtenancy.Query)
 // ParentPortalDirectory serves the guardian portal's People Directory port.
 type ParentPortalDirectory struct{ People peopledirectory.Capability }
 
-func (d ParentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalStudent, error) {
+func (d ParentPortalDirectory) ListParentPortalStudents(ctx context.Context, ids []int64) ([]careplan.ParentPortalStudent, error) {
 	students, err := d.People.ListStudentsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalStudent, 0, len(students))
+	result := make([]careplan.ParentPortalStudent, 0, len(students))
 	for _, student := range students {
-		result = append(result, carePlanCompose.ParentPortalStudent{
+		result = append(result, careplan.ParentPortalStudent{
 			ID: student.ID, TenantID: student.TenantID, PersonID: student.PersonID,
 			SchoolClass: student.SchoolClass, Status: student.Status,
-			EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
+			EnrolledFrom: calendar.Date(student.EnrolledFrom), EnrolledUntil: calendar.Date(student.EnrolledUntil),
 		})
 	}
 	return result, nil
 }
 
-func (d ParentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]carePlanCompose.ParentPortalGuardianLink, error) {
+func (d ParentPortalDirectory) ListParentPortalGuardianLinks(ctx context.Context, accountID int64) ([]careplan.ParentPortalGuardianLink, error) {
 	links, err := d.People.ListGuardianLinksByAccount(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalGuardianLink, 0, len(links))
+	result := make([]careplan.ParentPortalGuardianLink, 0, len(links))
 	for _, link := range links {
-		result = append(result, carePlanCompose.ParentPortalGuardianLink{
+		result = append(result, careplan.ParentPortalGuardianLink{
 			TenantID: link.TenantID, StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID, Permissions: link.Permissions,
 		})
 	}
 	return result, nil
 }
 
-func (d ParentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]carePlanCompose.ParentPortalPerson, error) {
+func (d ParentPortalDirectory) ListParentPortalPersons(ctx context.Context, ids []int64) ([]careplan.ParentPortalPerson, error) {
 	persons, err := d.People.ListPersonsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.ParentPortalPerson, 0, len(persons))
+	result := make([]careplan.ParentPortalPerson, 0, len(persons))
 	for _, person := range persons {
-		result = append(result, carePlanCompose.ParentPortalPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName})
+		result = append(result, careplan.ParentPortalPerson{ID: person.ID, FirstName: person.FirstName, LastName: person.LastName})
 	}
 	return result, nil
 }
