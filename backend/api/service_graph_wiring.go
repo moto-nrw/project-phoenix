@@ -7,8 +7,6 @@ import (
 	"reflect"
 	"time"
 
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
-
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
@@ -735,7 +733,7 @@ type PresenceWiring struct {
 	RoomService facilitiesCompose.RoomService
 	OpenGroups  facilitiesCompose.OpenGroupCatalog
 	// The running sessions and released rooms of the supervision dashboard.
-	OpenRoomSessions supervisiondashboardCompose.OpenRoomSessions
+	OpenRoomSessions SupervisionOpenRoomSessions
 	OpenRooms        supervisiondashboard.RoomDirectory
 	// StatusDays are the scheduled day statuses over Care Plan.
 	StatusDays studentpresence.StatusDays

@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 1798
+const moduleLegacyBudgetTotal = 1226
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -162,7 +162,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 59569
+const moduleComposeBudgetTotal = 59561
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -223,7 +223,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
-	"modules/supervisiondashboard/compose":            19,
+	"modules/supervisiondashboard/compose":            11,
 	"modules/timetable/compose":                       6198,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
@@ -261,7 +261,7 @@ var moduleLegacyBudgets = map[string]int{
 	"modules/grouplive/legacy": 11,
 	// No ticket today. #4077 moved the access, settings and yard adapters
 	// into the root.
-	"modules/supervisiondashboard/legacy": 583,
+	"modules/supervisiondashboard/legacy": 11,
 	// No ticket today — and the largest tree of the twelve.
 	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556
 	// moved the group substitution relations to the legacy root's binding,
