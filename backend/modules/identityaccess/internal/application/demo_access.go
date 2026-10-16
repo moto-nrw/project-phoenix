@@ -347,7 +347,7 @@ func (d *DemoAccess) valid(ctx context.Context, token string) (domain.DemoAccess
 	return access, nil
 }
 
-// lockAndReload makes an access's school stable for a mutating flow. The
+// validAndLock makes an access's school stable for a mutating flow. The
 // initial read finds the key; the second read makes an expiry that won the
 // race report the real token state instead of operating on stale school data.
 func (d *DemoAccess) validAndLock(ctx context.Context, token string) (domain.DemoAccess, error) {
