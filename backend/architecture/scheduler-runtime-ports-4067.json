@@ -24,7 +24,7 @@
   "tests": [
     "services/scheduler: the Worker suites pass against the moved types, including the lease, retention (newRetentionRun) and NewWorker construction tests.",
     "modules/schedulerruntime/compose: the lease store suite against ports.LeaseTerm; api: the retention suites drive the owners' steps and the deletion log through workerRetention.runSteps.",
-    "test: TestModuleLegacyBudgetRatchet with the compose budget lowered to 83 and the total to 89901; TestCompositionInventory with the root's Worker constructor now behind the composition.",
+    "test: TestModuleLegacyBudgetRatchet with the compose budget lowered to 83 and the total to 89899; TestCompositionInventory with the root's Worker constructor now behind the composition.",
     "scripts/backend-architecture.sh check: green with 328 legacy violations (329 before), composition surface 1721 -> 1721; golangci-lint on the affected packages; scripts/check-backend-quality.sh quality; scripts/test-changed.sh origin/development; scripts/backend-architecture.sh validate-ticket --all."
   ],
   "runtime_evidence": {
