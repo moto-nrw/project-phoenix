@@ -8,11 +8,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The root binds the projections' ports, but its tests may not import a
-// projection's public package or a retained application package: root tests
-// reach a projection through its compose and http roles only. These helpers
-// build such values from the types of the adapters' own signatures, so a
-// test still compares the whole value instead of picking fields.
+// The root binds the owners' ports, but its tests may not import an owner's
+// contract or a retained application package the production root reads.
+// These helpers build such values from the types of the adapters' own
+// signatures, so a test still compares the whole value instead of picking
+// fields.
 
 // decodeAs decodes raw JSON into a value of the type of its second argument;
 // the keys are the type's JSON names, its Go field names where it has no
