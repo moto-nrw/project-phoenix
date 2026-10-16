@@ -26,12 +26,12 @@ type OwnerRows struct {
 	Templates         activitiesModels.GroupRepository
 	Categories        activitiesModels.CategoryRepository
 	Students          RosterStudents
-	EducationGroups   EducationGroupNames
+	EducationGroups   application.EducationGroupNames
 	Rooms             OwnerRooms
 	PickupExceptions  scheduleModels.StudentPickupExceptionRepository
 	ArrivalExceptions scheduleModels.StudentArrivalExceptionRepository
 	// DeviationEvents reads and Deviations appends the Änderungsprotokoll.
-	DeviationEvents DeviationEventReader
+	DeviationEvents application.DeviationEventReader
 	Deviations      application.DeviationProtocol
 	// Locks serializes attendance writes with a completion; optional.
 	Locks scheduleModels.ActivityRecoveryRepository
@@ -40,14 +40,14 @@ type OwnerRows struct {
 // OwnerRooms names and locks the Facilities rooms for the operational day
 // and the instance lifecycle.
 type OwnerRooms interface {
-	RoomNames
+	application.RoomNames
 	application.LifecycleRooms
 }
 
 // OperationTemplates is the template read of the operational day, which the
 // retained activity group repository serves beside its model interface.
-func (r OwnerRows) OperationTemplates() (OperationTemplates, error) {
-	templates, ok := r.Templates.(OperationTemplates)
+func (r OwnerRows) OperationTemplates() (application.OperationTemplates, error) {
+	templates, ok := r.Templates.(application.OperationTemplates)
 	if !ok {
 		return nil, fmt.Errorf("timetable operations: %T cannot read template targets", r.Templates)
 	}
@@ -55,8 +55,8 @@ func (r OwnerRows) OperationTemplates() (OperationTemplates, error) {
 }
 
 // DataTemplates is the Vorlagen read of the planner.
-func (r OwnerRows) DataTemplates() (DataTemplates, error) {
-	templates, ok := r.Templates.(DataTemplates)
+func (r OwnerRows) DataTemplates() (application.DataTemplates, error) {
+	templates, ok := r.Templates.(application.DataTemplates)
 	if !ok {
 		return nil, fmt.Errorf("timetable data: %T cannot read the template list", r.Templates)
 	}
@@ -74,7 +74,7 @@ func (r OwnerRows) EndedSessionInstances() (EndedSessionInstances, error) {
 }
 
 // AttendanceLocks is the optional completion lock; nil without Locks.
-func (r OwnerRows) AttendanceLocks() AttendanceLocks {
+func (r OwnerRows) AttendanceLocks() application.AttendanceLocks {
 	if r.Locks == nil {
 		return nil
 	}
@@ -82,17 +82,17 @@ func (r OwnerRows) AttendanceLocks() AttendanceLocks {
 }
 
 // RoomNames names the Facilities rooms.
-func (r OwnerRows) RoomNames() RoomNames { return r.Rooms }
+func (r OwnerRows) RoomNames() application.RoomNames { return r.Rooms }
 
 // LifecycleRooms serves the instance lifecycle's Facilities rooms: the
 // reference check, the start's room lock and the auto-start's room names.
 func (r OwnerRows) LifecycleRooms() application.LifecycleRooms { return r.Rooms }
 
 // EducationGroupNames names School Structure's education groups.
-func (r OwnerRows) EducationGroupNames() EducationGroupNames { return r.EducationGroups }
+func (r OwnerRows) EducationGroupNames() application.EducationGroupNames { return r.EducationGroups }
 
 // DeviationEventReader reads the Audit Platform's Änderungsprotokoll.
-func (r OwnerRows) DeviationEventReader() DeviationEventReader { return r.DeviationEvents }
+func (r OwnerRows) DeviationEventReader() application.DeviationEventReader { return r.DeviationEvents }
 
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
 // with the day-wide staffing lock (#1840) the caller supplies.

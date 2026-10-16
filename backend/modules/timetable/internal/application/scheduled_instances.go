@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"

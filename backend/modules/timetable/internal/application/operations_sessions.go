@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -56,7 +55,7 @@ func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin
 	if err != nil {
 		return nil, err
 	}
-	staffByInstance := application.IndexInstanceStaffRows(staffRows)
+	staffByInstance := IndexInstanceStaffRows(staffRows)
 	// An account requireCanOperate cannot resolve at all operates no block,
 	// admins included; it has no staff profile either.
 	staffID, hasStaff, err := s.resolveStaffID(ctx, accountID)

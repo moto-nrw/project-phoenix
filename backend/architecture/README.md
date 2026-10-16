@@ -3892,6 +3892,12 @@ transaction and advisory locks) and the staff deviations a
 unique-violation wrappers have no caller left, so they and
 `timetable-activities.postgres.transaction-runtime` are deleted.
 
+The operational day, the timetable data reads, the attendance corrections
+and history (3,913 LOC) follow, again without a rule. The session token and
+the shared authorization rules stay in the composition behind the
+application's `OperationCaller` port (`compose/operation_caller.go`), so the
+moved code imports neither `auth/authorize` nor the session token adapter.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
