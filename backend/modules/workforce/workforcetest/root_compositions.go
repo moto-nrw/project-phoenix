@@ -51,13 +51,6 @@ type StaffRow struct {
 	WorkTimeModelID *int64
 }
 
-// ShiftTypes is the shift-type administration with the read of the shift
-// type a Kategorie is linked to.
-type ShiftTypes struct {
-	Administration    workforce.ShiftTypeAdministration
-	CategoryShiftType func(ctx context.Context, categoryID int64) (*int64, error)
-}
-
 // The compositions an external test file binds for the internal suites of
 // its directory.
 var (
@@ -69,7 +62,4 @@ var (
 	ComposeCapability func(t *testing.T, db *bun.DB, now func() time.Time) workforce.Capability
 	// ComposeRows composes the retained rows over db.
 	ComposeRows func(t *testing.T, db *bun.DB) Rows
-	// ComposeShiftTypes composes the shift-type administration over a fresh
-	// test database.
-	ComposeShiftTypes func(t *testing.T) (*bun.DB, ShiftTypes)
 )
