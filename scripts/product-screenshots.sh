@@ -7,7 +7,7 @@
 #   scripts/product-screenshots.sh --out DIR --version NAME [<shot-id>...]
 #
 # Voraussetzung: der Stack läuft (scripts/dev-native.sh up) und ist mit dem
-# Profil `marketing` geseedet (scripts/dev-native.sh backend go run . seed ...).
+# Profil `marketing` geseedet (scripts/dev-native.sh backend go run ./cmd/devtools seed ...).
 # Die Shot-Liste steht in frontend/scripts/product-screenshots/shots.yaml.
 #
 # Das Ausgabeverzeichnis (Standard: tmp/product-screenshots) wird bei jedem Lauf

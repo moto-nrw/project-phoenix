@@ -169,7 +169,7 @@ func demoDependencies(wiring *DemoAccessWiring, standingSchool string, schools o
 	}, nil
 }
 
-// StandingDemoSchoolSlug is the shared demo school `go run . demo` provisions.
+// StandingDemoSchoolSlug is the shared demo school `go run ./cmd/devtools demo` provisions.
 // Every demo access enters it while the fallback is selected; accesses issued
 // before #3463 carry it as well.
 const StandingDemoSchoolSlug = "messe-demo"

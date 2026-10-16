@@ -1,12 +1,10 @@
-package cmd
+package main
 
 import (
 	"context"
 	"fmt"
 	"io"
 	"os"
-
-	"github.com/moto-nrw/project-phoenix/api"
 
 	seedapi "github.com/moto-nrw/project-phoenix/seed/api"
 	"github.com/spf13/cobra"
@@ -52,7 +50,7 @@ func (root seedRoot) validate() error {
 
 var defaultSeedRoot = seedRoot{newAdapter: func(baseURL string, verbose bool) seedapi.Adapter {
 	return newSeedCommandAdapter(baseURL, verbose)
-}, random: api.SecureRandomSource(), seed: runSeed}
+}, random: secureRandomSource(), seed: runSeed}
 
 // seedCmd represents the seed command
 var seedCmd = &cobra.Command{
@@ -103,8 +101,8 @@ further schools, --school-name for the name, and --state for its own state file.
   --state ogs-nord.json        Write the seed state to this file
 
 Usage:
-  docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
-  docker compose run server go run . seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
+  docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080
+  docker compose run server go run ./cmd/devtools seed --email op@example.com --password 'Test1234%' --pin 1234 --url http://server:8080 --tenant-slug vollbetrieb --staff-password 'Test1234%' --admin-email vollbetrieb-admin@example.test`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		email, _ := cmd.Flags().GetString("email")
 		password, _ := cmd.Flags().GetString("password")

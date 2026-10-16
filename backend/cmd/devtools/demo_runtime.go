@@ -1,15 +1,11 @@
-package api
+package main
 
 import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -26,14 +22,45 @@ type DemoVisit struct {
 	ChangedAt   time.Time
 }
 
+// demoSchoolStore is the part of the owner's demo-state capability whose
+// signatures carry no owner type.
+type demoSchoolStore interface {
+	ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error
+	WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error
+}
+
+// demoSchoolQueue is the part of the owner's queue whose signatures carry no
+// owner type.
+type demoSchoolQueue interface {
+	ReleaseDemoSchoolOrders(context.Context) error
+	RequeueDeferredDemoSchoolOrders(context.Context) error
+	RequeueDeferredDemoSchoolOrder(context.Context, string) error
+	FinishDemoSchoolOrder(ctx context.Context, slug string, visitorAccountID, visitorParentAccountID int64) error
+	FailDemoSchoolOrder(ctx context.Context, slug string, maxAttempts int) (bool, error)
+	ReturnDemoSchoolOrder(ctx context.Context, slug string) error
+	ReadyDemoSchools(context.Context) ([]string, error)
+	ActiveDemoSchools(ctx context.Context, since time.Time) ([]string, error)
+	RetireDemoSchools(ctx context.Context, slugs []string) (int, error)
+}
+
+type demoAccessExpiry interface {
+	ExpireDemoAccesses(ctx context.Context) (int, []string, error)
+}
+
 // DemoRuntime composes only the owner capabilities needed by the sidecar.
 // It deliberately does not construct the retained API/service factory graph.
+// The calls whose signatures carry owner types are bound as functions in
+// NewDemoRuntime, so the dev tools import no owner's public package.
 type DemoRuntime struct {
-	schools      *organizationtenancy.DemoSchools
-	queue        *organizationtenancy.DemoSchoolQueue
-	expiry       *identityaccess.DemoAccessExpiry
-	presence     *studentpresence.Module
+	schools      demoSchoolStore
+	queue        demoSchoolQueue
+	expiry       demoAccessExpiry
 	transactions tenant.UnitOfWork
+
+	loadSchool   func(context.Context, string) (*DemoSchoolRecord, error)
+	storeSchool  func(ctx context.Context, name string, state DemoSchoolRecord, update bool) error
+	claimOrder   func(context.Context) (*DemoSchoolOrder, error)
+	latestVisits func(ctx context.Context, webDeviceID int64, fromDate, untilDate string) ([]DemoVisit, error)
 }
 
 // NewDemoRuntime composes the sidecar on its privileged connection, the
@@ -56,7 +83,43 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time) (*Demo
 	if err != nil {
 		return nil, err
 	}
-	return &DemoRuntime{schools: schools, queue: queue, expiry: expiry, presence: presence, transactions: db.UnitOfWork()}, nil
+	return &DemoRuntime{
+		schools: schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
+		loadSchool: func(ctx context.Context, name string) (*DemoSchoolRecord, error) {
+			state, err := schools.LoadDemoSchool(ctx, name)
+			if state == nil || err != nil {
+				return nil, err
+			}
+			return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
+		},
+		storeSchool: func(ctx context.Context, name string, record DemoSchoolRecord, update bool) error {
+			if update {
+				return schools.UpdateDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
+			}
+			return schools.RememberDemoSchoolFields(ctx, name, record.SchoolID, record.SeedJSON)
+		},
+		claimOrder: func(ctx context.Context) (*DemoSchoolOrder, error) {
+			order, err := queue.ClaimDemoSchoolOrder(ctx)
+			if order == nil || err != nil {
+				return nil, err
+			}
+			return &DemoSchoolOrder{
+				Slug: order.Slug, SchoolName: order.SchoolName, FirstName: order.FirstName, LastName: order.LastName,
+				Attempts: order.Attempts, Seeded: order.Seeded,
+			}, nil
+		},
+		latestVisits: func(ctx context.Context, webDeviceID int64, fromDate, untilDate string) ([]DemoVisit, error) {
+			rows, err := presence.LatestDemoVisits(ctx, webDeviceID, fromDate, untilDate)
+			if err != nil {
+				return nil, err
+			}
+			result := make([]DemoVisit, 0, len(rows))
+			for _, row := range rows {
+				result = append(result, DemoVisit{StudentID: row.StudentID, Active: row.Active, Web: row.Web, ChangedAt: row.ChangedAt})
+			}
+			return result, nil
+		},
+	}, nil
 }
 
 // ExpireDemoAccesses deletes the demo accesses 14 days past their last use
@@ -97,14 +160,7 @@ func (d *DemoRuntime) RequeueDeferredDemoSchoolOrder(ctx context.Context, slug s
 
 // ClaimDemoSchoolOrder takes the oldest waiting order, or nil.
 func (d *DemoRuntime) ClaimDemoSchoolOrder(ctx context.Context) (*DemoSchoolOrder, error) {
-	order, err := d.queue.ClaimDemoSchoolOrder(ctx)
-	if order == nil || err != nil {
-		return nil, err
-	}
-	return &DemoSchoolOrder{
-		Slug: order.Slug, SchoolName: order.SchoolName, FirstName: order.FirstName, LastName: order.LastName,
-		Attempts: order.Attempts, Seeded: order.Seeded,
-	}, nil
+	return d.claimOrder(ctx)
 }
 
 // FinishDemoSchoolOrder opens the school for its demo access.
@@ -129,11 +185,7 @@ func (d *DemoRuntime) ActiveDemoSchools(ctx context.Context, since time.Time) ([
 }
 
 func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSchoolRecord, error) {
-	state, err := d.schools.LoadDemoSchool(ctx, name)
-	if state == nil || err != nil {
-		return nil, err
-	}
-	return &DemoSchoolRecord{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON}, nil
+	return d.loadSchool(ctx, name)
 }
 
 // ReserveDemoSchool remembers a newly bootstrapped school before its full
@@ -143,11 +195,11 @@ func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, school
 }
 
 func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
-	return d.schools.RememberDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
+	return d.storeSchool(ctx, name, state, false)
 }
 
 func (d *DemoRuntime) UpdateDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {
-	return d.schools.UpdateDemoSchool(ctx, name, organizationtenancy.DemoSchoolState{SchoolID: state.SchoolID, SeedJSON: state.SeedJSON})
+	return d.storeSchool(ctx, name, state, true)
 }
 
 func (d *DemoRuntime) WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error {
@@ -159,15 +211,7 @@ func (d *DemoRuntime) TenantRuntime() tenant.UnitOfWork { return d.transactions 
 // LatestDemoVisits translates the owner snapshot for the demo CLI.
 // The caller must provide its tenant-scoped transaction context.
 func (d *DemoRuntime) LatestDemoVisits(ctx context.Context, webDeviceID int64, fromDate, untilDate string) ([]DemoVisit, error) {
-	rows, err := d.presence.LatestDemoVisits(ctx, webDeviceID, fromDate, untilDate)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]DemoVisit, 0, len(rows))
-	for _, row := range rows {
-		result = append(result, DemoVisit{StudentID: row.StudentID, Active: row.Active, Web: row.Web, ChangedAt: row.ChangedAt})
-	}
-	return result, nil
+	return d.latestVisits(ctx, webDeviceID, fromDate, untilDate)
 }
 
 // ReturnDemoSchoolOrder hands a claimed order back without counting the attempt.

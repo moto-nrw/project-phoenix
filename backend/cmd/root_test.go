@@ -33,9 +33,11 @@ func TestRootCmd_HasCommands(t *testing.T) {
 	assert.Contains(t, names, "serve")
 	assert.Contains(t, names, "migrate")
 	assert.Contains(t, names, "cleanup")
-	assert.Contains(t, names, "seed")
 	assert.Contains(t, names, "gendoc")
-	assert.Contains(t, names, "simulate")
+	// The dev tools are a binary of their own (cmd/devtools, ADR 0060).
+	assert.NotContains(t, names, "seed")
+	assert.NotContains(t, names, "simulate")
+	assert.NotContains(t, names, "demo")
 	t.Run("composition-inventory", assertCommandComposition)
 }
 
