@@ -30,14 +30,3 @@ func GetDB(ctx context.Context, db bun.IDB) bun.IDB {
 	}
 	panic(fmt.Sprintf("base repository: unsupported transaction type %T", raw))
 }
-
-// EnsureTenantID sets the entity's tenant_id from context if the entity implements
-// TenantScoped and its tenant_id is currently zero. Call this in custom Create methods
-// that bypass the base Repository.Create().
-func EnsureTenantID(ctx context.Context, entity interface{}) {
-	if scoped, ok := entity.(modelBase.TenantScoped); ok && scoped.GetTenantID() == 0 {
-		if id := tenantIDFromContext(ctx); id != 0 {
-			scoped.SetTenantID(id)
-		}
-	}
-}

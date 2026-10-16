@@ -531,25 +531,6 @@ func AssertRowsAffectedCount(actual, expected int64, op string) error {
 	return nil
 }
 
-// TenantWhere returns a WHERE clause fragment and value for tenant filtering.
-// Use this in custom repository methods to add defense-in-depth tenant_id checks.
-func TenantWhere(ctx context.Context, alias string) (string, int64, bool) {
-	tenantID := tenantIDFromContext(ctx)
-	if tenantID > 0 {
-		return fmt.Sprintf(`"%s".tenant_id = ?`, alias), tenantID, true
-	}
-	return "", 0, false
-}
-
-// WithTenantFilter applies the TenantWhere defense-in-depth tenant_id filter
-// for alias to q, returning q unchanged when no tenant is in ctx.
-func WithTenantFilter[Q interface{ Where(string, ...any) Q }](ctx context.Context, q Q, alias string) Q {
-	if where, val, ok := TenantWhere(ctx, alias); ok {
-		return q.Where(where, val)
-	}
-	return q
-}
-
 // toSnakeCase converts a CamelCase string to snake_case
 // Example: "StudentGuardian" -> "student_guardian"
 func toSnakeCase(s string) string {
