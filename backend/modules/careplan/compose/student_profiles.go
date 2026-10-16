@@ -13,15 +13,15 @@ import (
 )
 
 type studentProfiles struct {
-	store   *postgres.Store
+	store   *postgres.DirectoryStore
 	observe func(Observation)
 }
 
-func NewStudentProfiles(db *bun.DB, observe func(Observation)) (careplan.StudentProfileCommands, error) {
-	if db == nil || observe == nil {
-		return nil, errors.New("care plan: database and observer are required")
+func NewStudentProfiles(db *bun.DB, directory StudentDirectory, observe func(Observation)) (careplan.StudentProfileCommands, error) {
+	if db == nil || directory == nil || observe == nil {
+		return nil, errors.New("care plan: database, student directory and observer are required")
 	}
-	return studentProfiles{store: postgres.New(carePlanDatabase(db)), observe: observe}, nil
+	return studentProfiles{store: postgres.NewDirectoryStore(postgres.New(carePlanDatabase(db)), directory), observe: observe}, nil
 }
 
 func (p studentProfiles) run(ctx context.Context, operation string, write func(context.Context) (domain.OperationStats, error)) error {

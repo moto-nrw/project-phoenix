@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 )
 
 func (s *Service) FindWithdrawalCompletion(ctx context.Context, id int64, lock bool) (domain.WithdrawalCompletion, error) {
@@ -18,10 +19,11 @@ func (s *Service) FindWithdrawalCompletion(ctx context.Context, id int64, lock b
 }
 
 // ListWithdrawals pages the tasks in state together with their total count.
-func (s *Service) ListWithdrawals(ctx context.Context, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, error) {
+// The list reads the student directory, so it takes its own store.
+func ListWithdrawals(ctx context.Context, s *Service, list ports.WithdrawalList, state string, filter domain.WithdrawalListFilter) ([]domain.WithdrawalCompletion, int, error) {
 	var total int
 	values, err := runValue(s, "list_withdrawals", func() ([]domain.WithdrawalCompletion, domain.OperationStats, error) {
-		values, count, stats, err := s.store.ListWithdrawals(ctx, state, filter)
+		values, count, stats, err := list.ListWithdrawals(ctx, state, filter)
 		total = count
 		return values, stats, err
 	})

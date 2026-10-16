@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -73,7 +75,8 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 		lock = func(context.Context) error { return nil }
 	}
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
-		DB: r.db.Pool(), Records: r.CarePlan,
+		StudentDirectory: studentDirectoryView.NewCareReader(),
+		DB:               r.db.Pool(), Records: r.CarePlan,
 		Owners:                NewCareLifecycleOwners(r.sources, NewCareEndRecorder(config.Audit)),
 		LockCareBookingWrites: lock,
 		BookingsAuthoritative: config.BookingsAuthoritative,

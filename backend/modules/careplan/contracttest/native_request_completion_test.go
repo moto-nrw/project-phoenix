@@ -28,7 +28,7 @@ func (d *decisionBoundary) NotifyMarkedDone(context.Context, *carerequests.Reque
 func TestNativeMarkDoneOnlyClosesPastPickupRequests(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Request", "Completion", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")

@@ -32,7 +32,7 @@ func TestOperationalDateEditRejectsAssignmentsAddedAfterDiscovery(t *testing.T) 
 			instance := createOwnedActivityInstance(t, module, ctx, fixture, past, "08:00:00", "History")
 			createOwnedInstanceStaff(t, module, ctx, instance.ID, first.ID, true, false)
 			interleaved := false
-			editor, err := New(Dependencies{DB: db,
+			editor, err := New(Dependencies{Provenance: testpkg.EnrollmentProvenance{}, DB: db,
 				Students: StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),
 				Rooms:    testRooms(), Sessions: &fixedSessions{},
 				Observe: func(Observation) {},
