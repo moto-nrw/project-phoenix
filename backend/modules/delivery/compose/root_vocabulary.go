@@ -54,14 +54,12 @@ type (
 	NotificationEvent              = notifications.Event
 	NotificationAudience           = notifications.Audience
 	NotificationAudienceScope      = notifications.AudienceScope
-	// The mail, notification, push and PWA usage services of the root's
-	// retained service graph (#2747): the school contacts and the stored
-	// mail of the outbox, the delivery observer, the staff notices and the
-	// standalone usage report.
+	// Root bindings for mail, notifications and standalone PWA usage.
 	MailSchoolContacts           = emailoutbox.SchoolContacts
 	MailEnqueued                 = emailoutbox.Enqueued
 	NotificationDeliveryObserver = notifications.DeliveryObserver
 	StaffParentMessageNotifier   = notifications.StaffParentMessageNotifier
+	StaffParentMessageReport     = notifications.StaffParentMessageReport
 	PWAUsageService              = pwa.UsageService
 )
 
