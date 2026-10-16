@@ -15,8 +15,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -25,11 +23,11 @@ import (
 type fakeTimetableCleanup struct {
 	mu           sync.Mutex
 	cleanupCalls int
-	result       *timetable.TimetableCleanupResult
+	result       *TimetableCleanupRun
 	err          error
 }
 
-func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*timetable.TimetableCleanupResult, error) {
+func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*TimetableCleanupRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.cleanupCalls++
@@ -39,15 +37,7 @@ func (f *fakeTimetableCleanup) CleanupExpiredTimetableData(_ context.Context) (*
 	if f.result != nil {
 		return f.result, nil
 	}
-	return &timetable.TimetableCleanupResult{Success: true}, nil
-}
-
-func (f *fakeTimetableCleanup) PreviewExpiredTimetableData(_ context.Context) (*timetable.TimetableCleanupPreview, error) {
-	return nil, nil
-}
-
-func (f *fakeTimetableCleanup) GetStats(_ context.Context) (*timetable.TimetableCleanupStats, error) {
-	return nil, nil
+	return &TimetableCleanupRun{}, nil
 }
 
 // -----------------------------------------------------------------------------
@@ -260,13 +250,11 @@ func TestCheckAndRunTimetableCleanup_HappyPath(t *testing.T) {
 	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{
-		result: &timetable.TimetableCleanupResult{
-			Success:           true,
+		result: &TimetableCleanupRun{
 			InstancesDeleted:  5,
 			ExceptionsDeleted: 2,
 			StudentsAffected:  3,
 			RetentionDays:     365,
-			CutoffDate:        calendar.TodayDate(),
 			DurationMS:        42,
 		},
 	}
@@ -337,8 +325,7 @@ func TestCheckAndRunTimetableCleanup_ZeroCounters_SuppressesInfoLog(t *testing.T
 	scheduleNow := berlin(14, 2, 0)
 
 	svc := &fakeTimetableCleanup{
-		result: &timetable.TimetableCleanupResult{
-			Success:           true,
+		result: &TimetableCleanupRun{
 			InstancesDeleted:  0,
 			ExceptionsDeleted: 0,
 		},
