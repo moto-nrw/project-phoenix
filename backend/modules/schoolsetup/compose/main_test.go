@@ -3,9 +3,6 @@ package compose_test
 import (
 	"testing"
 
-	// The registry definitions the wizard resolves (presence mode, group
-	// mode, care plan toggle).
-	_ "github.com/moto-nrw/project-phoenix/services/config/defaults"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
