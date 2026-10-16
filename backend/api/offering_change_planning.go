@@ -41,7 +41,7 @@ func (q PlanningQuery) ListManualPlanningOccurrences(ctx context.Context, studen
 		return nil, errors.New("valid planning date range is required")
 	}
 	db := carePlanCompose.TenantAmbientDatabase(q.DB.Pool())(ctx)
-	rows, err := presenceProjection.ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
+	rows, err := presenceProjection.Reader{}.ListManualPlanningOccurrences(ctx, db, tenant.FromContext(ctx), studentID, fromDate, toDate)
 	if err != nil {
 		return nil, err
 	}

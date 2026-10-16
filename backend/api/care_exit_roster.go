@@ -9,7 +9,6 @@ import (
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
 
 // careExitRoster serves the lifecycle's roster port over the two owners of a
@@ -17,7 +16,7 @@ import (
 // and restores the participant, Student Presence carries its attendance.
 // Removed rows travel as roster-kind ledger entries that keep both halves.
 type careExitRoster struct {
-	reads    timetableCompose.PresenceReads
+	reads    presenceProjectionReads
 	roster   timetable.Capability
 	presence careExitRosterPresence
 }
@@ -27,7 +26,7 @@ type careExitRosterPresence interface {
 	studentpresence.SessionAttendanceCommand
 }
 
-func newCareExitRoster(reads timetableCompose.PresenceReads, roster timetable.Capability, presence careExitRosterPresence) careExitRoster {
+func newCareExitRoster(reads presenceProjectionReads, roster timetable.Capability, presence careExitRosterPresence) careExitRoster {
 	if roster == nil || presence == nil {
 		panic("care exit roster: timetable and student presence are required")
 	}
@@ -153,7 +152,7 @@ func (r careExitRoster) ListOpenStudentAssignments(ctx context.Context, studentI
 }
 
 func (r careExitRoster) LatestStudentAssignmentAttendanceDate(ctx context.Context, studentID int64) (*users.CalendarDate, error) {
-	day, err := r.reads.LatestAttendedBlockDate(ctx, studentID)
+	day, err := r.reads.latestAttendedBlockDate(ctx, studentID)
 	if err != nil || day == nil {
 		return nil, err
 	}
@@ -235,8 +234,8 @@ func (r careExitRoster) attendanceOf(ctx context.Context, rows []timetable.CareE
 	return result, nil
 }
 
-func (r careExitRoster) openParticipants(ctx context.Context, studentIDs []int64) ([]timetableCompose.OpenParticipant, error) {
-	return r.reads.ListOpenParticipants(ctx, studentIDs)
+func (r careExitRoster) openParticipants(ctx context.Context, studentIDs []int64) ([]openParticipant, error) {
+	return r.reads.openParticipants(ctx, studentIDs)
 }
 
 func (r careExitRoster) openParticipantIDs(ctx context.Context, studentIDs []int64) ([]int64, error) {

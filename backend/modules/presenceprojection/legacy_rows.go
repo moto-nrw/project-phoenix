@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -14,7 +13,7 @@ import (
 // The retained DTOs of the legacy schedule repositories used to be one row
 // each. Since the presence cutover (#2762) a DTO is the Timetable plan joined
 // with the Student Presence execution (activity instances) or attendance
-// (participants). The two list reads below serve those DTOs in one
+// (participants). The two list reads below serve those rows in one
 // statement so the retained list endpoints keep their query budgets.
 
 // LegacyInstanceFilter selects activity instances the way the retained
@@ -95,7 +94,7 @@ const instanceTemplateJoin = `LEFT JOIN activities.groups AS "template"
 
 // ListLegacyInstances lists activity instances with their execution as the
 // retained repositories read them.
-func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
+func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter LegacyInstanceFilter) ([]Instance, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -107,7 +106,7 @@ func ListLegacyInstances(ctx context.Context, db bun.IDB, tenantID int64, filter
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("presence projection: list legacy instances: %w", err)
 	}
-	result := make([]*scheduleModels.ActivityInstance, 0, len(rows))
+	result := make([]Instance, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, legacyInstance(row))
 	}
@@ -148,11 +147,11 @@ func legacyInstanceKeyFilters(query *bun.SelectQuery, filter LegacyInstanceFilte
 // planning flags, the order and the page of the filter.
 func legacyInstanceStateFilters(query *bun.SelectQuery, filter LegacyInstanceFilter) *bun.SelectQuery {
 	switch filter.Status {
-	case scheduleModels.InstanceStatusCancelled:
+	case statusCancelled:
 		query = query.Where(`"activity_instance".status = 'cancelled'`)
-	case scheduleModels.InstanceStatusPlanned:
+	case statusPlanned:
 		query = query.Where(`"activity_instance".status <> 'cancelled'`).Where(`"session".id IS NULL`)
-	case scheduleModels.InstanceStatusActive, scheduleModels.InstanceStatusCompleted:
+	case statusActive, statusCompleted:
 		query = query.Where(`"activity_instance".status <> 'cancelled'`).Where(`"session".status = ?`, filter.Status)
 	}
 	if filter.IsSpontaneous != nil {
@@ -176,15 +175,16 @@ func legacyInstanceStateFilters(query *bun.SelectQuery, filter LegacyInstanceFil
 	return query
 }
 
-func legacyInstance(row legacyInstanceRow) *scheduleModels.ActivityInstance {
-	instance := &scheduleModels.ActivityInstance{
-		Date: scheduleModels.Date(row.Date), ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
+func legacyInstance(row legacyInstanceRow) Instance {
+	instance := Instance{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		Date: row.Date, ActivityGroupID: row.ActivityGroupID, CalendarPeriodID: row.CalendarPeriodID,
 		Title: row.Title, Description: row.Description, StartTime: row.StartTime, EndTime: row.EndTime, RoomID: row.RoomID,
 		RequiredStaff: row.RequiredStaff, Status: row.PlanStatus, ListKind: row.ListKind, IsSpontaneous: row.IsSpontaneous,
 		UnderstaffedAck: row.UnderstaffedAck, UnderstaffedNote: row.UnderstaffedNote, CancelReason: row.CancelReason,
 		Notes: row.Notes, IdempotencyKey: row.IdempotencyKey, IdempotencyFingerprint: row.IdempotencyFingerprint, CreatedBy: row.CreatedBy,
 	}
-	if row.SessionStatus != nil && row.PlanStatus != scheduleModels.InstanceStatusCancelled {
+	if row.SessionStatus != nil && row.PlanStatus != statusCancelled {
 		instance.Status = *row.SessionStatus
 		instance.ActiveGroupID, instance.StartedBy, instance.StartedAt = row.ActiveGroupID, row.StartedBy, row.StartedAt
 		instance.CompletedAt, instance.CompletedBy, instance.ReopenUntil = row.CompletedAt, row.CompletedBy, row.ReopenUntil
@@ -196,8 +196,6 @@ func legacyInstance(row legacyInstanceRow) *scheduleModels.ActivityInstance {
 		instance.TemplateType = *row.TemplateType
 	}
 	instance.TemplateRequiredStaff = row.TemplateRequiredStaff
-	instance.ID, instance.CreatedAt, instance.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
-	instance.SetTenantID(row.TenantID)
 	return instance
 }
 
@@ -258,7 +256,7 @@ func legacyParticipantNeedsInstance(filter LegacyParticipantFilter) bool {
 
 // ListLegacyParticipants lists participants with their attendance as the
 // retained repositories read them.
-func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, filter LegacyParticipantFilter) ([]*scheduleModels.InstanceStudent, error) {
+func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, filter LegacyParticipantFilter) ([]Participant, error) {
 	if tenantID <= 0 {
 		return nil, ErrInvalidTenantID
 	}
@@ -274,7 +272,7 @@ func ListLegacyParticipants(ctx context.Context, db bun.IDB, tenantID int64, fil
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("presence projection: list legacy participants: %w", err)
 	}
-	result := make([]*scheduleModels.InstanceStudent, 0, len(rows))
+	result := make([]Participant, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, legacyParticipant(row))
 	}
@@ -339,19 +337,17 @@ func legacyParticipantOrder(query *bun.SelectQuery, filter LegacyParticipantFilt
 	return query
 }
 
-// legacyParticipant maps one joined row to the retained DTO. The row's
+// legacyParticipant maps one joined row to a participant. The row's
 // updated_at is the later of the plan's and the attendance's.
-func legacyParticipant(row legacyParticipantRow) *scheduleModels.InstanceStudent {
-	participant := &scheduleModels.InstanceStudent{
-		InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID, Status: row.Status,
+func legacyParticipant(row legacyParticipantRow) Participant {
+	participant := Participant{
+		ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, InstanceID: row.InstanceID, StudentID: row.StudentID, RoomID: row.RoomID, Status: row.Status,
 		Substatus: row.Substatus, Note: row.Note, CheckedInAt: row.CheckedInAt, CheckedOutAt: row.CheckedOutAt,
 		IsUnplanned: row.IsUnplanned, NotScheduled: row.NotScheduled, ManualStatusAt: row.ManualStatusAt,
 		StudentStatusDayID: row.StudentStatusDayID, PickupExceptionID: row.PickupExceptionID,
 	}
-	participant.ID, participant.CreatedAt, participant.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
 	if row.AttendanceUpdated != nil && row.AttendanceUpdated.After(participant.UpdatedAt) {
 		participant.UpdatedAt = *row.AttendanceUpdated
 	}
-	participant.SetTenantID(row.TenantID)
 	return participant
 }

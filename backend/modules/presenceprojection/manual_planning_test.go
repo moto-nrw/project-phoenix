@@ -23,7 +23,7 @@ func TestListManualPlanningOccurrencesRejectsInvalidTenantBeforeSQL(t *testing.T
 	ctx = counter.Context(ctx)
 	// An ambient valid tenant must not rescue an invalid explicit argument.
 	for _, invalid := range []int64{0, -1} {
-		result, err := ListManualPlanningOccurrences(ctx, tx, invalid, group.ID, date, date)
+		result, err := Reader{}.ListManualPlanningOccurrences(ctx, tx, invalid, group.ID, date, date)
 		assert.ErrorIs(t, err, ErrInvalidTenantID)
 		assert.Empty(t, result)
 	}
@@ -39,7 +39,7 @@ func TestListManualPlanningOccurrencesPreservesDatabaseErrors(t *testing.T) {
 	tx, err := db.BeginTx(ctx, nil)
 	require.NoError(t, err)
 	require.NoError(t, tx.Rollback())
-	_, err = ListManualPlanningOccurrences(ctx, tx, testpkg.Tenant(t), group.ID, date, date)
+	_, err = Reader{}.ListManualPlanningOccurrences(ctx, tx, testpkg.Tenant(t), group.ID, date, date)
 	assert.ErrorIs(t, err, sql.ErrTxDone)
 	assert.ErrorContains(t, err, "presence projection:")
 }
