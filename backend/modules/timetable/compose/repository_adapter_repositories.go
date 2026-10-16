@@ -55,17 +55,24 @@ type Repositories struct {
 func NewRepositories(dependencies RepositoryDependencies) Repositories {
 	capability := dependencies.Timetable
 	rows := application.NewCapabilityRepositories(capability, dependencies.Calendar, dependencies.Directories)
-	instances := newTimetableActivityInstanceRepository(dependencies.DB, capability, dependencies.Presence)
+	instances := application.NewActivityInstanceRepositories(retainedPresenceReads(dependencies.DB), capability, dependencies.Presence)
 	return Repositories{
 		ActivityCategory: rows.ActivityCategory, ActivityGroup: rows.ActivityGroup,
 		ActivitySchedule: rows.ActivitySchedule, ActivitySupervisor: rows.ActivitySupervisor,
 		StudentEnrollment: rows.StudentEnrollment, Timeframe: rows.Timeframe,
 		PlanningTrack: rows.PlanningTrack, RecurrenceRule: rows.RecurrenceRule,
 		ActivityException: rows.ActivityException,
-		ActivityInstance:  instances, InstanceIdempotency: instances,
+		ActivityInstance:  instances.ActivityInstance, InstanceIdempotency: instances.InstanceIdempotency,
 		InstanceStaff:   rows.InstanceStaff,
-		InstanceStudent: newTimetableInstanceStudentRepository(dependencies.DB, capability, dependencies.Presence, dependencies.PartialAbsences),
+		InstanceStudent: application.NewInstanceStudentRepository(retainedPresenceReads(dependencies.DB), capability, dependencies.Presence, dependencies.PartialAbsences),
 	}
+}
+
+// NewActivityInstanceRepository serves the retained activity instance
+// repository over the Timetable owner and Student Presence, which runs the
+// blocks since #2762.
+func NewActivityInstanceRepository(db *bun.DB, capability timetable.ActivityInstanceCapability, presence application.ActivityInstanceSessions) schedule.ActivityInstanceRepository {
+	return application.NewActivityInstanceRepository(retainedPresenceReads(db), capability, presence)
 }
 
 // NewActivityGroupRecords serves the activity group rows of the owner
