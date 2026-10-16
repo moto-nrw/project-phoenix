@@ -20,12 +20,12 @@
   "exact_ratchet_keys": [
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/services/scheduler"
   ],
-  "atomic_cutover": "One PR, policy epoch 49 -> 50. The 71 contract types and ErrLeaseNotHeld move as defined types from services/scheduler into modules/schedulerruntime/ports (no alias); services/scheduler names them through the ports package. WorkerDependencies takes RetentionSteps and RetentionLog, and NewWorker builds the retention run (newRetentionRun); the root implements RolloverDeadlineRunner itself, so scheduler.NewRolloverDeadlineRunner is deleted. modules/schedulerruntime/compose merges into one file with NewWorker and SettingKeys (85 -> 83 LOC). The api package imports the ports and compose only. policy.json classifies the ports package as scheduler-runtime/port and adds root-composition.reach.platform.port, owner-compose.platform.port and own-test.platform.port (ADR 0053 points 2, 3 and 7.1). One #2750 key falls (329 -> 328); jobs, settings reads, results and log fields are unchanged.",
+  "atomic_cutover": "One PR, policy epoch 49 -> 50. The 71 contract types and ErrLeaseNotHeld move as defined types from services/scheduler into modules/schedulerruntime/ports (no alias); services/scheduler names them through the ports package. WorkerDependencies takes RetentionSteps and RetentionLog, and NewWorker builds the retention run (newRetentionRun); the root implements RolloverDeadlineRunner itself, so scheduler.NewRolloverDeadlineRunner is deleted. modules/schedulerruntime/compose merges into one file with NewWorker and SettingKeys (85 -> 83 LOC). The api package imports the ports and compose only. policy.json classifies the ports package as scheduler-runtime/port and adds root-composition.reach.platform.port, owner-compose.platform.port and own-test.platform.port (ADR 0053 points 2, 3 and 7.1). One #2750 key falls (326 -> 325); jobs, settings reads, results and log fields are unchanged.",
   "tests": [
     "services/scheduler: the Worker suites pass against the moved types, including the lease, retention (newRetentionRun) and NewWorker construction tests.",
     "modules/schedulerruntime/compose: the lease store suite against ports.LeaseTerm; api: the retention suites drive the owners' steps and the deletion log through workerRetention.runSteps.",
     "test: TestModuleLegacyBudgetRatchet with the compose budget lowered to 83 and the total to 89899; TestCompositionInventory with the root's Worker constructor now behind the composition.",
-    "scripts/backend-architecture.sh check: green with 328 legacy violations (329 before), composition surface 1721 -> 1721; golangci-lint on the affected packages; scripts/check-backend-quality.sh quality; scripts/test-changed.sh origin/development; scripts/backend-architecture.sh validate-ticket --all."
+    "scripts/backend-architecture.sh check: green with 325 legacy violations (326 before), composition surface 1721 -> 1721; golangci-lint on the affected packages; scripts/check-backend-quality.sh quality; scripts/test-changed.sh origin/development; scripts/backend-architecture.sh validate-ticket --all."
   ],
   "runtime_evidence": {
     "source": "Local run on the PR branch. The Worker is the same code with its contract types in another package; the evidence is the Worker, composition and api suites and the architecture check, not a benchmark rerun.",
@@ -96,5 +96,5 @@
     }
   },
   "rollback_and_cleanup": "Revert the commit; the contract types return to services/scheduler, policy epoch 49, the three reach rules and the baseline entry return. No data cleanup.",
-  "exit_criterion": "api -> services/scheduler is absent from legacy.jsonl, the typed roots import no scheduler-runtime application package, no alias and no exception is added, and scripts/backend-architecture.sh check passes with 328 legacy violations and a composition surface of at most 1721."
+  "exit_criterion": "api -> services/scheduler is absent from legacy.jsonl, the typed roots import no scheduler-runtime application package, no alias and no exception is added, and scripts/backend-architecture.sh check passes with 325 legacy violations and a composition surface of at most 1721."
 }
