@@ -103,6 +103,7 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
+		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: parentStore.NewParentMessageRepository(db),
 		ReadRepo:    repos.ParentMessageRead,
@@ -658,7 +659,8 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	// Rebuild the service with the feature OFF, same DB.
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),

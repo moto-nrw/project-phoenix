@@ -206,8 +206,11 @@ type ServiceConfig struct {
 	// to their mail. Optional: without it the letter still publishes and mails
 	// still go out, only the staff matrix stays empty.
 	Deliveries DeliveryRecorder
-	ParentsURL string
-	Logger     *slog.Logger
+	// Fingerprints computes the content identities an Erklärung freezes. A
+	// service without it refuses to publish a declaration.
+	Fingerprints Fingerprints
+	ParentsURL   string
+	Logger       *slog.Logger
 }
 
 type service struct {
@@ -219,6 +222,7 @@ type service struct {
 	reminderNotifier notifications.DurableReceiptService
 	preferences      notifications.PreferenceService
 	deliveries       DeliveryRecorder
+	fingerprints     Fingerprints
 	parentsURL       string
 	// attachments is the file side of #2890, injected after construction (the
 	// two services point at each other).
@@ -241,6 +245,7 @@ func NewService(cfg ServiceConfig) Service {
 		reminderNotifier: cfg.ReminderNotifier,
 		preferences:      cfg.Preferences,
 		deliveries:       cfg.Deliveries,
+		fingerprints:     cfg.Fingerprints,
 		parentsURL:       cfg.ParentsURL,
 		logger:           logger,
 	}

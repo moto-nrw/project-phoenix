@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -113,6 +114,7 @@ func (fakePersons) FindByAccountID(context.Context, int64) (*usersModels.Person,
 
 func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentMessageRepository, rr usersModels.ParentMessageReadRepository) *messaging.Service {
 	return messaging.NewService(messaging.Config{
+		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  tr,
 		MessageRepo: mr,
 		ReadRepo:    rr,
@@ -221,7 +223,8 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 	tr.thread.GuardianAccountID = 2
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
-		ThreadRepo: tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
 		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
 	})
 	_, err := svc.PostMessage(errCtx(t), 5, "Hallo", 0)

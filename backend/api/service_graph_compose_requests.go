@@ -456,7 +456,7 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	portal := b.Platform.ParentPortal
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
-		ReadRepo: portal.ParentMessageRead, Persons: b.graph.Users, UserContext: b.callerContext,
+		ReadRepo: portal.ParentMessageRead, Persons: b.graph.Users, UserContext: StaffStudentReads{Caller: b.callerContext},
 		Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
 		Logger: b.Logger.With("service", "messaging"), Notifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
@@ -515,7 +515,7 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: b.graph.Notifications,
 		ReminderNotifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,
-		Logger: b.Logger.With("service", "announcement"),
+		Fingerprints: SecurityFingerprints{}, Logger: b.Logger.With("service", "announcement"),
 	})
 	b.graph.ParentAnnouncement = announcements
 	b.late.guardianNoticePublisher = announcements
