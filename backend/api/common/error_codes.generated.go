@@ -254,6 +254,7 @@ const (
 	CodeIdentityMfaCodeInvalid                           = "identity.mfa_code_invalid"
 	CodeIdentityMfaNotEnrolled                           = "identity.mfa_not_enrolled"
 	CodeIdentityOperatorInvitationInvalid                = "identity.operator_invitation_invalid"
+	CodeIdentityOperatorSelfDeactivation                 = "identity.operator_self_deactivation"
 	CodeIdentityPasskeyLoginFailed                       = "identity.passkey_login_failed"
 	CodeIdentityPasskeyNotFound                          = "identity.passkey_not_found"
 	CodeIdentityPasswordMismatch                         = "identity.password_mismatch"
@@ -920,6 +921,7 @@ var errorClassByCode = map[string]string{
 	"identity.mfa_code_invalid":                            "input",
 	"identity.mfa_not_enrolled":                            "business_rejection",
 	"identity.operator_invitation_invalid":                 "business_rejection",
+	"identity.operator_self_deactivation":                  "business_rejection",
 	"identity.passkey_login_failed":                        "business_rejection",
 	"identity.passkey_not_found":                           "business_rejection",
 	"identity.password_mismatch":                           "input",

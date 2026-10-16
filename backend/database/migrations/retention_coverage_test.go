@@ -57,7 +57,7 @@ var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 5
-	openGapTables = 11
+	openGapTables = 9
 )
 
 // tableRetentions classifies every table of the schema.
@@ -210,7 +210,7 @@ var tableRetentions = map[string]tableRetention{
 	"platform.demo_school_states":                           own("demo process only: hourly demoExpiry -> RetireDemoSchools -> RetireMany -> SQL platform.erase_closed_demo_visitors (closed order without demo access; also replaces the visitor's name in the hidden demo schools)"),
 	"platform.email_delivery":                               own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after its mail ended, else after created_at)"),
 	"platform.email_outbox":                                 own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled; guardian welcome keeps only its key)"),
-	"platform.operator_audit_log":                           undecided("operator request_ip (operators FK NO ACTION); no automated deletion"),
+	"platform.operator_audit_log":                           own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog (before 1 January of last year)"),
 	"platform.operator_email_change_tokens":                 own("hourly token-cleanup, CleanupOperatorEmailChanges -> DeleteStaleOperatorEmailChanges"),
 	"platform.operator_invitation_tokens":                   own("hourly token-cleanup, DeleteExpiredOperatorInvitations"),
 	"platform.operator_mfa_credentials":                     parent("platform.operators"),
@@ -219,7 +219,7 @@ var tableRetentions = map[string]tableRetention{
 	"platform.operator_passkey_credentials":                 parent("platform.operators"),
 	"platform.operator_passkey_sessions":                    own("hourly token-cleanup, DeleteExpiredPasskeySessions (7 days after expires_at)"),
 	"platform.operator_refresh_tokens":                      own("hourly token-cleanup, DeleteExpiredOperatorSessions (expiry < now)"),
-	"platform.operators":                                    undecided("operator accounts of the moto team, deleted manually only"),
+	"platform.operators":                                    own("hourly token-cleanup, deactivated operator cleanup, DeleteDeactivatedOperators (deactivated before 1 January of last year)"),
 	"platform.organizations":                                notPersonal("organization (Träger) master data"),
 	"platform.push_outbox":                                  own("nightly retention step delivery_retention, DeleteExpiredDeliveries (30 days after sent, dead letter or cancelled)"),
 	"platform.schools":                                      notPersonal("school institution master data"),

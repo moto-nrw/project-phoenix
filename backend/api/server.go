@@ -307,6 +307,7 @@ func workerDependencies(graph *serveGraph, reads workerReads, reminderNotificati
 		InvitationCleanup:         identity,
 		EmailChangeCleanup:        identity,
 		OperatorInvitationCleanup: identity,
+		OperatorRetention:         schedulerPorts.OperatorRetention{Ledger: services.Audit, Accounts: identity},
 		WorkSessionCleanup:        services.WorkSession.Jobs,
 		BreakAutoEnder:            services.WorkSession.Jobs,
 		AutoCheckouter:            services.WorkSession.Jobs,
