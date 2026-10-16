@@ -1913,6 +1913,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/ports",
+      "owner": "people-directory",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolstructure",
       "owner": "school-structure",
       "role": "public",
