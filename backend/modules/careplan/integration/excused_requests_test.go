@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -482,7 +481,7 @@ func TestExcusedRequestGraduatedChildLeavesQueueAndRefusesDecisions(t *testing.T
 	t.Parallel()
 	f := newExcusedFixture(t)
 	req := f.createPending(t, []careplan.Date{excusedIn3Days}, "Arzttermin")
-	_, err := f.db.NewUpdate().TableExpr("users.student_school_memberships").Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+	_, err := f.db.NewUpdate().TableExpr("users.student_school_memberships").Set("status = ?", careplan.StudentStatusAlumnus).
 		Where("student_profile_id = ? AND deleted_at IS NULL", f.chain.StudentID).Exec(context.Background())
 	require.NoError(t, err)
 

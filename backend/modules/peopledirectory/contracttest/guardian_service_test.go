@@ -13,8 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	usermodels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -329,23 +327,23 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 		result, _ := service.GetGuardianByID(ctx, profile.ID)
 		assert.Nil(t, result)
 
-		var deletionAudit auditModels.GuardianFinancialChange
+		var deletionAudit testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&deletionAudit).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIBAN).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIBAN).
 			Where(`"guardian_financial_change".new_value = ?`, "").
 			Scan(ctx))
 		assert.Equal(t, "•••• 3000", deletionAudit.OldValue)
 		assert.Equal(t, "Erziehungsberechtigte Person gelöscht", deletionAudit.Note)
 
-		var accountHolderAudits []auditModels.GuardianFinancialChange
+		var accountHolderAudits []testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&accountHolderAudits).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldAccountHolder).
 			Scan(ctx))
 		require.Len(t, accountHolderAudits, 2)
 		for _, audit := range accountHolderAudits {
@@ -353,12 +351,12 @@ func TestGuardianService_DeleteGuardian(t *testing.T) {
 			assert.NotContains(t, audit.NewValue, "Sabine")
 		}
 
-		var accountHolderDeletionAudit auditModels.GuardianFinancialChange
+		var accountHolderDeletionAudit testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&accountHolderDeletionAudit).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, profile.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldAccountHolder).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldAccountHolder).
 			Where(`"guardian_financial_change".new_value = ?`, "").
 			Scan(ctx))
 		assert.Equal(t, "••••••••", accountHolderDeletionAudit.OldValue)
@@ -442,12 +440,12 @@ func TestGuardianService_DeleteGuardianWithLinks(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, remainingImpact.StudentNames, "all student links must be removed")
 
-	var unassignments []auditModels.GuardianFinancialChange
+	var unassignments []testpkg.GuardianFinancialChange
 	require.NoError(t, db.NewSelect().
 		Model(&unassignments).
 		ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 		Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
-		Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+		Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIsPayer).
 		Where(`"guardian_financial_change".new_value = ?`, "false").
 		Scan(ctx))
 	assert.Len(t, unassignments, 2, "every deleted payer relationship must be audited")
@@ -660,17 +658,17 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "relative",
-			GuardianRole:      authorize.GuardianRolePickupOnly,
+			GuardianRole:      testpkg.GuardianRolePickupOnly,
 			CanPickup:         true,
 			EmergencyPriority: 1,
 		})
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.Equal(t, authorize.GuardianRolePickupOnly, result.GuardianRole)
+		assert.Equal(t, testpkg.GuardianRolePickupOnly, result.GuardianRole)
 		assert.True(t, result.CanPickup)
-		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
-		assert.False(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
+		assert.False(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionPortalAccess))
+		assert.False(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionSickNoteSubmit))
 	})
 
 	t.Run("defaults primary relationship to full portal permissions", func(t *testing.T) {
@@ -687,10 +685,10 @@ func TestGuardianService_LinkGuardianToStudent(t *testing.T) {
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
-		assert.Equal(t, authorize.GuardianRolePrimaryGuardian, result.GuardianRole)
-		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionPortalAccess))
-		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionSickNoteSubmit))
-		assert.True(t, authorize.StudentGuardianHasPermission(result, authorize.GuardianPermissionNotesWrite))
+		assert.Equal(t, testpkg.GuardianRolePrimaryGuardian, result.GuardianRole)
+		assert.True(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionPortalAccess))
+		assert.True(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionSickNoteSubmit))
+		assert.True(t, testpkg.GuardianPermissionsGrant(result.Permissions, testpkg.GuardianPermissionNotesWrite))
 	})
 }
 
@@ -965,13 +963,13 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 			StudentID:         student.ID,
 			GuardianProfileID: guardian.ID,
 			RelationshipType:  "parent",
-			GuardianRole:      authorize.GuardianRoleLegalGuardian,
+			GuardianRole:      testpkg.GuardianRoleLegalGuardian,
 			EmergencyPriority: 1,
 		})
 		require.NoError(t, err)
-		require.True(t, authorize.StudentGuardianHasPermission(created, authorize.GuardianPermissionPortalAccess))
+		require.True(t, testpkg.GuardianPermissionsGrant(created.Permissions, testpkg.GuardianPermissionPortalAccess))
 
-		role := authorize.GuardianRoleEmergency
+		role := testpkg.GuardianRoleEmergency
 		err = service.UpdateStudentGuardianRelationship(ctx, created.ID, peopleCompose.StudentGuardianUpdateRequest{
 			GuardianRole: &role,
 		})
@@ -979,9 +977,9 @@ func TestGuardianService_UpdateStudentGuardianRelationship(t *testing.T) {
 
 		updated, err := service.GetStudentGuardianRelationship(ctx, created.ID)
 		require.NoError(t, err)
-		assert.Equal(t, authorize.GuardianRoleEmergency, updated.GuardianRole)
-		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionPortalAccess))
-		assert.False(t, authorize.StudentGuardianHasPermission(updated, authorize.GuardianPermissionNotesWrite))
+		assert.Equal(t, testpkg.GuardianRoleEmergency, updated.GuardianRole)
+		assert.False(t, testpkg.GuardianPermissionsGrant(updated.Permissions, testpkg.GuardianPermissionPortalAccess))
+		assert.False(t, testpkg.GuardianPermissionsGrant(updated.Permissions, testpkg.GuardianPermissionNotesWrite))
 	})
 
 	t.Run("updates every optional relationship field", func(t *testing.T) {
@@ -1390,11 +1388,11 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		assert.Empty(t, guardians)
 
 		count, err := db.NewSelect().
-			Model((*auditModels.GuardianFinancialChange)(nil)).
+			Model((*testpkg.GuardianFinancialChange)(nil)).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
 			Where(`"guardian_financial_change".student_id = ?`, student.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIsPayer).
 			Where(`"guardian_financial_change".new_value = ?`, "false").
 			Count(ctx)
 		require.NoError(t, err)
@@ -1424,11 +1422,11 @@ func TestGuardianService_RemoveGuardianFromStudent(t *testing.T) {
 		assert.True(t, guardians[0].Relationship.IsPayer, "the payer mark must survive the refusal")
 
 		count, err := db.NewSelect().
-			Model((*auditModels.GuardianFinancialChange)(nil)).
+			Model((*testpkg.GuardianFinancialChange)(nil)).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
 			Where(`"guardian_financial_change".guardian_profile_id = ?`, guardian.ID).
 			Where(`"guardian_financial_change".student_id = ?`, student.ID).
-			Where(`"guardian_financial_change".field_name = ?`, auditModels.GuardianPaymentFieldIsPayer).
+			Where(`"guardian_financial_change".field_name = ?`, testpkg.AuditGuardianPaymentFieldIsPayer).
 			Where(`"guardian_financial_change".new_value = ?`, "false").
 			Count(ctx)
 		require.NoError(t, err)
@@ -2375,7 +2373,7 @@ func TestGetStudentGuardians_AccountHolderPendingUpgradeApproval(t *testing.T) {
 		StudentID:         student.ID,
 		GuardianProfileID: guardian.ID,
 		RelationshipType:  "other",
-		GuardianRole:      authorize.GuardianRoleEmergency,
+		GuardianRole:      testpkg.GuardianRoleEmergency,
 	})
 	require.NoError(t, err)
 
@@ -2429,9 +2427,9 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 	service := setupGuardianService(t, db)
 	ctx := testpkg.Ctx(t)
 
-	loadAudits := func(t *testing.T, profileID int64, field string) []auditModels.GuardianFinancialChange {
+	loadAudits := func(t *testing.T, profileID int64, field string) []testpkg.GuardianFinancialChange {
 		t.Helper()
-		var rows []auditModels.GuardianFinancialChange
+		var rows []testpkg.GuardianFinancialChange
 		require.NoError(t, db.NewSelect().
 			Model(&rows).
 			ModelTableExpr(`audit.guardian_financial_changes AS "guardian_financial_change"`).
@@ -2462,7 +2460,7 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 		require.NotNil(t, stored.IBAN)
 		assert.Equal(t, "DE84120300000000203000", *stored.IBAN)
 
-		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN)
+		audits := loadAudits(t, profile.ID, testpkg.AuditGuardianPaymentFieldIBAN)
 		require.Len(t, audits, 2)
 		assert.Equal(t, "•••• 3000", audits[1].OldValue)
 		assert.Equal(t, "•••• 3000 (geändert)", audits[1].NewValue)
@@ -2491,7 +2489,7 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 		require.NotNil(t, stored.AccountHolder)
 		assert.Equal(t, "Peter Schneider", *stored.AccountHolder)
 
-		audits := loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldAccountHolder)
+		audits := loadAudits(t, profile.ID, testpkg.AuditGuardianPaymentFieldAccountHolder)
 		require.Len(t, audits, 2)
 		assert.Equal(t, "••••••••", audits[1].OldValue)
 		assert.Equal(t, "•••••••• (geändert)", audits[1].NewValue)
@@ -2500,6 +2498,6 @@ func TestGuardianService_UpdateGuardianPayment_MaskedAuditCollisions(t *testing.
 			assert.NotContains(t, row.NewValue, "Schneider")
 		}
 		// The unchanged IBAN produced no extra row.
-		assert.Len(t, loadAudits(t, profile.ID, auditModels.GuardianPaymentFieldIBAN), 1)
+		assert.Len(t, loadAudits(t, profile.ID, testpkg.AuditGuardianPaymentFieldIBAN), 1)
 	})
 }
