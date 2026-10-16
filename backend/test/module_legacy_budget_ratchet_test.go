@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 1226
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3801
+const moduleLegacyFileBudgetTotal = 3797
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -129,35 +129,40 @@ const moduleLegacyFileBudgetTotal = 3801
 // timetable ones came out of the dissolved modules/timetable/legacy nest with
 // #3554), api/ #4080, database/repositories/users #3990,
 // modules/presenceprojection #4077 and modules/workforce/internal/planning
-// #4076. No file gets a new entry.
+// #4076. No file gets a new entry, except the half of a file a move splits:
+// #4084 moved the pickup exception and student status day values the roots
+// name out of modules/timetable/internal/application/legacy_repository_options.go
+// into modules/timetable/ports/legacy_repository_options.go. Both halves keep
+// counting, and their sum stays below the old entry.
 var moduleLegacyFileBudgets = map[string]int{
-	"api/legacy_builders_test_helpers.go":                                     23,
-	"api/legacy_token_adapter.go":                                             73,
-	"database/repositories/users/legacy_composition_support.go":               35,
-	"database/repositories/users/legacy_types.go":                             14,
-	"modules/peopledirectory/compose/legacy_repository_runtime.go":            98,
-	"modules/presenceprojection/legacy_rows.go":                               353,
-	"modules/schoolstructure/compose/legacy_group_catalog.go":                 71,
-	"modules/schoolstructure/compose/legacy_group_contract.go":                67,
-	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go": 169,
-	"modules/schoolstructure/compose/legacy_repository_runtime.go":            53,
-	"modules/timetable/compose/legacy_activity_service.go":                    537,
-	"modules/timetable/compose/legacy_category_operations.go":                 138,
-	"modules/timetable/compose/legacy_composition_support.go":                 63,
-	"modules/timetable/compose/legacy_composition_support_test_helpers.go":    70,
-	"modules/timetable/compose/legacy_enrollment_operations.go":               570,
-	"modules/timetable/compose/legacy_errors.go":                              121,
-	"modules/timetable/compose/legacy_group_update.go":                        47,
-	"modules/timetable/compose/legacy_interface.go":                           90,
-	"modules/timetable/compose/legacy_repository_options.go":                  521,
-	"modules/timetable/compose/legacy_schedule_operations.go":                 118,
-	"modules/timetable/compose/legacy_supervisor_operations.go":               523,
-	"modules/workforce/internal/planning/legacy_helpers.go":                   47,
+	"api/legacy_builders_test_helpers.go":                                               23,
+	"api/legacy_token_adapter.go":                                                       73,
+	"database/repositories/users/legacy_composition_support.go":                         35,
+	"database/repositories/users/legacy_types.go":                                       14,
+	"modules/peopledirectory/compose/legacy_repository_runtime.go":                      98,
+	"modules/presenceprojection/legacy_rows.go":                                         353,
+	"modules/schoolstructure/compose/legacy_group_catalog.go":                           71,
+	"modules/schoolstructure/compose/legacy_group_contract.go":                          67,
+	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go":           169,
+	"modules/schoolstructure/compose/legacy_repository_runtime.go":                      53,
+	"modules/timetable/compose/legacy_activity_service.go":                              537,
+	"modules/timetable/compose/legacy_category_operations.go":                           138,
+	"modules/timetable/internal/application/legacy_composition_support.go":              63,
+	"modules/timetable/internal/application/legacy_composition_support_test_helpers.go": 69,
+	"modules/timetable/compose/legacy_enrollment_operations.go":                         570,
+	"modules/timetable/compose/legacy_errors.go":                                        121,
+	"modules/timetable/compose/legacy_group_update.go":                                  47,
+	"modules/timetable/compose/legacy_interface.go":                                     90,
+	"modules/timetable/internal/application/legacy_repository_options.go":               482,
+	"modules/timetable/ports/legacy_repository_options.go":                              36,
+	"modules/timetable/compose/legacy_schedule_operations.go":                           118,
+	"modules/timetable/compose/legacy_supervisor_operations.go":                         523,
+	"modules/workforce/internal/planning/legacy_helpers.go":                             47,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 67347
+const moduleComposeBudgetTotal = 59260
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -169,7 +174,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/appointments/compose":                   528,
 	"modules/auditlog/compose":                       275,
 	"modules/auditlog/compose/vocabulary":            132,
-	"modules/careplan/compose":                       4509,
+	"modules/careplan/compose":                       4334,
 	"modules/careplan/requestfeed/compose":           86,
 	"modules/classday/compose":                       506,
 	"modules/communication/composition":              1518,
@@ -219,7 +224,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            11,
-	"modules/timetable/compose":                       14106,
+	"modules/timetable/compose":                       6195,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
@@ -229,7 +234,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose/repositoryadapter":     274,
 	"workflows/gradetransition/compose":               180,
 	"workflows/openroommove/compose":                  81,
-	"workflows/parentportal/compose":                  507,
+	"workflows/parentportal/compose":                  506,
 	"workflows/reminderdelivery/compose":              71,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 225,

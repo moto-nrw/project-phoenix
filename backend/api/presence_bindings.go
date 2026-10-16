@@ -6,7 +6,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The cutover of activity execution and attendance to Student Presence (#2762)
@@ -67,7 +67,7 @@ func (d presenceCarePlanDirectory) FindPickupException(ctx context.Context, id i
 }
 
 func (d presenceCarePlanDirectory) ListPickupExceptions(ctx context.Context, filter studentpresence.SessionPickupExceptionFilter) ([]studentpresence.SessionPickupException, error) {
-	values, err := pickupExceptionDirectory(d).ListPickupExceptions(ctx, timetableCompose.PickupExceptionFilter(filter))
+	values, err := pickupExceptionDirectory(d).ListPickupExceptions(ctx, timetablePorts.PickupExceptionFilter(filter))
 	result := make([]studentpresence.SessionPickupException, 0, len(values))
 	for _, value := range values {
 		result = append(result, studentpresence.SessionPickupException(value))
@@ -85,7 +85,7 @@ func (d presenceCarePlanDirectory) FindStudentStatusDay(ctx context.Context, id 
 }
 
 func (d presenceCarePlanDirectory) ListStudentStatusDays(ctx context.Context, filter studentpresence.SessionStudentStatusDayFilter) ([]studentpresence.SessionStudentStatusDay, error) {
-	values, err := pickupExceptionDirectory(d).ListStudentStatusDays(ctx, timetableCompose.StudentStatusDayFilter(filter))
+	values, err := pickupExceptionDirectory(d).ListStudentStatusDays(ctx, timetablePorts.StudentStatusDayFilter(filter))
 	result := make([]studentpresence.SessionStudentStatusDay, 0, len(values))
 	for _, value := range values {
 		result = append(result, studentpresence.SessionStudentStatusDay(value))

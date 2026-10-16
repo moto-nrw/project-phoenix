@@ -8,7 +8,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -144,7 +143,7 @@ func (s *Service) ListChildThreads(ctx context.Context, accountID, studentID int
 // distinctTenantIDs collects the unique tenant IDs from the guardian's children
 // — the schools they currently have a child at, used to scope cross-tenant
 // thread/badge queries.
-func distinctTenantIDs(children []*parentModels.ChildSummary) []int64 {
+func distinctTenantIDs(children []*care.ChildSummary) []int64 {
 	seen := make(map[int64]bool, len(children))
 	out := make([]int64, 0, len(children))
 	for _, c := range children {

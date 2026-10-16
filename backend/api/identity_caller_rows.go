@@ -9,7 +9,7 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // CallerRows serves the Identity & Access caller context (#3501) to the
@@ -23,7 +23,7 @@ type CallerRows struct {
 	staffByID  func(context.Context, int64) (*userModels.Staff, error)
 	teacher    func(context.Context, int64) (*userModels.Teacher, error)
 	students   studentRows
-	activities timetableCompose.CallerActivityGroups
+	activities timetablePorts.CallerActivityGroups
 	sessions   studentpresence.SessionRecords
 	logger     *slog.Logger
 }
@@ -37,7 +37,7 @@ type CallerRowSources struct {
 	Staff      staffRows
 	Teachers   teacherRows
 	Students   studentRows
-	Activities timetableCompose.CallerActivityGroups
+	Activities timetablePorts.CallerActivityGroups
 	Sessions   studentpresence.SessionRecords
 	Logger     *slog.Logger
 }

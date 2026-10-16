@@ -56,7 +56,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.Staf
 	svc := messaging.New(messaging.Config{
 		MessagingEnabled:      api.BindParentMessagingGate(settings, slog.Default()),
 		Children:              childResolver(db, repos),
-		ChildRepo:             repos.ParentChild,
+		ChildRepo:             repos.ParentChildReads(),
 		StudentRepo:           repos.Student,
 		GuardianProfileRepo:   repos.GuardianProfile,
 		Settings:              settings,
