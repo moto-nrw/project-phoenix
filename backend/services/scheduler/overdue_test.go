@@ -13,12 +13,11 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
+	"sync"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -33,7 +32,7 @@ import (
 type overdueSetup struct {
 	sched     *Scheduler
 	instances *fakeInstanceRepo
-	spy       *testpkg.RecordingBroadcaster
+	spy       *recordingOverdue
 	room      int64
 	nextID    int64
 	// now is a fixed wall-clock anchor (noon UTC on a fixed day) used by both
@@ -45,7 +44,7 @@ type overdueSetup struct {
 func buildOverdue(t *testing.T) *overdueSetup {
 	t.Helper()
 	instances := &fakeInstanceRepo{}
-	spy := testpkg.NewRecordingBroadcaster()
+	spy := &recordingOverdue{}
 	const room = 61
 	sched := unitScheduler(&Scheduler{
 		tasks:  make(map[string]*ScheduledTask),
@@ -108,19 +107,16 @@ func TestOverdueTick_BroadcastsOncePerInstance(t *testing.T) {
 
 	s.sched.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, s.now)
 
-	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtimeevents.EventInstanceOverdue), "one overdue broadcast for the seeded instance expected")
-	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtimeevents.EventActiveSupervisionChanged), "one active supervision refresh broadcast expected")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, overdueAnnounced), "one overdue broadcast for the seeded instance expected")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, overdueRefreshed), "one active supervision refresh broadcast expected")
 
-	evt := spyFindByInstance(s.spy, ai.ID, realtimeevents.EventInstanceOverdue)
-	require.NotNil(t, evt, "expected broadcast for instance id %d", ai.ID)
-	assert.Equal(t, realtimeevents.EventInstanceOverdue, evt.Type)
-	require.NotNil(t, evt.Data.InstanceID)
-	assert.Equal(t, fmt.Sprintf("%d", ai.ID), *evt.Data.InstanceID)
-
-	refresh := spyFindByInstance(s.spy, ai.ID, realtimeevents.EventActiveSupervisionChanged)
-	require.NotNil(t, refresh, "expected active supervision refresh for instance id %d", ai.ID)
-	require.NotNil(t, refresh.Data.Reason)
-	assert.Equal(t, "instance_overdue", *refresh.Data.Reason)
+	announced := s.spy.find(ai.ID, overdueAnnounced)
+	require.NotNil(t, announced, "expected broadcast for instance id %d", ai.ID)
+	assert.Equal(t, testpkg.Tenant(t), announced.tenantID)
+	assert.Equal(t, ai.ID, announced.instanceID)
+	assert.Equal(t, ai.Date.String(), announced.date)
+	assert.Equal(t, ai.StartTime.Format("15:04:05"), announced.startTime)
+	assert.Equal(t, s.room, announced.roomID)
 }
 
 func TestOverdueTick_ReFireGuard(t *testing.T) {
@@ -132,8 +128,8 @@ func TestOverdueTick_ReFireGuard(t *testing.T) {
 	s.sched.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, s.now)
 	s.sched.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, s.now)
 
-	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtimeevents.EventInstanceOverdue), "second tick on same instance must suppress overdue event")
-	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, realtimeevents.EventActiveSupervisionChanged), "second tick on same instance must suppress active supervision refresh")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, overdueAnnounced), "second tick on same instance must suppress overdue event")
+	assert.Equal(t, 1, spyFilter(s.spy, ai.ID, overdueRefreshed), "second tick on same instance must suppress active supervision refresh")
 }
 
 func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
@@ -145,38 +141,79 @@ func TestOverdueTick_ActiveInstancesNotBroadcast(t *testing.T) {
 
 	s.sched.runOverdueForTenant(context.Background(), testpkg.Tenant(t), 5, s.now)
 
-	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, realtimeevents.EventInstanceOverdue), "active instances must not trigger overdue broadcast")
-	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, realtimeevents.EventActiveSupervisionChanged), "active instances must not trigger active supervision refresh")
+	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, overdueAnnounced), "active instances must not trigger overdue broadcast")
+	assert.Equal(t, 0, spyFilter(s.spy, ai.ID, overdueRefreshed), "active instances must not trigger active supervision refresh")
 }
 
-// spyFilter counts broadcasts whose InstanceID matches the given id. Needed
-// because the test DB is shared across runs and may contain unrelated
-// today-dated rows from other tests; we care only about our fixture's
-// fire count, not the grand total. The overdue tick only ever calls
-// BroadcastToTenant, so filtering the "tenant" method reproduces the old
-// spy's b.all semantics.
-func spyFilter(b *testpkg.RecordingBroadcaster, instanceID int64, eventType realtimeevents.EventType) int {
+// overdueKind names the two announcements of an overdue planned block: the
+// block itself and the refresh of the live-supervision views. Their event
+// envelopes are covered in realtime and api/scheduler_presence_ports_test.go.
+type overdueKind string
+
+const (
+	overdueAnnounced overdueKind = "instance_overdue"
+	overdueRefreshed overdueKind = "supervision_refresh"
+)
+
+type overdueCall struct {
+	kind       overdueKind
+	tenantID   int64
+	instanceID int64
+	date       string
+	startTime  string
+	roomID     int64
+}
+
+// recordingOverdue records the Worker's overdue announcements; err makes
+// every announcement fail after it was recorded.
+type recordingOverdue struct {
+	mu       sync.Mutex
+	recorded []overdueCall
+	err      error
+}
+
+func (r *recordingOverdue) BroadcastInstanceOverdue(tenantID, instanceID int64, date, startTime string, roomID int64) error {
+	return r.record(overdueCall{kind: overdueAnnounced, tenantID: tenantID, instanceID: instanceID, date: date, startTime: startTime, roomID: roomID})
+}
+
+func (r *recordingOverdue) BroadcastInstanceOverdueRefresh(tenantID, instanceID int64) error {
+	return r.record(overdueCall{kind: overdueRefreshed, tenantID: tenantID, instanceID: instanceID})
+}
+
+func (r *recordingOverdue) record(call overdueCall) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.recorded = append(r.recorded, call)
+	return r.err
+}
+
+func (r *recordingOverdue) calls() []overdueCall {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return append([]overdueCall(nil), r.recorded...)
+}
+
+// find returns the first announcement of the kind for the instance, or nil.
+func (r *recordingOverdue) find(instanceID int64, kind overdueKind) *overdueCall {
+	for _, call := range r.calls() {
+		if call.kind == kind && call.instanceID == instanceID {
+			return &call
+		}
+	}
+	return nil
+}
+
+// spyFilter counts the announcements of the kind for the instance. Needed
+// because a fixture may hold unrelated rows of the day; we care only about
+// our fixture's fire count, not the grand total.
+func spyFilter(r *recordingOverdue, instanceID int64, kind overdueKind) int {
 	n := 0
-	needle := fmt.Sprintf("%d", instanceID)
-	for _, c := range b.CallsByMethod("tenant") {
-		if c.Event.Type == eventType && c.Event.Data.InstanceID != nil && *c.Event.Data.InstanceID == needle {
+	for _, call := range r.calls() {
+		if call.kind == kind && call.instanceID == instanceID {
 			n++
 		}
 	}
 	return n
-}
-
-// spyFindByInstance returns the first recorded event matching instanceID,
-// or nil if none. Companion to spyFilter for envelope-shape assertions.
-func spyFindByInstance(b *testpkg.RecordingBroadcaster, instanceID int64, eventType realtimeevents.EventType) *realtimeevents.Event {
-	needle := fmt.Sprintf("%d", instanceID)
-	for _, c := range b.CallsByMethod("tenant") {
-		if c.Event.Type == eventType && c.Event.Data.InstanceID != nil && *c.Event.Data.InstanceID == needle {
-			e := c.Event
-			return &e
-		}
-	}
-	return nil
 }
 
 // Day-rollover is a pure-memory behaviour — test it without the DB.

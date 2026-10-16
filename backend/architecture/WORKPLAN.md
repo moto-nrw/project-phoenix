@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 485 · Composition 1.724 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 48 ·
+Stand 16.10.2026 · Ratchet 496 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 49 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,19 +11,20 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 102 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 105 |
 | [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone` | 87 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach, Projektion, Workflow | 6 |
-| [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 14 |
+| [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach, Projektion, Workflow | 3 |
+| [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 10 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 12 |
+| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 7 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 485 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 496 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -36,9 +37,12 @@ hat die Übergangsregeln in Keys umgewandelt (Policy-Epoche 46 → 47): 405 Rege
 aufgenommen, Ratchet 6 → 520, Regeln 1.351 → 976. Der Anstieg ist gewollt; er zeigt die Schuld, die die
 Regeln versteckt haben. Die Validierung lehnt seitdem ab: Regeln in fremde private Rollen und fremde
 `models/*` (ADR 0057 a, b), Plattform → Fach, Projektion, Workflow (c), Übergangsmarker und `issue` (d)
-und Owner-Kompositionen in fremde `compose`- oder `http`-Rollen (ADR 0059 Punkt 6). Noch nicht
-durchgesetzt und bei #3417: Richtungen und Zyklen nach ADR 0058, etwa Plattform → `inbound`
-(`settings-platform.http.inbound-common`). #3990: Repository-Vokabular aus `models/users` verschieben,
+und Owner-Kompositionen in fremde `compose`- oder `http`-Rollen (ADR 0059 Punkt 6). Seit #3417
+(Policy-Epoche 48) lehnt sie auch einen Zielgraphen mit zyklischer Komponente ab (ADR 0058 Punkt 1):
+14 zyklusschließende Regeln sind gelöscht, ihre 18 Importe Keys unter #4079 (15) und #4076 (3),
+Ratchet 480 → 498, einmalig und nur für diese Umwandlung freigegeben. Die Schichtung steht im Nachtrag
+zu ADR 0058. `inbound`-Owner liegen außerhalb des Zielgraphen; `settings-platform.http.inbound-common`
+schließt keinen Zyklus und bleibt Regel. #3990: Repository-Vokabular aus `models/users` verschieben,
 ohne auf den Ersatz von `database/repositories/users` zu warten. #4071 misst, wohin Code gewandert ist:
 Composition zählt jedes Root-Struct mehrerer Owner (139 → 1.732, Messgröße für #4080), Passthrough die
 `compose`-Pakete (2.394), dazu `legacy_*.go`, LOC je `compose`-Paket (Messgröße für #4084) und die
@@ -54,7 +58,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 ## Entscheidungen
 
 - [x] [#3387](https://github.com/moto-nrw/project-phoenix/issues/3387) Legacy-Guardian-Felder auf den Schüler-Endpunkten — blockt #2760
-- [ ] [#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) Zyklen — entschieden in ADR 0058, die ADR 0032 ersetzt: Zielgraph ohne zyklische Komponente, CI-hart; offen: Richtung je verbleibendem Paar, zyklusschließende Regeln als Keys, Guard; [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) ist erledigt
+- [x] [#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) Zyklen — ADR 0058 mit Nachtrag zur Schichtung: People Directory unten, Care Plan darüber, Enrollment über Care Plan, Workforce über Student Presence; 14 zyklusschließende Regeln als 18 Keys (#4079, #4076), Policy-Epoche 47 → 48 lehnt jeden Zyklus im Zielgraphen ab (`internal/architecture/acyclic_target.go`), Ratchet 480 → 498
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [x] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) Wo Code liegt, der mehrere Owner über eine Datenbank zusammensetzt: ADR 0053. Owner-Kompositionen bauen nur ihren eigenen Owner, die typisierten Roots (`.`, `api`, `cmd`) setzen Owner zusammen (stehende Reichweite, [#4001](https://github.com/moto-nrw/project-phoenix/issues/4001)); Entscheidungen und Schreibvorgänge über Owner hinweg gehören in Owner oder Workflows; die Datenbank kommt als ein Wert der Transaction Runtime ([#4002](https://github.com/moto-nrw/project-phoenix/issues/4002)); Tests bauen die Roots
 - [x] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` zieht jetzt nach `modules/identityaccess/sessiontoken` um (ADR 0054); die Substanz von ADR 0031 bleibt, nur der Zeitpunkt ändert sich
@@ -92,7 +96,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 - [x] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei; #3755 entfernt zwei: `services/users` in Produktion und internem Test, das Profil kommt über einen eigenen Port; #2734 entfernt drei: `api/enrollment` in Produktion und internem Test, `models/enrollment` im internen Test; #2743 entfernt einen: `modules/careplan/inbound/parent -> database/repositories` im externen Test; #3991 entfernt einen: `models/base` im internen Test, die Zeilen-Literale nennen `users.Model`); Stufe 2: die letzten 20 Keys weg, 81 → 61; Kalender über `sharedkernel/calendar`, die zurückgereichten People-Directory-, Care-Plan- und Enrollment-Werte über das Vokabular des Workflow-Ports, das Profil als HTTP-Werte über den eigenen Port (Übersetzung in der Root), die Locale-Prüfung über die Notification-Texte von Delivery, Transaktionen über `tenant.WithinTenant`/`WithinAdmin` ohne `*bun.DB`, die Handler-Suiten über `modules/settings` und `api/testutil` ohne viper; `api/common`, Session-Adapter und Tenant-Runtime als stehende Regeln per ADR 0051, Policy-Epoche 38 → 39, vier Regeln; HTTP-ORM-Ratchet −2 Einträge, Composition 259 → 259)
 - [x] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale` (das `issue`-Feld hat #4070 wieder abgeschafft, ADR 0057)
 - [x] [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln in exakte Keys — 405 Regeln weg, 514 Keys unter #4072 bis #4078, #4081, #4004, #2729, #2750 und #4096 (6 → 520), Policy-Epoche 46 → 47; `models/*` als `legacy-model`, Session-Token-Runtime als `identity-access`/`http`, neun abgelaufene Cutover-Akzeptoren gelöscht, Temp-Rules-Ratchet strukturell
-- [x] [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools als eigenes Binary `cmd/devtools` (ADR 0060) — `cmd -> seed/api` und `cmd -> simulate` weg (487 → 485), Policy-Epoche 47 → 48; `cmd/devtools` ist das einzige Paket in `dev-tools`/`compose` mit acht `dev-tools.compose.*`-Regeln; HTTP-Client, Demo-Runtime samt Lease und Zufallsquelle aus `api` ins Binary; nur das Demo-Image enthält es; Composition 1.740 → 1.724
+- [x] [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools als eigenes Binary `cmd/devtools` (ADR 0060) — `cmd -> seed/api` und `cmd -> simulate` weg (498 → 496), Policy-Epoche 48 → 49; `cmd/devtools` ist das einzige Paket in `dev-tools`/`compose` mit acht `dev-tools.compose.*`-Regeln; HTTP-Client, Demo-Runtime samt Lease und Zufallsquelle aus `api` ins Binary; nur das Demo-Image enthält es; Composition 1.740 → 1.724
 - [x] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht Quality-Ratchets auf null — am 15.10.2026 aus #2580 gelöst, läuft als eigenes Ticket weiter
 
 ## api/students · 0 Keys
@@ -130,7 +134,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 
 ## Worker und Scheduler · 0 Keys
 
-- [ ] [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067) Worker-Vertrag der Root als definierte Typen in einen `scheduler-runtime`/`contract`-Punkt (ADR 0056 Punkt 4) — 0 (entfernt `api -> services/scheduler`, 37 Symbole, ohne Alias und ohne Regel; der Key trägt weiter #2750, weil der Baseline-Vergleich keinen Issue-Wechsel zulässt, #4067 blockt #2750). Entscheidung vom 16.10.2026: Der Vertrag darf keine Typen anderer Owner nennen (ADR 0057), also erst die Ports (ADR 0058 Punkt 2), dann der Umzug; #4067 trägt dafür alle Keys mit Quelle `services/scheduler` (#4072, #4075). Schritt 1: Der Erzeuger der persönlichen Erinnerungs-Benachrichtigungen liegt in `workflows/reminderdelivery` (`PersonalReminderNotifications`), der Worker hält nur den Tick-Port `ReminderNotificationTick`; die Root bindet Zustellung, Zustimmung, Konten und Dienstanwesenheit (`workforce.OnDutyStaffIDs`). Fünf Keys weg (519 → 514): `services/scheduler -> delivery/application/notifications` und `-> workforce` in Produktion und internem Test, `-> workflows/reminderdelivery` im internen Test
+- [ ] [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067) Worker-Vertrag der Root als definierte Typen in einen `scheduler-runtime`/`contract`-Punkt (ADR 0056 Punkt 4) — 0 (entfernt `api -> services/scheduler`, 37 Symbole, ohne Alias und ohne Regel; der Key trägt weiter #2750, weil der Baseline-Vergleich keinen Issue-Wechsel zulässt, #4067 blockt #2750). Entscheidung vom 16.10.2026: Der Vertrag darf keine Typen anderer Owner nennen (ADR 0057), also erst die Ports (ADR 0058 Punkt 2), dann der Umzug; #4067 trägt dafür alle Keys mit Quelle `services/scheduler` (#4072, #4075). Schritt 1: Der Erzeuger der persönlichen Erinnerungs-Benachrichtigungen liegt in `workflows/reminderdelivery` (`PersonalReminderNotifications`), der Worker hält nur den Tick-Port `ReminderNotificationTick`; die Root bindet Zustellung, Zustimmung, Konten und Dienstanwesenheit (`workforce.OnDutyStaffIDs`). Fünf Keys weg (519 → 514): `services/scheduler -> delivery/application/notifications` und `-> workforce` in Produktion und internem Test, `-> workflows/reminderdelivery` im internen Test. Schritt 2: eigene Ports des Workers für Sitzungsende und verlassene Sitzungen, die nächtliche Anwesenheitsbereinigung, das Archiv der Status-Flags, die PWA-Nutzungsbereinigung und die Überfällig-Ereignisse; die Root bindet sie (`api/scheduler_presence_ports.go`), Care Plans Status und Quelle bindet die Root, die Ereignisse baut `realtime`. Sieben Keys weg (512 → 505): `-> studentpresence`, `-> delivery/application/pwa` und `-> delivery/application/realtimeevents` in Produktion und internem Test, `-> careplan/absencerecords` in Produktion; damit trägt `services/scheduler` keinen #4075-Key mehr. Offen: `-> timetable` (Produktion, interner Test) und `-> workflows/reminderdelivery` (Produktion), danach der Vertrag
 - [x] [#2726](https://github.com/moto-nrw/project-phoenix/issues/2726) Worker hinter erneuerbarem DB-Lease — Migration 1.15.437 (`platform.worker_leases`, `platform.assert_worker_lease`), Store in `modules/schedulerruntime/workerlease`, jeder Job-Lauf und jeder Commit hängt am Lease-Term; eigenständiger Prozess `worker`, `serve --embedded-worker=false`; 0 Keys (Ratchet 378 → 378), Composition 603 → 603; Runbook `docs/operations/worker-lease-2726.md`
 - [x] [#2746](https://github.com/moto-nrw/project-phoenix/issues/2746) services/scheduler — 0 (alle 27 Keys weg, 377 → 350): Tenant-Runtime über den Scheduler-Port `TenantRuntime`, gebunden durch das neue Paket `modules/schedulerruntime/jobruntime` (scheduler-runtime/postgres, ohne neue Regel); Settings-Keys als lokale Konstanten, die Root prüft sie beim Start gegen die Registry (`settingsCompose.VerifyPreloadKeys`) und bindet den Minuten-Snapshot über `settingsCompose.NewTenantSnapshots`; Overdue-Tick über `realtimeevents` und eigene Ports, Booking-Audit, Schülerstatus und Change-Log über Ports, die `api/scheduler_ports.go` an die Legacy-Typen bindet; die Suiten laufen über Test-Support (`testpkg.PassthroughTenantRuntime`, `ScriptedTenantRuntime`) statt über Repositories, die SQL-Seiten der Overdue- und Session-End-Pfade pinnen zwei neue Tests in `database/repositories`; das Budget-Szenario `services.scheduler.minute_snapshot.setting_values` prüft jetzt `services.TestSchedulerMinuteSnapshotReadsEverySchoolOnce` über die echte Bindung; Composition 603 → 597
 

@@ -8,7 +8,7 @@ Decision for [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096)
 under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
 decides the separate binary that
 [ADR 0056](0056-the-server-root-is-the-http-host.md) left open (considered
-option 5). The policy change activates in epoch 48.
+option 5). The policy change activates in epoch 49.
 
 ## Context
 
@@ -44,7 +44,7 @@ Measured on `01b434087e`, policy epoch 47:
    secure random source of the seeder move from `api` into the binary. The
    runtime guards stay; the demo keeps its `phoenix_demo` connection.
 2. **`cmd/devtools` is `dev-tools`/`compose`, the only package in that role.**
-   Policy epoch 48 adds exactly these rules, each from `dev-tools`/`compose`
+   Policy epoch 49 adds exactly these rules, each from `dev-tools`/`compose`
    in production:
 
    | Rule | Target |

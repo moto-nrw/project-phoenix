@@ -1005,8 +1005,12 @@ migration graph, `after ratchet` lists what remains of a component once only
 `target` edges are kept: those cycles are in the target policy and do not go
 away when the baseline reaches zero.
 
-The command only reports. It exits non-zero when the policy, packages, or
-baseline fail to load, never because a component exists (#3417).
+The command reports. From policy epoch 48 the target graph has no cyclic
+component (ADR 0058 point 1, #3417): the policy loader rejects a policy whose
+target projection holds one (`internal/architecture/acyclic_target.go`) and
+names the component and the rules carrying its edges, so `check`, CI and
+`cycles` itself fail on it. The migration graph, which includes the exact
+debt, may stay cyclic until its keys are gone.
 
 ## Exact legacy ratchet
 
@@ -1156,12 +1160,12 @@ policy epoch 47 the loader rejects these rules
   "compatibility permission", "compatibility binding", "compatibility
   adapter", "temporary"/"temporarily", "until #N" and "tracked by #N".
 
-This is not yet every rule the target excludes. The directions and cycles of
-[ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md) are #3417's
-part: a platform importing anything but platforms and the shared kernel (for
-example `settings-platform.http.inbound-common`, a platform into an `inbound`
-owner), a second direction between two domains, and rules that close a cycle
-are not rejected yet. A temporary allowance is an exact `legacy.jsonl` key
+From epoch 48 a policy whose target graph closes a cycle is rejected too
+([ADR 0058](../../docs/adr/0058-owner-dependencies-form-a-dag.md), #3417); a
+second direction between two domains is rejected as part of a cycle. The
+loader does not judge a platform rule into an `inbound` owner: `inbound`
+owners are outside the target graph, so `settings-platform.http.inbound-common`
+closes no cycle and stays a rule. A temporary allowance is an exact `legacy.jsonl` key
 with its open carrier issue, never a rule. Older epochs stay loadable as
 immutable PR bases: there an `issue` field still marks a temporary
 permission, and an explicit empty, null, malformed, query, fragment or
@@ -1304,9 +1308,24 @@ The same epoch also:
 Kept after review: rules into another owner's `public`, `contract`, `port` or
 `test-support` role, and into its `compose` or `http` role from a source that
 is not an owner composition (the roots, `inbound` owners, HTTP adapters and
-tests). That is not a claim that all of them are target: the direction and
-cycle criteria of ADR 0058 are #3417's, which judges for example
-`settings-platform.http.inbound-common`.
+tests). That is not a claim that all of them are target: the cycle criterion
+of ADR 0058 came with #3417 below.
+
+#3417 (policy epoch 47 → 48) made the target graph acyclic. After the
+domain → projection and domain → workflow rules ADR 0058 point 2 already
+excludes, six domains still formed one cyclic component. The layering
+recorded in the addendum to ADR 0058 decides their directions: People
+Directory lowest, Care Plan above it, Enrollment above Care Plan, Workforce
+above Student Presence. The 14 rules that closed the cycle are deleted and
+the 18 imports they allowed are exact keys, a one-time rise of 480 → 498
+approved only for this conversion:
+
+| Rules | Carrier | Keys |
+|---|---|---:|
+| `people-directory.http.*` into Care Plan, Enrollment, Student Presence, `group-live-view`, `request-review-view`, `student-deletion`; `student-presence.http.calendar-view`, `student-presence.http.to.open-room-move`, `timetable-activities.http.class-day-view` | #4079 | 15 |
+| `care-plan.application.native-enrollment-selection`, `care-plan.postgres.enrollment-query`, `student-presence.application.workforce-public` | #4076 | 3 |
+
+`cycles --graph target` reports 0 components (58 nodes, 219 edges).
 
 #4072 removed 25 of the 34 platform keys (519 → 494) without a rule. Each
 platform declares what it needs in its own vocabulary and the root binds the
@@ -4339,6 +4358,27 @@ an incomplete producer instead of silently not registering the tick.
 519 -> 514. The composition surface falls from 1,743 to 1,742. The evidence
 record is `scheduler-reminder-notifications-4067.json`.
 
+Step 2, Student Presence, Care Plan and the Delivery Platform. The Worker
+declares its own ports for the session end and the abandoned-session sweep
+(`SessionMaintenance`, `DailySessionsEnded`), the nightly presence cleanup
+(`PresenceCleanup` and its three results), the end-of-day status flag archive
+(`StudentStatusFlagArchiver.ArchiveEndOfDayStatusFlag`), the standalone usage
+sweep (`PWAUsageCleanup`) and the overdue announcements
+(`InstanceOverdueBroadcaster`). The root binds them in
+`api/scheduler_presence_ports.go`. Care Plan's vocabulary moves with the
+binding: the root archives the sick flag as a sick day and the excused flag
+as an excused day from the end-of-day source. The overdue event envelopes
+become the Delivery Platform's `realtime.NewInstanceOverdueEvent` and
+`NewInstanceOverdueRefreshEvent`, which the root broadcasts tenant-wide;
+`realtimeevents.PublishInstanceOverdue` and `PublishInstanceOverdueRefresh`
+had no other caller and are deleted. Seven keys leave `legacy.jsonl`
+(512 -> 505): `services/scheduler -> modules/studentpresence`,
+`-> modules/delivery/application/pwa` and
+`-> modules/delivery/application/realtimeevents` in production and internal
+test, and `-> modules/careplan/absencerecords` in production. The
+composition surface stays at 1,740. The evidence record is
+`scheduler-presence-delivery-ports-4067.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.
@@ -4430,7 +4470,7 @@ keeps three of the six: the session token runtime is
 root's session imports and both session rules are deleted; `dev-tools`/`cli`
 is another owner's private role, so `root-composition.cli.dev-tools` is
 deleted and `cmd -> seed/api` and `cmd -> simulate` are keys (#4096).
-Epoch 48 (ADR 0060, #4096) removes both keys: the dev tools are the binary
+Epoch 49 (ADR 0060, #4096) removes both keys: the dev tools are the binary
 `cmd/devtools`, the only package in `dev-tools`/`compose`. Its eight
 `dev-tools.compose.*` rules reach `dev-tools`/`cli`, the class `http-router`,
 the `compose` role of `transaction-runtime`, `organization-tenancy`,

@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -331,7 +330,7 @@ func TestNightlyCleanupRunsTheRetentionStepsAndLogsWhatTheyDeleted(t *testing.T)
 	runs := newFakeCleanupRuns()
 	s := unitScheduler(&Scheduler{
 		logger:         slog.Default(),
-		cleanupService: &mockCleanupService{cleanupResult: &studentpresence.CleanupResult{Success: true}},
+		cleanupService: &mockCleanupService{cleanupResult: &ExpiredVisitCleanup{Success: true}},
 		cleanupRuns:    runs,
 		cleanupClock:   func() time.Time { return berlin(14, 2, 0) },
 		settings: &fakeSettingsResolver{
@@ -367,7 +366,7 @@ func TestFailingRetentionStepFailsTheNightlyRunOfTheSchool(t *testing.T) {
 	laterStepRan := false
 	s := unitScheduler(&Scheduler{
 		logger:         slog.Default(),
-		cleanupService: &mockCleanupService{cleanupResult: &studentpresence.CleanupResult{Success: true}},
+		cleanupService: &mockCleanupService{cleanupResult: &ExpiredVisitCleanup{Success: true}},
 		cleanupRuns:    runs,
 		cleanupClock:   func() time.Time { return berlin(14, 2, 0) },
 		settings: &fakeSettingsResolver{
