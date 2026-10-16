@@ -10,6 +10,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -21,13 +22,13 @@ import (
 // materialization still covers the whole window.
 func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to calendar.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
 	if to.Before(from) {
-		return nil, &ScheduleError{Op: "replan week: validate window", Err: errors.New("to_date must not be before from_date")}
+		return nil, &application.ScheduleError{Op: "replan week: validate window", Err: errors.New("to_date must not be before from_date")}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		// Without a tenant the delete would silently match nothing; fail
 		// fast instead of no-oping the admin action.
-		return nil, &ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
+		return nil, &application.ScheduleError{Op: "replan week", Err: errors.New("no tenant in context")}
 	}
 	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		var result *timetable.ReplanWeekResult
@@ -43,35 +44,35 @@ func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to cale
 
 func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantID int64, from, to calendar.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
 	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
-		return nil, &ScheduleError{Op: "replan week: lock recurrence", Err: err}
+		return nil, &application.ScheduleError{Op: "replan week: lock recurrence", Err: err}
 	}
 	// Lock every day of the window, ascending, BEFORE snapshotting: the
 	// re-plan regenerates exactly the rows the day-wide staffing saves write,
 	// so a save committing between snapshot and delete would be lost (#1840).
 	if err := s.acquireSubstituteDayLocks(ctx, tenantID, from, to); err != nil {
-		return nil, &ScheduleError{Op: "replan week: lock days", Err: err}
+		return nil, &application.ScheduleError{Op: "replan week: lock days", Err: err}
 	}
 	// Regenerate every occurrence from the (possibly just edited) template
 	// and reapply only the deviation fields; freezing a deviated row would
 	// keep stale template values beside a fresh duplicate.
 	snapshots, occurrences, err := s.snapshotDeviations(ctx, from, to, activityGroupID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "replan week: snapshot deviations", Err: err}
+		return nil, &application.ScheduleError{Op: "replan week: snapshot deviations", Err: err}
 	}
 	// Legacy weekend occurrences are deleted too: the materialization no
 	// longer recreates them.
 	fromDate, toDate := scheduleModel.Date(from), scheduleModel.Date(to)
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, fromDate, &toDate, activityGroupID, false)
 	if err != nil {
-		return nil, &ScheduleError{Op: "replan week: delete planned", Err: err}
+		return nil, &application.ScheduleError{Op: "replan week: delete planned", Err: err}
 	}
 	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, to, timetable.MaterializationSourceManual)
 	if err != nil {
-		return nil, &ScheduleError{Op: "replan week: materialize", Err: err}
+		return nil, &application.ScheduleError{Op: "replan week: materialize", Err: err}
 	}
 	reapplied, err := s.reapplyDeviations(ctx, snapshots, occurrences, nil, actorAccountID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "replan week: reapply deviations", Err: err}
+		return nil, &application.ScheduleError{Op: "replan week: reapply deviations", Err: err}
 	}
 	// Deletions bypass the CRUD announcements; the materializer announces
 	// its own inserts.
@@ -138,9 +139,9 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 	}
 	// A weekend that follows Friday's plan is rematerialized (#3921), so its
 	// deviations are reapplied like a weekday's.
-	follows, err := weekendFollowsFridayIn(ctx, from, to)
+	follows, err := application.WeekendFollowsFridayIn(ctx, from, to)
 	if err != nil {
-		return nil, nil, &ScheduleError{Op: "re-plan: snapshot deviations", Err: err}
+		return nil, nil, &application.ScheduleError{Op: "re-plan: snapshot deviations", Err: err}
 	}
 	occurrences := make(map[groupDay]int)
 	eligible := make([]*scheduleModel.ActivityInstance, 0, len(instances))
@@ -180,7 +181,7 @@ func snapshotOccurrence(inst *scheduleModel.ActivityInstance, staffRows []*sched
 	snap := deviationSnapshot{
 		date:             calendar.Date(inst.Date),
 		activityGroupID:  *inst.ActivityGroupID,
-		startTime:        formatTimeOfDay(inst.StartTime),
+		startTime:        application.FormatTimeOfDay(inst.StartTime),
 		understaffedAck:  inst.UnderstaffedAck,
 		understaffedNote: inst.UnderstaffedNote,
 		requiredStaff:    inst.RequiredStaff,

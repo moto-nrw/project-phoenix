@@ -8,11 +8,12 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // errPickupBaselineMissing reports a composition without the pickup
-// baseline; errArrivalBaselineMissing is the arrival twin.
+// baseline; application.ErrArrivalBaselineMissing is the arrival twin.
 var errPickupBaselineMissing = errors.New("load pickup schedules: baseline projection is not configured")
 
 // StudentWeek reads a child's timetable over the window with one read per
@@ -90,7 +91,7 @@ func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetab
 // weekday (#2414, ADR 0005).
 func (d *timetableData) loadStudentWeekBaselines(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
 	if d.deps.ArrivalBaselines == nil {
-		return errArrivalBaselineMissing
+		return application.ErrArrivalBaselineMissing
 	}
 	arrivals, err := d.deps.ArrivalBaselines.ProjectArrivals(ctx, []int64{studentID}, from, to)
 	if err != nil {
