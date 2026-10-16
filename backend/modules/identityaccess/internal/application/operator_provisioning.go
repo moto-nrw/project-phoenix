@@ -248,11 +248,6 @@ func (p *OperatorProvisioning) ResendOperatorInvitation(ctx context.Context, inv
 	return nil
 }
 
-// DeleteExpiredOperatorInvitations removes the links nobody can spend.
-func (p *OperatorProvisioning) DeleteExpiredOperatorInvitations(ctx context.Context) (int, error) {
-	return p.tokens.DeleteExpiredInvitations(ctx)
-}
-
 // inviterName reads the display name the invitation mail shows. A failure is
 // not worth refusing the invitation over: the mail falls back to the generic
 // wording the template carries.
