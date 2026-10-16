@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -417,7 +416,7 @@ func (s *Service) carePeriodOfferings(
 	if err != nil {
 		return nil, fmt.Errorf("list care offerings: %w", err)
 	}
-	offeringByID := make(map[int64]*enrollmentModels.CareOffering, len(offerings))
+	offeringByID := make(map[int64]*CareOffering, len(offerings))
 	for _, offering := range offerings {
 		if offering != nil {
 			offeringByID[offering.ID] = offering
@@ -452,7 +451,7 @@ func uniqueOfferingIDs(links []*OfferingBooking) []int64 {
 }
 
 func careOfferingSelection(
-	offering *enrollmentModels.CareOffering,
+	offering *CareOffering,
 	link *OfferingBooking,
 	today calendar.Date,
 ) (CareOfferingSelection, bool) {
@@ -478,8 +477,8 @@ func careOfferingSelection(
 	return item, true
 }
 
-func careOfferingDays(offering *enrollmentModels.CareOffering, link *OfferingBooking) []string {
-	if offering.DaysOfWeekMode == enrollmentModels.DaysOfWeekModeFixed {
+func careOfferingDays(offering *CareOffering, link *OfferingBooking) []string {
+	if offering.FixedDays {
 		return offering.AvailableDays
 	}
 	return link.SelectedDays
@@ -487,7 +486,7 @@ func careOfferingDays(offering *enrollmentModels.CareOffering, link *OfferingBoo
 
 func sortCareOfferingSelections(
 	items []CareOfferingSelection,
-	offerings []*enrollmentModels.CareOffering,
+	offerings []*CareOffering,
 ) {
 	sortOrderByID := make(map[int64]int, len(offerings))
 	for _, offering := range offerings {
@@ -510,7 +509,7 @@ func weekdaysFromOfferingDays(days []string) []int {
 	weekdays := make([]int, 0, len(days))
 	seen := make(map[int]bool, len(days))
 	for _, day := range days {
-		weekday, ok := enrollmentModels.CanonicalDayToISOWeekday(day)
+		weekday, ok := calendar.CanonicalDayToISOWeekday(day)
 		if !ok || seen[weekday] {
 			continue
 		}

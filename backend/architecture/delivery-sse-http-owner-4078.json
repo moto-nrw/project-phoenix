@@ -18,17 +18,17 @@
   "exact_ratchet_keys": [
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/delivery/http/sse|github.com/moto-nrw/project-phoenix/auth/authorize"
   ],
-  "atomic_cutover": "Delete inbound-sse and assign the same HTTP/test roles to delivery-platform. Remove its seven rules. Replace the two owner-wide Delivery/rendering external rules with six strictly narrower role/scope rules over unchanged Delivery packages, so SSE gains no provider/rendering permission. Root owns the unchanged JWT/portal route wiring and token deadline helper; SSE consumes scalar identity and tenant transaction ports. Generic Event/Client/Hub ports preserve the actual native event type, client pointer and 32-slot channel without relays, duplicate queues or goroutines. Existing test contexts remain in their package, using the existing Root binding with an extra Runtime value; four small auth/router cases run at Root. Existing test support supplies raw claims and token construction. Delete the resolved Security application import key and the last two HTTP ORM exceptions.",
+  "atomic_cutover": "Delete inbound-sse and assign the same HTTP/test roles to delivery-platform. Remove its six remaining rules. Replace the two owner-wide Delivery/rendering external rules with six strictly narrower role/scope rules over unchanged Delivery packages, so SSE gains no provider/rendering permission. Root owns the unchanged JWT/portal route wiring and token deadline helper; SSE consumes scalar identity and tenant transaction ports. Generic Event/Client/Hub ports preserve the actual native event type, client pointer and 32-slot channel without relays, duplicate queues or goroutines. Existing test contexts remain in their package, using the existing Root binding with an extra Runtime value; four small auth/router cases run at Root. Existing test support supplies raw claims and token construction. Delete the resolved Security application import key. Preserve the already-merged typed tenant transaction port and zero HTTP ORM exceptions from #4184, with its native validation/UnitOfWork now bound in Root.",
   "tests": [
     "Architecture strictness/composition/budget checks against immutable development base",
     "All existing Realtime, SSE and Root suites through the repository toolchain; unchanged production route golden",
-    "All 81 original assertion-call ASTs and the complete moved token-deadline function AST compared against immutable base9fa8ba2921016787e109532abceaadf83b0afe33",
+    "All 81 original assertion-call ASTs and the complete moved token-deadline function AST compared against immutable basee593e06a58c60ff7ce549344298164f712f10d73",
     "Frozen function/complexity/file-size/HTTP-ORM and hermetic gates",
     "Full test-changed origin/development without --fast and backend lint before normal push",
     "validate-ticket --all --base-ref <immutable base> for the single retirement"
   ],
   "runtime_evidence": {
-    "source": "Local complete Realtime/SSE/Root tests, strictness checks and source/assertion audits of the Root-bound stream adapter; existing event and hub definitions are unchanged.",
+    "source": "Local complete Realtime/SSE/Root tests, strictness checks and source/assertion audits of the Root-bound stream adapter; existing event and hub definitions are unchanged. Integrated peer #4184: validated typed tenant execution remains in Root; no new ORM cleanup is claimed.",
     "sources": [
       "backend/api/sse_http_runtime.go",
       "backend/api/sse_http_auth_runtime_test.go",
@@ -101,6 +101,6 @@
       "result": "All Root tests including TestFullProductionRouterGolden pass in10.355s. Original three portal middleware bodies are moved to Root; no route table update, app server or manual API request."
     }
   },
-  "rollback_and_cleanup": "Revert this ownership/port/scope-host cut, the native stream adapter methods/factory, six narrowed rule successors, single exact retirement and two removed HTTP ORM entries. No data, schema, deployment sequencing or queue cleanup.",
+  "rollback_and_cleanup": "Revert this ownership/port/scope-host cut, the native stream adapter methods/factory, six narrowed rule successors, single exact retirement while retaining the already-merged #4184 transaction port/ORM cleanup. No data, schema, deployment sequencing or queue cleanup.",
   "exit_criterion": "inbound-sse and its exact #4078 Security import are absent, the adapter imports no Identity & Access/Security application/Bun/concrete hub package, there is no new permission or graph field, original wire/auth/deadline/buffering behavior and assertions are preserved, and required local/CI/review checks pass. #4078 remains open for other inbound owners."
 }

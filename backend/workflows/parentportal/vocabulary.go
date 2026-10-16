@@ -224,3 +224,11 @@ const (
 	ReasonPolicyNobody                 = care.ReasonPolicyNobody
 	ReasonPolicyStaff                  = care.ReasonPolicyStaff
 )
+
+// Consumer-owned catalog and request-identity read contracts.
+type (
+	CareOffering               = care.CareOffering
+	CareOfferingReads          = care.CareOfferingReads
+	OfferingChangeIdentity     = messaging.OfferingChangeIdentity
+	OfferingChangeRequestReads = messaging.OfferingChangeRequestReads
+)

@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 59,
+  "policy_epoch": 60,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -164,18 +164,6 @@
     },
     {
       "id": "inbound-school",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-shift-types",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-staff-shifts",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-substitutions",
       "kind": "inbound"
     },
     {
@@ -872,7 +860,7 @@
     },
     {
       "path": "api/shift-types",
-      "owner": "inbound-shift-types",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -886,7 +874,7 @@
     },
     {
       "path": "api/staff-shifts",
-      "owner": "inbound-staff-shifts",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -900,7 +888,7 @@
     },
     {
       "path": "api/substitutions",
-      "owner": "inbound-substitutions",
+      "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -2215,13 +2203,6 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/workforce/compose/httpadapter",
-      "owner": "workforce",
-      "role": "compose",
-      "internal_test_role": "workflow-integration-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
       "path": "modules/workforce/compose/repositoryadapter",
       "owner": "workforce",
       "role": "compose",
@@ -2268,20 +2249,6 @@
       "owner": "workforce",
       "role": "application",
       "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/workforce/inbound",
-      "owner": "workforce",
-      "role": "adapter",
-      "internal_test_role": "adapter-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/workforce/inbound/shiftplanning",
-      "owner": "workforce",
-      "role": "http",
-      "internal_test_role": "adapter-test",
       "external_test_role": "module-behavior-test"
     },
     {
@@ -7931,28 +7898,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-shift-types.to.workforce",
-      "description": "inbound-shift-types calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-shift-types",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-staff-shifts.to.workforce",
-      "description": "inbound-staff-shifts calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-staff-shifts",
-      "source_role": "http",
-      "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
       "id": "people-directory.http.public",
       "description": "The student routes drive the People Directory owner through its public capability (#2731).",
       "scopes": [
@@ -7972,17 +7917,6 @@
       "source_owner": "care-plan",
       "source_role": "http",
       "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-substitutions.to.workforce",
-      "description": "inbound-substitutions calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-substitutions",
-      "source_role": "http",
-      "target_owner": "workforce",
       "target_role": "public"
     },
     {
@@ -8373,6 +8307,17 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "compose"
+    },
+    {
+      "id": "test-support.to.timetable-port",
+      "description": "Timetable test support names the presence read filters the owner module it constructs takes (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
     },
     {
       "id": "meal-plan.compose.orm-sql",
@@ -9014,16 +8959,6 @@
       "source_role": "compose",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.compose.http-router",
-      "description": "Workforce HTTP composition binds the established Chi transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "compose",
-      "target_class": "http-router"
     },
     {
       "id": "workforce.compose.security-contract",
@@ -9945,61 +9880,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "workforce.adapter.inbound-common",
-      "description": "Workforce HTTP composition binds shared tenant middleware and response rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.adapter.security-contract",
-      "description": "Workforce HTTP composition supplies the established time-tracking permissions and resolves the request principal.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "workforce.adapter.tenant-runtime",
-      "description": "Workforce HTTP composition checks the request principal against the ambient tenant.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "workforce.adapter.substitutions-http",
-      "description": "Workforce HTTP composition constructs the substitutions adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter",
-      "target_owner": "inbound-substitutions",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.adapter-test.substitutions-http",
-      "description": "Workforce HTTP composition tests render the substitutions failure contract.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "workforce",
-      "source_role": "adapter-test",
-      "target_owner": "inbound-substitutions",
-      "target_role": "http"
-    },
-    {
       "id": "workforce.behaviour-test.settings-support",
       "description": "The time-tracking export and schedule adapter suites script a school's payroll and work-schedule settings through the settings test support (#3213, #3413).",
       "scopes": [
@@ -10283,28 +10163,6 @@
       "source_role": "http",
       "target_owner": "workforce",
       "target_role": "public"
-    },
-    {
-      "id": "workforce.http.staff-shifts",
-      "description": "The Workforce shift-planning HTTP composition constructs the staff-shift route adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "inbound-staff-shifts",
-      "target_role": "http"
-    },
-    {
-      "id": "workforce.http.shift-types",
-      "description": "The Workforce shift-planning HTTP composition constructs the shift-type route adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "workforce",
-      "source_role": "http",
-      "target_owner": "inbound-shift-types",
-      "target_role": "http"
     },
     {
       "id": "workforce.http.inbound-common",

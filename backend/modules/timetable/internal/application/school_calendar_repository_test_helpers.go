@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -7,27 +7,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
-
-// SchoolCalendarRepositories are the retained calendar period, closing day
-// and dateframe repositories served by the School Calendar owner.
-type SchoolCalendarRepositories struct {
-	CalendarPeriod scheduleModels.CalendarPeriodRepository
-	ClosingDay     scheduleModels.ClosingDayRepository
-	Dateframe      scheduleModels.DateframeRepository
-}
-
-// NewSchoolCalendarRepositories builds the retained calendar repositories
-// over the School Calendar owner; usage answers the period reference counts.
-func NewSchoolCalendarRepositories(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) SchoolCalendarRepositories {
-	return SchoolCalendarRepositories{
-		CalendarPeriod: NewCalendarPeriodRepository(calendar, usage),
-		ClosingDay:     NewClosingDayRepository(calendar),
-		Dateframe:      NewDateframeRepository(calendar),
-	}
-}
 
 // NewClosingDayRepository serves the legacy closing day repository over the
 // School Calendar owner (#2666).
@@ -44,8 +24,8 @@ func NewDateframeRepository(calendar schoolcalendar.Capability) scheduleModels.D
 // closingDayCalendarRepository serves the legacy schedule.ClosingDayRepository
 // over the School Calendar capability (#2666).
 type closingDayCalendarRepository struct {
-	application.UnfilteredListing[*scheduleModels.ClosingDay]
-	application.ClosingDayRangeListing
+	UnfilteredListing[*scheduleModels.ClosingDay]
+	ClosingDayRangeListing
 	calendar schoolcalendar.Capability
 }
 
@@ -67,8 +47,8 @@ func applyClosingDayToLegacy(target *scheduleModels.ClosingDay, value schoolcale
 	target.CreatedAt = value.CreatedAt
 	target.UpdatedAt = value.UpdatedAt
 	target.SetTenantID(value.TenantID)
-	application.SetDate(&target.StartDate, value.StartDate)
-	application.SetDate(&target.EndDate, value.EndDate)
+	SetDate(&target.StartDate, value.StartDate)
+	SetDate(&target.EndDate, value.EndDate)
 	target.Reason = value.Reason
 }
 
@@ -159,7 +139,7 @@ func (r closingDayCalendarRepository) listOverlappingRange(ctx context.Context, 
 // over the School Calendar capability (#2666). Dateframes are instants, so
 // the legacy midnight normalisation of the lookups stays here.
 type dateframeCalendarRepository struct {
-	application.DateframeOptionsListing
+	DateframeOptionsListing
 	calendar schoolcalendar.Capability
 }
 
@@ -254,7 +234,7 @@ func (r dateframeCalendarRepository) Delete(ctx context.Context, id any) error {
 	return calendarError("delete", err)
 }
 
-func (r dateframeCalendarRepository) list(ctx context.Context, listing application.DateframeListing) ([]*scheduleModels.Dateframe, error) {
+func (r dateframeCalendarRepository) list(ctx context.Context, listing DateframeListing) ([]*scheduleModels.Dateframe, error) {
 	filter := schoolcalendar.DateframeFilter{
 		Name: listing.Name, NamePattern: listing.NamePattern, Limit: listing.Limit, Offset: listing.Offset,
 	}

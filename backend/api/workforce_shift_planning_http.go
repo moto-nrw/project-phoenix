@@ -6,7 +6,7 @@
 // Runtime. The public StaffShiftPlanning and ShiftTypeAdministration
 // contracts it mounts are served by the Workforce planning composition
 // (modules/workforce/compose, #3418).
-package shiftplanning
+package api
 
 import (
 	"context"
@@ -23,10 +23,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// StaffShiftsDependencies are the collaborators the staff-shift route
+// staffShiftsDependencies are the collaborators the staff-shift route
 // composition cannot own: the planning capability and the actor lookups.
 // The shared middleware opens the tenant transaction from the request context.
-type StaffShiftsDependencies struct {
+type staffShiftsDependencies struct {
 	Planning workforce.StaffShiftPlanning
 
 	// ResolveStaffID identifies the staff record of the acting admin.
@@ -36,16 +36,16 @@ type StaffShiftsDependencies struct {
 	ActorAccountID func(context.Context) *int64
 }
 
-// NewStaffShiftsResource wires /api/staff-shifts over the planning
+// newStaffShiftsResource wires /api/staff-shifts over the planning
 // capability.
-func NewStaffShiftsResource(deps StaffShiftsDependencies) *staffshiftsHTTP.Resource {
+func newStaffShiftsResource(deps staffShiftsDependencies) *staffshiftsHTTP.Resource {
 	if deps.Planning == nil || deps.ResolveStaffID == nil || deps.ActorAccountID == nil {
 		panic("staff-shifts HTTP composition: all dependencies are required")
 	}
 	return staffshiftsHTTP.NewResource(deps.Planning, staffShiftsRuntime(deps))
 }
 
-func staffShiftsRuntime(deps StaffShiftsDependencies) staffshiftsHTTP.Runtime {
+func staffShiftsRuntime(deps staffShiftsDependencies) staffshiftsHTTP.Runtime {
 	return staffshiftsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, staffshiftsHTTP.Middleware)) {
 			common.ProtectedTenantRoutes(router, routes)
@@ -139,9 +139,9 @@ func renderStaffShiftsFailure(w http.ResponseWriter, r *http.Request, kind staff
 	}
 }
 
-// NewShiftTypesResource wires /api/shift-types over the shift-type
+// newShiftTypesResource wires /api/shift-types over the shift-type
 // administration capability.
-func NewShiftTypesResource(types workforce.ShiftTypeAdministration) *shifttypesHTTP.Resource {
+func newShiftTypesResource(types workforce.ShiftTypeAdministration) *shifttypesHTTP.Resource {
 	if types == nil {
 		panic("shift-types HTTP composition: all dependencies are required")
 	}

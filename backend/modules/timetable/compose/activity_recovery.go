@@ -7,37 +7,17 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/uptrace/bun"
 )
 
-// AssignmentRecovery is the Timetable side of a reopen: the planned
-// participants of the block are locked so a concurrent roster edit cannot
-// hide from the unchanged-row check.
-type AssignmentRecovery interface {
-	LockAttendance(context.Context, int64) error
-}
-
-// PresenceRecovery is the Student Presence capability this repository needs:
-// the live group, its supervisors, its visits, the activity session and the
-// session attendance are all owned there (#2762).
-type PresenceRecovery interface {
-	LockOpenVisits(context.Context, int64) error
-	RestoreVisits(context.Context, []int64) error
-	LockOpenSupervisors(context.Context, int64) error
-	LockSupervisors(context.Context, []int64) error
-	RestoreGroup(context.Context, int64, time.Time) error
-	RestoreSupervisors(context.Context, []int64) error
-	RestoreAttendance(context.Context, []scheduleModel.CompletionAttendanceSnapshot) error
-	ReopenSession(context.Context, int64, int64) error
-}
-
 type ActivityRecoveryRepository struct {
 	store       *postgres.Store
-	assignments AssignmentRecovery
-	presence    PresenceRecovery
+	assignments application.AssignmentRecovery
+	presence    application.PresenceRecovery
 }
 
-func NewActivityRecoveryRepository(db *bun.DB, assignments AssignmentRecovery, presence PresenceRecovery) *ActivityRecoveryRepository {
+func NewActivityRecoveryRepository(db *bun.DB, assignments application.AssignmentRecovery, presence application.PresenceRecovery) *ActivityRecoveryRepository {
 	if assignments == nil || presence == nil {
 		panic("activity recovery: timetable assignments and presence are required")
 	}
@@ -87,4 +67,12 @@ func (r *ActivityRecoveryRepository) Restore(ctx context.Context, instanceID int
 		return fmt.Errorf("restore instance: %w", err)
 	}
 	return nil
+}
+
+// NewRetainedActivityRecoveryRepository composes the completion and reopen
+// support of a block over the database from the participant adapter's two
+// owners (#2762).
+func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments scheduleModel.InstanceStudentRepository) scheduleModel.ActivityRecoveryRepository {
+	recoveryAssignments, recoveryPresence := application.RetainedActivityRecovery(assignments)
+	return NewActivityRecoveryRepository(db, recoveryAssignments, recoveryPresence)
 }

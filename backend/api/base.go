@@ -112,8 +112,6 @@ import (
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
-	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
@@ -1631,7 +1629,7 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDo
 	if err != nil {
 		return nil, err
 	}
-	staffShifts := workforceShiftPlanning.NewStaffShiftsResource(workforceShiftPlanning.StaffShiftsDependencies{
+	staffShifts := newStaffShiftsResource(staffShiftsDependencies{
 		Planning:       svc.StaffShifts,
 		ResolveStaffID: currentStaffID(in.modules),
 		ActorAccountID: sessiontoken.ActorAccountIDFromCtx,
@@ -1640,9 +1638,9 @@ func mountStaffRoutes(tenant chi.Router, in routeInputs) (schedulerPorts.StaffDo
 	tenant.Mount("/staff", staff.Router())
 	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workforce, staffTimeTrackingNotifier(svc.RealtimeHub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
-	tenant.Mount("/shift-types", workforceShiftPlanning.NewShiftTypesResource(svc.ShiftTypes).Router())
+	tenant.Mount("/shift-types", newShiftTypesResource(svc.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)
-	tenant.Mount("/substitutions", workforceHTTPAdapter.SubstitutionsRoutes(SubstitutionCapability(svc.Substitution)))
+	tenant.Mount("/substitutions", newSubstitutionsResource(SubstitutionCapability(svc.Substitution)).Router())
 	tenant.Mount("/time-tracking", newTimeTrackingResource(svc, in.modules.calendar).Router())
 	return staffAdmin, nil
 }
