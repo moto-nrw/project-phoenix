@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -238,18 +237,18 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 		StudentID      int64
 		ActorAccountID int64
 		Reason         string
-		Counts         auditModels.StudentDeletionCounts
+		Counts         studentdeletion.Counts
 	}
 	require.NoError(t, db.NewRaw(`SELECT student_id, actor_account_id, reason, counts FROM audit.student_deletions
 		WHERE tenant_id = ? AND actor_account_id = ? ORDER BY id DESC LIMIT 1`, target.TenantID, f.actorID).Scan(ctx, &audit))
 	assert.Equal(t, target.ID, audit.StudentID)
 	assert.Equal(t, f.actorID, audit.ActorAccountID)
 	assert.Equal(t, studentdeletion.ReasonTestData, audit.Reason)
-	assert.Equal(t, auditModels.StudentDeletionCounts(preview.Counts), audit.Counts)
+	assert.Equal(t, preview.Counts, audit.Counts)
 
-	var dataAudit auditModels.DataDeletion
+	var dataAudit testpkg.DataDeletion
 	require.NoError(t, db.NewSelect().Model(&dataAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, auditModels.DeletionTypeManual).Scan(ctx))
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, testpkg.AuditDeletionTypeManual).Scan(ctx))
 	assert.Equal(t, preview.Counts.Total()+1, dataAudit.RecordsDeleted)
 	assert.Equal(t, studentdeletion.ReasonTestData, dataAudit.DeletionReason)
 	assert.Equal(t, "account:"+fmt.Sprint(f.actorID), dataAudit.DeletedBy)
@@ -310,8 +309,12 @@ func TestStudentDeletionWorkflow_PreviewExcludesPreservedDeletionAudits(t *testi
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
-	priorAudit := auditModels.NewDataDeletion(target.ID, auditModels.DeletionTypeVisitRetention, 1, "system")
-	require.NoError(t, api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataDeletion.Create(ctx, priorAudit))
+	priorAudit := &testpkg.DataDeletion{
+		TenantID: target.TenantID, StudentID: &target.ID, DeletionType: testpkg.AuditDeletionTypeVisitRetention,
+		RecordsDeleted: 1, DeletedBy: "system", DeletedAt: time.Now(), Metadata: map[string]any{},
+	}
+	_, err := db.NewInsert().Model(priorAudit).Returning("*").Exec(ctx)
+	require.NoError(t, err)
 	var accessLogID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, student_id, range_start, range_end)
@@ -327,9 +330,9 @@ func TestStudentDeletionWorkflow_PreviewExcludesPreservedDeletionAudits(t *testi
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, rowCount(t, db, "audit.data_deletions", priorAudit.ID), "history is retained per policy")
-	var deletionAudit auditModels.DataDeletion
+	var deletionAudit testpkg.DataDeletion
 	require.NoError(t, db.NewSelect().Model(&deletionAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, auditModels.DeletionTypeManual).Scan(ctx))
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, testpkg.AuditDeletionTypeManual).Scan(ctx))
 	assert.Equal(t, 1, deletionAudit.RecordsDeleted)
 	var detachedStudentID *int64
 	require.NoError(t, db.NewRaw(`SELECT student_id FROM audit.data_access_log WHERE id = ?`, accessLogID).Scan(ctx, &detachedStudentID))
@@ -477,9 +480,9 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	firstName, deletedAt := personSnapshot(t, db, alumnus.PersonID)
 	assert.Equal(t, "Gelöscht", firstName)
 	assert.NotNil(t, deletedAt)
-	var dataAudit auditModels.DataDeletion
+	var dataAudit testpkg.DataDeletion
 	require.NoError(t, db.NewSelect().Model(&dataAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, alumnus.TenantID, alumnus.ID, auditModels.DeletionTypeManual).Scan(ctx))
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, alumnus.TenantID, alumnus.ID, testpkg.AuditDeletionTypeManual).Scan(ctx))
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, dataAudit.DeletionReason)
 	assert.Equal(t, result.Counts.Total()+2, dataAudit.RecordsDeleted, "student and person on top of the dependent rows")
 }

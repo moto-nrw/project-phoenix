@@ -43,6 +43,7 @@ const (
 	KeyChildSearchOnlyNavigation             = configModel.KeyChildSearchOnlyNavigation
 	KeyFeedbackEnabled                       = configModel.KeyFeedbackEnabled
 	KeyGroupMode                             = configModel.KeyGroupMode
+	KeyOGSDevicePIN                          = configModel.KeyOGSDevicePIN
 	KeyGDPRParentMessageRetentionDays        = configModel.KeyGDPRParentMessageRetentionDays
 	KeyGDPRWithdrawnEnrollmentRetentionDays  = configModel.KeyGDPRWithdrawnEnrollmentRetentionDays
 	KeyGDPRStatusDayRetentionDays            = configModel.KeyGDPRStatusDayRetentionDays

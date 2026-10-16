@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 	importPorts "github.com/moto-nrw/project-phoenix/services/import/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -163,10 +162,10 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 	}
 	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).ColumnExpr("guardian_role, pickup_notes, emergency_priority, permissions::text AS permissions").
 		Where("tenant_id = ? AND student_id = ?", tenantID, student.ID).Scan(ctx, &link))
-	assert.Equal(t, authorize.GuardianRolePickupOnly, link.GuardianRole)
+	assert.Equal(t, testpkg.GuardianRolePickupOnly, link.GuardianRole)
 	assert.Equal(t, "nur dienstags", *link.PickupNotes)
 	assert.Equal(t, 2, link.EmergencyPriority)
-	assert.NotContains(t, link.Permissions, authorize.GuardianPermissionPortalAccess, "pickup-only presets grant no portal access")
+	assert.NotContains(t, link.Permissions, testpkg.GuardianPermissionPortalAccess, "pickup-only presets grant no portal access")
 	var retention int
 	require.NoError(t, db.NewSelect().TableExpr("users.privacy_consents").Column("data_retention_days").Where("tenant_id = ? AND student_id = ?", tenantID, student.ID).Scan(ctx, &retention))
 	assert.Equal(t, 14, retention)
@@ -214,7 +213,7 @@ func TestDataImportCutover_StudentCreateUpdateAndReplay(t *testing.T) {
 	assert.Contains(t, student.DepartureDays, `"mon": "bus"`, "the plan survives an update without Gehweise columns")
 	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).ColumnExpr("guardian_role, pickup_notes, emergency_priority, permissions::text AS permissions").
 		Where("tenant_id = ? AND student_id = ?", tenantID, student.ID).Scan(ctx, &link))
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, link.GuardianRole)
+	assert.Equal(t, testpkg.GuardianRoleLegalGuardian, link.GuardianRole)
 	assert.Equal(t, "nur dienstags", *link.PickupNotes)
 	updated := countImportRows(t, db, tenantID)
 	assert.Equal(t, after.links, updated.links, "existing guardian is merged, not duplicated")
@@ -266,7 +265,7 @@ func TestDataImportCutover_ReusesPhoneOnlyGuardian(t *testing.T) {
 	assert.Equal(t, before.consents, after.consents, "an existing consent is never rewritten")
 	var role string
 	require.NoError(t, db.NewSelect().TableExpr("(?) AS sg", testpkg.StudentGuardianLinks(db)).Column("guardian_role").Where("tenant_id = ?", tenantID).OrderExpr("id DESC").Limit(1).Scan(ctx, &role))
-	assert.Equal(t, authorize.GuardianRoleLegalGuardian, role)
+	assert.Equal(t, testpkg.GuardianRoleLegalGuardian, role)
 
 	// A row whose numbers match nothing stored still resolves the guardian by
 	// its unique name among the child's own relationships.

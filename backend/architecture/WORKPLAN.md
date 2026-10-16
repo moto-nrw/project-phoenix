@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 397 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 48 ·
+Stand 16.10.2026 · Ratchet 368 · Composition 1.724 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 49 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,7 +11,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 102 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 75 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
@@ -22,8 +22,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools des Kommando-Roots | 2 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 397 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 368 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -129,6 +128,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 - [x] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei; #3755 entfernt zwei: `services/users` in Produktion und internem Test, das Profil kommt über einen eigenen Port; #2734 entfernt drei: `api/enrollment` in Produktion und internem Test, `models/enrollment` im internen Test; #2743 entfernt einen: `modules/careplan/inbound/parent -> database/repositories` im externen Test; #3991 entfernt einen: `models/base` im internen Test, die Zeilen-Literale nennen `users.Model`); Stufe 2: die letzten 20 Keys weg, 81 → 61; Kalender über `sharedkernel/calendar`, die zurückgereichten People-Directory-, Care-Plan- und Enrollment-Werte über das Vokabular des Workflow-Ports, das Profil als HTTP-Werte über den eigenen Port (Übersetzung in der Root), die Locale-Prüfung über die Notification-Texte von Delivery, Transaktionen über `tenant.WithinTenant`/`WithinAdmin` ohne `*bun.DB`, die Handler-Suiten über `modules/settings` und `api/testutil` ohne viper; `api/common`, Session-Adapter und Tenant-Runtime als stehende Regeln per ADR 0051, Policy-Epoche 38 → 39, vier Regeln; HTTP-ORM-Ratchet −2 Einträge, Composition 259 → 259)
 - [x] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale` (das `issue`-Feld hat #4070 wieder abgeschafft, ADR 0057)
 - [x] [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln in exakte Keys — 405 Regeln weg, 514 Keys unter #4072 bis #4078, #4081, #4004, #2729, #2750 und #4096 (6 → 520), Policy-Epoche 46 → 47; `models/*` als `legacy-model`, Session-Token-Runtime als `identity-access`/`http`, neun abgelaufene Cutover-Akzeptoren gelöscht, Temp-Rules-Ratchet strukturell
+- [x] [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools als eigenes Binary `cmd/devtools` (ADR 0060) — `cmd -> seed/api` und `cmd -> simulate` weg (492 → 490), Policy-Epoche 48 → 49; `cmd/devtools` ist das einzige Paket in `dev-tools`/`compose` mit acht `dev-tools.compose.*`-Regeln; HTTP-Client, Demo-Runtime samt Lease und Zufallsquelle aus `api` ins Binary; nur das Demo-Image enthält es; Composition 1.740 → 1.724
 - [x] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht Quality-Ratchets auf null — am 15.10.2026 aus #2580 gelöst, läuft als eigenes Ticket weiter
 
 ## api/students · 0 Keys

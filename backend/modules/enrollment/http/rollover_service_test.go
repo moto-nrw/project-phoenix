@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -59,26 +58,26 @@ func setupRolloverTest(t *testing.T) (*rolloverTestEnv, func()) {
 
 	repoFactory := flowRepositories(t, db)
 	settings := newStubRequestSettings()
-	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
-	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
-	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
-	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
-	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
-	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
+	settings.boolValues[settingKeyEnrollmentEnabled] = true
+	settings.boolValues[settingKeyAllowSubmissionEdit] = true
+	settings.boolValues[settingKeyCollectGradeLevel] = true
+	settings.boolValues[settingKeyCareOfferingsEnabled] = true
+	settings.boolValues[settingKeyWaitlistEnabled] = true
+	settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateWarn
+	settings.intValues[settingKeyGradeLevelMax] = 4
+	settings.intValues[settingKeyStatusTokenTTLDays] = 365
 	// The shared env submits all four standard consent flags. Configure the
 	// matching legal texts so the resolved block contract declares them.
 	// Submit persists only consent keys the contract knows, so an
 	// unconfigured tenant would silently drop these flags.
-	settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentLegalEmailContactEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
-	settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "AGB Text"
-	settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "DSGVO Text"
-	settings.stringValues[configModel.KeyEnrollmentLegalEmailContactText] = "E-Mail Text"
-	settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Foto Text"
+	settings.boolValues[settingKeyLegalTermsEnabled] = true
+	settings.boolValues[settingKeyLegalDSGVOEnabled] = true
+	settings.boolValues[settingKeyLegalEmailContactEnabled] = true
+	settings.boolValues[settingKeyLegalPhotoEnabled] = true
+	settings.stringValues[settingKeyLegalAGBText] = "AGB Text"
+	settings.stringValues[settingKeyLegalDSGVOText] = "DSGVO Text"
+	settings.stringValues[settingKeyLegalEmailContactText] = "E-Mail Text"
+	settings.stringValues[settingKeyLegalPhotoText] = "Foto Text"
 
 	outbox := &recordingOutbox{}
 	requestSvc := newTestRequestService(api.EnrollmentIntakeSources{
@@ -303,7 +302,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsGradeSettingReadFailure(t 
 	env, cleanup := setupRolloverTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.intErrors[configModel.KeyEnrollmentGradeLevelMax] = errors.New("settings unavailable")
+	env.settings.intErrors[settingKeyGradeLevelMax] = errors.New("settings unavailable")
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(
 		ctx,
@@ -326,7 +325,7 @@ func TestRolloverService_CreatePhaseFromSource_RejectsOutOfRangeGradeSetting(t *
 			env, cleanup := setupRolloverTest(t)
 			defer cleanup()
 			ctx := testpkg.Ctx(t)
-			env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = value
+			env.settings.intValues[settingKeyGradeLevelMax] = value
 
 			result, err := env.rolloverSvc.CreatePhaseFromSource(
 				ctx,
@@ -409,7 +408,7 @@ func TestRolloverService_CreatePhaseFromSource_CarriesEligibilityForward(t *test
 	// admin create/update paths (#1663). collect_grade_level is already on in
 	// setupRolloverTest; enable collect_school_class so this restricted rollover
 	// is a valid configuration.
-	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
+	env.settings.boolValues[settingKeyCollectSchoolClass] = true
 
 	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx, validRolloverRequest(env, enrollmentModels.PhaseRolloverModeOptOut, true))
 	require.NoError(t, err)

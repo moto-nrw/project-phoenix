@@ -8,7 +8,6 @@ import (
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -55,7 +54,7 @@ func NewOfferingChangeTestModule(db transactionruntime.Database, options Offerin
 	}
 	return newOfferingChanges(OfferingChangeInputs{
 		CarePlan: repos.CarePlan, Catalog: options.Catalog, Enrollment: repos.Enrollment(), Students: repos.Student,
-		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(db.Pool()), CourseGroups: repos.Timetable},
+		Withdrawals: repos.CareWithdrawal, Settings: options.Settings, Planning: ManualPlanningReader{Query: PlanningQuery{DB: db}, CourseGroups: repos.Timetable},
 		Bookings: options.Bookings, Reviews: offeringChangeTestScope(options.Scope), Permissions: requestTokenReads.Permissions, Today: options.Today,
 		Logger: slog.Default(),
 	})

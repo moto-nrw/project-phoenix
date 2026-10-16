@@ -60,6 +60,18 @@ func CreateTestAttendanceForTenant(tb testing.TB, db *bun.DB, tenantID, studentI
 	return &attendance
 }
 
+// CheckOutTestAttendanceByStaff closes the student's school stay of date as
+// the web checkout does: booked by the staff member, without a device.
+func CheckOutTestAttendanceByStaff(tb testing.TB, db *bun.DB, studentID int64, date string, at time.Time, staffID int64) {
+	tb.Helper()
+	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	require.NoError(tb, err)
+	_, err = presence.CloseAttendance(Ctx(tb), studentpresence.AttendanceCheckout{
+		StudentIDs: []int64{studentID}, Date: date, At: at, StaffID: staffID,
+	})
+	require.NoError(tb, err, "Failed to check out test attendance")
+}
+
 // EndedActiveGroup is an active group and one supervisor whose session
 // already ended, as an activity completion snapshot leaves them.
 type EndedActiveGroup struct {

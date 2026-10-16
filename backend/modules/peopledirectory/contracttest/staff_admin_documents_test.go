@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -80,9 +79,9 @@ func (s *staffDocumentScenario) create(t *testing.T, category string, actor work
 	return info
 }
 
-func (s *staffDocumentScenario) auditRows(t *testing.T) []*auditModels.StaffMasterDataChange {
+func (s *staffDocumentScenario) auditRows(t *testing.T) []*testpkg.StaffMasterDataChange {
 	t.Helper()
-	var rows []*auditModels.StaffMasterDataChange
+	var rows []*testpkg.StaffMasterDataChange
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.staff_master_data_changes AS "staff_master_data_change"`).
@@ -187,13 +186,13 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 	logs := s.accessLogRowsFor(t)
 	require.Len(t, logs, before+1)
 	last := logs[len(logs)-1]
-	assert.Equal(t, auditModels.ResourceTypeStaffDocumentDownload, last.ResourceType)
+	assert.Equal(t, testpkg.AuditResourceTypeStaffDocumentDownload, last.ResourceType)
 	assert.EqualValues(t, lohnInfo.Document.ID, last.Metadata["document_id"])
 }
 
-func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*auditModels.DataAccessLog {
+func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*testpkg.DataAccessLog {
 	t.Helper()
-	var rows []*auditModels.DataAccessLog
+	var rows []*testpkg.DataAccessLog
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
@@ -217,7 +216,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 
 	rows := s.auditRows(t)
 	require.Len(t, rows, 1)
-	assert.Equal(t, auditModels.StammdatenSectionDokumente, rows[0].Section)
+	assert.Equal(t, testpkg.AuditStammdatenSectionDokumente, rows[0].Section)
 	assert.Equal(t, userModels.StaffDocumentCategoryZeugnis, rows[0].FieldName)
 	assert.Equal(t, "", rows[0].OldValue)
 	assert.Equal(t, "zeugnis-datei.pdf", rows[0].NewValue)

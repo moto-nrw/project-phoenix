@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
@@ -93,9 +92,9 @@ func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff people
 	}
 }
 
-func (s *payrollScenario) auditRows(t *testing.T, staffID int64) []*auditModels.PersonnelNumberChange {
+func (s *payrollScenario) auditRows(t *testing.T, staffID int64) []*testpkg.PersonnelNumberChange {
 	t.Helper()
-	var rows []*auditModels.PersonnelNumberChange
+	var rows []*testpkg.PersonnelNumberChange
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.personnel_number_changes AS "personnel_number_change"`).
@@ -330,15 +329,12 @@ func TestUpdatePersonnelNumber_AppearsInAuditFeed(t *testing.T) {
 	_, err := s.svc.UpdatePersonnelNumber(s.ctx, staff.ID, &value, actor.ID, "Feed-Test")
 	require.NoError(t, err)
 
-	entries, err := api.NewTestAuditPersistence(testpkg.NewDatabase(t, s.db), nil).TimeTrackingAuditLog.ListEntries(s.ctx, auditModels.TimeTrackingAuditLogFilter{
-		StaffID: staff.ID,
-		Sources: []string{auditModels.AuditLogSourcePersonnelNumber},
-	})
+	entries, err := api.ListTestTimeTrackingAuditEntries(s.ctx, testpkg.NewDatabase(t, s.db), staff.ID, testpkg.AuditLogSourcePersonnelNumber)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
 
 	entry := entries[0]
-	assert.Equal(t, auditModels.AuditLogSourcePersonnelNumber, entry.Source)
+	assert.Equal(t, testpkg.AuditLogSourcePersonnelNumber, entry.Source)
 	require.NotNil(t, entry.StaffID)
 	assert.Equal(t, staff.ID, *entry.StaffID)
 	require.NotNil(t, entry.ActorStaffID)

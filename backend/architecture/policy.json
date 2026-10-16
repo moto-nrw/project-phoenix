@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 48,
+  "policy_epoch": 49,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1057,6 +1057,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "cmd/devtools",
+      "owner": "dev-tools",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "constants",
       "owner": "legacy-shared",
       "role": "domain",
@@ -1137,13 +1144,6 @@
       "path": "modules/organizationtenancy/internal/adapters/postgres",
       "owner": "organization-tenancy",
       "role": "postgres",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "modules/organizationtenancy/internal/adapters/secrets",
-      "owner": "organization-tenancy",
-      "role": "adapter",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -2163,6 +2163,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableprojection/compose",
+      "owner": "timetable-legacy-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/timetableprojection/integration",
       "owner": "timetable-legacy-view",
       "role": "test-support",
@@ -2187,6 +2194,13 @@
       "path": "modules/presenceprojection",
       "owner": "presence-legacy-view",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/presenceprojection/compose",
+      "owner": "presence-legacy-view",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -7237,6 +7251,93 @@
       "source_role": "cli",
       "target_owner": "dev-tools",
       "target_role": "contract"
+    },
+    {
+      "id": "dev-tools.compose.cli",
+      "description": "The dev tools binary starts the seeder and the simulator. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "dev-tools",
+      "target_role": "cli"
+    },
+    {
+      "id": "dev-tools.compose.http-client",
+      "description": "The dev tools binary drives the server through its HTTP API. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_class": "http-router"
+    },
+    {
+      "id": "dev-tools.compose.transaction-runtime",
+      "description": "The demo process opens its own phoenix_demo connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "transaction-runtime",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.organization-tenancy",
+      "description": "The demo process composes the demo school state and queue on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "organization-tenancy",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.identity-access",
+      "description": "The demo process composes the demo access expiry on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "identity-access",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.student-presence",
+      "description": "The demo process composes the presence reads of its ticks on its own connection. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "student-presence",
+      "target_role": "compose"
+    },
+    {
+      "id": "dev-tools.compose.tenant-runtime",
+      "description": "The demo process reads presence inside a tenant-scoped transaction. The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "dev-tools.compose.security-runtime",
+      "description": "The dev tools binary draws generated seed credentials from the cryptographic entropy Security Runtime owns (#3364). The dev-tools compose role has exactly one package, the dev tools binary cmd/devtools (ADR 0060).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "dev-tools",
+      "source_role": "compose",
+      "target_owner": "security-runtime",
+      "target_role": "public"
     },
     {
       "id": "external.cli-config.cli",
