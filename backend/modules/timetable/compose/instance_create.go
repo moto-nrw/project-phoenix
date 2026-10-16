@@ -8,8 +8,6 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/uptrace/bun"
-
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
@@ -30,7 +28,7 @@ func (s *InstanceLifecycleService) CreateInstance(ctx context.Context, req timet
 	}
 	if !s.hasTx(ctx) {
 		var created *timetable.LifecycleInstance
-		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		err := s.deps.Database.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 			var err error
 			created, err = s.CreateInstance(txCtx, req)
 			return err

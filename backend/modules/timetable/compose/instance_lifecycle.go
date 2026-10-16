@@ -7,14 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -104,17 +100,6 @@ type LifecycleStudents interface {
 	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
 }
 
-// RosterStudents reads and locks the People Directory children the activity
-// rosters and the operational day name; the root also serves the lifecycle's
-// LifecycleStudents from it.
-type RosterStudents interface {
-	FindByID(ctx context.Context, id any) (*usersModel.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModel.Student, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)
-	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)
-	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)
-}
-
 // InstanceLifecycleDependencies wires the lifecycle. Broadcaster and
 // GuardianNotices are optional (nil announces nothing and refuses every
 // notice); Settings is required with EnforceTimePolicy; Logger and Now
@@ -148,7 +133,7 @@ type InstanceLifecycleDependencies struct {
 	// ContentHash is Security Runtime's content fingerprint (hex SHA-256)
 	// of an idempotent create request.
 	ContentHash       func([]byte) string
-	DB                *bun.DB
+	Database          application.TenantDatabase
 	Logger            *slog.Logger
 	Now               func() time.Time
 	EnforceTimePolicy bool
@@ -156,8 +141,7 @@ type InstanceLifecycleDependencies struct {
 
 // InstanceLifecycleService is the Timetable owner's instance lifecycle.
 type InstanceLifecycleService struct {
-	deps  InstanceLifecycleDependencies
-	store *postgres.Store
+	deps InstanceLifecycleDependencies
 }
 
 var _ timetable.InstanceLifecycleCapability = (*InstanceLifecycleService)(nil)
@@ -168,7 +152,7 @@ func NewInstanceLifecycle(deps InstanceLifecycleDependencies) (*InstanceLifecycl
 	if !lifecycleRepositoriesWired(deps) || !lifecycleCollaboratorsWired(deps) || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		return nil, errors.New("timetable instance lifecycle: required dependency is nil")
 	}
-	return &InstanceLifecycleService{deps: deps, store: postgres.New(databaseRuntime(deps.DB))}, nil
+	return &InstanceLifecycleService{deps: deps}, nil
 }
 
 func lifecycleRepositoriesWired(deps InstanceLifecycleDependencies) bool {
@@ -181,7 +165,7 @@ func lifecycleCollaboratorsWired(deps InstanceLifecycleDependencies) bool {
 	return deps.ActiveGroupRepo != nil && deps.SupervisorRepo != nil && deps.Presence != nil && deps.ActiveService != nil &&
 		deps.Rooms != nil && deps.CareDays != nil && deps.CareDayLocks != nil && deps.Protocol != nil &&
 		deps.Materialization != nil && deps.RecurrenceLock != nil && deps.StartConflicts != nil &&
-		deps.SubstituteConflicts != nil && deps.ContentHash != nil && deps.DB != nil
+		deps.SubstituteConflicts != nil && deps.ContentHash != nil && deps.Database != nil
 }
 
 // SeriesDeviations exposes the re-plan's deviation snapshot and reapply
@@ -206,7 +190,7 @@ func (s *InstanceLifecycleService) getLogger() *slog.Logger {
 // transaction the advisory gates need. False for direct calls outside
 // TenantTxMiddleware (CLI, tests), which then get their own transaction.
 func (s *InstanceLifecycleService) hasTx(ctx context.Context) bool {
-	if s.deps.DB == nil {
+	if s.deps.Database == nil {
 		return true // no DB wired (unit tests): nothing to lock, nothing to wrap
 	}
 	_, ok := tenant.TransactionFromContext(ctx)
@@ -220,7 +204,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLock(ctx context.Context,
 }
 
 func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, tenantID int64, date calendar.Date) error {
-	return s.store.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, date))
+	return s.deps.Database.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, date))
 }
 
 // acquireSubstituteDayLocks takes the day lock of every date in [from, to]
@@ -279,7 +263,7 @@ func (s *InstanceLifecycleService) lockDayAndReload(ctx context.Context, instanc
 // review); taking the recurrence gate first keeps the acquisition acyclic
 // against the day locks.
 func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx context.Context, op string) error {
-	if s.deps.DB == nil || s.deps.RecurrenceLock == nil {
+	if s.deps.Database == nil || s.deps.RecurrenceLock == nil {
 		return nil
 	}
 	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {

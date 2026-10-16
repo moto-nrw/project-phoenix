@@ -10,12 +10,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/uptrace/bun"
-
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -115,15 +112,14 @@ type StaffDeviationDependencies struct {
 	Lifecycle       DeviationLifecycle
 	Protocol        DeviationProtocol
 	ActivityUpdates ActivityUpdateAnnouncer
-	DB              *bun.DB
+	Locks           application.TransactionLocks
 	Logger          *slog.Logger
 	Now             func() time.Time
 }
 
 type staffDeviations struct {
 	substituteConflicts
-	deps  StaffDeviationDependencies
-	store *postgres.Store
+	deps StaffDeviationDependencies
 }
 
 var _ timetable.StaffDeviations = (*staffDeviations)(nil)
@@ -131,13 +127,12 @@ var _ timetable.StaffDeviations = (*staffDeviations)(nil)
 // NewStaffDeviations composes the Timetable owner's deviation writes.
 func NewStaffDeviations(deps StaffDeviationDependencies) (timetable.StaffDeviations, error) {
 	if deps.Instances == nil || deps.InstanceStaff == nil || deps.Staff == nil || deps.Supervisions == nil ||
-		deps.Lifecycle == nil || deps.Protocol == nil || deps.ActivityUpdates == nil || deps.DB == nil {
+		deps.Lifecycle == nil || deps.Protocol == nil || deps.ActivityUpdates == nil || deps.Locks == nil {
 		return nil, errors.New("timetable staff deviations: required dependency is nil")
 	}
 	return &staffDeviations{
 		substituteConflicts: substituteConflicts{instances: deps.Instances, staff: deps.InstanceStaff},
 		deps:                deps,
-		store:               postgres.New(databaseRuntime(deps.DB)),
 	}, nil
 }
 
@@ -155,7 +150,7 @@ func (s *staffDeviations) getLogger() *slog.Logger {
 // acquireSubstituteDayLock takes the shared (tenant, date) advisory lock that
 // serializes every same-day staffing mutation, within the caller's tx.
 func (s *staffDeviations) acquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
-	return s.store.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
+	return s.deps.Locks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
 }
 
 // QueueActivityUpdates queues one activity update per touched running block

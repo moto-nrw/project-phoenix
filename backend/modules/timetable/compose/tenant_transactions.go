@@ -5,6 +5,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -24,4 +25,18 @@ func NewTenantTransactions(db *bun.DB) application.TenantTransactions {
 		return nil
 	}
 	return tenantTransactions{db: db}
+}
+
+type tenantDatabase struct {
+	tenantTransactions
+	*postgres.Store
+}
+
+// NewTenantDatabase binds the tenant transactions and the advisory locks to
+// the database; a nil database gives nil.
+func NewTenantDatabase(db *bun.DB) application.TenantDatabase {
+	if db == nil {
+		return nil
+	}
+	return tenantDatabase{tenantTransactions: tenantTransactions{db: db}, Store: postgres.New(databaseRuntime(db))}
 }

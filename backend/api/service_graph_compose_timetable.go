@@ -293,7 +293,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 		Rows: b.timetableRows,
 		Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
-			CalendarPeriodRepo: b.templateRows.CalendarPeriods, DB: b.DB.Pool(),
+			CalendarPeriodRepo: b.templateRows.CalendarPeriods, Database: arrivalTimetable.NewTenantDatabase(b.DB.Pool()),
 		},
 		Staff: NewTimetableStaff(b.People.Staff), Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
 		Presence: b.Presence.Presence, SessionEnder: b.graph.Active, CareDays: b.graph.CareDay, CareDayLocks: b.CarePlan,
@@ -329,7 +329,7 @@ func composeDeviations(b graphBuild) (graphBuild, error) {
 	if err != nil {
 		return b, fmt.Errorf("compose timetable deviations: %w", err)
 	}
-	deps.DB = b.DB.Pool()
+	deps.Locks = arrivalTimetable.NewTenantDatabase(b.DB.Pool())
 	deviations, err := arrivalTimetable.NewStaffDeviations(deps)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable deviations: %w", err)

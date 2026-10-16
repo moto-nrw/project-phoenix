@@ -6,8 +6,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -32,7 +30,7 @@ func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to cale
 	}
 	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		var result *timetable.ReplanWeekResult
-		err := tenant.WithTenantTx(ctx, s.deps.DB, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+		err := s.deps.Database.InTenant(ctx, tenantID, func(txCtx context.Context) error {
 			var err error
 			result, err = s.ReplanWeek(txCtx, from, to, activityGroupID, actorAccountID)
 			return err

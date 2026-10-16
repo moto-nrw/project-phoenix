@@ -7,8 +7,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/uptrace/bun"
-
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
@@ -26,7 +24,7 @@ const movedSlotReason = "Einzeltermin verschoben"
 func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID int64, req timetable.UpdateInstanceInput, actorAccountID *int64) (*timetable.LifecycleInstance, error) {
 	if !s.hasTx(ctx) {
 		var updated *timetable.LifecycleInstance
-		err := tenant.WithTenantTx(ctx, s.deps.DB, tenant.FromContext(ctx), func(txCtx context.Context, _ bun.Tx) error {
+		err := s.deps.Database.InTenant(ctx, tenant.FromContext(ctx), func(txCtx context.Context) error {
 			var err error
 			updated, err = s.UpdatePlanned(txCtx, instanceID, req, actorAccountID)
 			return err
@@ -301,7 +299,7 @@ func (s *InstanceLifecycleService) lockRosterCareDays(ctx context.Context, insta
 // lockCareExceptionDaysForStudents takes student → care-day locks for every
 // child on the date, sorted, matching the partial-absence writers.
 func (s *InstanceLifecycleService) lockCareExceptionDaysForStudents(ctx context.Context, studentIDs []int64, date calendar.Date) error {
-	if len(studentIDs) == 0 || s.deps.DB == nil {
+	if len(studentIDs) == 0 || s.deps.Database == nil {
 		return nil
 	}
 	sorted := slices.Clone(studentIDs)
