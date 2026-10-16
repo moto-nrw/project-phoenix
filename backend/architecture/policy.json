@@ -215,10 +215,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-rooms",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-school",
       "kind": "inbound"
     },
@@ -930,7 +926,7 @@
     },
     {
       "path": "modules/facilities/http/rooms",
-      "owner": "inbound-rooms",
+      "owner": "facilities",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -8278,12 +8274,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-rooms.to.facilities",
-      "description": "inbound-rooms calls exactly one public capability.",
+      "id": "facilities.http.public",
+      "description": "The Facilities rooms HTTP adapter calls its own public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-rooms",
+      "source_owner": "facilities",
       "source_role": "http",
       "target_owner": "facilities",
       "target_role": "public"
