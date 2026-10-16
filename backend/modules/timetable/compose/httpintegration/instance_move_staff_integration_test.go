@@ -16,7 +16,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -173,7 +173,7 @@ func TestMoveStaffBetweenBlocks_RelocatesRowAndLogsEvent(t *testing.T) {
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
 	require.Len(t, events, 1, "exactly one connected protocol entry")
 	ev := events[0]
-	assert.Equal(t, compose.DeviationEventStaffMoved, ev.EventType)
+	assert.Equal(t, timetablePorts.DeviationEventStaffMoved, ev.EventType)
 	require.NotNil(t, ev.InstanceID)
 	assert.Equal(t, s.target.ID, *ev.InstanceID, "anchored on the target block")
 	require.NotNil(t, ev.SubjectStaffID)
@@ -207,7 +207,7 @@ func TestMoveStaffBetweenBlocks_AssignFromPoolCreatesRow(t *testing.T) {
 
 	events := loadDeviationEvents(t, s.db, s.ctx, s.tenantID)
 	require.Len(t, events, 1)
-	assert.Equal(t, compose.DeviationEventStaffMoved, events[0].EventType)
+	assert.Equal(t, timetablePorts.DeviationEventStaffMoved, events[0].EventType)
 	assert.NotContains(t, string(events[0].OldValue), "from_instance_id", "no source block for a pool assign")
 	assert.Contains(t, string(events[0].NewValue), fmt.Sprintf(`"to_instance_id": %d`, s.target.ID))
 }

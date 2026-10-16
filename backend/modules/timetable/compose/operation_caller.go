@@ -7,7 +7,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -32,11 +32,11 @@ func (operationCaller) OGSActorToken(ctx context.Context, accountID int64) bool 
 		authorize.HasPermission("schedules:read", sessiontoken.PermissionsFromCtx(ctx))
 }
 
-func (operationCaller) SchoolWideActionScope(ctx context.Context, settings application.OperationSettings, scopeKey string) (bool, error) {
+func (operationCaller) SchoolWideActionScope(ctx context.Context, settings ports.OperationSettings, scopeKey string) (bool, error) {
 	return authorize.SchoolWideActionScope(ctx, settings, scopeKey)
 }
 
-func (operationCaller) OperationalOverview(ctx context.Context, settings application.OperationSettings, assignmentBound, administrative, hasStaff bool) (bool, error) {
+func (operationCaller) OperationalOverview(ctx context.Context, settings ports.OperationSettings, assignmentBound, administrative, hasStaff bool) (bool, error) {
 	return authorize.HasOperationalOverviewForResolvedStaff(ctx, settings, assignmentBound, administrative, hasStaff)
 }
 

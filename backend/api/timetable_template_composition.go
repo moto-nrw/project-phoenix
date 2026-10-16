@@ -6,13 +6,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // TimetableMaterializationDependencies binds the recurrence engine to the
 // realtime hub over the template rows.
-func TimetableMaterializationDependencies(in TimetableMaterializationInputs) timetableCompose.MaterializationDependencies {
-	return timetableCompose.MaterializationDependencies{
+func TimetableMaterializationDependencies(in TimetableMaterializationInputs) timetablePorts.MaterializationDependencies {
+	return timetablePorts.MaterializationDependencies{
 		GroupRepo:      in.Rows.Groups,
 		ScheduleRepo:   in.Rows.Schedules,
 		EnrollmentRepo: in.Rows.Enrollments,
@@ -33,11 +33,11 @@ func TimetableMaterializationDependencies(in TimetableMaterializationInputs) tim
 
 // TimetableTemplateDependencies binds the template writes to Care Plan's
 // catalog guards, School Structure's class rules and the realtime hub.
-func TimetableTemplateDependencies(in TimetableTemplateInputs) (timetableCompose.TemplateAdministrationDependencies, error) {
+func TimetableTemplateDependencies(in TimetableTemplateInputs) (timetablePorts.TemplateAdministrationDependencies, error) {
 	if in.CareOfferings == nil || in.Deviations == nil {
-		return timetableCompose.TemplateAdministrationDependencies{}, errors.New("timetable templates: care offerings and instance lifecycle are required")
+		return timetablePorts.TemplateAdministrationDependencies{}, errors.New("timetable templates: care offerings and instance lifecycle are required")
 	}
-	return timetableCompose.TemplateAdministrationDependencies{
+	return timetablePorts.TemplateAdministrationDependencies{
 		Groups:               in.Rows.Groups,
 		Categories:           in.Rows.Categories,
 		Schedules:            in.Rows.Schedules,
@@ -63,8 +63,8 @@ func TimetableTemplateDependencies(in TimetableTemplateInputs) (timetableCompose
 
 // timetableSchoolClassRules are School Structure's grade range and class
 // identity the template writes validate against.
-func timetableSchoolClassRules() timetableCompose.SchoolClassRules {
-	return timetableCompose.SchoolClassRules{
+func timetableSchoolClassRules() timetablePorts.SchoolClassRules {
+	return timetablePorts.SchoolClassRules{
 		MinGradeLevel: schoolStructure.MinGradeLevel,
 		MaxGradeLevel: schoolStructure.MaxGradeLevel,
 		Normalize:     schoolStructure.NormalizeClass,
@@ -73,8 +73,8 @@ func timetableSchoolClassRules() timetableCompose.SchoolClassRules {
 
 // timetableCareOfferingChecks binds the Care Plan catalog's guards; an
 // invalid linked offering is the client-correctable conflict.
-func timetableCareOfferingChecks(guards careplan.CareOfferingGuards) timetableCompose.CareOfferingChecks {
-	return timetableCompose.CareOfferingChecks{
+func timetableCareOfferingChecks(guards careplan.CareOfferingGuards) timetablePorts.CareOfferingChecks {
+	return timetablePorts.CareOfferingChecks{
 		ValidateSeries:         guards.ValidateTemplateSeries,
 		ValidateOfferingSource: guards.ValidateTemplateOfferingSource,
 		IsConflict:             IsCareOfferingConfigInvalid,
@@ -93,7 +93,7 @@ type staffingAnnouncer struct {
 	broadcaster realtime.Broadcaster
 }
 
-func newStaffingAnnouncer(broadcaster realtime.Broadcaster) timetableCompose.StaffingAnnouncer {
+func newStaffingAnnouncer(broadcaster realtime.Broadcaster) timetablePorts.StaffingAnnouncer {
 	if broadcaster == nil {
 		return nil
 	}

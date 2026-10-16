@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,8 +21,8 @@ func NewTimetableConflictDetection(readers TimetableConflictReaders) (timetable.
 	return timetableCompose.NewConflictDetection(timetableConflictDependencies(readers))
 }
 
-func timetableConflictDependencies(r TimetableConflictReaders) timetableCompose.ConflictDetectionDependencies {
-	deps := timetableCompose.ConflictDetectionDependencies{
+func timetableConflictDependencies(r TimetableConflictReaders) timetablePorts.ConflictDetectionDependencies {
+	deps := timetablePorts.ConflictDetectionDependencies{
 		Instances:         r.Instances,
 		InstanceStaff:     r.InstanceStaff,
 		InstanceStudents:  r.InstanceStudents,
@@ -48,7 +49,7 @@ type ArrivalBaselineProjector struct {
 	Reader careplan.ArrivalBaselineReader
 }
 
-func (p ArrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetableCompose.ArrivalBaselines, error) {
+func (p ArrivalBaselineProjector) ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (timetablePorts.ArrivalBaselines, error) {
 	projection, err := p.Reader.Project(ctx, studentIDs, from, to)
 	if err != nil {
 		return nil, err

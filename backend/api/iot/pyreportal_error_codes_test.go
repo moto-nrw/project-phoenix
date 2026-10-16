@@ -56,6 +56,9 @@ var pyreportalErrorCodes = []string{
 // extraGuardSources are files OUTSIDE api/iot whose codes surface through
 // IoT routes. Paths are relative to the backend module root.
 var extraGuardSources = []string{
+	// HTTP declarations relocated from api/iot under ADR 0020 (#4078).
+	"modules/devicescan/http/checkin/capacity_errors.go",
+	"modules/devicescan/http/staffclock/errors.go",
 	// The destination booking into released rooms (#3067).
 	"modules/devicescan/open_room.go",
 }

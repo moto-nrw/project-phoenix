@@ -11,6 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -23,7 +24,7 @@ import (
 func (s *InstanceLifecycleService) CreateInstance(ctx context.Context, req timetable.CreateInstanceInput) (*timetable.LifecycleInstance, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return nil, &ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
+		return nil, &ports.ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
 	}
 	if !s.hasTx(ctx) {
 		var created *timetable.LifecycleInstance
@@ -43,7 +44,7 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 ) (*scheduleModel.ActivityInstance, error) {
 	idempotencyFingerprint, err := s.createInstanceIdempotencyFingerprint(req)
 	if err != nil {
-		return nil, &ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
+		return nil, &ports.ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
 	}
 	if existing, replayed, err := s.replayIdempotentCreate(ctx, req, idempotencyFingerprint, "create instance: find idempotency key"); replayed || err != nil {
 		return existing, err
@@ -56,7 +57,7 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 	}
 	if req.IsSpontaneous == nil || !*req.IsSpontaneous {
 		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
-			return nil, &ScheduleError{Op: "create instance: validate calendar period", Err: err}
+			return nil, &ports.ScheduleError{Op: "create instance: validate calendar period", Err: err}
 		}
 	}
 	allowExternalCaregivers := req.IsSpontaneous != nil && *req.IsSpontaneous
@@ -65,7 +66,7 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 		studentIDs: req.StudentIDs, createdByStaffID: req.CreatedByStaffID, allowExternalCaregivers: allowExternalCaregivers,
 	})
 	if err != nil {
-		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
+		return nil, &ports.ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
 	inst.TemplateType = templateType
@@ -90,7 +91,7 @@ func (s *InstanceLifecycleService) replayIdempotentCreate(
 	}
 	existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
 	if err != nil {
-		return nil, false, &ScheduleError{Op: op, Err: err}
+		return nil, false, &ports.ScheduleError{Op: op, Err: err}
 	}
 	if existing == nil {
 		return nil, false, nil
@@ -175,23 +176,23 @@ func idempotentCreateResult(existing *scheduleModel.ActivityInstance, fingerprin
 func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, inst *scheduleModel.ActivityInstance) (*scheduleModel.ActivityInstance, bool, error) {
 	if inst.IdempotencyKey == nil {
 		if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
-			return nil, false, &ScheduleError{Op: "create instance: insert", Err: duplicateTemplateInstance(err)}
+			return nil, false, &ports.ScheduleError{Op: "create instance: insert", Err: duplicateTemplateInstance(err)}
 		}
 		return inst, true, nil
 	}
 	inserted, err := s.deps.IdempotencyRepo.CreateIdempotent(ctx, inst)
 	if err != nil {
-		return nil, false, &ScheduleError{Op: "create instance: insert idempotent", Err: duplicateTemplateInstance(err)}
+		return nil, false, &ports.ScheduleError{Op: "create instance: insert idempotent", Err: duplicateTemplateInstance(err)}
 	}
 	if inserted {
 		return inst, true, nil
 	}
 	existing, err := s.findCreateByIdempotencyKey(ctx, *inst.IdempotencyKey)
 	if err != nil {
-		return nil, false, &ScheduleError{Op: "create instance: load idempotent result", Err: err}
+		return nil, false, &ports.ScheduleError{Op: "create instance: load idempotent result", Err: err}
 	}
 	if existing == nil {
-		return nil, false, &ScheduleError{
+		return nil, false, &ports.ScheduleError{
 			Op:  "create instance: load idempotent result",
 			Err: errors.New("idempotent insert conflict has no matching row"),
 		}
@@ -216,7 +217,7 @@ func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Conte
 		row := &scheduleModel.InstanceStaff{InstanceID: inst.ID, StaffID: staffID, IsPrimary: false}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: "create instance: assign staff", Err: err}
+			return &ports.ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
 	studentIDs := domain.UniquePositiveIDs(req.StudentIDs)
@@ -237,14 +238,14 @@ func (s *InstanceLifecycleService) assignInstanceStudents(ctx context.Context, i
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: op + ": assign student", Err: err}
+			return &ports.ScheduleError{Op: op + ": assign student", Err: err}
 		}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return &ScheduleError{Op: op + ": apply student status days", Err: err}
+		return &ports.ScheduleError{Op: op + ": apply student status days", Err: err}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return &ScheduleError{Op: op + ": apply student partial absences", Err: err}
+		return &ports.ScheduleError{Op: op + ": apply student partial absences", Err: err}
 	}
 	return nil
 }

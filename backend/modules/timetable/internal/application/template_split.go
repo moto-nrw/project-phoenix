@@ -10,6 +10,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -38,25 +39,6 @@ import (
 // RLS-aware tenant transaction for direct callers. Any failure rolls back the
 // whole split.
 
-// SeriesDeviations is the instance lifecycle's deviation machinery the split
-// needs around its delete/materialize cycle (#1840): the day-wide staffing
-// locks of the window and a snapshot of the old template's Vertretungsplan
-// overrides that is reapplied to the successor's rematerialized occurrences.
-// The composition root binds the retained instance service.
-type SeriesDeviations interface {
-	LockDeviationDays(ctx context.Context, tenantID int64, from, to calendar.Date) error
-	SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (PreservedDeviations, error)
-}
-
-// PreservedDeviations is one snapshot of SeriesDeviations.
-type PreservedDeviations interface {
-	// Count is the number of snapshotted deviations.
-	Count() int
-	// Reapply writes the snapshot onto the given template's occurrences and
-	// reports how many deviations it reapplied.
-	Reapply(ctx context.Context, templateID int64, actorAccountID *int64) (int, error)
-}
-
 // TemplateSplitDependencies aggregates wiring. Every field is required except
 // Logger (falls back to slog.Default), Staffing (nil announces nothing) and
 // Today (defaults to the Berlin calendar day). ResyncOfferingRoster is
@@ -65,21 +47,21 @@ type PreservedDeviations interface {
 type TemplateSplitDependencies struct {
 	GroupRepo            activitiesModel.GroupRepository
 	CategoryRepo         activitiesModel.CategoryRepository
-	PlanningTracks       PlanningTrackAssignments
+	PlanningTracks       ports.PlanningTrackAssignments
 	ScheduleRepo         activitiesModel.ScheduleRepository
 	EnrollmentRepo       activitiesModel.StudentEnrollmentRepository
 	SupervisorRepo       activitiesModel.SupervisorPlannedRepository
 	InstanceRepo         scheduleModel.ActivityInstanceRepository
 	TimeframeRepo        scheduleModel.TimeframeRepository
 	Materialization      timetable.MaterializationCapability
-	Deviations           SeriesDeviations
-	CareOfferings        CareOfferingChecks
+	Deviations           ports.SeriesDeviations
+	CareOfferings        ports.CareOfferingChecks
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
-	SchoolClasses        SchoolClassRules
-	Staffing             StaffingAnnouncer
+	SchoolClasses        ports.SchoolClassRules
+	Staffing             ports.StaffingAnnouncer
 	Logger               *slog.Logger
-	Transactions         TenantTransactions
+	Transactions         ports.TenantTransactions
 	Today                func() calendar.Date
 }
 
@@ -99,7 +81,7 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitServ
 		deps.CareOfferings.ValidateSeries == nil || deps.CareOfferings.ValidateOfferingSource == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template split: required dependency is nil")
 	}
-	if err := deps.SchoolClasses.validate(); err != nil {
+	if err := validateSchoolClassRules(deps.SchoolClasses); err != nil {
 		return nil, err
 	}
 	if deps.Today == nil {
@@ -133,7 +115,7 @@ func (s *TemplateSplitService) getLogger() *slog.Logger {
 // (ErrOfferingSourceInvalid → 400), so a source next to explicit student_ids
 // or per-weekday child lists is rejected rather than half-applied; per-weekday
 // staff is carried onto the successor (#3165).
-func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel.Group, rules SchoolClassRules) error {
+func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel.Group, rules ports.SchoolClassRules) error {
 	if in.TargetGroupType != activitiesModel.TargetGroupTypeAngebot {
 		// The DB CHECK ties the source to 'angebot': a split away from the
 		// type drops the rule regardless of what the request carried.
@@ -147,7 +129,7 @@ func resolveSuccessorOfferingSource(in *TemplateSplitInput, old *activitiesModel
 		in.SourceCareOfferingIDs, in.SourceGradeLevels, in.SourceSchoolClasses,
 		in.TargetGroupType, in.StudentIDs, in.WeekdayAssignments, rules,
 	); err != nil {
-		return &ScheduleError{Op: "split template: validate offering source", Err: err}
+		return &ports.ScheduleError{Op: "split template: validate offering source", Err: err}
 	}
 	return nil
 }
@@ -206,7 +188,7 @@ func (s *TemplateSplitService) validateSuccessorOfferingSource(
 		// Client-correctable 400: keep TenantTxMiddleware from committing any
 		// provisional split writes that preceded the check.
 		tenant.MarkRollback(ctx)
-		return &ScheduleError{Op: "split template: validate offering source", Err: err}
+		return &ports.ScheduleError{Op: "split template: validate offering source", Err: err}
 	}
 	return nil
 }
@@ -234,7 +216,7 @@ func (s *TemplateSplitService) resyncChangedOfferingSource(
 		return nil
 	}
 	if s.deps.ResyncOfferingRoster == nil {
-		return &ScheduleError{Op: "split template: resync offering source", Err: errors.New("offering roster resync is not configured")}
+		return &ports.ScheduleError{Op: "split template: resync offering source", Err: errors.New("offering roster resync is not configured")}
 	}
 	if err := s.deps.ResyncOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 		TemplateID:       successor.ID,
@@ -244,7 +226,7 @@ func (s *TemplateSplitService) resyncChangedOfferingSource(
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    in.EffectiveDate,
 	}); err != nil {
-		return &ScheduleError{Op: "split template: resync offering source", Err: err}
+		return &ports.ScheduleError{Op: "split template: resync offering source", Err: err}
 	}
 	return nil
 }
@@ -328,7 +310,7 @@ func (s *TemplateSplitService) Split(ctx context.Context, in TemplateSplitInput)
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return nil, &ScheduleError{Op: "split template", Err: errors.New("no tenant in context")}
+		return nil, &ports.ScheduleError{Op: "split template", Err: errors.New("no tenant in context")}
 	}
 	if _, ok := tenant.TransactionFromContext(ctx); !ok && s.runInTx != nil {
 		var result *timetable.SplitTemplateResult
@@ -415,17 +397,17 @@ func (s *TemplateSplitService) splitInTransaction(
 func (s *TemplateSplitService) deleteSplitSourceInstances(ctx context.Context, oldID int64, effectiveDate calendar.Date) (int64, error) {
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &oldID, false)
 	if err != nil {
-		return 0, &ScheduleError{Op: "split template: delete planned instances", Err: err}
+		return 0, &ports.ScheduleError{Op: "split template: delete planned instances", Err: err}
 	}
 	return deleted, nil
 }
 
 func (s *TemplateSplitService) lockSplitRecurrence(ctx context.Context, op string) error {
 	if s.lockTenantRecurrence == nil {
-		return &ScheduleError{Op: op + ": lock recurrence", Err: errors.New("template recurrence lock is not configured")}
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: errors.New("template recurrence lock is not configured")}
 	}
 	if err := s.lockTenantRecurrence(ctx); err != nil {
-		return &ScheduleError{Op: op + ": lock recurrence", Err: err}
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil
 }
@@ -460,8 +442,8 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 		return nil, nil, nil, err
 	}
 	if err := s.validateCareOfferingSeries(ctx, newGroup.ID); err != nil {
-		return nil, nil, nil, s.deps.CareOfferings.validationError(
-			ctx,
+		return nil, nil, nil, careOfferingValidationError(
+			ctx, s.deps.CareOfferings,
 			"split template: validate linked care offerings",
 			"successor is incompatible with an existing care offering",
 			err,
@@ -473,20 +455,20 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 // preserveSplitDeviations locks the window's days and snapshots the old
 // template's deviations when the split re-materializes a window; without a
 // window there is nothing to preserve.
-func (s *TemplateSplitService) preserveSplitDeviations(ctx context.Context, in TemplateSplitInput, tenantID, oldID int64) (PreservedDeviations, error) {
+func (s *TemplateSplitService) preserveSplitDeviations(ctx context.Context, in TemplateSplitInput, tenantID, oldID int64) (ports.PreservedDeviations, error) {
 	deviationFrom, deviationTo, preserve := splitMaterializationWindow(in)
 	if !preserve {
 		return nil, nil
 	}
 	if s.deps.Deviations == nil {
-		return nil, &ScheduleError{Op: "split template: preserve deviations", Err: errors.New("deviation preservation is not configured")}
+		return nil, &ports.ScheduleError{Op: "split template: preserve deviations", Err: errors.New("deviation preservation is not configured")}
 	}
 	if err := s.deps.Deviations.LockDeviationDays(ctx, tenantID, deviationFrom, deviationTo); err != nil {
-		return nil, &ScheduleError{Op: "split template: lock deviation days", Err: err}
+		return nil, &ports.ScheduleError{Op: "split template: lock deviation days", Err: err}
 	}
 	preserved, err := s.deps.Deviations.SnapshotDeviations(ctx, deviationFrom, deviationTo, oldID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "split template: snapshot deviations", Err: err}
+		return nil, &ports.ScheduleError{Op: "split template: snapshot deviations", Err: err}
 	}
 	return preserved, nil
 }
@@ -494,13 +476,13 @@ func (s *TemplateSplitService) preserveSplitDeviations(ctx context.Context, in T
 // reapplySplitDeviations writes the snapshot onto the successor's
 // rematerialized occurrences. It reports the snapshot size and the number
 // reapplied.
-func reapplySplitDeviations(ctx context.Context, preserved PreservedDeviations, newID int64, actorAccountID *int64) (int, int, error) {
+func reapplySplitDeviations(ctx context.Context, preserved ports.PreservedDeviations, newID int64, actorAccountID *int64) (int, int, error) {
 	if preserved == nil {
 		return 0, 0, nil
 	}
 	reapplied, err := preserved.Reapply(ctx, newID, actorAccountID)
 	if err != nil {
-		return 0, 0, &ScheduleError{Op: "split template: reapply deviations", Err: err}
+		return 0, 0, &ports.ScheduleError{Op: "split template: reapply deviations", Err: err}
 	}
 	return preserved.Count(), reapplied, nil
 }
@@ -592,13 +574,13 @@ func (s *TemplateSplitService) capSplitSource(
 	sourceValidUntil *calendar.Date,
 ) error {
 	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate.String()); err != nil {
-		return &ScheduleError{Op: "split template: cap schedules", Err: err}
+		return &ports.ScheduleError{Op: "split template: cap schedules", Err: err}
 	}
 	if _, err := s.deps.EnrollmentRepo.CapActiveByGroup(ctx, groupID, activitiesModel.Date(effectiveDate)); err != nil {
-		return &ScheduleError{Op: "split template: cap enrollments", Err: err}
+		return &ports.ScheduleError{Op: "split template: cap enrollments", Err: err}
 	}
 	if _, err := s.deps.SupervisorRepo.CapActiveByGroup(ctx, groupID, activitiesModel.Date(effectiveDate)); err != nil {
-		return &ScheduleError{Op: "split template: cap supervisors", Err: err}
+		return &ports.ScheduleError{Op: "split template: cap supervisors", Err: err}
 	}
 	if _, err := s.capBoundedSegmentEnrollments(ctx, enrollments, sourceValidUntil, effectiveDate); err != nil {
 		return err
@@ -620,7 +602,7 @@ func (s *TemplateSplitService) createSplitSuccessor(
 ) (*activitiesModel.Group, []int64, error) {
 	timeframeID, err := findOrCreateTimeframe(ctx, s.deps.TimeframeRepo, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
-		return nil, nil, &ScheduleError{Op: "split template: resolve timeframe", Err: err}
+		return nil, nil, &ports.ScheduleError{Op: "split template: resolve timeframe", Err: err}
 	}
 	newGroup, err := s.createSuccessorGroup(ctx, old, in, tenantID)
 	if err != nil {
@@ -649,7 +631,7 @@ func (s *TemplateSplitService) materializeWindow(ctx context.Context, in Templat
 	}
 	mat, err := s.deps.Materialization.MaterializeForTenant(ctx, from, to, timetable.MaterializationSourceManual)
 	if err != nil {
-		return nil, &ScheduleError{Op: "split template: materialize", Err: err}
+		return nil, &ports.ScheduleError{Op: "split template: materialize", Err: err}
 	}
 	return mat, nil
 }

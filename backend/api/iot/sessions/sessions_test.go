@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -31,7 +32,7 @@ func setupSessionsRoute(t *testing.T) *testContext {
 	db, svc := setupActiveModule(t)
 
 	// Create sessions resource
-	resource := sessionsAPI.NewResource(svc.SessionLifecycle, svc.SessionEnd, testRuntime())
+	resource := sessionsAPI.NewResource(svc.SessionLifecycle, api.BindIoTSessionEnd(svc.SessionEnd), testRuntime())
 
 	return &testContext{
 		db:       db,

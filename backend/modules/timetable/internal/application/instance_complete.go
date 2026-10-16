@@ -10,6 +10,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -76,20 +77,20 @@ func (s *InstanceLifecycleService) complete(ctx context.Context, instanceID int6
 		return nil, err
 	}
 	if err := s.deps.ActiveService.EndActivitySession(ctx, *instance.ActiveGroupID); err != nil {
-		return nil, &ScheduleError{Op: "complete instance: end active.group", Err: err}
+		return nil, &ports.ScheduleError{Op: "complete instance: end active.group", Err: err}
 	}
 	completedAt, err := s.deps.RecoveryRepo.CompletionTimestamp(ctx)
 	if err != nil {
-		return nil, &ScheduleError{Op: "complete instance: read transaction timestamp", Err: err}
+		return nil, &ports.ScheduleError{Op: "complete instance: read transaction timestamp", Err: err}
 	}
 	instance.MarkCompleted(completedAt, completedAt.Add(reopenWindow), timetable.LifecycleActor(ctx))
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "completed_at", "completed_by", "reopen_until", "completion_snapshot"); err != nil {
-		return nil, &ScheduleError{Op: "complete instance: update", Err: err}
+		return nil, &ports.ScheduleError{Op: "complete instance: update", Err: err}
 	}
 	if end, ok := SpontaneousCompletionEnd(instance, completedAt); ok {
 		instance.EndTime = end
 		if err := s.updateLifecycleColumns(ctx, instance, "end_time"); err != nil {
-			return nil, &ScheduleError{Op: "complete instance: record spontaneous end", Err: err}
+			return nil, &ports.ScheduleError{Op: "complete instance: record spontaneous end", Err: err}
 		}
 	}
 	s.broadcastInstanceEvent(ctx, LifecycleEventInstanceCompleted, instance, nil, nil)
@@ -118,7 +119,7 @@ func (s *InstanceLifecycleService) completableInstance(ctx context.Context, inst
 	if instance.ActiveGroupID == nil {
 		// A running block without a session is data corruption; abort rather
 		// than "complete" a block that never ran.
-		return nil, &ScheduleError{Op: "complete instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
+		return nil, &ports.ScheduleError{Op: "complete instance", Err: fmt.Errorf("active instance %d has no active_group_id", instance.ID)}
 	}
 	return instance, nil
 }
@@ -129,7 +130,7 @@ func (s *InstanceLifecycleService) completableInstance(ctx context.Context, inst
 func (s *InstanceLifecycleService) lockCompletionState(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
 	lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, *instance.ActiveGroupID)
 	if err != nil {
-		return &ScheduleError{Op: "complete instance: lock group", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: lock group", Err: err}
 	}
 	if lockedGroup == nil || lockedGroup.EndTime != nil {
 		return fmt.Errorf("%w: active group is not open", timetable.ErrInvalidInstanceTransition)
@@ -138,13 +139,13 @@ func (s *InstanceLifecycleService) lockCompletionState(ctx context.Context, inst
 		return nil
 	}
 	if err := s.deps.RecoveryRepo.LockOpenVisits(ctx, *instance.ActiveGroupID); err != nil {
-		return &ScheduleError{Op: "complete instance: lock visits", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: lock visits", Err: err}
 	}
 	if err := s.deps.RecoveryRepo.LockOpenSupervisors(ctx, *instance.ActiveGroupID); err != nil {
-		return &ScheduleError{Op: "complete instance: lock supervisors", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: lock supervisors", Err: err}
 	}
 	if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
-		return &ScheduleError{Op: "complete instance: lock attendance", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: lock attendance", Err: err}
 	}
 	return nil
 }
@@ -156,15 +157,15 @@ func (s *InstanceLifecycleService) snapshotCompletion(ctx context.Context, insta
 	activeGroupID := *instance.ActiveGroupID
 	visitsBefore, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{activeGroupID}})
 	if err != nil {
-		return &ScheduleError{Op: "complete instance: snapshot visits", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: snapshot visits", Err: err}
 	}
 	supervisorsBefore, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, activeGroupID, true)
 	if err != nil {
-		return &ScheduleError{Op: "complete instance: snapshot supervisors", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: snapshot supervisors", Err: err}
 	}
 	attendanceBefore, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return &ScheduleError{Op: "complete instance: snapshot attendance", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: snapshot attendance", Err: err}
 	}
 	snapshot := scheduleModel.ActivityCompletionSnapshot{ActiveGroupID: activeGroupID}
 	openStudentIDs := make([]int64, 0, len(visitsBefore))
@@ -189,7 +190,7 @@ func (s *InstanceLifecycleService) snapshotCompletion(ctx context.Context, insta
 	}
 	instance.CompletionSnapshot, err = json.Marshal(snapshot)
 	if err != nil {
-		return &ScheduleError{Op: "complete instance: encode snapshot", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: encode snapshot", Err: err}
 	}
 	return nil
 }
@@ -223,12 +224,12 @@ func (s *InstanceLifecycleService) stampRemainingAbsent(ctx context.Context, ins
 		refs = append(refs, scheduleModel.StudentInstanceRef{StudentID: studentID, InstanceID: instance.ID})
 	}
 	if err := s.deps.InstanceStudents.MarkNotScheduled(ctx, refs); err != nil {
-		return &ScheduleError{Op: "complete instance: mark not scheduled", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: mark not scheduled", Err: err}
 	}
 	if _, err := s.deps.InstanceStudents.BulkUpdateStatus(
 		ctx, instance.ID, scheduleModel.AttendanceStatusExpected, scheduleModel.AttendanceStatusAbsent, notScheduled,
 	); err != nil {
-		return &ScheduleError{Op: "complete instance: mark absent", Err: err}
+		return &ports.ScheduleError{Op: "complete instance: mark absent", Err: err}
 	}
 	return nil
 }
@@ -241,7 +242,7 @@ func (s *InstanceLifecycleService) stampRemainingAbsent(ctx context.Context, ins
 func (s *InstanceLifecycleService) notScheduledStudentIDs(ctx context.Context, instance *scheduleModel.ActivityInstance) ([]int64, error) {
 	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "complete instance: load attendance rows", Err: err}
+		return nil, &ports.ScheduleError{Op: "complete instance: load attendance rows", Err: err}
 	}
 	studentIDs := make([]int64, 0, len(rows))
 	for _, row := range rows {
@@ -254,7 +255,7 @@ func (s *InstanceLifecycleService) notScheduledStudentIDs(ctx context.Context, i
 	}
 	careDay, err := s.deps.CareDays.ResolveForDate(ctx, studentIDs, calendar.Date(instance.Date))
 	if err != nil {
-		return nil, &ScheduleError{Op: "complete instance: resolve care day", Err: err}
+		return nil, &ports.ScheduleError{Op: "complete instance: resolve care day", Err: err}
 	}
 	notScheduled := make([]int64, 0)
 	for _, studentID := range studentIDs {

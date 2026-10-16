@@ -5,6 +5,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -16,7 +17,7 @@ func (s *operations) Start(ctx context.Context, accountID int64, isAdmin bool, i
 }
 
 func (s *operations) start(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, spontaneous bool) (*timetable.StartedOperation, error) {
-	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockStart)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedBlockStart)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func (s *operations) CreateAndStartSpontaneous(ctx context.Context, accountID in
 }
 
 func (s *operations) Complete(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*timetable.ScheduledInstance, error) {
-	if _, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedBlockComplete); err != nil {
+	if _, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedBlockComplete); err != nil {
 		return nil, err
 	}
 	return s.deps.Lifecycle.Complete(ctx, instanceID, accountID)

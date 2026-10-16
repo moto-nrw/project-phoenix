@@ -10,6 +10,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -47,7 +48,7 @@ func validateSpontaneousStartWorkday(ctx context.Context, instance *scheduleMode
 	}
 	careDay, err := calendar.IsCareWeekday(ctx, calendar.DateFromTime(now))
 	if err != nil {
-		return &ScheduleError{Op: "start instance: resolve weekend plan", Err: err}
+		return &ports.ScheduleError{Op: "start instance: resolve weekend plan", Err: err}
 	}
 	if !careDay {
 		return timetable.ErrInstanceWeekend
@@ -80,10 +81,10 @@ func (s *InstanceLifecycleService) Start(ctx context.Context, instanceID, starte
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "start instance: load instance_staff", Err: err}
+		return nil, &ports.ScheduleError{Op: "start instance: load instance_staff", Err: err}
 	}
 	if _, _, err := s.deps.Rooms.LockRoom(ctx, instance.RoomID); err != nil {
-		return nil, &ScheduleError{Op: "start instance: lock room", Err: err}
+		return nil, &ports.ScheduleError{Op: "start instance: lock room", Err: err}
 	}
 	now := s.now()
 	if timetable.SpontaneousStartWorkdayGuarded(ctx) && instance.IsSpontaneous {
@@ -167,7 +168,7 @@ func (s *InstanceLifecycleService) openStartedSession(
 	}
 	newGroup.TenantID = tenant.FromContext(ctx)
 	if err := s.deps.ActiveGroupRepo.CreateSession(ctx, newGroup); err != nil {
-		return nil, nil, &ScheduleError{Op: "start instance: create active.group", Err: err}
+		return nil, nil, &ports.ScheduleError{Op: "start instance: create active.group", Err: err}
 	}
 	activeStaffRows := make([]*scheduleModel.InstanceStaff, 0, len(staffRows))
 	for _, row := range staffRows {
@@ -183,13 +184,13 @@ func (s *InstanceLifecycleService) openStartedSession(
 		}
 		sup.TenantID = tenant.FromContext(ctx)
 		if err := s.deps.SupervisorRepo.CreateSupervision(ctx, sup); err != nil {
-			return nil, nil, &ScheduleError{Op: "start instance: create supervisor", Err: err}
+			return nil, nil, &ports.ScheduleError{Op: "start instance: create supervisor", Err: err}
 		}
 	}
 	// Fold open, supervisor-less sessions in this room into the fresh session
 	// before announcing it; same tenant tx, so a failure rolls back the start.
 	if err := s.absorbUnsupervisedOpenGroups(ctx, instance.ID, instance.RoomID, newGroup.ID); err != nil {
-		return nil, nil, &ScheduleError{Op: "start instance: absorb unsupervised sessions", Err: err}
+		return nil, nil, &ports.ScheduleError{Op: "start instance: absorb unsupervised sessions", Err: err}
 	}
 	return newGroup, activeStaffRows, nil
 }
@@ -204,7 +205,7 @@ func (s *InstanceLifecycleService) markStarted(ctx context.Context, instance *sc
 	}
 	instance.StartedAt = &now
 	if err := s.updateLifecycleColumns(ctx, instance, "status", "active_group_id", "started_at", "started_by"); err != nil {
-		return &ScheduleError{Op: "start instance: update instance", Err: err}
+		return &ports.ScheduleError{Op: "start instance: update instance", Err: err}
 	}
 	return nil
 }
