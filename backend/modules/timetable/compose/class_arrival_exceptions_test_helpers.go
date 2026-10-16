@@ -24,7 +24,7 @@ func NewClassArrivalExceptionRepository(db *bun.DB) schedule.ClassArrivalExcepti
 // Upsert replaces the exception of one class and date.
 func (r classArrivalExceptionRepository) Upsert(ctx context.Context, row *schedule.ClassArrivalException) error {
 	if err := r.store.UpsertClassArrivalException(ctx, row); err != nil {
-		return &domain.StoreError{Op: "upsert class arrival exception", Err: translateNotFound(err)}
+		return &domain.StoreError{Op: "upsert class arrival exception", Err: postgres.TranslateNotFound(err)}
 	}
 	return nil
 }

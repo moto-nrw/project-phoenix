@@ -143,6 +143,30 @@ func StudentGuardianLinks(db bun.IDB) *bun.SelectQuery {
 	return db.NewSelect().TableExpr(studentGuardianLinkSource)
 }
 
+// GuardianLinks stands in for the guardian link projection in suites that
+// compose the retained People Directory repositories outside the root and
+// cannot reach it, over the same three-owner row source.
+type GuardianLinks struct{}
+
+// GuardianLinkRows is the link row source, scoped to tenantID when positive.
+func (GuardianLinks) GuardianLinkRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
+	query := StudentGuardianLinks(db)
+	if tenantID > 0 {
+		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	}
+	return query
+}
+
+// GuardianLinkModelRows is the link row source with BUN's model column
+// selection.
+func (GuardianLinks) GuardianLinkModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
+	query := db.NewSelect().Model(model).ModelTableExpr(studentGuardianLinkSource)
+	if tenantID > 0 {
+		query = query.Where(`"student_guardian".tenant_id = ?`, tenantID)
+	}
+	return query
+}
+
 // guardianStorageBeforeCutover reports whether a test restored
 // users.students_guardians as the authoritative base table it was before the
 // Cutover (RestoreGuardianStorageBeforeCutover).

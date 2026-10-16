@@ -34,20 +34,20 @@ func NewRetainedPersonRepository(db *bun.DB) usersRepo.PersonRepository {
 
 // NewRetainedGuardianProfileRepository is the guardian profile repository with
 // only the given options bound.
-func NewRetainedGuardianProfileRepository(db *bun.DB, options ...RetainedGuardianProfileOption) usersRepo.GuardianProfileRepository {
-	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), options...)
+func NewRetainedGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, options ...RetainedGuardianProfileOption) usersRepo.GuardianProfileRepository {
+	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links, options...)
 }
 
 // NewRetainedGuardianRelationshipRepository is the relationship store with
 // only the given options bound.
-func NewRetainedGuardianRelationshipRepository(db *bun.DB, options ...RetainedGuardianRelationshipOption) usersRepo.StudentGuardianRepository {
-	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), options...)
+func NewRetainedGuardianRelationshipRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, options ...RetainedGuardianRelationshipOption) usersRepo.StudentGuardianRepository {
+	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), students, links, options...)
 }
 
 // NewRetainedMessageableGuardianRepository is the parent-message recipient
 // lookup over the given membership lookup.
-func NewRetainedMessageableGuardianRepository(db *bun.DB, memberships RetainedSchoolMembershipLookup) *usersRepo.MessageableGuardianRepository {
-	return usersRepo.NewMessageableGuardianRepository(NewLegacyRepositoryRuntime(db), memberships)
+func NewRetainedMessageableGuardianRepository(db *bun.DB, links usersRepo.GuardianLinkRows, memberships RetainedSchoolMembershipLookup) *usersRepo.MessageableGuardianRepository {
+	return usersRepo.NewMessageableGuardianRepository(NewLegacyRepositoryRuntime(db), links, memberships)
 }
 
 // NewRetainedMessageableStaffRepository is the colleague lookup over the given

@@ -48,7 +48,7 @@ func newFixture(t *testing.T) fixture {
 	require.NoError(t, err)
 	retirement, err := membershipcompose.NewOffboarding(memberDeps)
 	require.NoError(t, err)
-	people, err := peoplecompose.New(peoplecompose.Dependencies{DB: db, Observe: func(peoplecompose.Observation) {}})
+	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
 	require.NoError(t, err)
 	presence, err := presencecompose.New(presencecompose.Dependencies{DB: db, Observe: func(presencecompose.Observation) {}})
 	require.NoError(t, err)

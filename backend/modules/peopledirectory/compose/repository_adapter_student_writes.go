@@ -439,7 +439,8 @@ func (r studentRepositoryWithOwnerWrites) FindCareBoundsByIDs(ctx context.Contex
 // composes: the child table's retained read surface, the owner it routes the
 // reads and writes to, and the School Membership facts it cannot hold itself.
 type StudentRepositoryDependencies struct {
-	DB *bun.DB
+	DB       *bun.DB
+	Students usersRepo.StudentDirectoryRows
 	// Directory is the People Directory owner of the child's row.
 	Directory StudentRepositoryOwner
 	// Enrollment is the School Membership status of the child's enrollment.
@@ -462,7 +463,7 @@ type StudentRepositoryOwner interface {
 // NewStudentRepository composes the retained read surface of the child table
 // with People Directory's reads and writes (#3349).
 func NewStudentRepository(dependencies StudentRepositoryDependencies) usersRepo.StudentRepository {
-	repository := usersRepo.NewStudentRepository(NewLegacyRepositoryRuntime(dependencies.DB))
+	repository := usersRepo.NewStudentRepository(NewLegacyRepositoryRuntime(dependencies.DB), dependencies.Students)
 	if dependencies.Directory == nil {
 		return repository
 	}

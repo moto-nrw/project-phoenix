@@ -2,6 +2,7 @@ package api
 
 import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -10,7 +11,7 @@ import (
 // NewMessageableGuardianRepository binds the recipient lookup to the native
 // Identity capability for focused repository tests.
 func NewMessageableGuardianRepository(db transactionruntime.Database) *peopleCompose.RetainedMessageableGuardians {
-	return peopleCompose.NewMessageableGuardians(db.Pool(), NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)
+	return peopleCompose.NewMessageableGuardians(db.Pool(), guardianLinkView.NewReader(), NewPeopleIdentityAccess(db, nil).FindActiveSchoolMemberships)
 }
 
 // ParentMessagingTestRepositories is the parent-conversation data layer for

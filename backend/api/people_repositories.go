@@ -3,6 +3,8 @@ package api
 import (
 	"context"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -25,6 +27,7 @@ import (
 func BindStudentRepository(repository peopleCompose.StudentRepositoryDependencies, membership groupAssignmentLister, groups schoolstructure.Query) userModels.StudentRepository {
 	repository.TeacherGroupIDs = assignedTeacherGroupIDs(membership)
 	repository.TeacherStaffGroupIDs = assignedTeacherStaffGroupIDs(membership)
+	repository.Students = studentDirectoryView.NewReader()
 	students := peopleCompose.NewStudentRepository(repository)
 	return OverlappingRosterGroupNames{StudentRepository: groupStudentRepository{StudentRepository: students, groups: groups}, Groups: groups}
 }

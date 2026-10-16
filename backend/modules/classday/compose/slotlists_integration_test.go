@@ -240,7 +240,7 @@ func newTestRoomRepository(db *bun.DB) roomReader {
 }
 
 func newTestPeople(db *bun.DB) *peopledirectory.Module {
-	people, err := peopleCompose.New(peopleCompose.Dependencies{DB: db, Observe: func(peopleCompose.Observation) {}})
+	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	if err != nil {
 		panic(err)
 	}

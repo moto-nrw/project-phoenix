@@ -9,6 +9,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
@@ -272,7 +273,7 @@ func (r calendarPeriodCalendarRepository) UsageCounts(ctx context.Context) (map[
 // calendarNotFoundError is the retained not-found shape: a repository error
 // that matches both the base not-found sentinel and sql.ErrNoRows.
 func calendarNotFoundError(op string) error {
-	return &domain.StoreError{Op: op, Err: translateNotFound(sql.ErrNoRows)}
+	return &domain.StoreError{Op: op, Err: postgres.TranslateNotFound(sql.ErrNoRows)}
 }
 
 // calendarWrapError wraps err in the retained repository error shape,
