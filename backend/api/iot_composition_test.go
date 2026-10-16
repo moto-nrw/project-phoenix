@@ -4,6 +4,8 @@ import (
 	"testing"
 	"time"
 
+	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
@@ -21,12 +23,12 @@ func setupIoTActiveModule(t *testing.T) (*bun.DB, ActiveTestModule) {
 	return db, module
 }
 
-func setupIoTAuthModule(t *testing.T) (*bun.DB, AuthTestModule) {
+func setupIoTSettingsModule(t *testing.T) (*bun.DB, settingsCompose.SettingsService) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
-	module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	module, err := NewSettingsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	return db, module
+	return db, module.Settings
 }
 
 func setupIoTDataModule(t *testing.T) (*bun.DB, IoTDataTestModule) {

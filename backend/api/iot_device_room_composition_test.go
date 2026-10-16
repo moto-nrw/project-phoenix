@@ -18,14 +18,14 @@ func TestAvailableRoomsUsesDeviceTenantComposition(t *testing.T) {
 	t.Parallel()
 
 	db, data := setupIoTDataModule(t)
-	_, auth := setupIoTAuthModule(t)
+	_, auth := setupIoTSettingsModule(t)
 	feedback, err := NewFeedbackTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
 	room := testpkg.CreateTestRoom(t, db, "Igelraum")
 	testDevice := testpkg.CreateTestDevice(t, db, "tenant-room-device")
 	schools, err := NewDeviceSchools(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	require.NoError(t, err)
-	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), schools, auth.Settings, "1234")
+	deviceAuth := testutil.NewDeviceAuthenticators(data.IoT.Fleet(), schools, auth, "1234")
 	resource := iotcompose.NewResource(iotcompose.ServiceDependencies{Runtime: NewIoTHTTPRuntime(), ErrorReports: NewIoTErrorReporter(nil),
 		Administration:           NewIoTAdministration(devicefleet.NewAdministration(data.IoT.Fleet())),
 		Configuration:            data.Configuration,
