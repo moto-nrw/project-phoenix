@@ -3947,6 +3947,15 @@ vocabulary onto the domain and of the domain errors onto the contract,
 `application.Engine`, `application.MapError`) and the adapter of the Audit
 Platform's change trail move from `modules/peopledirectory/compose` into
 `internal/application`; the composition goes from 8,943 to 7,947 LOC.
+The retention cleanup of the per-child change history and the adapters of
+the root's student seams (Care Plan's companions, the enrollment and care
+owners, Audit's note deletion ledger) follow; the seams and the cleanup's
+dependency types are values of the non-internal `modules/peopledirectory/ports`
+package, so the roots name them without aliases. Epoch 62 adds
+`student-owner-integration.people-directory.port`, the narrowing of
+`student-owner-integration.people-directory.compose` the student
+unit-of-work integration test needs to name the owner seam (ADR 0058
+addendum point 5). The composition goes to 7,627 LOC.
 
 ### Enrollment wiring out of services (#4012)
 
