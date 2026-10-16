@@ -28,7 +28,7 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,11 +36,11 @@ import (
 
 // stubSettings answers only the lookups the messaging service makes: the
 // parent-messaging feature flag and the staff-name visibility flag. Every other
-// SettingsService method is inherited from the embedded nil interface and would
+// settings method is inherited from the embedded nil interface and would
 // panic if unexpectedly called — student read access no longer consults any
 // setting (#2329), it follows from the caller's staff record alone.
 type stubSettings struct {
-	configService.SettingsService
+	parentmessaging.SettingsResolver
 	messagingEnabled bool
 	// staffNameVisible answers operations.parent_message_staff_name_visible, the
 	// flag the send path freezes onto each staff message. Defaults false so
