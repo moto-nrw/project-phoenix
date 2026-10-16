@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -18,7 +20,7 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	if students == nil || slots == nil {
 		return nil, errors.New("compose Care Plan: People Directory and instance-student repository are required")
 	}
-	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), func(carePlanCompose.Observation) {})
+	profiles, err := carePlanCompose.NewStudentProfiles(db.Pool(), studentDirectoryView.NewCareReader(), func(carePlanCompose.Observation) {})
 	if err != nil {
 		return nil, err
 	}
@@ -28,10 +30,11 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 	}
 	studentLock, studentNotFound := peopleCompose.CareStudentLock(students)
 	capability, err := carePlanCompose.New(carePlanCompose.Dependencies{
-		DB: db.Pool(), Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
+		StudentDirectory: studentDirectoryView.NewCareReader(),
+		DB:               db.Pool(), Observe: func(carePlanCompose.Observation) {}, AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents,
 		StatusSlots:    CarePlanStatusSlots(slots),
-		People: carePlanCompose.StudentNameFinderFunc(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
 			values, err := students.ListStudentNamesByID(ctx, ids)
 			if err != nil {
 				return nil, err

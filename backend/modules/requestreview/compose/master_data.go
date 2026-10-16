@@ -11,8 +11,8 @@ type ReviewDate = careplan.Date
 type CareObservation = carecompose.Observation
 
 // NewMasterDataReviews binds the native owner workflow to People Directory.
-func NewMasterDataReviews(db *bun.DB, people MasterDataPeople, scope carecompose.ReviewScopeResolver, today func() careplan.Date, observe func(CareObservation)) (careplan.MasterDataReviewQuery, error) {
-	requests, err := carecompose.NewStudentDataRequestQueries(db, observe)
+func NewMasterDataReviews(db *bun.DB, students carecompose.StudentDirectory, people MasterDataPeople, scope carecompose.ReviewScopeResolver, today func() careplan.Date, observe func(CareObservation)) (careplan.MasterDataReviewQuery, error) {
+	requests, err := carecompose.NewStudentDataRequestQueries(db, students, observe)
 	if err != nil {
 		return nil, err
 	}

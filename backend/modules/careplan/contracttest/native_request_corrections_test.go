@@ -44,7 +44,7 @@ func (b *correctionBoundary) NotifyCorrection(context.Context, *carerequests.Req
 func TestNativeCorrectionReauthorizesAndRollsBackExactExceptionDeletion(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Correction", "Transaction", "1a")
 	parent := testpkg.CreateTestAccount(t, db, "parent")

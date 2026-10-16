@@ -31,10 +31,11 @@ type Dependencies struct {
 	// ambient transaction before creating or reassigning an operational link.
 	LockStaffAssignment func(context.Context, int64) error
 	Observe             func(Observation)
+	Provenance          postgres.EnrollmentProvenance
 }
 
 func New(dependencies Dependencies) (*timetable.Module, error) {
-	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.Sessions == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Students == nil || dependencies.Rooms == nil || dependencies.Sessions == nil || dependencies.LockStaffAssignment == nil || dependencies.Observe == nil || dependencies.Provenance == nil {
 		return nil, errors.New("timetable compose: all dependencies are required")
 	}
 	store := postgres.New(databaseRuntime(dependencies.DB))
@@ -44,18 +45,7 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 	}
 	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.Sessions,
 		dependencies.LockStaffAssignment, func() string { return calendar.TodayDate().String() }, observe)
-	return timetable.NewModule(engine{service: service, observe: observe}), nil
-}
-
-type roomDirectory struct{ query timetable.RoomDirectory }
-
-func (d roomDirectory) LockRoomsByID(ctx context.Context, ids []int64) ([]domain.RoomRef, domain.OperationStats, error) {
-	values, err := d.query.LockRoomsByID(ctx, ids)
-	result := make([]domain.RoomRef, 0, len(values))
-	for _, value := range values {
-		result = append(result, domain.RoomRef(value))
-	}
-	return result, domain.OperationStats{}, err
+	return timetable.NewModule(engine{service: service, observe: observe, provenance: postgres.NewProvenanceStore(store, dependencies.Provenance)}), nil
 }
 
 func databaseRuntime(db *bun.DB) postgres.Database {
@@ -99,8 +89,9 @@ func (transaction) RunWrite(ctx context.Context, retry bool, callback func(conte
 }
 
 type engine struct {
-	service *application.Service
-	observe ports.Observer
+	service    *application.Service
+	observe    ports.Observer
+	provenance ports.EnrollmentProvenanceStore
 }
 
 func (e engine) ObserveRejection(operation string, duration time.Duration, err error) {
@@ -437,7 +428,7 @@ func (e engine) DeleteStudentEnrollment(ctx context.Context, id int64) error {
 }
 
 func (e engine) BackfillStudentEnrollmentSource(ctx context.Context, studentID, requestChildID int64, groupIDs []int64) (int64, error) {
-	rows, err := e.service.BackfillStudentEnrollmentSource(ctx, studentID, requestChildID, groupIDs)
+	rows, err := application.BackfillStudentEnrollmentSource(ctx, e.service, e.provenance, studentID, requestChildID, groupIDs)
 	return rows, mapError(err)
 }
 
@@ -915,7 +906,7 @@ func (e engine) EndStudentEnrollmentsForCareExit(ctx context.Context, studentIDs
 }
 
 func (e engine) RestoreStudentEnrollmentsForCareExit(ctx context.Context, studentIDs, periodIDs []int64, removals []timetable.CareExitEnrollmentRemoval) (int, error) {
-	result, err := e.service.RestoreStudentEnrollmentsForCareExit(ctx, studentIDs, periodIDs, careExitEnrollmentRemovalsToDomain(removals))
+	result, err := application.RestoreStudentEnrollmentsForCareExit(ctx, e.service, e.provenance, studentIDs, periodIDs, careExitEnrollmentRemovalsToDomain(removals))
 	return result, mapError(err)
 }
 

@@ -42,7 +42,7 @@ type ScheduleReviewDependencies struct {
 
 // NewScheduleReviews binds native owner reads. No retained service is needed
 // to resolve a child's recurring schedule or preview a pickup change.
-func NewScheduleReviews(db *bun.DB, deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
+func NewScheduleReviews(db *bun.DB, students carecompose.StudentDirectory, deps ScheduleReviewDependencies) (careplan.CareScheduleReviewQuery, error) {
 	if deps.People == nil || deps.Blocks == nil {
 		return nil, errors.New("care schedule reviews: people and pickup review blocks are required")
 	}
@@ -54,7 +54,7 @@ func NewScheduleReviews(db *bun.DB, deps ScheduleReviewDependencies) (careplan.C
 		People:   scheduleReviewDirectory{reviewDirectory: reviewDirectory{people: deps.People}, departures: deps.People},
 		Bookings: scheduleReviewBookings{query: enrollmentcompose.New(), bookings: carecompose.NewOfferingBookings()}, Classes: classes,
 		Scope: deps.Scope, BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today,
-		Blocks: deps.Blocks, Fingerprint: pickupImpactFingerprint,
+		Blocks: deps.Blocks, Fingerprint: pickupImpactFingerprint, StudentDirectory: students,
 	})
 }
 
