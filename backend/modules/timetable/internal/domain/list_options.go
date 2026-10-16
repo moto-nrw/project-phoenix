@@ -72,22 +72,8 @@ func (f *ListFilter) Equal(field string, value any) *ListFilter {
 	return f.Where(field, ListOpEqual, value)
 }
 
-func (f *ListFilter) GreaterThan(field string, value any) *ListFilter {
-	return f.Where(field, ListOpGreaterThan, value)
-}
-
-func (f *ListFilter) ILike(field, value string) *ListFilter {
-	return f.Where(field, ListOpILike, value)
-}
-
 func (f *ListFilter) In(field string, values ...any) *ListFilter {
 	return f.Where(field, ListOpIn, values)
-}
-
-// Or adds an alternative filter.
-func (f *ListFilter) Or(filter ListFilter) *ListFilter {
-	f.or = append(f.or, filter)
-	return f
 }
 
 func (f ListFilter) Conditions() []ListCondition { return slices.Clone(f.conditions) }
@@ -119,10 +105,4 @@ type ListSortField struct {
 // ListSorting is a sort order.
 type ListSorting struct {
 	Fields []ListSortField
-}
-
-// AddField appends a field to the sort order.
-func (s *ListSorting) AddField(field string, direction ListSortDirection) *ListSorting {
-	s.Fields = append(s.Fields, ListSortField{Field: field, Direction: direction})
-	return s
 }
