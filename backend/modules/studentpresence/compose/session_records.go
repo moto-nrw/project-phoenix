@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -76,7 +76,7 @@ func NewSessionRecords(deps SessionRecordDependencies) (*SessionRecords, error) 
 		groups: postgres.NewSessionRepository(records, deps.Errors, postgres.SessionDirectories{
 			Devices: deps.Devices, Rooms: deps.Rooms, Activities: deps.Activities,
 		}),
-		supervisors: postgres.NewSupervisionRepository(records, deps.Errors, deps.Staff, timezone.CalendarDateClock(clocks...)),
+		supervisors: postgres.NewSupervisionRepository(records, deps.Errors, deps.Staff, calendar.CalendarDateClock(clocks...)),
 		staff:       deps.Staff,
 	}, nil
 }

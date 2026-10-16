@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ type stubCareDayService struct {
 }
 
 func (s *stubCareDayService) ResolveForDate(
-	_ context.Context, studentIDs []int64, _ timezone.Date,
+	_ context.Context, studentIDs []int64, _ calendar.Date,
 ) (map[int64]careplan.CareDayStatus, error) {
 	s.askedFor = studentIDs
 	if s.err != nil {
@@ -30,8 +30,8 @@ func (s *stubCareDayService) ResolveForDate(
 }
 
 func (s *stubCareDayService) ResolveForRange(
-	context.Context, []int64, timezone.Date, timezone.Date,
-) (map[int64]map[timezone.Date]careplan.CareDayStatus, error) {
+	context.Context, []int64, calendar.Date, calendar.Date,
+) (map[int64]map[calendar.Date]careplan.CareDayStatus, error) {
 	panic("not used by the day-planning filter")
 }
 
@@ -56,7 +56,7 @@ func TestFilterTimetableIDsByCareDayDropsNotScheduled(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(10, 11), timezone.NewDate(2026, 7, 20),
+		context.Background(), timetableSet(10, 11), calendar.NewDate(2026, 7, 20),
 	)
 
 	require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestFilterTimetableIDsByCareDayKeepsUnknown(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(20), timezone.NewDate(2026, 7, 20),
+		context.Background(), timetableSet(20), calendar.NewDate(2026, 7, 20),
 	)
 
 	require.NoError(t, err)
@@ -97,7 +97,7 @@ func TestFilterTimetableIDsByCareDayDropsCancelled(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(21), timezone.NewDate(2026, 7, 18),
+		context.Background(), timetableSet(21), calendar.NewDate(2026, 7, 18),
 	)
 
 	require.NoError(t, err)
@@ -114,7 +114,7 @@ func TestFilterTimetableIDsByCareDayKeepsMissingVerdict(t *testing.T) {
 	}}
 
 	got, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(30), timezone.NewDate(2026, 7, 20),
+		context.Background(), timetableSet(30), calendar.NewDate(2026, 7, 20),
 	)
 
 	require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestFilterTimetableIDsByCareDayWithoutServiceIsUnfiltered(t *testing.T) {
 	rs := &Resource{}
 
 	got, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(40, 41), timezone.NewDate(2026, 7, 20),
+		context.Background(), timetableSet(40, 41), calendar.NewDate(2026, 7, 20),
 	)
 
 	require.NoError(t, err)
@@ -143,7 +143,7 @@ func TestFilterTimetableIDsByCareDayPropagatesError(t *testing.T) {
 	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
 
 	_, err := rs.filterTimetableIDsByCareDay(
-		context.Background(), timetableSet(50), timezone.NewDate(2026, 7, 20),
+		context.Background(), timetableSet(50), calendar.NewDate(2026, 7, 20),
 	)
 
 	require.Error(t, err)

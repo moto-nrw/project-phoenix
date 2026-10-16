@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,14 +19,14 @@ func testClock(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.NormalizeWallClock(parsed)
+	return calendar.NormalizeWallClock(parsed)
 }
 
-func testShift(t *testing.T, staffID int64, date timezone.Date, start, end string) *StaffShift {
+func testShift(t *testing.T, staffID int64, date calendar.Date, start, end string) *StaffShift {
 	t.Helper()
 	return &StaffShift{
 		StaffID:   staffID,
-		Date:      timezone.Date(date),
+		Date:      calendar.Date(date),
 		StartTime: testClock(t, start),
 		EndTime:   testClock(t, end),
 	}
@@ -36,8 +36,8 @@ func formattedGaps(gaps []timetable.ShiftCoverageInterval) [][2]string {
 	out := make([][2]string, 0, len(gaps))
 	for _, gap := range gaps {
 		out = append(out, [2]string{
-			timezone.NormalizeWallClock(gap.StartTime).Format("15:04"),
-			timezone.NormalizeWallClock(gap.EndTime).Format("15:04"),
+			calendar.NormalizeWallClock(gap.StartTime).Format("15:04"),
+			calendar.NormalizeWallClock(gap.EndTime).Format("15:04"),
 		})
 	}
 	return out
@@ -47,58 +47,58 @@ type fakeShiftReader struct {
 	rows      []*StaffShift
 	err       error
 	calls     int
-	from      timezone.Date
-	to        timezone.Date
+	from      calendar.Date
+	to        calendar.Date
 	staffIDs  []int64
-	dates     []timezone.Date
-	usedWeeks []timezone.Date
+	dates     []calendar.Date
+	usedWeeks []calendar.Date
 }
 
-func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []timezone.Date) ([]*StaffShift, error) {
+func (f *fakeShiftReader) FindByStaffIDsAndDates(_ context.Context, staffIDs []int64, dates []calendar.Date) ([]*StaffShift, error) {
 	f.calls++
 	f.staffIDs = append([]int64(nil), staffIDs...)
-	f.dates = make([]timezone.Date, len(dates))
+	f.dates = make([]calendar.Date, len(dates))
 	for index, date := range dates {
-		f.dates[index] = timezone.Date(date)
+		f.dates[index] = calendar.Date(date)
 	}
 	return f.rows, f.err
 }
 
-func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to timezone.Date) ([]timezone.Date, error) {
+func (f *fakeShiftReader) FindUsedCalendarWeeks(_ context.Context, from, to calendar.Date) ([]calendar.Date, error) {
 	f.calls++
-	f.from, f.to = timezone.Date(from), timezone.Date(to)
+	f.from, f.to = calendar.Date(from), calendar.Date(to)
 	if f.err != nil {
 		return nil, f.err
 	}
 	if f.usedWeeks != nil {
-		weeks := make([]timezone.Date, len(f.usedWeeks))
+		weeks := make([]calendar.Date, len(f.usedWeeks))
 		for index, week := range f.usedWeeks {
-			weeks[index] = timezone.Date(week)
+			weeks[index] = calendar.Date(week)
 		}
 		return weeks, nil
 	}
-	seen := make(map[timezone.Date]bool)
-	weeks := make([]timezone.Date, 0)
+	seen := make(map[calendar.Date]bool)
+	weeks := make([]calendar.Date, 0)
 	for _, shift := range f.rows {
 		if shift == nil {
 			continue
 		}
-		week, _ := containingCalendarWeek(timezone.Date(shift.Date))
+		week, _ := containingCalendarWeek(calendar.Date(shift.Date))
 		if !seen[week] {
 			seen[week] = true
 			weeks = append(weeks, week)
 		}
 	}
-	converted := make([]timezone.Date, len(weeks))
+	converted := make([]calendar.Date, len(weeks))
 	for index, week := range weeks {
-		converted[index] = timezone.Date(week)
+		converted[index] = calendar.Date(week)
 	}
 	return converted, nil
 }
 
-func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to timezone.Date) ([]*StaffShift, error) {
+func (f *fakeShiftReader) FindByDateRange(_ context.Context, from, to calendar.Date) ([]*StaffShift, error) {
 	f.calls++
-	f.from, f.to = timezone.Date(from), timezone.Date(to)
+	f.from, f.to = calendar.Date(from), calendar.Date(to)
 	return f.rows, f.err
 }
 
@@ -108,18 +108,18 @@ type fakeInstanceReader struct {
 	calls      int
 	groupCalls int
 	groupID    int64
-	from       timezone.Date
-	to         timezone.Date
+	from       calendar.Date
+	to         calendar.Date
 }
 
-func (f *fakeInstanceReader) FindByTenantAndDateRange(_ context.Context, _, _ timezone.Date) ([]*timetable.ScheduledInstance, error) {
+func (f *fakeInstanceReader) FindByTenantAndDateRange(_ context.Context, _, _ calendar.Date) ([]*timetable.ScheduledInstance, error) {
 	f.calls++
 	return f.rows, f.err
 }
 
-func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, groupID int64, from, to timezone.Date) ([]*timetable.ScheduledInstance, error) {
+func (f *fakeInstanceReader) FindByActivityGroupAndDateRange(_ context.Context, groupID int64, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
 	f.groupCalls++
-	f.groupID, f.from, f.to = groupID, timezone.Date(from), timezone.Date(to)
+	f.groupID, f.from, f.to = groupID, calendar.Date(from), calendar.Date(to)
 	return f.rows, f.err
 }
 
@@ -172,14 +172,14 @@ func fakeStaff(id int64, first, last string) *users.Staff {
 }
 
 type fakeOverviewHolidayService struct {
-	dates map[timezone.Date]bool
+	dates map[calendar.Date]bool
 	err   error
 	calls int
-	from  timezone.Date
-	to    timezone.Date
+	from  calendar.Date
+	to    calendar.Date
 }
 
-func (f *fakeOverviewHolidayService) HolidayDates(_ context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+func (f *fakeOverviewHolidayService) HolidayDates(_ context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
 	f.calls++
 	f.from, f.to = from, to
 	return f.dates, f.err
@@ -199,11 +199,11 @@ func (f *fakeOverviewWorkModelReader) FindByIDs(_ context.Context, ids []int64) 
 func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.December, 21)
+	monday := calendar.NewDate(2026, time.December, 21)
 	friday := monday.AddDays(4)
 	validFrom := monday.AddDays(-7)
 	modelID := int64(22)
-	holidayReader := &fakeOverviewHolidayService{dates: map[timezone.Date]bool{
+	holidayReader := &fakeOverviewHolidayService{dates: map[calendar.Date]bool{
 		monday: true,
 		friday: true,
 	}}
@@ -232,7 +232,7 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: workforceDate(validFrom)},
 			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: workforceDate(validFrom)},
 		},
-		[]timezone.Date{monday},
+		[]calendar.Date{monday},
 	)
 	require.NoError(t, err)
 
@@ -246,15 +246,15 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 func TestStaffScheduleOverview_HolidayRangeUsesAllWeeksAndPropagatesErrors(t *testing.T) {
 	t.Parallel()
 
-	middle := timezone.NewDate(2026, time.December, 21)
+	middle := calendar.NewDate(2026, time.December, 21)
 	earlier := middle.AddDays(-7)
 	later := middle.AddDays(7)
 
 	t.Run("uses earliest Monday through latest Sunday", func(t *testing.T) {
-		reader := &fakeOverviewHolidayService{dates: map[timezone.Date]bool{middle: true}}
+		reader := &fakeOverviewHolidayService{dates: map[calendar.Date]bool{middle: true}}
 		service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{Holidays: reader}}
 
-		set, err := service.holidayDatesForWeeks(context.Background(), []timezone.Date{middle, earlier, later})
+		set, err := service.holidayDatesForWeeks(context.Background(), []calendar.Date{middle, earlier, later})
 		require.NoError(t, err)
 		assert.True(t, set[middle])
 		assert.Equal(t, earlier, reader.from)
@@ -265,11 +265,11 @@ func TestStaffScheduleOverview_HolidayRangeUsesAllWeeksAndPropagatesErrors(t *te
 		reader := &fakeOverviewHolidayService{err: errors.New("boom")}
 		service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{Holidays: reader}}
 
-		_, err := service.holidayDatesForWeeks(context.Background(), []timezone.Date{middle})
+		_, err := service.holidayDatesForWeeks(context.Background(), []calendar.Date{middle})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "load public holidays")
 
-		_, err = service.resolveWeeklyTargets(context.Background(), nil, nil, []timezone.Date{middle})
+		_, err = service.resolveWeeklyTargets(context.Background(), nil, nil, []calendar.Date{middle})
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "load public holidays")
 	})
@@ -288,11 +288,11 @@ func TestStaffScheduleOverview_HolidayRangeUsesAllWeeksAndPropagatesErrors(t *te
 func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, time.July, 6)
+	date := calendar.NewDate(2026, time.July, 6)
 	mainRoomID, overrideRoomID := int64(21), int64(22)
 	instances := &fakeInstanceReader{rows: []*timetable.ScheduledInstance{
-		{Date: timezone.Date(date), Title: "Lernzeit", StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), RoomID: mainRoomID, Status: timetable.InstanceStatusPlanned},
-		{Date: timezone.Date(date), Title: "Abgesagt", StartTime: testClock(t, "13:00"), EndTime: testClock(t, "14:00"), RoomID: mainRoomID, Status: timetable.InstanceStatusCancelled},
+		{Date: calendar.Date(date), Title: "Lernzeit", StartTime: testClock(t, "08:00"), EndTime: testClock(t, "12:00"), RoomID: mainRoomID, Status: timetable.InstanceStatusPlanned},
+		{Date: calendar.Date(date), Title: "Abgesagt", StartTime: testClock(t, "13:00"), EndTime: testClock(t, "14:00"), RoomID: mainRoomID, Status: timetable.InstanceStatusCancelled},
 	}}
 	instances.rows[0].ID = 31
 	instances.rows[1].ID = 32
@@ -357,15 +357,15 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.July, 6)
+	monday := calendar.NewDate(2026, time.July, 6)
 	nextMonday := monday.AddDays(7)
 	instances := &fakeInstanceReader{rows: []*timetable.ScheduledInstance{
-		{Date: timezone.Date(monday), Title: "Mensa", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: timetable.InstanceStatusPlanned},
-		{Date: timezone.Date(nextMonday), Title: "Lernzeit", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: timetable.InstanceStatusPlanned},
+		{Date: calendar.Date(monday), Title: "Mensa", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: timetable.InstanceStatusPlanned},
+		{Date: calendar.Date(nextMonday), Title: "Lernzeit", StartTime: testClock(t, "12:00"), EndTime: testClock(t, "13:00"), Status: timetable.InstanceStatusPlanned},
 	}}
 	instances.rows[0].ID = 41
 	instances.rows[1].ID = 42
-	shifts := &fakeShiftReader{usedWeeks: []timezone.Date{monday}}
+	shifts := &fakeShiftReader{usedWeeks: []calendar.Date{monday}}
 	staff := fakeStaff(1, "Ada", "Lovelace")
 	staff.ID = 1
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
@@ -391,9 +391,9 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 func TestStaffScheduleOverview_TenantWeekWithoutAnyShiftSuppressesWarnings(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, time.July, 6)
+	date := calendar.NewDate(2026, time.July, 6)
 	instance := &timetable.ScheduledInstance{
-		Date: timezone.Date(date), Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: timetable.InstanceStatusPlanned,
+		Date: calendar.Date(date), Title: "AG", StartTime: testClock(t, "09:00"), EndTime: testClock(t, "10:00"), RoomID: 2, Status: timetable.InstanceStatusPlanned,
 	}
 	instance.ID = 8
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
@@ -420,6 +420,6 @@ func TestStaffScheduleOverview_PropagatesReadErrors(t *testing.T) {
 	service := NewStaffScheduleOverviewService(StaffScheduleOverviewDependencies{
 		Shifts: &fakeShiftReader{err: want},
 	})
-	_, err := service.GetOverview(context.Background(), timezone.NewDate(2026, time.July, 6), timezone.NewDate(2026, time.July, 10))
+	_, err := service.GetOverview(context.Background(), calendar.NewDate(2026, time.July, 6), calendar.NewDate(2026, time.July, 10))
 	require.ErrorIs(t, err, want)
 }

@@ -12,12 +12,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -47,7 +47,7 @@ const (
 // DeviationEventRecord is one Änderungsprotokoll entry before it is stored.
 type DeviationEventRecord struct {
 	ActivityGroupID *int64
-	OccurrenceDate  timezone.Date
+	OccurrenceDate  calendar.Date
 	StartTime       time.Time
 	InstanceID      *int64
 	SubjectStaffID  *int64
@@ -154,7 +154,7 @@ func (s *staffDeviations) getLogger() *slog.Logger {
 
 // acquireSubstituteDayLock takes the shared (tenant, date) advisory lock that
 // serializes every same-day staffing mutation, within the caller's tx.
-func (s *staffDeviations) acquireSubstituteDayLock(ctx context.Context, date timezone.Date) error {
+func (s *staffDeviations) acquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
 	return s.store.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
 }
 
@@ -185,7 +185,7 @@ func touch(touched timetable.TouchedActivities, instance *scheduleModel.Activity
 	}
 	touched[*instance.ActiveGroupID] = timetable.TouchedActivity{
 		InstanceID: instance.ID,
-		Date:       timezone.Date(instance.Date),
+		Date:       calendar.Date(instance.Date),
 		StartTime:  instance.StartTime,
 	}
 }
@@ -215,8 +215,8 @@ func (s *staffDeviations) logDeviationEvent(ctx context.Context, in deviationEve
 func recordDeviationEvent(ctx context.Context, protocol DeviationProtocol, in deviationEventInput) error {
 	event := DeviationEventRecord{
 		ActivityGroupID: in.instance.ActivityGroupID,
-		OccurrenceDate:  timezone.Date(in.instance.Date),
-		StartTime:       timezone.NormalizeWallClock(in.instance.StartTime),
+		OccurrenceDate:  calendar.Date(in.instance.Date),
+		StartTime:       calendar.NormalizeWallClock(in.instance.StartTime),
 		InstanceID:      &in.instance.ID,
 		SubjectStaffID:  in.subjectStaffID,
 		RelatedStaffID:  in.relatedStaffID,

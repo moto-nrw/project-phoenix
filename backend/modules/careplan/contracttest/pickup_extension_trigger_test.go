@@ -6,7 +6,6 @@ import (
 	"time"
 
 	api "github.com/moto-nrw/project-phoenix/api"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 
@@ -14,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -34,7 +33,7 @@ type pickupExtensionHarness struct {
 	svc     careplan.PickupScheduleService
 	student int64
 	staff   int64
-	monday  timezone.Date
+	monday  calendar.Date
 }
 
 // setupPickupExtensionHarness wires the pickup service with the real
@@ -54,7 +53,7 @@ func setupPickupExtensionHarness(t *testing.T) *pickupExtensionHarness {
 	staff := testpkg.CreateTestStaff(t, db, "Later", "Staff")
 	testpkg.CreateTestPickupSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "15:00")
 
-	monday := timezone.NewDate(2099, 1, 5)
+	monday := calendar.NewDate(2099, 1, 5)
 	require.Equal(t, time.Monday, monday.Weekday(), "fixture date must be a Monday")
 	return &pickupExtensionHarness{db: db, ctx: testpkg.Ctx(t), svc: svc, student: student.ID, staff: staff.ID, monday: monday}
 }

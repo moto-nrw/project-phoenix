@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Dienstplan overview shares the shift-coverage interval math and the
@@ -31,7 +31,7 @@ var (
 // calendar day (or calendar-week start).
 type staffDateKey struct {
 	StaffID int64
-	Date    timezone.Date
+	Date    calendar.Date
 }
 
 // uncoveredShiftIntervals returns the gaps of the assignment window the

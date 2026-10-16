@@ -1,10 +1,10 @@
 package timetracking
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The retained vocabulary these services still speak. The package names the
@@ -13,14 +13,14 @@ import (
 // every entry goes with the retained service that uses it.
 
 // Calendar dates and wall-clock helpers.
-type Date = timezone.Date
+type Date = calendar.Date
 
 var (
-	Berlin             = timezone.Berlin
-	NewDate            = timezone.NewDate
-	DateFromTime       = timezone.DateFromTime
-	TodayDate          = timezone.TodayDate
-	NormalizeWallClock = timezone.NormalizeWallClock
+	Berlin             = calendar.Berlin
+	NewDate            = calendar.NewDate
+	DateFromTime       = calendar.DateFromTime
+	TodayDate          = calendar.TodayDate
+	NormalizeWallClock = calendar.NormalizeWallClock
 )
 
 // Shared persistence base: the embedded model row, list options and the

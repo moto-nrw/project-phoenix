@@ -3,13 +3,13 @@ package compose_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-func ptrDate(d timezone.Date) *timezone.Date { return &d }
+func ptrDate(d calendar.Date) *calendar.Date { return &d }
 
 // TestRulesEnrolledOn_ImmediateActivation covers the #1565-review fix through
 // the binding: an immediately activated child (enrollment.default_activation_mode
@@ -18,9 +18,9 @@ func ptrDate(d timezone.Date) *timezone.Date { return &d }
 func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 	t.Parallel()
 
-	list := timezone.NewDate(2030, 9, 4)
-	future := timezone.NewDate(2030, 12, 1)
-	past := timezone.NewDate(2030, 8, 1)
+	list := calendar.NewDate(2030, 9, 4)
+	future := calendar.NewDate(2030, 12, 1)
+	past := calendar.NewDate(2030, 8, 1)
 	// The list is built for "today": the immediate-activation override lets an
 	// active child count from today onward, so the requested date is today here.
 	today := list
@@ -73,12 +73,12 @@ func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2030, 9, 4)
+	today := calendar.NewDate(2030, 9, 4)
 	enrolledFrom := today.AddDays(-30) // enrollment started 30 days ago
 	beforeEnrollment := today.AddDays(-60)
 	withinWindow := today.AddDays(-10)
 
-	activeChild := func(from timezone.Date) ports.StudentFacts {
+	activeChild := func(from calendar.Date) ports.StudentFacts {
 		return ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledFrom: ptrDate(from)}
 	}
 	rules := compose.Rules{}
@@ -103,7 +103,7 @@ func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 func TestRulesRowCareDay(t *testing.T) {
 	t.Parallel()
 	rules := compose.Rules{}
-	now := timezone.NewDate(2030, 9, 4).BerlinMidnight()
+	now := calendar.NewDate(2030, 9, 4).BerlinMidnight()
 
 	if got := rules.RowCareDay(false, ports.RosterFacts{Status: "expected", ManualStatusAt: &now}, ports.CareDayNotScheduled); got != ports.CareDayUnknown {
 		t.Fatalf("manual status must answer unknown, got %s", got)

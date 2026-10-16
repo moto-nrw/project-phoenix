@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -211,8 +211,8 @@ func TestListMyParsesDateRange(t *testing.T) {
 	rs.listMy(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
-	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 5)), service.gotListFrom)
-	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 11)), service.gotListTo)
+	assert.Equal(t, calendarSvc.Date(calendar.NewDate(2026, 1, 5)), service.gotListFrom)
+	assert.Equal(t, calendarSvc.Date(calendar.NewDate(2026, 1, 11)), service.gotListTo)
 	assert.Contains(t, w.Body.String(), "Planning")
 }
 
@@ -310,7 +310,7 @@ func TestCreateAppointmentParsesPayload(t *testing.T) {
 
 	assert.Equal(t, http.StatusCreated, w.Code)
 	assert.Equal(t, "Planning", service.gotCreate.Title)
-	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 5)), service.gotCreate.StartDate)
+	assert.Equal(t, calendarSvc.Date(calendar.NewDate(2026, 1, 5)), service.gotCreate.StartDate)
 	assert.Equal(t, "09:15", service.gotCreate.StartTime.Format("15:04"))
 	assert.Equal(t, "10:30", service.gotCreate.EndTime.Format("15:04"))
 	require.NotNil(t, service.gotCreate.Recurrence)
@@ -373,7 +373,7 @@ func TestUpdateAppointmentParsesPayload(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(41), service.gotUpdateID)
 	assert.Equal(t, "Planning v2", service.gotUpdate.Title)
-	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 6)), service.gotUpdate.StartDate)
+	assert.Equal(t, calendarSvc.Date(calendar.NewDate(2026, 1, 6)), service.gotUpdate.StartDate)
 	assert.Equal(t, "10:00", service.gotUpdate.StartTime.Format("15:04"))
 	assert.Equal(t, "all", service.gotUpdate.OverviewVisibility)
 }
@@ -474,7 +474,7 @@ func TestCancelOccurrenceParsesIDAndDate(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(11), service.gotCancelOccID)
-	assert.Equal(t, calendarSvc.Date(timezone.NewDate(2026, 1, 12)), service.gotCancelOccDay)
+	assert.Equal(t, calendarSvc.Date(calendar.NewDate(2026, 1, 12)), service.gotCancelOccDay)
 }
 
 func TestCancelOccurrenceRejectsBadDate(t *testing.T) {

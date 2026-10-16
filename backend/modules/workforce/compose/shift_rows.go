@@ -7,10 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The adapters in this file serve the Dienstplan rows the planning services
@@ -110,14 +110,14 @@ func (r *ShiftRows) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *ShiftReadRows) FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*planning.StaffShift, error) {
+func (r *ShiftReadRows) FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*planning.StaffShift, error) {
 	return r.list(ctx, "find staff shifts by date range", workforce.StaffShiftFilter{
 		From: start.String(), To: end.String(),
 		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *ShiftReadRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*planning.StaffShift, error) {
+func (r *ShiftReadRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*planning.StaffShift, error) {
 	return r.list(ctx, "find staff shifts by staff and date range", workforce.StaffShiftFilter{
 		StaffID: staffID, From: start.String(), To: end.String(),
 		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
@@ -130,14 +130,14 @@ func (r *ShiftReadRows) FindByOriginShiftID(ctx context.Context, originShiftID i
 	})
 }
 
-func (r *ShiftReadRows) FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error) {
+func (r *ShiftReadRows) FindUsedCalendarWeeks(ctx context.Context, start, end calendar.Date) ([]calendar.Date, error) {
 	weeks, err := r.source.UsedStaffShiftWeeks(ctx, start.String(), end.String())
 	if err != nil {
 		return nil, shiftReadError("find used staff-shift calendar weeks", err, nil)
 	}
-	result := make([]timezone.Date, 0, len(weeks))
+	result := make([]calendar.Date, 0, len(weeks))
 	for _, week := range weeks {
-		result = append(result, timezone.Date(week))
+		result = append(result, calendar.Date(week))
 	}
 	return result, nil
 }
@@ -165,7 +165,7 @@ func (r *ShiftRows) BulkCreate(ctx context.Context, shifts []*planning.StaffShif
 	return nil
 }
 
-func (r *ShiftRows) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) (int64, error) {
+func (r *ShiftRows) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteRegenerableSeriesShifts(ctx, seriesID, from.String())
 	if err != nil {
 		return 0, shiftWriteError("delete non-detached staff shifts by series", err)
@@ -173,7 +173,7 @@ func (r *ShiftRows) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID 
 	return deleted, nil
 }
 
-func (r *ShiftRows) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error) {
+func (r *ShiftRows) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from calendar.Date) (int64, error) {
 	moved, err := r.workforce.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from.String())
 	if err != nil {
 		return 0, shiftWriteError("repoint detached staff shifts to successor series", err)
@@ -269,7 +269,7 @@ func (r *ShiftSeriesRows) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *ShiftSeriesRows) CapValidUntil(ctx context.Context, id int64, until timezone.Date) error {
+func (r *ShiftSeriesRows) CapValidUntil(ctx context.Context, id int64, until calendar.Date) error {
 	if err := r.workforce.CapStaffShiftSeries(ctx, id, until.String()); err != nil {
 		return shiftWriteError("cap staff shift series valid_until", err)
 	}
@@ -278,7 +278,7 @@ func (r *ShiftSeriesRows) CapValidUntil(ctx context.Context, id int64, until tim
 
 // FindOverlappingInLineage keeps the row-level "nil, nil" answer for a
 // lineage without another active segment.
-func (r *ShiftSeriesRows) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*planning.StaffShiftSeries, error) {
+func (r *ShiftSeriesRows) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from calendar.Date) (*planning.StaffShiftSeries, error) {
 	value, err := r.workforce.FindOverlappingSeriesInLineage(ctx, rootID, excludeID, from.String())
 	if err != nil {
 		if errors.Is(err, workforce.ErrShiftSeriesNotFound) {
@@ -316,19 +316,19 @@ func (r *ShiftSeriesExceptionRows) Create(ctx context.Context, exception *planni
 	return nil
 }
 
-func (r *ShiftSeriesExceptionRows) FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]timezone.Date, error) {
+func (r *ShiftSeriesExceptionRows) FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]calendar.Date, error) {
 	dates, err := r.workforce.SeriesExceptionDates(ctx, seriesID)
 	if err != nil {
 		return nil, shiftReadError("find staff shift series exception dates", err, nil)
 	}
-	result := make([]timezone.Date, 0, len(dates))
+	result := make([]calendar.Date, 0, len(dates))
 	for _, date := range dates {
-		result = append(result, timezone.Date(date))
+		result = append(result, calendar.Date(date))
 	}
 	return result, nil
 }
 
-func (r *ShiftSeriesExceptionRows) RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error) {
+func (r *ShiftSeriesExceptionRows) RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from calendar.Date) (int64, error) {
 	moved, err := r.workforce.RepointSeriesExceptions(ctx, fromSeriesID, toSeriesID, from.String())
 	if err != nil {
 		return 0, shiftWriteError("repoint staff shift series exceptions", err)
@@ -461,7 +461,7 @@ func applyShiftToRow(shift *planning.StaffShift, value workforce.StaffShift) {
 	shift.UpdatedAt = value.UpdatedAt
 	shift.TenantID = value.TenantID
 	shift.StaffID = value.StaffID
-	shift.Date = timezone.Date(value.Date)
+	shift.Date = calendar.Date(value.Date)
 	shift.StartTime = shiftWallClockTime(value.StartTime)
 	shift.EndTime = shiftWallClockTime(value.EndTime)
 	shift.BreakMinutes = value.BreakMinutes
@@ -471,7 +471,7 @@ func applyShiftToRow(shift *planning.StaffShift, value workforce.StaffShift) {
 	shift.Detached = value.Detached
 	shift.SeriesOccurrenceDate = nil
 	if value.SeriesOccurrenceDate != "" {
-		occurrence := timezone.Date(value.SeriesOccurrenceDate)
+		occurrence := calendar.Date(value.SeriesOccurrenceDate)
 		shift.SeriesOccurrenceDate = &occurrence
 	}
 	shift.Cancelled = value.Cancelled
@@ -525,10 +525,10 @@ func applySeriesToRow(series *planning.StaffShiftSeries, value workforce.StaffSh
 	series.Notes = value.Notes
 	series.CalendarPeriodID = value.CalendarPeriodID
 	series.WeekPattern = value.WeekPattern
-	series.ValidFrom = timezone.Date(value.ValidFrom)
+	series.ValidFrom = calendar.Date(value.ValidFrom)
 	series.ValidUntil = nil
 	if value.ValidUntil != "" {
-		until := timezone.Date(value.ValidUntil)
+		until := calendar.Date(value.ValidUntil)
 		series.ValidUntil = &until
 	}
 	series.SeriesRootID = value.SeriesRootID

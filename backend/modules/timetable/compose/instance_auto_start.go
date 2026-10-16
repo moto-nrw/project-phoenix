@@ -7,10 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // InstanceAutoStartDependencies are the collaborators of the automatic
@@ -48,7 +48,7 @@ func (s *instanceAutoStart) RunForTenant(ctx context.Context, now time.Time) (*t
 	defer func() {
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	instances, err := s.InstanceRepo.FindByTenantAndDate(ctx, scheduleModel.Date(today))
 	if err != nil {
 		return result, fmt.Errorf("load today's activity instances: %w", err)
@@ -109,7 +109,7 @@ func (s *instanceAutoStart) plannedStaffCounts(ctx context.Context, instances []
 // staffed and free of start conflicts. Only a failure the next tick cannot
 // resolve aborts the batch.
 func (s *instanceAutoStart) startIfDue(
-	ctx context.Context, inst *scheduleModel.ActivityInstance, today timezone.Date, now time.Time, staffCounts map[int64]int, result *timetable.AutoStartResult,
+	ctx context.Context, inst *scheduleModel.ActivityInstance, today calendar.Date, now time.Time, staffCounts map[int64]int, result *timetable.AutoStartResult,
 ) error {
 	if !autoStartEligible(inst, today, now, staffCounts, result) {
 		return nil
@@ -145,7 +145,7 @@ func (s *instanceAutoStart) startIfDue(
 	return nil
 }
 
-func autoStartEligible(inst *scheduleModel.ActivityInstance, today timezone.Date, now time.Time, staffCounts map[int64]int, result *timetable.AutoStartResult) bool {
+func autoStartEligible(inst *scheduleModel.ActivityInstance, today calendar.Date, now time.Time, staffCounts map[int64]int, result *timetable.AutoStartResult) bool {
 	switch {
 	case inst.Status != scheduleModel.InstanceStatusPlanned:
 		result.SkippedNonPlanned++
@@ -161,6 +161,6 @@ func autoStartEligible(inst *scheduleModel.ActivityInstance, today timezone.Date
 	return false
 }
 
-func autoStartCombineDayAndTime(day timezone.Date, tod time.Time) time.Time {
+func autoStartCombineDayAndTime(day calendar.Date, tod time.Time) time.Time {
 	return time.Date(day.Year(), day.Month(), day.Day(), tod.Hour(), tod.Minute(), tod.Second(), tod.Nanosecond(), time.Local)
 }

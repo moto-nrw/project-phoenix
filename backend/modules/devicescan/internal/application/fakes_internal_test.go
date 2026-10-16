@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The workflow is exercised over fakes of its ports and of the narrow
@@ -44,7 +44,7 @@ const (
 type fakeClock struct{ now time.Time }
 
 func (c fakeClock) Now() time.Time                      { return c.now }
-func (c fakeClock) Day(instant time.Time) timezone.Date { return timezone.DateFromTime(instant) }
+func (c fakeClock) Day(instant time.Time) calendar.Date { return calendar.DateFromTime(instant) }
 
 type fakeUnit struct{ rollbacks int }
 
@@ -406,7 +406,7 @@ type fakePickups struct {
 	err    error
 }
 
-func (p fakePickups) Effective(context.Context, int64, timezone.Date) (*ports.Pickup, error) {
+func (p fakePickups) Effective(context.Context, int64, calendar.Date) (*ports.Pickup, error) {
 	return p.pickup, p.err
 }
 

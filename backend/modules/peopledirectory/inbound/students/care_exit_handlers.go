@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -46,7 +46,7 @@ func (b *careWithdrawalExitRequest) Bind(_ *http.Request) error {
 }
 
 func (b *careWithdrawalExitRequest) toInput() (careplan.CareExitInput, error) {
-	day, err := timezone.ParseDate(strings.TrimSpace(b.LastCareDay))
+	day, err := calendar.ParseDate(strings.TrimSpace(b.LastCareDay))
 	if err != nil {
 		return careplan.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // user-facing German message
 	}
@@ -76,7 +76,7 @@ func (b *careExitRequest) toInput() (careplan.CareExitInput, error) {
 		}
 		ids = append(ids, id)
 	}
-	day, err := timezone.ParseDate(strings.TrimSpace(b.LastCareDay))
+	day, err := calendar.ParseDate(strings.TrimSpace(b.LastCareDay))
 	if err != nil {
 		return careplan.CareExitInput{}, errors.New("Bitte geben Sie den letzten Betreuungstag im Format JJJJ-MM-TT an.") //nolint:staticcheck // ST1005: user-facing German message
 	}
@@ -223,7 +223,7 @@ func toCareWithdrawalResponse(row careplan.WithdrawalCompletion) careWithdrawalR
 	response := careWithdrawalResponse{
 		ID: strconv.FormatInt(row.ID, 10), StudentID: studentID,
 		FirstName: row.FirstName, LastName: row.LastName, SchoolClass: row.SchoolClass,
-		FirstBookinglessDay: row.FirstBookinglessDay.String(), Urgency: row.UrgencyOn(timezone.TodayDate()), State: row.State,
+		FirstBookinglessDay: row.FirstBookinglessDay.String(), Urgency: row.UrgencyOn(calendar.TodayDate()), State: row.State,
 	}
 	if row.Outcome != nil {
 		response.Outcome = *row.Outcome
@@ -500,7 +500,7 @@ func (rs *Resource) resumeCare(w http.ResponseWriter, r *http.Request) {
 		renderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	start, parseErr := timezone.ParseDate(strings.TrimSpace(body.NewStart))
+	start, parseErr := calendar.ParseDate(strings.TrimSpace(body.NewStart))
 	if parseErr != nil {
 		renderError(w, r, common.ErrorInvalidRequest(errors.New("Bitte geben Sie den neuen Beginn im Format JJJJ-MM-TT an."))) //nolint:staticcheck // ST1005: user-facing German message
 		return

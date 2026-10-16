@@ -6,12 +6,11 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -48,7 +47,7 @@ func (d planningStaffDirectory) FindWithPersonByIDs(_ context.Context, _ []int64
 // it, never writes it, so an empty answer is a complete one here.
 type planningTimetable struct{}
 
-func (planningTimetable) FindByTenantAndDateRange(context.Context, timezone.Date, timezone.Date) ([]*timetable.ScheduledInstance, error) {
+func (planningTimetable) FindByTenantAndDateRange(context.Context, calendar.Date, calendar.Date) ([]*timetable.ScheduledInstance, error) {
 	return nil, nil
 }
 
@@ -62,7 +61,7 @@ func (planningInstanceStaff) FindByInstanceIDs(context.Context, []int64) ([]*tim
 	return nil, nil
 }
 
-func (planningInstanceStaff) FindByStaffAndDateRange(context.Context, int64, timezone.Date, timezone.Date) ([]*timetable.InstanceStaff, error) {
+func (planningInstanceStaff) FindByStaffAndDateRange(context.Context, int64, calendar.Date, calendar.Date) ([]*timetable.InstanceStaff, error) {
 	return nil, nil
 }
 
@@ -145,7 +144,7 @@ func TestShiftPlanningServesTheDienstplanOverTheCapability(t *testing.T) {
 	// A composition without the printable plan still serves every route.
 	facade := composition.Planning(nil)
 
-	day := timezone.NewDate(2026, 9, 21)
+	day := calendar.NewDate(2026, 9, 21)
 	input := workforce.StaffShiftInput{
 		StaffID: staff.ID, ActorStaffID: staff.ID, Date: day.String(),
 		StartTime: "08:30:00", EndTime: "14:45:00", BreakMinutes: 30,

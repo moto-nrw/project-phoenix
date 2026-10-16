@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -80,7 +80,7 @@ func TestWorkforceOwnerRuntime(t *testing.T) {
 		}
 	}
 	abort := errors.New("injected failure after workforce writes")
-	day := timezone.NewDate(2026, 5, 4)
+	day := calendar.NewDate(2026, 5, 4)
 	start := day.BerlinMidnight().Add(8 * time.Hour)
 	for iteration := range 35 {
 		measuring = iteration >= 5

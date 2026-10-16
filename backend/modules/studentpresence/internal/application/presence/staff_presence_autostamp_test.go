@@ -8,10 +8,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,7 @@ func todayWorkSession(t *testing.T, db *testpkg.DB, staffID int64) *workSessionR
 		TableExpr(`active.work_sessions AS "work_session"`).
 		ColumnExpr(`"work_session"."status", "work_session"."source"`).
 		Where(`"work_session"."staff_id" = ?`, staffID).
-		Where(`"work_session"."date" = ?`, timezone.TodayDate()).
+		Where(`"work_session"."date" = ?`, calendar.TodayDate()).
 		Limit(1).
 		Scan(context.Background(), &session.Status, &session.Source)
 	if err != nil {
@@ -110,7 +109,7 @@ func TestCreateGroupSupervisor_AutoOpensWorkSession(t *testing.T) {
 		StaffID:   staff.ID,
 		GroupID:   activeGroup.ID,
 		Role:      "Supervisor",
-		StartDate: timezone.TodayDate(),
+		StartDate: calendar.TodayDate(),
 	}
 	require.NoError(t, service.CreateGroupSupervisor(ctx, supervisor))
 
@@ -132,7 +131,7 @@ func TestCreateGroupSupervisor_SkipsWorkSessionForExternalCaregiver(t *testing.T
 
 	require.NoError(t, service.CreateGroupSupervisor(testpkg.Ctx(t), &ports.GroupSupervisor{
 		StaffID: staff.ID, GroupID: activeGroup.ID, Role: "additional_supervisor",
-		StartDate: timezone.TodayDate(), SkipPresenceStamp: true,
+		StartDate: calendar.TodayDate(), SkipPresenceStamp: true,
 	}))
 
 	assert.Nil(t, todayWorkSession(t, db, staff.ID), "external caregivers do not record working time")

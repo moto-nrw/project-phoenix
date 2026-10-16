@@ -6,16 +6,16 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ActiveSessions lists the day's running blocks with their plan windows.
 // Purely descriptive metadata, so it carries no per-caller filter; the
 // route's schedules:read gates access.
-func (s *operations) ActiveSessions(ctx context.Context, date timezone.Date) ([]timetable.OperationActiveSession, error) {
+func (s *operations) ActiveSessions(ctx context.Context, date calendar.Date) ([]timetable.OperationActiveSession, error) {
 	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
 	if err != nil {
 		return nil, err
@@ -42,7 +42,7 @@ func (s *operations) ActiveSessions(ctx context.Context, date timezone.Date) ([]
 // plan and supervision into CanOperate is requireCanOperate's. Sessions
 // without a running block are left out. The read costs a fixed number of
 // statements, whatever the number of sessions.
-func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin bool, date timezone.Date, supervisorStaffIDs map[int64][]int64) ([]timetable.OperationSessionBlock, error) {
+func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin bool, date calendar.Date, supervisorStaffIDs map[int64][]int64) ([]timetable.OperationSessionBlock, error) {
 	result := []timetable.OperationSessionBlock{}
 	if len(supervisorStaffIDs) == 0 {
 		return result, nil
@@ -90,7 +90,7 @@ func (s *operations) SessionBlocks(ctx context.Context, accountID int64, isAdmin
 }
 
 // runningBlocksOf keeps the day's running blocks behind the asked sessions.
-func (s *operations) runningBlocksOf(ctx context.Context, date timezone.Date, supervisorStaffIDs map[int64][]int64) ([]*scheduleModels.ActivityInstance, error) {
+func (s *operations) runningBlocksOf(ctx context.Context, date calendar.Date, supervisorStaffIDs map[int64][]int64) ([]*scheduleModels.ActivityInstance, error) {
 	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
 	if err != nil {
 		return nil, err
@@ -117,7 +117,7 @@ func (s *operations) runningBlocksOf(ctx context.Context, date timezone.Date, su
 // Cancelled blocks do not count. Jahrgang and Gruppe targets are not
 // resolved: the OGS dialog reads the same three fields, and both presets
 // must agree.
-func (s *operations) EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date timezone.Date) (string, error) {
+func (s *operations) EarliestPlannedBlockStartForClass(ctx context.Context, schoolClass string, date calendar.Date) (string, error) {
 	key := s.deps.NormalizeSchoolClass(schoolClass)
 	if key == "" {
 		return "", nil

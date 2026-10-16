@@ -9,12 +9,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // validateDepartureCompanionNote bounds the free-text "mit wem" companion note
@@ -701,7 +700,7 @@ func validateStudentStatusDayDates(dates []string) error {
 	}
 
 	seen := make(map[string]struct{}, len(dates))
-	var earliest, latest timezone.Date
+	var earliest, latest calendar.Date
 	for i, rawDate := range dates {
 		date, parsed, err := normalizeStudentStatusDayDate(rawDate)
 		if err != nil {
@@ -725,14 +724,14 @@ func validateStudentStatusDayDates(dates []string) error {
 	return nil
 }
 
-func normalizeStudentStatusDayDate(rawDate string) (string, timezone.Date, error) {
+func normalizeStudentStatusDayDate(rawDate string) (string, calendar.Date, error) {
 	date := strings.TrimSpace(rawDate)
 	if date == "" {
-		return "", timezone.Date(""), errors.New("date cannot be empty")
+		return "", calendar.Date(""), errors.New("date cannot be empty")
 	}
-	parsed, err := timezone.ParseDate(date)
+	parsed, err := calendar.ParseDate(date)
 	if err != nil {
-		return "", timezone.Date(""), errors.New("invalid date format, expected YYYY-MM-DD")
+		return "", calendar.Date(""), errors.New("invalid date format, expected YYYY-MM-DD")
 	}
 	return date, parsed, nil
 }

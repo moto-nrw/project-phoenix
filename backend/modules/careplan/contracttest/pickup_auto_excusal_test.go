@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +32,7 @@ type autoExcusalHarness struct {
 	student *fixtureStudent
 	staffID int64
 
-	date timezone.Date
+	date calendar.Date
 	// before 13:00-14:00, overlap 14:00-15:00, after 15:00-16:00
 	beforeRow, overlapRow, afterRow int64
 }
@@ -50,13 +49,13 @@ func wallClockAt(h, m int) *time.Time {
 type failingPickupBaseline struct{}
 
 func (failingPickupBaseline) Project(
-	context.Context, []int64, timezone.Date, timezone.Date,
+	context.Context, []int64, calendar.Date, calendar.Date,
 ) (*careplan.PickupBaselineProjection, error) {
 	return nil, errors.New("weekly pickup projection unavailable")
 }
 
 func (failingPickupBaseline) OfferingPickupForDate(
-	context.Context, int64, timezone.Date,
+	context.Context, int64, calendar.Date,
 ) (*careplan.PickupSchedule, error) {
 	return nil, errors.New("weekly pickup projection unavailable")
 }
@@ -97,7 +96,7 @@ func setupAutoExcusalHarnessWithExtensions(t *testing.T, withBaseline, withExten
 
 	// A fixed far-future Monday keeps the exception inside
 	// FindUpcomingByStudentID (today onwards) without consulting the live clock.
-	date := timezone.NewDate(2099, 1, 1)
+	date := calendar.NewDate(2099, 1, 1)
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)
 	}
@@ -151,7 +150,7 @@ func TestAutoExcusal_PulledForwardPickupExcusesLaterBlocks(t *testing.T) {
 	require.NotNil(t, row)
 	assert.True(t, row.ExcusedAuto, "pull-forward must derive an auto excusal")
 	require.NotNil(t, row.ExcusedFrom)
-	assert.Equal(t, "14:45", timezone.NormalizeWallClock(*row.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:45", calendar.NormalizeWallClock(*row.ExcusedFrom).Format("15:04"))
 	assert.Nil(t, row.ExcusedCreatedBy, "auto excusals carry no staff author")
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.beforeRow).Status)
@@ -196,7 +195,7 @@ func TestAutoExcusal_MovingPickupEarlierWidensTheExcusal(t *testing.T) {
 	updated, err := h.svc.UpdateException(h.ctx, row.ID, h.student.ID, h.date, nil, wallClockAt(14, 0), false, h.resolveStaff)
 	require.NoError(t, err)
 	require.True(t, updated.ExcusedAuto)
-	assert.Equal(t, "14:00", timezone.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:00", calendar.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.beforeRow).Status)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status,
@@ -273,7 +272,7 @@ func TestAutoExcusal_ManualPartialAbsenceIsNeverTouched(t *testing.T) {
 	updated, err := h.svc.UpdateException(h.ctx, manual.ID, h.student.ID, h.date, nil, wallClockAt(15, 30), false, h.resolveStaff)
 	require.NoError(t, err)
 	require.NotNil(t, updated.ExcusedFrom)
-	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
 	assert.False(t, updated.ExcusedAuto)
 
 	// Blocks follow the manual 13:30 cutoff, not the 15:30 pickup time.
@@ -297,7 +296,7 @@ func TestAutoExcusal_ManualPartialAbsenceRecordsLaterPickupTask(t *testing.T) {
 	updated, err := h.svc.UpdateException(h.ctx, manual.ID, h.student.ID, h.date, nil, wallClockAt(16, 30), false, h.resolveStaff)
 	require.NoError(t, err)
 	require.NotNil(t, updated.ExcusedFrom)
-	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*updated.ExcusedFrom).Format("15:04"))
 	assert.False(t, updated.ExcusedAuto)
 
 	var taskCount int
@@ -333,7 +332,7 @@ func TestAutoExcusal_ManualPartialAbsenceSkipsFailedBaseline(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, unchanged)
 	require.NotNil(t, unchanged.ExcusedFrom)
-	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*unchanged.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*unchanged.ExcusedFrom).Format("15:04"))
 	assert.False(t, unchanged.ExcusedAuto)
 }
 
@@ -357,7 +356,7 @@ func TestAutoExcusal_ManualCreateConvertsAutoToManual(t *testing.T) {
 	assert.False(t, manual.ExcusedAuto)
 	require.NotNil(t, manual.ExcusedCreatedBy)
 	assert.Equal(t, h.staffID, *manual.ExcusedCreatedBy)
-	assert.Equal(t, "13:30", timezone.NormalizeWallClock(*manual.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "13:30", calendar.NormalizeWallClock(*manual.ExcusedFrom).Format("15:04"))
 
 	// 14:00 block starts after the manual 13:30 cutoff → excused now.
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, h.attendance(t, h.overlapRow).Status)
@@ -408,7 +407,7 @@ func TestAutoExcusal_ManualDeleteOfConvertedRowRederivesAuto(t *testing.T) {
 	require.NotNil(t, fresh)
 	assert.True(t, fresh.ExcusedAuto, "unchanged early pickup time must re-derive the auto excusal")
 	require.NotNil(t, fresh.ExcusedFrom)
-	assert.Equal(t, "14:45", timezone.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:45", calendar.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
 	assert.Nil(t, fresh.ExcusedCreatedBy)
 
 	assert.Equal(t, scheduleModel.AttendanceStatusExpected, h.attendance(t, h.overlapRow).Status,
@@ -500,7 +499,7 @@ func TestAutoExcusal_WeeklyBaselineAddedCouplesExistingException(t *testing.T) {
 	require.NotNil(t, fresh)
 	assert.True(t, fresh.ExcusedAuto)
 	require.NotNil(t, fresh.ExcusedFrom)
-	assert.Equal(t, "14:45", timezone.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
+	assert.Equal(t, "14:45", calendar.NormalizeWallClock(*fresh.ExcusedFrom).Format("15:04"))
 	after := h.attendance(t, h.afterRow)
 	assert.Equal(t, scheduleModel.AttendanceStatusAbsent, after.Status)
 	require.NotNil(t, after.PickupExceptionID)
@@ -608,7 +607,7 @@ type partialAbsenceReads interface {
 // the way the retained services do (#2762).
 type partialAbsencePreview struct{ reads partialAbsenceReads }
 
-func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date calendar.Date, clock time.Time) ([]carerequests.Block, error) {
 	rows, err := p.reads.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
 	if err != nil {
 		return nil, err

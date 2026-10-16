@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The helpers below decode the generic repository's untyped arguments and
@@ -92,9 +92,9 @@ func conditionInt64List(value any) ([]int64, bool) {
 
 func conditionDate(value any) (string, bool) {
 	switch typed := value.(type) {
-	case timezone.Date:
+	case calendar.Date:
 		return typed.String(), true
-	case *timezone.Date:
+	case *calendar.Date:
 		if typed == nil {
 			return "", false
 		}

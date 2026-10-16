@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -141,11 +141,11 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 	}
 	if instance.ActivityGroupID != nil && !instance.IsSpontaneous {
 		if rejectAmbiguous {
-			if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date)); err != nil {
+			if err := s.rejectAmbiguousTemplateDelete(ctx, *instance.ActivityGroupID, calendar.Date(instance.Date)); err != nil {
 				return err
 			}
 		}
-		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, timezone.Date(instance.Date), slotReason); err != nil {
+		if err := s.ensureCancelledSlotException(ctx, *instance.ActivityGroupID, calendar.Date(instance.Date), slotReason); err != nil {
 			return err
 		}
 	}
@@ -165,7 +165,7 @@ func (s *InstanceLifecycleService) deleteInstance(ctx context.Context, instanceI
 // rejectAmbiguousTemplateDelete refuses the delete when the template has
 // several materialized slots that date: the cancellation exception is
 // date-wide and would consume all of them.
-func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date timezone.Date) error {
+func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Context, activityGroupID int64, date calendar.Date) error {
 	rows, err := s.deps.InstanceRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
 	if err != nil {
 		return &ScheduleError{Op: "delete instance: check same-day template slots", Err: err}
@@ -184,7 +184,7 @@ func (s *InstanceLifecycleService) rejectAmbiguousTemplateDelete(ctx context.Con
 
 // ensureCancelledSlotException consumes the slot with a cancelled
 // exception, converting an existing modified one.
-func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date timezone.Date, reason string) error {
+func (s *InstanceLifecycleService) ensureCancelledSlotException(ctx context.Context, activityGroupID int64, date calendar.Date, reason string) error {
 	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, activityGroupID, scheduleModel.Date(date))
 	if err != nil {
 		return &ScheduleError{Op: "delete instance: check slot exception", Err: err}

@@ -4,8 +4,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Values accepted by the `view` query parameter of GET /api/students.
@@ -99,7 +98,7 @@ type SlimStudentResponse struct {
 
 // slimStudentResponses projects the fully built, filtered and paginated list
 // onto the Kindersuche wire shape.
-func slimStudentResponses(responses []StudentResponse, planningDate timezone.Date) []SlimStudentResponse {
+func slimStudentResponses(responses []StudentResponse, planningDate calendar.Date) []SlimStudentResponse {
 	slim := make([]SlimStudentResponse, len(responses))
 	for i := range responses {
 		r := &responses[i]

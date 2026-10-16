@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,14 +15,14 @@ import (
 func TestCommonScheduleValidityEnvelope(t *testing.T) {
 	t.Parallel()
 
-	validFrom := timezone.NewDate(2026, time.July, 6)
-	validUntil := timezone.NewDate(2026, time.August, 17)
+	validFrom := calendar.NewDate(2026, time.July, 6)
+	validUntil := calendar.NewDate(2026, time.August, 17)
 
 	tests := []struct {
 		name      string
 		schedules []*activitiesModel.Schedule
-		wantFrom  *timezone.Date
-		wantUntil *timezone.Date
+		wantFrom  *calendar.Date
+		wantUntil *calendar.Date
 	}{
 		{name: "no schedules is an open envelope"},
 		{
@@ -69,8 +69,8 @@ func TestCommonScheduleValidityEnvelope(t *testing.T) {
 func TestCommonScheduleValidityEnvelopeRejectsInconsistentRows(t *testing.T) {
 	t.Parallel()
 
-	validFrom := timezone.NewDate(2026, time.July, 6)
-	validUntil := timezone.NewDate(2026, time.August, 17)
+	validFrom := calendar.NewDate(2026, time.July, 6)
+	validUntil := calendar.NewDate(2026, time.August, 17)
 	invertedFrom := validUntil.AddDays(1)
 
 	tests := []struct {

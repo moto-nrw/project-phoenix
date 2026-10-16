@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const dateFormatISO = "2006-01-02"
@@ -211,7 +211,7 @@ func handleBulkEffectiveTimes[T, R any](
 	w http.ResponseWriter,
 	r *http.Request,
 	successMessage string,
-	fetch func(context.Context, []int64, timezone.Date) (map[int64]*T, error),
+	fetch func(context.Context, []int64, calendar.Date) (map[int64]*T, error),
 	mapper func(int64, *T) R,
 ) {
 	req := &BulkEffectiveTimeRequest{}
@@ -230,9 +230,9 @@ func handleBulkEffectiveTimes[T, R any](
 		return
 	}
 
-	date := timezone.TodayDate()
+	date := calendar.TodayDate()
 	if req.Date != nil && *req.Date != "" {
-		date, _ = timezone.ParseDate(*req.Date)
+		date, _ = calendar.ParseDate(*req.Date)
 	}
 
 	values, err := fetch(r.Context(), authorizedIDs, date)

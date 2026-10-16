@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Substitute time-overlap advisories (WP-B12) behind
@@ -63,7 +63,7 @@ func (c substituteConflicts) DetectSubstituteConflicts(ctx context.Context, in t
 func (c substituteConflicts) loadSubstitutionWarnings(
 	ctx context.Context,
 	probes []substitutionWarningProbe,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]timetable.SubstituteTimeConflict, error) {
 	staffIDs := make([]int64, 0, len(probes))
 	for _, probe := range probes {

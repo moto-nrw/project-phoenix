@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Completion of blocks whose live session somebody else ended (#1747, #3424
@@ -171,16 +171,16 @@ func (c *endedSessionCompletion) notScheduledForEndedSessions(ctx context.Contex
 
 // endedInstanceDates maps each block bridged to one of the sessions to its
 // date.
-func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeGroupIDs []int64) (map[int64]timezone.Date, error) {
+func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeGroupIDs []int64) (map[int64]calendar.Date, error) {
 	instances, err := c.deps.Instances.List(ctx, &modelBase.QueryOptions{
 		Filter: modelBase.NewFilter().In("active_group_id", int64Args(activeGroupIDs)...),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("complete bridged instances: load instances: %w", err)
 	}
-	dates := make(map[int64]timezone.Date, len(instances))
+	dates := make(map[int64]calendar.Date, len(instances))
 	for _, instance := range instances {
-		dates[instance.ID] = timezone.Date(instance.Date)
+		dates[instance.ID] = calendar.Date(instance.Date)
 	}
 	return dates, nil
 }
@@ -188,11 +188,11 @@ func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeG
 // careDayWindow is the inclusive date window and the distinct children one
 // care-day read covers.
 type careDayWindow struct {
-	from, to   timezone.Date
+	from, to   calendar.Date
 	studentIDs []int64
 }
 
-func coveringCareDayWindow(rows []*scheduleModels.InstanceStudent, datesByInstance map[int64]timezone.Date) (careDayWindow, bool) {
+func coveringCareDayWindow(rows []*scheduleModels.InstanceStudent, datesByInstance map[int64]calendar.Date) (careDayWindow, bool) {
 	var window careDayWindow
 	seen := make(map[int64]bool, len(rows))
 	for _, row := range rows {

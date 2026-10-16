@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/presenceprojection"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +37,7 @@ func presenceRead(read func(context.Context, bun.IDB, int64) (any, error)) proje
 }
 
 func projectionReads(id int64, ids []int64) map[string]projectionRead {
-	date := timezone.NewDate(2026, 9, 4)
+	date := calendar.NewDate(2026, 9, 4)
 	return map[string]projectionRead{
 		"group names": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.GroupNames(ctx, db, tenantID, ids)
@@ -119,7 +119,7 @@ func TestProjectionReadsPreserveDatabaseErrors(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, locked)
 	assert.Empty(t, locked)
-	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, timezone.NewDate(2026, 9, 4), timezone.NewDate(2026, 9, 5), 0)
+	courseCounts, err := timetableprojection.CountActiveCourseEnrollments(ctx, tx, testpkg.Tenant(t), nil, calendar.NewDate(2026, 9, 4), calendar.NewDate(2026, 9, 5), 0)
 	require.NoError(t, err)
 	assert.NotNil(t, courseCounts)
 	assert.Empty(t, courseCounts)
@@ -164,7 +164,7 @@ func TestCourseOccupancyExcludesTheStudentBeingApproved(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, db, "Course occupancy")
 	approving := testpkg.CreateTestStudent(t, db, "Already", "Enrolled", "3a")
 	other := testpkg.CreateTestStudent(t, db, "Other", "Enrolled", "3a")
-	date := timezone.NewDate(2026, 9, 4)
+	date := calendar.NewDate(2026, 9, 4)
 	for _, student := range []int64{approving.ID, other.ID} {
 		_, err := db.NewRaw(`
 			INSERT INTO activities.student_enrollments (tenant_id, student_id, activity_group_id, valid_from)
@@ -189,11 +189,11 @@ func TestCourseOccupancyUsesThePeakAcrossTheEnrollmentWindow(t *testing.T) {
 	group := testpkg.CreateTestActivityGroup(t, db, "Course occupancy peak")
 	first := testpkg.CreateTestStudent(t, db, "Current", "Enrolled", "3a")
 	future := testpkg.CreateTestStudent(t, db, "Future", "Enrolled", "3a")
-	from := timezone.NewDate(2026, 9, 4)
+	from := calendar.NewDate(2026, 9, 4)
 	until := from.AddDays(30)
 	for _, enrollment := range []struct {
 		studentID int64
-		validFrom timezone.Date
+		validFrom calendar.Date
 	}{
 		{studentID: first.ID, validFrom: from},
 		{studentID: future.ID, validFrom: from.AddDays(10)},

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // OfferingChangeRequests is the part of Care Plan's offering-change review
@@ -26,9 +26,9 @@ type OfferingChangeRequests interface {
 // ErrInvalidMealParticipation. Every other error passes through.
 type MealPlan interface {
 	Available(context.Context) (bool, error)
-	Week(ctx context.Context, monday timezone.Date) ([]MealPlanEntry, error)
+	Week(ctx context.Context, monday calendar.Date) ([]MealPlanEntry, error)
 	RegistrationAvailable(context.Context) (bool, error)
-	Participation(ctx context.Context, studentID int64, from, to timezone.Date) (MealParticipationPlan, error)
+	Participation(ctx context.Context, studentID int64, from, to calendar.Date) (MealParticipationPlan, error)
 	ReplaceParticipationSchedule(context.Context, MealParticipationSchedule) (string, error)
 	SetParticipationForDay(context.Context, MealParticipationChange) error
 	ClearParticipationForDay(context.Context, MealParticipationChange) error
@@ -45,7 +45,7 @@ type MealParticipationSchedule struct {
 type MealParticipationChange struct {
 	StudentID         int64
 	GuardianAccountID int64
-	Date              timezone.Date
+	Date              calendar.Date
 	Participating     bool
 }
 

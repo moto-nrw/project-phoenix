@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // replaceTemplateRoster rewrites the template's planned roster and returns
@@ -17,7 +17,7 @@ func (s *TemplateService) replaceTemplateRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
-	scheduleValidFrom, scheduleValidUntil *timezone.Date,
+	scheduleValidFrom, scheduleValidUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) ([]int64, error) {
 	rosterValidFrom := in.RosterValidFrom
@@ -71,8 +71,8 @@ func (s *TemplateService) replaceTemplateRoster(
 // rosterWindow is the validity and calendar period the replaced roster rows
 // are written with.
 type rosterWindow struct {
-	from     timezone.Date
-	until    *timezone.Date
+	from     calendar.Date
+	until    *calendar.Date
 	periodID *int64
 }
 
@@ -131,8 +131,8 @@ func (s *TemplateService) retireTemplateEnrollments(
 	templateID int64,
 	calendarPeriodID *int64,
 	weekdays []int,
-	replacementFrom timezone.Date,
-	replacementUntil *timezone.Date,
+	replacementFrom calendar.Date,
+	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) (map[int64]protectedStudentCoverage, []int64, error) {
 	rows, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, templateID)
@@ -161,8 +161,8 @@ func (s *TemplateService) retireUnprotectedTemplateEnrollments(
 	ctx context.Context,
 	rows []*activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
-	replacementFrom timezone.Date,
-	replacementUntil *timezone.Date,
+	replacementFrom calendar.Date,
+	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) ([]*activitiesModel.StudentEnrollment, []int64, error) {
 	protected := make([]*activitiesModel.StudentEnrollment, 0)
@@ -170,7 +170,7 @@ func (s *TemplateService) retireUnprotectedTemplateEnrollments(
 	retiredSeen := make(map[int64]bool)
 	for _, row := range rows {
 		if row != nil && enrollmentIsProtected(row) &&
-			validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
+			validityWindowsOverlap(calendar.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
 			protected = append(protected, row)
 			continue
 		}
@@ -190,7 +190,7 @@ func (s *TemplateService) applyEnrollmentRetirement(
 	ctx context.Context,
 	row *activitiesModel.StudentEnrollment,
 	action rosterRetirementAction,
-	replacementFrom timezone.Date,
+	replacementFrom calendar.Date,
 ) error {
 	switch action {
 	case rosterRetirementDelete:
@@ -247,11 +247,11 @@ func (s *TemplateService) rebaseProtectedEnrollmentPeriod(
 func classifyEnrollmentRetirement(
 	row *activitiesModel.StudentEnrollment,
 	calendarPeriodID *int64,
-	replacementFrom timezone.Date,
-	replacementUntil *timezone.Date,
+	replacementFrom calendar.Date,
+	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
-	if row == nil || !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
+	if row == nil || !validityWindowsOverlap(calendar.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
 	}
 	// Enrollment-offer rows and weekday-specific legacy rows are managed
@@ -265,7 +265,7 @@ func classifyEnrollmentRetirement(
 		return rosterRetirementSkip
 	}
 	return classifyOwnedRosterRetirement(
-		timezone.Date(row.ValidFrom),
+		calendar.Date(row.ValidFrom),
 		timezoneDatePtr(row.ValidUntil),
 		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
@@ -277,8 +277,8 @@ func (s *TemplateService) retireTemplateSupervisors(
 	ctx context.Context,
 	templateID int64,
 	calendarPeriodID *int64,
-	replacementFrom timezone.Date,
-	replacementUntil *timezone.Date,
+	replacementFrom calendar.Date,
+	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) error {
 	rows, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
@@ -303,15 +303,15 @@ func (s *TemplateService) retireTemplateSupervisors(
 func classifySupervisorRetirement(
 	row *activitiesModel.SupervisorPlanned,
 	calendarPeriodID *int64,
-	replacementFrom timezone.Date,
-	replacementUntil *timezone.Date,
+	replacementFrom calendar.Date,
+	replacementUntil *calendar.Date,
 	previousCalendarPeriodID *int64,
 ) rosterRetirementAction {
-	if row == nil || !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
+	if row == nil || !validityWindowsOverlap(calendar.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), replacementFrom, replacementUntil) {
 		return rosterRetirementSkip
 	}
 	return classifyOwnedRosterRetirement(
-		timezone.Date(row.ValidFrom),
+		calendar.Date(row.ValidFrom),
 		timezoneDatePtr(row.ValidUntil),
 		ownedRosterPeriodMatches(row.CalendarPeriodID, calendarPeriodID, previousCalendarPeriodID),
 		replacementFrom,
@@ -325,11 +325,11 @@ func ownedRosterPeriodMatches(rowPeriodID, targetPeriodID, previousPeriodID *int
 }
 
 func classifyOwnedRosterRetirement(
-	validFrom timezone.Date,
-	validUntil *timezone.Date,
+	validFrom calendar.Date,
+	validUntil *calendar.Date,
 	periodMatches bool,
-	replacementFrom timezone.Date,
-	replacementUntil *timezone.Date,
+	replacementFrom calendar.Date,
+	replacementUntil *calendar.Date,
 ) rosterRetirementAction {
 	if !periodMatches {
 		return rosterRetirementSkip
@@ -346,10 +346,10 @@ func classifyOwnedRosterRetirement(
 }
 
 func validityWindowsOverlap(
-	leftFrom timezone.Date,
-	leftUntil *timezone.Date,
-	rightFrom timezone.Date,
-	rightUntil *timezone.Date,
+	leftFrom calendar.Date,
+	leftUntil *calendar.Date,
+	rightFrom calendar.Date,
+	rightUntil *calendar.Date,
 ) bool {
 	if leftUntil != nil && !rightFrom.Before(*leftUntil) {
 		return false
@@ -378,7 +378,7 @@ func rosterPeriodApplies(rowPeriodID, targetPeriodID *int64) bool {
 	return targetPeriodID != nil && *rowPeriodID == *targetPeriodID
 }
 
-func commonScheduleValidityEnvelope(schedules []*activitiesModel.Schedule) (*timezone.Date, *timezone.Date, error) {
+func commonScheduleValidityEnvelope(schedules []*activitiesModel.Schedule) (*calendar.Date, *calendar.Date, error) {
 	if len(schedules) == 0 {
 		return nil, nil, nil
 	}
@@ -410,14 +410,14 @@ func commonScheduleValidityEnvelope(schedules []*activitiesModel.Schedule) (*tim
 	return validFrom, validUntil, nil
 }
 
-func optionalDatesEqual(left, right *timezone.Date) bool {
+func optionalDatesEqual(left, right *calendar.Date) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
 	return *left == *right
 }
 
-func cloneOptionalDate(date *timezone.Date) *timezone.Date {
+func cloneOptionalDate(date *calendar.Date) *calendar.Date {
 	if date == nil {
 		return nil
 	}
@@ -425,7 +425,7 @@ func cloneOptionalDate(date *timezone.Date) *timezone.Date {
 	return &cloned
 }
 
-func activityDatePtr(date *timezone.Date) *activitiesModel.Date {
+func activityDatePtr(date *calendar.Date) *activitiesModel.Date {
 	if date == nil {
 		return nil
 	}
@@ -433,10 +433,10 @@ func activityDatePtr(date *timezone.Date) *activitiesModel.Date {
 	return &value
 }
 
-func timezoneDatePtr(date *activitiesModel.Date) *timezone.Date {
+func timezoneDatePtr(date *activitiesModel.Date) *calendar.Date {
 	if date == nil {
 		return nil
 	}
-	value := timezone.Date(*date)
+	value := calendar.Date(*date)
 	return &value
 }

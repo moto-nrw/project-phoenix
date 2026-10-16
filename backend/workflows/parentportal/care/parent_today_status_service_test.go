@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -73,7 +72,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 
 func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID int64, pickup time.Time) bool {
 	t.Helper()
-	weekday := int(timezone.NewDate(2026, 8, 24).Weekday())
+	weekday := int(calendar.NewDate(2026, 8, 24).Weekday())
 	if weekday == 0 || weekday == 6 {
 		return false
 	}
@@ -101,7 +100,7 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 // skipping itself into a coverage hole every Saturday and Sunday.
 func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID int64, arrival time.Time) bool {
 	t.Helper()
-	weekday := int(timezone.NewDate(2026, 8, 24).Weekday())
+	weekday := int(calendar.NewDate(2026, 8, 24).Weekday())
 	if weekday == 0 || weekday == 6 {
 		return false
 	}
@@ -146,7 +145,7 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 // pflegt: ohne eine einzige Zeile der SCHULE in den letzten 14 Tagen antwortet
 // der Tagesstatus bewusst "unbekannt", statt "nicht angekommen" zu behaupten.
 // Auf welches Kind die Zeile laeuft, ist fuer dieses Signal egal.
-func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64, date timezone.Date) {
+func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64, date calendar.Date) {
 	t.Helper()
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "attendance-history-fixture")
 	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
@@ -159,7 +158,7 @@ func seedClosedAttendanceOn(t *testing.T, db *bun.DB, tenantID, studentID int64,
 func openAttendanceToday(t *testing.T, db *bun.DB, tenantID, studentID int64, checkIn time.Time) {
 	t.Helper()
 	device := testpkg.CreateTestDeviceForTenant(t, db, tenantID, "today-status-fixture")
-	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, 0, device.ID, timezone.NewDate(2026, 8, 24), checkIn, nil)
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, 0, device.ID, calendar.NewDate(2026, 8, 24), checkIn, nil)
 }
 
 // TestGetChildTodayStatusRejectsForeignChild ist die Mandantengrenze: ein
@@ -183,7 +182,7 @@ func TestGetChildTodayStatusPresent(t *testing.T) {
 	svc, db := buildTodayStatusService(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	checkIn := timezone.Now().Add(-90 * time.Minute)
+	checkIn := calendar.Now().Add(-90 * time.Minute)
 	openAttendanceToday(t, db, chain.TenantID, chain.StudentID, checkIn)
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -192,7 +191,7 @@ func TestGetChildTodayStatusPresent(t *testing.T) {
 	require.NotNil(t, status.AtOgs, "eine offene Anwesenheit belegt die Ja-Aussage")
 	assert.True(t, *status.AtOgs)
 	assert.Equal(t, care.DayStatePresent, status.State)
-	assert.Equal(t, timezone.NormalizeWallClock(checkIn).Format("15:04"), status.Since)
+	assert.Equal(t, calendar.NormalizeWallClock(checkIn).Format("15:04"), status.Since)
 	assert.Empty(t, status.Until)
 }
 
@@ -223,10 +222,10 @@ func TestGetChildTodayStatusCareDayWithoutAttendance(t *testing.T) {
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	arrival := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))
+	arrival := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))
 	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
 	// Belegt, dass die Schule Anwesenheit pflegt, ohne heute eine anzulegen.
-	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24).AddDays(-3))
+	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24).AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 
@@ -246,7 +245,7 @@ func TestGetChildTodayStatusCareDayWithoutArrivalTime(t *testing.T) {
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	seeded := seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, time.Time{})
-	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24).AddDays(-3))
+	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24).AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -267,9 +266,9 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	arrival := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 7, 30, 0, 0, time.UTC))
+	arrival := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 7, 30, 0, 0, time.UTC))
 	seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, arrival)
-	checkIn := timezone.Now().Add(-30 * time.Minute)
+	checkIn := calendar.Now().Add(-30 * time.Minute)
 	openAttendanceToday(t, db, chain.TenantID, chain.StudentID, checkIn)
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -278,7 +277,7 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 	require.NotNil(t, status.AtOgs, "eine offene Anwesenheit belegt die Ja-Aussage")
 	assert.True(t, *status.AtOgs)
 	assert.Equal(t, care.DayStatePresent, status.State)
-	assert.Equal(t, timezone.NormalizeWallClock(checkIn).Format("15:04"), status.Since)
+	assert.Equal(t, calendar.NormalizeWallClock(checkIn).Format("15:04"), status.Since)
 	assert.Empty(t, status.ExpectedFrom, "wer da ist, wird nicht mehr erwartet")
 }
 
@@ -302,10 +301,10 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	if !seedPickupScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 30, 0, 0, time.UTC))) {
+	if !seedPickupScheduleForToday(t, db, chain.TenantID, chain.StudentID, calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 30, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
-	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24).AddDays(-3))
+	seedClosedAttendanceOn(t, db, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24).AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 
@@ -325,13 +324,13 @@ func TestGetChildTodayStatusTracksAttendanceSchoolWide(t *testing.T) {
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
+	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, calendar.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 
 	// Die Historie gehoert einem MITSCHUELER, das angefragte Kind hat keine.
 	classmate := testpkg.CreateTestStudentForTenant(t, db, chain.TenantID, "Mit", "Schueler", "3a")
-	seedClosedAttendanceOn(t, db, chain.TenantID, classmate.ID, timezone.NewDate(2026, 8, 24).AddDays(-3))
+	seedClosedAttendanceOn(t, db, chain.TenantID, classmate.ID, calendar.NewDate(2026, 8, 24).AddDays(-3))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 
@@ -346,7 +345,7 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 
 	svc, db := buildTodayStatusServiceWithSchedule(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, timezone.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
+	if !seedArrivalScheduleForToday(t, db, chain.TenantID, chain.StudentID, calendar.NormalizeWallClock(time.Date(2026, 1, 1, 8, 0, 0, 0, time.UTC))) {
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")

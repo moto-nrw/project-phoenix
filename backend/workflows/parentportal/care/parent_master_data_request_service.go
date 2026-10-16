@@ -9,12 +9,12 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -388,7 +388,7 @@ func trackBPersonFieldState(field string, person *usersModels.Person, value json
 		if newStr == "" {
 			return nil, nil, false, ErrMasterDataInvalidValue
 		}
-		if _, parseErr := timezone.ParseDate(newStr); parseErr != nil {
+		if _, parseErr := calendar.ParseDate(newStr); parseErr != nil {
 			return nil, nil, false, ErrMasterDataInvalidValue
 		}
 		oldStr := ""

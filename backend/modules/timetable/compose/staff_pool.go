@@ -7,11 +7,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Staff availability pool for one care block (#1884): who could cover this
@@ -43,7 +43,7 @@ func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID
 	return timetable.StaffPool{
 		InstanceID:      instance.ID,
 		Title:           instance.Title,
-		Date:            timezone.Date(instance.Date),
+		Date:            calendar.Date(instance.Date),
 		StartTime:       instance.StartTime,
 		EndTime:         instance.EndTime,
 		DienstplanInUse: dienstplanInUse,
@@ -81,7 +81,7 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load shifts: %w", err)
 	}
-	weekFrom, weekTo := timetable.ContainingCalendarWeek(timezone.Date(date))
+	weekFrom, weekTo := timetable.ContainingCalendarWeek(calendar.Date(date))
 	usedWeeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, scheduleModels.Date(weekFrom), scheduleModels.Date(weekTo))
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load used shift weeks: %w", err)
@@ -190,7 +190,7 @@ func buildStaffPoolEntry(target *scheduleModels.ActivityInstance, staffID int64,
 	sort.Strings(entry.ShiftWindows)
 	if entry.OnShift {
 		entry.CoversWindow = len(timetable.UncoveredShiftIntervals(
-			timezone.NormalizeWallClock(target.StartTime), timezone.NormalizeWallClock(target.EndTime), shiftWindowsOf(staffShifts),
+			calendar.NormalizeWallClock(target.StartTime), calendar.NormalizeWallClock(target.EndTime), shiftWindowsOf(staffShifts),
 		)) == 0
 	}
 	switch {

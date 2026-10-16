@@ -4,8 +4,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Settings is every tenant setting the time-tracking services resolve. The
@@ -95,7 +95,7 @@ type Ports struct {
 	ShiftPlanSync ShiftPlanSyncer
 	Logger        *slog.Logger
 	// Today is optional and pins the absence and ledger calendar day.
-	Today func() timezone.Date
+	Today func() calendar.Date
 }
 
 // Dependencies are the collaborators the time-tracking services are built

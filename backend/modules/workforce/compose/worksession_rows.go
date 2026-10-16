@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The row adapters in this file serve the time-tracking row contracts
@@ -106,7 +106,7 @@ func (r workSessionRepository) CountWithOptions(ctx context.Context, options *mo
 	return count, nil
 }
 
-func (r workSessionRepository) OldestBefore(ctx context.Context, column string, cutoff *timezone.Date) (*timezone.Date, error) {
+func (r workSessionRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
 	before := ""
 	if cutoff != nil {
 		before = cutoff.String()
@@ -118,14 +118,14 @@ func (r workSessionRepository) OldestBefore(ctx context.Context, column string, 
 	if oldest == "" {
 		return nil, nil
 	}
-	date, err := timezone.ParseDate(oldest)
+	date, err := calendar.ParseDate(oldest)
 	if err != nil {
 		return nil, err
 	}
 	return &date, nil
 }
 
-func (r workSessionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timezone.Date) (int64, error) {
+func (r workSessionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteWorkSessionsOlderThan(ctx, column, cutoff.String())
 	if err != nil {
 		return 0, workSessionWriteError("delete older than", err)
@@ -153,7 +153,7 @@ func (r workSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staff
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.OpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
 		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
@@ -161,7 +161,7 @@ func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffI
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date calendar.Date) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.LockOpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
 		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
@@ -200,14 +200,14 @@ func (r workSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, st
 	return result, nil
 }
 
-func (r workSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetracking.WorkSession, error) {
 	return r.list(ctx, "get history by staff ID", workforce.WorkSessionFilter{
 		StaffID: staffID, DateFrom: from.String(), DateTo: to.String(),
 		Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime),
 	})
 }
 
-func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*timetracking.WorkSession, error) {
 	result := make(map[int64][]*timetracking.WorkSession, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -225,7 +225,7 @@ func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffID
 	return result, nil
 }
 
-func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate calendar.Date) ([]*timetracking.WorkSession, error) {
 	open := true
 	return r.list(ctx, "get open sessions", workforce.WorkSessionFilter{DateBefore: beforeDate.String(), Open: &open})
 }
@@ -630,7 +630,7 @@ func (r staffBalanceAdjustmentRepository) LockStaffBalanceWrites(ctx context.Con
 	return r.workforce.LockStaffBalanceWrites(ctx, staffID)
 }
 
-func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetracking.StaffBalanceAdjustment, error) {
+func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetracking.StaffBalanceAdjustment, error) {
 	values, err := r.workforce.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String(),
 	})
@@ -640,7 +640,7 @@ func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Con
 	return adjustmentsToLegacy(values), nil
 }
 
-func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timetracking.StaffBalanceAdjustment, error) {
+func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*timetracking.StaffBalanceAdjustment, error) {
 	result := make(map[int64][]*timetracking.StaffBalanceAdjustment, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -993,7 +993,7 @@ func applyWorkSessionToLegacy(entity *timetracking.WorkSession, value workforce.
 	entity.UpdatedAt = value.UpdatedAt
 	entity.TenantID = value.TenantID
 	entity.StaffID = value.StaffID
-	entity.Date = timezone.Date(value.Date)
+	entity.Date = calendar.Date(value.Date)
 	entity.Status = value.Status
 	entity.Source = value.Source
 	entity.CheckInTime = value.CheckInTime
@@ -1063,7 +1063,7 @@ func applyAdjustmentToLegacy(entity *timetracking.StaffBalanceAdjustment, value 
 	entity.StaffID = value.StaffID
 	entity.Type = value.Type
 	entity.MinutesDelta = value.MinutesDelta
-	entity.EffectiveDate = timezone.Date(value.EffectiveDate)
+	entity.EffectiveDate = calendar.Date(value.EffectiveDate)
 	entity.Note = value.Note
 	entity.DecidedBy = value.DecidedBy
 	entity.DecidedAt = value.DecidedAt
@@ -1098,7 +1098,7 @@ func applyOpeningToLegacy(entity *timetracking.StaffVacationOpening, value workf
 	entity.TenantID = value.TenantID
 	entity.StaffID = value.StaffID
 	entity.Year = value.Year
-	entity.EffectiveDate = timezone.Date(value.EffectiveDate)
+	entity.EffectiveDate = calendar.Date(value.EffectiveDate)
 	entity.TakenBeforeDays = value.TakenBeforeDays
 	entity.EnteredRemainingDays = value.EnteredRemainingDays
 	entity.Note = value.Note

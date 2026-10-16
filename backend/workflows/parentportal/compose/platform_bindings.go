@@ -4,10 +4,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/localization"
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
@@ -33,7 +33,7 @@ func (m mealPlan) Available(ctx context.Context) (bool, error) {
 	return available, mealPlanError(err)
 }
 
-func (m mealPlan) Week(ctx context.Context, monday timezone.Date) ([]care.MealPlanEntry, error) {
+func (m mealPlan) Week(ctx context.Context, monday calendar.Date) ([]care.MealPlanEntry, error) {
 	rows, err := m.provider.Week(ctx, mealplanModule.Date(monday.String()))
 	if err != nil {
 		return nil, mealPlanError(err)
@@ -50,7 +50,7 @@ func (m mealPlan) RegistrationAvailable(ctx context.Context) (bool, error) {
 	return available, mealPlanError(err)
 }
 
-func (m mealPlan) Participation(ctx context.Context, studentID int64, from, to timezone.Date) (care.MealParticipationPlan, error) {
+func (m mealPlan) Participation(ctx context.Context, studentID int64, from, to calendar.Date) (care.MealParticipationPlan, error) {
 	plan, err := m.provider.Participation(ctx, studentID, mealplanModule.Date(from.String()), mealplanModule.Date(to.String()))
 	if err != nil {
 		return care.MealParticipationPlan{}, mealPlanError(err)

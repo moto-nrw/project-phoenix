@@ -12,7 +12,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
@@ -20,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -49,7 +49,7 @@ type Rosters = ports.Rosters
 // PickupReader is the slice of the retained pickup schedule service the
 // scans read.
 type PickupReader interface {
-	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date timezone.Date) (*careplan.EffectivePickupTime, error)
+	GetEffectivePickupTimeForDate(ctx context.Context, studentID int64, date calendar.Date) (*careplan.EffectivePickupTime, error)
 }
 
 // Dependencies are the collaborators of the device-scan workflow. Fleet,
@@ -138,7 +138,7 @@ func New(deps Dependencies) DeviceScan {
 type clock struct{ now func() time.Time }
 
 func (c clock) Now() time.Time                      { return c.now() }
-func (c clock) Day(instant time.Time) timezone.Date { return timezone.DateFromTime(instant) }
+func (c clock) Day(instant time.Time) calendar.Date { return calendar.DateFromTime(instant) }
 
 // unitOfWork binds the request transaction of the tenant runtime.
 type unitOfWork struct{}

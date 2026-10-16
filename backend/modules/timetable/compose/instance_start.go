@@ -7,7 +7,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -18,7 +17,7 @@ import (
 // evaluateLifecycleAvailability applies the owner's clock policy to a
 // retained row.
 func evaluateLifecycleAvailability(instance *scheduleModel.ActivityInstance, now time.Time, startLeadMinutes, completeLeadMinutes int, enforcePlannedEnd bool) timetable.LifecycleAvailability {
-	window := timetable.LifecycleWindow{Date: timezone.Date(instance.Date), StartTime: instance.StartTime, EndTime: instance.EndTime, IsSpontaneous: instance.IsSpontaneous}
+	window := timetable.LifecycleWindow{Date: calendar.Date(instance.Date), StartTime: instance.StartTime, EndTime: instance.EndTime, IsSpontaneous: instance.IsSpontaneous}
 	return timetable.EvaluateLifecycleAvailability(window, now, startLeadMinutes, completeLeadMinutes, enforcePlannedEnd)
 }
 
@@ -46,7 +45,7 @@ func validateSpontaneousStartWorkday(ctx context.Context, instance *scheduleMode
 	if !instance.IsSpontaneous {
 		return nil
 	}
-	careDay, err := calendar.IsCareWeekday(ctx, timezone.DateFromTime(now))
+	careDay, err := calendar.IsCareWeekday(ctx, calendar.DateFromTime(now))
 	if err != nil {
 		return &ScheduleError{Op: "start instance: resolve weekend plan", Err: err}
 	}
@@ -180,7 +179,7 @@ func (s *InstanceLifecycleService) openStartedSession(
 			StaffID:   row.StaffID,
 			GroupID:   newGroup.ID,
 			Role:      "supervisor",
-			StartDate: timezone.DateFromTime(now).String(),
+			StartDate: calendar.DateFromTime(now).String(),
 		}
 		sup.TenantID = tenant.FromContext(ctx)
 		if err := s.deps.SupervisorRepo.CreateSupervision(ctx, sup); err != nil {
@@ -239,7 +238,7 @@ func (s *InstanceLifecycleService) absorbUnsupervisedOpenGroups(ctx context.Cont
 	if err != nil {
 		return fmt.Errorf("load system activities for room %d: %w", roomID, err)
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	movedTotal := int64(0)
 	for _, group := range openGroups {
 		if !absorptionCandidate(group, newGroupID, today, systemByActivity) {
@@ -257,8 +256,8 @@ func (s *InstanceLifecycleService) absorbUnsupervisedOpenGroups(ctx context.Cont
 	return nil
 }
 
-func absorptionCandidate(group *studentpresence.LiveGroup, newGroupID int64, today timezone.Date, systemByActivity map[int64]bool) bool {
-	if group.ID == newGroupID || timezone.DateFromTime(group.StartTime) != today {
+func absorptionCandidate(group *studentpresence.LiveGroup, newGroupID int64, today calendar.Date, systemByActivity map[int64]bool) bool {
+	if group.ID == newGroupID || calendar.DateFromTime(group.StartTime) != today {
 		return false
 	}
 	templateID, ok := group.TemplateID()
@@ -268,7 +267,7 @@ func absorptionCandidate(group *studentpresence.LiveGroup, newGroupID int64, tod
 // absorbGroup moves one candidate's open visits and ends it. The row lock
 // serializes the "still open and unsupervised" decision with supervision
 // claims, which lock the same row before they insert a supervisor.
-func (s *InstanceLifecycleService) absorbGroup(ctx context.Context, groupID, roomID, newGroupID int64, today timezone.Date) (int64, error) {
+func (s *InstanceLifecycleService) absorbGroup(ctx context.Context, groupID, roomID, newGroupID int64, today calendar.Date) (int64, error) {
 	absorbable, err := s.absorbableGroup(ctx, groupID, roomID, today)
 	if err != nil || !absorbable {
 		return 0, err
@@ -290,7 +289,7 @@ func (s *InstanceLifecycleService) absorbGroup(ctx context.Context, groupID, roo
 
 // absorbableGroup re-checks a candidate under its row lock: still open, in
 // the room, started today, bridged to no block and without a supervisor.
-func (s *InstanceLifecycleService) absorbableGroup(ctx context.Context, groupID, roomID int64, today timezone.Date) (bool, error) {
+func (s *InstanceLifecycleService) absorbableGroup(ctx context.Context, groupID, roomID int64, today calendar.Date) (bool, error) {
 	lockedGroup, err := s.deps.ActiveGroupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
 		return false, fmt.Errorf("lock open group %d: %w", groupID, err)
@@ -298,7 +297,7 @@ func (s *InstanceLifecycleService) absorbableGroup(ctx context.Context, groupID,
 	if lockedGroup == nil || lockedGroup.EndTime != nil || lockedGroup.RoomID != roomID {
 		return false, nil
 	}
-	if timezone.DateFromTime(lockedGroup.StartTime) != today {
+	if calendar.DateFromTime(lockedGroup.StartTime) != today {
 		return false, nil
 	}
 	instance, err := s.deps.InstanceRepo.FindByActiveGroupID(ctx, groupID)

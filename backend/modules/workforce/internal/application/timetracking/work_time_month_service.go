@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // MonthSummary is the Monatskarte aggregate for one staff member and month
@@ -97,20 +97,20 @@ type WorkTimeMonthService interface {
 	GetMonthSummaryAtMonthEnd(ctx context.Context, staffID int64, year, month int) (*MonthSummary, error)
 	// GetClosingBalanceAsOf returns the live carry-chain balance through cutoff.
 	// Unlike GetMonthSummary, it never includes activity later in cutoff's month.
-	GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error)
+	GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff calendar.Date) (int, error)
 	// GetBalanceAdjustmentMinutes returns the signed ledger total whose effective
 	// dates lie in [from, to]. Comp-time availability uses it to include
 	// same-day payouts without treating same-day work as already accrued.
-	GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to timezone.Date) (int, error)
+	GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to calendar.Date) (int, error)
 	// GetBalanceReductionCapacity returns the largest debit that can become
 	// effective at the start of effectiveDate without invalidating an existing
 	// later debit or comp-time commitment.
-	GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error)
+	GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate calendar.Date) (int, error)
 	// GetCompTimeDeductionMinutes returns how much a comp_time absence over
 	// [start, end] can reduce the Stundenkonto. Both full and half days reserve
 	// each target minus recorded net work, because comp_time itself credits
 	// nothing (#1420).
-	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, halfDay bool) (int, error)
+	GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end calendar.Date, halfDay bool) (int, error)
 	// GetFutureCompTimeCommitmentMinutes sums the deductions of every
 	// effective comp-time absence on days after today, through the supported
 	// balance horizon. The comp-time preview (#2873) subtracts it so already
@@ -118,15 +118,15 @@ type WorkTimeMonthService interface {
 	GetFutureCompTimeCommitmentMinutes(ctx context.Context, staffID int64) (int, error)
 	// GetDailyProjection returns Soll, Gutschrift, Ist and Saldo per calendar
 	// day for the daily table — the same arithmetic the Monatskarte sums.
-	GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error)
+	GetDailyProjection(ctx context.Context, staffID int64, from, to calendar.Date) ([]DailyProjection, error)
 	// GetDailyTargets resolves only the date-valid Soll for callers that do not
 	// need absence, session, or balance data.
-	GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error)
+	GetDailyTargets(ctx context.Context, staffID int64, from, to calendar.Date) ([]DailyTarget, error)
 	// GetRangeAggregate sums Soll, Ist and balance over an arbitrary closed
 	// range with the same daily arithmetic as the Monatskarte, WITHOUT a carry
 	// (a range is not an account). The week view of the Leitungs-Dashboard
 	// needs it because the chain itself is month-granular (#1417).
-	GetRangeAggregate(ctx context.Context, staffID int64, from, to timezone.Date) (*RangeAggregate, error)
+	GetRangeAggregate(ctx context.Context, staffID int64, from, to calendar.Date) (*RangeAggregate, error)
 }
 
 // AdjustmentView is one Stundenkonto transaction as the Monatskarte shows it
@@ -135,7 +135,7 @@ type AdjustmentView struct {
 	ID            int64         `json:"id"`
 	Type          string        `json:"type"`
 	MinutesDelta  int           `json:"minutes_delta"`
-	EffectiveDate timezone.Date `json:"effective_date"`
+	EffectiveDate calendar.Date `json:"effective_date"`
 	Note          string        `json:"note"`
 	DecidedBy     int64         `json:"decided_by"`
 	DecidedAt     time.Time     `json:"decided_at"`
@@ -159,7 +159,7 @@ type AdjustmentView struct {
 // with an effective date, not work time of that day, and the Monatskarte shows
 // them as their own line. Summe der Tageszeilen + Buchungen = Monatssaldo.
 type DailyProjection struct {
-	Date           timezone.Date `json:"date"`
+	Date           calendar.Date `json:"date"`
 	TargetMinutes  int           `json:"target_minutes"`
 	CreditMinutes  int           `json:"credit_minutes"`
 	ActualMinutes  int           `json:"actual_minutes"`
@@ -171,7 +171,7 @@ type DailyProjection struct {
 // DailyTarget is the contractual Soll of one calendar day, resolved against
 // the schedule version that was valid ON that day (#1842).
 type DailyTarget struct {
-	Date          timezone.Date `json:"date"`
+	Date          calendar.Date `json:"date"`
 	TargetMinutes int           `json:"target_minutes"`
 }
 
@@ -190,7 +190,7 @@ type monthSettingsResolver interface {
 
 // monthShiftReader is implemented by TimeTrackingShiftRepository.
 type monthShiftReader interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*TimeTrackingShift, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*TimeTrackingShift, error)
 }
 
 // monthSessionReader is implemented by WorkSessionRepository.
@@ -206,12 +206,12 @@ type monthBreakReader interface {
 
 // monthAbsenceReader is implemented by StaffAbsenceRepository.
 type monthAbsenceReader interface {
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsence, error)
 }
 
 // monthAdjustmentReader is implemented by StaffBalanceAdjustmentRepository.
 type monthAdjustmentReader interface {
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffBalanceAdjustment, error)
 }
 
 // monthSnapshotReader is implemented by
@@ -222,7 +222,7 @@ type monthSnapshotReader interface {
 
 type StaffScheduleAssignment struct {
 	WorkTimeModelID    *int64
-	RotationAnchorDate *timezone.Date
+	RotationAnchorDate *calendar.Date
 }
 
 type StaffScheduleQuery interface {
@@ -231,7 +231,7 @@ type StaffScheduleQuery interface {
 
 // monthScheduleReader is implemented by config.StaffWorkScheduleRepository.
 type monthScheduleReader interface {
-	TargetsForStaff(ctx context.Context, staffID int64, from, to timezone.Date) (WorkScheduleTargets, error)
+	TargetsForStaff(ctx context.Context, staffID int64, from, to calendar.Date) (WorkScheduleTargets, error)
 	HasScheduleHistory(ctx context.Context, staffID int64) (bool, error)
 }
 
@@ -244,7 +244,7 @@ type monthModelReader interface {
 // holidays zero the Soll of their day (#1418 3a). Exported because the
 // factory injects it across service boundaries (month + session service).
 type HolidayDatesReader interface {
-	HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
+	HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error)
 }
 
 type workTimeMonthService struct {
@@ -263,7 +263,7 @@ type workTimeMonthService struct {
 	logger         *slog.Logger
 
 	// todayFunc is a test hook; production uses timezone.TodayDate.
-	todayFunc func() timezone.Date
+	todayFunc func() calendar.Date
 	// nowFunc is a test hook; production uses time.Now.
 	nowFunc func() time.Time
 }
@@ -297,11 +297,11 @@ func NewWorkTimeMonthService(
 	return service
 }
 
-func (s *workTimeMonthService) today() timezone.Date {
+func (s *workTimeMonthService) today() calendar.Date {
 	if s.todayFunc != nil {
 		return s.todayFunc()
 	}
-	return timezone.TodayDate()
+	return calendar.TodayDate()
 }
 
 func (s *workTimeMonthService) now() time.Time {
@@ -318,18 +318,18 @@ type monthKey struct {
 	Month int
 }
 
-func monthOf(d timezone.Date) monthKey { return monthKey{Year: d.Year(), Month: int(d.Month())} }
+func monthOf(d calendar.Date) monthKey { return monthKey{Year: d.Year(), Month: int(d.Month())} }
 
-func (k monthKey) firstDay() timezone.Date { return timezone.NewDate(k.Year, time.Month(k.Month), 1) }
+func (k monthKey) firstDay() calendar.Date { return calendar.NewDate(k.Year, time.Month(k.Month), 1) }
 
 // lastDay relies on NewDate's time.Date normalization for month 13.
-func (k monthKey) lastDay() timezone.Date {
-	return timezone.NewDate(k.Year, time.Month(k.Month)+1, 1).AddDays(-1)
+func (k monthKey) lastDay() calendar.Date {
+	return calendar.NewDate(k.Year, time.Month(k.Month)+1, 1).AddDays(-1)
 }
 
 // addMonths shifts a key by n whole months, normalizing via time.Date.
 func (k monthKey) addMonths(n int) monthKey {
-	return monthOf(timezone.NewDate(k.Year, time.Month(k.Month+n), 1))
+	return monthOf(calendar.NewDate(k.Year, time.Month(k.Month+n), 1))
 }
 
 func (k monthKey) next() monthKey {
@@ -439,7 +439,7 @@ func (a *monthAggregates) balance() int {
 // anchor month must only count from that day on. Days after `today`
 // contribute nothing to targetToDate and credits, so the current month's
 // balance is automatically pro-rated and future months are neutral.
-func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID int64, first timezone.Date, toKey monthKey, today timezone.Date) (map[monthKey]*monthAggregates, error) {
+func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID int64, first calendar.Date, toKey monthKey, today calendar.Date) (map[monthKey]*monthAggregates, error) {
 	fromKey := monthOf(first)
 	last := toKey.lastDay()
 
@@ -480,7 +480,7 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 // effective month. Future-dated adjustments are skipped like future targets
 // and credits — a grant scheduled for next week must not pre-empt today's
 // balance; the carry chain picks it up once the date arrives.
-func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
+func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64, first, last, today calendar.Date, aggregates map[monthKey]*monthAggregates) error {
 	if s.adjustmentRepo == nil {
 		return nil
 	}
@@ -506,7 +506,7 @@ func (s *workTimeMonthService) addAdjustments(ctx context.Context, staffID int64
 // intersects. A work session is filed under its check-in date, but may validly
 // run past midnight; counting it only in that filing month would lose the
 // after-midnight part from the following day's balance.
-func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today timezone.Date, aggregates map[monthKey]*monthAggregates) error {
+func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int64, first, last, today calendar.Date, aggregates map[monthKey]*monthAggregates) error {
 	end := last.AddDays(1).BerlinMidnight()
 	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, first.BerlinMidnight(), &end)
 	if err != nil {
@@ -567,10 +567,10 @@ const maxOpenWorkSessionDuration = workforce.MaxOpenWorkSessionDuration
 // now. Readers outside this package (notably the kiosk) use it so a running
 // block cannot produce a different total from the monthly balance.
 func BalanceSessionEnd(session *WorkSession, now time.Time) time.Time {
-	return balanceSessionEnd(session, now, timezone.DateFromTime(now))
+	return balanceSessionEnd(session, now, calendar.DateFromTime(now))
 }
 
-func balanceSessionEnd(session *WorkSession, now time.Time, today timezone.Date) time.Time {
+func balanceSessionEnd(session *WorkSession, now time.Time, today calendar.Date) time.Time {
 	end := sessionEndUpTo(session, now)
 	// A completed block is historical fact. Only still-open blocks (or a
 	// malformed future check-out) need a live safety limit.
@@ -598,7 +598,7 @@ func balanceSessionEnd(session *WorkSession, now time.Time, today timezone.Date)
 // once (lowest absence ID wins), and only reported/approved absences count.
 // Day counters are schedule-aware: a vacation day only counts when the day
 // actually had a target (> 0), so part-timers aren't charged for days off.
-func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID int64, first, last, today timezone.Date, resolver *dailyTargetResolver, aggregates map[monthKey]*monthAggregates) error {
+func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID int64, first, last, today calendar.Date, resolver *dailyTargetResolver, aggregates map[monthKey]*monthAggregates) error {
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, first, last)
 	if err != nil {
 		return fmt.Errorf("failed to load absences: %w", err)
@@ -608,7 +608,7 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 		through = today
 	}
 	walkCreditedAbsenceDays(absences, first, through, resolver.TargetFor,
-		func(d timezone.Date, absence *StaffAbsence, credit int, fraction float64) {
+		func(d calendar.Date, absence *StaffAbsence, credit int, fraction float64) {
 			creditAbsenceDay(absence, credit, fraction, aggregates[monthOf(d)])
 		})
 	return nil
@@ -617,7 +617,7 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 // absenceDayVisitor receives one effectively covered absence day together with
 // the minutes it credits (already 0 for Freizeitausgleich, already halved on a
 // half-day boundary) and the day fraction that credit represents.
-type absenceDayVisitor func(d timezone.Date, absence *StaffAbsence, credit int, fraction float64)
+type absenceDayVisitor func(d calendar.Date, absence *StaffAbsence, credit int, fraction float64)
 
 // walkCreditedAbsenceDays applies the ONE set of absence rules every reader
 // prices days with — Monatskarte, Tageszeile, Stundenkonto: only
@@ -632,12 +632,12 @@ type absenceDayVisitor func(d timezone.Date, absence *StaffAbsence, credit int, 
 // carry their own copy of this walk drifted apart in exactly these details.
 func walkCreditedAbsenceDays(
 	absences []*StaffAbsence,
-	first, through timezone.Date,
-	targetFor func(timezone.Date) int,
+	first, through calendar.Date,
+	targetFor func(calendar.Date) int,
 	visit absenceDayVisitor,
 ) {
 	sort.Slice(absences, func(i, j int) bool { return absences[i].ID < absences[j].ID })
-	credited := make(map[timezone.Date]bool)
+	credited := make(map[calendar.Date]bool)
 	for _, absence := range absences {
 		if absence.Status != AbsenceStatusReported && absence.Status != AbsenceStatusApproved {
 			continue
@@ -708,20 +708,20 @@ func effectiveAbsenceBoundaryHalves(absence *StaffAbsence) (bool, bool) {
 	return absence.StartHalfDay, absence.EndHalfDay
 }
 
-func isHalfAbsenceDay(absence *StaffAbsence, d timezone.Date, startHalf, endHalf bool) bool {
+func isHalfAbsenceDay(absence *StaffAbsence, d calendar.Date, startHalf, endHalf bool) bool {
 	if absence.DateStart == absence.DateEnd {
 		return d == absence.DateStart && (startHalf || endHalf)
 	}
 	return (d == absence.DateStart && startHalf) || (d == absence.DateEnd && endHalf)
 }
 
-func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int64, first, last timezone.Date, aggregates map[monthKey]*monthAggregates) error {
-	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, staffID, timezone.Date(first), timezone.Date(last))
+func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int64, first, last calendar.Date, aggregates map[monthKey]*monthAggregates) error {
+	shifts, err := s.shiftRepo.FindByStaffAndDateRange(ctx, staffID, calendar.Date(first), calendar.Date(last))
 	if err != nil {
 		return fmt.Errorf("failed to load staff shifts: %w", err)
 	}
 	for _, shift := range shifts {
-		agg, ok := aggregates[monthOf(timezone.Date(shift.Date))]
+		agg, ok := aggregates[monthOf(calendar.Date(shift.Date))]
 		if !ok {
 			continue
 		}
@@ -738,8 +738,8 @@ func (s *workTimeMonthService) addPlannedShifts(ctx context.Context, staffID int
 // services/schedule — that package imports this one, so it cannot be shared
 // without an import cycle.
 func shiftNetMinutes(shift *TimeTrackingShift) int {
-	start := timezone.NormalizeWallClock(shift.StartTime)
-	end := timezone.NormalizeWallClock(shift.EndTime)
+	start := calendar.NormalizeWallClock(shift.StartTime)
+	end := calendar.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0
@@ -764,7 +764,7 @@ func shiftNetMinutes(shift *TimeTrackingShift) int {
 // materially wrong Stundenkonto as authoritative. An unparsable value is a
 // different case — it falls back with a warning, matching both the frontend
 // and the fact that the settings API validates the date on write.
-func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) (timezone.Date, error) {
+func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) (calendar.Date, error) {
 	return resolveAccountAnchor(ctx, s.settings, s.getLogger(), key)
 }
 
@@ -772,19 +772,19 @@ func (s *workTimeMonthService) chainAnchor(ctx context.Context, key monthKey) (t
 // above). Package-level so the balance-adjustment service (#1420) can reject
 // bookings dated before the account start — an adjustment before the anchor
 // never enters any carry chain and would silently not move the Stundenkonto.
-func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, logger *slog.Logger, key monthKey) (timezone.Date, error) {
-	fallback := timezone.NewDate(key.Year, time.January, 1)
+func resolveAccountAnchor(ctx context.Context, settings monthSettingsResolver, logger *slog.Logger, key monthKey) (calendar.Date, error) {
+	fallback := calendar.NewDate(key.Year, time.January, 1)
 	if settings == nil {
 		return fallback, nil
 	}
 	value, err := settings.AccountStartDate(ctx)
 	if err != nil {
-		return timezone.Date(""), fmt.Errorf("failed to resolve account start date setting: %w", err)
+		return calendar.Date(""), fmt.Errorf("failed to resolve account start date setting: %w", err)
 	}
 	if value == "" {
 		return fallback, nil
 	}
-	start, err := timezone.ParseDate(value)
+	start, err := calendar.ParseDate(value)
 	if err != nil {
 		logger.Warn("invalid account start date setting, using january fallback",
 			"value", value,
@@ -828,7 +828,7 @@ func (s *workTimeMonthService) GetMonthSummaryAtMonthEnd(ctx context.Context, st
 // getDailyBalanceDeltas for the balance (credits, adjustments, target). No new
 // arithmetic, therefore no way for a week total to contradict the month card
 // above it.
-func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID int64, from, to timezone.Date) (*RangeAggregate, error) {
+func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID int64, from, to calendar.Date) (*RangeAggregate, error) {
 	if from.IsZero() || to.IsZero() || to.Before(from) {
 		return nil, errors.New("from and to must form a valid range")
 	}
@@ -874,7 +874,7 @@ func (s *workTimeMonthService) GetRangeAggregate(ctx context.Context, staffID in
 // It shares all target/session/absence/adjustment math with the Monatskarte, but
 // pins the "today" clamp to cutoff so a historical reset cannot absorb activity
 // that happened later in the same month.
-func (s *workTimeMonthService) GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff timezone.Date) (int, error) {
+func (s *workTimeMonthService) GetClosingBalanceAsOf(ctx context.Context, staffID int64, cutoff calendar.Date) (int, error) {
 	if cutoff.IsZero() {
 		return 0, errors.New("cutoff date is required")
 	}
@@ -888,7 +888,7 @@ func (s *workTimeMonthService) GetClosingBalanceAsOf(ctx context.Context, staffI
 
 // GetBalanceAdjustmentMinutes returns the signed ledger effect over a date
 // range without folding in work sessions, targets, or absences from those days.
-func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to timezone.Date) (int, error) {
+func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, staffID int64, from, to calendar.Date) (int, error) {
 	if from.IsZero() || to.IsZero() || to.Before(from) {
 		return 0, errors.New("from and to must form a valid range")
 	}
@@ -912,7 +912,7 @@ func (s *workTimeMonthService) GetBalanceAdjustmentMinutes(ctx context.Context, 
 // effective comp-time absence commitment through the supported future
 // horizon. The caller holds the shared staff-balance lock, so these reads
 // cannot race another balance-affecting write.
-func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate timezone.Date) (int, error) {
+func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, staffID int64, effectiveDate calendar.Date) (int, error) {
 	if staffID <= 0 || effectiveDate.IsZero() {
 		return 0, errors.New("staff id and effective date are required")
 	}
@@ -923,7 +923,7 @@ func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, 
 		return 0, fmt.Errorf("effective date %s is outside the supported balance horizon", effectiveDate.String())
 	}
 
-	checkpointSet := map[timezone.Date]struct{}{effectiveDate: {}}
+	checkpointSet := map[calendar.Date]struct{}{effectiveDate: {}}
 	if err := s.addAdjustmentReductionCheckpoints(ctx, staffID, effectiveDate, last, checkpointSet); err != nil {
 		return 0, err
 	}
@@ -936,7 +936,7 @@ func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, 
 		return 0, err
 	}
 
-	checkpoints := make([]timezone.Date, 0, len(checkpointSet))
+	checkpoints := make([]calendar.Date, 0, len(checkpointSet))
 	for checkpoint := range checkpointSet {
 		checkpoints = append(checkpoints, checkpoint)
 	}
@@ -968,8 +968,8 @@ func (s *workTimeMonthService) GetBalanceReductionCapacity(ctx context.Context, 
 func (s *workTimeMonthService) addAdjustmentReductionCheckpoints(
 	ctx context.Context,
 	staffID int64,
-	effectiveDate, last timezone.Date,
-	checkpoints map[timezone.Date]struct{},
+	effectiveDate, last calendar.Date,
+	checkpoints map[calendar.Date]struct{},
 ) error {
 	if s.adjustmentRepo == nil {
 		return nil
@@ -998,7 +998,7 @@ func (s *workTimeMonthService) GetFutureCompTimeCommitmentMinutes(ctx context.Co
 	today := s.today()
 	from := today.AddDays(1)
 	last := monthOf(today).addMonths(maxFutureMonths).lastDay()
-	checkpoints := map[timezone.Date]struct{}{}
+	checkpoints := map[calendar.Date]struct{}{}
 	compTimeAbsences, err := s.addCompTimeReductionCheckpoints(ctx, staffID, from, last, checkpoints)
 	if err != nil {
 		return 0, err
@@ -1009,8 +1009,8 @@ func (s *workTimeMonthService) GetFutureCompTimeCommitmentMinutes(ctx context.Co
 func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
 	ctx context.Context,
 	staffID int64,
-	effectiveDate, last timezone.Date,
-	checkpoints map[timezone.Date]struct{},
+	effectiveDate, last calendar.Date,
+	checkpoints map[calendar.Date]struct{},
 ) ([]*StaffAbsence, error) {
 	if s.absenceRepo == nil {
 		return nil, nil
@@ -1038,9 +1038,9 @@ func (s *workTimeMonthService) addCompTimeReductionCheckpoints(
 func (s *workTimeMonthService) minimumOpeningReductionCapacity(
 	ctx context.Context,
 	staffID int64,
-	checkpoints []timezone.Date,
+	checkpoints []calendar.Date,
 	compTimeAbsences []*StaffAbsence,
-	today timezone.Date,
+	today calendar.Date,
 ) (int, error) {
 	capacity := int(^uint(0) >> 1)
 	for _, checkpoint := range checkpoints {
@@ -1060,7 +1060,7 @@ func (s *workTimeMonthService) minimumOpeningReductionCapacity(
 func (s *workTimeMonthService) getOpeningBalanceOnDate(
 	ctx context.Context,
 	staffID int64,
-	date, today timezone.Date,
+	date, today calendar.Date,
 	compTimeAbsences []*StaffAbsence,
 ) (int, error) {
 	anchor, err := s.chainAnchor(ctx, monthOf(today))
@@ -1118,7 +1118,7 @@ func (s *workTimeMonthService) getOpeningBalanceOnDate(
 func (s *workTimeMonthService) getCompTimeDeductionInRange(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	absences []*StaffAbsence,
 ) (int, error) {
 	if to.Before(from) {
@@ -1149,11 +1149,11 @@ func (s *workTimeMonthService) getCompTimeDeductionInRange(
 }
 
 type compTimeRange struct {
-	start timezone.Date
-	end   timezone.Date
+	start calendar.Date
+	end   calendar.Date
 }
 
-func clippedCompTimeRanges(absences []*StaffAbsence, from, to timezone.Date) []compTimeRange {
+func clippedCompTimeRanges(absences []*StaffAbsence, from, to calendar.Date) []compTimeRange {
 	ranges := make([]compTimeRange, 0, len(absences))
 	for _, absence := range absences {
 		start, end := absence.DateStart, absence.DateEnd
@@ -1177,7 +1177,7 @@ func clippedCompTimeRanges(absences []*StaffAbsence, from, to timezone.Date) []c
 func (s *workTimeMonthService) getMinimumDailyClosingBalance(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) (int, error) {
 	anchor, err := s.chainAnchor(ctx, monthOf(to))
 	if err != nil {
@@ -1222,9 +1222,9 @@ func (s *workTimeMonthService) getMinimumDailyClosingBalance(
 func (s *workTimeMonthService) frozenMonthBoundaries(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
-) (map[timezone.Date]int, error) {
-	boundaries := make(map[timezone.Date]int)
+	from, to calendar.Date,
+) (map[calendar.Date]int, error) {
+	boundaries := make(map[calendar.Date]int)
 	if s.snapshotRepo == nil {
 		return boundaries, nil
 	}
@@ -1253,13 +1253,13 @@ func (s *workTimeMonthService) frozenMonthBoundaries(
 func (s *workTimeMonthService) getDailyBalanceDeltas(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
-) (map[timezone.Date]int, error) {
+	from, to calendar.Date,
+) (map[calendar.Date]int, error) {
 	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
 	if err != nil {
 		return nil, err
 	}
-	deltas := make(map[timezone.Date]int, from.DaysUntil(to)+1)
+	deltas := make(map[calendar.Date]int, from.DaysUntil(to)+1)
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		deltas[d] = -resolver.TargetFor(d)
 	}
@@ -1287,8 +1287,8 @@ func (s *workTimeMonthService) getDailyBalanceDeltas(
 func (s *workTimeMonthService) addDailyActualMinutes(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
-	deltas map[timezone.Date]int,
+	from, to calendar.Date,
+	deltas map[calendar.Date]int,
 ) error {
 	actualByDate, err := s.getDailyActualMinutes(ctx, staffID, from, to)
 	if err != nil {
@@ -1303,14 +1303,14 @@ func (s *workTimeMonthService) addDailyActualMinutes(
 func (s *workTimeMonthService) getDailyActualMinutes(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
-) (map[timezone.Date]int, error) {
+	from, to calendar.Date,
+) (map[calendar.Date]int, error) {
 	end := to.AddDays(1).BerlinMidnight()
 	sessions, err := s.sessionRepo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load work sessions for daily balance calculation: %w", err)
 	}
-	actualByDate := make(map[timezone.Date]int)
+	actualByDate := make(map[calendar.Date]int)
 	now := s.now()
 	breaksBySessionID, err := s.breaksBySessionID(ctx, sessions)
 	if err != nil {
@@ -1327,9 +1327,9 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 func (s *workTimeMonthService) addDailyAbsenceCredits(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	resolver *dailyTargetResolver,
-	deltas map[timezone.Date]int,
+	deltas map[calendar.Date]int,
 ) error {
 	credits, err := s.getDailyAbsenceCredits(ctx, staffID, from, to, to, resolver)
 	if err != nil {
@@ -1347,16 +1347,16 @@ func (s *workTimeMonthService) addDailyAbsenceCredits(
 func (s *workTimeMonthService) getDailyAbsenceCredits(
 	ctx context.Context,
 	staffID int64,
-	from, to, through timezone.Date,
+	from, to, through calendar.Date,
 	resolver *dailyTargetResolver,
-) (map[timezone.Date]int, error) {
+) (map[calendar.Date]int, error) {
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load absences for daily credits: %w", err)
 	}
-	credits := make(map[timezone.Date]int)
+	credits := make(map[calendar.Date]int)
 	walkCreditedAbsenceDays(absences, from, through, resolver.TargetFor,
-		func(d timezone.Date, _ *StaffAbsence, credit int, _ float64) {
+		func(d calendar.Date, _ *StaffAbsence, credit int, _ float64) {
 			credits[d] += credit
 		})
 	return credits, nil
@@ -1365,8 +1365,8 @@ func (s *workTimeMonthService) getDailyAbsenceCredits(
 func (s *workTimeMonthService) addDailyAdjustments(
 	ctx context.Context,
 	staffID int64,
-	from, to timezone.Date,
-	deltas map[timezone.Date]int,
+	from, to calendar.Date,
+	deltas map[calendar.Date]int,
 ) error {
 	if s.adjustmentRepo == nil {
 		return nil
@@ -1384,11 +1384,11 @@ func (s *workTimeMonthService) addDailyAdjustments(
 func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 	ctx context.Context,
 	staffID int64,
-	from timezone.Date,
+	from calendar.Date,
 	absences []*StaffAbsence,
 ) (int, error) {
 	remaining := make([]*StaffAbsence, 0, len(absences))
-	var through timezone.Date
+	var through calendar.Date
 	for _, absence := range absences {
 		if from.Before(absence.DateStart) || from.After(absence.DateEnd) {
 			continue
@@ -1409,7 +1409,7 @@ func (s *workTimeMonthService) getRemainingCompTimeCommitment(
 // half-day absence credits time, so recorded net work reduces the deduction by
 // the same amount it contributes to the Monatskarte. Future days still reserve
 // the full target.
-func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end timezone.Date, _ bool) (int, error) {
+func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, staffID int64, start, end calendar.Date, _ bool) (int, error) {
 	if start.IsZero() || end.IsZero() || end.Before(start) {
 		return 0, errors.New("start and end must form a valid range")
 	}
@@ -1423,13 +1423,13 @@ func (s *workTimeMonthService) GetCompTimeDeductionMinutes(ctx context.Context, 
 func (s *workTimeMonthService) loadCompTimeDeductionInputs(
 	ctx context.Context,
 	staffID int64,
-	start, end timezone.Date,
-) (*dailyTargetResolver, map[timezone.Date]int, error) {
+	start, end calendar.Date,
+) (*dailyTargetResolver, map[calendar.Date]int, error) {
 	resolver, err := s.buildTargetResolver(ctx, staffID, start, end)
 	if err != nil {
 		return nil, nil, err
 	}
-	actualByDate := make(map[timezone.Date]int)
+	actualByDate := make(map[calendar.Date]int)
 	actualEnd := end
 	if today := s.today(); actualEnd.After(today) {
 		actualEnd = today
@@ -1445,8 +1445,8 @@ func (s *workTimeMonthService) loadCompTimeDeductionInputs(
 
 func compTimeDeductionMinutes(
 	resolver *dailyTargetResolver,
-	actualByDate map[timezone.Date]int,
-	start, end timezone.Date,
+	actualByDate map[calendar.Date]int,
+	start, end calendar.Date,
 ) int {
 	total := 0
 	for d := start; !d.After(end); d = d.AddDays(1) {
@@ -1460,7 +1460,7 @@ func compTimeDeductionMinutes(
 	return total
 }
 
-func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staffID int64, key monthKey, through timezone.Date) (*MonthSummary, error) {
+func (s *workTimeMonthService) getMonthSummaryThrough(ctx context.Context, staffID int64, key monthKey, through calendar.Date) (*MonthSummary, error) {
 	anchor, err := s.chainAnchor(ctx, key)
 	if err != nil {
 		return nil, err
@@ -1599,7 +1599,7 @@ func (s *workTimeMonthService) spliceChainStart(
 	ctx context.Context,
 	staffID int64,
 	key monthKey,
-	anchor timezone.Date,
+	anchor calendar.Date,
 ) (*chainSplice, error) {
 	if s.snapshotRepo == nil {
 		return nil, nil
@@ -1644,7 +1644,7 @@ func (s *workTimeMonthService) spliceChainStart(
 // aggregation on the start date itself (`first = anchor`), so those days carry
 // no Soll on the card; a month WHOLLY before the anchor is a different case —
 // it is summarized standalone over its full length and stays fully counted.
-func excludedByAccountStart(d, anchor timezone.Date) bool {
+func excludedByAccountStart(d, anchor calendar.Date) bool {
 	return monthOf(d) == monthOf(anchor) && d.Before(anchor)
 }
 
@@ -1652,14 +1652,14 @@ func excludedByAccountStart(d, anchor timezone.Date) bool {
 // account anchor. The anchor is absolute; the month key only picks the January
 // fallback for an unset setting, and no day can precede January 1st of its own
 // year — so an unset account start zeroes nothing.
-func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, timezone.Date, error) {
+func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID int64, from, to calendar.Date) (*dailyTargetResolver, calendar.Date, error) {
 	resolver, err := s.buildTargetResolver(ctx, staffID, from, to)
 	if err != nil {
-		return nil, timezone.Date(""), err
+		return nil, calendar.Date(""), err
 	}
 	anchor, err := s.chainAnchor(ctx, monthOf(from))
 	if err != nil {
-		return nil, timezone.Date(""), err
+		return nil, calendar.Date(""), err
 	}
 	return resolver, anchor, nil
 }
@@ -1675,7 +1675,7 @@ func (s *workTimeMonthService) accountAwareTargets(ctx context.Context, staffID 
 // accruing on the start date, so billing them in the table would contradict its
 // "Summe Soll" (#1842). Future days carry their Soll but no balance — the card
 // charges Soll only up to today.
-func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyProjection, error) {
+func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID int64, from, to calendar.Date) ([]DailyProjection, error) {
 	if from.IsZero() || to.IsZero() {
 		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
 	}
@@ -1697,15 +1697,15 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 	if today.Before(through) {
 		through = today
 	}
-	targetFor := func(d timezone.Date) int {
+	targetFor := func(d calendar.Date) int {
 		if excludedByAccountStart(d, anchor) {
 			return 0
 		}
 		return resolver.TargetFor(d)
 	}
 
-	credits := map[timezone.Date]int{}
-	actual := map[timezone.Date]int{}
+	credits := map[calendar.Date]int{}
+	actual := map[calendar.Date]int{}
 	if !through.Before(from) {
 		if credits, err = s.getDailyAbsenceCredits(ctx, staffID, from, to, through, resolver); err != nil {
 			return nil, err
@@ -1733,7 +1733,7 @@ func (s *workTimeMonthService) GetDailyProjection(ctx context.Context, staffID i
 // GetDailyTargets resolves the contractual Soll for every day in [from, to]
 // without loading absence or work-session data. It is the lightweight variant
 // for overview consumers that only chart targets.
-func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to timezone.Date) ([]DailyTarget, error) {
+func (s *workTimeMonthService) GetDailyTargets(ctx context.Context, staffID int64, from, to calendar.Date) ([]DailyTarget, error) {
 	if from.IsZero() || to.IsZero() {
 		return nil, fmt.Errorf("%w: from and to are required", ErrInvalidTargetRange)
 	}

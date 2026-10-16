@@ -5,9 +5,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ValidBalanceAdjustmentTypes lists all valid balance adjustment types
@@ -38,7 +38,7 @@ type StaffBalanceAdjustment struct {
 	StaffID       int64         `bun:"staff_id,notnull" json:"staff_id"`
 	Type          string        `bun:"type,notnull" json:"type"`
 	MinutesDelta  int           `bun:"minutes_delta,notnull" json:"minutes_delta"`
-	EffectiveDate timezone.Date `bun:"effective_date,notnull,type:date" json:"effective_date"`
+	EffectiveDate calendar.Date `bun:"effective_date,notnull,type:date" json:"effective_date"`
 	Note          string        `bun:"note,notnull,default:''" json:"note"`
 	DecidedBy     int64         `bun:"decided_by,notnull" json:"decided_by"`
 	DecidedAt     time.Time     `bun:"decided_at,notnull,default:current_timestamp" json:"decided_at"`

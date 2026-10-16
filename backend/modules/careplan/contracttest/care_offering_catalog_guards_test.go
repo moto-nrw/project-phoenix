@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -75,8 +74,8 @@ func newCalendarPeriodValidationFixture(t *testing.T) *calendarPeriodValidationF
 	phase := &enrollmentTest.Phase{
 		Name:             fmt.Sprintf("calendar-period-validation-%d", time.Now().UnixNano()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2026, time.September, 1)),
-		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2027, time.July, 31)),
+		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2026, time.September, 1)),
+		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2027, time.July, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -238,7 +237,7 @@ func TestCareOfferingCalendarPeriodValidation_RejectsRangeUpdateAndDelete(t *tes
 	fixture.createLinkedTemplate(t, &period.ID, nil)
 
 	replacement := calendarPeriodReplacementOf(*period)
-	replacement.EndDate = timezone.Date(fixture.phase.ServiceEndDate).AddDays(-1)
+	replacement.EndDate = calendar.Date(fixture.phase.ServiceEndDate).AddDays(-1)
 
 	err := fixture.validate(t, period.ID, replacement)
 	require.ErrorIs(t, err, careplan.ErrCalendarPeriodCareOfferingConflict)
@@ -389,8 +388,8 @@ func setupCareGuardTest(t *testing.T) (*bun.DB, *enrollmentTest.CareOfferingRows
 	phase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2026, 9, 1)),
-		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2027, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2026, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -434,7 +433,7 @@ func createCareMaterializationSchedule(
 	endTime *time.Time,
 ) (*scheduleModels.Timeframe, *activitiesModels.Schedule) {
 	t.Helper()
-	start := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC))
+	start := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC))
 	timeframe := &scheduleModels.Timeframe{
 		StartTime:   start,
 		EndTime:     endTime,
@@ -459,7 +458,7 @@ func setCareTestPhaseWindow(
 	t *testing.T,
 	db *bun.DB,
 	phase *enrollmentTest.Phase,
-	start, end timezone.Date,
+	start, end calendar.Date,
 ) {
 	t.Helper()
 	phase.ServiceStartDate = enrollmentTest.Date(start)
@@ -484,7 +483,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 		db, svc, _, phase, cleanup := setupCareGuardTest(t)
 		defer cleanup()
 		period := createCareOfferingTestPeriod(t, db, "missing-timeframe",
-			timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
+			calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 		group := createCareOfferingTemplateGroup(t, db, "missing-timeframe")
 		schedule := &activitiesModels.Schedule{
 			Weekday: activitiesModels.WeekdayMonday, ActivityGroupID: group.ID,
@@ -502,7 +501,7 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 		db, svc, _, phase, cleanup := setupCareGuardTest(t)
 		defer cleanup()
 		period := createCareOfferingTestPeriod(t, db, "open-timeframe",
-			timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
+			calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 		group := createCareOfferingTemplateGroup(t, db, "open-timeframe")
 		createCareMaterializationSchedule(t, db, group.ID, period.ID, nil)
 
@@ -515,11 +514,11 @@ func TestCareOfferingMaterializability_RejectsIncompleteTimeframeAndRoom(t *test
 		db, svc, _, phase, cleanup := setupCareGuardTest(t)
 		defer cleanup()
 		period := createCareOfferingTestPeriod(t, db, "missing-room",
-			timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
+			calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 		group := createCareOfferingTemplateGroup(t, db, "missing-room")
 		group.PlannedRoomID = nil
 		require.NoError(t, testTimetableRepositories(db).ActivityGroup.Update(testpkg.Ctx(t), group))
-		end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+		end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 		createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 
 		_, err := svc.Create(testpkg.Ctx(t), baseGuardLinkedOffering(t, phase.ID, group.ID))
@@ -533,10 +532,10 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 
 	db, svc, _, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	monday := timezone.NewDate(2026, time.September, 7)
+	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := createCareOfferingTestPeriod(t, db, "exception-no-timeframe",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	group := createCareOfferingTemplateGroup(t, db, "exception-no-timeframe")
 	group.PlannedRoomID = nil
 	timetableRepos := testTimetableRepositories(db)
@@ -550,8 +549,8 @@ func TestCareOfferingMaterializability_ExceptionCannotRescueMissingTimeframe(t *
 	require.NoError(t, timetableRepos.ActivitySchedule.Create(testpkg.Ctx(t), schedule))
 
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care no-timeframe override")
-	start := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC))
-	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	start := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC))
+	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
 		ExceptionDate:   scheduleModels.Date(monday),
@@ -572,12 +571,12 @@ func TestCareOfferingMaterializability_CancellationCannotFabricateRecurrence(t *
 
 	db, svc, _, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	monday := timezone.NewDate(2026, time.September, 7)
+	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := createCareOfferingTestPeriod(t, db, "cancellation-no-recurrence",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	group := createCareOfferingTemplateGroup(t, db, "cancellation-no-recurrence")
-	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	timetableRepos := testTimetableRepositories(db)
 	schedules, err := timetableRepos.ActivitySchedule.FindByGroupID(testpkg.Ctx(t), group.ID)
@@ -603,15 +602,15 @@ func TestCareOfferingMaterializability_UsesDateSpecificExceptionRoom(t *testing.
 
 	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	firstMonday := timezone.NewDate(2026, time.September, 7)
+	firstMonday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, firstMonday, firstMonday)
 	period := createCareOfferingTestPeriod(t, db, "exception-room",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	group := createCareOfferingTemplateGroup(t, db, "exception-room")
 	group.PlannedRoomID = nil
 	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, timetableRepos.ActivityGroup.Update(testpkg.Ctx(t), group))
-	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care exception override")
 	exception := &scheduleModels.ActivityException{
@@ -650,11 +649,11 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 
 	db, svc, _, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	firstMonday := timezone.NewDate(2026, time.September, 7)
+	firstMonday := calendar.NewDate(2026, time.September, 7)
 	secondMonday := firstMonday.AddDays(7)
 	setCareTestPhaseWindow(t, db, phase, firstMonday, secondMonday)
 	period := createCareOfferingTestPeriod(t, db, "segment-exception-period",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	root := createCareOfferingTemplateGroup(t, db, "segment-exception-root")
 	successor := createCareOfferingTemplateGroup(t, db, "segment-exception-successor")
 	root.PlannedRoomID = nil
@@ -684,7 +683,7 @@ func TestCareOfferingMaterializability_ExceptionIsScopedToSplitSeriesSegment(t *
 	require.NoError(t, timetableRepos.ActivitySchedule.Create(testpkg.Ctx(t), successorSchedule))
 
 	overrideRoom := testpkg.CreateTestRoom(t, db, "Care segment exception override")
-	for _, date := range []timezone.Date{firstMonday, secondMonday} {
+	for _, date := range []calendar.Date{firstMonday, secondMonday} {
 		createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 			ActivityGroupID: root.ID,
 			ExceptionDate:   scheduleModels.Date(date),
@@ -722,9 +721,9 @@ func TestCareOfferingMaterializability_ValidatesTimeframeReplacementAndDeletion(
 	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
 	period := createCareOfferingTestPeriod(t, db, "resource-change",
-		timezone.NewDate(2026, 8, 1), timezone.NewDate(2027, 8, 31))
+		calendar.NewDate(2026, 8, 1), calendar.NewDate(2027, 8, 31))
 	group := createCareOfferingTemplateGroup(t, db, "resource-change")
-	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	_, err := svc.Create(testpkg.Ctx(t), baseGuardLinkedOffering(t, phase.ID, group.ID))
 	require.NoError(t, err)
@@ -761,14 +760,14 @@ func TestCareOfferingMaterializability_RejectsCompleteReplacementWhenPartialExce
 	testpkg.SetupIsolatedTestDB(t)
 	db, svc, catalog, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	monday := timezone.NewDate(2026, time.September, 7)
+	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := createCareOfferingTestPeriod(t, db, "replacement-partial-exception",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	group := createCareOfferingTemplateGroup(t, db, "replacement-partial-exception")
-	originalEnd := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC))
+	originalEnd := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 17, 0, 0, 0, time.UTC))
 	timeframe, _ := createCareMaterializationSchedule(t, db, group.ID, period.ID, &originalEnd)
-	overrideStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
+	overrideStart := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	createCareMaterializationException(t, db, &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
 		ExceptionDate:   scheduleModels.Date(monday),
@@ -794,15 +793,15 @@ func TestCareOfferingMaterializability_CancellationDoesNotRequireRoom(t *testing
 
 	db, svc, _, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	monday := timezone.NewDate(2026, time.September, 7)
+	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := createCareOfferingTestPeriod(t, db, "cancelled-room",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	group := createCareOfferingTemplateGroup(t, db, "cancelled-room")
 	group.PlannedRoomID = nil
 	timetableRepos := testTimetableRepositories(db)
 	require.NoError(t, timetableRepos.ActivityGroup.Update(testpkg.Ctx(t), group))
-	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
@@ -821,14 +820,14 @@ func TestCareOfferingMaterializability_RejectsInvalidEffectiveTimes(t *testing.T
 
 	db, svc, _, phase, cleanup := setupCareGuardTest(t)
 	defer cleanup()
-	monday := timezone.NewDate(2026, time.September, 7)
+	monday := calendar.NewDate(2026, time.September, 7)
 	setCareTestPhaseWindow(t, db, phase, monday, monday)
 	period := createCareOfferingTestPeriod(t, db, "invalid-effective-time",
-		timezone.NewDate(2026, 9, 1), timezone.NewDate(2026, 9, 30))
+		calendar.NewDate(2026, 9, 1), calendar.NewDate(2026, 9, 30))
 	group := createCareOfferingTemplateGroup(t, db, "invalid-effective-time")
-	end := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	end := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	createCareMaterializationSchedule(t, db, group.ID, period.ID, &end)
-	invalidStart := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
+	invalidStart := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC))
 	exception := &scheduleModels.ActivityException{
 		ActivityGroupID: group.ID,
 		ExceptionDate:   scheduleModels.Date(monday),

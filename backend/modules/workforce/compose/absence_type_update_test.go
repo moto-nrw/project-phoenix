@@ -3,8 +3,8 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +44,7 @@ func TestUpdateCustomAbsenceTypeContract(t *testing.T) {
 	assert.Equal(t, created.BaseType, updated.BaseType)
 
 	staff := testpkg.CreateTestStaff(t, db, "Type", "Usage")
-	absence := testAbsence(staff.ID, workforce.AbsenceTypeOther, workforce.AbsenceStatusApproved, timezone.TodayDate())
+	absence := testAbsence(staff.ID, workforce.AbsenceTypeOther, workforce.AbsenceStatusApproved, calendar.TodayDate())
 	absence.AbsenceTypeID = &created.ID
 	_, err = capability.CreateStaffAbsence(ctx, absence)
 	require.NoError(t, err)

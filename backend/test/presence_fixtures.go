@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -36,17 +36,17 @@ func CreateTestVisitForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, ac
 // CreateTestAttendance records a school stay for today's local calendar date,
 // independently of checkInTime. Student, staff and device must already exist.
 func CreateTestAttendance(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, checkInTime time.Time, checkOutTime *time.Time) *studentpresence.Attendance {
-	return CreateTestAttendanceForDate(tb, db, studentID, staffID, deviceID, timezone.TodayDate(), checkInTime, checkOutTime)
+	return CreateTestAttendanceForDate(tb, db, studentID, staffID, deviceID, calendar.TodayDate(), checkInTime, checkOutTime)
 }
 
 // CreateTestAttendanceForDate records a school stay on an explicit calendar day.
-func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, date timezone.Date, checkInTime time.Time, checkOutTime *time.Time) *studentpresence.Attendance {
+func CreateTestAttendanceForDate(tb testing.TB, db *bun.DB, studentID, staffID, deviceID int64, date calendar.Date, checkInTime time.Time, checkOutTime *time.Time) *studentpresence.Attendance {
 	tb.Helper()
 	return CreateTestAttendanceForTenant(tb, db, Tenant(tb), studentID, staffID, deviceID, date, checkInTime, checkOutTime)
 }
 
 // CreateTestAttendanceForTenant records a school stay in an explicit fixture tenant.
-func CreateTestAttendanceForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, staffID, deviceID int64, date timezone.Date, checkInTime time.Time, checkOutTime *time.Time) *studentpresence.Attendance {
+func CreateTestAttendanceForTenant(tb testing.TB, db *bun.DB, tenantID, studentID, staffID, deviceID int64, date calendar.Date, checkInTime time.Time, checkOutTime *time.Time) *studentpresence.Attendance {
 	tb.Helper()
 	ctx, cancel := context.WithTimeout(tenant.WithTenantID(Ctx(tb), tenantID), 5*time.Second)
 	defer cancel()

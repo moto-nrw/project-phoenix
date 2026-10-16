@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Shift-coverage probe (#1873): does the Dienstplan cover every probed staff
@@ -72,7 +72,7 @@ func emptyShiftCoverageResult() timetable.ShiftCoverageResult {
 // resolveCoverageDates narrows the candidate dates to the probed period, A/B
 // week and series envelope. An empty result without an error means there is
 // nothing to check.
-func (d *conflictDetection) resolveCoverageDates(ctx context.Context, probe timetable.ShiftCoverageProbe, dates []timezone.Date) ([]timezone.Date, error) {
+func (d *conflictDetection) resolveCoverageDates(ctx context.Context, probe timetable.ShiftCoverageProbe, dates []calendar.Date) ([]calendar.Date, error) {
 	dates, err := d.resolvePeriodCoverageDates(ctx, probe, dates)
 	if err != nil || len(dates) == 0 || probe.ReplanActivityGroupID == nil {
 		return dates, err
@@ -80,7 +80,7 @@ func (d *conflictDetection) resolveCoverageDates(ctx context.Context, probe time
 	return d.resolveSeriesCoverageDates(ctx, *probe.ReplanActivityGroupID, dates)
 }
 
-func (d *conflictDetection) resolvePeriodCoverageDates(ctx context.Context, probe timetable.ShiftCoverageProbe, dates []timezone.Date) ([]timezone.Date, error) {
+func (d *conflictDetection) resolvePeriodCoverageDates(ctx context.Context, probe timetable.ShiftCoverageProbe, dates []calendar.Date) ([]calendar.Date, error) {
 	if probe.CalendarPeriodID == nil {
 		return dates, nil
 	}
@@ -95,7 +95,7 @@ func (d *conflictDetection) resolvePeriodCoverageDates(ctx context.Context, prob
 		return nil, invalidShiftCoverageProbe("calendar period does not exist for this tenant")
 	}
 	if !period.IsActive {
-		return []timezone.Date{}, nil
+		return []calendar.Date{}, nil
 	}
 	filtered := filterShiftCoverageDates(dates, period, *probe.WeekPattern)
 	if probe.ConcreteInstanceDate != nil && containsCoverageDate(dates, *probe.ConcreteInstanceDate) &&
@@ -109,9 +109,9 @@ func (d *conflictDetection) resolvePeriodCoverageDates(ctx context.Context, prob
 // filterShiftCoverageDates keeps the dates inside the period on which the
 // week pattern applies. The A/B decision is the School Calendar's single
 // week-cycle engine (ADR 0038).
-func filterShiftCoverageDates(dates []timezone.Date, period *scheduleModels.CalendarPeriod, weekPattern int) []timezone.Date {
+func filterShiftCoverageDates(dates []calendar.Date, period *scheduleModels.CalendarPeriod, weekPattern int) []calendar.Date {
 	cycle := schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)
-	filtered := make([]timezone.Date, 0, len(dates))
+	filtered := make([]calendar.Date, 0, len(dates))
 	for _, date := range dates {
 		if period.ContainsDay(scheduleModels.Date(date)) && schoolcalendar.WeekPatternApplies(weekPattern, date.String(), cycle) {
 			filtered = append(filtered, date)
@@ -120,11 +120,11 @@ func filterShiftCoverageDates(dates []timezone.Date, period *scheduleModels.Cale
 	return filtered
 }
 
-func containsCoverageDate(dates []timezone.Date, target timezone.Date) bool {
+func containsCoverageDate(dates []calendar.Date, target calendar.Date) bool {
 	return slices.Contains(dates, target)
 }
 
-func (d *conflictDetection) loadShiftCoverageData(ctx context.Context, dates []timezone.Date, staffIDs []int64) ([]*scheduleModels.StaffShift, map[timezone.Date]bool, error) {
+func (d *conflictDetection) loadShiftCoverageData(ctx context.Context, dates []calendar.Date, staffIDs []int64) ([]*scheduleModels.StaffShift, map[calendar.Date]bool, error) {
 	firstWeekFrom, _ := timetable.ContainingCalendarWeek(dates[0])
 	_, lastWeekTo := timetable.ContainingCalendarWeek(dates[len(dates)-1])
 	scheduleDates := make([]scheduleModels.Date, len(dates))
@@ -139,31 +139,31 @@ func (d *conflictDetection) loadShiftCoverageData(ctx context.Context, dates []t
 	if err != nil {
 		return nil, nil, fmt.Errorf("load used staff-shift weeks for coverage: %w", err)
 	}
-	weekDates := make([]timezone.Date, len(weeks))
+	weekDates := make([]calendar.Date, len(weeks))
 	for index, week := range weeks {
-		weekDates[index] = timezone.Date(week)
+		weekDates[index] = calendar.Date(week)
 	}
 	return rows, timetable.IndexCalendarWeeks(weekDates), nil
 }
 
 type staffDateKey struct {
 	staffID int64
-	date    timezone.Date
+	date    calendar.Date
 }
 
 type pendingShiftCoverageWarning struct {
 	staffID int64
-	date    timezone.Date
+	date    calendar.Date
 	start   time.Time
 	end     time.Time
 	gap     timetable.ShiftCoverageInterval
 }
 
 func collectPendingCoverageWarnings(
-	dates []timezone.Date,
-	coverageDays map[timezone.Date]effectiveShiftCoverageDay,
+	dates []calendar.Date,
+	coverageDays map[calendar.Date]effectiveShiftCoverageDay,
 	shifts []*scheduleModels.StaffShift,
-	usedWeeks map[timezone.Date]bool,
+	usedWeeks map[calendar.Date]bool,
 ) ([]pendingShiftCoverageWarning, int) {
 	shiftIndex := indexShiftsByStaffDate(shifts)
 	pending := make([]pendingShiftCoverageWarning, 0, maxReturnedShiftCoverageWarnings)
@@ -192,7 +192,7 @@ func indexShiftsByStaffDate(shifts []*scheduleModels.StaffShift) map[staffDateKe
 	index := make(map[staffDateKey][]*scheduleModels.StaffShift)
 	for _, shift := range shifts {
 		if shift != nil {
-			key := staffDateKey{staffID: shift.StaffID, date: timezone.Date(shift.Date)}
+			key := staffDateKey{staffID: shift.StaffID, date: calendar.Date(shift.Date)}
 			index[key] = append(index[key], shift)
 		}
 	}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -17,7 +17,7 @@ type Store struct{ database Database }
 type row struct {
 	bun.BaseModel `bun:"table:meal_plan_entries,alias:meal_plan_entry"`
 	TenantID      int64         `bun:"tenant_id"`
-	Date          timezone.Date `bun:"date,type:date"`
+	Date          calendar.Date `bun:"date,type:date"`
 	Position      int           `bun:"position"`
 	Dish          string        `bun:"dish"`
 	Note          *string       `bun:"note"`
@@ -27,7 +27,7 @@ type participationScheduleRow struct {
 	bun.BaseModel `bun:"table:meal_participation_schedules,alias:meal_participation_schedule"`
 	TenantID      int64         `bun:"tenant_id"`
 	StudentID     int64         `bun:"student_id"`
-	EffectiveFrom timezone.Date `bun:"effective_from,type:date"`
+	EffectiveFrom calendar.Date `bun:"effective_from,type:date"`
 	Monday        bool          `bun:"monday"`
 	Tuesday       bool          `bun:"tuesday"`
 	Wednesday     bool          `bun:"wednesday"`
@@ -40,7 +40,7 @@ type participationOverrideRow struct {
 	bun.BaseModel `bun:"table:meal_participation_overrides,alias:meal_participation_override"`
 	TenantID      int64         `bun:"tenant_id"`
 	StudentID     int64         `bun:"student_id"`
-	Date          timezone.Date `bun:"date,type:date"`
+	Date          calendar.Date `bun:"date,type:date"`
 	Participating bool          `bun:"participating"`
 	ChangedBy     int64         `bun:"changed_by_account_id"`
 }
@@ -48,7 +48,7 @@ type participationOverrideRow struct {
 type sickDayRow struct {
 	ID         int64         `bun:"id"`
 	StudentID  int64         `bun:"student_id"`
-	Date       timezone.Date `bun:"date,type:date"`
+	Date       calendar.Date `bun:"date,type:date"`
 	ChangedAt  time.Time     `bun:"changed_at"`
 	ReportedAt time.Time     `bun:"reported_at"`
 	ClearedAt  *time.Time    `bun:"cleared_at"`

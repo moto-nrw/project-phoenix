@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
@@ -16,12 +15,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -73,11 +72,11 @@ func offeringBookings(links []*capability.RequestChildOffering) []*OfferingBooki
 		}
 		booking := &OfferingBooking{CareOfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays}
 		if link.ValidFrom != nil {
-			date := timezone.Date(*link.ValidFrom)
+			date := calendar.Date(*link.ValidFrom)
 			booking.ValidFrom = &date
 		}
 		if link.ValidUntil != nil {
-			date := timezone.Date(*link.ValidUntil)
+			date := calendar.Date(*link.ValidUntil)
 			booking.ValidUntil = &date
 		}
 		result = append(result, booking)
@@ -99,7 +98,7 @@ func (s childOfferingRepoStub) OfferingHistory(_ context.Context, _ int64) ([]*O
 
 type recordingChildOfferingRepoStub struct {
 	links        []*capability.RequestChildOffering
-	dates        []timezone.Date
+	dates        []calendar.Date
 	historyCalls int
 	err          error
 }
@@ -115,7 +114,7 @@ func (s *recordingChildOfferingRepoStub) OfferingHistory(_ context.Context, _ in
 func (s *recordingChildOfferingRepoStub) ListByRequestChildIDAtDate(
 	_ context.Context,
 	_ int64,
-	onDate timezone.Date,
+	onDate calendar.Date,
 ) ([]*capability.RequestChildOffering, error) {
 	s.dates = append(s.dates, onDate)
 	return s.links, s.err
@@ -139,7 +138,7 @@ func (s childOfferingRepoStub) ListByRequestChildID(
 func (s childOfferingRepoStub) ListByRequestChildIDAtDate(
 	_ context.Context,
 	_ int64,
-	_ timezone.Date,
+	_ calendar.Date,
 ) ([]*capability.RequestChildOffering, error) {
 	return s.links, s.err
 }
@@ -168,7 +167,7 @@ type offeringChangesStub struct {
 	OfferingChangeRequests
 	catalog      *careplan.OfferingChangeCatalog
 	view         *careplan.OfferingChangeView
-	earliest     timezone.Date
+	earliest     calendar.Date
 	catalogErr   error
 	viewErr      error
 	earliestErr  error
@@ -188,7 +187,7 @@ func (s *offeringChangesStub) Catalog(
 func (s *offeringChangesStub) CatalogAt(
 	_ context.Context,
 	_ int64,
-	_ timezone.Date,
+	_ calendar.Date,
 ) (*careplan.OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
@@ -218,7 +217,7 @@ func (s *offeringChangesStub) Withdraw(
 
 func (s *offeringChangesStub) EarliestEffectiveFrom(
 	_ context.Context,
-) (timezone.Date, error) {
+) (calendar.Date, error) {
 	return s.earliest, s.earliestErr
 }
 
@@ -283,7 +282,7 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	t.Parallel()
 
 	db := careOfferingsTestDB(t)
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	description := "Mit Mittagessen"
 	price := 4200
 	sourceChildID := int64(301)
@@ -403,7 +402,7 @@ func TestPendingOfferingChange_HidesAnotherGuardiansRequest(t *testing.T) {
 func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	period := &CarePeriod{
 		RequestChildID:   101,
 		ServiceStartDate: today.AddDays(-20),
@@ -497,7 +496,7 @@ func TestGetChildCareOfferingsPropagatesDependencyFailures(t *testing.T) {
 }
 
 func currentCarePeriodStub() carePeriodRepoStub {
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	return carePeriodRepoStub{periods: []*CarePeriod{{
 		RequestChildID:   1,
 		ServiceStartDate: today.AddDays(-1),
@@ -508,7 +507,7 @@ func currentCarePeriodStub() carePeriodRepoStub {
 func TestCurrentCarePeriodSelection(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2027, time.January, 15)
+	today := calendar.NewDate(2027, time.January, 15)
 	current := &CarePeriod{
 		RequestChildID:   1,
 		ServiceStartDate: today.AddDays(-10),
@@ -572,7 +571,7 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	activePeriod := &CarePeriod{ServiceEndDate: today.AddDays(1)}
 	endedPeriod := &CarePeriod{ServiceEndDate: today.AddDays(-1)}
 	permitted := &Child{
@@ -648,7 +647,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	t.Parallel()
 
 	db := careOfferingsTestDB(t)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	child := permittedCareOfferingsChild(t)
 	changes := &offeringChangesStub{
 		catalog:  &careplan.OfferingChangeCatalog{PhaseID: 99},
@@ -696,7 +695,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 			name:  "create no service",
 			child: permittedCareOfferingsChild(t),
 			call: func(svc *Service) error {
-				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "", false, nil)
+				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, calendar.TodayDate(), "", false, nil)
 				return err
 			},
 			want: careplan.ErrOfferingChangeDisabled,
@@ -729,7 +728,7 @@ func TestOfferingChangeCommandsRejectMissingDependencyPermissionAndDelegateError
 				// #2267: reason policy defaults to "both" — an empty note is
 				// now refused before the delegate is reached, so this case
 				// carries one to keep testing the delegate's error.
-				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, timezone.TodayDate(), "Bitte", false, nil)
+				_, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, nil, calendar.TodayDate(), "Bitte", false, nil)
 				return err
 			},
 			want: delegateErr,

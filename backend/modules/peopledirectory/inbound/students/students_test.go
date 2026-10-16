@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -75,7 +75,7 @@ func TestListStudents_WithPickupTimes(t *testing.T) {
 	// converts to Europe/Berlin before extracting the date. The test must use
 	// the same conversion so the inserted schedule matches the handler's query,
 	// even when CI runs near midnight UTC (where UTC and Berlin dates differ).
-	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	berlinToday := calendar.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7 // Sunday
@@ -166,7 +166,7 @@ func TestListStudents_WithArrivalTimes(t *testing.T) {
 	studentNoSchedule := testpkg.CreateTestStudent(t, tc.db, "Arrival", "NoSchedule", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Arrival", "Creator")
 
-	berlinToday := timezone.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
+	berlinToday := calendar.DateOf(time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC))
 	todayWeekday := int(berlinToday.Weekday())
 	if todayWeekday == 0 {
 		todayWeekday = 7
@@ -258,7 +258,7 @@ func TestListStudents_DayPlanningStatus(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, tc.db, "DayPlan", "Creator")
 	device := testpkg.CreateTestDevice(t, tc.db, "day-planning-device")
 
-	today := timezone.DateFromTime(fixedNow)
+	today := calendar.DateFromTime(fixedNow)
 	testpkg.CreateTestPickupSchedule(t, tc.db, planned.ID, 1 /* ISO Monday */, staff.ID, "15:30")
 	testpkg.CreateTestAttendance(t, tc.db, walkIn.ID, staff.ID, device.ID, time.Now().Add(-30*time.Minute), nil)
 
@@ -509,7 +509,7 @@ func TestGetStudent(t *testing.T) {
 		ended := testpkg.CreateTestStudent(t, tc.db, "Care", "Ended", "GS-Ended")
 		_, err := tc.db.NewUpdate().
 			TableExpr(`users.student_school_memberships`).
-			Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+			Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
 			Where("student_profile_id = ? AND deleted_at IS NULL", ended.ID).
 			Exec(t.Context())
 		require.NoError(t, err)

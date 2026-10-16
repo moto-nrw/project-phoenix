@@ -12,9 +12,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Class-wide arrival day exceptions through "moto schule" (#2970): the same
@@ -163,8 +163,8 @@ func (rs *Resource) requireCurrentStaffID(w http.ResponseWriter, r *http.Request
 	return staffID, true
 }
 
-func parseArrivalExceptionDate(w http.ResponseWriter, r *http.Request, raw string) (timezone.Date, bool) {
-	date, err := timezone.ParseDate(strings.TrimSpace(raw))
+func parseArrivalExceptionDate(w http.ResponseWriter, r *http.Request, raw string) (calendar.Date, bool) {
+	date, err := calendar.ParseDate(strings.TrimSpace(raw))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("ungültiges Datum, erwartet JJJJ-MM-TT")))
 		return "", false
@@ -174,18 +174,18 @@ func parseArrivalExceptionDate(w http.ResponseWriter, r *http.Request, raw strin
 
 // arrivalExceptionWindow reads the optional from/to query bounds; the
 // default is today plus the next 60 days, like the OGS list.
-func arrivalExceptionWindow(r *http.Request) (timezone.Date, timezone.Date, error) {
-	from := timezone.TodayDate()
+func arrivalExceptionWindow(r *http.Request) (calendar.Date, calendar.Date, error) {
+	from := calendar.TodayDate()
 	to := from.AddDays(arrivalExceptionListDays)
 	if raw := strings.TrimSpace(r.URL.Query().Get("from")); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			return "", "", errors.New("ungültiges from, erwartet JJJJ-MM-TT")
 		}
 		from = parsed
 	}
 	if raw := strings.TrimSpace(r.URL.Query().Get("to")); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			return "", "", errors.New("ungültiges to, erwartet JJJJ-MM-TT")
 		}

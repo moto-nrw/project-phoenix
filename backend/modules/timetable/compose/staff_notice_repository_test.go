@@ -3,8 +3,8 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,8 +23,8 @@ func TestStaffNoticeRepository_ListValidOn(t *testing.T) {
 
 	account := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
 
-	day := func(iso string) timezone.Date {
-		d, err := timezone.ParseDate(iso)
+	day := func(iso string) calendar.Date {
+		d, err := calendar.ParseDate(iso)
 		require.NoError(t, err)
 		return d
 	}
@@ -89,7 +89,7 @@ func TestStaffNoticeRepository_Acknowledge(t *testing.T) {
 	// prüft die Entprellung ("eine Person zählt einmal"), nicht das.
 	author := testpkg.CreateTestAccount(t, db, "notice-author@test.local")
 
-	from, err := timezone.ParseDate("2026-08-01")
+	from, err := calendar.ParseDate("2026-08-01")
 	require.NoError(t, err)
 	notice := newTestStaffNotice(t, "Bitte bestätigen", from, author.ID, staffNoticeOpts{
 		Important:               true,
@@ -134,7 +134,7 @@ func TestStaffNoticeRepository_AcknowledgedCountsExcludesTheAuthor(t *testing.T)
 	author := testpkg.CreateTestAccount(t, db, "count-author@test.local")
 	reader := testpkg.CreateTestAccount(t, db, "count-reader@test.local")
 
-	from, err := timezone.ParseDate("2026-08-01")
+	from, err := calendar.ParseDate("2026-08-01")
 	require.NoError(t, err)
 	notice := newTestStaffNotice(t, "Bitte bestätigen", from, author.ID, staffNoticeOpts{
 		RequiresAcknowledgement: true,
@@ -170,7 +170,7 @@ func TestStaffNoticeRepository_ListValidOnFiltersAudience(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	account := testpkg.CreateTestAccount(t, db, "notice-audience@test.local")
-	from, err := timezone.ParseDate("2026-08-01")
+	from, err := calendar.ParseDate("2026-08-01")
 	require.NoError(t, err)
 
 	forAll := newTestStaffNotice(t, "Für alle", from, account.ID, staffNoticeOpts{})
@@ -221,7 +221,7 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 	first := testpkg.CreateTestAccount(t, db, "notice-ack-first@test.local")
 	second := testpkg.CreateTestAccount(t, db, "notice-ack-second@test.local")
 
-	from, err := timezone.ParseDate("2026-08-01")
+	from, err := calendar.ParseDate("2026-08-01")
 	require.NoError(t, err)
 	notice := newTestStaffNotice(t, "Bitte bestätigen", from, author.ID, staffNoticeOpts{RequiresAcknowledgement: true})
 	other := newTestStaffNotice(t, "Anderer Hinweis", from, author.ID, staffNoticeOpts{RequiresAcknowledgement: true})
@@ -249,7 +249,7 @@ func TestStaffNoticeRepository_Acknowledgements(t *testing.T) {
 // staffNoticeOpts controls optional fields for newTestStaffNotice.
 type staffNoticeOpts struct {
 	Important               bool // default priority is "info"
-	ValidUntil              *timezone.Date
+	ValidUntil              *calendar.Date
 	Inactive                bool
 	RequiresAcknowledgement bool
 }
@@ -258,7 +258,7 @@ type staffNoticeOpts struct {
 // fields a repository test needs: every day of the week, no week pattern,
 // active unless opts.Inactive. It does not touch the database — the
 // repository under test persists it, so the fixture stays out of that path.
-func newTestStaffNotice(tb testing.TB, title string, validFrom timezone.Date, createdBy int64, opts staffNoticeOpts) *userModels.StaffNotice {
+func newTestStaffNotice(tb testing.TB, title string, validFrom calendar.Date, createdBy int64, opts staffNoticeOpts) *userModels.StaffNotice {
 	tb.Helper()
 
 	priority := userModels.StaffNoticePriorityInfo

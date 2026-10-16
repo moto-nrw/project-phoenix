@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // diffOccurrenceWithExpectedStudents is pure (no DB), so its truth table is exhaustively
@@ -32,7 +32,7 @@ const (
 )
 
 // edWednesday is a Wednesday (ISO weekday 3) inside the period.
-var edWednesday = timezone.NewDate(2026, time.June, 10)
+var edWednesday = calendar.NewDate(2026, time.June, 10)
 
 func edClock(h, m int) time.Time {
 	return time.Date(2000, time.January, 1, h, m, 0, 0, time.UTC)
@@ -102,7 +102,7 @@ func edDiff(
 	expected []materialParams,
 ) []string {
 	expectedStudentIDs := expectedStudentIDsOn(
-		edEnrollments(), nil, nil, timezone.Date(inst.Date), calendarPeriodID(inst), isoWeekday(timezone.Date(inst.Date)),
+		edEnrollments(), nil, nil, calendar.Date(inst.Date), calendarPeriodID(inst), isoWeekday(calendar.Date(inst.Date)),
 	)
 	return diffOccurrenceWithExpectedStudents(
 		inst,
@@ -219,7 +219,7 @@ func TestExpectedSlotsOn_LegacyWeekendScheduleIsNotMaterializable(t *testing.T) 
 	projection := &templateProjection{
 		roster: templateRoster{schedules: []*activities.Schedule{{Weekday: 6}}},
 	}
-	saturday := timezone.NewDate(2026, time.June, 13)
+	saturday := calendar.NewDate(2026, time.June, 13)
 
 	slots := projection.expectedSlotsOn(&activities.Group{}, nil, saturday)
 

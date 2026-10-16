@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -261,7 +260,7 @@ func TestCalendarServiceIntegration_ReminderScanRequiresATenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	service := setupCalendarServiceWithOutbox(t, db, &recordingOutbox{})
-	now := timezone.Now()
+	now := calendar.Now()
 
 	queued, err := api.NewCalendarReminderCommand(testpkg.NewDatabase(t, db), service).EnqueueDueAppointmentReminders(context.Background(), now, now.Add(time.Hour))
 	require.Error(t, err)

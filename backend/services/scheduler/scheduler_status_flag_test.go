@@ -87,19 +87,23 @@ func (a *statusFlagArchives) flagColumns() []string {
 // end-of-day source.
 func TestClearStatusFlag_ArchivesSickFlag(t *testing.T) {
 	t.Parallel()
-	archives := &statusFlagArchives{}
-	s := unitScheduler(&Scheduler{studentStatusDayRepo: archives})
 
-	affected, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
+	// synctest freezes this test's clock at 2000-01-01 UTC for this call.
+	synctest.Test(t, func(t *testing.T) {
+		archives := &statusFlagArchives{}
+		s := unitScheduler(&Scheduler{studentStatusDayRepo: archives})
 
-	require.NoError(t, err)
-	assert.Equal(t, int64(1), affected)
-	require.Len(t, archives.calls, 1)
-	call := archives.calls[0]
-	assert.Equal(t, "sick_since", call.sinceColumn)
-	assert.Equal(t, "sick", call.status)
-	assert.Equal(t, calendar.TodayDate(), call.date)
-	assert.Equal(t, "end_of_day", call.source)
+		affected, err := s.clearStatusFlag(context.Background(), "sick", "sick_since")
+
+		require.NoError(t, err)
+		assert.Equal(t, int64(1), affected)
+		require.Len(t, archives.calls, 1)
+		call := archives.calls[0]
+		assert.Equal(t, "sick_since", call.sinceColumn)
+		assert.Equal(t, "sick", call.status)
+		assert.Equal(t, calendar.NewDate(2000, 1, 1), call.date)
+		assert.Equal(t, "end_of_day", call.source)
+	})
 }
 
 // TestClearStatusFlag_NilDBReturnsError — defensive guard so a misconfigured

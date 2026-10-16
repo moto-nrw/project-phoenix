@@ -3,8 +3,8 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Identity is the authenticated caller as the HTTP platform resolved it. The
@@ -82,17 +82,17 @@ type scheduleReader interface {
 
 // optionalDate turns a capability calendar day ("" = none) into the wire's
 // nullable date.
-func optionalDate(value string) *timezone.Date {
+func optionalDate(value string) *calendar.Date {
 	if value == "" {
 		return nil
 	}
-	date := timezone.Date(value)
+	date := calendar.Date(value)
 	return &date
 }
 
 // optionalDateString turns a nullable wire date into the capability's
 // optional calendar day.
-func optionalDateString(value *timezone.Date) *string {
+func optionalDateString(value *calendar.Date) *string {
 	if value == nil {
 		return nil
 	}

@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func TestStudentStatusDayRepository_UpsertAndFind(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusRepo", "Student", "SR1")
 
-	date := timezone.NewDate(2026, 8, 24).AddDays(3)
+	date := calendar.NewDate(2026, 8, 24).AddDays(3)
 	reportedAt := time.Now().Add(-time.Hour)
 	entry := &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
@@ -85,7 +84,7 @@ func TestStudentStatusDayRepository_ListOverviewPaginatesPersonOrder(t *testing.
 	db := testpkg.SetupTestDB(t)
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	ctx := testpkg.Ctx(t)
-	date := timezone.NewDate(2026, 8, 24)
+	date := calendar.NewDate(2026, 8, 24)
 	last := testpkg.CreateTestStudent(t, db, "Zoe", "Zimmer", "OV1")
 	first := testpkg.CreateTestStudent(t, db, "Anna", "Adam", "OV2")
 	for _, studentID := range []int64{last.ID, first.ID} {
@@ -124,9 +123,9 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusClear", "Student", "SC1")
 
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	firstDate := timezone.DateFromTime(now).AddDays(4)
-	secondDate := timezone.DateFromTime(now).AddDays(5)
-	for _, date := range []timezone.Date{firstDate, secondDate} {
+	firstDate := calendar.DateFromTime(now).AddDays(4)
+	secondDate := calendar.DateFromTime(now).AddDays(5)
+	for _, date := range []calendar.Date{firstDate, secondDate} {
 		require.NoError(t, repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  student.ID,
 			Date:       date,
@@ -148,7 +147,7 @@ func TestStudentStatusDayRepository_ClearByIDAndDates(t *testing.T) {
 	}
 	require.NotZero(t, firstRowID)
 	require.NoError(t, repo.MarkClearedByID(ctx, firstRowID, now, absencerecords.StudentStatusSourceManual))
-	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, []timezone.Date{secondDate, secondDate}, now, absencerecords.StudentStatusSourceManual))
+	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, []calendar.Date{secondDate, secondDate}, now, absencerecords.StudentStatusSourceManual))
 	require.NoError(t, repo.MarkClearedForDates(ctx, student.ID, absencerecords.StudentStatusDayExcused, nil, now, absencerecords.StudentStatusSourceManual))
 
 	activeRows, err := repo.FindActiveByStudentAndDateRange(ctx, student.ID, firstDate, secondDate)
@@ -172,7 +171,7 @@ func TestStudentStatusDayRepository_TenantScope(t *testing.T) {
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentStatusDay
 	student := testpkg.CreateTestStudent(t, db, "StatusTenant", "Student", "ST1")
 
-	date := timezone.NewDate(2026, 8, 24).AddDays(6)
+	date := calendar.NewDate(2026, 8, 24).AddDays(6)
 	require.NoError(t, repo.UpsertReported(testpkg.Ctx(t), &absencerecords.StudentStatusDay{
 		TenantID:   testpkg.Tenant(t),
 		StudentID:  student.ID,
@@ -204,7 +203,7 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 	ctxA := testpkg.TenantContext(tenantA)
 	ctxB := testpkg.TenantContext(tenantB)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	now := time.Now()
 	trueValue := true
 	studentIDs := make([]int64, 0, 10)
@@ -299,7 +298,7 @@ func TestStudentStatusDayRepository_NoteOnReReport(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "StatusNote", "Student", "SN1")
 
-	date := timezone.NewDate(2026, 8, 24).AddDays(5)
+	date := calendar.NewDate(2026, 8, 24).AddDays(5)
 	reason := "Fieber"
 
 	// 1. Report sick with a reason.
@@ -361,8 +360,8 @@ func TestStudentStatusDayRepository_DateBoundaryRoundtrip(t *testing.T) {
 	// 23:30 UTC on the eve of the 2026 spring DST transition is 00:30 CEST
 	// on March 29 in Berlin — inside the historical failure window.
 	boundaryInstant := time.Date(2026, 3, 28, 23, 30, 0, 0, time.UTC)
-	d := timezone.DateFromTime(boundaryInstant)
-	require.Equal(t, timezone.NewDate(2026, 3, 29), d)
+	d := calendar.DateFromTime(boundaryInstant)
+	require.Equal(t, calendar.NewDate(2026, 3, 29), d)
 
 	entry := &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,

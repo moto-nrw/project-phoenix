@@ -11,10 +11,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Absence overview (#2288): one forward-looking list of every entered
@@ -127,7 +127,7 @@ func parseStatusDayOverviewFilters(r *http.Request, page, pageSize int) (student
 	return studentpresence.StatusDayOverviewFilters{Query: r.URL.Query().Get("q"), Status: status, Page: page, PageSize: pageSize}, nil
 }
 
-func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to timezone.Date, groups []*SchoolGroup, logger *slog.Logger) error {
+func (rs *Resource) writeStatusDayOverviewAudit(r *http.Request, from, to calendar.Date, groups []*SchoolGroup, logger *slog.Logger) error {
 	if rs.StudentHistoryService == nil {
 		logger.Error("audit log repo not configured, refusing to serve absence overview")
 		return errors.New("audit log repository not configured")
@@ -192,16 +192,16 @@ func mapStatusDayOverviewEntries(overview *studentpresence.StatusDayOverview) []
 
 // parseStatusDayOverviewRange reuses the per-child defaults (today up to two
 // months ahead) and pins the v1 contract: no past days, bounded range.
-func parseStatusDayOverviewRange(r *http.Request, today timezone.Date) (timezone.Date, timezone.Date, error) {
+func parseStatusDayOverviewRange(r *http.Request, today calendar.Date) (calendar.Date, calendar.Date, error) {
 	from, to, err := parseStatusDayRangeAt(r, today)
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), err
+		return calendar.Date(""), calendar.Date(""), err
 	}
 	if from.Before(today) {
-		return timezone.Date(""), timezone.Date(""), errors.New("from must not be in the past")
+		return calendar.Date(""), calendar.Date(""), errors.New("from must not be in the past")
 	}
 	if to.After(from.AddDays(maxStatusDayOverviewRangeDays - 1)) {
-		return timezone.Date(""), timezone.Date(""), errors.New("date range cannot exceed 366 days")
+		return calendar.Date(""), calendar.Date(""), errors.New("date range cannot exceed 366 days")
 	}
 	return from, to, nil
 }

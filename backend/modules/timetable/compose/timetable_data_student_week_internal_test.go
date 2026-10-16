@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
@@ -14,7 +14,7 @@ import (
 func TestArrivalReadsRequireNativeBaseline(t *testing.T) {
 	t.Parallel()
 	data := &timetableData{deps: TimetableDataDependencies{}}
-	date := timezone.NewDate(2026, 9, 21)
+	date := calendar.NewDate(2026, 9, 21)
 	var studentID int64
 	week := &timetable.StudentWeek{ArrivalByDate: map[string]timetable.StudentWeekTimes{}, PickupByDate: map[string]timetable.StudentWeekTimes{}}
 

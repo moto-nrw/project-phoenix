@@ -10,17 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
-
+	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecordstest"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/auth/userpass/userpasstest"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -595,7 +592,7 @@ func CreateTestGroupSupervisor(tb testing.TB, db *bun.DB, staffID, activeGroupID
 		StaffID:   staffID,
 		GroupID:   activeGroupID,
 		Role:      role,
-		StartDate: timezone.TodayDate(),
+		StartDate: calendar.TodayDate(),
 	}
 	supervisor.TenantID = fixtureTenantID(tb)
 
@@ -1301,7 +1298,7 @@ func CreateTestGuardianProfile(tb testing.TB, db *bun.DB, email string) *Guardia
 
 // CreateTestGroupSubstitution creates a teacher substitution record.
 // regularStaffID can be nil if no regular staff is being substituted.
-func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate timezone.Date) *EducationGroupSubstitution {
+func CreateTestGroupSubstitution(tb testing.TB, db *bun.DB, groupID int64, regularStaffID *int64, substituteStaffID int64, startDate, endDate calendar.Date) *EducationGroupSubstitution {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -2425,7 +2422,7 @@ func CreateTestArrivalException(tb testing.TB, db *bun.DB, studentID int64, date
 
 	row := &StudentArrivalException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.Date(date.String()),
+		ExceptionDate: calendar.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if arrivalHHMM != "" {
@@ -2478,7 +2475,7 @@ func CreateTestPickupException(tb testing.TB, db *bun.DB, studentID int64, date 
 
 	row := &StudentPickupException{
 		StudentID:     studentID,
-		ExceptionDate: timezone.Date(date.String()),
+		ExceptionDate: calendar.Date(date.String()),
 		CreatedBy:     staffID,
 	}
 	if pickupHHMM != "" {
@@ -2519,8 +2516,8 @@ type ActivityInstanceOpts struct {
 
 // Date returns a calendar date for callers that should not depend on the
 // application's date implementation directly.
-func Date(year int, month time.Month, day int) timezone.Date {
-	return timezone.NewDate(year, month, day)
+func Date(year int, month time.Month, day int) calendar.Date {
+	return calendar.NewDate(year, month, day)
 }
 
 type CalendarDate interface {
@@ -2528,15 +2525,15 @@ type CalendarDate interface {
 }
 
 // TodayDate returns today's Berlin calendar date for fixture setup.
-func TodayDate() timezone.Date {
-	return timezone.TodayDate()
+func TodayDate() calendar.Date {
+	return calendar.TodayDate()
 }
 
 // WallClock returns a normalized clock-only value (PostgreSQL TIME) for
 // callers that should not depend on the application's time implementation
 // directly.
 func WallClock(hour, minute int) time.Time {
-	return timezone.NormalizeWallClock(time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC))
+	return calendar.NormalizeWallClock(time.Date(1, time.January, 1, hour, minute, 0, 0, time.UTC))
 }
 
 // CreateTestActivityInstance inserts a schedule.activity_instances row.
@@ -2559,7 +2556,7 @@ func CreateTestCompletedInstanceWithStudentForTenant(tb testing.TB, db *bun.DB, 
 	room := CreateTestRoomForTenant(tb, db, tenantID, fmt.Sprintf("AC-Room-%d", suffix))
 	student := CreateTestStudentForTenant(tb, db, tenantID, "AC-Stu", fmt.Sprintf("Child-%d", suffix), "2a")
 	instance := CreateTestActivityInstanceForTenant(tb, db, tenantID,
-		timezone.NewDate(2026, 4, 22), room.ID, ActivityInstanceOpts{
+		calendar.NewDate(2026, 4, 22), room.ID, ActivityInstanceOpts{
 			Title:  fmt.Sprintf("AC-Instance-%d", suffix),
 			Status: ScheduleInstanceStatusCompleted,
 		})
@@ -2598,7 +2595,7 @@ func CreateTestActivityInstanceForTenant(tb testing.TB, db *bun.DB, tenantID int
 	}
 
 	row := &ActivityInstance{
-		Date:             timezone.Date(date.String()),
+		Date:             calendar.Date(date.String()),
 		ActivityGroupID:  opts.ActivityGroupID,
 		CalendarPeriodID: opts.CalendarPeriodID,
 		ActiveGroupID:    opts.ActiveGroupID,
@@ -2641,8 +2638,8 @@ func CreateTestCalendarPeriod(tb testing.TB, db *bun.DB, name string, start, end
 	row := &CalendarPeriod{
 		Name:            name,
 		PeriodType:      SchedulePeriodTypeCustom,
-		StartDate:       timezone.Date(start.String()),
-		EndDate:         timezone.Date(end.String()),
+		StartDate:       calendar.Date(start.String()),
+		EndDate:         calendar.Date(end.String()),
 		WeekCycleLength: 1,
 		IsActive:        false,
 	}
@@ -2685,13 +2682,13 @@ func CreateTestWeekCyclePeriodForTenant(tb testing.TB, db *bun.DB, tenantID int6
 	row := &CalendarPeriod{
 		Name:            name,
 		PeriodType:      SchedulePeriodTypeCustom,
-		StartDate:       timezone.Date(start.String()),
-		EndDate:         timezone.Date(end.String()),
+		StartDate:       calendar.Date(start.String()),
+		EndDate:         calendar.Date(end.String()),
 		WeekCycleLength: cycleLength,
 		IsActive:        true,
 	}
 	if anchor != nil {
-		value := timezone.Date(anchor.String())
+		value := calendar.Date(anchor.String())
 		row.WeekCycleAnchor = &value
 	}
 	row.TenantID = tenantID
@@ -2712,7 +2709,7 @@ func CreateTestClosingDay(tb testing.TB, db *bun.DB, start, end CalendarDate, re
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	row := &ClosingDay{StartDate: timezone.Date(start.String()), EndDate: timezone.Date(end.String()), Reason: reason}
+	row := &ClosingDay{StartDate: calendar.Date(start.String()), EndDate: calendar.Date(end.String()), Reason: reason}
 	row.TenantID = fixtureTenantID(tb)
 
 	_, err := db.NewInsert().
@@ -2771,7 +2768,7 @@ func CreateTestStaffShift(tb testing.TB, db *bun.DB, staffID int64, date Calenda
 
 	row := &StaffShift{
 		StaffID:     staffID,
-		Date:        timezone.Date(date.String()),
+		Date:        calendar.Date(date.String()),
 		StartTime:   parseTimeHHMM(tb, startHHMM),
 		EndTime:     parseTimeHHMM(tb, endHHMM),
 		Notes:       opts.Notes,
@@ -2864,7 +2861,7 @@ type (
 // excused / class trip) for a student on a date. Callers that pass its ID into
 // InstanceStudentOpts.StudentStatusDayID reproduce the state ApplyStatusDay
 // leaves behind: a slot absence the day status owns. The package clone owns it.
-func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date timezone.Date, status string) *StudentStatusDayRow {
+func CreateTestStudentStatusDay(tb testing.TB, db *bun.DB, studentID int64, date calendar.Date, status string) *StudentStatusDayRow {
 	tb.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -3029,13 +3026,13 @@ func CreateTestParentGuardianChain(tb testing.TB, db *bun.DB) ParentChain {
 // the current test tenant covering the current school year.
 func CreateTestEnrollmentPhase(tb testing.TB, db *bun.DB) *enrollmentOwner.Phase {
 	tb.Helper()
-	return createTestEnrollmentPhase(tb, db, nil, timezone.TodayDate())
+	return createTestEnrollmentPhase(tb, db, nil, calendar.TodayDate())
 }
 
 // CreateTestEnrollmentPhaseAround creates the same phase around a fixed day.
 // Tests that run their services on a fixed clock use it, so the phase still
 // covers their "today" when the real date has moved on.
-func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today timezone.Date) *enrollmentOwner.Phase {
+func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today calendar.Date) *enrollmentOwner.Phase {
 	tb.Helper()
 	return createTestEnrollmentPhase(tb, db, nil, today)
 }
@@ -3043,7 +3040,7 @@ func CreateTestEnrollmentPhaseAround(tb testing.TB, db *bun.DB, today timezone.D
 // CreateTestEnrollmentPhaseForCalendarPeriod creates a phase linked to a real planning period.
 func CreateTestEnrollmentPhaseForCalendarPeriod(tb testing.TB, db *bun.DB, periodID int64) *enrollmentOwner.Phase {
 	tb.Helper()
-	return createTestEnrollmentPhase(tb, db, &periodID, timezone.TodayDate())
+	return createTestEnrollmentPhase(tb, db, &periodID, calendar.TodayDate())
 }
 
 // CreateTestEnrollmentRequestAwaitingGuardian submits a public enrollment
@@ -3071,7 +3068,7 @@ func CreateTestEnrollmentRequestAwaitingGuardian(tb testing.TB, db *bun.DB, phas
 	return request
 }
 
-func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today timezone.Date) *enrollmentOwner.Phase {
+func createTestEnrollmentPhase(tb testing.TB, db *bun.DB, periodID *int64, today calendar.Date) *enrollmentOwner.Phase {
 	tb.Helper()
 	ctx := WithTenantRuntime(tb, TenantContext(fixtureTenantID(tb)), db)
 	phase := &enrollmentOwner.Phase{

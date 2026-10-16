@@ -3,7 +3,7 @@ package students
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // GuardianWake is the consumer-owned port to Communication (#3356): the
@@ -52,7 +52,7 @@ type GroupTeacher struct {
 // groups each child is actively enrolled in on a date. A child without an
 // active enrollment is absent from the map.
 type ActiveEnrollments interface {
-	ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate timezone.Date) (map[int64][]ActiveEnrollmentGroup, error)
+	ActiveEnrollmentGroups(ctx context.Context, studentIDs []int64, onDate calendar.Date) (map[int64][]ActiveEnrollmentGroup, error)
 }
 
 // ActiveEnrollmentGroup is one activity group a child is enrolled in.
@@ -65,5 +65,5 @@ type ActiveEnrollmentGroup struct {
 // Regeltermine from a date on, the same hook a grade transition uses (#2147).
 // The root binds Care Plan's booking materialization (#3560).
 type OfferingSourceResyncer interface {
-	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+	ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error
 }

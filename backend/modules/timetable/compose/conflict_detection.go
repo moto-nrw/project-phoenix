@@ -6,12 +6,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Conflict detection and staffing (#3424 slice S4, #3550): the start and
@@ -98,13 +98,13 @@ type ConflictSessions interface {
 // time and, with enrollment.bookings_authoritative on, the approved bookings
 // supply the care days. One projection covers the inclusive window.
 type ArrivalBaselineProjector interface {
-	ProjectArrivals(ctx context.Context, studentIDs []int64, from, to timezone.Date) (ArrivalBaselines, error)
+	ProjectArrivals(ctx context.Context, studentIDs []int64, from, to calendar.Date) (ArrivalBaselines, error)
 }
 
 // ArrivalBaselines answers the regular arrival time of a student on a date;
 // ok is false when no recurring arrival applies.
 type ArrivalBaselines interface {
-	ExpectedArrival(studentID int64, date timezone.Date) (arrival time.Time, ok bool)
+	ExpectedArrival(studentID int64, date calendar.Date) (arrival time.Time, ok bool)
 }
 
 // ConflictDetectionDependencies are the readers the composition root binds.
@@ -155,7 +155,7 @@ func NewConflictDetection(deps ConflictDetectionDependencies) (timetable.Conflic
 const germanDateLayout = "02.01.2006"
 
 // isoWeekday returns the ISO weekday (Monday=1 … Sunday=7) of the date.
-func isoWeekday(date timezone.Date) int {
+func isoWeekday(date calendar.Date) int {
 	weekday := date.Weekday()
 	if weekday == time.Sunday {
 		return 7
@@ -166,8 +166,8 @@ func isoWeekday(date timezone.Date) int {
 // clockWindowsOverlap reports whether two wall-clock windows intersect;
 // touching boundaries do not overlap (same rule as StaffShift.Overlaps).
 func clockWindowsOverlap(aStart, aEnd, bStart, bEnd time.Time) bool {
-	as, ae := timezone.NormalizeWallClock(aStart), timezone.NormalizeWallClock(aEnd)
-	bs, be := timezone.NormalizeWallClock(bStart), timezone.NormalizeWallClock(bEnd)
+	as, ae := calendar.NormalizeWallClock(aStart), calendar.NormalizeWallClock(aEnd)
+	bs, be := calendar.NormalizeWallClock(bStart), calendar.NormalizeWallClock(bEnd)
 	return as.Before(be) && bs.Before(ae)
 }
 

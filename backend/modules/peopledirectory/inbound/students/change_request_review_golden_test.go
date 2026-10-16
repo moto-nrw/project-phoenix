@@ -18,12 +18,12 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -88,8 +88,8 @@ func TestRequestReviewGolden(t *testing.T) {
 	// after it, the decisions before it: two on Monday, two on Sunday
 	// 2026-03-01 for the history date range to cut, one on Saturday.
 	base := time.Date(2026, time.March, 2, 9, 0, 0, 0, time.UTC)
-	farFuture := timezone.NewDate(2099, time.May, 4)
-	longPast := timezone.NewDate(2026, time.January, 12)
+	farFuture := calendar.NewDate(2099, time.May, 4)
+	longPast := calendar.NewDate(2026, time.January, 12)
 
 	insert := func(model any) {
 		t.Helper()
@@ -108,7 +108,7 @@ func TestRequestReviewGolden(t *testing.T) {
 		testpkg.InsertTestMasterDataChangeRequest(t, tc.db, (*testpkg.MasterDataChangeRequestRow)(request))
 		return request.ID
 	}
-	care := func(studentID int64, date timezone.Date, status string, created time.Time, decided *time.Time) int64 {
+	care := func(studentID int64, date calendar.Date, status string, created time.Time, decided *time.Time) int64 {
 		payload, err := json.Marshal(map[string]any{"date": date.String(), "pickup_time": "14:30", "reason": "Arzttermin"})
 		require.NoError(t, err)
 		request := &carerequests.Request{
@@ -126,7 +126,7 @@ func TestRequestReviewGolden(t *testing.T) {
 		testpkg.InsertTestCareScheduleChangeRequest(t, tc.db, (*testpkg.CareScheduleChangeRequestRow)(request))
 		return request.ID
 	}
-	excused := func(studentID int64, dates []timezone.Date, absence, status string, created time.Time, decided *time.Time) int64 {
+	excused := func(studentID int64, dates []calendar.Date, absence, status string, created time.Time, decided *time.Time) int64 {
 		request := &testpkg.ExcusedAbsenceRequestRow{
 			StudentID: studentID, SubmittedBy: parent.ID, Dates: dates, Note: "Familienfeier",
 			AbsenceStatus: absence, Status: status, ReviewedAt: decided,
@@ -140,7 +140,7 @@ func TestRequestReviewGolden(t *testing.T) {
 		insert(request)
 		return request.ID
 	}
-	offering := func(status string, effectiveFrom timezone.Date, created time.Time, decided *time.Time) int64 {
+	offering := func(status string, effectiveFrom calendar.Date, created time.Time, decided *time.Time) int64 {
 		var reviewedBy *int64
 		updated := created
 		if decided != nil {
@@ -167,20 +167,20 @@ func TestRequestReviewGolden(t *testing.T) {
 	scrub.name("request:master_data", masterData(aster.ID, "first_name", "Goldi", base.Add(time.Hour)), "open-aster")
 	scrub.name("request:master_data", masterData(birke.ID, "last_name", "Birkenfeld", base.Add(2*time.Hour)), "open-birke")
 	scrub.name("request:care_schedule", care(aster.ID, farFuture, carerequests.StatusPending, base.Add(2*time.Hour), nil), "open-aster")
-	scrub.name("request:offering", offering("pending", timezone.NewDate(2099, time.August, 3), base.Add(3*time.Hour), nil), "open-birke")
-	scrub.name("request:excused", excused(birke.ID, []timezone.Date{farFuture, farFuture.AddDays(1)}, "excused", "pending", base.Add(4*time.Hour), nil), "open-birke")
-	scrub.name("request:excused", excused(aster.ID, []timezone.Date{longPast}, "excused", "pending", base.Add(5*time.Hour), nil), "open-aster-past")
+	scrub.name("request:offering", offering("pending", calendar.NewDate(2099, time.August, 3), base.Add(3*time.Hour), nil), "open-birke")
+	scrub.name("request:excused", excused(birke.ID, []calendar.Date{farFuture, farFuture.AddDays(1)}, "excused", "pending", base.Add(4*time.Hour), nil), "open-birke")
+	scrub.name("request:excused", excused(aster.ID, []calendar.Date{longPast}, "excused", "pending", base.Add(5*time.Hour), nil), "open-aster-past")
 
 	// History: five decisions.
 	scrub.name("request:master_data", insertDecidedMasterDataRequest(t, tc, aster.ID, tenantID, adminAccount.ID,
 		"approved", base.Add(-time.Hour)).ID, "approved-aster")
 	scrub.name("request:master_data", insertDecidedMasterDataRequest(t, tc, birke.ID, tenantID, adminAccount.ID,
 		"rejected", base.Add(-25*time.Hour)).ID, "rejected-birke")
-	scrub.name("request:care_schedule", care(birke.ID, timezone.NewDate(2026, time.January, 20), "rejected",
+	scrub.name("request:care_schedule", care(birke.ID, calendar.NewDate(2026, time.January, 20), "rejected",
 		base.Add(-3*time.Hour), at(-2*time.Hour)), "rejected-birke")
-	scrub.name("request:excused", excused(aster.ID, []timezone.Date{timezone.NewDate(2026, time.January, 5)}, "sick", "approved",
+	scrub.name("request:excused", excused(aster.ID, []calendar.Date{calendar.NewDate(2026, time.January, 5)}, "sick", "approved",
 		base.Add(-50*time.Hour), at(-49*time.Hour)), "approved-aster")
-	scrub.name("request:offering", offering("rejected", timezone.NewDate(2026, time.February, 2),
+	scrub.name("request:offering", offering("rejected", calendar.NewDate(2026, time.February, 2),
 		base.Add(-27*time.Hour), at(-26*time.Hour)), "rejected-birke")
 
 	admin := goldenCaller{claims: testutil.AdminTestClaims(int(adminAccount.ID)), perms: []string{"users:read", "users:update"}}

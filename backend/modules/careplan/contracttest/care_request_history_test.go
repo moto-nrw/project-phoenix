@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +92,7 @@ func TestListHistory_IncludesPickupChangeWithPayloadSummary(t *testing.T) {
 	t.Parallel()
 
 	f := newPickupChangeFixture(t)
-	date := timezone.NewDate(2026, 8, 24).AddDays(1)
+	date := calendar.NewDate(2026, 8, 24).AddDays(1)
 	pickupTime := time.Date(0, 1, 1, 15, 30, 0, 0, time.UTC)
 
 	req, err := f.svc.CreatePickupChangeRequest(

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -106,7 +106,7 @@ func (r staffNoticeRepository) List(ctx context.Context, includeInactive bool) (
 //
 // Eine unbekannte Leserart liefert nichts: ein Portal, das sich nicht
 // ausweist, bekommt keinen breiteren Verteiler geschenkt.
-func (r staffNoticeRepository) ListValidOn(ctx context.Context, date timezone.Date, reader string) ([]*users.StaffNotice, error) {
+func (r staffNoticeRepository) ListValidOn(ctx context.Context, date calendar.Date, reader string) ([]*users.StaffNotice, error) {
 	if !users.ValidStaffNoticeReader(reader) {
 		return []*users.StaffNotice{}, nil
 	}
@@ -224,7 +224,7 @@ func staffNoticeModel(row *postgres.StaffNotice) *users.StaffNotice {
 		Body:                    row.Body,
 		Priority:                row.Priority,
 		Audience:                row.Audience,
-		ValidFrom:               timezone.Date(row.ValidFrom),
+		ValidFrom:               calendar.Date(row.ValidFrom),
 		Weekdays:                row.Weekdays,
 		WeekPattern:             row.WeekPattern,
 		RequiresAcknowledgement: row.RequiresAcknowledgement,
@@ -236,7 +236,7 @@ func staffNoticeModel(row *postgres.StaffNotice) *users.StaffNotice {
 	notice.UpdatedAt = row.UpdatedAt
 	notice.TenantID = row.TenantID
 	if row.ValidUntil != nil {
-		until := timezone.Date(*row.ValidUntil)
+		until := calendar.Date(*row.ValidUntil)
 		notice.ValidUntil = &until
 	}
 	return notice

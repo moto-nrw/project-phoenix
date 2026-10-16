@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -39,7 +39,7 @@ func decodeLiftedStatus(t *testing.T, body []byte) liftedStatusResponse {
 func TestUpdateStudent_LiftClearsStatusDayWithoutLiveFlag(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 9, 9)
+	today := calendar.NewDate(2026, 9, 9)
 	tc := setupStudentsRoute(t, func() time.Time { return today.BerlinMidnight().Add(10 * time.Hour) })
 
 	for _, status := range []string{absencerecords.StudentStatusDayExcused, absencerecords.StudentStatusDaySick} {
@@ -106,7 +106,7 @@ func TestUpdateStudent_LiftClearsStatusDayWithoutLiveFlag(t *testing.T) {
 func TestUpdateStudent_LiftUsesSameClockForResponse(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 9, 9)
+	date := calendar.NewDate(2026, 9, 9)
 	beforeMidnight := date.BerlinMidnight().Add(23*time.Hour + 59*time.Minute + 59*time.Second)
 	afterMidnight := beforeMidnight.Add(time.Second)
 	tc := setupStudentsRoute(t, func() time.Time { return beforeMidnight })
@@ -147,7 +147,7 @@ func TestUpdateStudent_LiftUsesSameClockForResponse(t *testing.T) {
 func TestUpdateStudent_LiftFailsWhenStatusDayResponseCannotBeVerified(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 9, 9)
+	today := calendar.NewDate(2026, 9, 9)
 	tc := setupStudentsRoute(t, func() time.Time { return today.BerlinMidnight().Add(10 * time.Hour) })
 	student := testpkg.CreateTestStudent(t, tc.db, "Lift", "Verification", "LV1")
 	statusDay := testpkg.CreateTestStudentStatusDay(t, tc.db, student.ID, today, absencerecords.StudentStatusDayExcused)
@@ -177,7 +177,7 @@ type statusDayResponseFailure struct {
 func (s statusDayResponseFailure) GetActiveByStudentAndDateRange(
 	_ context.Context,
 	_ int64,
-	_, _ timezone.Date,
+	_, _ calendar.Date,
 ) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, s.err
 }

@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -32,12 +32,12 @@ func invalidShiftCoverageProbe(detail string) error {
 	return fmt.Errorf("%w: %s", timetable.ErrInvalidShiftCoverageQuery, detail)
 }
 
-func normalizeShiftCoverageProbe(probe timetable.ShiftCoverageProbe) ([]timezone.Date, []int64, error) {
+func normalizeShiftCoverageProbe(probe timetable.ShiftCoverageProbe) ([]calendar.Date, []int64, error) {
 	dates, err := normalizeShiftCoverageDates(probe.Dates)
 	if err != nil {
 		return nil, nil, err
 	}
-	if !timezone.NormalizeWallClock(probe.EndTime).After(timezone.NormalizeWallClock(probe.StartTime)) {
+	if !calendar.NormalizeWallClock(probe.EndTime).After(calendar.NormalizeWallClock(probe.StartTime)) {
 		return nil, nil, invalidShiftCoverageProbe("end time must be after start time")
 	}
 	staffIDs, err := normalizeShiftCoverageStaffIDs(probe.StaffIDs)
@@ -56,7 +56,7 @@ func normalizeShiftCoverageProbe(probe timetable.ShiftCoverageProbe) ([]timezone
 	return dates, staffIDs, nil
 }
 
-func normalizeShiftCoverageDates(input []timezone.Date) ([]timezone.Date, error) {
+func normalizeShiftCoverageDates(input []calendar.Date) ([]calendar.Date, error) {
 	if len(input) == 0 {
 		return nil, invalidShiftCoverageProbe("dates are required")
 	}
@@ -150,7 +150,7 @@ func validateRecurrenceShiftCoverageOptions(probe timetable.ShiftCoverageProbe) 
 // resolveSeriesCoverageDates keeps the dates inside the series' recurrence
 // envelope: valid_from is inclusive, valid_until exclusive, exactly as the
 // materializer treats a template schedule.
-func (d *conflictDetection) resolveSeriesCoverageDates(ctx context.Context, activityGroupID int64, dates []timezone.Date) ([]timezone.Date, error) {
+func (d *conflictDetection) resolveSeriesCoverageDates(ctx context.Context, activityGroupID int64, dates []calendar.Date) ([]calendar.Date, error) {
 	rows, err := d.deps.Schedules.FindByGroupID(ctx, activityGroupID)
 	if err != nil {
 		return nil, fmt.Errorf("load series recurrence envelope: %w", err)
@@ -162,7 +162,7 @@ func (d *conflictDetection) resolveSeriesCoverageDates(ctx context.Context, acti
 	if err != nil {
 		return nil, fmt.Errorf("load series recurrence envelope: %w", err)
 	}
-	filtered := make([]timezone.Date, 0, len(dates))
+	filtered := make([]calendar.Date, 0, len(dates))
 	for _, date := range dates {
 		notStarted := validFrom != nil && validFrom.After(date)
 		ended := validUntil != nil && !validUntil.After(date)
@@ -176,7 +176,7 @@ func (d *conflictDetection) resolveSeriesCoverageDates(ctx context.Context, acti
 // seriesValidityEnvelope returns the validity bounds every schedule of the
 // series shares. The template writes enforce one common envelope per segment;
 // a row that disagrees is corrupt data and fails the probe.
-func seriesValidityEnvelope(schedules []*activitiesModels.Schedule) (*timezone.Date, *timezone.Date, error) {
+func seriesValidityEnvelope(schedules []*activitiesModels.Schedule) (*calendar.Date, *calendar.Date, error) {
 	if schedules[0] == nil {
 		return nil, nil, fmt.Errorf("%w: nil schedule row", errInconsistentSeriesValidity)
 	}
@@ -196,15 +196,15 @@ func seriesValidityEnvelope(schedules []*activitiesModels.Schedule) (*timezone.D
 	return validFrom, validUntil, nil
 }
 
-func scheduleDate(date *activitiesModels.Date) *timezone.Date {
+func scheduleDate(date *activitiesModels.Date) *calendar.Date {
 	if date == nil {
 		return nil
 	}
-	value := timezone.Date(*date)
+	value := calendar.Date(*date)
 	return &value
 }
 
-func sameOptionalDate(left, right *timezone.Date) bool {
+func sameOptionalDate(left, right *calendar.Date) bool {
 	if left == nil || right == nil {
 		return left == nil && right == nil
 	}
@@ -221,10 +221,10 @@ type effectiveShiftCoverageDay struct {
 func (d *conflictDetection) resolveEffectiveCoverageDays(
 	ctx context.Context,
 	probe timetable.ShiftCoverageProbe,
-	dates []timezone.Date,
+	dates []calendar.Date,
 	staffIDs []int64,
-) (map[timezone.Date]effectiveShiftCoverageDay, []int64, error) {
-	coverageDays := make(map[timezone.Date]effectiveShiftCoverageDay, len(dates))
+) (map[calendar.Date]effectiveShiftCoverageDay, []int64, error) {
+	coverageDays := make(map[calendar.Date]effectiveShiftCoverageDay, len(dates))
 	for _, date := range dates {
 		coverageDays[date] = effectiveShiftCoverageDay{staffIDs: staffIDs, start: probe.StartTime, end: probe.EndTime, active: true}
 	}
@@ -240,10 +240,10 @@ func (d *conflictDetection) resolveEffectiveCoverageDays(
 func (d *conflictDetection) resolveConcreteEffectiveCoverageDays(
 	ctx context.Context,
 	probe timetable.ShiftCoverageProbe,
-	dates []timezone.Date,
+	dates []calendar.Date,
 	staffIDs []int64,
-	coverageDays map[timezone.Date]effectiveShiftCoverageDay,
-) (map[timezone.Date]effectiveShiftCoverageDay, []int64, error) {
+	coverageDays map[calendar.Date]effectiveShiftCoverageDay,
+) (map[calendar.Date]effectiveShiftCoverageDay, []int64, error) {
 	rows, err := d.deps.InstanceStaff.FindByInstanceIDs(ctx, []int64{*probe.ExcludeInstanceID})
 	if err != nil {
 		return nil, nil, fmt.Errorf("load concrete staff deviations: %w", err)
@@ -285,7 +285,7 @@ func effectiveCoverageStaffIDs(submitted []int64, prior []*scheduleModels.Instan
 	return effective
 }
 
-func uniqueEffectiveCoverageStaff(coverageDays map[timezone.Date]effectiveShiftCoverageDay, dates []timezone.Date) []int64 {
+func uniqueEffectiveCoverageStaff(coverageDays map[calendar.Date]effectiveShiftCoverageDay, dates []calendar.Date) []int64 {
 	all := make([]int64, 0)
 	for _, date := range dates {
 		if day := coverageDays[date]; day.active {

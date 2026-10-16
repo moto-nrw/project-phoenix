@@ -80,10 +80,10 @@ legacy damage; they do not define the target module boundary.
 
 ## Calendar Dates: calendar.Date (MANDATORY)
 
-Every model field mapped to a `DATE` column MUST be `calendar.Date` from `sharedkernel/calendar` (or `*calendar.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `internal/timezone` is only an alias of the same package and is being removed (#4081); new code imports `sharedkernel/calendar`. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
+Every model field mapped to a `DATE` column MUST be `calendar.Date` from `sharedkernel/calendar` (or `*calendar.Date`), never `time.Time` — bun binds `time.Time` as UTC and Berlin-midnight dates land one day behind. `TestDateColumnTypes` fails CI on violations. Full API and rules: `.claude/rules/calendar-dates.md`.
 
 Clock values mapped to PostgreSQL `TIME` must pass through
-`timezone.NormalizeWallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
+`calendar.NormalizeWallClock()`. `TestActivityInstanceWallClockRatchet` blocks raw
 current-time values in `ActivityInstance.StartTime`/`EndTime`; do not extend an
 allowlist around it.
 

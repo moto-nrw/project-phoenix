@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // dashboardBaseData holds the raw data fetched for dashboard analytics
@@ -50,7 +50,7 @@ type locationMetrics struct {
 }
 
 // fetchDashboardBaseData retrieves all raw data needed for dashboard analytics
-func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Date) (*dashboardBaseData, error) {
+func (s *service) fetchDashboardBaseData(ctx context.Context, today calendar.Date) (*dashboardBaseData, error) {
 	data := &dashboardBaseData{
 		studentsWithActiveVisits: make(map[int64]bool),
 		studentsWithAttendance:   make(map[int64]bool),
@@ -105,7 +105,7 @@ func (s *service) fetchDashboardBaseData(ctx context.Context, today timezone.Dat
 
 // loadDashboardPresence reads the open visits and today's attendance and
 // derives who is present: open attendance or an open visit.
-func (s *service) loadDashboardPresence(ctx context.Context, today timezone.Date, data *dashboardBaseData) error {
+func (s *service) loadDashboardPresence(ctx context.Context, today calendar.Date, data *dashboardBaseData) error {
 	// Get active visits
 	activeVisits, err := s.SchoolPresence.ListVisits(ctx, studentpresence.VisitFilter{OpenOnly: true})
 	if err != nil {

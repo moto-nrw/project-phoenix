@@ -6,7 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -14,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -26,7 +26,7 @@ import (
 // way the root's retained staff read answers it. The plan export renders what
 // the overview returns.
 
-var dienstplanMonday = timezone.NewDate(2026, time.July, 27)
+var dienstplanMonday = calendar.NewDate(2026, time.July, 27)
 
 // dienstplanOverview builds the overview the root binds to the plan export,
 // with the staff roster read over the given tenant transaction.
@@ -149,7 +149,7 @@ func (o overviewRecords) StaffScheduleOverview(ctx context.Context, from, to pla
 
 func overviewClock(value string) time.Time {
 	parsed, _ := time.Parse(workforce.ClockLayout, value)
-	return timezone.NormalizeWallClock(parsed)
+	return calendar.NormalizeWallClock(parsed)
 }
 
 type dienstplanRenderer struct {
@@ -205,7 +205,7 @@ type dienstplanInstances struct {
 	rows timetabletest.LegacyRows
 }
 
-func (s dienstplanInstances) FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error) {
+func (s dienstplanInstances) FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error) {
 	return scheduledDienstplanInstances(s.rows.InstancesBetween(ctx, from.String(), to.String()))
 }
 
@@ -220,7 +220,7 @@ func scheduledDienstplanInstances(rows []timetabletest.LegacyInstance, err error
 	out := make([]*timetable.ScheduledInstance, 0, len(rows))
 	for _, row := range rows {
 		out = append(out, &timetable.ScheduledInstance{
-			ID: row.ID, Date: timezone.Date(row.Date), StartTime: row.StartTime, EndTime: row.EndTime,
+			ID: row.ID, Date: calendar.Date(row.Date), StartTime: row.StartTime, EndTime: row.EndTime,
 			Title: row.Title, ActivityGroupID: row.ActivityGroupID, ActiveGroupID: row.ActiveGroupID,
 			RoomID: row.RoomID, Status: row.Status, ListKind: row.ListKind,
 			CancelReason: row.CancelReason, Notes: row.Notes, UnderstaffedNote: row.UnderstaffedNote,
@@ -242,7 +242,7 @@ func (s dienstplanInstanceStaff) FindByInstanceIDs(ctx context.Context, instance
 	return s.list(ctx, timetable.InstanceStaffFilter{InstanceIDs: instanceIDs, OrderByInstanceAndCreated: true})
 }
 
-func (s dienstplanInstanceStaff) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetable.InstanceStaff, error) {
+func (s dienstplanInstanceStaff) FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error) {
 	fromText, toText := from.String(), to.String()
 	return s.list(ctx, timetable.InstanceStaffFilter{
 		StaffIDs: []int64{staffID}, FromDate: &fromText, ToDate: &toText, OrderByActivityDateTime: true,

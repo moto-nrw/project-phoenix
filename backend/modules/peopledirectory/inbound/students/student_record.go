@@ -4,10 +4,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The lifecycle states of a child as People Directory stores them.
@@ -66,8 +66,8 @@ type Student struct {
 	Excused       *bool
 	ExcusedSince  *time.Time
 	Status        string
-	EnrolledFrom  *timezone.Date
-	EnrolledUntil *timezone.Date
+	EnrolledFrom  *calendar.Date
+	EnrolledUntil *calendar.Date
 
 	PhotoPath           *string
 	PhotoConsentGivenAt *time.Time
@@ -89,13 +89,13 @@ func (s *Student) IsAlumnus() bool {
 
 // CareEndedOn reports whether the child's care ended before the given day;
 // the last care day itself still counts as care.
-func (s *Student) CareEndedOn(day timezone.Date) bool {
+func (s *Student) CareEndedOn(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && day.After(*s.EnrolledUntil)
 }
 
 // CareEndsLater reports whether an end of care is recorded but has not taken
 // effect yet on the given day.
-func (s *Student) CareEndsLater(day timezone.Date) bool {
+func (s *Student) CareEndsLater(day calendar.Date) bool {
 	return s != nil && s.EnrolledUntil != nil && !day.After(*s.EnrolledUntil)
 }
 
@@ -365,18 +365,18 @@ func translateStudentWriteError(err error) error {
 	}
 }
 
-func optionalCalendarDate(value string) *timezone.Date {
+func optionalCalendarDate(value string) *calendar.Date {
 	if value == "" {
 		return nil
 	}
-	parsed, err := timezone.ParseDate(value)
+	parsed, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil
 	}
 	return &parsed
 }
 
-func renderCalendarDate(value *timezone.Date) string {
+func renderCalendarDate(value *calendar.Date) string {
 	if value == nil {
 		return ""
 	}

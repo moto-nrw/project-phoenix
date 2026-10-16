@@ -7,13 +7,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Date string
 
 func ParseDate(value string) (Date, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return "", err
 	}
@@ -21,7 +21,7 @@ func ParseDate(value string) (Date, error) {
 }
 
 func (d Date) German() (string, error) {
-	date, err := timezone.ParseDate(string(d))
+	date, err := calendar.ParseDate(string(d))
 	if err != nil {
 		return "", err
 	}
@@ -146,7 +146,7 @@ func (m *Module) Available(ctx context.Context) (bool, error) {
 }
 
 func (m *Module) Week(ctx context.Context, weekStart Date) ([]Entry, error) {
-	date, err := timezone.ParseDate(string(weekStart))
+	date, err := calendar.ParseDate(string(weekStart))
 	if err != nil {
 		return nil, ErrInvalidMealDate
 	}
@@ -155,7 +155,7 @@ func (m *Module) Week(ctx context.Context, weekStart Date) ([]Entry, error) {
 }
 
 func (m *Module) ReplaceDay(ctx context.Context, command ReplaceDay) error {
-	date, err := timezone.ParseDate(string(command.Date))
+	date, err := calendar.ParseDate(string(command.Date))
 	if err != nil {
 		return ErrInvalidMealDate
 	}
@@ -175,7 +175,7 @@ func (m *Module) ReplaceDay(ctx context.Context, command ReplaceDay) error {
 }
 
 func (m *Module) ClearDay(ctx context.Context, date Date) error {
-	parsed, err := timezone.ParseDate(string(date))
+	parsed, err := calendar.ParseDate(string(date))
 	if err != nil {
 		return ErrInvalidMealDate
 	}
@@ -187,8 +187,8 @@ func (m *Module) RegistrationAvailable(ctx context.Context) (bool, error) {
 }
 
 func (m *Module) Participation(ctx context.Context, studentID int64, from, to Date) (ParticipationPlan, error) {
-	start, startErr := timezone.ParseDate(string(from))
-	end, endErr := timezone.ParseDate(string(to))
+	start, startErr := calendar.ParseDate(string(from))
+	end, endErr := calendar.ParseDate(string(to))
 	if studentID <= 0 || startErr != nil || endErr != nil || end.Before(start) || start.DaysUntil(end) > 31 {
 		return ParticipationPlan{}, ErrInvalidParticipation
 	}
@@ -230,8 +230,8 @@ func (m *Module) DailyList(ctx context.Context, date Date) (DailyList, error) {
 	return m.engine.DailyParticipants(ctx, parsed.String())
 }
 
-func participationDate(value Date) (timezone.Date, error) {
-	date, err := timezone.ParseDate(string(value))
+func participationDate(value Date) (calendar.Date, error) {
+	date, err := calendar.ParseDate(string(value))
 	if err != nil || date.Weekday() == time.Saturday || date.Weekday() == time.Sunday {
 		return "", ErrInvalidParticipation
 	}

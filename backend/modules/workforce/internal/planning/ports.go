@@ -3,10 +3,10 @@ package planning
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The persistence ports of the Dienstplan services. They are consumer-owned:
@@ -27,10 +27,10 @@ type staffShiftRows interface {
 
 	// FindByDateRange returns all shifts with start <= date <= end for the
 	// current tenant, ordered by date, staff, start time.
-	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
+	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
 
 	// FindByStaffAndDateRange returns one staff member's shifts in the range.
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffShift, error)
 
 	// FindByOriginShiftID returns every replacement shift covering the given
 	// origin (its cover set), so a cancellation resolves them atomically (#1841).
@@ -42,11 +42,11 @@ type staffShiftRows interface {
 
 	// DeleteNonDetachedBySeriesFrom removes a series' regenerable rows on or
 	// after from. Detached rows ("Nur diese Woche" edits) survive.
-	DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) (int64, error)
+	DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from calendar.Date) (int64, error)
 
 	// RepointDetachedSeriesFrom moves a series' detached rows on or after
 	// from to the successor series created by a split.
-	RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error)
+	RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from calendar.Date) (int64, error)
 }
 
 // staffShiftSeriesRows stores the recurrence rules concrete shifts are
@@ -57,12 +57,12 @@ type staffShiftSeriesRows interface {
 
 	// CapValidUntil bounds a series segment at the exclusive date (split /
 	// end / offboarding).
-	CapValidUntil(ctx context.Context, id int64, until timezone.Date) error
+	CapValidUntil(ctx context.Context, id int64, until calendar.Date) error
 
 	// FindOverlappingInLineage returns another segment of a split lineage that
 	// is active on or after the given date. A superseded predecessor must not be
 	// reopened across it.
-	FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*StaffShiftSeries, error)
+	FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from calendar.Date) (*StaffShiftSeries, error)
 }
 
 // staffShiftSeriesExceptionRows stores deliberately removed single
@@ -71,11 +71,11 @@ type staffShiftSeriesExceptionRows interface {
 	Create(ctx context.Context, exception *StaffShiftSeriesException) error
 
 	// FindDatesBySeriesID returns the excepted dates of one series.
-	FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]timezone.Date, error)
+	FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]calendar.Date, error)
 
 	// RepointToSeriesFrom moves exceptions on or after from to the successor
 	// series created by a split.
-	RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from timezone.Date) (int64, error)
+	RepointToSeriesFrom(ctx context.Context, fromSeriesID, toSeriesID int64, from calendar.Date) (int64, error)
 }
 
 // shiftTypeRows stores the tenant-defined Schichtarten (#1836).
@@ -107,8 +107,8 @@ type staffDirectory interface {
 // and materialized by: its calendar days and its A/B week cycle (length and
 // Monday anchor in DateLayout, empty when unset).
 type SeriesPeriod struct {
-	StartDate       timezone.Date
-	EndDate         timezone.Date
+	StartDate       calendar.Date
+	EndDate         calendar.Date
 	WeekCycleLength int
 	WeekCycleAnchor string
 }
@@ -139,7 +139,7 @@ func (p schoolCalendarPeriods) FindSeriesPeriod(ctx context.Context, id int64) (
 		return SeriesPeriod{}, err
 	}
 	return SeriesPeriod{
-		StartDate: timezone.Date(period.StartDate), EndDate: timezone.Date(period.EndDate),
+		StartDate: calendar.Date(period.StartDate), EndDate: calendar.Date(period.EndDate),
 		WeekCycleLength: period.WeekCycleLength, WeekCycleAnchor: period.WeekCycleAnchor,
 	}, nil
 }
@@ -147,7 +147,7 @@ func (p schoolCalendarPeriods) FindSeriesPeriod(ctx context.Context, id int64) (
 // AssignmentInstanceStaffReader returns one staff member's own
 // activity-instance assignments in a date range.
 type AssignmentInstanceStaffReader interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetable.InstanceStaff, error)
+	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetable.InstanceStaff, error)
 }
 
 // ActivityInstanceBatchReader loads the instances an assignment set refers

@@ -17,9 +17,9 @@ linters:
       analyze-types: true
       forbid:
         - pattern: '^time\.Time\.Truncate$'
-          msg: "Truncate on an instant yields UTC-aligned days, not Berlin calendar days. Use timezone.Date / timezone.TodayDate() (see .claude/rules/calendar-dates.md). For sub-day alignment, nolint with a justification."
+          msg: "Truncate on an instant yields UTC-aligned days, not Berlin calendar days. Use calendar.Date / calendar.TodayDate() (see .claude/rules/calendar-dates.md). For sub-day alignment, nolint with a justification."
         - pattern: 'time\.Now\(\)\.UTC\(\)\.Truncate'
-          msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use timezone.TodayDate()."
+          msg: "UTC-truncating now() produces the wrong calendar day before 02:00 Berlin. Use calendar.TodayDate()."
   exclusions:
     rules:
       # Test-file Truncate sites are enforced by TestDateColumnTypes'

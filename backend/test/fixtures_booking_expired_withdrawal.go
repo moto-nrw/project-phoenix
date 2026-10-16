@@ -3,7 +3,7 @@ package test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -14,5 +14,5 @@ import (
 // of that side effect.
 func CreateTestBookingExpiredCareWithdrawal(tb testing.TB, db bun.IDB, studentID int64) *CareWithdrawalCompletion {
 	tb.Helper()
-	return CreateTestBookingExpiredCareWithdrawalOn(tb, db, studentID, timezone.TodayDate())
+	return CreateTestBookingExpiredCareWithdrawalOn(tb, db, studentID, calendar.TodayDate())
 }

@@ -4,9 +4,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ import (
 func TestBulkDayErrorNamesTheDay(t *testing.T) {
 	t.Parallel()
 
-	day := timezone.NewDate(2030, 8, 27)
+	day := calendar.NewDate(2030, 8, 27)
 	inner := timetable.DeviationBadRequest("die Terminauswahl ist ungültig").
 		WithCode(timetable.CodeInstanceSelectionInvalid).OnField("instance_ids")
 
@@ -34,20 +34,20 @@ func TestBulkDayErrorNamesTheDay(t *testing.T) {
 func TestBulkDatesRefusalCodes(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2030, 8, 26)
-	clock := func() timezone.Date { return today }
-	tooMany := make([]timezone.Date, 0, timetable.MaxBulkSubstitutionDates+1)
+	today := calendar.NewDate(2030, 8, 26)
+	clock := func() calendar.Date { return today }
+	tooMany := make([]calendar.Date, 0, timetable.MaxBulkSubstitutionDates+1)
 	for i := 0; i <= timetable.MaxBulkSubstitutionDates; i++ {
 		tooMany = append(tooMany, today.AddDays(i))
 	}
 	cases := []struct {
 		name       string
-		dates      []timezone.Date
+		dates      []calendar.Date
 		wantCode   string
 		wantDetail timetable.RefusalValues
 	}{
 		{"empty", nil, timetable.CodeDatesRequired, timetable.RefusalValues{}},
-		{"past", []timezone.Date{today.AddDays(-1)}, timetable.CodeDatesInPast, timetable.RefusalValues{Date: "25.08.2030"}},
+		{"past", []calendar.Date{today.AddDays(-1)}, timetable.CodeDatesInPast, timetable.RefusalValues{Date: "25.08.2030"}},
 		{"too many", tooMany, timetable.CodeTooManyDates, timetable.RefusalValues{Max: timetable.MaxBulkSubstitutionDates}},
 	}
 	for _, tc := range cases {
@@ -77,7 +77,7 @@ func TestSubstituteRefusalCodes(t *testing.T) {
 	assert.Equal(t, "substitute_staff_id", de.Field)
 	assert.Equal(t, "die abwesende Person kann sich nicht selbst vertreten", de.ClientMsg)
 
-	err = validateExplicitScopeInstances(timezone.NewDate(2030, 1, 1), &[]int64{}, &deviationReadSet{})
+	err = validateExplicitScopeInstances(calendar.NewDate(2030, 1, 1), &[]int64{}, &deviationReadSet{})
 	require.ErrorAs(t, err, &de)
 	assert.Equal(t, timetable.CodeInstancesRequired, de.Code)
 }

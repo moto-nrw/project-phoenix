@@ -7,11 +7,11 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -28,7 +28,7 @@ const (
 type StaffScheduleAssignment struct {
 	InstanceID    int64
 	StaffID       int64
-	Date          timezone.Date
+	Date          calendar.Date
 	StartTime     time.Time
 	EndTime       time.Time
 	ActivityTitle string
@@ -56,7 +56,7 @@ type StaffScheduleAssignment struct {
 // shift produce no summary at all (Dienstplan unused, matching coverage).
 type StaffWeeklySummary struct {
 	StaffID        int64
-	WeekStart      timezone.Date
+	WeekStart      calendar.Date
 	PlannedMinutes int
 	TargetMinutes  *int
 	DeltaMinutes   *int
@@ -77,10 +77,10 @@ type ShiftTypeMinutes struct {
 // Dienstplan. It is deliberately read-only: no assignment is linked to or
 // generated from a StaffShift row.
 type StaffScheduleOverview struct {
-	From            timezone.Date
-	To              timezone.Date
+	From            calendar.Date
+	To              calendar.Date
 	DienstplanInUse bool
-	UsedWeeks       []timezone.Date
+	UsedWeeks       []calendar.Date
 	Staff           []*usersModel.Staff
 	Shifts          []*StaffShift
 	Assignments     []StaffScheduleAssignment
@@ -91,15 +91,15 @@ type StaffScheduleOverview struct {
 // the production repositories continue to implement the wider domain
 // interfaces used by mutation services.
 type StaffShiftRangeReader interface {
-	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
+	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
 }
 
 type StaffShiftWeekUsageReader interface {
-	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end calendar.Date) ([]calendar.Date, error)
 }
 
 type ActivityInstanceRangeReader interface {
-	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
 
 type RoomBatchReader interface {
@@ -145,11 +145,11 @@ type StaffScheduleOverviewDependencies struct {
 
 // HolidayDatesReader answers the tenant's non-working days as a date set.
 type HolidayDatesReader interface {
-	HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
+	HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error)
 }
 
 type StaffScheduleOverviewGetter interface {
-	GetOverview(ctx context.Context, from, to timezone.Date) (*StaffScheduleOverview, error)
+	GetOverview(ctx context.Context, from, to calendar.Date) (*StaffScheduleOverview, error)
 }
 
 type staffScheduleOverviewService struct {
@@ -173,7 +173,7 @@ type staffScheduleOverviewData struct {
 	// Mon–Fri request).
 	shifts           []*StaffShift
 	weekShifts       []*StaffShift
-	usedWeeks        []timezone.Date
+	usedWeeks        []calendar.Date
 	visibleInstances []*timetable.ScheduledInstance
 	assignmentRows   []*timetable.InstanceStaff
 	rooms            []*facilitiesModel.Room
@@ -181,7 +181,7 @@ type staffScheduleOverviewData struct {
 	workSchedules    []*configModel.StaffWorkSchedule
 }
 
-func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to timezone.Date) (*StaffScheduleOverview, error) {
+func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to calendar.Date) (*StaffScheduleOverview, error) {
 	if err := validateShiftRange(from, to); err != nil {
 		return nil, err
 	}
@@ -218,7 +218,7 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 	}, nil
 }
 
-func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to timezone.Date) (*staffScheduleOverviewData, error) {
+func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to calendar.Date) (*staffScheduleOverviewData, error) {
 	if s.deps.ShiftWeeks == nil {
 		return nil, errors.New("staff-shift week usage reader is not wired")
 	}
@@ -236,7 +236,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	if err != nil {
 		return nil, fmt.Errorf("load used staff-shift weeks: %w", err)
 	}
-	usedWeeks := make([]timezone.Date, len(usedScheduleWeeks))
+	usedWeeks := make([]calendar.Date, len(usedScheduleWeeks))
 	copy(usedWeeks, usedScheduleWeeks)
 	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
@@ -375,7 +375,7 @@ func buildStaffScheduleAssignments(
 	rowsByInstance map[int64][]*timetable.InstanceStaff,
 	roomNames map[int64]string,
 	shiftIndex map[staffDateKey][]*StaffShift,
-	usedWeeks map[timezone.Date]bool,
+	usedWeeks map[calendar.Date]bool,
 ) []StaffScheduleAssignment {
 	assignments := make([]StaffScheduleAssignment, 0)
 	for _, instance := range visibleInstances {
@@ -403,8 +403,8 @@ func newStaffScheduleAssignment(
 		InstanceID:         instance.ID,
 		StaffID:            row.StaffID,
 		Date:               instance.Date,
-		StartTime:          timezone.NormalizeWallClock(instance.StartTime),
-		EndTime:            timezone.NormalizeWallClock(instance.EndTime),
+		StartTime:          calendar.NormalizeWallClock(instance.StartTime),
+		EndTime:            calendar.NormalizeWallClock(instance.EndTime),
 		ActivityTitle:      instance.Title,
 		ActivityGroupID:    instance.ActivityGroupID,
 		RoomID:             roomID,
@@ -446,7 +446,7 @@ func effectiveAssignmentRoomIDs(instances []*timetable.ScheduledInstance, rows [
 
 // shiftsWithinRange filters the full-week shift load back down to the
 // requested viewport for the grid payload and assignment coverage.
-func shiftsWithinRange(shifts []*StaffShift, from, to timezone.Date) []*StaffShift {
+func shiftsWithinRange(shifts []*StaffShift, from, to calendar.Date) []*StaffShift {
 	filtered := make([]*StaffShift, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift == nil || shift.Date.Before(from) || shift.Date.After(to) {
@@ -537,7 +537,7 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 	ctx context.Context,
 	staff []*usersModel.Staff,
 	schedules []*configModel.StaffWorkSchedule,
-	weekStarts []timezone.Date,
+	weekStarts []calendar.Date,
 ) (map[staffDateKey]int, error) {
 	targets := make(map[staffDateKey]int)
 
@@ -625,7 +625,7 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 // holidayDatesForWeeks loads the public holidays covering the given weeks.
 // A resolver error fails the overview read — a silently unreduced Soll
 // would fake minus hours in holiday weeks.
-func (s *staffScheduleOverviewService) holidayDatesForWeeks(ctx context.Context, weekStarts []timezone.Date) (map[timezone.Date]bool, error) {
+func (s *staffScheduleOverviewService) holidayDatesForWeeks(ctx context.Context, weekStarts []calendar.Date) (map[calendar.Date]bool, error) {
 	if s.deps.Holidays == nil || len(weekStarts) == 0 {
 		return nil, nil
 	}
@@ -715,8 +715,8 @@ func shiftTypeBreakdown(minutesByType map[int64]int) []ShiftTypeMinutes {
 // span minus the break duration (validation caps the break at the span, but
 // legacy rows are clamped defensively).
 func staffShiftNetMinutes(shift *StaffShift) int {
-	start := timezone.NormalizeWallClock(shift.StartTime)
-	end := timezone.NormalizeWallClock(shift.EndTime)
+	start := calendar.NormalizeWallClock(shift.StartTime)
+	end := calendar.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0
@@ -724,8 +724,8 @@ func staffShiftNetMinutes(shift *StaffShift) int {
 	return minutes
 }
 
-func sortedCalendarWeeks(weeks []timezone.Date) []timezone.Date {
-	sorted := make([]timezone.Date, 0, len(weeks))
+func sortedCalendarWeeks(weeks []calendar.Date) []calendar.Date {
+	sorted := make([]calendar.Date, 0, len(weeks))
 	for _, week := range weeks {
 		if !week.IsZero() {
 			sorted = append(sorted, week)
