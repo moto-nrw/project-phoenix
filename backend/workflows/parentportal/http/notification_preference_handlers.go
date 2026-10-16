@@ -8,7 +8,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -65,7 +64,7 @@ func (rs *Resource) setNotificationPreference(w http.ResponseWriter, r *http.Req
 	accountID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
 	err := rs.PreferenceService.SetForParent(r.Context(), accountID, notificationType, *req.Enabled)
 	switch {
-	case errors.Is(err, notificationsService.ErrUnknownNotificationType):
+	case errors.Is(err, ErrUnknownNotificationType):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	case err != nil:

@@ -1981,10 +1981,11 @@ func newParentResource(in routeInputs) *parentAPI.Resource {
 		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(svc.EnrollmentRequest)),
 		GuardianProfileLoader: newParentGuardianProfiles(in.modules.guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: in.modules.organizations},
-		Push:                  svc.PushSubscriptions,
-		Preferences:           svc.NotificationPreferences,
+		Push:                  bindParentPushSubscriptions(svc.PushSubscriptions),
+		Preferences:           bindParentPreferences(svc.NotificationPreferences),
 		PWAUsage:              svc.PWAUsage,
 		Reports:               newDeclarationReports(),
+		SupportedLocale:       bindParentLocale(svc.NotificationPreferences),
 	})
 }
 
