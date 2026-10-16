@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/operatordashboard"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/secrets"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
@@ -70,6 +69,7 @@ type ProvisioningDependencies struct {
 	Categories    ProvisioningCategories
 	Settings      ProvisioningSettings
 	Audit         OperatorAudit
+	Secrets       ports.ProvisioningSecrets
 	// ActiveAccountCounts supplies bounded distinct-account aggregates.
 	ActiveAccountCounts func(context.Context, map[int64][]int64) (map[int64]int, error)
 	Logger              *slog.Logger
@@ -93,7 +93,7 @@ func NewProvisioning(dependencies ProvisioningDependencies) (organizationtenancy
 		Organizations: dependencies.Organizations, Transaction: transaction{}, Dashboard: dashboard,
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
-		Audit: dependencies.Audit, Secrets: secrets.Generator{}, Logger: dependencies.Logger,
+		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,
 	})
 	if err != nil {
 		return nil, err

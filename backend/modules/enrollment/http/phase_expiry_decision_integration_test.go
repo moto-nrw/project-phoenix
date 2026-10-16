@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -24,7 +23,7 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	t.Parallel()
 
 	env, cleanup := setupDecisionTestWithSettings(t, stubActivationSettings{
-		mode: configModels.EnrollmentActivationModeImmediate,
+		mode: settingValueActivationImmediate,
 	})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)

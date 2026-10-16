@@ -3,6 +3,7 @@ package api
 import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -20,6 +21,17 @@ func NewCalendarReminderCommand(db transactionruntime.Database, source CalendarR
 // compositions that reach Facilities through the root.
 func NewFacilities(db transactionruntime.Database) (facilitiesModule.Capability, error) {
 	return facilitiesCompose.NewUnobserved(db.Pool())
+}
+
+// NewFacilitiesRoomRepository binds the retained room repository adapter to
+// a fresh unobserved Facilities owner, for the shared fixture package's
+// tenant isolation suite.
+func NewFacilitiesRoomRepository(db transactionruntime.Database) (*facilitiesAdapter.Repository, error) {
+	rooms, err := NewFacilities(db)
+	if err != nil {
+		return nil, err
+	}
+	return facilitiesCompose.NewRoomRepository(rooms), nil
 }
 
 // NewSickCascadeTimetableRows binds the sick cascade's Betreuungsplan rows to

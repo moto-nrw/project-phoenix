@@ -3,8 +3,15 @@ package httpadapter
 import (
 	"strings"
 	"testing"
+)
 
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+// The Document Rendering column ids the room snapshot fills. The literals
+// pin the column contract of the rendered list.
+const (
+	columnRoomName       = "room_name"
+	columnRoomChildCount = "room_child_count"
+	columnChecklist      = "checklist"
+	columnStudentName    = "student_name"
 )
 
 func TestBuildRoomSnapshotRowsGroupsLocationsAndStudents(t *testing.T) {
@@ -39,26 +46,26 @@ func TestBuildRoomSnapshotRowsGroupsLocationsAndStudents(t *testing.T) {
 		t.Fatalf("rows len = %d, want 3", len(rows))
 	}
 	first := rows[0].Values
-	if first[listexport.ColumnRoomName] != "Raum 101" {
-		t.Fatalf("room name = %q", first[listexport.ColumnRoomName])
+	if first[columnRoomName] != "Raum 101" {
+		t.Fatalf("room name = %q", first[columnRoomName])
 	}
-	if first[listexport.ColumnRoomChildCount] != "2" {
-		t.Fatalf("child count = %q", first[listexport.ColumnRoomChildCount])
+	if first[columnRoomChildCount] != "2" {
+		t.Fatalf("child count = %q", first[columnRoomChildCount])
 	}
-	if first[listexport.ColumnStudentName] != "Kevin Anders" {
-		t.Fatalf("first student row = %q", first[listexport.ColumnStudentName])
+	if first[columnStudentName] != "Kevin Anders" {
+		t.Fatalf("first student row = %q", first[columnStudentName])
 	}
-	if first[listexport.ColumnChecklist] != "" {
-		t.Fatalf("checklist marker = %q", first[listexport.ColumnChecklist])
+	if first[columnChecklist] != "" {
+		t.Fatalf("checklist marker = %q", first[columnChecklist])
 	}
-	if rows[1].Values[listexport.ColumnRoomName] != "Raum 101" {
-		t.Fatalf("second room name = %q", rows[1].Values[listexport.ColumnRoomName])
+	if rows[1].Values[columnRoomName] != "Raum 101" {
+		t.Fatalf("second room name = %q", rows[1].Values[columnRoomName])
 	}
-	if rows[2].Values[listexport.ColumnRoomName] != "Unterwegs" {
-		t.Fatalf("empty location row = %q", rows[2].Values[listexport.ColumnRoomName])
+	if rows[2].Values[columnRoomName] != "Unterwegs" {
+		t.Fatalf("empty location row = %q", rows[2].Values[columnRoomName])
 	}
-	if rows[2].Values[listexport.ColumnStudentName] != "" {
-		t.Fatalf("empty location student = %q", rows[2].Values[listexport.ColumnStudentName])
+	if rows[2].Values[columnStudentName] != "" {
+		t.Fatalf("empty location student = %q", rows[2].Values[columnStudentName])
 	}
 }
 
@@ -98,7 +105,7 @@ func TestBuildRoomSnapshotRowsGermanNameOrder(t *testing.T) {
 		t.Fatalf("row count = %d, want %d", len(rows), len(want))
 	}
 	for i, name := range want {
-		if got := rows[i].Values[listexport.ColumnStudentName]; got != name {
+		if got := rows[i].Values[columnStudentName]; got != name {
 			t.Fatalf("row %d student = %q, want %q", i, got, name)
 		}
 	}

@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -119,8 +118,8 @@ func TestCalendarServiceIntegration_AppointmentReminders(t *testing.T) {
 		require.Equal(t, 1, queued)
 
 		last := outbox.enqueued[len(outbox.enqueued)-1]
-		assert.Equal(t, platformModels.EmailKindAppointmentReminder, last.Kind)
-		assert.Equal(t, platformModels.EmailRelatedTypeAppointment, last.RelatedEntityType)
+		assert.Equal(t, emailKindAppointmentReminder, last.Kind)
+		assert.Equal(t, emailRelatedTypeAppointment, last.RelatedEntityType)
 		assert.Equal(t, detail.Appointment.ID, last.RelatedEntityID)
 		assert.NotEmpty(t, last.IdempotencyKey,
 			"without a key a second tick would mail the same occurrence again")
@@ -544,7 +543,7 @@ func TestCalendarServiceIntegration_RecurringAppointmentRemindsPerOccurrence(t *
 	require.Equal(t, 1, queued, "only the occurrence inside the window")
 
 	last := outbox.enqueued[len(outbox.enqueued)-1]
-	assert.Equal(t, platformModels.EmailKindAppointmentReminder, last.Kind)
+	assert.Equal(t, emailKindAppointmentReminder, last.Kind)
 	assert.Contains(t, last.Payload["when_text"], "13.05.2026",
 		"the reminder advertises its own occurrence, not the series start")
 

@@ -14,6 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,11 +89,23 @@ type fakeSettings struct {
 	err  error
 }
 
-func (s fakeSettings) ResolveStringForTenant(_ context.Context, tenantID int64, _ string) (string, error) {
+func (s fakeSettings) ResolveStringForTenant(_ context.Context, tenantID int64, key string) (string, error) {
+	if key != devicePINSettingKey {
+		return "", fmt.Errorf("unexpected setting key %q", key)
+	}
 	if s.err != nil {
 		return "", s.err
 	}
 	return s.pins[tenantID], nil
+}
+
+// TestDevicePINSettingKeyMatchesTheRegistry pins the key device
+// authentication reads to the Settings Platform's public name: a key renamed
+// in the registry must fail here, not resolve as an unknown definition.
+func TestDevicePINSettingKeyMatchesTheRegistry(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, settings.KeyOGSDevicePIN, devicePINSettingKey)
 }
 
 type stubNetError struct{}

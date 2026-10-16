@@ -19,7 +19,6 @@ import (
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -383,12 +382,12 @@ func TestDisplayDashboardPublic(t *testing.T) {
 
 func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *testpkg.ActivityInstance {
 	inst := &testpkg.ActivityInstance{
-		Date:      testpkg.ScheduleDate(scheduleModels.DateFromTime(start)),
+		Date:      calendar.DateFromTime(start),
 		Title:     title,
 		StartTime: calendar.NormalizeWallClock(start.In(calendar.Berlin)),
 		EndTime:   calendar.NormalizeWallClock(start.In(calendar.Berlin).Add(45 * time.Minute)),
 		RoomID:    roomID,
-		Status:    scheduleModels.InstanceStatusPlanned,
+		Status:    testpkg.ScheduleInstanceStatusPlanned,
 	}
 	inst.TenantID = tenantID
 	return inst
@@ -506,13 +505,13 @@ func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID
 	parsed, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+pickupHHMM)
 	require.NoError(t, err)
 
-	row := &scheduleModels.StudentPickupSchedule{
+	row := &testpkg.StudentPickupSchedule{
+		TenantID:   tenantID,
 		StudentID:  studentID,
 		Weekday:    weekday,
 		PickupTime: parsed,
 		CreatedBy:  staffID,
 	}
-	row.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(row).ModelTableExpr("schedule.student_pickup_schedules").Exec(ctx)
 	require.NoError(t, err, "failed to create pickup schedule")
 }

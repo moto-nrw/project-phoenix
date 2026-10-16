@@ -15,7 +15,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -59,10 +58,10 @@ func (stubTakeoverSettings) HasTenantOverride(_ context.Context, key string) (bo
 
 func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, error) {
 	switch key {
-	case configModel.KeyEnrollmentEnabled,
-		configModel.KeyEnrollmentAllowSubmissionEdit,
-		configModel.KeyEnrollmentCollectGradeLevel,
-		configModel.KeyEnrollmentWaitlistEnabled:
+	case settingKeyEnrollmentEnabled,
+		settingKeyAllowSubmissionEdit,
+		settingKeyCollectGradeLevel,
+		settingKeyWaitlistEnabled:
 		return true, nil
 	default:
 		return false, nil
@@ -70,17 +69,17 @@ func (stubTakeoverSettings) ResolveBool(_ context.Context, key string) (bool, er
 }
 
 func (stubTakeoverSettings) ResolveString(_ context.Context, key string) (string, error) {
-	if key == configModel.KeyEnrollmentDuplicateHandling {
-		return configModel.EnrollmentDuplicateHandlingWarn, nil
+	if key == settingKeyDuplicateHandling {
+		return settingValueDuplicateWarn, nil
 	}
 	return "", nil
 }
 
 func (stubTakeoverSettings) ResolveInt(_ context.Context, key string) (int, error) {
 	switch key {
-	case configModel.KeyEnrollmentGradeLevelMax:
+	case settingKeyGradeLevelMax:
 		return 4, nil
-	case configModel.KeyEnrollmentStatusTokenTTLDays:
+	case settingKeyStatusTokenTTLDays:
 		return 365, nil
 	default:
 		return 0, nil
@@ -102,7 +101,7 @@ type notifyModeSettings struct {
 }
 
 func (s notifyModeSettings) NotifyPerDecision(ctx context.Context) (string, error) {
-	return s.settings.ResolveString(ctx, configModel.KeyEnrollmentNotifyPerDecision)
+	return s.settings.ResolveString(ctx, settingKeyNotifyPerDecision)
 }
 
 func setupTakeoverLockTest(t *testing.T, redeemableInvitation ...bool) (*takeoverLockEnv, func()) {
