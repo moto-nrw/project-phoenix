@@ -120,4 +120,10 @@ remove_count=$((${#snapshots[@]} - BACKUP_RETENTION))
 for ((index=0; index<remove_count; index++)); do
   [ "${snapshots[$index]}" = "$bundle" ] || rm -rf -- "${snapshots[$index]}"
 done
+
+# Free the disk only once the release is healthy and recorded. Snapshots name
+# their images by digest and verification pulls missing ones before a restore
+# stops anything; Compose pulls missing images for another environment's pending
+# start. A failed prune never changes the deployment's result.
+docker image prune -af || echo 'WARNING: image prune failed; the release itself is healthy' >&2
 echo "Deployment complete; rollback backup: $backup_id"
