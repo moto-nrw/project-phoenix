@@ -78,8 +78,8 @@ func NewPresenceWiring(owners PresenceWiringOwners) (PresenceWiring, error) {
 		AttendanceActivities:      NewSessionActivities(owners.TimetableRows.GroupReads()),
 		RoomService: facilitiesCompose.NewRoomService(facilitiesCompose.RoomServiceConfig{
 			Rooms:     owners.Rooms,
-			Occupancy: facilitiesLegacy.OccupancyProjection(RoomOccupancyPresence{presence}, owners.TimetableRows.ActivityGroup, owners.Membership, owners.Persons),
-			History:   facilitiesLegacy.HistoryProjection(RoomHistoryPresence{presence}, owners.TimetableRows.ActivityGroup, owners.Membership, owners.Persons),
+			Occupancy: facilitiesLegacy.OccupancyProjection(RoomOccupancyPresence{presence}, roomActivityNames{owners.Timetable}, owners.Membership, owners.Persons),
+			History:   facilitiesLegacy.HistoryProjection(RoomHistoryPresence{presence}, roomActivityNames{owners.Timetable}, owners.Membership, owners.Persons),
 		}),
 		OpenGroups:       facilitiesLegacy.OpenGroupCatalog(FacilitiesGroupSupervisions(presence), FacilitiesRoomSessions(presence), FacilitiesGroupVisits(presence)),
 		OpenRoomSessions: OpenRoomSessionPresence{Presence: presence, Activities: owners.Timetable},

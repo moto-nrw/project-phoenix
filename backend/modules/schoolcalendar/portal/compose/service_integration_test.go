@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -115,25 +114,25 @@ func (r *recordingAppointmentCreate) CreateAppointment(ctx context.Context, inpu
 }
 
 type recordingOutbox struct {
-	enqueued  []emailoutbox.EnqueueRequest
+	enqueued  []calendarCompose.EnqueueRequest
 	cancelled int
 	nextID    int64
 	keys      map[string]struct{}
 }
 
-func (r *recordingOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
+func (r *recordingOutbox) Enqueue(_ context.Context, req calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error) {
 	if req.IdempotencyKey != "" {
 		if r.keys == nil {
 			r.keys = make(map[string]struct{})
 		}
 		if _, exists := r.keys[req.IdempotencyKey]; exists {
-			return &emailoutbox.Enqueued{}, nil
+			return &calendarCompose.EmailOutbox{}, nil
 		}
 		r.keys[req.IdempotencyKey] = struct{}{}
 	}
 	r.enqueued = append(r.enqueued, req)
 	r.nextID++
-	return &emailoutbox.Enqueued{ID: r.nextID}, nil
+	return &calendarCompose.EmailOutbox{ID: r.nextID}, nil
 }
 
 func (r *recordingOutbox) CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error) {

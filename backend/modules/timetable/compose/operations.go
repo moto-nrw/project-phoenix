@@ -10,7 +10,6 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -84,7 +83,7 @@ type OperationAttendance interface {
 
 // OperationStudents reads the People Directory child rows of a roster.
 type OperationStudents interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Student, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error)
 }
 
 // OperationPeople resolves persons and their staff profiles.
