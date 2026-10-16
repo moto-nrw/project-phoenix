@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 400 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 48 ·
+Stand 16.10.2026 · Ratchet 397 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 48 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,7 +11,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 105 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 102 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
@@ -23,7 +23,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
 | [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools des Kommando-Roots | 2 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 400 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 397 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 

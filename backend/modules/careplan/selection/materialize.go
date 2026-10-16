@@ -1,4 +1,7 @@
-// Package selection calculates and validates enrollment booking selections.
+// Package selection calculates and validates the care offering selections of
+// a booking: the catalog rules, automatic additions and lunch days. Care Plan
+// owns the care offerings; Enrollment, which sits above Care Plan (ADR 0058,
+// #3417), applies the rules when it materializes an application.
 package selection
 
 import (
