@@ -13,17 +13,17 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // testContext holds shared test dependencies.
 type testContext struct {
 	db       *bun.DB
 	hub      *realtime.Hub
-	resource *sseAPI.Resource
+	resource *sseAPI.Resource[realtime.Event, *realtime.Client]
 }
 
 // setupSSERoute initializes test database, services, and resource.
@@ -39,7 +39,7 @@ func setupSSERoute(t *testing.T) *testContext {
 	resource := sseAPI.NewResource(
 		hub,
 		svc.UserContext,
-		tenant.WithinTenant,
+		api.NewSSEHTTPRuntime(),
 		slog.Default(),
 	)
 
@@ -60,7 +60,7 @@ func TestSSEEvents_NoAuth(t *testing.T) {
 	ctx := setupSSERoute(t)
 
 	// Use the full router which has JWT middleware
-	router := ctx.resource.Router()
+	router := api.NewSSEHTTPRouter(ctx.resource)
 
 	// Request without JWT token should return 401
 	req := testutil.NewAuthenticatedRequest(t, "GET", "/events", nil)
@@ -80,7 +80,7 @@ func TestSSERouter_EndpointExists(t *testing.T) {
 
 	ctx := setupSSERoute(t)
 
-	router := ctx.resource.Router()
+	router := api.NewSSEHTTPRouter(ctx.resource)
 
 	// Verify the /events endpoint is registered
 	// Without auth, should get 401 (endpoint exists but requires auth)
@@ -100,7 +100,7 @@ func TestSSERouter_WrongMethod(t *testing.T) {
 
 	ctx := setupSSERoute(t)
 
-	router := ctx.resource.Router()
+	router := api.NewSSEHTTPRouter(ctx.resource)
 
 	// POST to /events should return 405 Method Not Allowed
 	req := testutil.NewAuthenticatedRequest(t, "POST", "/events", nil)
@@ -133,6 +133,6 @@ func TestSSEResource_RouterReturnsValidRouter(t *testing.T) {
 
 	ctx := setupSSERoute(t)
 
-	router := ctx.resource.Router()
+	router := api.NewSSEHTTPRouter(ctx.resource)
 	assert.NotNil(t, router, "Router should not be nil")
 }

@@ -27,7 +27,7 @@
     "Source lint, immutable-base architecture/evidence checks and complete non-fast test-changed are required before push."
   ],
   "runtime_evidence": {
-    "source": "Assigned local test database on development bb7d72c9de313627525e397a2a75d358f840ca4d; in-process contract migration, not a benchmark.",
+    "source": "Assigned local test database on development dc66b3d3147e957b1b9ab586dc970f91662d330e; in-process contract migration, not a benchmark.",
     "sources": [
       "backend/modules/delivery/devices/devices.go",
       "backend/modules/delivery/application/notifications/parent_devices.go",
