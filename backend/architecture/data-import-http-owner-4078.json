@@ -22,10 +22,13 @@
   ],
   "atomic_cutover": "Delete inbound-import and the old composition package; move its runtime wiring and five unchanged HTTP test suites to Root api. The existing decoder comes from dataimport/compose. Bind tenant.WithinCurrentTenant instead of the compatibility WithTenantTx callback that ignored its typed transaction and database input. The request UnitOfWork remains the transaction owner. Keep workbook fixture construction within the fileformat adapter, removing its cross-package rendering test grant without changing assertions. Delete thirteen rules and add one same-or-narrower HTTP public successor. Deleted IDs: inbound-import.e2e-test.people-directory.public, inbound-import.e2e-test.inbound-import.http, root-composition.compose.import-compose, inbound-import.compose.orm-sql, inbound-import.compose.http-router, inbound-import.compose.data-import.public, inbound-import.compose.school-membership.public, inbound-import.compose.people-directory.public, inbound-import.compose.tenant-runtime.public, inbound-import.compose.identity-access.adapter, inbound-import.compose.inbound-common.http, inbound-import.to.data-import, data-import.adapter-test.file-rendering. Successor IDs: data-import.http.public. Remove the stale HTTP ORM exception and shrink the composition LOC budget by 131 for the deleted runtime package. The route fixture exposes only the router and three staff HTTP handlers used by the suite rather than the full HTTP Resource implementation.",
   "tests": [
-    "scripts/backend-architecture.sh check",
+    "scripts/backend-architecture.sh check against the immutable development base",
     "scripts/backend-architecture.sh validate-ticket --all --base-ref <immutable development SHA>",
     "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast",
-    "Parent HTTP suite and TestFullProductionRouterGolden with unchanged assertions."
+    "Full Root api suite including the moved Data Import HTTP cases and unchanged TestFullProductionRouterGolden",
+    "Complete modules/dataimport/fileformat suite",
+    "AST comparison preserving all 451 original assertions across eight affected test files",
+    "golangci-lint run --timeout 10m --concurrency 2 --allow-serial-runners"
   ],
   "runtime_evidence": {
     "source": "Existing HTTP runtime binding and HTTP test suites rehosted in Root api, with parser fixture construction kept in its owning adapter.",
