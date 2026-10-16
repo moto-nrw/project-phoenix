@@ -29,7 +29,7 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 Die Root übersetzt Enrollments öffentliche Reads. Die vorhandenen Owner-Codecs bleiben
 im Leseweg: Dekodierfehler, Not-found-Marker, Katalogreihenfolge und leere ID-Filter ändern
 sich nicht. Der Kalender hält nun die bereits bestehende Wochentagsübersetzung gemeinsam;
-das Enrollment-Modell und der Workflow delegieren an dieselbe Implementierung.
+der Workflow delegiert an diese Implementierung; der unbenutzte Modell-Einstieg entfällt.
 Drei `models/enrollment`-Keys fallen: 207 → 204, #4073 35 → 32. Regeln 888,
 Composition 1.657, Compose 59.273 LOC und alle Budgets bleiben unverändert.
 Keine neue Freigabe, Rolle, Klassifizierung, Paketverschiebung oder Regel.

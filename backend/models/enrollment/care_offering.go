@@ -8,8 +8,6 @@ import (
 	"slices"
 	"strings"
 	"time"
-
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Days-of-week mode values matching the column CHECK constraint.
@@ -30,12 +28,6 @@ var validDaysOfWeekModes = map[string]bool{
 var canonicalDaySet = map[string]bool{
 	"mon": true, "tue": true, "wed": true, "thu": true, "fri": true,
 	"sat": true, "sun": true,
-}
-
-// CanonicalDayToISOWeekday retains the enrollment day-key contract through
-// the shared calendar primitive used by its consumers.
-func CanonicalDayToISOWeekday(day string) (int, bool) {
-	return calendar.CanonicalDayToISOWeekday(day)
 }
 
 // Selection rules constrain how many offerings within the same
