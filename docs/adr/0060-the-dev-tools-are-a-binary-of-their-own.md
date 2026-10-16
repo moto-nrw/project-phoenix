@@ -105,8 +105,8 @@ Measured on `01b434087e`, policy epoch 47:
 
 ## Consequences
 
-- `cmd -> seed/api` and `cmd -> simulate` leave `legacy.jsonl` (514 → 512 on `development` at merge time).
-  Composition surface 1742 → 1726: the moved test helper of the HTTP client
+- `cmd -> seed/api` and `cmd -> simulate` leave `legacy.jsonl` (487 → 485 on `development` at merge time).
+  Composition surface 1740 → 1724: the moved test helper of the HTTP client
   builds its adapter instead of setting a field on a pointer argument.
 - `go run . seed|simulate|demo` becomes `go run ./cmd/devtools
   seed|simulate|demo`; CI builds a second binary for the seed smoke, the
