@@ -148,7 +148,7 @@ jobs:
             # Branch name (main for production)
             type=ref,event=branch,enable=${{ needs.check-environment.outputs.environment != 'demo' }}
             # Short SHA for traceability
-            type=sha,prefix=,format=short
+            type=sha,prefix=${{ needs.check-environment.outputs.environment == 'demo' && 'demo-' || '' }},format=short
             type=raw,value=demo,enable=${{ needs.check-environment.outputs.environment == 'demo' }}
             # 'staging' tag for staging deployments
             type=raw,value=staging,enable=${{ needs.check-environment.outputs.environment == 'staging' }}
