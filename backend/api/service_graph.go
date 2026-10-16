@@ -419,7 +419,7 @@ type GuardianInvitationReads interface {
 type CallerRowReads interface {
 	Caller() identityaccess.CallerContext
 	CareRequestStaff
-	classdayCompose.StaffReader
+	ClassDaySlotListStaff
 	securityruntime.StudentAccessUserContext
 	classdayCompose.CallerReader
 	HasCurrentStaff(context.Context) (bool, error)

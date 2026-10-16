@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -61,9 +61,9 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 		return nil, err
 	}
 
-	approvalKey := configModels.KeyParentSickRequiresApproval
+	approvalKey := KeyParentSickRequiresApproval
 	if status == absencerecords.StudentStatusDayExcused {
-		approvalKey = configModels.KeyParentExcusedRequiresApproval
+		approvalKey = KeyParentExcusedRequiresApproval
 	}
 	requiresApproval, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, approvalKey)
 	if err != nil {
@@ -78,16 +78,16 @@ func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64
 // requireAbsenceReportsEnabled checks the school's sick-note switch and the
 // switch of the chosen absence type.
 func (s *Service) requireAbsenceReportsEnabled(ctx context.Context, tenantID int64, status string) error {
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentSickNoteEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyParentSickNoteEnabled)
 	if err != nil {
 		return fmt.Errorf("parent: resolve sick-note setting: %w", err)
 	}
 	if !enabled {
 		return ErrSickNoteDisabled
 	}
-	reportKey := configModels.KeyParentSickReportsEnabled
+	reportKey := KeyParentSickReportsEnabled
 	if status == absencerecords.StudentStatusDayExcused {
-		reportKey = configModels.KeyParentExcusedReportsEnabled
+		reportKey = KeyParentExcusedReportsEnabled
 	}
 	enabled, err = s.Settings.ResolveBoolForTenant(ctx, tenantID, reportKey)
 	if err != nil {

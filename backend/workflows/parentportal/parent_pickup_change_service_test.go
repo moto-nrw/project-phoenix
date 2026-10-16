@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -41,10 +41,10 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled,
+				parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		Logger: slog.Default(),
@@ -106,10 +106,10 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		CareRequests:   careRequests,
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: true,
+				parentService.KeyParentPickupChangeEnabled: true,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		Logger: slog.Default(),
