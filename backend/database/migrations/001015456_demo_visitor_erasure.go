@@ -213,6 +213,23 @@ const demoVisitorErasureUpSQL = `
 					)
 					DELETE FROM platform.email_outbox AS outbox
 					WHERE outbox.id IN (SELECT id FROM visitor_outbox);
+					-- Keep a visitor account that belongs to another school, but never
+					-- leave its sessions or grants in a retired demo school behind.
+					DELETE FROM auth.tokens
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids);
+					DELETE FROM auth.account_roles
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids);
+					DELETE FROM auth.account_permissions
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids);
+					DELETE FROM auth.account_tenants
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids);
+					DELETE FROM auth.mfa_overrides
+					WHERE account_id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)
+						AND tenant_id = ANY (visitor.visitor_school_ids);
 					SELECT COALESCE(array_agg(account.id), '{}') INTO erased_account_ids
 					FROM auth.accounts AS account
 					WHERE account.id = ANY (visitor.visitor_account_ids || visitor.visitor_parent_account_ids)

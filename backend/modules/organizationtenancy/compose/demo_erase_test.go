@@ -366,3 +366,65 @@ func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
 			OR email NOT LIKE 'demo-besuch-%@example.invalid')`, accounts.caregiver, accounts.parent).Scan(ctx, &retainedCredentials))
 	assert.Zero(t, retainedCredentials, "the retained account tombstones must not contain usable or identifying data")
 }
+
+func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	outsideID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+	accountIDs := []int64{accounts.caregiver, accounts.parent}
+	for _, accountID := range accountIDs {
+		for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.account_permissions", "auth.tokens"} {
+			_, err = db.NewRaw(`DELETE FROM `+table+` WHERE account_id = ?`, accountID).Exec(ctx)
+			require.NoError(t, err, table)
+		}
+		testpkg.MapAccountToTenant(t, db, accountID, schoolID)
+		testpkg.MapAccountToTenant(t, db, accountID, outsideID)
+	}
+	var roleID, permissionID int64
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.roles ORDER BY id LIMIT 1`).Scan(ctx, &roleID))
+	require.NoError(t, db.NewRaw(`SELECT id FROM auth.permissions ORDER BY id LIMIT 1`).Scan(ctx, &permissionID))
+	for _, accountID := range accountIDs {
+		_, err = db.NewRaw(`INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)`,
+			accountID, roleID, schoolID, accountID, roleID, outsideID).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewRaw(`INSERT INTO auth.account_permissions (account_id, permission_id, tenant_id) VALUES (?, ?, ?), (?, ?, ?)`,
+			accountID, permissionID, schoolID, accountID, permissionID, outsideID).Exec(ctx)
+		require.NoError(t, err)
+		_, err = db.NewRaw(`INSERT INTO auth.tokens (account_id, token, expiry, tenant_id, portal_scope) VALUES
+			(?, 'hidden-' || ?::text || '-' || ?::text, NOW() + INTERVAL '1 day', ?, 'tenant'),
+			(?, 'outside-' || ?::text || '-' || ?::text, NOW() + INTERVAL '1 day', ?, 'tenant')`,
+			accountID, accountID, schoolID, schoolID, accountID, accountID, outsideID, outsideID).Exec(ctx)
+		require.NoError(t, err)
+	}
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{}`),
+		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
+
+	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Equal(t, 1, erased)
+	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.account_permissions", "auth.tokens"} {
+		var hidden, outside int
+		require.NoError(t, db.NewRaw(`SELECT count(*) FROM `+table+` WHERE account_id IN (?, ?) AND tenant_id = ?`,
+			accounts.caregiver, accounts.parent, schoolID).Scan(ctx, &hidden), table)
+		require.NoError(t, db.NewRaw(`SELECT count(*) FROM `+table+` WHERE account_id IN (?, ?) AND tenant_id = ?`,
+			accounts.caregiver, accounts.parent, outsideID).Scan(ctx, &outside), table)
+		assert.Zero(t, hidden, table+" must not retain hidden-school access")
+		assert.Equal(t, len(accountIDs), outside, table+" must preserve the outside-school account")
+	}
+	var active int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.accounts WHERE id IN (?, ?) AND active`, accounts.caregiver, accounts.parent).Scan(ctx, &active))
+	assert.Equal(t, len(accountIDs), active, "a shared account stays usable outside the retired school")
+}
