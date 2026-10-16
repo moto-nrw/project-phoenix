@@ -84,7 +84,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// database/repositories/users; the scores crossed the boundary unchanged.
 	"modules/careplan/offeringrequests/diff.go:CorrectionDiff": 21,
 
-	"modules/classday/internal/application/slotlists.go:(*service).ListOptions":         108,
 	"modules/classday/internal/application/slotlists.go:(*service).buildList":           28,
 	"modules/classday/internal/application/slotlists.go:(*service).collectSlotContexts": 20,
 	"modules/classday/internal/application/slotlists.go:(*service).enrichEntries":       56,
