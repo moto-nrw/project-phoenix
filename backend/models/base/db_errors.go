@@ -100,13 +100,3 @@ func lastDoubleQuotedIdentifier(message string) (string, bool) {
 	}
 	return last, found
 }
-
-// IsNoRows reports whether err wraps the persistence-neutral repository
-// not-found sentinel.
-func IsNoRows(err error) bool {
-	if errors.Is(err, ErrNotFound) {
-		return true
-	}
-	var marker interface{ RepositoryNotFound() }
-	return errors.As(err, &marker)
-}

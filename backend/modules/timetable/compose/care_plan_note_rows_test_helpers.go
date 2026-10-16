@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 type CareArrivalNoteRows struct{ rows CarePlanRows }
@@ -124,7 +124,7 @@ func (r CareArrivalNoteRows) Update(ctx context.Context, row *scheduleModels.Stu
 	return r.rows.scheduleError("update", r.rows.Records.UpdateArrivalNote(ctx, arrivalNoteToPublic(row)))
 }
 
-func (r CareArrivalNoteRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentArrivalNote, error) {
+func (r CareArrivalNoteRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentArrivalNote, error) {
 	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListArrivalNotes, arrivalNoteToLegacy)
 }
 
@@ -194,7 +194,7 @@ func (r CarePickupNoteRows) Update(ctx context.Context, row *scheduleModels.Stud
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupNote(ctx, pickupNoteToPublic(row)))
 }
 
-func (r CarePickupNoteRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentPickupNote, error) {
+func (r CarePickupNoteRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupNote, error) {
 	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupNotes, pickupNoteToLegacy)
 }
 

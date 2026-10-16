@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -59,7 +59,7 @@ func (d *conflictDetection) resolveSeriesEffectiveCoverageDays(
 			allEffective = append(allEffective, day.staffIDs...)
 		}
 	}
-	return coverageDays, sliceutil.Unique(allEffective), nil
+	return coverageDays, domain.UniqueInOrder(allEffective), nil
 }
 
 func (d *conflictDetection) loadSeriesCoverageStaffRows(ctx context.Context, instanceIDs []int64) (map[int64][]*scheduleModels.InstanceStaff, error) {
@@ -248,7 +248,7 @@ func effectiveSeriesCoverageStaffIDs(proposed []int64, prior []*scheduleModels.I
 		}
 	}
 	effective = append(effective, restoredSeriesSubstitutes(prior, proposedSet, len(absent))...)
-	return sliceutil.Unique(effective)
+	return domain.UniqueInOrder(effective)
 }
 
 func survivingSeriesAbsences(prior []*scheduleModels.InstanceStaff, proposedSet map[int64]struct{}) map[int64]struct{} {

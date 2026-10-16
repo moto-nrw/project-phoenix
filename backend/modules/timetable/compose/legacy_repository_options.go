@@ -7,19 +7,19 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // RecurrenceRuleQueryOptions keeps the legacy repository method signature
-// without making the composition adapter import the base model package.
-type RecurrenceRuleQueryOptions = modelBase.QueryOptions
-type TimeframeQueryOptions = modelBase.QueryOptions
-type ActivityExceptionQueryOptions = modelBase.QueryOptions
-type ActivityInstanceQueryOptions = modelBase.QueryOptions
-type InstanceStaffQueryOptions = modelBase.QueryOptions
-type InstanceStudentQueryOptions = modelBase.QueryOptions
+// over the owner's list options.
+type RecurrenceRuleQueryOptions = domain.ListOptions
+type TimeframeQueryOptions = domain.ListOptions
+type ActivityExceptionQueryOptions = domain.ListOptions
+type ActivityInstanceQueryOptions = domain.ListOptions
+type InstanceStaffQueryOptions = domain.ListOptions
+type InstanceStudentQueryOptions = domain.ListOptions
 type ActivityExceptionDate = scheduleModels.Date
 type ActivityInstanceDate = scheduleModels.Date
 type InstanceStaffDate = scheduleModels.Date
@@ -107,11 +107,11 @@ func InstanceStudentWallClock(at time.Time) string {
 }
 
 func WrapDatabaseError(operation string, err error) error {
-	return &modelBase.DatabaseError{Op: operation, Err: err}
+	return &domain.StoreError{Op: operation, Err: err}
 }
 
 func WrapNotFoundDatabaseError(operation string) error {
-	return WrapDatabaseError(operation, modelBase.ErrNotFound)
+	return WrapDatabaseError(operation, domain.ErrRecordNotFound)
 }
 
 func TimeframeListOptions(options *TimeframeQueryOptions) (string, int, int, error) {
@@ -138,7 +138,7 @@ func TimeframeListOptions(options *TimeframeQueryOptions) (string, int, int, err
 	description := ""
 	for _, condition := range conditions {
 		value, ok := condition.Value.(string)
-		if condition.Field != "description" || condition.Operator != modelBase.OpILike || !ok {
+		if condition.Field != "description" || condition.Operator != domain.ListOpILike || !ok {
 			return "", 0, 0, errors.New("timeframe filter is unsupported")
 		}
 		description = value
@@ -146,7 +146,7 @@ func TimeframeListOptions(options *TimeframeQueryOptions) (string, int, int, err
 	return description, limit, offset, nil
 }
 
-func RecurrenceRuleListOptions(options *modelBase.QueryOptions) (string, []string, string, bool, int, int, error) {
+func RecurrenceRuleListOptions(options *domain.ListOptions) (string, []string, string, bool, int, int, error) {
 	if options == nil {
 		return "", nil, "", false, 0, 0, nil
 	}
@@ -165,17 +165,17 @@ func RecurrenceRuleListOptions(options *modelBase.QueryOptions) (string, []strin
 	return frequency, frequencies, sortBy, descending, limit, offset, nil
 }
 
-func recurrenceRuleSort(sorting *modelBase.Sorting) (string, bool, error) {
+func recurrenceRuleSort(sorting *domain.ListSorting) (string, bool, error) {
 	if sorting == nil || len(sorting.Fields) == 0 {
 		return "", false, nil
 	}
 	if len(sorting.Fields) > 1 {
 		return "", false, errors.New("multiple recurrence rule sort fields are unsupported")
 	}
-	return sorting.Fields[0].Field, sorting.Fields[0].Direction == modelBase.SortDesc, nil
+	return sorting.Fields[0].Field, sorting.Fields[0].Direction == domain.ListSortDesc, nil
 }
 
-func recurrenceRuleFilter(filter *modelBase.Filter) (string, []string, error) {
+func recurrenceRuleFilter(filter *domain.ListFilter) (string, []string, error) {
 	if filter == nil {
 		return "", nil, nil
 	}
@@ -192,17 +192,17 @@ func recurrenceRuleFilter(filter *modelBase.Filter) (string, []string, error) {
 	return recurrenceRuleFrequencyCondition(conditions[0])
 }
 
-func recurrenceRuleFrequencyCondition(condition modelBase.FilterCondition) (string, []string, error) {
+func recurrenceRuleFrequencyCondition(condition domain.ListCondition) (string, []string, error) {
 	if condition.Field != "frequency" {
 		return "", nil, errors.New("recurrence rule filter is unsupported")
 	}
-	if condition.Operator == modelBase.OpEqual {
+	if condition.Operator == domain.ListOpEqual {
 		value, ok := condition.Value.(string)
 		if ok {
 			return value, nil, nil
 		}
 	}
-	if condition.Operator == modelBase.OpIn {
+	if condition.Operator == domain.ListOpIn {
 		values, ok := condition.Value.([]interface{})
 		if ok {
 			result := make([]string, 0, len(values))
@@ -245,7 +245,7 @@ func ActivityExceptionListOptions(options *ActivityExceptionQueryOptions) (*int6
 	}
 	condition := conditions[0]
 	groupID, ok := condition.Value.(int64)
-	if condition.Field != "activity_group_id" || condition.Operator != modelBase.OpEqual || !ok {
+	if condition.Field != "activity_group_id" || condition.Operator != domain.ListOpEqual || !ok {
 		return nil, 0, 0, errors.New("activity exception filter is unsupported")
 	}
 	return &groupID, limit, offset, nil
@@ -261,7 +261,7 @@ func ActivityExceptionBefore(options *ActivityExceptionQueryOptions) (*string, e
 	}
 	condition := options.Filter.Conditions()[0]
 	value, ok := condition.Value.(calendar.Date)
-	if condition.Field != "exception_date" || condition.Operator != modelBase.OpLessThan || !ok {
+	if condition.Field != "exception_date" || condition.Operator != domain.ListOpLessThan || !ok {
 		return nil, errors.New("activity exception count filter is unsupported")
 	}
 	date := value.String()
@@ -272,7 +272,7 @@ func ActivityExceptionBefore(options *ActivityExceptionQueryOptions) (*string, e
 // the page through page, each sort field through sort, and each plain
 // condition through apply. A nil sort refuses any order; compound filters are
 // refused, never dropped.
-func narrowListOptions[F any](options *modelBase.QueryOptions, subject string, page func(*F, int, int), sort func(*F, modelBase.SortField), apply func(*F, modelBase.FilterCondition) error) (F, error) {
+func narrowListOptions[F any](options *domain.ListOptions, subject string, page func(*F, int, int), sort func(*F, domain.ListSortField), apply func(*F, domain.ListCondition) error) (F, error) {
 	var result, none F
 	if options == nil {
 		return result, nil
@@ -306,11 +306,11 @@ func ActivityInstanceListOptions(options *ActivityInstanceQueryOptions) (Activit
 	return narrowListOptions(options, "activity instance", func(f *ActivityInstanceListFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyActivityInstanceCondition)
 }
 
-func applyActivityInstanceCondition(result *ActivityInstanceListFilter, condition modelBase.FilterCondition) error {
+func applyActivityInstanceCondition(result *ActivityInstanceListFilter, condition domain.ListCondition) error {
 	switch condition.Operator {
-	case modelBase.OpEqual:
+	case domain.ListOpEqual:
 		return applyActivityInstanceEqual(result, condition.Field, condition.Value)
-	case modelBase.OpIn:
+	case domain.ListOpIn:
 		return applyActivityInstanceIn(result, condition.Field, condition.Value)
 	default:
 		return errors.New("activity instance filter is unsupported")
@@ -408,7 +408,7 @@ func ActivityInstanceBefore(options *ActivityInstanceQueryOptions) (*string, err
 	}
 	condition := options.Filter.Conditions()[0]
 	value, ok := condition.Value.(calendar.Date)
-	if condition.Field != "date" || condition.Operator != modelBase.OpLessThan || !ok {
+	if condition.Field != "date" || condition.Operator != domain.ListOpLessThan || !ok {
 		return nil, errors.New("activity instance count filter is unsupported")
 	}
 	date := value.String()
@@ -423,8 +423,8 @@ func InstanceStudentListOptions(options *InstanceStudentQueryOptions) (InstanceS
 	return narrowListOptions(options, "instance student", func(f *InstanceStudentListFilter, limit, offset int) { f.Limit, f.Offset = limit, offset }, nil, applyInstanceStudentCondition)
 }
 
-func applyInstanceStudentCondition(result *InstanceStudentListFilter, condition modelBase.FilterCondition) error {
-	if condition.Operator == modelBase.OpEqual {
+func applyInstanceStudentCondition(result *InstanceStudentListFilter, condition domain.ListCondition) error {
+	if condition.Operator == domain.ListOpEqual {
 		if condition.Field == "status" {
 			value, ok := condition.Value.(string)
 			if !ok {
@@ -439,7 +439,7 @@ func applyInstanceStudentCondition(result *InstanceStudentListFilter, condition 
 		}
 		return assignInstanceStudentID(result, condition.Field, id)
 	}
-	if condition.Operator != modelBase.OpIn || condition.Field == "status" {
+	if condition.Operator != domain.ListOpIn || condition.Field == "status" {
 		return errors.New("instance student filter is unsupported")
 	}
 	values, ok := condition.Value.([]interface{})
@@ -472,15 +472,15 @@ func assignInstanceStudentID(result *InstanceStudentListFilter, field string, id
 	return nil
 }
 
-func applyInstanceStaffCondition(result *InstanceStaffListFilter, condition modelBase.FilterCondition) error {
-	if condition.Operator == modelBase.OpEqual {
+func applyInstanceStaffCondition(result *InstanceStaffListFilter, condition domain.ListCondition) error {
+	if condition.Operator == domain.ListOpEqual {
 		id, ok := condition.Value.(int64)
 		if !ok {
 			return errors.New("instance staff filter is unsupported")
 		}
 		return assignInstanceStaffID(result, condition.Field, id)
 	}
-	if condition.Operator != modelBase.OpIn {
+	if condition.Operator != domain.ListOpIn {
 		return errors.New("instance staff filter is unsupported")
 	}
 	values, ok := condition.Value.([]interface{})
@@ -521,7 +521,7 @@ func translateNotFound(err error) error {
 	if !errors.Is(err, sql.ErrNoRows) {
 		return err
 	}
-	return errors.Join(modelBase.ErrNotFound, err)
+	return errors.Join(domain.ErrRecordNotFound, err)
 }
 
 // InstanceStudentDay is the Berlin calendar day of an instant as the legacy

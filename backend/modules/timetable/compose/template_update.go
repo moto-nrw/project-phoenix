@@ -8,9 +8,9 @@ import (
 	"github.com/uptrace/bun"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -180,7 +180,7 @@ func (s *TemplateService) updateTemplateLocked(
 func (s *TemplateService) loadUpdateTarget(ctx context.Context, in TemplateUpdateInput) (*activitiesModel.Group, error) {
 	existing, err := s.deps.ActivityGroupRepo.FindByID(ctx, in.TemplateID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, &ScheduleError{Op: "update template: load target", Err: timetable.ErrTemplateSegmentNotEditable}
 		}
 		return nil, &ScheduleError{Op: "update template: load target", Err: err}
