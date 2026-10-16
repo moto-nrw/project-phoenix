@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
