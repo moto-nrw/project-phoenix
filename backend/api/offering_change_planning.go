@@ -61,11 +61,7 @@ func (q PlanningQuery) LockCourseGroups(ctx context.Context, groupIDs []int64) (
 	}
 	result := make([]carePlanCompose.CourseGroup, 0, len(groups))
 	for _, group := range groups {
-		result = append(result, carePlanCompose.CourseGroup{
-			ID: group.ID, Active: group.Active, ParticipantLimit: group.ParticipantLimit,
-			ScheduledWeekdays: group.ScheduledWeekdays, SourceGradeLevels: group.SourceGradeLevels,
-			SourceSchoolClasses: group.SourceSchoolClasses,
-		})
+		result = append(result, carePlanCompose.CourseGroup{ID: group.ID, Active: group.Active, ParticipantLimit: group.ParticipantLimit})
 	}
 	return result, nil
 }
