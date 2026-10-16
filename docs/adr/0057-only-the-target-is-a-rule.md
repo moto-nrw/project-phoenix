@@ -78,3 +78,34 @@ The ratchet therefore measured how much debt had been moved out of
   converts the reach into exact debt or removes it.
 - Ratchet 0 now means what #2580 promised: no permitted violation is hidden
   in the policy.
+
+## Addendum 2026-10-16: exact package restrictions (#4078)
+
+Deleting an `inbound` pseudo-owner can merge its HTTP role into a real owner
+that already has other HTTP packages or workflow test suites. A successor
+selected only by owner and role would then grant unchanged packages reach
+they did not have. The #4078 transition must not accept that widening.
+
+Policy schema 4 therefore adds optional `source_package` and `target_package`
+selectors. Each names one exact, classified module-relative package, not a
+prefix, glob, alias or new owner. Explicit empty/null and unknown paths are
+invalid. A package restriction is an intersection with the existing owner,
+owner-kind, role and scope selectors. It cannot grant foreign private roles,
+platform-to-domain dependencies or cycles, or replace exact legacy debt.
+The source restriction may also narrow an external-class rule; the target
+restriction is first-party only.
+
+Adding a restriction is narrowing. Removing or changing a restriction must
+pass the ordinary strictness comparison as a possible widening. Comparing
+only owner/role points is insufficient: matching, overlap detection and
+permission caches retain the selected package identity. The target graph
+still contains every selected owner edge, so restrictions cannot hide cycles.
+
+This chooses precise rule restrictions over rehosting runtime wiring and
+workflow tests solely to avoid selector collisions. No production rule,
+owner, role, scope, debt key or budget changes with the checker feature.
+Successor PRs still delete their predecessors, keep the rule count flat or
+lower, and list every deleted and successor rule. The #4078 transition and
+its tests still disappear with the final inbound owner. Immutable schema-2/3
+bases remain readable during rollout; only schema 4 candidates may use the
+new fields. No policy epoch increase is needed for this narrowing mechanism.
