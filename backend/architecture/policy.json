@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 57,
+  "policy_epoch": 58,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5387,17 +5387,6 @@
       "target_role": "public"
     },
     {
-      "id": "calendar-view.adapter.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "enrollment.application.care-plan.public",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -6428,18 +6417,6 @@
       "target_role": "contract"
     },
     {
-      "id": "projection.adapter-test.domain.contract",
-      "description": "Adapter tests may fake domain contracts (projection sources; a platform reaches no domain owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "projection",
-      "source_role": "adapter-test",
-      "target_owner_kind": "domain",
-      "target_role": "contract"
-    },
-    {
       "id": "workflow.adapter-test.domain.contract",
       "description": "Adapter tests may fake domain contracts (workflow sources; a platform reaches no domain owner, ADR 0057).",
       "scopes": [
@@ -6471,18 +6448,6 @@
         "external_test"
       ],
       "source_owner_kind": "inbound",
-      "source_role": "adapter-test",
-      "target_owner_kind": "domain",
-      "target_role": "public"
-    },
-    {
-      "id": "projection.adapter-test.domain.public",
-      "description": "Adapter tests may use public domain capabilities (projection sources; a platform reaches no domain owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "projection",
       "source_role": "adapter-test",
       "target_owner_kind": "domain",
       "target_role": "public"
@@ -12912,17 +12877,6 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-view.adapter.student-presence-public",
-      "description": "modules/supervisiondashboard/legacy reads session details, rooms and visit displays through the public presence facades (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "open-room-move.compose.student-presence-public",
       "description": "The open-room move binds the public session detail and student move values (#3422).",
       "scopes": [
@@ -13029,17 +12983,6 @@
       ],
       "source_owner": "workforce",
       "source_role": "application",
-      "target_owner": "timetable-activities",
-      "target_role": "public"
-    },
-    {
-      "id": "calendar-view.adapter.timetable-activities.public",
-      "description": "The supervision dashboard maps the Timetable owner's public start-conflict warnings (timetable planning dissolution, ADR 0038).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
       "target_owner": "timetable-activities",
       "target_role": "public"
     },
@@ -13695,17 +13638,6 @@
       "target_role": "contract"
     },
     {
-      "id": "calendar-view.adapter.school-structure-contract",
-      "description": "Consumes the storage-neutral School Structure contract (#3555).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter",
-      "target_owner": "school-structure",
-      "target_role": "contract"
-    },
-    {
       "id": "shift-plan-sync.public.school-structure-contract",
       "description": "Consumes the storage-neutral School Structure contract (#3555).",
       "scopes": [
@@ -14042,6 +13974,17 @@
         "production"
       ],
       "source_owner": "root-composition",
+      "target_owner_kind": "projection",
+      "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.internal-test.projection.public",
+      "description": "ADR 0053 point 2: the internal tests of the typed roots import the public role of every projection owner.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "root-composition",
+      "source_role": "module-internal-test",
       "target_owner_kind": "projection",
       "target_role": "public"
     },
