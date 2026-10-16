@@ -148,10 +148,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-display",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-iot",
       "kind": "inbound"
     },
@@ -714,7 +710,7 @@
     },
     {
       "path": "api/display",
-      "owner": "inbound-display",
+      "owner": "device-fleet",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -2995,6 +2991,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/devicefleet/internal/adapters/credentials",
+      "owner": "device-fleet",
+      "role": "adapter",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/devicefleet/internal/adapters/postgres",
       "owner": "device-fleet",
       "role": "postgres",
@@ -5211,28 +5214,6 @@
       "target_role": "compose"
     },
     {
-      "id": "device-fleet.workflow-integration-test.care-plan.public.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
-      "id": "device-fleet.workflow-integration-test.care-plan.compose.test-construction",
-      "description": "Replace legacy Care Schedule construction in the same test scope with the native owner seam (#3351, ADR 0030).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "care-plan",
-      "target_role": "compose"
-    },
-    {
       "id": "shared-kernel.contract",
       "description": "Every role may import the shared kernel's contract: the canonical calendar Date, WallClock, TenantID and CorrelationID every owner exchanges (ADR 0040, #3447, #3448).",
       "scopes": [
@@ -7026,15 +7007,14 @@
       "target_class": "concurrency"
     },
     {
-      "id": "external.crypto.device-fleet",
-      "description": "device-fleet may use classified cryptographic dependencies.",
+      "id": "external.crypto.device-fleet.adapter",
+      "description": "Existing Device Fleet adapter uses cryptographic primitives without exposing them to HTTP.",
       "scopes": [
-        "production",
-        "internal_test",
-        "external_test"
+        "production"
       ],
       "source_owner": "device-fleet",
-      "target_class": "crypto"
+      "target_class": "crypto",
+      "source_role": "adapter"
     },
     {
       "id": "external.crypto.identity-access",
@@ -7435,17 +7415,6 @@
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
-    },
-    {
-      "id": "inbound-display.to.device-fleet",
-      "description": "inbound-display calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-display",
-      "source_role": "http",
-      "target_owner": "device-fleet",
-      "target_role": "public"
     },
     {
       "id": "emergency-snapshot.http.public",
@@ -10253,27 +10222,6 @@
       "target_role": "public"
     },
     {
-      "id": "device-fleet.compose.security-contract",
-      "description": "Device Fleet HTTP composition supplies the established display permissions.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_owner": "security-runtime",
-      "target_role": "contract"
-    },
-    {
-      "id": "device-fleet.compose.http-router",
-      "description": "Device Fleet HTTP composition binds the established Chi transport.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
       "id": "device-fleet.integration-test.support",
       "description": "Device Fleet integration tests use hermetic database support.",
       "scopes": [
@@ -10283,42 +10231,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "device-fleet.integration-test.identity-adapter",
-      "description": "Device Fleet HTTP integration tests mint authenticated tenant requests.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "device-fleet.integration-test.inbound-display",
-      "description": "Device Fleet HTTP integration tests decode the established display wire shapes.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "inbound-display",
-      "target_role": "http"
-    },
-    {
-      "id": "device-fleet.integration-test.student-presence-compose",
-      "description": "Device Fleet HTTP integration tests construct Student Presence for tenant-isolated aggregates.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "student-presence",
-      "target_role": "compose"
     },
     {
       "id": "observability.postgres.tenant-runtime",
@@ -10354,17 +10266,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "device-fleet",
       "target_role": "application"
-    },
-    {
-      "id": "device-fleet.integration-test.tenant-runtime",
-      "description": "Device Fleet integration tests verify transaction and RLS behaviour through the shared tenant runtime.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "workflow-integration-test",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
     },
     {
       "id": "observability.integration-test.postgres",
@@ -10409,16 +10310,6 @@
       "source_role": "http",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "device-fleet.device-auth.orm-sql",
-      "description": "The device authentication composition classifies missing rows and connection-class driver failures of the school read.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "device-fleet",
-      "source_role": "http",
-      "target_class": "orm-sql"
     },
     {
       "id": "test-support.to.device-fleet-device-auth",
