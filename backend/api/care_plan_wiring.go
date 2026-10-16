@@ -96,7 +96,7 @@ func newCarePlanWiring(owners carePlanWiringOwners) (carePlanRoot, error) {
 	lifecycleOwners := NewCareLifecycleOwners(CareLifecycleOwnerSources{
 		Students: people.Students, Persons: people.Persons, Membership: owners.Membership,
 		People: persons, Timetable: owners.Timetable, Calendar: owners.Calendar,
-		Presence: NewUnloggedStudentPresence(owners.DB), PlanReads: MustPresenceReads(owners.DB),
+		Presence: NewUnloggedStudentPresence(owners.DB), PlanReads: newPresenceProjectionReads(owners.DB),
 		Enrollment: NewEnrollmentBookingProjection(NewEnrollmentBookings()),
 	}, NewCareEndRecorder(studentAudit))
 

@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/presenceprojection"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -32,10 +31,6 @@ func timetableRead(read func(context.Context, bun.IDB, int64) (any, error)) proj
 	return projectionRead{read: read, invalidTenant: timetableprojection.ErrInvalidTenantID, prefix: "timetable projection:"}
 }
 
-func presenceRead(read func(context.Context, bun.IDB, int64) (any, error)) projectionRead {
-	return projectionRead{read: read, invalidTenant: presenceprojection.ErrInvalidTenantID, prefix: "presence projection:"}
-}
-
 func projectionReads(id int64, ids []int64) map[string]projectionRead {
 	date := calendar.NewDate(2026, 9, 4)
 	return map[string]projectionRead{
@@ -50,9 +45,6 @@ func projectionReads(id int64, ids []int64) map[string]projectionRead {
 		}),
 		"course occupancy": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountActiveCourseEnrollments(ctx, db, tenantID, ids, date, date.AddDays(1), 0)
-		}),
-		"manual planning": presenceRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
-			return presenceprojection.ListManualPlanningOccurrences(ctx, db, tenantID, id, date, date)
 		}),
 		"request enrollments": timetableRead(func(ctx context.Context, db bun.IDB, tenantID int64) (any, error) {
 			return timetableprojection.CountRequestSourceEnrollments(ctx, db, tenantID, id)
@@ -154,6 +146,28 @@ func TestGroupNamesRejectsMissingTenantInElevatedTransaction(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, groups, 1)
 	assert.Equal(t, own.ID, groups[0].ID)
+}
+
+func TestLockCourseGroupsReturnsOnlyTheNamedTenantsCourses(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	own := testpkg.CreateTestActivityGroup(t, db, "Locked course")
+	otherTenant, _ := testpkg.CreateTestTenant(t, db)
+	other := testpkg.CreateTestActivityGroupForTenant(t, db, otherTenant, "Foreign course")
+	ctx := context.Background()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, tx.Rollback()) }()
+	ids := []int64{other.ID, own.ID, own.ID}
+	var visible int
+	require.NoError(t, tx.NewRaw(`SELECT COUNT(*) FROM activities.groups WHERE id IN (?)`, bun.List(ids)).Scan(ctx, &visible))
+	require.Equal(t, 2, visible, "the transaction sees both tenants without an explicit predicate")
+
+	locked, err := timetableprojection.LockCourseGroups(ctx, tx, testpkg.Tenant(t), ids)
+
+	require.NoError(t, err)
+	limit := own.MaxParticipants
+	assert.Equal(t, []timetableprojection.CourseGroup{{ID: own.ID, Active: true, ParticipantLimit: &limit}}, locked)
 }
 
 func TestCourseOccupancyExcludesTheStudentBeingApproved(t *testing.T) {
