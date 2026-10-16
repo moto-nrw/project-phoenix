@@ -19,7 +19,6 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
@@ -227,10 +226,11 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		return ActiveTestModule{}, err
 	}
 	caller := SupervisionCaller{CallerRows: groups.UserContext}
-	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{Access: newSupervisionAccess(settings.Settings, caller),
-		Active: presence, ActiveGroups: OpenRoomSessionPresence{Presence: NewLoggedStudentPresence(db, logger), Activities: timetableOwner},
-		OpenVisits: presence, Rooms: OpenRoomDirectory{Rooms: rooms}, UserContext: caller, Education: groups.Education,
-		Yard: newSupervisionYard(yard), Operations: operations, Settings: newSupervisionSettings(settings.Settings), Pickups: pickups, Arrivals: arrivals, Now: OptionalClock(clocks)})
+	dashboard, err := newSupervisionDashboard(supervisiondashboard.Dependencies{Access: newSupervisionAccess(settings.Settings, caller),
+		Sessions: newSupervisionSessions(presence, OpenRoomSessionPresence{Presence: NewLoggedStudentPresence(db, logger), Activities: timetableOwner}, caller),
+		Rooms:    OpenRoomDirectory{Rooms: rooms}, Groups: newSupervisionGroups(groups.Education, caller),
+		Yard: newSupervisionYard(yard), Schedule: newSupervisionSchedule(operations), Presence: newSupervisionPresence(presence, presence),
+		Planning: newSupervisionPlanning(pickups, arrivals), Settings: newSupervisionSettings(settings.Settings), Calendar: supervisionCalendar{}, Now: OptionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
