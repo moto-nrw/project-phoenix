@@ -549,7 +549,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		}),
 		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: b.graph.ArrivalSchedule,
 		PickupSchedules: b.graph.PickupSchedule, CareRequests: b.graph.CareRequests, ExcusedRequests: b.excusedRequests,
-		Emitter: b.graph.ParentEventEmitter, AnnouncementRepo: portal.ParentAnnouncement,
+		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: portal.ParentAnnouncement,
 		GuardianInvites: b.identity.ParentGuardianAccess, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentGuardianRepo: people.StudentGuardians, GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()),
 		StudentConsents: b.graph.StudentConsents, StudentPhotos: studentPhotoUnlinker(b.graph.StudentPhotos),

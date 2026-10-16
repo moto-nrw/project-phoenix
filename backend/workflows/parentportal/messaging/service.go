@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -46,6 +45,11 @@ type ConversationCore interface {
 	BroadcastRead(tenantID, guardianAccountID, threadID, studentID int64)
 }
 
+// MessagingGate reports the owner's fail-open feature flag for a school.
+// It must be bound for conversation reads and writes, independently of the
+// optional event emitter. It never replaces guardian-child authorization.
+type MessagingGate func(context.Context, int64) bool
+
 // Config is the dependency bundle of the retained messaging portal services.
 type Config struct {
 	Logger *slog.Logger
@@ -67,8 +71,9 @@ type Config struct {
 	MessageRepo           usersModels.ParentMessageRepository
 	MessageReadRepo       usersModels.ParentMessageReadRepository
 	Conversations         ConversationCore
+	MessagingEnabled      MessagingGate
 	ParentMessageNotifier care.StaffParentMessageNotifier
-	Emitter               *parentmessaging.Emitter
+	Emitter               care.ChildEvents
 
 	ChangeRequestRepo         care.DataRequestReads
 	CareRequestRepo           CareRequestReads
