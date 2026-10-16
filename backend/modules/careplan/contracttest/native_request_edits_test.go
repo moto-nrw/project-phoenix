@@ -26,7 +26,7 @@ func (e *editEvents) RecordGuardianEdit(context.Context, *carerequests.Request, 
 func TestNativeRequestEditChecksOwnershipBeforeStatusAndVersion(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Edit", "Owner", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
@@ -68,7 +68,7 @@ func (p *editedPickup) DepartureModes(context.Context, int64, calendar.Date) ([]
 func TestNativePickupEditChecksOldCutoffAndRollsBackLedgerFailure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Edit", "Pickup", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")

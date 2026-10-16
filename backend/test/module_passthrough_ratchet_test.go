@@ -177,7 +177,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry.
-const modulePassthroughOwnerBudgetTotal = 3109
+const modulePassthroughOwnerBudgetTotal = 3102
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -217,8 +217,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// forward and the internal-only AdministrativelyVisibleStudentIDs.
 	// Shrink-only from here like every other entry.
 	//
-	// ADR 0061: application 111 + modules/careplan/compose 188 + modules/careplan/requestfeed/compose 4.
-	"modules/careplan": 303,
+	// ADR 0061: application 110 + modules/careplan/compose 186 + modules/careplan/requestfeed/compose 4.
+	"modules/careplan": 300,
 	// The caller and arrival-exception ports reached straight through, most
 	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
 	// day report is built in the projection instead of forwarded to the
@@ -352,8 +352,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// (14) and 19 more files, every one of them s.run around a single
 	// s.store call.
 	//
-	// ADR 0061: application 100 + modules/timetable/compose 404.
-	"modules/timetable": 504,
+	// ADR 0061: application 98 + modules/timetable/compose 402.
+	"modules/timetable": 500,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	//

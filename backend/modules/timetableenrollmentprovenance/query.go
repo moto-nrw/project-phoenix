@@ -54,3 +54,17 @@ func ExistingRequestChildIDs(ctx context.Context, db bun.IDB, tenantID int64, id
 	}
 	return existing, nil
 }
+
+// Reader is the projection the roots bind to Timetable's enrollment
+// provenance port (ADR 0058). Both reads run in the caller's transaction.
+type Reader struct{}
+
+// EligibleEnrollmentIDs is EligibleEnrollmentIDs.
+func (Reader) EligibleEnrollmentIDs(ctx context.Context, db bun.IDB, tenantID, studentID, requestChildID int64, groupIDs []int64) ([]int64, error) {
+	return EligibleEnrollmentIDs(ctx, db, tenantID, studentID, requestChildID, groupIDs)
+}
+
+// ExistingRequestChildIDs is ExistingRequestChildIDs.
+func (Reader) ExistingRequestChildIDs(ctx context.Context, db bun.IDB, tenantID int64, ids []int64) ([]int64, error) {
+	return ExistingRequestChildIDs(ctx, db, tenantID, ids)
+}

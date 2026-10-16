@@ -6,6 +6,8 @@ import (
 	"slices"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/uptrace/bun"
@@ -49,6 +51,7 @@ func newModuleWithSessions(tb TB, db *bun.DB, students timetableCompose.StudentD
 		Rooms:               roomDirectory,
 		Sessions:            sessions,
 		Observe:             func(timetableCompose.Observation) {},
+		Provenance:          testpkg.EnrollmentProvenance{},
 	})
 	if err != nil {
 		tb.Fatalf("compose test Timetable & Activities: %v", err)

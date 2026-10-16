@@ -25,11 +25,11 @@ type MasterDataReviewDependencies struct {
 
 // NewStudentDataRequestQueries composes the read-only queue source without
 // requiring mutation locks or unrelated status-day collaborators.
-func NewStudentDataRequestQueries(db *bun.DB, observe func(Observation)) (careplan.StudentDataRequestQuery, error) {
-	if db == nil || observe == nil {
-		return nil, errors.New("care plan student data request queries: database and observer are required")
+func NewStudentDataRequestQueries(db *bun.DB, directory StudentDirectory, observe func(Observation)) (careplan.StudentDataRequestQuery, error) {
+	if db == nil || directory == nil || observe == nil {
+		return nil, errors.New("care plan student data request queries: database, student directory and observer are required")
 	}
-	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db))), observe: observe}, nil
+	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe: observe}, nil
 }
 
 type requestQueueQueries struct {
@@ -60,11 +60,11 @@ func (q requestQueueQueries) ListStudentDataRequests(ctx context.Context, filter
 
 // NewCareScheduleRequestQueries binds only the storage reads of the next
 // review queue, without constructing any decision or schedule mutation path.
-func NewCareScheduleRequestQueries(db *bun.DB, observe func(Observation)) (careplan.CareScheduleRequestQuery, error) {
-	if db == nil || observe == nil {
-		return nil, errors.New("care plan schedule request queries: database and observer are required")
+func NewCareScheduleRequestQueries(db *bun.DB, directory StudentDirectory, observe func(Observation)) (careplan.CareScheduleRequestQuery, error) {
+	if db == nil || directory == nil || observe == nil {
+		return nil, errors.New("care plan schedule request queries: database, student directory and observer are required")
 	}
-	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db))), observe: observe}, nil
+	return requestQueueQueries{store: postgres.NewRequestStore(postgres.New(carePlanDatabase(db)), directory), observe: observe}, nil
 }
 
 func (q requestQueueQueries) ListCareScheduleRequests(ctx context.Context, filter careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, error) {

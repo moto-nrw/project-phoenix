@@ -35,7 +35,7 @@ func (p *conflictPlanBoundary) UpsertStudentPickupSchedule(ctx context.Context, 
 func TestNativeConflictStaffPickupWritesOnlyRequestedDay(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Conflict", "Pickup", "1a")
 	staff, reviewer := testpkg.CreateTestStaffWithAccount(t, db, "Conflict", "Reviewer")
