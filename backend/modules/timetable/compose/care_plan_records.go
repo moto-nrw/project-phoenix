@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // The retained models/schedule student-schedule and care-request rows are
@@ -111,16 +109,23 @@ type CarePickupNote struct {
 	CreatedBy int64
 }
 
-// CareScheduleFilter selects schedule rows. Options carries the retained
-// repository listing shape unchanged; the root translates it.
+// CareScheduleFilter selects schedule rows. Limit, Offset and Sort page a
+// retained listing; zero values keep the owner's order and every row.
 type CareScheduleFilter struct {
-	StudentIDs   []int64
-	Weekday      int
-	Date         CareDate
-	From         CareDate
-	To           CareDate
-	UpcomingFrom CareDate
-	Options      *usersModels.QueryOptions
+	StudentIDs    []int64
+	Weekday       int
+	Date          CareDate
+	From          CareDate
+	To            CareDate
+	UpcomingFrom  CareDate
+	Limit, Offset int
+	Sort          []CareScheduleSort
+}
+
+// CareScheduleSort orders a retained listing by one column.
+type CareScheduleSort struct {
+	Field      string
+	Descending bool
 }
 
 // CareScheduleRequest is one care-schedule change request.
