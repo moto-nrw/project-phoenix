@@ -89,15 +89,24 @@ type LifecycleSettings interface {
 // LifecycleStaff are the staff rows the instance lifecycle resolves the
 // block's staff and the creator through.
 type LifecycleStaff interface {
-	FindByID(ctx context.Context, id any) (*usersModel.Staff, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
-	FindWithPerson(ctx context.Context, id int64) (*usersModel.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
+	FindByID(ctx context.Context, id any) (*timetable.StaffMember, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
+	FindWithPerson(ctx context.Context, id int64) (*timetable.StaffMember, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
 }
 
-// LifecycleStudents reads and locks the People Directory children the
-// timetable names.
+// LifecycleStudents reads and locks the children the instance lifecycle
+// checks and announces.
 type LifecycleStudents interface {
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
+	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
+	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
+}
+
+// RosterStudents reads and locks the People Directory children the activity
+// rosters and the operational day name; the root also serves the lifecycle's
+// LifecycleStudents from it.
+type RosterStudents interface {
 	FindByID(ctx context.Context, id any) (*usersModel.Student, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*usersModel.Student, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Student, error)

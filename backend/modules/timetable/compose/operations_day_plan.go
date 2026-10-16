@@ -5,7 +5,6 @@ import (
 	"sort"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -13,7 +12,7 @@ import (
 // payload, loaded with one read per kind instead of one per template or
 // track: missing ids are simply absent and read as "no metadata".
 type dayPlanMetadata struct {
-	staff           map[int64]*usersModels.Staff
+	staff           map[int64]*timetable.StaffMember
 	templates       map[int64]*activitiesModels.Group
 	tracks          map[int64]timetable.PlanningTrack
 	educationGroups map[int64]string
@@ -58,7 +57,7 @@ func (meta dayPlanMetadata) decorate(card *timetable.OperationPlannedInstance, g
 }
 
 func (s *operations) loadDayPlanMetadata(ctx context.Context, candidates []plannedNowCandidate) (dayPlanMetadata, error) {
-	meta := dayPlanMetadata{staff: map[int64]*usersModels.Staff{}, tracks: map[int64]timetable.PlanningTrack{}, educationGroups: map[int64]string{}}
+	meta := dayPlanMetadata{staff: map[int64]*timetable.StaffMember{}, tracks: map[int64]timetable.PlanningTrack{}, educationGroups: map[int64]string{}}
 	if staffIDs := dayPlanStaffIDs(candidates); len(staffIDs) > 0 {
 		staff, err := s.deps.People.GetStaffWithPersonByIDs(ctx, staffIDs)
 		if err != nil {
@@ -142,7 +141,7 @@ func dayPlanStaffIDs(candidates []plannedNowCandidate) []int64 {
 }
 
 // dayPlanStaffNames names the block's present staff, sorted by name.
-func dayPlanStaffNames(candidate plannedNowCandidate, staffByID map[int64]*usersModels.Staff) []timetable.OperationStaffName {
+func dayPlanStaffNames(candidate plannedNowCandidate, staffByID map[int64]*timetable.StaffMember) []timetable.OperationStaffName {
 	names := make([]timetable.OperationStaffName, 0, len(candidate.staffRows))
 	for _, row := range candidate.staffRows {
 		if row.IsAbsent {
@@ -154,7 +153,7 @@ func dayPlanStaffNames(candidate plannedNowCandidate, staffByID map[int64]*users
 		}
 		names = append(names, timetable.OperationStaffName{
 			StaffID:      row.StaffID,
-			DisplayName:  staff.Person.GetFullName(),
+			DisplayName:  staff.Person.FullName(),
 			IsSubstitute: row.IsSubstitute,
 		})
 	}

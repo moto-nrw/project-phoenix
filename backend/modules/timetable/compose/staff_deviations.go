@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
@@ -99,10 +98,10 @@ type ActivityUpdateAnnouncer interface {
 // DeviationStaff are the staff rows the deviation writes, the staff pool and
 // the shift coverage read.
 type DeviationStaff interface {
-	FindByID(ctx context.Context, id any) (*usersModel.Staff, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
-	ListAllWithPerson(ctx context.Context) ([]*usersModel.Staff, error)
+	FindByID(ctx context.Context, id any) (*timetable.StaffMember, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
+	ListAllWithPerson(ctx context.Context) ([]*timetable.StaffMember, error)
 }
 
 // StaffDeviationDependencies wires the deviation writes. Every field but

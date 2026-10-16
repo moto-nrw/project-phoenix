@@ -9,7 +9,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -452,15 +451,13 @@ type reopenStudentLockStub struct {
 	locked []int64
 }
 
-func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (*usersModels.Student, error) {
+func (s *reopenStudentLockStub) FindByIDForUpdate(_ context.Context, id int64) (*timetable.LifecycleStudent, error) {
 	s.locked = append(s.locked, id)
-	student := &usersModels.Student{}
-	student.ID = id
-	return student, nil
+	return &timetable.LifecycleStudent{ID: id}, nil
 }
 
-func (s *reopenStudentLockStub) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*usersModels.Student, error) {
-	students := make(map[int64]*usersModels.Student, len(ids))
+func (s *reopenStudentLockStub) FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error) {
+	students := make(map[int64]*timetable.LifecycleStudent, len(ids))
 	for _, id := range ids {
 		student, err := s.FindByIDForUpdate(ctx, id)
 		if err != nil {
@@ -473,8 +470,8 @@ func (s *reopenStudentLockStub) FindByIDsForUpdate(ctx context.Context, ids []in
 
 // FindReadScopeByIDs answers the restored visits' invalidation: no child
 // has an education group here.
-func (s *reopenStudentLockStub) FindReadScopeByIDs(context.Context, []int64) (map[int64]*usersModels.Student, error) {
-	return map[int64]*usersModels.Student{}, nil
+func (s *reopenStudentLockStub) FindReadScopeByIDs(context.Context, []int64) (map[int64]*timetable.LifecycleStudent, error) {
+	return map[int64]*timetable.LifecycleStudent{}, nil
 }
 
 // reopenSessionRepo reports the snapshot's room as free.

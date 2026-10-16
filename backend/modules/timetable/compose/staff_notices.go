@@ -7,7 +7,6 @@ import (
 
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
@@ -16,20 +15,20 @@ import (
 // staffNoticeRepository ist der mandantengebundene Datenzugriff für
 // Tagesinformationen (#2180). Timetable besitzt users.staff_notices und
 // users.staff_notice_acks; der Adapter bildet die Zeilen auf das
-// beibehaltene users.StaffNotice ab (#3220) und behält die Fehlerverträge des
+// beibehaltene schedule.StaffNotice ab (#3220) und behält die Fehlerverträge des
 // früheren generischen Repositorys bei.
 type staffNoticeRepository struct {
 	store *postgres.Store
 }
 
 // NewStaffNoticeRepository verdrahtet ein frisches Repository.
-func NewStaffNoticeRepository(db *bun.DB) users.StaffNoticeRepository {
+func NewStaffNoticeRepository(db *bun.DB) schedule.StaffNoticeRepository {
 	return staffNoticeRepository{store: postgres.New(databaseRuntime(db))}
 }
 
 // Create prüft und legt den Hinweis an; Id, Zeitstempel und Mandant kommen
 // aus der Datenbank bzw. dem Kontext zurück.
-func (r staffNoticeRepository) Create(ctx context.Context, notice *users.StaffNotice) error {
+func (r staffNoticeRepository) Create(ctx context.Context, notice *schedule.StaffNotice) error {
 	if notice == nil {
 		return fmt.Errorf("StaffNotice cannot be nil or zero value")
 	}
@@ -45,7 +44,7 @@ func (r staffNoticeRepository) Create(ctx context.Context, notice *users.StaffNo
 }
 
 // Update prüft und schreibt den Hinweis; genau eine Zeile muss sich ändern.
-func (r staffNoticeRepository) Update(ctx context.Context, notice *users.StaffNotice) error {
+func (r staffNoticeRepository) Update(ctx context.Context, notice *schedule.StaffNotice) error {
 	if notice == nil {
 		return fmt.Errorf("StaffNotice cannot be nil or zero value")
 	}
@@ -70,7 +69,7 @@ func (r staffNoticeRepository) Update(ctx context.Context, notice *users.StaffNo
 // FindByID gibt den Hinweis zurück oder nil, wenn es ihn (in diesem Mandanten)
 // nicht gibt. "Nicht da" ist hier kein Fehler, sondern die Antwort — der
 // Service macht daraus ErrNotFound.
-func (r staffNoticeRepository) FindByID(ctx context.Context, id int64) (*users.StaffNotice, error) {
+func (r staffNoticeRepository) FindByID(ctx context.Context, id int64) (*schedule.StaffNotice, error) {
 	row, found, err := r.store.FindStaffNotice(ctx, id)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
@@ -90,7 +89,7 @@ func (r staffNoticeRepository) Delete(ctx context.Context, id int64) error {
 }
 
 // List gibt die Hinweise des Mandanten zurück, neueste zuerst.
-func (r staffNoticeRepository) List(ctx context.Context, includeInactive bool) ([]*users.StaffNotice, error) {
+func (r staffNoticeRepository) List(ctx context.Context, includeInactive bool) ([]*schedule.StaffNotice, error) {
 	rows, err := r.store.ListStaffNotices(ctx, includeInactive)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list staff notices", Err: translateNotFound(err)}
@@ -106,13 +105,13 @@ func (r staffNoticeRepository) List(ctx context.Context, includeInactive bool) (
 //
 // Eine unbekannte Leserart liefert nichts: ein Portal, das sich nicht
 // ausweist, bekommt keinen breiteren Verteiler geschenkt.
-func (r staffNoticeRepository) ListValidOn(ctx context.Context, date calendar.Date, reader string) ([]*users.StaffNotice, error) {
-	if !users.ValidStaffNoticeReader(reader) {
-		return []*users.StaffNotice{}, nil
+func (r staffNoticeRepository) ListValidOn(ctx context.Context, date calendar.Date, reader string) ([]*schedule.StaffNotice, error) {
+	if !schedule.ValidStaffNoticeReader(reader) {
+		return []*schedule.StaffNotice{}, nil
 	}
 	// Wichtiges zuerst. Nicht nach der Spalte sortieren: alphabetisch käme
 	// 'info' vor 'important', der wichtige Hinweis stünde also unten.
-	rows, err := r.store.ListStaffNoticesValidOn(ctx, schedule.Date(date.String()), reader, users.StaffNoticeAudienceAll, users.StaffNoticePriorityImportant)
+	rows, err := r.store.ListStaffNoticesValidOn(ctx, schedule.Date(date.String()), reader, schedule.StaffNoticeAudienceAll, schedule.StaffNoticePriorityImportant)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list staff notices valid on date", Err: translateNotFound(err)}
 	}
@@ -180,21 +179,21 @@ func (r staffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeIDs
 // Die Verfasserin fehlt in der Liste aus demselben Grund wie im Zähler
 // (AcknowledgedCounts): ihre Kenntnisnahme ist beim Anlegen gestempelt, damit
 // der eigene Hinweis sie nicht fragt, aber gelesen hat sie ihn nicht.
-func (r staffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*users.StaffNoticeAck, error) {
+func (r staffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*schedule.StaffNoticeAck, error) {
 	rows, err := r.store.ListStaffNoticeAcks(ctx, noticeID)
 	if err != nil {
 		return nil, &modelBase.DatabaseError{Op: "list staff notice acknowledgements", Err: translateNotFound(err)}
 	}
-	acks := make([]*users.StaffNoticeAck, 0, len(rows))
+	acks := make([]*schedule.StaffNoticeAck, 0, len(rows))
 	for _, row := range rows {
-		ack := &users.StaffNoticeAck{NoticeID: row.NoticeID, AccountID: row.AccountID, AcknowledgedAt: row.AcknowledgedAt}
+		ack := &schedule.StaffNoticeAck{NoticeID: row.NoticeID, AccountID: row.AccountID, AcknowledgedAt: row.AcknowledgedAt}
 		ack.TenantID = row.TenantID
 		acks = append(acks, ack)
 	}
 	return acks, nil
 }
 
-func staffNoticeRow(notice *users.StaffNotice) *postgres.StaffNotice {
+func staffNoticeRow(notice *schedule.StaffNotice) *postgres.StaffNotice {
 	row := &postgres.StaffNotice{
 		Title:                   notice.Title,
 		Body:                    notice.Body,
@@ -218,8 +217,8 @@ func staffNoticeRow(notice *users.StaffNotice) *postgres.StaffNotice {
 	return row
 }
 
-func staffNoticeModel(row *postgres.StaffNotice) *users.StaffNotice {
-	notice := &users.StaffNotice{
+func staffNoticeModel(row *postgres.StaffNotice) *schedule.StaffNotice {
+	notice := &schedule.StaffNotice{
 		Title:                   row.Title,
 		Body:                    row.Body,
 		Priority:                row.Priority,
@@ -242,11 +241,11 @@ func staffNoticeModel(row *postgres.StaffNotice) *users.StaffNotice {
 	return notice
 }
 
-func staffNoticeModels(rows []*postgres.StaffNotice) []*users.StaffNotice {
+func staffNoticeModels(rows []*postgres.StaffNotice) []*schedule.StaffNotice {
 	if rows == nil {
 		return nil
 	}
-	notices := make([]*users.StaffNotice, 0, len(rows))
+	notices := make([]*schedule.StaffNotice, 0, len(rows))
 	for _, row := range rows {
 		notices = append(notices, staffNoticeModel(row))
 	}

@@ -1,4 +1,4 @@
-package users
+package schedule
 
 import (
 	"testing"

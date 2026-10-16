@@ -8,7 +8,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -66,8 +65,8 @@ type ConflictShifts interface {
 
 // ConflictStaffDirectory reads staff members with their person rows.
 type ConflictStaffDirectory interface {
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Staff, error)
-	ListAllWithPerson(ctx context.Context) ([]*usersModels.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
+	ListAllWithPerson(ctx context.Context) ([]*timetable.StaffMember, error)
 }
 
 // ConflictCalendarPeriods reads one calendar period; a missing period is a

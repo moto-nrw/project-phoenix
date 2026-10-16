@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -138,11 +137,11 @@ func TestWithCompletionConfirmationStoresClone(t *testing.T) {
 
 type studentReadScopeStub struct {
 	LifecycleStudents
-	byID map[int64]*usersModel.Student
+	byID map[int64]*timetable.LifecycleStudent
 }
 
-func (s studentReadScopeStub) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*usersModel.Student, error) {
-	out := make(map[int64]*usersModel.Student, len(ids))
+func (s studentReadScopeStub) FindReadScopeByIDs(_ context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error) {
+	out := make(map[int64]*timetable.LifecycleStudent, len(ids))
 	for _, id := range ids {
 		if student, ok := s.byID[id]; ok {
 			out[id] = student
@@ -156,11 +155,11 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 
 	broadcaster := &lifecycleEventRecorder{}
 	eduGroupID := int64(70)
-	student := &usersModel.Student{GroupID: &eduGroupID}
+	student := &timetable.LifecycleStudent{GroupID: &eduGroupID}
 	student.ID = 42
 	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
 		Broadcaster: broadcaster,
-		StudentRepo: studentReadScopeStub{byID: map[int64]*usersModel.Student{42: student}},
+		StudentRepo: studentReadScopeStub{byID: map[int64]*timetable.LifecycleStudent{42: student}},
 	}}
 
 	svc.broadcastRestoredVisits(testpkg.Ctx(t), 99, []int64{42})
