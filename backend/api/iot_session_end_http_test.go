@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
+	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/render"
