@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 2732
+const moduleLegacyBudgetTotal = 2731
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -240,7 +240,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/emergencysnapshot/legacy": 298,
 	// No ticket today.
-	"modules/facilities/compose/legacy": 518,
+	"modules/facilities/compose/legacy": 517,
 	// No ticket today. Two lines under the first seed: #3427 removed the
 	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
 	// replaced the user-context service with a local CallerContext port.

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"testing"
 
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -23,11 +22,11 @@ func (s occupancyGroupsStub) ListRoomOccupancy(context.Context, []int64) ([]Room
 }
 
 type activityProjectionStub struct {
-	groups []*activityModels.Group
+	groups map[int64]ActivityGroupName
 	err    error
 }
 
-func (s activityProjectionStub) ListWithCategory(context.Context, *activityModels.GroupListQuery) ([]*activityModels.Group, error) {
+func (s activityProjectionStub) ListActivityGroupNames(context.Context, []int64) (map[int64]ActivityGroupName, error) {
 	return s.groups, s.err
 }
 
@@ -58,9 +57,9 @@ func TestOccupancyProjectionBuildsStableBatchProjection(t *testing.T) {
 		RoomID: 2, ActivityGroupIDs: []int64{20, 10, 30}, StudentCount: 3,
 		SupervisorStaffIDs: []int64{7, 6, 7},
 	}}
-	activities := activityProjectionStub{groups: []*activityModels.Group{
-		activityGroup(20, "Zirkus", "Bewegung"),
-		activityGroup(10, "Atelier", "Kreativ"),
+	activities := activityProjectionStub{groups: map[int64]ActivityGroupName{
+		20: activityGroup("Zirkus", "Bewegung"),
+		10: activityGroup("Atelier", "Kreativ"),
 	}}
 	membership := membershipQueryStub{staff: []schoolmembership.Staff{{ID: 7, PersonID: 70}, {ID: 6, PersonID: 60}}}
 	persons := personQueryStub{people: []peopledirectory.Person{
@@ -107,10 +106,8 @@ func TestOccupancyProjectionPropagatesDependencyErrors(t *testing.T) {
 	}
 }
 
-func activityGroup(id int64, name, category string) *activityModels.Group {
-	group := &activityModels.Group{Name: name, Category: &activityModels.Category{Name: category}}
-	group.ID = id
-	return group
+func activityGroup(name, category string) ActivityGroupName {
+	return ActivityGroupName{Name: name, Category: &category}
 }
 
 func pointerValue(value *string) string {
