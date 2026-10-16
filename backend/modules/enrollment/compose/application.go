@@ -146,12 +146,12 @@ func NewCaptcha(settings CaptchaSettings, verifyURL string, logger *slog.Logger)
 
 // NotificationDependencies bind the parent mails to their owners.
 type NotificationDependencies struct {
+	Branding func(baseURL, schoolImageURL string) (schoolLogoURL, motoLogoURL string)
 	Modes    NotificationModePin
 	Settings NotificationSettings
 	Outbox   MailOutbox
 	Schools  enrollment.SchoolDirectory
-	// Fingerprint identifies a decision state for the outbox idempotency
-	// keys.
+	// Fingerprint identifies the decision state for outbox idempotency.
 	Fingerprint func(content []byte) string
 }
 
@@ -159,7 +159,7 @@ type NotificationDependencies struct {
 func NewNotifications(deps NotificationDependencies) enrollment.Notifications {
 	return application.NewNotifications(application.NotificationDependencies{
 		Modes: deps.Modes, Settings: deps.Settings, Outbox: deps.Outbox, Schools: deps.Schools,
-		Fingerprint: deps.Fingerprint,
+		Fingerprint: deps.Fingerprint, Branding: deps.Branding,
 	})
 }
 

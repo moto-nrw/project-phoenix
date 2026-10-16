@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -29,10 +28,10 @@ import (
 )
 
 type recordingAbsenceNotifier struct {
-	reports []notificationsService.AbsenceReport
+	reports []AbsenceReport
 }
 
-func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report notificationsService.AbsenceReport) error {
+func (n *recordingAbsenceNotifier) NotifyAbsenceReported(_ context.Context, report AbsenceReport) error {
 	n.reports = append(n.reports, report)
 	return nil
 }
@@ -841,6 +840,6 @@ func (fakeRowNotFoundError) RepositoryNotFound() {}
 func TestAbsenceStatusesAreDeliveryStatuses(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, absencerecords.StudentStatusDaySick, notificationsService.AbsenceStatusSick)
-	assert.Equal(t, absencerecords.StudentStatusDayExcused, notificationsService.AbsenceStatusExcused)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, "sick")
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, "excused")
 }
