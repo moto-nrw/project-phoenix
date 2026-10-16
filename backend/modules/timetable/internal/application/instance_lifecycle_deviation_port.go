@@ -4,12 +4,13 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // DeviationLifecycle is the lifecycle the deviation saves hand the
 // cancellation and the acknowledgement to; its errors pass through
 // unchanged.
-func (s *InstanceLifecycleService) DeviationLifecycle() DeviationLifecycle {
+func (s *InstanceLifecycleService) DeviationLifecycle() ports.DeviationLifecycle {
 	return deviationLifecycle{lifecycle: s}
 }
 
@@ -17,14 +18,14 @@ type deviationLifecycle struct {
 	lifecycle *InstanceLifecycleService
 }
 
-func (l deviationLifecycle) CancelBlock(ctx context.Context, in DeviationCancellation) (CancelledBlock, error) {
+func (l deviationLifecycle) CancelBlock(ctx context.Context, in ports.DeviationCancellation) (ports.CancelledBlock, error) {
 	cancelled, err := l.lifecycle.CancelWithNotice(ctx, timetable.CancelInstanceInput{
 		InstanceID: in.InstanceID, Reason: in.Reason, ActorAccountID: in.ActorAccountID, GuardianNotice: in.GuardianNotice,
 	})
 	if err != nil {
-		return CancelledBlock{}, err
+		return ports.CancelledBlock{}, err
 	}
-	return CancelledBlock{
+	return ports.CancelledBlock{
 		InstanceID: cancelled.Instance.ID, UnderstaffedAck: cancelled.Instance.UnderstaffedAck, GuardianNotice: cancelled.GuardianNotice,
 	}, nil
 }

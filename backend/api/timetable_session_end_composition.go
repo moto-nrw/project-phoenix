@@ -6,6 +6,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -28,7 +29,7 @@ func NewTimetableEndedSessionCompletion(rows timetableCompose.OwnerRows, careDay
 
 // newTimetableCareDays serves the Timetable owner's care-day port from Care
 // Plan's verdict and rules; nil when Care Plan is not wired.
-func newTimetableCareDays(query careplan.CareDayQuery) timetableCompose.CareDays {
+func newTimetableCareDays(query careplan.CareDayQuery) timetablePorts.CareDays {
 	if query == nil {
 		return nil
 	}

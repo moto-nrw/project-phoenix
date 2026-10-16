@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The Timetable owner's instance lifecycle (#3424 slice S1), bound to the
@@ -21,11 +22,11 @@ import (
 
 // NewTimetableLifecycle composes the instance lifecycle over the retained
 // rows and binds the collaborators the owner may not name.
-func NewTimetableLifecycle(in TimetableLifecycleInputs) (*timetableCompose.InstanceLifecycleService, error) {
+func NewTimetableLifecycle(in TimetableLifecycleInputs) (timetablePorts.InstanceLifecycle, error) {
 	if in.Rows.Locks == nil {
 		return nil, errors.New("timetable instance lifecycle: the recovery locks are required")
 	}
-	var settings timetableCompose.LifecycleSettings
+	var settings timetablePorts.LifecycleSettings
 	if in.Settings != nil {
 		settings = timetableOperationSettings{settings: in.Settings}
 	}
@@ -52,7 +53,7 @@ type timetableGuardianNotices struct {
 	publisher communication.CareCancellationPublisher
 }
 
-func newTimetableGuardianNotices(publisher communication.CareCancellationPublisher) timetableCompose.GuardianNotices {
+func newTimetableGuardianNotices(publisher communication.CareCancellationPublisher) timetablePorts.GuardianNotices {
 	if publisher == nil {
 		return nil
 	}
@@ -64,25 +65,25 @@ func (n timetableGuardianNotices) ValidateNoticeText(title, message string) erro
 	return err
 }
 
-func (n timetableGuardianNotices) NoticeReach(ctx context.Context, studentIDs []int64) (timetableCompose.GuardianNoticeAudience, error) {
+func (n timetableGuardianNotices) NoticeReach(ctx context.Context, studentIDs []int64) (timetablePorts.GuardianNoticeAudience, error) {
 	reach, err := n.publisher.CareCancellationReachFor(ctx, studentIDs)
 	if err != nil {
-		return timetableCompose.GuardianNoticeAudience{}, err
+		return timetablePorts.GuardianNoticeAudience{}, err
 	}
-	return timetableCompose.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
+	return timetablePorts.GuardianNoticeAudience{FamilyCount: reach.FamilyCount}, nil
 }
 
-func (n timetableGuardianNotices) PublishNotice(ctx context.Context, notice timetableCompose.GuardianNoticePublication) (timetableCompose.GuardianNoticePublished, error) {
+func (n timetableGuardianNotices) PublishNotice(ctx context.Context, notice timetablePorts.GuardianNoticePublication) (timetablePorts.GuardianNoticePublished, error) {
 	published, err := n.publisher.PublishCareCancellation(ctx, communication.CareCancellationInput{
 		StudentIDs: notice.StudentIDs, Title: notice.Title, Body: notice.Body, CreatedBy: notice.CreatedBy,
 	})
 	switch {
 	case errors.Is(err, communication.ErrParentAnnouncementValidation):
-		return timetableCompose.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
+		return timetablePorts.GuardianNoticePublished{}, fmt.Errorf("%w: %w", timetable.ErrGuardianNoticeInvalid, err)
 	case err != nil:
-		return timetableCompose.GuardianNoticePublished{}, err
+		return timetablePorts.GuardianNoticePublished{}, err
 	}
-	return timetableCompose.GuardianNoticePublished{AnnouncementID: published.AnnouncementID, RecipientCount: published.RecipientCount}, nil
+	return timetablePorts.GuardianNoticePublished{AnnouncementID: published.AnnouncementID, RecipientCount: published.RecipientCount}, nil
 }
 
 // timetableLifecycleBroadcaster delivers the lifecycle's events through the
@@ -91,14 +92,14 @@ type timetableLifecycleBroadcaster struct {
 	broadcaster realtime.Broadcaster
 }
 
-func newTimetableLifecycleBroadcaster(broadcaster realtime.Broadcaster) timetableCompose.LifecycleBroadcaster {
+func newTimetableLifecycleBroadcaster(broadcaster realtime.Broadcaster) timetablePorts.LifecycleBroadcaster {
 	if broadcaster == nil {
 		return nil
 	}
 	return timetableLifecycleBroadcaster{broadcaster: broadcaster}
 }
 
-func realtimeEventOf(event timetableCompose.LifecycleEvent) realtime.Event {
+func realtimeEventOf(event timetablePorts.LifecycleEvent) realtime.Event {
 	return realtime.NewEvent(realtime.EventType(event.Type), event.ActiveGroupID, realtime.EventData{
 		InstanceID:        event.InstanceID,
 		InstanceDate:      event.InstanceDate,
@@ -114,10 +115,10 @@ func realtimeEventOf(event timetableCompose.LifecycleEvent) realtime.Event {
 	})
 }
 
-func (b timetableLifecycleBroadcaster) BroadcastToGroup(tenantID int64, topic string, event timetableCompose.LifecycleEvent) error {
+func (b timetableLifecycleBroadcaster) BroadcastToGroup(tenantID int64, topic string, event timetablePorts.LifecycleEvent) error {
 	return b.broadcaster.BroadcastToGroup(tenantID, topic, realtimeEventOf(event))
 }
 
-func (b timetableLifecycleBroadcaster) BroadcastToTenant(tenantID int64, event timetableCompose.LifecycleEvent) error {
+func (b timetableLifecycleBroadcaster) BroadcastToTenant(tenantID int64, event timetablePorts.LifecycleEvent) error {
 	return b.broadcaster.BroadcastToTenant(tenantID, realtimeEventOf(event))
 }

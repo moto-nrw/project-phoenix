@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 56,
+  "policy_epoch": 57,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5343,17 +5343,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-plan.port.care-plan.public",
-      "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "port",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "care-plan.port.care-plan.contract",
       "description": "Native Care Plan capability after complete retirement of inbound-schedules (#3351, ADR 0030).",
       "scopes": [
@@ -5451,6 +5440,17 @@
       "source_role": "e2e-test",
       "target_owner": "timetable-activities",
       "target_role": "compose"
+    },
+    {
+      "id": "care-plan.contracttest.timetable-activities.port",
+      "description": "The Care Plan contract suite names the Timetable dependency types its compose reach builds with (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "e2e-test",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
     },
     {
       "id": "care-plan.contracttest.identity-access.adapter",
@@ -6787,6 +6787,17 @@
       ],
       "source_owner_kind": "domain",
       "source_role": "application",
+      "target_role": "public",
+      "same_owner": true
+    },
+    {
+      "id": "domain.port-public",
+      "description": "domain ports may use their own public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "domain",
+      "source_role": "port",
       "target_role": "public",
       "same_owner": true
     },
@@ -8670,6 +8681,28 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
+    },
+    {
+      "id": "timetable-activities.port.legacy-model",
+      "description": "Timetable & Activities ports name the schedule and activity rows of the owner's legacy models in their dependency types (ADR 0058 addendum point 5, #4084); #4086 dissolves models/schedule and models/activities and with them this rule. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_owner": "timetable-activities",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "timetable-activities.port.student-presence.public",
+      "description": "Timetable & Activities ports name student-presence public values in their dependency types (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "port",
+      "target_owner": "student-presence",
+      "target_role": "public"
     },
     {
       "id": "timetable-activities.compose.orm-sql",
@@ -13924,6 +13957,16 @@
       "source_owner": "root-composition",
       "target_owner_kind": "domain",
       "target_role": "public"
+    },
+    {
+      "id": "root-composition.reach.domain.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every domain owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "domain",
+      "target_role": "port"
     },
     {
       "id": "root-composition.reach.internal-test.domain.public",

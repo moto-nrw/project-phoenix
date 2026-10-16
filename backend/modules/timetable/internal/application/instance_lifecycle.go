@@ -7,11 +7,10 @@ import (
 	"log/slog"
 	"time"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -34,133 +33,29 @@ import (
 // Änderungsprotokoll, Security Runtime's content fingerprint and the
 // realtime hub.
 
-// LifecyclePresence is the Student Presence slice the transitions read and
-// move live state through.
-type LifecyclePresence interface {
-	ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error)
-	QueryGroupSupervisions(ctx context.Context, filter studentpresence.GroupSupervisionFilter) ([]studentpresence.GroupSupervision, error)
-	TransferOpenVisits(ctx context.Context, fromGroupID, toGroupID int64) (int64, error)
-	// EndGroup releases an absorbed unsupervised group after its visits
-	// moved to the started block's group (#2697).
-	EndGroup(ctx context.Context, groupID int64, endedAt time.Time) error
-	CountOpenVisitsInRoom(ctx context.Context, roomID int64) (int, error)
-}
-
-// SessionEnder ends the Student Presence session of a block: visits and
-// supervisors close and the checkout events fire.
-type SessionEnder interface {
-	EndActivitySession(ctx context.Context, activeGroupID int64) error
-}
-
-// LifecycleRooms is the consumer-owned port to the Facilities rooms the
-// lifecycle validates, locks and names.
-type LifecycleRooms interface {
-	// RoomName names one room; ok is false when it does not exist. A
-	// missing room may also surface as a not-found error.
-	RoomName(ctx context.Context, id int64) (name string, ok bool, err error)
-	// RoomNamesByID names the given rooms; a missing room is absent.
-	RoomNamesByID(ctx context.Context, ids []int64) (map[int64]string, error)
-	// LockRoom takes the room's row lock. ok is false when the room does
-	// not exist; a nil capacity is unlimited.
-	LockRoom(ctx context.Context, id int64) (capacity *int, ok bool, err error)
-}
-
-// CareDayLocks takes Care Plan's student → care-day lock a roster rewrite
-// holds before it touches attendance rows.
-type CareDayLocks interface {
-	LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error
-}
-
-// LifecycleSettings is the Settings Platform's clock policy of the
-// transitions.
-type LifecycleSettings interface {
-	// StartLeadMinutes is timetable.start_lead_minutes.
-	StartLeadMinutes(ctx context.Context) (int, error)
-	// EnforcePlannedEnd is timetable.enforce_planned_end.
-	EnforcePlannedEnd(ctx context.Context) (bool, error)
-	// CompleteLeadMinutes is timetable.complete_lead_minutes.
-	CompleteLeadMinutes(ctx context.Context) (int, error)
-}
-
-// LifecycleStaff are the staff rows the instance lifecycle resolves the
-// block's staff and the creator through.
-type LifecycleStaff interface {
-	FindByID(ctx context.Context, id any) (*timetable.StaffMember, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
-	FindWithPerson(ctx context.Context, id int64) (*timetable.StaffMember, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.StaffMember, error)
-}
-
-// LifecycleStudents reads and locks the children the instance lifecycle
-// checks and announces.
-type LifecycleStudents interface {
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
-	FindByIDsForUpdate(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
-	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.LifecycleStudent, error)
-}
-
-// InstanceLifecycleDependencies wires the lifecycle. Broadcaster and
-// GuardianNotices are optional (nil announces nothing and refuses every
-// notice); Settings is required with EnforceTimePolicy; Logger and Now
-// default. Every other field is required.
-type InstanceLifecycleDependencies struct {
-	InstanceRepo        scheduleModel.ActivityInstanceRepository
-	IdempotencyRepo     scheduleModel.InstanceIdempotencyRepository
-	InstanceStaffRepo   scheduleModel.InstanceStaffRepository
-	InstanceStudents    scheduleModel.InstanceStudentRepository
-	ExceptionRepo       scheduleModel.ActivityExceptionRepository
-	CalendarPeriodRepo  scheduleModel.CalendarPeriodRepository
-	RecoveryRepo        scheduleModel.ActivityRecoveryRepository
-	ActivityGroupRepo   activitiesModel.GroupRepository
-	StaffRepo           LifecycleStaff
-	StudentRepo         LifecycleStudents
-	ActiveGroupRepo     studentpresence.SessionRecords
-	SupervisorRepo      studentpresence.SupervisionRecords
-	Presence            LifecyclePresence
-	ActiveService       SessionEnder
-	Rooms               LifecycleRooms
-	CareDays            CareDays
-	CareDayLocks        CareDayLocks
-	Protocol            DeviationProtocol
-	GuardianNotices     GuardianNotices
-	Broadcaster         LifecycleBroadcaster
-	Settings            LifecycleSettings
-	Materialization     timetable.MaterializationCapability
-	RecurrenceLock      timetable.RecurrenceWriteLock
-	StartConflicts      timetable.StartConflictQuery
-	SubstituteConflicts timetable.SubstituteConflictQuery
-	// ContentHash is Security Runtime's content fingerprint (hex SHA-256)
-	// of an idempotent create request.
-	ContentHash       func([]byte) string
-	Database          TenantDatabase
-	Logger            *slog.Logger
-	Now               func() time.Time
-	EnforceTimePolicy bool
-}
-
 // InstanceLifecycleService is the Timetable owner's instance lifecycle.
 type InstanceLifecycleService struct {
-	deps InstanceLifecycleDependencies
+	deps ports.InstanceLifecycleDependencies
 }
 
 var _ timetable.InstanceLifecycleCapability = (*InstanceLifecycleService)(nil)
 
 // NewInstanceLifecycle composes the lifecycle. The transitions have no
 // degraded mode, so a missing required collaborator fails composition.
-func NewInstanceLifecycle(deps InstanceLifecycleDependencies) (*InstanceLifecycleService, error) {
+func NewInstanceLifecycle(deps ports.InstanceLifecycleDependencies) (*InstanceLifecycleService, error) {
 	if !lifecycleRepositoriesWired(deps) || !lifecycleCollaboratorsWired(deps) || (deps.EnforceTimePolicy && deps.Settings == nil) {
 		return nil, errors.New("timetable instance lifecycle: required dependency is nil")
 	}
 	return &InstanceLifecycleService{deps: deps}, nil
 }
 
-func lifecycleRepositoriesWired(deps InstanceLifecycleDependencies) bool {
+func lifecycleRepositoriesWired(deps ports.InstanceLifecycleDependencies) bool {
 	return deps.InstanceRepo != nil && deps.IdempotencyRepo != nil && deps.InstanceStaffRepo != nil &&
 		deps.InstanceStudents != nil && deps.ExceptionRepo != nil && deps.CalendarPeriodRepo != nil &&
 		deps.RecoveryRepo != nil && deps.ActivityGroupRepo != nil && deps.StaffRepo != nil && deps.StudentRepo != nil
 }
 
-func lifecycleCollaboratorsWired(deps InstanceLifecycleDependencies) bool {
+func lifecycleCollaboratorsWired(deps ports.InstanceLifecycleDependencies) bool {
 	return deps.ActiveGroupRepo != nil && deps.SupervisorRepo != nil && deps.Presence != nil && deps.ActiveService != nil &&
 		deps.Rooms != nil && deps.CareDays != nil && deps.CareDayLocks != nil && deps.Protocol != nil &&
 		deps.Materialization != nil && deps.RecurrenceLock != nil && deps.StartConflicts != nil &&
@@ -170,7 +65,7 @@ func lifecycleCollaboratorsWired(deps InstanceLifecycleDependencies) bool {
 // SeriesDeviations exposes the re-plan's deviation snapshot and reapply
 // machinery (#1840) to the template split, which preserves Vertretungsplan
 // overrides with it.
-func (s *InstanceLifecycleService) SeriesDeviations() SeriesDeviations {
+func (s *InstanceLifecycleService) SeriesDeviations() ports.SeriesDeviations {
 	return seriesDeviationPreserver{lifecycle: s}
 }
 
@@ -243,7 +138,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLockPair(ctx context.Cont
 func (s *InstanceLifecycleService) lockDayAndReload(ctx context.Context, instance *scheduleModel.ActivityInstance, op string) (*scheduleModel.ActivityInstance, error) {
 	lockedDate := instance.Date
 	if err := s.acquireSubstituteDayLock(ctx, calendar.Date(lockedDate)); err != nil {
-		return nil, &ScheduleError{Op: op + ": lock day", Err: err}
+		return nil, &ports.ScheduleError{Op: op + ": lock day", Err: err}
 	}
 	reloaded, err := s.loadForTransition(ctx, instance.ID)
 	if err != nil {
@@ -266,7 +161,7 @@ func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx contex
 		return nil
 	}
 	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
-		return &ScheduleError{Op: op + ": lock recurrence", Err: err}
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil
 }
@@ -280,7 +175,7 @@ func (s *InstanceLifecycleService) loadForTransition(ctx context.Context, instan
 		if domain.IsRecordNotFound(err) {
 			return nil, timetable.ErrInstanceNotFound
 		}
-		return nil, &ScheduleError{Op: "load instance", Err: err}
+		return nil, &ports.ScheduleError{Op: "load instance", Err: err}
 	}
 	if instance == nil {
 		return nil, timetable.ErrInstanceNotFound
@@ -310,11 +205,11 @@ func (s *InstanceLifecycleService) GetPlannedStudentIDsByDate(ctx context.Contex
 // error classification: a failed read aborts the transition.
 func detectStartConflicts(ctx context.Context, query timetable.StartConflictQuery, instance *scheduleModel.ActivityInstance) ([]timetable.InstanceConflictWarning, error) {
 	if query == nil {
-		return nil, &ScheduleError{Op: "detect start conflicts", Err: errors.New("start conflict detection is not configured")}
+		return nil, &ports.ScheduleError{Op: "detect start conflicts", Err: errors.New("start conflict detection is not configured")}
 	}
 	warnings, err := query.DetectStartConflicts(ctx, timetable.StartConflictSubject{InstanceID: instance.ID, RoomID: instance.RoomID})
 	if err != nil {
-		return nil, &ScheduleError{Op: "detect start conflicts", Err: err}
+		return nil, &ports.ScheduleError{Op: "detect start conflicts", Err: err}
 	}
 	return warnings, nil
 }

@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -17,7 +18,7 @@ import (
 func TestNewInstanceSeriesConversion_RejectsNilDeps(t *testing.T) {
 	t.Parallel()
 
-	svc, err := NewInstanceSeriesConversion(InstanceSeriesConversionDependencies{})
+	svc, err := NewInstanceSeriesConversion(ports.InstanceSeriesConversionDependencies{})
 	require.Error(t, err)
 	assert.Nil(t, svc)
 }

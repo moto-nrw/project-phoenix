@@ -8,6 +8,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -109,7 +110,7 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	assert.Equal(t, "timetable attendance validation failed", (&timetable.AttendanceValidationError{}).Error())
 
-	_, err := NewOperations(OperationDependencies{}, sessionlessCaller{})
+	_, err := NewOperations(ports.OperationDependencies{}, sessionlessCaller{})
 	require.Error(t, err, "a composition without its required ports must not build")
 
 	deps := newTimetableOpsDeps()

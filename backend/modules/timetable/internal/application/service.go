@@ -5,21 +5,21 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 )
 
 type Service struct {
-	store               ports.Store
-	tx                  ports.Transaction
-	students            ports.StudentDirectory
-	rooms               ports.RoomDirectory
-	sessions            ports.SessionFacts
+	store               internalports.Store
+	tx                  internalports.Transaction
+	students            internalports.StudentDirectory
+	rooms               internalports.RoomDirectory
+	sessions            internalports.SessionFacts
 	today               func() string
-	observe             ports.Observer
+	observe             internalports.Observer
 	lockStaffAssignment func(context.Context, int64) error
 }
 
-func New(store ports.Store, tx ports.Transaction, students ports.StudentDirectory, rooms ports.RoomDirectory, sessions ports.SessionFacts, lockStaffAssignment func(context.Context, int64) error, today func() string, observe ports.Observer) *Service {
+func New(store internalports.Store, tx internalports.Transaction, students internalports.StudentDirectory, rooms internalports.RoomDirectory, sessions internalports.SessionFacts, lockStaffAssignment func(context.Context, int64) error, today func() string, observe internalports.Observer) *Service {
 	if store == nil || tx == nil || students == nil || rooms == nil || sessions == nil || lockStaffAssignment == nil || today == nil || observe == nil {
 		panic("timetable application: all dependencies are required")
 	}
@@ -516,7 +516,7 @@ func (s *Service) EndStudentEnrollmentsForCareExit(ctx context.Context, studentI
 
 // RestoreStudentEnrollmentsForCareExit restores a cancelled care exit's
 // enrollments through the provenance store.
-func RestoreStudentEnrollmentsForCareExit(ctx context.Context, s *Service, store ports.EnrollmentProvenanceStore, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (result int, err error) {
+func RestoreStudentEnrollmentsForCareExit(ctx context.Context, s *Service, store internalports.EnrollmentProvenanceStore, studentIDs, periodIDs []int64, removals []domain.CareExitEnrollmentRemoval) (result int, err error) {
 	err = s.runWrite(ctx, "restore_student_enrollments_for_care_exit", true, func(txCtx context.Context, stats *domain.OperationStats) error {
 		rows, queryStats, restoreErr := store.RestoreStudentEnrollmentsForCareExit(txCtx, studentIDs, periodIDs, removals)
 		stats.Add(queryStats)
@@ -558,7 +558,7 @@ func (s *Service) run(operation string, callback func(*domain.OperationStats) er
 	started := time.Now()
 	stats := domain.OperationStats{}
 	err = callback(&stats)
-	s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+	s.observe(internalports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	return err
 }
 
@@ -568,6 +568,6 @@ func (s *Service) runWrite(ctx context.Context, operation string, retry bool, ca
 	err = s.tx.RunWrite(ctx, retry, func(txCtx context.Context) error {
 		return callback(txCtx, &stats)
 	})
-	s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+	s.observe(internalports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	return err
 }
