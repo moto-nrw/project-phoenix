@@ -217,7 +217,7 @@ printf "  ${YELLOW}⚠ Save these credentials! They won't be shown again.${NC}\n
 echo ""
 printf "${BOLD}Next steps:${NC}\n"
 echo "  1. scripts/dev-native.sh up"
-echo "  2. scripts/dev-native.sh backend go run . seed \\"
+echo "  2. scripts/dev-native.sh backend go run ./cmd/devtools seed \\"
 echo "       --email $OPERATOR_EMAIL \\"
 echo "       --password '$OPERATOR_PASSWORD' \\"
 echo "       --pin 1234 \\"

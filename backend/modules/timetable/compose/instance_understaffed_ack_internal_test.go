@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -34,7 +34,7 @@ func (r *deleteUnitInstanceRepo) UpdateColumns(_ context.Context, _ *scheduleMod
 }
 
 func ackUnitInstance(ack bool) *scheduleModel.ActivityInstance {
-	inst := deleteUnitInstance(700, nil, timezone.NewDate(2026, 7, 5), scheduleModel.InstanceStatusPlanned, false)
+	inst := deleteUnitInstance(700, nil, calendar.NewDate(2026, 7, 5), scheduleModel.InstanceStatusPlanned, false)
 	inst.UnderstaffedAck = ack
 	note := "keine Vertretung"
 	inst.UnderstaffedNote = &note

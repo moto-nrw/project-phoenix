@@ -1,7 +1,7 @@
 package timetracking
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Employment types a staff row may carry; mirrors the legacy model constants,
@@ -23,5 +23,5 @@ const (
 type StaffScheduleBinding struct {
 	ID                 int64
 	WorkTimeModelID    *int64
-	RotationAnchorDate *timezone.Date
+	RotationAnchorDate *calendar.Date
 }

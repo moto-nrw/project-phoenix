@@ -4,10 +4,9 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,7 +29,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Raum 12")
 	group := testpkg.CreateTestActivityGroup(t, db, "Lernzeit")
 
-	date := timezone.NewDate(2026, 3, 10)
+	date := calendar.NewDate(2026, 3, 10)
 
 	// A normal planned block with a template (group + room).
 	lernzeit := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
@@ -57,7 +56,7 @@ func TestStaffAssignmentServiceListForStaff(t *testing.T) {
 	service := planning.NewStaffAssignmentService(planning.StaffAssignmentDependencies{
 		InstanceStaffRepo:    timetableRepos.InstanceStaffReads(),
 		ActivityInstanceRepo: timetableRepos.InstanceReads(),
-		RoomRepo:             api.NewRoomRepository(owners.Rooms),
+		RoomRepo:             api.NewTimetableRoomNames(owners.Rooms),
 		ActivityGroupRepo:    timetableRepos.GroupReads(),
 	}, nil)
 	ctx := testpkg.TenantContext(tenantID)

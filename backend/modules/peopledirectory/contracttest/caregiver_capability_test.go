@@ -9,12 +9,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -150,10 +147,10 @@ func loadLatestAuthEvent(
 	db *bun.DB,
 	accountID int64,
 	eventType string,
-) *auditModels.AuthEvent {
+) *testpkg.AuthEvent {
 	t.Helper()
 
-	var event auditModels.AuthEvent
+	var event testpkg.AuthEvent
 	err := db.NewSelect().
 		Model(&event).
 		ModelTableExpr(`audit.auth_events AS "auth_event"`).
@@ -242,15 +239,15 @@ func insertPlannedSupervisor(
 	tenantID int64,
 	staffID int64,
 	groupID int64,
-) *activitiesModels.SupervisorPlanned {
+) *testpkg.ActivitySupervisor {
 	t.Helper()
 
-	supervisor := &activitiesModels.SupervisorPlanned{
+	supervisor := &testpkg.ActivitySupervisor{
+		TenantID:  tenantID,
 		StaffID:   staffID,
 		GroupID:   groupID,
 		IsPrimary: true,
 	}
-	supervisor.SetTenantID(tenantID)
 
 	err := db.NewInsert().
 		Model(supervisor).
@@ -315,7 +312,7 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 		t,
 		db,
 		account.ID,
-		auditModels.EventTypeCaregiverCapabilityEnabled,
+		testpkg.AuditEventTypeCaregiverCapabilityEnabled,
 	)
 	assert.Equal(t, "0.0.0.0", event.IPAddress)
 	assert.Equal(t, float64(91), event.Metadata["actor_account_id"])
@@ -372,7 +369,7 @@ func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *tes
 		t,
 		db,
 		account.ID,
-		auditModels.EventTypeCaregiverCapabilityDisabled,
+		testpkg.AuditEventTypeCaregiverCapabilityDisabled,
 	)
 	assert.Equal(t, "0.0.0.0", event.IPAddress)
 	assert.Equal(t, float64(92), event.Metadata["actor_account_id"])
@@ -564,8 +561,8 @@ func TestCaregiverCapability_DisableReturnsDetailedBlockers(t *testing.T) {
 		group.ID,
 		nil,
 		teacher.Staff.ID,
-		timezone.TodayDate().AddDays(-1),
-		timezone.TodayDate().AddDays(1),
+		calendar.TodayDate().AddDays(-1),
+		calendar.TodayDate().AddDays(1),
 	)
 
 	insertPlannedSupervisor(

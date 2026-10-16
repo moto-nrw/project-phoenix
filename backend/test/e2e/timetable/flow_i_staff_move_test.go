@@ -11,7 +11,7 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,7 +23,7 @@ func TestFlowI_StaffPoolAndAtomicMove(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	date := timezone.TodayDate().AddDays(7)
+	date := calendar.TodayDate().AddDays(7)
 	room := testpkg.CreateTestRoom(t, s.db, "Flow-I-Raum")
 	mover := testpkg.CreateTestStaff(t, s.db, "Ina", "Umzieherin")
 	free := testpkg.CreateTestStaff(t, s.db, "Frido", "Verfuegbar")

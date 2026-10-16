@@ -3,7 +3,7 @@ package studentpresence
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // HistoryInstanceCancelled is the status of a history slot whose block
@@ -17,7 +17,7 @@ type HistorySlot struct {
 
 type HistorySlotInstance struct {
 	ID        int64
-	Date      timezone.Date
+	Date      calendar.Date
 	Title     string
 	Status    string
 	StartTime time.Time

@@ -8,8 +8,8 @@ import (
 	"time"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 )
 
 // Submit stores a submission: in one transaction the request, its children,

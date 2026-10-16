@@ -13,18 +13,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -168,7 +163,7 @@ func (s fixedCalDAVSettings) EnabledForTenant(context.Context, int64) (bool, err
 }
 
 func wallClock(h, m int) time.Time {
-	return timezone.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
+	return calendar.NormalizeWallClock(time.Date(2024, 1, 1, h, m, 0, 0, time.UTC))
 }
 
 func eventDates(events []calendarSvc.Event, source string) []string {
@@ -446,8 +441,8 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, outbox.enqueued, 1)
 	published := outbox.enqueued[0]
-	assert.Equal(t, platformModels.EmailKindAppointmentPublished, published.Kind)
-	assert.Equal(t, platformModels.EmailRelatedTypeAppointment, published.RelatedEntityType)
+	assert.Equal(t, emailKindAppointmentPublished, published.Kind)
+	assert.Equal(t, emailRelatedTypeAppointment, published.RelatedEntityType)
 	assert.Equal(t, detail.Appointment.ID, published.RelatedEntityID)
 	assert.Equal(t, "Elternabend", published.Payload["title"])
 	assert.NotEmpty(t, published.Payload["recipient_email"])
@@ -457,7 +452,7 @@ func TestCalendarServiceIntegration_GuardianNotifications(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, outbox.cancelled, "cancel should clear pending mail once")
 	require.Len(t, outbox.enqueued, 2)
-	assert.Equal(t, platformModels.EmailKindAppointmentCancelled, outbox.enqueued[1].Kind)
+	assert.Equal(t, emailKindAppointmentCancelled, outbox.enqueued[1].Kind)
 }
 
 func TestCalendarServiceIntegration_CancelHonoursEmailOptOutAndTransition(t *testing.T) {
@@ -734,8 +729,8 @@ func TestCalendarServiceIntegration_StaffSubscriptionFeed(t *testing.T) {
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Mitarbeiter")
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Teamsitzung",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(7),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(7),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(7),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(7),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -788,8 +783,8 @@ func TestCalendarServiceIntegration_StaffCalDAVUsesSharedReadOnlyProjectionAndTo
 	_, account := testpkg.CreateTestCalendarStaff(t, db, "CalDAV", "Mitarbeiter")
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "CalDAV Teamsitzung",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(7),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(7),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(7),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(7),
 		StartTime:    wallClock(14, 0),
 		EndTime:      wallClock(15, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -962,7 +957,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionMatchesPersonalCalendarWith
 	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Quellen")
-	day := calendarSvc.Date(timezone.TodayDate()).AddDays(7)
+	day := calendarSvc.Date(calendar.TodayDate()).AddDays(7)
 	privateAppointmentDescription := "Besprechung zu Kind Mia Muster"
 	appointmentLocation := "Teamraum"
 	_, err := service.CreateStaffAppointment(calendarContext(t, account.ID), calendarSvc.CreateAppointmentRequest{
@@ -1020,7 +1015,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsRemovedScheduleEvent
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Entfernt")
 	otherStaff, _ := testpkg.CreateTestCalendarStaff(t, db, "Andere", "Person")
-	day := calendarSvc.Date(timezone.TodayDate()).AddDays(7)
+	day := calendarSvc.Date(calendar.TodayDate()).AddDays(7)
 	room := testpkg.CreateTestRoom(t, db, "Tombstone-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "10:00",
@@ -1068,7 +1063,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 	service := api.NewCalendarPortal(cfg)
 
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Feed", "Alte Absage")
-	day := calendarSvc.Date(timezone.TodayDate()).AddDays(-60)
+	day := calendarSvc.Date(calendar.TodayDate()).AddDays(-60)
 	room := testpkg.CreateTestRoom(t, db, "Alter Tombstone-Raum")
 	instance := testpkg.CreateTestActivityInstance(t, db, day, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "10:00",
@@ -1091,7 +1086,7 @@ func TestCalendarServiceIntegration_StaffSubscriptionRetainsCancelledScheduleEve
 
 	_, err = db.NewUpdate().
 		Table("schedule.activity_instances").
-		Set("status = ?", scheduleModels.InstanceStatusCancelled).
+		Set("status = ?", testpkg.ScheduleInstanceStatusCancelled).
 		Where("tenant_id = ?", testpkg.Tenant(t)).
 		Where("id = ?", instance.ID).
 		Exec(testpkg.Ctx(t))
@@ -1391,7 +1386,7 @@ func TestCalendarServiceIntegration_CancelledTombstoneSurvivesLookbackWindow(t *
 
 	// A guardian-facing appointment whose date is already far beyond the feed's
 	// 30-day lookback, so the live feed query never returns it.
-	pastDate := calendarSvc.Date(timezone.TodayDate()).AddDays(-60)
+	pastDate := calendarSvc.Date(calendar.TodayDate()).AddDays(-60)
 	detail, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Vergangener Termin",
 		StartDate:    pastDate,
@@ -1477,7 +1472,7 @@ func TestCalendarServiceIntegration_AllSchoolParentsExcludesInactiveStudents(t *
 	// Mark the second family's child as a former (inactive) student.
 	_, err := db.NewUpdate().
 		Table("users.student_school_memberships").
-		Set("status = ?", string(userModels.StudentStatusInactive)).
+		Set("status = ?", testpkg.StudentStatusInactive).
 		Where("student_profile_id = ? AND deleted_at IS NULL", formerChain.StudentID).
 		Exec(context.Background())
 	require.NoError(t, err)
@@ -1723,22 +1718,22 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		inactiveParentChain.TenantID,
 	)
 	require.NoError(t, err)
-	invisibleGuardian := &userModels.GuardianProfile{
+	invisibleGuardian := &testpkg.GuardianProfile{
+		TenantID:               testpkg.Tenant(t),
 		FirstName:              "Hidden",
 		LastName:               "Target",
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	invisibleGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
-	accountlessGuardian := &userModels.GuardianProfile{
+	accountlessGuardian := &testpkg.GuardianProfile{
+		TenantID:               testpkg.Tenant(t),
 		FirstName:              "Accountless",
 		LastName:               "Target",
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	accountlessGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err = db.NewInsert().Model(accountlessGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
 	accountlessLink := &testpkg.StudentGuardian{
@@ -1746,8 +1741,7 @@ func TestCalendarServiceIntegration_RecipientOptionsAndGroupedTargets(t *testing
 		GuardianProfileID: accountlessGuardian.ID,
 		RelationshipType:  "parent",
 	}
-	accountlessLink.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRoleLegalGuardian)
-	accountlessLink.Permissions = authorize.StudentGuardianPermissionSet(accountlessLink.GuardianRole)
+	testpkg.ApplyStudentGuardianRole(accountlessLink, testpkg.GuardianRoleLegalGuardian)
 	accountlessLink.TenantID = testpkg.Tenant(t)
 	require.NoError(t, testpkg.InsertTestStudentGuardian(context.Background(), db, accountlessLink))
 
@@ -1839,13 +1833,13 @@ func TestCalendarServiceIntegration_InvalidCreateTargets(t *testing.T) {
 	foreignTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	otherTenantStaff := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Other", "Tenant")
-	invisibleGuardian := &userModels.GuardianProfile{
+	invisibleGuardian := &testpkg.GuardianProfile{
+		TenantID:               testpkg.Tenant(t),
 		FirstName:              "No",
 		LastName:               "Portal",
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	invisibleGuardian.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().Model(invisibleGuardian).ModelTableExpr(`users.guardian_profiles`).Exec(context.Background())
 	require.NoError(t, err)
 
@@ -2314,11 +2308,11 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 	service := setupCalendarService(t, db)
 	staff, account := testpkg.CreateTestCalendarStaff(t, db, "Shift", "Staff")
 
-	shiftType := &scheduleModels.ShiftType{Name: "Frühdienst", Color: "#F78C10", IsActive: true}
-	shiftType.SetTenantID(testpkg.Tenant(t))
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_, err := db.NewInsert().Model(shiftType).ModelTableExpr(`schedule.shift_types`).Exec(ctx)
+	var shiftTypeID int64
+	err := db.NewRaw(`INSERT INTO schedule.shift_types (tenant_id, name, color, description, is_active)
+		VALUES (?, ?, ?, '', true) RETURNING id`, testpkg.Tenant(t), "Frühdienst", "#F78C10").Scan(ctx, &shiftTypeID)
 	require.NoError(t, err)
 
 	day := portalDate(2026, 5, 4)
@@ -2326,7 +2320,7 @@ func TestCalendarServiceIntegration_StaffCalendarIncludesShifts(t *testing.T) {
 		StartHHMM:   "08:00",
 		EndHHMM:     "12:00",
 		Notes:       "Vertretung Gruppe B",
-		ShiftTypeID: &shiftType.ID,
+		ShiftTypeID: &shiftTypeID,
 	})
 	testpkg.CreateTestStaffShift(t, db, staff.ID, day, testpkg.StaffShiftOpts{
 		StartHHMM: "13:00",
@@ -2394,8 +2388,8 @@ func TestCalendarServiceIntegration_FeedRejectsInactiveAccount(t *testing.T) {
 
 	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Elterninfo",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(3),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(3),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(3),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(3),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,
@@ -2590,7 +2584,7 @@ func TestCalendarServiceIntegration_UpdateCancelsPendingNotifications(t *testing
 	require.NoError(t, err)
 	assert.Equal(t, 2, outbox.cancelled)
 	require.Len(t, outbox.enqueued, 2)
-	assert.Equal(t, platformModels.EmailKindAppointmentUpdated, outbox.enqueued[1].Kind)
+	assert.Equal(t, emailKindAppointmentUpdated, outbox.enqueued[1].Kind)
 	require.NoError(t, db.NewSelect().
 		TableExpr(`calendar.appointments AS "appointment"`).
 		ColumnExpr(`"appointment".notify_guardians`).
@@ -2637,7 +2631,7 @@ func TestCalendarServiceIntegration_UpdateRetainsGuardianNotificationsWhenSendEm
 	require.NoError(t, err)
 	assert.Equal(t, 1, outbox.cancelled, "update must cancel the stale pending mail")
 	require.Len(t, outbox.enqueued, 2, "omitting send_email must retain guardian notifications")
-	assert.Equal(t, platformModels.EmailKindAppointmentUpdated, outbox.enqueued[1].Kind)
+	assert.Equal(t, emailKindAppointmentUpdated, outbox.enqueued[1].Kind)
 }
 
 // The notification e-mail must advertise the first real occurrence, not the raw
@@ -2989,7 +2983,7 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	// A weekly series bounded by occurrence_count=3, starting 200 days ago: all
 	// three occurrences are well before the feed's 30-day lookback.
 	count := 3
-	pastStart := calendarSvc.Date(timezone.TodayDate()).AddDays(-200)
+	pastStart := calendarSvc.Date(calendar.TodayDate()).AddDays(-200)
 	_, err := service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Abgelaufene Reihe",
 		StartDate:    pastStart,
@@ -3011,8 +3005,8 @@ func TestCalendarServiceIntegration_FeedSkipsExpiredCountBoundedSeries(t *testin
 	// A current appointment inside the feed window.
 	_, err = service.CreateStaffAppointment(calendarContext(t, organizerAccount.ID), calendarSvc.CreateAppointmentRequest{
 		Title:        "Aktueller Termin",
-		StartDate:    calendarSvc.Date(timezone.TodayDate()).AddDays(5),
-		EndDate:      calendarSvc.Date(timezone.TodayDate()).AddDays(5),
+		StartDate:    calendarSvc.Date(calendar.TodayDate()).AddDays(5),
+		EndDate:      calendarSvc.Date(calendar.TodayDate()).AddDays(5),
 		StartTime:    wallClock(15, 0),
 		EndTime:      wallClock(16, 0),
 		DeliveryMode: calModels.DeliveryModeInformational,

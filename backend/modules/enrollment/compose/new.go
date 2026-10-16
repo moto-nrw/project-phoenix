@@ -18,7 +18,11 @@ func New() *enrollment.Module {
 }
 
 func newWithOfferingStorageObserver(observe func(enrollment.OfferingStorageObservation)) *enrollment.Module {
-	return enrollment.NewModule(postgres.NewStore(func(ctx context.Context) (bun.IDB, error) {
+	return enrollment.NewModule(newStore(), tenant.NewTransactionRunner(), observe)
+}
+
+func newStore() *postgres.Store {
+	return postgres.NewStore(func(ctx context.Context) (bun.IDB, error) {
 		transaction, ok := tenant.TransactionFromContext(ctx)
 		if !ok {
 			return nil, errors.New("enrollment postgres: transaction is required")
@@ -34,5 +38,5 @@ func newWithOfferingStorageObserver(observe func(enrollment.OfferingStorageObser
 			return 0, err
 		}
 		return id.Int64(), nil
-	}), tenant.NewTransactionRunner(), observe)
+	})
 }

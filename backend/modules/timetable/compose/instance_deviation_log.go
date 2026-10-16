@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Änderungsprotokoll event types the lifecycle writes record (#1886);
@@ -42,7 +42,7 @@ func (s *InstanceLifecycleService) logSnapshotDropped(ctx context.Context, snap 
 	event := DeviationEventRecord{
 		ActivityGroupID: &activityGroupID,
 		OccurrenceDate:  snap.date,
-		StartTime:       timezone.NormalizeWallClock(startTime),
+		StartTime:       calendar.NormalizeWallClock(startTime),
 		EventType:       DeviationEventDroppedByReplan,
 		ActorAccountID:  normalizeActor(actorAccountID),
 	}

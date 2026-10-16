@@ -14,7 +14,6 @@ import (
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery"
@@ -148,7 +147,7 @@ func TestRequestService_RollsBackDurableOutboxWrite(t *testing.T) {
 			testpkg.OwnTenant(t)
 			env, cleanup := setupRequestTest(t)
 			defer cleanup()
-			env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.test"
+			env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.test"
 			delivery := newTestEnrollmentDelivery(t, env.db)
 			failure := errors.New("failure after durable enqueue")
 			outbox := &failAfterDurableEnqueue{module: delivery.module, err: failure, failAt: failAt}
@@ -247,14 +246,14 @@ func setupRequestTest(t *testing.T) (*requestTestEnv, func()) {
 	settings := newStubRequestSettings()
 	// Default to "enabled, no window restrictions" - individual tests
 	// override these maps to drive specific branches.
-	settings.boolValues[configModel.KeyEnrollmentEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = true
-	settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = true
-	settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = true
-	settings.boolValues[configModel.KeyEnrollmentWaitlistEnabled] = true
-	settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
-	settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 4
-	settings.intValues[configModel.KeyEnrollmentStatusTokenTTLDays] = 365
+	settings.boolValues[settingKeyEnrollmentEnabled] = true
+	settings.boolValues[settingKeyAllowSubmissionEdit] = true
+	settings.boolValues[settingKeyCollectGradeLevel] = true
+	settings.boolValues[settingKeyCareOfferingsEnabled] = true
+	settings.boolValues[settingKeyWaitlistEnabled] = true
+	settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateWarn
+	settings.intValues[settingKeyGradeLevelMax] = 4
+	settings.intValues[settingKeyStatusTokenTTLDays] = 365
 
 	outbox := &recordingOutbox{}
 	config := api.EnrollmentIntakeSources{
@@ -569,7 +568,7 @@ func TestRequestService_Submit_PersistsRequestChildAndEnqueuesEmails(t *testing.
 
 	// Configure two notification recipients to verify both admin emails
 	// + one parent email get enqueued.
-	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] =
+	env.settings.stringValues[settingKeyNotificationEmails] =
 		"admin1@example.com, admin2@example.com"
 
 	result, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
@@ -708,7 +707,7 @@ func TestRequestService_Submit_RejectsWhenDisabled(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentEnabled] = false
+	env.settings.boolValues[settingKeyEnrollmentEnabled] = false
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentCapability.ErrEnrollmentDisabled),
@@ -771,7 +770,7 @@ func TestRequestService_Submit_AGBToggleWithoutTextDoesNotRequireConsent(t *test
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
+	env.settings.boolValues[settingKeyLegalTermsEnabled] = true
 
 	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
@@ -786,8 +785,8 @@ func TestRequestService_Submit_AGBRequiredWhenTermsBlockConfigured(t *testing.T)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
-	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
+	env.settings.boolValues[settingKeyLegalTermsEnabled] = true
+	env.settings.stringValues[settingKeyLegalAGBText] = "Ganztag Info-Brief"
 
 	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{"agb": false}
@@ -803,10 +802,10 @@ func TestRequestService_Submit_StoresLegalBlocksSnapshotAndEditAppends(t *testin
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
-	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
-	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
-	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Foto-Einwilligungstext"
+	env.settings.boolValues[settingKeyLegalTermsEnabled] = true
+	env.settings.stringValues[settingKeyLegalAGBText] = "Ganztag Info-Brief"
+	env.settings.boolValues[settingKeyLegalPhotoEnabled] = true
+	env.settings.stringValues[settingKeyLegalPhotoText] = "Foto-Einwilligungstext"
 
 	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{"agb": true, "photo": false}
@@ -854,9 +853,9 @@ func TestRequestService_Submit_AGBTermsResolveFailureFailsClosed(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentLegalTermsEnabled] = true
-	env.settings.stringValues[configModel.KeyEnrollmentLegalAGBText] = "Ganztag Info-Brief"
-	env.settings.boolErrors[configModel.KeyEnrollmentLegalTermsEnabled] = errors.New("bad bool setting")
+	env.settings.boolValues[settingKeyLegalTermsEnabled] = true
+	env.settings.stringValues[settingKeyLegalAGBText] = "Ganztag Info-Brief"
+	env.settings.boolErrors[settingKeyLegalTermsEnabled] = errors.New("bad bool setting")
 
 	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
@@ -873,7 +872,7 @@ func TestRequestService_Submit_AGBTermsOverrideCheckFailureFailsClosed(t *testin
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.hasErrors[configModel.KeyEnrollmentLegalTermsEnabled] = errors.New("settings db unavailable")
+	env.settings.hasErrors[settingKeyLegalTermsEnabled] = errors.New("settings db unavailable")
 
 	req := validSubmission(t, env.phaseID)
 	_, err := env.svc.Submit(ctx, req)
@@ -889,8 +888,8 @@ func TestRequestService_Submit_DSGVORequiredWhenPrivacyBlockConfigured(t *testin
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentLegalDSGVOEnabled] = true
-	env.settings.stringValues[configModel.KeyEnrollmentLegalDSGVOText] = "Datenschutzinformation"
+	env.settings.boolValues[settingKeyLegalDSGVOEnabled] = true
+	env.settings.stringValues[settingKeyLegalDSGVOText] = "Datenschutzinformation"
 
 	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{}
@@ -910,7 +909,7 @@ func TestRequestService_Submit_LegalTextResolveFailureIsServerError(t *testing.T
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.stringErrors[configModel.KeyEnrollmentLegalDSGVOText] = errors.New("settings json broken")
+	env.settings.stringErrors[settingKeyLegalDSGVOText] = errors.New("settings json broken")
 
 	req := validSubmission(t, env.phaseID)
 	_, err := env.svc.Submit(ctx, req)
@@ -927,8 +926,8 @@ func TestRequestService_Submit_PhotoLegalBlockIsOptional(t *testing.T) {
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.boolValues[configModel.KeyEnrollmentLegalPhotoEnabled] = true
-	env.settings.stringValues[configModel.KeyEnrollmentLegalPhotoText] = "Fotoeinwilligung"
+	env.settings.boolValues[settingKeyLegalPhotoEnabled] = true
+	env.settings.stringValues[settingKeyLegalPhotoText] = "Fotoeinwilligung"
 
 	req := validSubmission(t, env.phaseID)
 	req.ConsentFlags = map[string]any{"photo": false}
@@ -1040,7 +1039,7 @@ func TestRequestService_Submit_RejectsInvalidGradeLevelSetting(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
+	env.settings.intValues[settingKeyGradeLevelMax] = 0
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.Error(t, err)
@@ -1378,7 +1377,7 @@ func TestRequestService_Edit_RespectsAllowSubmissionEditFalse(t *testing.T) {
 	require.NoError(t, err)
 	token := result.Request.StatusToken
 
-	env.settings.boolValues[configModel.KeyEnrollmentAllowSubmissionEdit] = false
+	env.settings.boolValues[settingKeyAllowSubmissionEdit] = false
 	newName := "Verboten"
 	err = env.svc.Edit(ctx, token, enrollmentAPI.EditPatch{
 		GuardianFirstName: &newName,
@@ -1394,7 +1393,7 @@ func TestRequestService_ReplaceEditable_RewritesPayloadWithoutNewAdminNotificati
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] = "admin@example.com"
+	env.settings.stringValues[settingKeyNotificationEmails] = "admin@example.com"
 
 	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -1505,7 +1504,7 @@ func TestRequestService_GetEditDraft_ChangeRequestIncludesInactiveCurrentOfferin
 	ctx := testpkg.Ctx(t)
 	repoFactory := flowRepositories(t, env.db)
 	offering := setupCareOfferingForCapacity(t, env, 10)
-	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 13
+	env.settings.intValues[settingKeyGradeLevelMax] = 13
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = "draft-inactive-current@example.com"
@@ -1540,7 +1539,7 @@ func TestRequestService_GetEditDraft_PreservesGradeCapabilityForInactiveConditio
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 	repoFactory := flowRepositories(t, env.db)
-	env.settings.boolValues[configModel.KeyEnrollmentCollectGradeLevel] = false
+	env.settings.boolValues[settingKeyCollectGradeLevel] = false
 	offering := setupCareOfferingForCapacity(t, env, 10)
 	offering.AvailabilityRule = requestTestGradeAvailabilityRule(enrollmentModels.AvailabilityOperatorIn, 1)
 	require.NoError(t, newCareOfferingFixtures(repoFactory.CarePlan()).Update(ctx, offering))
@@ -1572,7 +1571,7 @@ func TestRequestService_GetEditDraft_RejectsInvalidGradeLevelSetting(t *testing.
 
 	submitted, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
-	env.settings.intValues[configModel.KeyEnrollmentGradeLevelMax] = 0
+	env.settings.intValues[settingKeyGradeLevelMax] = 0
 
 	_, err = env.svc.GetEditDraft(ctx, submitted.Request.StatusToken)
 	require.Error(t, err)
@@ -1862,7 +1861,7 @@ func TestRequestService_ReplaceEditable_CapacityWaitlistQueuesDecisionDigest(t *
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, flowRepositories(t, env.db).Enrollment(), editor.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
-	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyDigest, *stored.DecisionNotificationMode)
 }
 
 func TestRequestService_ReplaceEditable_RejectsNewCapacityClaimWhenFull(t *testing.T) {
@@ -1921,7 +1920,7 @@ func TestRequestService_ReplaceEditable_DisabledOfferingsFollowVerifiedChildIden
 		ctx, submitted.Children[1].ID, enrollmentModels.ChildActivationImmediate, nil,
 	))
 
-	env.settings.boolValues[configModel.KeyEnrollmentCareOfferingsEnabled] = false
+	env.settings.boolValues[settingKeyCareOfferingsEnabled] = false
 	replace := validSubmission(t, env.phaseID)
 	replace.Children = []enrollmentAPI.SubmitChild{
 		{
@@ -2040,7 +2039,7 @@ func TestRequestService_Withdraw_FinalSiblingEnqueuesDecisionDigest(t *testing.T
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+	env.settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
 
 	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "withdraw-digest@example.com"
@@ -2077,7 +2076,7 @@ func TestRequestService_Withdraw_DigestFailureRollsBackStatus(t *testing.T) {
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionDigest
+	env.settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
 
 	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "withdraw-digest-failure@example.com"
@@ -2112,7 +2111,7 @@ func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *te
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringErrors[configModel.KeyEnrollmentNotifyPerDecision] = errors.New("settings unavailable")
+	env.settings.stringErrors[settingKeyNotifyPerDecision] = errors.New("settings unavailable")
 
 	request := validSubmission(t, env.phaseID)
 	request.GuardianEmail = "withdraw-nonfinal-settings-error@example.com"
@@ -2440,7 +2439,7 @@ func TestRequestService_Submit_CapacityOverflowWaitlist(t *testing.T) {
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, flowRepositories(t, env.db).Enrollment(), r2.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
-	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyDigest, *stored.DecisionNotificationMode)
 }
 
 func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t *testing.T) {
@@ -2449,7 +2448,7 @@ func TestRequestService_Submit_CapacityOverflowWaitlistQueuesImmediateDecision(t
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringValues[configModel.KeyEnrollmentNotifyPerDecision] = configModel.EnrollmentNotifyPerDecisionImmediate
+	env.settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
 	setPhaseOverflowMode(t, env, enrollmentModels.PhaseCareOverflowWaitlist)
 	offering := setupCareOfferingForCapacity(t, env, 1)
 
@@ -2545,7 +2544,7 @@ func TestRequestService_Submit_MixedCapacityWaitlistPinsDigestWithoutSendingEarl
 	stored, err := enrollmentAPI.ReadOwnerRequestForTest(ctx, flowRepositories(t, env.db).Enrollment(), result.Request.ID)
 	require.NoError(t, err)
 	require.NotNil(t, stored.DecisionNotificationMode)
-	assert.Equal(t, configModel.EnrollmentNotifyPerDecisionDigest, *stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyDigest, *stored.DecisionNotificationMode)
 }
 
 func TestRequestService_Submit_CapacityDecisionFailureRollsBackRequest(t *testing.T) {
@@ -2717,7 +2716,7 @@ func TestRequestService_Submit_RejectsDuplicateChild(t *testing.T) {
 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
+	env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 	ctx := testpkg.Ctx(t)
 
 	first, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
@@ -2743,7 +2742,7 @@ func TestRequestService_Submit_DedupCaseInsensitive(t *testing.T) {
 
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
-	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingBlock
+	env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateBlock
 	ctx := testpkg.Ctx(t)
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
@@ -2766,7 +2765,7 @@ func TestRequestService_Submit_DuplicateWarnPersistsWithMachineWarning(t *testin
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingWarn
+	env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateWarn
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -2785,7 +2784,7 @@ func TestRequestService_Submit_DuplicateIgnorePersistsWithoutWarning(t *testing.
 	env, cleanup := setupRequestTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	env.settings.stringValues[configModel.KeyEnrollmentDuplicateHandling] = configModel.EnrollmentDuplicateHandlingIgnore
+	env.settings.stringValues[settingKeyDuplicateHandling] = settingValueDuplicateIgnore
 
 	_, err := env.svc.Submit(ctx, validSubmission(t, env.phaseID))
 	require.NoError(t, err)
@@ -3303,7 +3302,7 @@ func TestRequestService_ReplaceEditable_RejectsOffListPickupTime(t *testing.T) {
 func restrictClassesForEditDraftTest(t *testing.T, env *requestTestEnv, source string) *enrollmentAPI.SubmitResult {
 	t.Helper()
 	ctx := testpkg.Ctx(t)
-	env.settings.boolValues[configModel.KeyEnrollmentCollectSchoolClass] = true
+	env.settings.boolValues[settingKeyCollectSchoolClass] = true
 	env.phase.AvailableSchoolClasses = []string{"2a", "2b"}
 	env.phase.EligibleSchoolClasses = []string{"2a"}
 	env.phase.EligibleGradeLevels = []int{2}

@@ -9,7 +9,6 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -20,7 +19,7 @@ import (
 // change (#2267, story 37).
 func (s *Service) EditPickupChangeRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
-	date timezone.Date, pickupTime time.Time, departureMode, reason, expectedVersion string,
+	date calendar.Date, pickupTime time.Time, departureMode, reason, expectedVersion string,
 ) (*carerequests.Request, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
@@ -77,7 +76,7 @@ func (s *Service) EditPickupChangeRequest(
 // SubmitPickupChangeRequest asks the OGS for a different Gehzeit, a different
 // Abholart (#3945), or both, on one day. A zero pickupTime or an empty
 // departureMode leaves that leg of the day unchanged.
-func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error) {
+func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, studentID int64, date calendar.Date, pickupTime time.Time, departureMode, reason string, recipientGuardianProfileIDs []int64) (*carerequests.Request, error) {
 	reason = strings.TrimSpace(reason)
 	if err := validatePickupChangeShape(pickupTime, departureMode, reason); err != nil {
 		return nil, err
@@ -154,7 +153,7 @@ func validatePickupChangeShape(pickupTime time.Time, departureMode, reason strin
 // checkPickupChangeSubmittable runs the tenant-dependent checks that precede
 // the write transaction. It returns whether the school requires a reason and
 // today's date.
-func (s *Service) checkPickupChangeSubmittable(ctx context.Context, child *Child, reason string, date timezone.Date) (bool, timezone.Date, error) {
+func (s *Service) checkPickupChangeSubmittable(ctx context.Context, child *Child, reason string, date calendar.Date) (bool, calendar.Date, error) {
 	// Whether the reason is mandatory is a per-school setting, so it can only
 	// be decided once the child — and with it the tenant — is known (#2267,
 	// story 28). The cheap shape checks in SubmitPickupChangeRequest still run
@@ -180,7 +179,7 @@ func (s *Service) checkPickupChangeSubmittable(ctx context.Context, child *Child
 
 // checkPickupChangeAllowed verifies the school allows the one-day pickup
 // change and the date lies in the bookable window. It returns today's date.
-func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, date timezone.Date) (timezone.Date, error) {
+func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, date calendar.Date) (calendar.Date, error) {
 	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentPickupChangeEnabled)
 	if err != nil {
 		return "", fmt.Errorf("parent: resolve pickup-change setting: %w", err)
@@ -192,7 +191,7 @@ func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, 
 	if date.Before(today) {
 		return "", ErrPastCareDate
 	}
-	if date.After(timezone.NewDate(today.Year(), today.Month()+2, today.Day())) {
+	if date.After(calendar.NewDate(today.Year(), today.Month()+2, today.Day())) {
 		return "", ErrCareDateTooFar
 	}
 	return today, nil
@@ -202,7 +201,7 @@ func (s *Service) checkPickupChangeAllowed(ctx context.Context, tenantID int64, 
 // (#3945). It needs the one-day change (checked by the caller) and the
 // school's permission to ask for a different Abholart at all, so a school
 // that keeps the Abholart with the OGS does not get it through the day path.
-func (s *Service) checkDayDepartureModeAllowed(ctx context.Context, tenantID int64, date timezone.Date, departureMode string) error {
+func (s *Service) checkDayDepartureModeAllowed(ctx context.Context, tenantID int64, date calendar.Date, departureMode string) error {
 	if departureMode == "" {
 		return nil
 	}
@@ -235,7 +234,7 @@ type pickupChangeLegs struct {
 // lockPickupChangeDay locks the student and the exception day, then refuses a
 // day the child's care has ended on, a leg the OGS already set for that day,
 // or a day the child has already left.
-func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, date, today timezone.Date, legs pickupChangeLegs) error {
+func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, date, today calendar.Date, legs pickupChangeLegs) error {
 	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
 		return err

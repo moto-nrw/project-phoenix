@@ -8,9 +8,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -18,8 +18,8 @@ import (
 // conversion seeds a series with.
 type TemplateSeriesSeeding interface {
 	CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error)
-	TemplateAssignmentsOn(ctx context.Context, templateID int64, date timezone.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error)
-	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from timezone.Date) error
+	TemplateAssignmentsOn(ctx context.Context, templateID int64, date calendar.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error)
+	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error
 }
 
 // InstanceSeriesConversionDependencies are the capabilities the conversion

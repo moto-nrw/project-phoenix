@@ -10,10 +10,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -615,7 +614,7 @@ func TestPresence_QuerySessionSupervisions(t *testing.T) {
 		_ = testpkg.CreateTestGroupSupervisor(t, db, staff.ID, activeGroup.ID, "supervisor")
 
 		// ACT
-		day := timezone.TodayDate().String()
+		day := calendar.TodayDate().String()
 		result, err := presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{activeGroup.ID}, ActiveOn: &day})
 
 		// ASSERT
@@ -1202,7 +1201,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify supervisors are active
-		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		activeCount := 0
 		for _, sup := range supervisors {
@@ -1219,7 +1218,7 @@ func TestActiveService_EndActivitySession_WithActiveVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify all supervisors have ended
-		endedSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		endedSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		for _, sup := range endedSupervisors {
 			assert.NotNil(t, sup.EndDate, "Supervisor should have end time after session ends")

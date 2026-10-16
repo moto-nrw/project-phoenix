@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -62,7 +61,7 @@ func TestSubmit_AdminNotificationReachesSubscribedEnrollmentManagers(t *testing.
 	testpkg.GrantTestPermission(t, env.db, otherTenant, foreign.ID, "config:manage")
 	subscribe(t, testpkg.TenantContext(otherTenant), foreign.ID, true)
 
-	env.settings.stringValues[configModel.KeyEnrollmentNotificationEmails] =
+	env.settings.stringValues[settingKeyNotificationEmails] =
 		"extern@example.test, " + strings.ToUpper(alsoListed.Email)
 
 	_, err = svc.Submit(ctx, validSubmission(t, env.phaseID))

@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -74,14 +74,14 @@ type careDaysStub struct {
 	byStudent map[int64]timetable.CareDayStatus
 }
 
-func (f careDaysStub) ResolveForDate(_ context.Context, _ []int64, _ timezone.Date) (map[int64]timetable.CareDayStatus, error) {
+func (f careDaysStub) ResolveForDate(_ context.Context, _ []int64, _ calendar.Date) (map[int64]timetable.CareDayStatus, error) {
 	return f.byStudent, nil
 }
 
-func (f careDaysStub) ResolveForRange(_ context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]timetable.CareDayStatus, error) {
-	out := map[int64]map[timezone.Date]timetable.CareDayStatus{}
+func (f careDaysStub) ResolveForRange(_ context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]timetable.CareDayStatus, error) {
+	out := map[int64]map[calendar.Date]timetable.CareDayStatus{}
 	for _, studentID := range studentIDs {
-		byDate := map[timezone.Date]timetable.CareDayStatus{}
+		byDate := map[calendar.Date]timetable.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			byDate[date] = f.byStudent[studentID]
 		}
@@ -102,7 +102,7 @@ func (careDaysStub) ExemptFromAbsence(status timetable.CareDayStatus) bool {
 	return status == timetable.CareDayNotScheduled
 }
 
-func endedInstance(id int64, date timezone.Date) *scheduleModels.ActivityInstance {
+func endedInstance(id int64, date calendar.Date) *scheduleModels.ActivityInstance {
 	instance := &scheduleModels.ActivityInstance{Date: scheduleModels.Date(date), Title: "Hausaufgaben"}
 	instance.ID = id
 	return instance
@@ -139,7 +139,7 @@ func TestEndedSessionCompletionFinalizesAttendanceFirst(t *testing.T) {
 	}
 	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
-			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, timezone.NewDate(2026, 4, 20))},
+			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, calendar.NewDate(2026, 4, 20))},
 			completed: 1,
 			calls:     &calls,
 		},
@@ -187,7 +187,7 @@ func TestEndedSessionCompletionUndoesStatusDayAbsenceForUnbookedChild(t *testing
 	}
 	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
-			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, timezone.NewDate(2026, 4, 21))},
+			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, calendar.NewDate(2026, 4, 21))},
 			completed: 1,
 			calls:     &calls,
 		},
@@ -223,14 +223,14 @@ func TestEndedSessionCompletionSparesPerInstanceAcrossDates(t *testing.T) {
 		},
 		calls: &calls,
 	}
-	first, second := timezone.NewDate(2026, 4, 22), timezone.NewDate(2026, 4, 23)
+	first, second := calendar.NewDate(2026, 4, 22), calendar.NewDate(2026, 4, 23)
 	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(firstBlock, first), endedInstance(secondBlock, second)},
 			calls:     &calls,
 		},
 		Participants: participants,
-		CareDays:     perDateCareDays{notBooked: map[timezone.Date]bool{first: true}},
+		CareDays:     perDateCareDays{notBooked: map[calendar.Date]bool{first: true}},
 	})
 
 	_, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{activeGroupID}, time.Now())
@@ -241,13 +241,13 @@ func TestEndedSessionCompletionSparesPerInstanceAcrossDates(t *testing.T) {
 // perDateCareDays books the child on every date except the listed ones.
 type perDateCareDays struct {
 	careDaysStub
-	notBooked map[timezone.Date]bool
+	notBooked map[calendar.Date]bool
 }
 
-func (f perDateCareDays) ResolveForRange(_ context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]timetable.CareDayStatus, error) {
-	out := map[int64]map[timezone.Date]timetable.CareDayStatus{}
+func (f perDateCareDays) ResolveForRange(_ context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]timetable.CareDayStatus, error) {
+	out := map[int64]map[calendar.Date]timetable.CareDayStatus{}
 	for _, studentID := range studentIDs {
-		byDate := map[timezone.Date]timetable.CareDayStatus{}
+		byDate := map[calendar.Date]timetable.CareDayStatus{}
 		for date := from; !date.After(to); date = date.AddDays(1) {
 			byDate[date] = timetable.CareDayScheduled
 			if f.notBooked[date] {
@@ -264,7 +264,7 @@ func TestEndedSessionCompletionDoesNotCompleteWhenFinalizationFails(t *testing.T
 	calls := make([]string, 0, 2)
 	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
-			instances: []*scheduleModels.ActivityInstance{endedInstance(7702, timezone.NewDate(2026, 4, 20))},
+			instances: []*scheduleModels.ActivityInstance{endedInstance(7702, calendar.NewDate(2026, 4, 20))},
 			calls:     &calls,
 		},
 		Participants: &endedSessionParticipantsStub{markErr: errors.New("update failed"), calls: &calls},
@@ -282,7 +282,7 @@ func TestEndedSessionCompletionAllowsSystemCompleteBeforePlannedEnd(t *testing.T
 	t.Parallel()
 	calls := make([]string, 0, 3)
 	participants := &endedSessionParticipantsStub{calls: &calls}
-	instance := endedInstance(7710, timezone.NewDate(2026, 5, 4))
+	instance := endedInstance(7710, calendar.NewDate(2026, 5, 4))
 	instance.StartTime = time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
 	instance.EndTime = time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)
 	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
@@ -290,7 +290,7 @@ func TestEndedSessionCompletionAllowsSystemCompleteBeforePlannedEnd(t *testing.T
 		Participants: participants,
 	})
 
-	now := time.Date(2026, 5, 4, 15, 0, 0, 0, timezone.Berlin)
+	now := time.Date(2026, 5, 4, 15, 0, 0, 0, calendar.Berlin)
 	completed, err := completion.CompleteActiveByActiveGroupIDs(context.Background(), []int64{8810}, now)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, completed)

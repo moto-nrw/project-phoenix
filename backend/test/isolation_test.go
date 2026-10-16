@@ -16,7 +16,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	facilitiesRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -32,15 +31,6 @@ func isolationTenants(tb testing.TB, db *bun.DB) (tenantA, tenantB int64) {
 	EnsureTestTenant(tb, db, tenantA)
 	EnsureTestTenant(tb, db, tenantB)
 	return tenantA, tenantB
-}
-
-func testRoomRepository(t *testing.T, db *bun.DB) *facilitiesRepositoryAdapter.Repository {
-	t.Helper()
-	rooms, err := api.NewFacilities(NewDatabase(t, db))
-	require.NoError(t, err)
-	repository := facilitiesRepositoryAdapter.New()
-	repository.Bind(rooms)
-	return repository
 }
 
 // ctxForTenant returns a background context with the given tenant ID set.
@@ -154,7 +144,8 @@ func TestTenantIsolation_RoomVisibility(t *testing.T) {
 	rA := CreateTestRoomForTenant(t, db, tenantA, "RoomA")
 	rB := CreateTestRoomForTenant(t, db, tenantB, "RoomB")
 
-	repo := testRoomRepository(t, db)
+	repo, err := api.NewFacilitiesRoomRepository(NewDatabase(t, db))
+	require.NoError(t, err)
 
 	// --- Tenant A ---
 	ctx42 := ctxForTenant(tenantA)
@@ -467,7 +458,8 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("room update blocked", func(t *testing.T) {
-		repo := testRoomRepository(t, db)
+		repo, err := api.NewFacilitiesRoomRepository(NewDatabase(t, db))
+		require.NoError(t, err)
 		stored, err := repo.FindByID(ctxA, roomA.ID)
 		require.NoError(t, err)
 		err = repo.Update(ctxB, stored)
@@ -489,10 +481,11 @@ func TestCrossTenantWrite_RowsAffectedGuard(t *testing.T) {
 	// ------------------------------------------------------------------
 
 	t.Run("room delete blocked", func(t *testing.T) {
-		repo := testRoomRepository(t, db)
+		repo, err := api.NewFacilitiesRoomRepository(NewDatabase(t, db))
+		require.NoError(t, err)
 
 		// Attempt cross-tenant delete: ctxB tries to delete roomA (tenant A)
-		err := repo.Delete(ctxB, roomA.ID)
+		err = repo.Delete(ctxB, roomA.ID)
 		require.Error(t, err, "cross-tenant room delete must fail")
 
 		// Verify the room still exists from tenant A's perspective

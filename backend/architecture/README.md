@@ -1327,6 +1327,16 @@ approved only for this conversion:
 
 `cycles --graph target` reports 0 components (58 nodes, 219 edges).
 
+#4076 cuts the three #3417 keys of the layering in code: Student Presence
+names the stamp channel of its automatic check-in in its own vocabulary
+(`studentpresence.StampSource`), the root maps it onto Workforce; the care
+offering selection rules moved from `modules/enrollment/selection` to
+`modules/careplan/selection` (`care-plan`/`public`), because Care Plan owns
+the care offerings and Enrollment sits above it; the guardian portal's
+enrollment views reach the Care Plan parent repositories as
+`careplan.ParentEnrollmentPhase` and `ParentEnrollmentRequest`, which the root
+binds to Enrollment.
+
 #4072 removed 25 of the 34 platform keys (519 → 494) without a rule. Each
 platform declares what it needs in its own vocabulary and the root binds the
 owner:
@@ -4486,6 +4496,14 @@ keeps three of the six: the session token runtime is
 root's session imports and both session rules are deleted; `dev-tools`/`cli`
 is another owner's private role, so `root-composition.cli.dev-tools` is
 deleted and `cmd -> seed/api` and `cmd -> simulate` are keys (#4096).
+Epoch 49 (ADR 0060, #4096) removes both keys: the dev tools are the binary
+`cmd/devtools`, the only package in `dev-tools`/`compose`. Its eight
+`dev-tools.compose.*` rules reach `dev-tools`/`cli`, the class `http-router`,
+the `compose` role of `transaction-runtime`, `organization-tenancy`,
+`identity-access` and `student-presence`, and the `public` role of
+`tenant-runtime` and `security-runtime`, all in production only. PR mode
+accepts them because they are anchored to a role only the candidate's new
+package uses.
 
 The repository Factory contraction has a two-permission path
 ([ADR 0049](../../docs/adr/0049-owner-compositions-construct-audit-and-settings-persistence.md),

@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The row adapters in this file serve the time-tracking row contracts
@@ -86,19 +86,11 @@ func (r workSessionRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r workSessionRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.WorkSession, error) {
-	filter, err := workSessionFilterFromOptions(options)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
-	}
+func (r workSessionRepository) ListWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) ([]*timetracking.WorkSession, error) {
 	return r.list(ctx, "list with options", filter)
 }
 
-func (r workSessionRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	filter, err := workSessionFilterFromOptions(options)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count with options", Err: err}
-	}
+func (r workSessionRepository) CountWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) (int, error) {
 	count, err := r.workforce.CountWorkSessions(ctx, filter)
 	if err != nil {
 		return 0, rowReadError("count with options", err, nil)
@@ -106,7 +98,7 @@ func (r workSessionRepository) CountWithOptions(ctx context.Context, options *mo
 	return count, nil
 }
 
-func (r workSessionRepository) OldestBefore(ctx context.Context, column string, cutoff *timezone.Date) (*timezone.Date, error) {
+func (r workSessionRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
 	before := ""
 	if cutoff != nil {
 		before = cutoff.String()
@@ -118,14 +110,14 @@ func (r workSessionRepository) OldestBefore(ctx context.Context, column string, 
 	if oldest == "" {
 		return nil, nil
 	}
-	date, err := timezone.ParseDate(oldest)
+	date, err := calendar.ParseDate(oldest)
 	if err != nil {
 		return nil, err
 	}
 	return &date, nil
 }
 
-func (r workSessionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timezone.Date) (int64, error) {
+func (r workSessionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteWorkSessionsOlderThan(ctx, column, cutoff.String())
 	if err != nil {
 		return 0, workSessionWriteError("delete older than", err)
@@ -153,7 +145,7 @@ func (r workSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staff
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.OpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
 		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
@@ -161,7 +153,7 @@ func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffI
 	return workSessionToLegacy(value), nil
 }
 
-func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date calendar.Date) (*timetracking.WorkSession, error) {
 	value, err := r.workforce.LockOpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
 		return nil, rowReadError("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
@@ -200,14 +192,14 @@ func (r workSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, st
 	return result, nil
 }
 
-func (r workSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetHistoryByStaffID(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetracking.WorkSession, error) {
 	return r.list(ctx, "get history by staff ID", workforce.WorkSessionFilter{
 		StaffID: staffID, DateFrom: from.String(), DateTo: to.String(),
 		Order: workSessionOrder(workforce.WorkSessionOrderDate, workforce.WorkSessionOrderCheckInTime),
 	})
 }
 
-func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*timetracking.WorkSession, error) {
 	result := make(map[int64][]*timetracking.WorkSession, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -225,7 +217,7 @@ func (r workSessionRepository) GetHistoryByStaffIDs(ctx context.Context, staffID
 	return result, nil
 }
 
-func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*timetracking.WorkSession, error) {
+func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate calendar.Date) ([]*timetracking.WorkSession, error) {
 	open := true
 	return r.list(ctx, "get open sessions", workforce.WorkSessionFilter{DateBefore: beforeDate.String(), Open: &open})
 }
@@ -263,71 +255,6 @@ func (r workSessionRepository) list(ctx context.Context, op string, filter workf
 		return nil, rowReadError(op, err, nil)
 	}
 	return workSessionsToLegacy(values), nil
-}
-
-// workSessionFilterFromOptions translates the generic query options the
-// retained callers still build into the typed capability filter. Only the
-// columns and operators those callers use are accepted.
-func workSessionFilterFromOptions(options *modelBase.QueryOptions) (workforce.WorkSessionFilter, error) {
-	filter := workforce.WorkSessionFilter{}
-	if options == nil {
-		return filter, nil
-	}
-	if options.Filter != nil {
-		if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-			return filter, errors.New("nested work session filters are not supported")
-		}
-		for _, condition := range options.Filter.Conditions() {
-			switch {
-			case condition.Field == "staff_id" && condition.Operator == modelBase.OpEqual:
-				id, ok := conditionInt64(condition.Value)
-				if !ok {
-					return filter, errors.New("staff_id filter must be an integer")
-				}
-				filter.StaffID = id
-			case condition.Field == "staff_id" && condition.Operator == modelBase.OpIn:
-				ids, ok := conditionInt64List(condition.Value)
-				if !ok {
-					return filter, errors.New("staff_id filter must be a list of integers")
-				}
-				filter.StaffIDs = ids
-			case condition.Field == "id" && condition.Operator == modelBase.OpIn:
-				ids, ok := conditionInt64List(condition.Value)
-				if !ok {
-					return filter, errors.New("id filter must be a list of integers")
-				}
-				filter.IDs = ids
-			case condition.Field == "date" && condition.Operator == modelBase.OpEqual:
-				date, ok := conditionDate(condition.Value)
-				if !ok {
-					return filter, errors.New("date filter must be a calendar date")
-				}
-				filter.Date = date
-			case condition.Field == "date" && condition.Operator == modelBase.OpLessThan:
-				date, ok := conditionDate(condition.Value)
-				if !ok {
-					return filter, errors.New("date filter must be a calendar date")
-				}
-				filter.DateBefore = date
-			default:
-				return filter, fmt.Errorf("unsupported work session filter %s %s", condition.Field, condition.Operator)
-			}
-		}
-	}
-	if options.Sorting != nil {
-		for _, field := range options.Sorting.Fields {
-			switch field.Field {
-			case "id", "staff_id", "date", "check_in_time":
-				filter.Order = append(filter.Order, workforce.WorkSessionOrder{
-					Field: workforce.WorkSessionOrderField(field.Field), Descending: field.Direction == modelBase.SortDesc,
-				})
-			default:
-				return filter, fmt.Errorf("unsupported work session sort field %q", field.Field)
-			}
-		}
-	}
-	filter.Limit, filter.Offset = paginationBounds(options)
-	return filter, nil
 }
 
 // --- work session breaks ---
@@ -397,41 +324,6 @@ func (r workSessionBreakRepository) Delete(ctx context.Context, id any) error {
 		return workSessionWriteError("delete", err)
 	}
 	return nil
-}
-
-func (r workSessionBreakRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.WorkSessionBreak, error) {
-	filter := workforce.WorkSessionBreakFilter{}
-	if options != nil {
-		if options.Filter != nil {
-			if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-				return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("nested work session break filters are not supported")}
-			}
-			for _, condition := range options.Filter.Conditions() {
-				switch {
-				case condition.Field == "session_id" && condition.Operator == modelBase.OpEqual:
-					id, ok := conditionInt64(condition.Value)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("session_id filter must be an integer")}
-					}
-					filter.SessionID = id
-				case condition.Field == "session_id" && condition.Operator == modelBase.OpIn:
-					ids, ok := conditionInt64List(condition.Value)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("session_id filter must be a list of integers")}
-					}
-					filter.SessionIDs = ids
-				default:
-					return nil, &modelBase.DatabaseError{Op: "list with options", Err: fmt.Errorf("unsupported work session break filter %s %s", condition.Field, condition.Operator)}
-				}
-			}
-		}
-		filter.Limit, filter.Offset = paginationBounds(options)
-	}
-	values, err := r.workforce.ListWorkSessionBreaks(ctx, filter)
-	if err != nil {
-		return nil, rowReadError("list with options", err, nil)
-	}
-	return workSessionBreaksToLegacy(values), nil
 }
 
 func (r workSessionBreakRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*timetracking.WorkSessionBreak, error) {
@@ -564,64 +456,14 @@ func (r staffBalanceAdjustmentRepository) Delete(ctx context.Context, id any) er
 	return nil
 }
 
-func (r staffBalanceAdjustmentRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.StaffBalanceAdjustment, error) {
-	filter := workforce.StaffBalanceAdjustmentFilter{}
-	if options != nil {
-		if options.Filter != nil {
-			if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-				return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("nested balance adjustment filters are not supported")}
-			}
-			for _, condition := range options.Filter.Conditions() {
-				switch {
-				case condition.Field == "staff_id" && condition.Operator == modelBase.OpEqual:
-					id, ok := conditionInt64(condition.Value)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("staff_id filter must be an integer")}
-					}
-					filter.StaffID = id
-				case condition.Field == "type" && condition.Operator == modelBase.OpEqual:
-					kind, ok := condition.Value.(string)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("type filter must be a string")}
-					}
-					filter.Types = []string{kind}
-				case condition.Field == "type" && condition.Operator == modelBase.OpIn:
-					kinds, ok := conditionStringList(condition.Value)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("type filter must be a list of strings")}
-					}
-					filter.Types = kinds
-				case condition.Field == "effective_date" && condition.Operator == modelBase.OpGreaterThanOrEqual:
-					date, ok := conditionDate(condition.Value)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("effective_date filter must be a calendar date")}
-					}
-					filter.EffectiveFrom = date
-				case condition.Field == "effective_date" && condition.Operator == modelBase.OpLessThanOrEqual:
-					date, ok := conditionDate(condition.Value)
-					if !ok {
-						return nil, &modelBase.DatabaseError{Op: "list with options", Err: errors.New("effective_date filter must be a calendar date")}
-					}
-					filter.EffectiveTo = date
-				default:
-					return nil, &modelBase.DatabaseError{Op: "list with options", Err: fmt.Errorf("unsupported balance adjustment filter %s %s", condition.Field, condition.Operator)}
-				}
-			}
-		}
-		// The adapter orders by effective_date then id, which is the order
-		// every retained caller asks for; a different sort is not supported.
-		if options.Sorting != nil {
-			for _, field := range options.Sorting.Fields {
-				if (field.Field != "effective_date" && field.Field != "id") || field.Direction == modelBase.SortDesc {
-					return nil, &modelBase.DatabaseError{Op: "list with options", Err: fmt.Errorf("unsupported balance adjustment sort %q", field.Field)}
-				}
-			}
-		}
-		filter.Limit, filter.Offset = paginationBounds(options)
-	}
+func (r staffBalanceAdjustmentRepository) ListWithFilter(ctx context.Context, filter workforce.StaffBalanceAdjustmentFilter) ([]*timetracking.StaffBalanceAdjustment, error) {
+	return r.list(ctx, "list with options", filter)
+}
+
+func (r staffBalanceAdjustmentRepository) list(ctx context.Context, op string, filter workforce.StaffBalanceAdjustmentFilter) ([]*timetracking.StaffBalanceAdjustment, error) {
 	values, err := r.workforce.ListStaffBalanceAdjustments(ctx, filter)
 	if err != nil {
-		return nil, rowReadError("list with options", err, nil)
+		return nil, rowReadError(op, err, nil)
 	}
 	return adjustmentsToLegacy(values), nil
 }
@@ -630,17 +472,13 @@ func (r staffBalanceAdjustmentRepository) LockStaffBalanceWrites(ctx context.Con
 	return r.workforce.LockStaffBalanceWrites(ctx, staffID)
 }
 
-func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*timetracking.StaffBalanceAdjustment, error) {
-	values, err := r.workforce.ListStaffBalanceAdjustments(ctx, workforce.StaffBalanceAdjustmentFilter{
+func (r staffBalanceAdjustmentRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*timetracking.StaffBalanceAdjustment, error) {
+	return r.list(ctx, "get balance adjustments by staff+range", workforce.StaffBalanceAdjustmentFilter{
 		StaffID: staffID, EffectiveFrom: from.String(), EffectiveTo: to.String(),
 	})
-	if err != nil {
-		return nil, rowReadError("get balance adjustments by staff+range", err, nil)
-	}
-	return adjustmentsToLegacy(values), nil
 }
 
-func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*timetracking.StaffBalanceAdjustment, error) {
+func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*timetracking.StaffBalanceAdjustment, error) {
 	result := make(map[int64][]*timetracking.StaffBalanceAdjustment, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -724,22 +562,6 @@ func (r staffVacationOpeningRepository) Delete(ctx context.Context, id any) erro
 		return workSessionWriteError("delete", err)
 	}
 	return nil
-}
-
-func (r staffVacationOpeningRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.StaffVacationOpening, error) {
-	filter, err := vacationFilterFromOptions(options)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
-	}
-	values, err := r.workforce.ListStaffVacationOpenings(ctx, filter)
-	if err != nil {
-		return nil, rowReadError("list with options", err, nil)
-	}
-	result := make([]*timetracking.StaffVacationOpening, 0, len(values))
-	for _, value := range values {
-		result = append(result, openingToLegacy(value))
-	}
-	return result, nil
 }
 
 func (r staffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*timetracking.StaffVacationOpening, error) {
@@ -837,27 +659,6 @@ func (r staffVacationQuotaRepository) Delete(ctx context.Context, id any) error 
 	return nil
 }
 
-// List keeps the legacy contract of the quota repository: an empty match is a
-// nil slice, and the failure carries the "list vacation quotas" operation.
-func (r staffVacationQuotaRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*timetracking.StaffVacationQuota, error) {
-	filter, err := vacationFilterFromOptions(options)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list vacation quotas", Err: err}
-	}
-	values, err := r.workforce.ListStaffVacationQuotas(ctx, filter)
-	if err != nil {
-		return nil, rowReadError("list vacation quotas", err, nil)
-	}
-	if len(values) == 0 {
-		return nil, nil
-	}
-	result := make([]*timetracking.StaffVacationQuota, 0, len(values))
-	for _, value := range values {
-		result = append(result, quotaToLegacy(value))
-	}
-	return result, nil
-}
-
 func (r staffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*timetracking.StaffVacationQuota, error) {
 	values, err := r.workforce.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
 	if err != nil {
@@ -897,69 +698,7 @@ func (r staffVacationQuotaRepository) Upsert(ctx context.Context, entity *timetr
 	return nil
 }
 
-func vacationFilterFromOptions(options *modelBase.QueryOptions) (workforce.StaffVacationFilter, error) {
-	filter := workforce.StaffVacationFilter{}
-	if options == nil {
-		return filter, nil
-	}
-	if options.Filter != nil {
-		if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-			return filter, errors.New("nested vacation filters are not supported")
-		}
-		for _, condition := range options.Filter.Conditions() {
-			switch {
-			case condition.Field == "staff_id" && condition.Operator == modelBase.OpEqual:
-				id, ok := conditionInt64(condition.Value)
-				if !ok {
-					return filter, errors.New("staff_id filter must be an integer")
-				}
-				filter.StaffID = id
-			case condition.Field == "staff_id" && condition.Operator == modelBase.OpIn:
-				ids, ok := conditionInt64List(condition.Value)
-				if !ok {
-					return filter, errors.New("staff_id filter must be a list of integers")
-				}
-				filter.StaffIDs = ids
-			case condition.Field == "year" && condition.Operator == modelBase.OpEqual:
-				year, ok := conditionInt64(condition.Value)
-				if !ok {
-					return filter, errors.New("year filter must be an integer")
-				}
-				filter.Year = int(year)
-			default:
-				return filter, fmt.Errorf("unsupported vacation filter %s %s", condition.Field, condition.Operator)
-			}
-		}
-	}
-	if options.Sorting != nil {
-		for _, field := range options.Sorting.Fields {
-			switch field.Field {
-			case "id", "staff_id", "year", "entitled_days":
-				filter.Order = append(filter.Order, workforce.StaffVacationOrder{
-					Field: workforce.StaffVacationOrderField(field.Field), Descending: field.Direction == modelBase.SortDesc,
-				})
-			default:
-				return filter, fmt.Errorf("unsupported vacation sort field %q", field.Field)
-			}
-		}
-	}
-	filter.Limit, filter.Offset = paginationBounds(options)
-	return filter, nil
-}
-
 // --- shared helpers ---
-
-// paginationBounds translates a page/page-size pair into limit and offset.
-func paginationBounds(options *modelBase.QueryOptions) (int, int) {
-	if options == nil || options.Pagination == nil || options.Pagination.PageSize <= 0 {
-		return 0, 0
-	}
-	offset := 0
-	if options.Pagination.Page > 1 {
-		offset = (options.Pagination.Page - 1) * options.Pagination.PageSize
-	}
-	return options.Pagination.PageSize, offset
-}
 
 func workSessionOrder(fields ...workforce.WorkSessionOrderField) []workforce.WorkSessionOrder {
 	order := make([]workforce.WorkSessionOrder, 0, len(fields))
@@ -993,7 +732,7 @@ func applyWorkSessionToLegacy(entity *timetracking.WorkSession, value workforce.
 	entity.UpdatedAt = value.UpdatedAt
 	entity.TenantID = value.TenantID
 	entity.StaffID = value.StaffID
-	entity.Date = timezone.Date(value.Date)
+	entity.Date = calendar.Date(value.Date)
 	entity.Status = value.Status
 	entity.Source = value.Source
 	entity.CheckInTime = value.CheckInTime
@@ -1063,7 +802,7 @@ func applyAdjustmentToLegacy(entity *timetracking.StaffBalanceAdjustment, value 
 	entity.StaffID = value.StaffID
 	entity.Type = value.Type
 	entity.MinutesDelta = value.MinutesDelta
-	entity.EffectiveDate = timezone.Date(value.EffectiveDate)
+	entity.EffectiveDate = calendar.Date(value.EffectiveDate)
 	entity.Note = value.Note
 	entity.DecidedBy = value.DecidedBy
 	entity.DecidedAt = value.DecidedAt
@@ -1098,7 +837,7 @@ func applyOpeningToLegacy(entity *timetracking.StaffVacationOpening, value workf
 	entity.TenantID = value.TenantID
 	entity.StaffID = value.StaffID
 	entity.Year = value.Year
-	entity.EffectiveDate = timezone.Date(value.EffectiveDate)
+	entity.EffectiveDate = calendar.Date(value.EffectiveDate)
 	entity.TakenBeforeDays = value.TakenBeforeDays
 	entity.EnteredRemainingDays = value.EnteredRemainingDays
 	entity.Note = value.Note

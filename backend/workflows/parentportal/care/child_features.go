@@ -5,10 +5,10 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ChildFeatures resolves the parent-portal feature toggles for the child's
@@ -60,7 +60,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		PickupChangeEnabled:          f.pickupChange && canManagePickup,
 		PickupChangeModeEnabled:      f.pickupChangeMode && canManagePickup,
 		PickupChangeCutoffTime:       f.pickupCutoff.Clock,
-		PickupChangeTodayClosed:      f.pickupCutoff.Closed(timezone.DateFromTime(f.pickupCutoff.Now)),
+		PickupChangeTodayClosed:      f.pickupCutoff.Closed(calendar.DateFromTime(f.pickupCutoff.Now)),
 		PickupManageAllowed:          f.guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: f.guardianManagement && canManageGuardianContacts,
 		RelatedAccountsInviteEnabled: f.inviteMode != configModels.ParentInviteModeDisabled,

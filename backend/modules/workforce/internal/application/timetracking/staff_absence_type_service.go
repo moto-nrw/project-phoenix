@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -33,7 +33,7 @@ type AbsenceTypeReader interface {
 	GetAbsenceType(context.Context, int64) (*StaffAbsenceType, error)
 	ResolveForAbsence(context.Context, int64) (*StaffAbsenceType, error)
 	LabelsByID(context.Context) (map[int64]string, error)
-	PreviewAllowanceBooking(context.Context, int64, int64, timezone.Date, timezone.Date, bool) ([]*AbsenceTypeAllowanceSummary, error)
+	PreviewAllowanceBooking(context.Context, int64, int64, calendar.Date, calendar.Date, bool) ([]*AbsenceTypeAllowanceSummary, error)
 	// PreviewAllowanceRebooking checks stored absences against the allowance
 	// of the type they would be rebooked to (#3258). With
 	// ErrAbsenceTypeAllowanceExceeded the previews are still set.

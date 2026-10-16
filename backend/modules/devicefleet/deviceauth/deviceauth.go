@@ -16,7 +16,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun/driver/pgdriver"
@@ -48,6 +47,12 @@ type SchoolDirectory interface {
 type Settings interface {
 	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
 }
+
+// devicePINSettingKey is the Settings Platform registry key of the school's
+// shared device PIN. The registry owns it; deviceauth_test.go pins it to the
+// owner's public name so a renamed key fails there instead of resolving
+// nothing.
+const devicePINSettingKey = "security.ogs_device_pin"
 
 // Dependencies are the collaborators the device authenticators need.
 type Dependencies struct {
@@ -194,7 +199,7 @@ func pinResolver(settings Settings) device.PINResolver {
 		return nil
 	}
 	return func(ctx context.Context, tenantID int64) string {
-		pin, err := settings.ResolveStringForTenant(ctx, tenantID, configModel.KeyOGSDevicePIN)
+		pin, err := settings.ResolveStringForTenant(ctx, tenantID, devicePINSettingKey)
 		if err != nil {
 			slog.Error("failed to resolve tenant PIN from settings, falling back to env var",
 				slog.Int64("tenant_id", tenantID),

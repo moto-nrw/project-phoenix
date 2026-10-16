@@ -7,11 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
@@ -48,7 +47,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 	if now != nil {
 		clocks = append(clocks, now)
 	}
-	today := timezone.CalendarDateClock(clocks...)
+	today := calendar.CalendarDateClock(clocks...)
 
 	repos, err := api.NewTimetableTestRepositories(testpkg.NewDatabase(t, db), clocks...)
 	require.NoError(t, err)
@@ -66,7 +65,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		DeviationEvents: repos.DeviationEvent,
 		Instances:       repos.InstanceReads(),
 		InstanceStaff:   repos.InstanceStaffReads(),
-		Rooms:           repos.Room,
+		Rooms:           api.NewTimetableRoomNames(repos.Facilities),
 		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
 		Broadcaster:     timetable.RealtimeHub,

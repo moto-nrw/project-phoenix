@@ -8,13 +8,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *operations) Roster(ctx context.Context, accountID int64, isAdmin bool, instanceID int64) (*timetable.OperationRoster, error) {
@@ -78,7 +78,7 @@ type rosterSources struct {
 	visits     []studentpresence.Visit
 	studentIDs []int64
 	students   map[int64]*usersModels.Student
-	persons    map[int64]*usersModels.Person
+	persons    map[int64]*timetable.Person
 	groupNames map[int64]string
 	template   *rosterTemplateGroup
 }
@@ -97,7 +97,7 @@ func (s *operations) buildRosterWithCareDay(ctx context.Context, instanceID int6
 	}
 	warnings := s.rosterWarnings(ctx, src)
 	if careDay == nil {
-		careDay, err = s.deps.CareDays.ResolveForDate(ctx, src.studentIDs, timezone.Date(src.inst.Date))
+		careDay, err = s.deps.CareDays.ResolveForDate(ctx, src.studentIDs, calendar.Date(src.inst.Date))
 		if err != nil {
 			return nil, err
 		}
@@ -309,7 +309,7 @@ func (s *operations) rosterEnvelope(ctx context.Context, inst *scheduleModels.Ac
 // roster: graduates and children whose care ended before the block. Frozen
 // history — a past-dated, completed or cancelled block — excludes nobody
 // (#405, #2487).
-func rosterExcludedAlumni(inst *scheduleModels.ActivityInstance, students map[int64]*usersModels.Student, today timezone.Date) map[int64]bool {
+func rosterExcludedAlumni(inst *scheduleModels.ActivityInstance, students map[int64]*usersModels.Student, today calendar.Date) map[int64]bool {
 	excluded := map[int64]bool{}
 	if inst == nil {
 		return excluded
@@ -321,7 +321,7 @@ func rosterExcludedAlumni(inst *scheduleModels.ActivityInstance, students map[in
 		return excluded
 	}
 	for id, st := range students {
-		if st != nil && (st.Status == usersModels.StudentStatusAlumnus || st.CareEndedOn(timezone.Date(inst.Date))) {
+		if st != nil && (st.Status == usersModels.StudentStatusAlumnus || st.CareEndedOn(calendar.Date(inst.Date))) {
 			excluded[id] = true
 		}
 	}
@@ -334,7 +334,7 @@ func (s *operations) rosterPickupTimes(ctx context.Context, inst *scheduleModels
 	if len(studentIDs) == 0 {
 		return map[int64]*time.Time{}, true
 	}
-	pickups, err := s.deps.Pickups.EffectivePickups(ctx, studentIDs, timezone.Date(inst.Date))
+	pickups, err := s.deps.Pickups.EffectivePickups(ctx, studentIDs, calendar.Date(inst.Date))
 	if err != nil {
 		s.logger().WarnContext(
 			ctx,
@@ -428,7 +428,7 @@ func applyRosterStudentIdentity(row *timetable.OperationRosterRow, studentID int
 		}
 	}
 	if person := src.persons[st.PersonID]; person != nil {
-		row.StudentName = person.GetFullName()
+		row.StudentName = person.FullName()
 	}
 }
 

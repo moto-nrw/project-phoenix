@@ -3,7 +3,7 @@ package test
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -62,8 +62,8 @@ type EducationGroupSubstitution struct {
 	GroupID           int64         `bun:"group_id,notnull"`
 	RegularStaffID    *int64        `bun:"regular_staff_id"`
 	SubstituteStaffID int64         `bun:"substitute_staff_id,notnull"`
-	StartDate         timezone.Date `bun:"start_date,notnull"`
-	EndDate           timezone.Date `bun:"end_date,notnull"`
+	StartDate         calendar.Date `bun:"start_date,notnull"`
+	EndDate           calendar.Date `bun:"end_date,notnull"`
 	Reason            string        `bun:"reason"`
 }
 

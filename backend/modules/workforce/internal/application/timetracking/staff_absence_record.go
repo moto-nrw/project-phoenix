@@ -5,9 +5,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Absence duration constants.
@@ -37,8 +36,8 @@ var ValidAbsenceStatuses = []string{
 
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
 type StaffAbsence struct {
-	base.Model `bun:"schema:active,table:staff_absences"`
-	base.TenantModel
+	Model `bun:"schema:active,table:staff_absences"`
+	TenantModel
 	StaffID     int64  `bun:"staff_id,notnull" json:"staff_id"`
 	AbsenceType string `bun:"absence_type,notnull" json:"absence_type"`
 	// AbsenceTypeID optionally names this absence with a school-defined
@@ -53,8 +52,8 @@ type StaffAbsence struct {
 	// own label for the standard type. Not a column; filled by the service
 	// layer on read paths.
 	AbsenceTypeLabel  string        `bun:"-" json:"absence_type_label,omitempty"`
-	DateStart         timezone.Date `bun:"date_start,notnull,type:date" json:"date_start"`
-	DateEnd           timezone.Date `bun:"date_end,notnull,type:date" json:"date_end"`
+	DateStart         calendar.Date `bun:"date_start,notnull,type:date" json:"date_start"`
+	DateEnd           calendar.Date `bun:"date_end,notnull,type:date" json:"date_end"`
 	HalfDay           bool          `bun:"half_day,notnull,default:false" json:"half_day"`
 	StartHalfDay      bool          `bun:"start_half_day,notnull,default:false" json:"start_half_day"`
 	EndHalfDay        bool          `bun:"end_half_day,notnull,default:false" json:"end_half_day"`

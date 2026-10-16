@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,7 +14,7 @@ import (
 
 // createAttendanceForDate inserts an attendance record for a specific calendar
 // date (Berlin TZ).
-func createAttendanceForDate(t *testing.T, ctx context.Context, repo studentpresence.AttendanceHistoryCommand, studentID, staffID, deviceID int64, date timezone.Date) {
+func createAttendanceForDate(t *testing.T, ctx context.Context, repo studentpresence.AttendanceHistoryCommand, studentID, staffID, deviceID int64, date calendar.Date) {
 	t.Helper()
 	checkIn := date.BerlinMidnight().Add(8 * time.Hour)
 	checkOut := date.BerlinMidnight().Add(15 * time.Hour)
@@ -40,7 +40,7 @@ func TestPresenceAttendance_DateRange(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	data := createAttendanceTestData(t, db)
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	yesterday := today.AddDays(-1)
 	twoDaysAgo := today.AddDays(-2)
 	threeDaysAgo := today.AddDays(-3)

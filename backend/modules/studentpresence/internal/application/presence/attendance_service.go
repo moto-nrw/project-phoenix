@@ -7,9 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -120,7 +119,7 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 	}
 
 	now := s.now()
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 
 	// "on_yard" is a sub-state of "checked_in" (still on premises) — toggling
 	// from either should perform a checkout. Only "not_checked_in" and
@@ -144,7 +143,7 @@ func (s *service) toggleStudentAttendance(ctx context.Context, studentID, staffI
 
 // attendanceStampSource picks the work-session source channel for the
 // presence auto-stamp: kiosk-driven requests stamp as nfc, web requests as app.
-func (s *service) attendanceStampSource(ctx context.Context) string {
+func (s *service) attendanceStampSource(ctx context.Context) studentpresence.StampSource {
 	if s.attendancePrincipal(ctx).IsIoT {
 		return stampSourceNFC
 	}
@@ -167,17 +166,17 @@ func (s *service) ensureStaffPresenceForAttendanceResult(
 // the auto-stamp on kiosk session start (assignMultipleSupervisorsNonCritical):
 // failures are logged, never returned, and an already-closed session for
 // today is left untouched (EnsureCheckedIn returns nil, nil).
-func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source string) {
+func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source studentpresence.StampSource) {
 	if staffID <= 0 || s.WorkSessionService == nil {
 		return
 	}
 
 	s.runBestEffortDB(ctx, "staff_presence_checkin", func() error {
-		session, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
+		checkedIn, err := s.WorkSessionService.EnsureCheckedIn(ctx, staffID, source)
 		if err != nil {
 			return err
 		}
-		if session == nil {
+		if !checkedIn {
 			s.getLogger().DebugContext(ctx, "staff already checked out today, presence auto-stamp skipped",
 				slog.Int64("staff_id", staffID),
 			)
@@ -186,7 +185,7 @@ func (s *service) ensureStaffPresence(ctx context.Context, staffID int64, source
 	}, func(err error) {
 		s.getLogger().WarnContext(ctx, "auto work-session check-in failed",
 			slog.Int64("staff_id", staffID),
-			slog.String("source", source),
+			slog.String("source", source.String()),
 			slog.String("error", err.Error()),
 		)
 	})
@@ -215,7 +214,7 @@ func (s *service) checkInStudent(ctx context.Context, studentID, staffID, device
 		return nil, err
 	}
 	now := s.now()
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	result, err := s.performCheckIn(ctx, studentID, authorizedStaffID, deviceID, now, today, checkinTypeWeb)
 	if err != nil {
 		return nil, err
@@ -267,7 +266,7 @@ func (s *service) checkOutStudent(ctx context.Context, studentID, staffID int64,
 		return nil, err
 	}
 	now := time.Now()
-	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, 0, now, timezone.DateFromTime(now), checkoutTypeWeb, note)
+	result, err := s.performCheckOut(ctx, studentID, authorizedStaffID, 0, now, calendar.DateFromTime(now), checkoutTypeWeb, note)
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +305,7 @@ func (s *service) CheckOutStudentFromDevice(ctx context.Context, studentID, devi
 	err := s.runInSessionTx(ctx, func(txCtx context.Context) error {
 		now := time.Now()
 		var err error
-		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, timezone.DateFromTime(now), checkoutTypeDaily, "")
+		result, err = s.performCheckOut(txCtx, studentID, staffID, deviceID, now, calendar.DateFromTime(now), checkoutTypeDaily, "")
 		return err
 	})
 	if err != nil {
@@ -362,7 +361,7 @@ func (s *service) authorizeIoTDeviceToggle(ctx context.Context, deviceID int64) 
 //
 // A check-in that actually opened a row fans out over SSE after the request
 // transaction commits (#2113); the absorbed one stays silent.
-func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date, checkinType string) (*AttendanceResult, error) {
+func (s *service) performCheckIn(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today calendar.Date, checkinType string) (*AttendanceResult, error) {
 	mode, err := s.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
@@ -408,7 +407,7 @@ func (s *service) performCheckIn(ctx context.Context, studentID, staffID, device
 
 // openAttendance inserts today's open attendance row; inserted is false when
 // a concurrent check-in already opened it.
-func (s *service) openAttendance(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today timezone.Date) (studentpresence.Attendance, bool, error) {
+func (s *service) openAttendance(ctx context.Context, studentID, staffID, deviceID int64, now time.Time, today calendar.Date) (studentpresence.Attendance, bool, error) {
 	resolvedDeviceID, err := s.resolveDeviceIDForAttendance(ctx, deviceID)
 	if err != nil {
 		return studentpresence.Attendance{}, false, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
@@ -438,7 +437,7 @@ func (s *service) openAttendance(ctx context.Context, studentID, staffID, device
 // #2372): a batch crossing Berlin midnight after its insert conflict would
 // otherwise query the next day, find no row, and abort an otherwise
 // idempotent batch.
-func (s *service) absorbConcurrentCheckIn(ctx context.Context, studentID int64, today timezone.Date, mode string) (*AttendanceResult, error) {
+func (s *service) absorbConcurrentCheckIn(ctx context.Context, studentID int64, today calendar.Date, mode string) (*AttendanceResult, error) {
 	rows, fetchErr := s.SchoolPresence.ListAttendance(ctx, studentpresence.AttendanceFilter{StudentIDs: []int64{studentID}, FromDate: today.String(), UntilDate: today.String()})
 	if fetchErr != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fetchErr}
@@ -481,7 +480,7 @@ func (s *service) absorbConcurrentCheckIn(ctx context.Context, studentID int64, 
 // row so callers can mirror the same checkout instant into slot attendance.
 // A missing or newer-day visit returns nil; every other failure propagates so
 // the request transaction rolls back.
-func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day timezone.Date, at time.Time) (*studentpresence.Visit, error) {
+func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, day calendar.Date, at time.Time) (*studentpresence.Visit, error) {
 	visit, err := s.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil {
 		if errors.Is(err, ErrVisitNotFound) {
@@ -489,7 +488,7 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 		}
 		return nil, err
 	}
-	if timezone.DateFromTime(visit.EntryTime).After(day) {
+	if calendar.DateFromTime(visit.EntryTime).After(day) {
 		return nil, nil
 	}
 	closed, err := s.SchoolPresence.CloseVisits(ctx, []int64{visit.ID}, at)
@@ -531,7 +530,7 @@ func (s *service) endOpenVisitForStudent(ctx context.Context, studentID int64, d
 //     session's and stays open (see endOpenVisitForStudent).
 //  4. A checkout that closed attendance or healed an orphaned visit fans out
 //     over SSE after the request transaction commits (#2113).
-func (s *service) performCheckOut(ctx context.Context, studentID, staffID, checkoutDeviceID int64, now time.Time, today timezone.Date, checkoutType, note string) (*AttendanceResult, error) {
+func (s *service) performCheckOut(ctx context.Context, studentID, staffID, checkoutDeviceID int64, now time.Time, today calendar.Date, checkoutType, note string) (*AttendanceResult, error) {
 	mode, err := s.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: errors.Join(ErrDatabaseOperation, err)}
@@ -587,7 +586,7 @@ func (s *service) performCheckOut(ctx context.Context, studentID, staffID, check
 
 // mirrorAttendanceCheckout mirrors a checkout into slot attendance. It returns
 // the slot snapshot of the ended visit in detailed mode.
-func (s *service) mirrorAttendanceCheckout(ctx context.Context, mode string, studentID int64, now time.Time, today timezone.Date, endedVisit *studentpresence.Visit) (*AttendanceSnapshot, error) {
+func (s *service) mirrorAttendanceCheckout(ctx context.Context, mode string, studentID int64, now time.Time, today calendar.Date, endedVisit *studentpresence.Visit) (*AttendanceSnapshot, error) {
 	if s.AttendanceSyncer == nil {
 		return nil, nil
 	}
@@ -600,7 +599,7 @@ func (s *service) mirrorAttendanceCheckout(ctx context.Context, mode string, stu
 		// Berlin-midnight rollover would otherwise close a slot of the NEW
 		// day whose attendance this checkout never touched (review #2372,
 		// same day-scoping as the visit cleanup in performCheckOut).
-		if timezone.DateFromTime(now) == today {
+		if calendar.DateFromTime(now) == today {
 			if err := s.AttendanceSyncer.MirrorCheckOutAt(ctx, studentID, now); err != nil {
 				return nil, &ActiveError{Op: "ToggleStudentAttendance", Err: fmt.Errorf("sync roomless checkout: %w", err)}
 			}

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TargetOverrideReader is the consumer port over the Workforce
@@ -19,7 +19,7 @@ type TargetOverrideReader interface {
 // day, schedule, template); this service only loads its inputs.
 type dailyTargetResolver = workforce.DayTargetResolver
 
-func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID int64, from, to timezone.Date) (*dailyTargetResolver, error) {
+func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID int64, from, to calendar.Date) (*dailyTargetResolver, error) {
 	resolver := &dailyTargetResolver{}
 
 	if s.holidayReader != nil {
@@ -46,7 +46,7 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 		return nil, fmt.Errorf("failed to load work schedules: %w", err)
 	}
 	if entries.HasEntries {
-		resolver.Schedule = func(d timezone.Date) (int, bool) { return entries.DailyTarget(staff.RotationAnchorDate, d) }
+		resolver.Schedule = func(d calendar.Date) (int, bool) { return entries.DailyTarget(staff.RotationAnchorDate, d) }
 	}
 	if entries.HasEntries || staff.WorkTimeModelID == nil {
 		return resolver, nil
@@ -75,6 +75,6 @@ func (s *workTimeMonthService) buildTargetResolver(ctx context.Context, staffID 
 	if staff.RotationAnchorDate != nil {
 		anchor = *staff.RotationAnchorDate
 	}
-	resolver.Template = func(d timezone.Date) (int, bool) { return model.DailyTarget(anchor, d) }
+	resolver.Template = func(d calendar.Date) (int, bool) { return model.DailyTarget(anchor, d) }
 	return resolver, nil
 }

@@ -7,13 +7,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -37,7 +34,7 @@ type vacationOpeningFixture struct {
 	svc       timetracking.StaffAbsenceService
 	// cutoff is the Stichtag every test books against; year is derived from
 	// it, exactly as the service does.
-	cutoff timezone.Date
+	cutoff calendar.Date
 }
 
 func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
@@ -67,7 +64,7 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 	svc := timetracking.NewStaffAbsenceService(
 		repos.StaffAbsence, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationQuotas,
 		workforceCompose.NewStaffAbsenceAuditRepository(owners.Workforce), wtmIntSettings{}, nil,
-		timetracking.WithAbsenceToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }),
+		timetracking.WithAbsenceToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }),
 		// Wired exactly like services/factory.go does.
 		timetracking.WithVacationOpenings(workforceCompose.NewTimeTrackingTestRows(owners.Workforce).VacationOpenings),
 		timetracking.WithAbsenceDeletionAudit(api.NewTimeTrackingDeletionAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).TimeTrackingDeletion)),
@@ -92,11 +89,11 @@ func newVacationOpeningFixture(t *testing.T) *vacationOpeningFixture {
 // previous-year fallback: the service only books takeovers into the running
 // vacation year, so in early January no usable Stichtag exists and the fixture
 // skips instead of exercising a case the service rejects by design.
-func openingCutoffDate(t *testing.T) timezone.Date {
+func openingCutoffDate(t *testing.T) calendar.Date {
 	t.Helper()
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	cutoff := today.AddDays(-1)
-	if cutoff.Year() != today.Year() || timezone.NewDate(today.Year(), time.January, 1).DaysUntil(cutoff) < 5 {
+	if cutoff.Year() != today.Year() || calendar.NewDate(today.Year(), time.January, 1).DaysUntil(cutoff) < 5 {
 		t.Skip("no closed Stichtag with room for earlier absences in the current vacation year yet")
 	}
 	return cutoff
@@ -106,7 +103,7 @@ func openingCutoffDate(t *testing.T) timezone.Date {
 // quota only counts working days, so an absence fixture that must consume
 // quota may not land on a weekend — otherwise the guard under test never
 // trips and the case passes vacuously on some weekdays.
-func previousWorkingDay(d timezone.Date) timezone.Date {
+func previousWorkingDay(d calendar.Date) calendar.Date {
 	for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
 		d = d.AddDays(-1)
 	}
@@ -115,7 +112,7 @@ func previousWorkingDay(d timezone.Date) timezone.Date {
 
 // addVacationAbsence writes an absence row directly, mirroring the overview
 // fixture — the vacation request flow is not under test here.
-func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string, start, end timezone.Date) {
+func (f *vacationOpeningFixture) addVacationAbsence(t *testing.T, status string, start, end calendar.Date) {
 	t.Helper()
 	absence := &timetracking.StaffAbsence{
 		StaffID:     f.staff,
@@ -292,9 +289,9 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 
 	f := newVacationOpeningFixture(t)
 
-	for _, effectiveDate := range []timezone.Date{
-		timezone.NewDate(2026, 8, 24),
-		timezone.NewDate(2026, 8, 24).AddDays(1),
+	for _, effectiveDate := range []calendar.Date{
+		calendar.NewDate(2026, 8, 24),
+		calendar.NewDate(2026, 8, 24).AddDays(1),
 	} {
 		_, err := f.svc.SetVacationOpening(f.ctx, f.staff, f.admin, timetracking.SetVacationOpeningRequest{
 			EffectiveDate: effectiveDate,
@@ -305,7 +302,7 @@ func TestSetVacationOpening_RejectsOpenCutoff(t *testing.T) {
 		assert.Contains(t, err.Error(), "effective_date must be before today")
 	}
 
-	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff, timezone.NewDate(2026, 8, 24).Year())
+	stored, err := f.svc.GetVacationOpening(f.ctx, f.staff, calendar.NewDate(2026, 8, 24).Year())
 	require.NoError(t, err)
 	assert.Nil(t, stored)
 }
@@ -319,7 +316,7 @@ func TestSetVacationOpening_RejectsPastVacationYear(t *testing.T) {
 
 	f := newVacationOpeningFixture(t)
 
-	lastYear := timezone.NewDate(timezone.NewDate(2026, 8, 24).Year()-1, time.June, 10)
+	lastYear := calendar.NewDate(calendar.NewDate(2026, 8, 24).Year()-1, time.June, 10)
 	_, err := f.svc.SetVacationOpening(f.ctx, f.staff, f.admin, timetracking.SetVacationOpeningRequest{
 		EffectiveDate: lastYear,
 		RemainingDays: 12,
@@ -371,13 +368,18 @@ func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
 	assert.InDelta(t, 30, summary.RemainingDays, 0.001,
 		"without a takeover the Resturlaub is the plain Jahresanspruch again")
 
-	var tombstones []auditModels.TimeTrackingDeletion
+	var tombstones []struct {
+		TenantID  int64           `bun:"tenant_id"`
+		SourceID  int64           `bun:"source_id"`
+		DeletedBy int64           `bun:"deleted_by"`
+		Payload   json.RawMessage `bun:"payload"`
+	}
 	require.NoError(t, f.db.NewSelect().
-		Model(&tombstones).
-		ModelTableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
+		TableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
+		Column("tenant_id", "source_id", "deleted_by", "payload").
 		Where(`"time_tracking_deletion".staff_id = ?`, f.staff).
-		Where(`"time_tracking_deletion".source = ?`, auditModels.TimeTrackingDeletionSourceVacationOpening).
-		Scan(f.ctx))
+		Where(`"time_tracking_deletion".source = ?`, "vacation_opening").
+		Scan(f.ctx, &tombstones))
 	require.Len(t, tombstones, 1, "the delete must leave exactly one tombstone")
 	assert.Equal(t, opening.ID, tombstones[0].SourceID)
 	assert.Equal(t, f.admin, tombstones[0].DeletedBy)
@@ -457,24 +459,10 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 		assert.Empty(t, byStaff)
 	})
 
-	t.Run("list by year", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("year", f.cutoff.Year())
-
-		openings, err := repo.List(f.ctx, options)
+	t.Run("another year is empty", func(t *testing.T) {
+		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff, f.admin}, f.cutoff.Year()-1)
 
 		require.NoError(t, err)
-		require.Len(t, openings, 1)
-		assert.Equal(t, f.staff, openings[0].StaffID)
-	})
-
-	t.Run("list of another year is empty", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("year", f.cutoff.Year()-1)
-
-		openings, err := repo.List(f.ctx, options)
-
-		require.NoError(t, err)
-		assert.Empty(t, openings)
+		assert.Empty(t, byStaff)
 	})
 }

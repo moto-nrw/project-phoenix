@@ -11,11 +11,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -36,7 +36,7 @@ type SickNoteResult struct {
 // Each absence type has an independent approval setting. When its gate is on,
 // the report creates a PENDING request and writes no status day until staff
 // approve it. With the gate off, the report is applied directly.
-func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []timezone.Date, reason, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error) {
+func (s *Service) SubmitSickNote(ctx context.Context, accountID, studentID int64, dates []calendar.Date, reason, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error) {
 	if len(dates) == 0 {
 		return nil, ErrNoDates
 	}
@@ -121,7 +121,7 @@ func (s *Service) absenceNote(ctx context.Context, tenantID int64, reason string
 type absenceReport struct {
 	accountID int64
 	studentID int64
-	dates     []timezone.Date
+	dates     []calendar.Date
 	note      string
 	status    string
 }
@@ -251,7 +251,7 @@ func isNewParentReportableAbsence(student *usersModels.Student, status string) b
 
 // submitAbsenceRequest turns a sick or excused report into a pending office
 // request inside the child's tenant transaction.
-func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accountID, studentID int64, dates []timezone.Date, note, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error) {
+func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accountID, studentID int64, dates []calendar.Date, note, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error) {
 	if s.ExcusedRequests == nil {
 		return nil, fmt.Errorf("parent: absence request service not configured")
 	}

@@ -17,7 +17,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -263,13 +262,13 @@ func newOfferingGuardDecisions(repos api.EnrollmentTestRepositories, offeringsEn
 func offeringGuardSettings(offeringsEnabled bool) *settingsDouble {
 	return &settingsDouble{
 		ResolveStringFn: func(_ context.Context, key string) (string, error) {
-			if key == configModels.KeyEnrollmentDefaultActivationMode {
-				return configModels.EnrollmentActivationModeScheduled, nil
+			if key == settingKeyDefaultActivationMode {
+				return settingValueActivationScheduled, nil
 			}
-			return configModels.EnrollmentNotifyPerDecisionImmediate, nil
+			return settingValueNotifyImmediate, nil
 		},
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-			return key == configModels.KeyEnrollmentCareOfferingsEnabled && offeringsEnabled, nil
+			return key == settingKeyCareOfferingsEnabled && offeringsEnabled, nil
 		},
 	}
 }

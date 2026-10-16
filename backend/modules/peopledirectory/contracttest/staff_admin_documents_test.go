@@ -8,11 +8,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,9 +79,9 @@ func (s *staffDocumentScenario) create(t *testing.T, category string, actor work
 	return info
 }
 
-func (s *staffDocumentScenario) auditRows(t *testing.T) []*auditModels.StaffMasterDataChange {
+func (s *staffDocumentScenario) auditRows(t *testing.T) []*testpkg.StaffMasterDataChange {
 	t.Helper()
-	var rows []*auditModels.StaffMasterDataChange
+	var rows []*testpkg.StaffMasterDataChange
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.staff_master_data_changes AS "staff_master_data_change"`).
@@ -104,10 +102,10 @@ func documentCategories(infos []workforce.StaffDocumentInfo) []string {
 
 // staffDocumentDate parses a non-empty "YYYY-MM-DD" retention date of the
 // document view.
-func staffDocumentDate(t *testing.T, value string) timezone.Date {
+func staffDocumentDate(t *testing.T, value string) calendar.Date {
 	t.Helper()
 	require.NotEmpty(t, value)
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	require.NoError(t, err)
 	return date
 }
@@ -188,13 +186,13 @@ func TestStaffDocumentService_CategoryAuthority(t *testing.T) {
 	logs := s.accessLogRowsFor(t)
 	require.Len(t, logs, before+1)
 	last := logs[len(logs)-1]
-	assert.Equal(t, auditModels.ResourceTypeStaffDocumentDownload, last.ResourceType)
+	assert.Equal(t, testpkg.AuditResourceTypeStaffDocumentDownload, last.ResourceType)
 	assert.EqualValues(t, lohnInfo.Document.ID, last.Metadata["document_id"])
 }
 
-func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*auditModels.DataAccessLog {
+func (s *staffDocumentScenario) accessLogRowsFor(t *testing.T) []*testpkg.DataAccessLog {
 	t.Helper()
-	var rows []*auditModels.DataAccessLog
+	var rows []*testpkg.DataAccessLog
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
@@ -218,7 +216,7 @@ func TestStaffDocumentService_AuditTrailAndSoftDelete(t *testing.T) {
 
 	rows := s.auditRows(t)
 	require.Len(t, rows, 1)
-	assert.Equal(t, auditModels.StammdatenSectionDokumente, rows[0].Section)
+	assert.Equal(t, testpkg.AuditStammdatenSectionDokumente, rows[0].Section)
 	assert.Equal(t, userModels.StaffDocumentCategoryZeugnis, rows[0].FieldName)
 	assert.Equal(t, "", rows[0].OldValue)
 	assert.Equal(t, "zeugnis-datei.pdf", rows[0].NewValue)
@@ -263,7 +261,7 @@ func TestStaffDocumentService_CreateHydratesGeneratedTimestamps(t *testing.T) {
 
 	assert.False(t, info.Document.CreatedAt.IsZero())
 	retainUntil := staffDocumentDate(t, info.RetainUntil)
-	assert.Equal(t, timezone.DateFromTime(info.Document.CreatedAt).Year()+10, retainUntil.Year())
+	assert.Equal(t, calendar.DateFromTime(info.Document.CreatedAt).Year()+10, retainUntil.Year())
 }
 
 func TestStaffDocumentService_RefusesDownloadsAfterOffboarding(t *testing.T) {
@@ -287,8 +285,8 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 	admin := s.actor("admin:*")
 
 	lohn := s.create(t, userModels.StaffDocumentCategoryLohnabrechnung, admin)
-	uploaded := timezone.DateFromTime(lohn.Document.CreatedAt)
-	assert.Equal(t, timezone.NewDate(uploaded.Year()+10, uploaded.Month(), uploaded.Day()), staffDocumentDate(t, lohn.RetainUntil))
+	uploaded := calendar.DateFromTime(lohn.Document.CreatedAt)
+	assert.Equal(t, calendar.NewDate(uploaded.Year()+10, uploaded.Month(), uploaded.Day()), staffDocumentDate(t, lohn.RetainUntil))
 	assert.Empty(t, lohn.ReviewDue)
 
 	au := s.create(t, userModels.StaffDocumentCategoryAUBescheinigung, admin)
@@ -296,14 +294,14 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 
 	bewerbung := s.create(t, userModels.StaffDocumentCategoryBewerbung, admin)
 	assert.Empty(t, bewerbung.RetainUntil)
-	assert.Equal(t, timezone.NewDate(uploaded.Year(), uploaded.Month()+6, uploaded.Day()), staffDocumentDate(t, bewerbung.ReviewDue))
+	assert.Equal(t, calendar.NewDate(uploaded.Year(), uploaded.Month()+6, uploaded.Day()), staffDocumentDate(t, bewerbung.ReviewDue))
 
 	// Arbeitsvertrag: open without a contract end, contract end + 6 years
 	// once the Stammdaten row carries one.
 	vertrag := s.create(t, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
 	assert.Empty(t, vertrag.RetainUntil)
 
-	end := timezone.NewDate(2027, 7, 31)
+	end := calendar.NewDate(2027, 7, 31)
 	_, err := s.workTime.CreateStaffMasterData(s.ctx, workforce.StaffMasterData{
 		StaffID:         s.staffID,
 		ContractEndDate: end.String(),
@@ -313,13 +311,13 @@ func TestStaffDocumentService_RetentionSchedule(t *testing.T) {
 		_, _ = s.db.ExecContext(context.Background(), `DELETE FROM users.staff_master_data WHERE staff_id = ?`, s.staffID)
 	})
 	vertragWithEnd := s.create(t, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
-	assert.Equal(t, timezone.NewDate(2033, 7, 31), staffDocumentDate(t, vertragWithEnd.RetainUntil))
+	assert.Equal(t, calendar.NewDate(2033, 7, 31), staffDocumentDate(t, vertragWithEnd.RetainUntil))
 
 	infos, _, err := s.svc.ListStaffDocuments(s.ctx, s.staffID, userModels.StaffDocumentCategoryArbeitsvertrag, admin)
 	require.NoError(t, err)
 	require.Len(t, infos, 2)
 	for _, info := range infos {
-		assert.Equal(t, timezone.NewDate(2033, 7, 31), staffDocumentDate(t, info.RetainUntil))
+		assert.Equal(t, calendar.NewDate(2033, 7, 31), staffDocumentDate(t, info.RetainUntil))
 	}
 
 	zeugnis := s.create(t, userModels.StaffDocumentCategoryZeugnis, admin)

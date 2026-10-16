@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Issue #2137: the offering-source request contract is shared by template
@@ -189,7 +189,7 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 			Weekdays:              []int{activitiesModel.WeekdayMonday},
 			CategoryID:            22,
 			RoomID:                33,
-			RosterValidFrom:       timezone.NewDate(2026, 8, 10),
+			RosterValidFrom:       calendar.NewDate(2026, 8, 10),
 			TargetGroupType:       activitiesModel.TargetGroupTypeNone,
 			SourceCareOfferingIDs: []int64{12},
 		}, testSchoolClassRules)
@@ -203,7 +203,7 @@ func TestTemplateInputValidationRunsTheOfferingSourceContract(t *testing.T) {
 			TemplateID:      77,
 			TimeframeID:     44,
 			Weekdays:        []int{activitiesModel.WeekdayMonday},
-			RosterValidFrom: timezone.NewDate(2026, 8, 10),
+			RosterValidFrom: calendar.NewDate(2026, 8, 10),
 			GradeLevelMax:   4,
 			Fields: activitiesModel.TemplateFieldsUpdate{
 				TargetGroupType:   activitiesModel.TargetGroupTypeAngebot,
@@ -346,12 +346,12 @@ func TestOfferingRosterFeedChanged(t *testing.T) {
 func TestResyncUpdatedTemplateOfferingRoster(t *testing.T) {
 	t.Parallel()
 
-	fixtureToday := timezone.NewDate(2026, 8, 24)
+	fixtureToday := calendar.NewDate(2026, 8, 24)
 	periodID := int64(55)
 	rosterFrom := fixtureToday.AddDays(6)
 	scheduleFrom := fixtureToday.AddDays(28)
 	deps := func(resync func(context.Context, timetable.OfferingRosterResyncInput) error) TemplateServiceDependencies {
-		return TemplateServiceDependencies{Today: func() timezone.Date { return fixtureToday }, ResyncOfferingRoster: resync}
+		return TemplateServiceDependencies{Today: func() calendar.Date { return fixtureToday }, ResyncOfferingRoster: resync}
 	}
 
 	baseInput := func() TemplateUpdateInput {

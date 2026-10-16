@@ -5,14 +5,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -53,23 +51,19 @@ type InstanceStaffReader interface {
 	planning.AssignmentInstanceStaffReader
 }
 
-// RoomReader resolves the "Ort" of an assignment.
-type RoomReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModels.Room, error)
-}
+// RoomReader names the "Ort" of an assignment.
+type RoomReader = planning.RoomBatchReader
 
 // ActivityGroupReader resolves the Angebot an assignment belongs to.
 type ActivityGroupReader = planning.ActivityGroupBatchReader
 
 // StaffWorkScheduleReader and WorkTimeModelReader feed the contractual
-// weekly target of the week grid's summaries.
-type StaffWorkScheduleReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModels.CalendarDate) ([]*configModels.StaffWorkSchedule, error)
-}
-
-type WorkTimeModelReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*configModels.WorkTimeModel, error)
-}
+// weekly target of the week grid's summaries; the Workforce capability
+// serves both.
+type (
+	StaffWorkScheduleReader = planning.StaffWorkScheduleBatchReader
+	WorkTimeModelReader     = planning.WorkTimeModelBatchReader
+)
 
 // StaffScheduleOverviewDependencies are the narrow readers the Dienstplan
 // week grid is built from.
@@ -159,7 +153,7 @@ type ShiftPlanningDependencies struct {
 	Logger      *slog.Logger
 	// Today overrides the calendar-day clock the materializer compares
 	// against; nil keeps timezone.TodayDate.
-	Today func() timezone.Date
+	Today func() calendar.Date
 }
 
 // ShiftPlanning is the composed Dienstplan side of Workforce: the public
@@ -202,7 +196,7 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 		planning.WithStaffShiftBroadcaster(deps.Broadcaster),
 	}
 	if deps.DeviationEvents != nil {
-		shiftOptions = append(shiftOptions, planning.WithStaffShiftDeviationEvents(deps.DeviationEvents))
+		shiftOptions = append(shiftOptions, planning.WithStaffShiftDeviationEvents(NewShiftMoveAudit(deps.DeviationEvents)))
 	}
 	lockStaffShifts := NewStaffShiftLock(deps.DB)
 	shifts := planning.NewStaffShiftService(shiftRows, deps.Staff, shiftTypes, lockStaffShifts, logger, shiftOptions...)
@@ -233,6 +227,19 @@ func NewShiftPlanning(deps ShiftPlanningDependencies) (*ShiftPlanning, error) {
 		series:      series,
 		overview:    overview,
 	}, nil
+}
+
+// NewShiftMoveAudit stores the shift_moved Änderungsprotokoll entry (#1884) as
+// a shift-anchored audit deviation event.
+func NewShiftMoveAudit(events auditModels.DeviationEventRepository) planning.ShiftMoveAudit {
+	return func(ctx context.Context, moved planning.ShiftMovedEvent) error {
+		return events.Create(ctx, &auditModels.DeviationEvent{
+			OccurrenceDate: auditModels.Date(moved.OccurrenceDate), StartTime: moved.StartTime,
+			StaffShiftID: &moved.StaffShiftID, SubjectStaffID: &moved.SubjectStaffID, RelatedStaffID: moved.RelatedStaffID,
+			ActorAccountID: moved.ActorAccountID, EventType: auditModels.DeviationEventShiftMoved,
+			OldValue: moved.OldValue, NewValue: moved.NewValue,
+		})
+	}
 }
 
 // seriesOptions binds the series service's optional collaborators. A nil

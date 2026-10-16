@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -36,7 +35,7 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	ctx context.Context,
 	templateID int64,
 	staffIDs []int64,
-	from timezone.Date,
+	from calendar.Date,
 	priorSupervisors []*activitiesModel.SupervisorPlanned,
 ) error {
 	if templateID <= 0 || len(staffIDs) == 0 {
@@ -113,7 +112,7 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 	pass *instanceStaffReconciliation,
 ) error {
 	periodID := calendarPeriodID(inst)
-	instanceDate := timezone.Date(inst.Date)
+	instanceDate := calendar.Date(inst.Date)
 	planWeekday, err := calendar.PlanWeekday(ctx, instanceDate)
 	if err != nil {
 		return &ScheduleError{Op: "reconcile predecessor staff: resolve weekend plan", Err: err}
@@ -185,7 +184,7 @@ func (s *TemplateService) removeOccurrenceStaff(ctx context.Context, key instanc
 
 // supervisorsPlanStaffOn reports whether any of the rows plans its staff
 // member on the occurrence date.
-func supervisorsPlanStaffOn(rows []*activitiesModel.SupervisorPlanned, date timezone.Date, periodID int64, planWeekday int) bool {
+func supervisorsPlanStaffOn(rows []*activitiesModel.SupervisorPlanned, date calendar.Date, periodID int64, planWeekday int) bool {
 	for _, sup := range rows {
 		if isSupervisorValidOn(sup, date, periodID, planWeekday) {
 			return true
@@ -244,7 +243,7 @@ func intersectWeekdays(left, right []int) []int {
 // seriesRowStaysCorrect reports whether an existing row already covers the
 // reconciliation window exactly: it starts at or before the window and ends
 // with the segment.
-func seriesRowStaysCorrect(validFrom timezone.Date, validUntil *timezone.Date, rowFrom timezone.Date, rowUntil *timezone.Date) bool {
+func seriesRowStaysCorrect(validFrom calendar.Date, validUntil *calendar.Date, rowFrom calendar.Date, rowUntil *calendar.Date) bool {
 	return !validFrom.After(rowFrom) && optionalDatesEqual(validUntil, rowUntil)
 }
 
@@ -300,15 +299,15 @@ func int64Set(ids []int64) map[int64]struct{} {
 // coverage the editor may not duplicate.
 func protectedPredecessorEnrollments(
 	rows []*activitiesModel.StudentEnrollment,
-	rowFrom timezone.Date,
-	rowUntil *timezone.Date,
+	rowFrom calendar.Date,
+	rowUntil *calendar.Date,
 ) []*activitiesModel.StudentEnrollment {
 	out := make([]*activitiesModel.StudentEnrollment, 0, len(rows))
 	for _, row := range rows {
 		if row == nil || !enrollmentIsProtected(row) {
 			continue
 		}
-		if !validityWindowsOverlap(timezone.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) {
+		if !validityWindowsOverlap(calendar.Date(row.ValidFrom), timezoneDatePtr(row.ValidUntil), rowFrom, rowUntil) {
 			continue
 		}
 		out = append(out, row)

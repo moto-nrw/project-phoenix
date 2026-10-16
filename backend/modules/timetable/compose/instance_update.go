@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -48,7 +47,7 @@ func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID
 	// from recreating it next to the moved one.
 	origSlot := capturedSlot{
 		ActivityGroupID: instance.ActivityGroupID,
-		Date:            timezone.Date(instance.Date),
+		Date:            calendar.Date(instance.Date),
 		StartHHMMSS:     formatTimeOfDay(instance.StartTime),
 	}
 	if err := s.updateLifecycleColumns(ctx, instance, applyPlannedEdit(instance, req)...); err != nil {
@@ -84,7 +83,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
 	lockedDate := instance.Date
-	if err := s.acquireSubstituteDayLockPair(ctx, tenant.FromContext(ctx), timezone.Date(lockedDate), req.Date); err != nil {
+	if err := s.acquireSubstituteDayLockPair(ctx, tenant.FromContext(ctx), calendar.Date(lockedDate), req.Date); err != nil {
 		return nil, &ScheduleError{Op: "update instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
@@ -97,10 +96,10 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot update instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)
 	}
-	if err := validateLegacyWeekendInstanceDate(ctx, timezone.Date(instance.Date), req.Date); err != nil {
+	if err := validateLegacyWeekendInstanceDate(ctx, calendar.Date(instance.Date), req.Date); err != nil {
 		return nil, err
 	}
-	if req.CalendarPeriodID != nil || (timezone.Date(instance.Date) != req.Date && !instance.IsSpontaneous) {
+	if req.CalendarPeriodID != nil || (calendar.Date(instance.Date) != req.Date && !instance.IsSpontaneous) {
 		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
 			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
 		}
@@ -145,7 +144,7 @@ func applyPlannedEdit(instance *scheduleModel.ActivityInstance, req timetable.Up
 
 // validateLegacyWeekendInstanceDate refuses moving an instance onto a
 // weekend, unless the school's weekend follows Friday's plan (#3921).
-func validateLegacyWeekendInstanceDate(ctx context.Context, existing, requested timezone.Date) error {
+func validateLegacyWeekendInstanceDate(ctx context.Context, existing, requested calendar.Date) error {
 	if requested.Weekday() != time.Saturday && requested.Weekday() != time.Sunday {
 		return nil
 	}
@@ -162,7 +161,7 @@ func validateLegacyWeekendInstanceDate(ctx context.Context, existing, requested 
 	return timetable.ErrInstanceWeekend
 }
 
-func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ctx context.Context, date timezone.Date) error {
+func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ctx context.Context, date calendar.Date) error {
 	periods, err := s.deps.CalendarPeriodRepo.FindActiveByTenantID(ctx)
 	if err != nil {
 		return fmt.Errorf("find active calendar periods: %w", err)
@@ -295,12 +294,12 @@ func (s *InstanceLifecycleService) lockRosterCareDays(ctx context.Context, insta
 		}
 	}
 	lockStudentIDs = append(lockStudentIDs, studentIDs...)
-	return s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), timezone.Date(instance.Date))
+	return s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), calendar.Date(instance.Date))
 }
 
 // lockCareExceptionDaysForStudents takes student → care-day locks for every
 // child on the date, sorted, matching the partial-absence writers.
-func (s *InstanceLifecycleService) lockCareExceptionDaysForStudents(ctx context.Context, studentIDs []int64, date timezone.Date) error {
+func (s *InstanceLifecycleService) lockCareExceptionDaysForStudents(ctx context.Context, studentIDs []int64, date calendar.Date) error {
 	if len(studentIDs) == 0 || s.deps.DB == nil {
 		return nil
 	}
@@ -319,7 +318,7 @@ func (s *InstanceLifecycleService) lockCareExceptionDaysForStudents(ctx context.
 // picks when scanning TIME columns.
 type capturedSlot struct {
 	ActivityGroupID *int64
-	Date            timezone.Date
+	Date            calendar.Date
 	StartHHMMSS     string
 }
 

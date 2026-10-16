@@ -7,11 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -43,15 +42,15 @@ type StaffNoticeDependencies struct {
 	Periods     StaffNoticePeriodLookup
 	Names       func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	Logger      *slog.Logger
-	CurrentDate func() timezone.Date
+	CurrentDate func() calendar.Date
 }
 
 type staffNoticeService struct {
-	repo        usersModels.StaffNoticeRepository
+	repo        scheduleModels.StaffNoticeRepository
 	periods     StaffNoticePeriodLookup
 	names       func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	logger      *slog.Logger
-	currentDate func() timezone.Date
+	currentDate func() calendar.Date
 }
 
 // NewStaffNotices verdrahtet den Dienst auf dem eigenen Repository des Owners.
@@ -61,14 +60,14 @@ func NewStaffNotices(deps StaffNoticeDependencies) timetable.StaffNotices {
 
 // newStaffNotices ist die Naht für die Logiktests: sie setzen ein anderes
 // Repository ein, ohne dass der Dienst eine Datenbank braucht.
-func newStaffNotices(repo usersModels.StaffNoticeRepository, deps StaffNoticeDependencies) *staffNoticeService {
+func newStaffNotices(repo scheduleModels.StaffNoticeRepository, deps StaffNoticeDependencies) *staffNoticeService {
 	logger := deps.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	currentDate := deps.CurrentDate
 	if currentDate == nil {
-		currentDate = timezone.TodayDate
+		currentDate = calendar.TodayDate
 	}
 	return &staffNoticeService{repo: repo, periods: deps.Periods, names: deps.Names, logger: logger, currentDate: currentDate}
 }
@@ -83,7 +82,7 @@ func (s *staffNoticeService) FindStaffNotice(ctx context.Context, id int64) (tim
 
 // find gibt die Zeile zurück, mit der die Geschäftslogik weiterrechnet;
 // FindStaffNotice reicht davon nur die öffentliche Form nach außen.
-func (s *staffNoticeService) find(ctx context.Context, id int64) (*usersModels.StaffNotice, error) {
+func (s *staffNoticeService) find(ctx context.Context, id int64) (*scheduleModels.StaffNotice, error) {
 	notice, err := s.repo.FindByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: get: %w", err)
@@ -103,11 +102,11 @@ func (s *staffNoticeService) ListStaffNotices(ctx context.Context, accountID int
 }
 
 func (s *staffNoticeService) StaffNoticesOn(ctx context.Context, accountID int64, date string, reader string) ([]timetable.StaffNoticeView, error) {
-	day, err := timezone.ParseDate(date)
+	day, err := calendar.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("%w: date must be a date (YYYY-MM-DD)", timetable.ErrStaffNoticeInvalid)
 	}
-	if !usersModels.ValidStaffNoticeReader(reader) {
+	if !scheduleModels.ValidStaffNoticeReader(reader) {
 		// Kein Portal, keine Hinweise: eine unbekannte Leserart darf nicht
 		// den breitesten Verteiler bekommen.
 		return []timetable.StaffNoticeView{}, nil
@@ -117,7 +116,7 @@ func (s *staffNoticeService) StaffNoticesOn(ctx context.Context, accountID int64
 		return nil, fmt.Errorf("staffnotice: today: %w", err)
 	}
 
-	matching := make([]*usersModels.StaffNotice, 0, len(rows))
+	matching := make([]*scheduleModels.StaffNotice, 0, len(rows))
 	for _, notice := range rows {
 		if !notice.AppliesOn(day) || !notice.AppliesTo(reader) {
 			continue
@@ -138,9 +137,9 @@ func (s *staffNoticeService) StaffNoticesOn(ctx context.Context, accountID int64
 // zusätzliche Abfrage kosten.
 func (s *staffNoticeService) filterByWeekPattern(
 	ctx context.Context,
-	notices []*usersModels.StaffNotice,
-	date timezone.Date,
-) ([]*usersModels.StaffNotice, error) {
+	notices []*scheduleModels.StaffNotice,
+	date calendar.Date,
+) ([]*scheduleModels.StaffNotice, error) {
 	needsPeriod := false
 	for _, notice := range notices {
 		if notice.WeekPattern != scheduleModels.WeekPatternEvery {
@@ -157,7 +156,7 @@ func (s *staffNoticeService) filterByWeekPattern(
 		return nil, err
 	}
 
-	kept := make([]*usersModels.StaffNotice, 0, len(notices))
+	kept := make([]*scheduleModels.StaffNotice, 0, len(notices))
 	for _, notice := range notices {
 		if period == nil || schoolcalendar.WeekPatternApplies(notice.WeekPattern, date.String(), schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor)) {
 			kept = append(kept, notice)
@@ -169,7 +168,7 @@ func (s *staffNoticeService) filterByWeekPattern(
 // periodFor sucht das aktive Schuljahr, das den Tag enthält und einen
 // Wochenzyklus führt; nur das Schuljahr trägt Woche A/B, Ferien und Halbjahre
 // dürfen sich überschneiden. Ohne Treffer nil: der Hinweis gilt dann jede Woche.
-func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
+func (s *staffNoticeService) periodFor(ctx context.Context, date calendar.Date) (*scheduleModels.CalendarPeriod, error) {
 	periods, err := s.periods.FindActiveByTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: load calendar periods: %w", err)
@@ -181,7 +180,7 @@ func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) 
 		if period.WeekCycleLength <= 1 || period.WeekCycleAnchor == nil {
 			continue
 		}
-		if date.Before(timezone.Date(period.StartDate)) || date.After(timezone.Date(period.EndDate)) {
+		if date.Before(calendar.Date(period.StartDate)) || date.After(calendar.Date(period.EndDate)) {
 			continue
 		}
 		return period, nil
@@ -194,7 +193,7 @@ func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) 
 func (s *staffNoticeService) decorate(
 	ctx context.Context,
 	accountID int64,
-	notices []*usersModels.StaffNotice,
+	notices []*scheduleModels.StaffNotice,
 	includeAcknowledgedCounts bool,
 ) ([]timetable.StaffNoticeView, error) {
 	views := make([]timetable.StaffNoticeView, 0, len(notices))
@@ -234,7 +233,7 @@ func (s *staffNoticeService) decorate(
 }
 
 func (s *staffNoticeService) CreateStaffNotice(ctx context.Context, createdBy int64, in timetable.StaffNoticeInput) (timetable.StaffNotice, error) {
-	notice, err := s.apply(&usersModels.StaffNotice{CreatedBy: createdBy}, in)
+	notice, err := s.apply(&scheduleModels.StaffNotice{CreatedBy: createdBy}, in)
 	if err != nil {
 		return timetable.StaffNotice{}, err
 	}
@@ -314,7 +313,7 @@ func (s *staffNoticeService) AcknowledgeStaffNotice(ctx context.Context, id, acc
 	if !notice.AppliesOn(today) {
 		return fmt.Errorf("%w: notice does not apply today", timetable.ErrStaffNoticeOutdated)
 	}
-	matching, err := s.filterByWeekPattern(ctx, []*usersModels.StaffNotice{notice}, today)
+	matching, err := s.filterByWeekPattern(ctx, []*scheduleModels.StaffNotice{notice}, today)
 	if err != nil {
 		return err
 	}
@@ -374,7 +373,7 @@ func (s *staffNoticeService) StaffNoticeAcknowledgers(ctx context.Context, id in
 // apply überträgt die Eingabe auf die Zeile und prüft sie. Der Zuschnitt der
 // Wochentage passiert hier und nicht im Modell: doppelte Einträge sind eine
 // Eingabefrage, keine Eigenschaft des Hinweises.
-func (s *staffNoticeService) apply(notice *usersModels.StaffNotice, in timetable.StaffNoticeInput) (*usersModels.StaffNotice, error) {
+func (s *staffNoticeService) apply(notice *scheduleModels.StaffNotice, in timetable.StaffNoticeInput) (*scheduleModels.StaffNotice, error) {
 	validFrom, err := parseNoticeDate(in.ValidFrom)
 	if err != nil {
 		return nil, fmt.Errorf("%w: valid from must be a date (YYYY-MM-DD)", timetable.ErrStaffNoticeInvalid)
@@ -388,11 +387,11 @@ func (s *staffNoticeService) apply(notice *usersModels.StaffNotice, in timetable
 	notice.Body = strings.TrimSpace(in.Body)
 	notice.Priority = in.Priority
 	if notice.Priority == "" {
-		notice.Priority = usersModels.StaffNoticePriorityInfo
+		notice.Priority = scheduleModels.StaffNoticePriorityInfo
 	}
 	notice.Audience = in.Audience
 	if notice.Audience == "" {
-		notice.Audience = usersModels.StaffNoticeAudienceAll
+		notice.Audience = scheduleModels.StaffNoticeAudienceAll
 	}
 	notice.ValidFrom = validFrom
 	// Ein leeres ValidUntil heißt unbefristet, nicht "gilt bis zum Nulltag".
@@ -418,16 +417,16 @@ func (s *staffNoticeService) apply(notice *usersModels.StaffNotice, in timetable
 // parseNoticeDate liest einen Kalendertag der öffentlichen Schreibform. Leer
 // ist kein Fehler, sondern "nicht gesetzt" — welches der beiden Daten das sein
 // darf, entscheidet apply.
-func parseNoticeDate(value string) (timezone.Date, error) {
+func parseNoticeDate(value string) (calendar.Date, error) {
 	if value == "" {
 		return "", nil
 	}
-	return timezone.ParseDate(value)
+	return calendar.ParseDate(value)
 }
 
 // staffNoticeContract bildet die beibehaltene Zeile auf die öffentliche Form
 // ab: Kalendertage als YYYY-MM-DD, ein leeres ValidUntil heißt unbefristet.
-func staffNoticeContract(notice *usersModels.StaffNotice) timetable.StaffNotice {
+func staffNoticeContract(notice *scheduleModels.StaffNotice) timetable.StaffNotice {
 	if notice == nil {
 		return timetable.StaffNotice{}
 	}

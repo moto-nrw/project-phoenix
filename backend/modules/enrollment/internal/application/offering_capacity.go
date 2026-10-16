@@ -7,8 +7,8 @@ import (
 	"sort"
 
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

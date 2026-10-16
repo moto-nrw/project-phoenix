@@ -11,9 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,8 +20,8 @@ import (
 type seriesMockRepo struct {
 	createFn          func(ctx context.Context, series *StaffShiftSeries) error
 	findByIDFn        func(ctx context.Context, id any) (*StaffShiftSeries, error)
-	capValidUntilFn   func(ctx context.Context, id int64, until timezone.Date) error
-	findOverlappingFn func(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*StaffShiftSeries, error)
+	capValidUntilFn   func(ctx context.Context, id int64, until calendar.Date) error
+	findOverlappingFn func(ctx context.Context, rootID, excludeID int64, from calendar.Date) (*StaffShiftSeries, error)
 }
 
 func (m *seriesMockRepo) Create(ctx context.Context, series *StaffShiftSeries) error {
@@ -37,20 +36,20 @@ func (m *seriesMockRepo) FindByID(ctx context.Context, id any) (*StaffShiftSerie
 	if m.findByIDFn != nil {
 		return m.findByIDFn(ctx, id)
 	}
-	return nil, modelBase.ErrNotFound
+	return nil, errRowNotFound
 }
 
 func (m *seriesMockRepo) Update(context.Context, *StaffShiftSeries) error { return nil }
 func (m *seriesMockRepo) Delete(context.Context, any) error               { return nil }
 
-func (m *seriesMockRepo) CapValidUntil(ctx context.Context, id int64, until timezone.Date) error {
+func (m *seriesMockRepo) CapValidUntil(ctx context.Context, id int64, until calendar.Date) error {
 	if m.capValidUntilFn != nil {
 		return m.capValidUntilFn(ctx, id, until)
 	}
 	return nil
 }
 
-func (m *seriesMockRepo) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from timezone.Date) (*StaffShiftSeries, error) {
+func (m *seriesMockRepo) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from calendar.Date) (*StaffShiftSeries, error) {
 	if m.findOverlappingFn != nil {
 		return m.findOverlappingFn(ctx, rootID, excludeID, from)
 	}
@@ -58,22 +57,22 @@ func (m *seriesMockRepo) FindOverlappingInLineage(ctx context.Context, rootID, e
 }
 
 type seriesMockExceptionRepo struct {
-	findDatesFn func(ctx context.Context, seriesID int64) ([]timezone.Date, error)
-	repointFn   func(ctx context.Context, fromID, toID int64, from timezone.Date) (int64, error)
+	findDatesFn func(ctx context.Context, seriesID int64) ([]calendar.Date, error)
+	repointFn   func(ctx context.Context, fromID, toID int64, from calendar.Date) (int64, error)
 }
 
 func (m *seriesMockExceptionRepo) Create(context.Context, *StaffShiftSeriesException) error {
 	return nil
 }
 
-func (m *seriesMockExceptionRepo) FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]timezone.Date, error) {
+func (m *seriesMockExceptionRepo) FindDatesBySeriesID(ctx context.Context, seriesID int64) ([]calendar.Date, error) {
 	if m.findDatesFn != nil {
 		return m.findDatesFn(ctx, seriesID)
 	}
 	return nil, nil
 }
 
-func (m *seriesMockExceptionRepo) RepointToSeriesFrom(ctx context.Context, fromID, toID int64, from timezone.Date) (int64, error) {
+func (m *seriesMockExceptionRepo) RepointToSeriesFrom(ctx context.Context, fromID, toID int64, from calendar.Date) (int64, error) {
 	if m.repointFn != nil {
 		return m.repointFn(ctx, fromID, toID, from)
 	}
@@ -85,9 +84,9 @@ func (m *seriesMockExceptionRepo) RepointToSeriesFrom(ctx context.Context, fromI
 type seriesShiftMockRepo struct {
 	shiftMockRepo
 	bulkCreateFn        func(ctx context.Context, shifts []*StaffShift) error
-	deleteNonDetachedFn func(ctx context.Context, seriesID int64, from timezone.Date) (int64, error)
-	repointDetachedFn   func(ctx context.Context, fromID, toID int64, from timezone.Date) (int64, error)
-	findDetachedFn      func(ctx context.Context, seriesID int64, from timezone.Date) ([]*StaffShift, error)
+	deleteNonDetachedFn func(ctx context.Context, seriesID int64, from calendar.Date) (int64, error)
+	repointDetachedFn   func(ctx context.Context, fromID, toID int64, from calendar.Date) (int64, error)
+	findDetachedFn      func(ctx context.Context, seriesID int64, from calendar.Date) ([]*StaffShift, error)
 	deleteFn            func(ctx context.Context, id any) error
 }
 
@@ -113,21 +112,21 @@ func (m *seriesShiftMockRepo) BulkCreate(ctx context.Context, shifts []*StaffShi
 	return nil
 }
 
-func (m *seriesShiftMockRepo) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) (int64, error) {
+func (m *seriesShiftMockRepo) DeleteNonDetachedBySeriesFrom(ctx context.Context, seriesID int64, from calendar.Date) (int64, error) {
 	if m.deleteNonDetachedFn != nil {
 		return m.deleteNonDetachedFn(ctx, seriesID, from)
 	}
 	return 0, nil
 }
 
-func (m *seriesShiftMockRepo) RepointDetachedSeriesFrom(ctx context.Context, fromID, toID int64, from timezone.Date) (int64, error) {
+func (m *seriesShiftMockRepo) RepointDetachedSeriesFrom(ctx context.Context, fromID, toID int64, from calendar.Date) (int64, error) {
 	if m.repointDetachedFn != nil {
 		return m.repointDetachedFn(ctx, fromID, toID, from)
 	}
 	return 0, nil
 }
 
-func (m *seriesShiftMockRepo) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from timezone.Date) ([]*StaffShift, error) {
+func (m *seriesShiftMockRepo) FindDetachedBySeriesFrom(ctx context.Context, seriesID int64, from calendar.Date) ([]*StaffShift, error) {
 	if m.findDetachedFn != nil {
 		return m.findDetachedFn(ctx, seriesID, from)
 	}
@@ -162,7 +161,7 @@ type seriesServiceMocks struct {
 	occurrenceUpdater StaffShiftService
 }
 
-var seriesTestToday = timezone.NewDate(2026, 8, 24)
+var seriesTestToday = calendar.NewDate(2026, 8, 24)
 
 func newSeriesServiceForTest(m seriesServiceMocks) StaffShiftSeriesService {
 	if m.series == nil {
@@ -191,7 +190,7 @@ func newSeriesServiceForTest(m seriesServiceMocks) StaffShiftSeriesService {
 	// nil db skips the advisory lock (same convention as the single-shift
 	// unit tests).
 	service := NewStaffShiftSeriesService(m.series, m.exceptions, m.shifts, m.staff, m.period, nil, nil, nil, m.occurrenceUpdater)
-	service.(*staffShiftSeriesService).today = func() timezone.Date { return timezone.Date(seriesTestToday) }
+	service.(*staffShiftSeriesService).today = func() calendar.Date { return calendar.Date(seriesTestToday) }
 	return service
 }
 
@@ -204,11 +203,11 @@ func unitSeries(t *testing.T) *StaffShiftSeries {
 	return &StaffShiftSeries{
 		StaffID:          5,
 		Weekdays:         []int16{1, 2, 3, 4, 5, 6, 7},
-		StartTime:        timezone.NormalizeWallClock(start),
-		EndTime:          timezone.NormalizeWallClock(end),
+		StartTime:        calendar.NormalizeWallClock(start),
+		EndTime:          calendar.NormalizeWallClock(end),
 		CalendarPeriodID: 8,
 		WeekPattern:      WeekPatternEvery,
-		ValidFrom:        timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(-7)),
+		ValidFrom:        calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(-7)),
 		CreatedBy:        5,
 	}
 }
@@ -240,7 +239,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("staff missing", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			staff: &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*workforce.PlanStaff, error) {
-				return nil, modelBase.ErrNotFound
+				return nil, errRowNotFound
 			}},
 		})
 		_, err := service.CreateSeries(context.Background(), unitSeries(t))
@@ -255,7 +254,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("period missing", func(t *testing.T) {
-		service := newSeriesServiceForTest(seriesServiceMocks{period: seriesFakePeriodRepo{err: modelBase.ErrNotFound}})
+		service := newSeriesServiceForTest(seriesServiceMocks{period: seriesFakePeriodRepo{err: errRowNotFound}})
 		_, err := service.CreateSeries(context.Background(), unitSeries(t))
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 	})
@@ -275,7 +274,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("valid from outside the calendar period", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{})
 		series := unitSeries(t)
-		series.ValidFrom = timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(-60))
+		series.ValidFrom = calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(-60))
 		_, err := service.CreateSeries(context.Background(), series)
 		require.ErrorIs(t, err, ErrSeriesInvalid)
 		assert.ErrorIs(t, err, workforce.ErrShiftSeriesOutsidePeriod)
@@ -294,7 +293,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 
 	t.Run("exception read failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
-			exceptions: &seriesMockExceptionRepo{findDatesFn: func(context.Context, int64) ([]timezone.Date, error) {
+			exceptions: &seriesMockExceptionRepo{findDatesFn: func(context.Context, int64) ([]calendar.Date, error) {
 				return nil, dbErr
 			}},
 		})
@@ -305,7 +304,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("existing shift read failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			shifts: &seriesShiftMockRepo{shiftMockRepo: shiftMockRepo{
-				findByStaffAndDateRangeFunc: func(context.Context, int64, timezone.Date, timezone.Date) ([]*StaffShift, error) {
+				findByStaffAndDateRangeFunc: func(context.Context, int64, calendar.Date, calendar.Date) ([]*StaffShift, error) {
 					return nil, dbErr
 				},
 			}},
@@ -335,7 +334,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 		series := unitSeries(t)
 		// valid_until tomorrow (exclusive) leaves no future occurrence to
 		// materialize, so the series must not be persisted.
-		until := timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(1))
+		until := calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(1))
 		series.ValidUntil = &until
 		_, err := service.CreateSeries(context.Background(), series)
 		require.ErrorIs(t, err, ErrSeriesInvalid)
@@ -348,8 +347,8 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 func TestUpdateTodayOccurrence(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
-	occurrenceDate := timezone.Date(today)
+	today := calendar.NewDate(2026, 8, 24)
+	occurrenceDate := calendar.Date(today)
 	seriesID := int64(12)
 	occurrence := &StaffShift{
 		StaffID:              5,
@@ -372,7 +371,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 	t.Run("requires an updater when an occurrence is supplied", func(t *testing.T) {
 		service := &staffShiftSeriesService{}
-		service.today = func() timezone.Date { return today }
+		service.today = func() calendar.Date { return today }
 		_, err := service.updateTodayOccurrence(context.Background(), input, false)
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 		assert.Contains(t, err.Error(), "updater is not configured")
@@ -380,7 +379,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 	t.Run("does nothing without an occurrence id", func(t *testing.T) {
 		service := &staffShiftSeriesService{}
-		service.today = func() timezone.Date { return today }
+		service.today = func() calendar.Date { return today }
 		withoutOccurrence := input
 		withoutOccurrence.OccurrenceShiftID = 0
 		_, err := service.updateTodayOccurrence(context.Background(), withoutOccurrence, false)
@@ -389,7 +388,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 	t.Run("maps a missing or unreadable occurrence to the correct error", func(t *testing.T) {
 		for name, findErr := range map[string]error{
-			"missing":          modelBase.ErrNotFound,
+			"missing":          errRowNotFound,
 			"database failure": errors.New("read failed"),
 		} {
 			t.Run(name, func(t *testing.T) {
@@ -401,11 +400,11 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 					}},
 					shiftService: &seriesOccurrenceUpdaterMock{},
 				}
-				service.today = func() timezone.Date { return today }
+				service.today = func() calendar.Date { return today }
 
 				_, err := service.updateTodayOccurrence(context.Background(), input, false)
 				require.Error(t, err)
-				if errors.Is(findErr, modelBase.ErrNotFound) {
+				if errors.Is(findErr, errRowNotFound) {
 					assert.ErrorIs(t, err, ErrSeriesInvalid)
 				} else {
 					assert.ErrorIs(t, err, findErr)
@@ -426,7 +425,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			}},
 			shiftService: &seriesOccurrenceUpdaterMock{},
 		}
-		service.today = func() timezone.Date { return today }
+		service.today = func() calendar.Date { return today }
 
 		_, err := service.updateTodayOccurrence(context.Background(), input, false)
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
@@ -454,14 +453,14 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 				return nil, errors.New("write failed")
 			}},
 		}
-		service.today = func() timezone.Date { return today }
+		service.today = func() calendar.Date { return today }
 
 		_, err := service.updateTodayOccurrence(context.Background(), inputWithType, false)
 		require.Error(t, err)
 		assert.ErrorContains(t, err, "update current series occurrence")
 		require.NotNil(t, updated)
-		assert.Equal(t, "10:00", timezone.NormalizeWallClock(updated.StartTime).Format("15:04"))
-		assert.Equal(t, "15:00", timezone.NormalizeWallClock(updated.EndTime).Format("15:04"))
+		assert.Equal(t, "10:00", calendar.NormalizeWallClock(updated.StartTime).Format("15:04"))
+		assert.Equal(t, "15:00", calendar.NormalizeWallClock(updated.EndTime).Format("15:04"))
 		assert.Equal(t, 30, updated.BreakMinutes)
 		require.NotNil(t, updated.ShiftTypeID)
 		assert.Equal(t, shiftTypeID, *updated.ShiftTypeID)
@@ -472,7 +471,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 	for name, mutate := range map[string]func(*StaffShift){
 		"detached occurrence":  func(shift *StaffShift) { shift.Detached = true },
-		"moved occurrence":     func(shift *StaffShift) { shift.Date = timezone.Date(today.AddDays(1)) },
+		"moved occurrence":     func(shift *StaffShift) { shift.Date = calendar.Date(today.AddDays(1)) },
 		"cancelled occurrence": func(shift *StaffShift) { shift.Cancelled = true },
 	} {
 		t.Run("preserves "+name, func(t *testing.T) {
@@ -490,7 +489,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 					return nil, nil
 				}},
 			}
-			service.today = func() timezone.Date { return today }
+			service.today = func() calendar.Date { return today }
 
 			_, err := service.updateTodayOccurrence(context.Background(), input, false)
 			require.NoError(t, err)
@@ -513,7 +512,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 				return nil, nil
 			}},
 		}
-		service.today = func() timezone.Date { return today }
+		service.today = func() calendar.Date { return today }
 
 		_, err := service.updateTodayOccurrence(context.Background(), input, true)
 		require.NoError(t, err)
@@ -529,7 +528,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 			}},
 			shiftService: &seriesOccurrenceUpdaterMock{},
 		}
-		service.today = func() timezone.Date { return today }
+		service.today = func() calendar.Date { return today }
 
 		updated, err := service.updateTodayOccurrence(context.Background(), input, false)
 		require.NoError(t, err)
@@ -541,7 +540,7 @@ func seriesClockForMockTest(t *testing.T, value string) time.Time {
 	t.Helper()
 	parsed, err := time.Parse("15:04", value)
 	require.NoError(t, err)
-	return timezone.NormalizeWallClock(parsed)
+	return calendar.NormalizeWallClock(parsed)
 }
 
 func splitInput(t *testing.T, seriesID int64) SplitSeriesInput {
@@ -552,9 +551,9 @@ func splitInput(t *testing.T, seriesID int64) SplitSeriesInput {
 	require.NoError(t, err)
 	return SplitSeriesInput{
 		SeriesID:      seriesID,
-		EffectiveDate: timezone.NewDate(2026, 8, 24).AddDays(3),
-		StartTime:     timezone.NormalizeWallClock(start),
-		EndTime:       timezone.NormalizeWallClock(end),
+		EffectiveDate: calendar.NewDate(2026, 8, 24).AddDays(3),
+		StartTime:     calendar.NormalizeWallClock(start),
+		EndTime:       calendar.NormalizeWallClock(end),
 		ActorStaffID:  5,
 	}
 }
@@ -604,12 +603,12 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("valid until beyond calendar period", func(t *testing.T) {
-		periodEnd := timezone.NewDate(2026, 8, 24).AddDays(5)
+		periodEnd := calendar.NewDate(2026, 8, 24).AddDays(5)
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: found(t),
 			period: seriesFakePeriodRepo{period: &SeriesPeriod{
-				StartDate:       timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(-30)),
-				EndDate:         timezone.Date(periodEnd),
+				StartDate:       calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(-30)),
+				EndDate:         calendar.Date(periodEnd),
 				WeekCycleLength: 1,
 			}},
 		})
@@ -623,11 +622,11 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("bounds successor at next lineage segment", func(t *testing.T) {
-		nextFrom := timezone.NewDate(2026, 8, 24).AddDays(8)
+		nextFrom := calendar.NewDate(2026, 8, 24).AddDays(8)
 		var created *StaffShiftSeries
 		repo := found(t)
-		repo.findOverlappingFn = func(context.Context, int64, int64, timezone.Date) (*StaffShiftSeries, error) {
-			return &StaffShiftSeries{ValidFrom: timezone.Date(nextFrom)}, nil
+		repo.findOverlappingFn = func(context.Context, int64, int64, calendar.Date) (*StaffShiftSeries, error) {
+			return &StaffShiftSeries{ValidFrom: calendar.Date(nextFrom)}, nil
 		}
 		repo.createFn = func(_ context.Context, successor *StaffShiftSeries) error {
 			created = successor
@@ -638,12 +637,12 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		_, err := service.SplitSeries(context.Background(), splitInput(t, 12))
 		require.NoError(t, err)
 		require.NotNil(t, created.ValidUntil)
-		assert.Equal(t, timezone.Date(nextFrom), *created.ValidUntil)
+		assert.Equal(t, calendar.Date(nextFrom), *created.ValidUntil)
 	})
 
 	t.Run("cap failure", func(t *testing.T) {
 		repo := found(t)
-		repo.capValidUntilFn = func(context.Context, int64, timezone.Date) error { return dbErr }
+		repo.capValidUntilFn = func(context.Context, int64, calendar.Date) error { return dbErr }
 		service := newSeriesServiceForTest(seriesServiceMocks{series: repo})
 		_, err := service.SplitSeries(context.Background(), splitInput(t, 12))
 		assert.ErrorIs(t, err, dbErr)
@@ -652,7 +651,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("delete failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: found(t),
-			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(context.Context, int64, timezone.Date) (int64, error) {
+			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(context.Context, int64, calendar.Date) (int64, error) {
 				return 0, dbErr
 			}},
 		})
@@ -671,7 +670,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("detached repoint failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: found(t),
-			shifts: &seriesShiftMockRepo{repointDetachedFn: func(context.Context, int64, int64, timezone.Date) (int64, error) {
+			shifts: &seriesShiftMockRepo{repointDetachedFn: func(context.Context, int64, int64, calendar.Date) (int64, error) {
 				return 0, dbErr
 			}},
 		})
@@ -682,7 +681,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("exception repoint failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: found(t),
-			exceptions: &seriesMockExceptionRepo{repointFn: func(context.Context, int64, int64, timezone.Date) (int64, error) {
+			exceptions: &seriesMockExceptionRepo{repointFn: func(context.Context, int64, int64, calendar.Date) (int64, error) {
 				return 0, dbErr
 			}},
 		})
@@ -691,43 +690,43 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("effective clamps all split writes to tomorrow", func(t *testing.T) {
-		var capped, deleted, repointed timezone.Date
+		var capped, deleted, repointed calendar.Date
 		repo := found(t)
-		repo.capValidUntilFn = func(_ context.Context, _ int64, until timezone.Date) error {
+		repo.capValidUntilFn = func(_ context.Context, _ int64, until calendar.Date) error {
 			capped = until
 			return nil
 		}
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: repo,
 			shifts: &seriesShiftMockRepo{
-				deleteNonDetachedFn: func(_ context.Context, _ int64, from timezone.Date) (int64, error) {
+				deleteNonDetachedFn: func(_ context.Context, _ int64, from calendar.Date) (int64, error) {
 					deleted = from
 					return 0, nil
 				},
-				repointDetachedFn: func(_ context.Context, _, _ int64, from timezone.Date) (int64, error) {
+				repointDetachedFn: func(_ context.Context, _, _ int64, from calendar.Date) (int64, error) {
 					repointed = from
 					return 0, nil
 				},
 			},
-			exceptions: &seriesMockExceptionRepo{repointFn: func(_ context.Context, _, _ int64, from timezone.Date) (int64, error) {
-				assert.Equal(t, timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(1)), from)
+			exceptions: &seriesMockExceptionRepo{repointFn: func(_ context.Context, _, _ int64, from calendar.Date) (int64, error) {
+				assert.Equal(t, calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(1)), from)
 				return 0, nil
 			}},
 		})
 
 		input := splitInput(t, 12)
-		input.EffectiveDate = timezone.NewDate(2026, 8, 24).AddDays(-1)
+		input.EffectiveDate = calendar.NewDate(2026, 8, 24).AddDays(-1)
 		_, err := service.SplitSeries(context.Background(), input)
 		require.NoError(t, err)
-		tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
-		assert.Equal(t, timezone.Date(tomorrow), capped)
-		assert.Equal(t, timezone.Date(tomorrow), deleted)
-		assert.Equal(t, timezone.Date(tomorrow), repointed)
+		tomorrow := calendar.NewDate(2026, 8, 24).AddDays(1)
+		assert.Equal(t, calendar.Date(tomorrow), capped)
+		assert.Equal(t, calendar.Date(tomorrow), deleted)
+		assert.Equal(t, calendar.Date(tomorrow), repointed)
 	})
 
 	t.Run("today occurrence repoints from today while future writes start tomorrow", func(t *testing.T) {
-		today := timezone.NewDate(2026, 8, 24)
-		occurrenceDate := timezone.Date(today)
+		today := calendar.NewDate(2026, 8, 24)
+		occurrenceDate := calendar.Date(today)
 		seriesID := int64(12)
 		occurrence := &StaffShift{
 			StaffID:              5,
@@ -738,7 +737,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 			EndTime:              seriesClockForMockTest(t, "12:00"),
 		}
 		occurrence.ID = 44
-		var deleted, repointed timezone.Date
+		var deleted, repointed calendar.Date
 		repo := found(t)
 		repo.createFn = func(_ context.Context, successor *StaffShiftSeries) error {
 			successor.ID = 13
@@ -751,11 +750,11 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 					return occurrence, nil
 				},
 			},
-				deleteNonDetachedFn: func(_ context.Context, _ int64, from timezone.Date) (int64, error) {
+				deleteNonDetachedFn: func(_ context.Context, _ int64, from calendar.Date) (int64, error) {
 					deleted = from
 					return 0, nil
 				},
-				repointDetachedFn: func(_ context.Context, fromID, toID int64, from timezone.Date) (int64, error) {
+				repointDetachedFn: func(_ context.Context, fromID, toID int64, from calendar.Date) (int64, error) {
 					assert.Equal(t, seriesID, fromID)
 					assert.Equal(t, int64(13), toID)
 					repointed = from
@@ -770,13 +769,13 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		input.OccurrenceShiftID = occurrence.ID
 		_, err := service.SplitSeries(context.Background(), input)
 		require.NoError(t, err)
-		assert.Equal(t, timezone.Date(today.AddDays(1)), deleted)
-		assert.Equal(t, timezone.Date(today), repointed)
+		assert.Equal(t, calendar.Date(today.AddDays(1)), deleted)
+		assert.Equal(t, calendar.Date(today), repointed)
 	})
 
 	t.Run("repeated same-day edit updates the retained occurrence", func(t *testing.T) {
-		today := timezone.NewDate(2026, 8, 24)
-		occurrenceDate := timezone.Date(today)
+		today := calendar.NewDate(2026, 8, 24)
+		occurrenceDate := calendar.Date(today)
 		seriesID := int64(12)
 		occurrence := &StaffShift{
 			StaffID:              5,
@@ -793,7 +792,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		// split, so its rule begins tomorrow while its retained row is today.
 		repo.findByIDFn = func(context.Context, any) (*StaffShiftSeries, error) {
 			series := storedSeries(t)
-			series.ValidFrom = timezone.Date(today.AddDays(1))
+			series.ValidFrom = calendar.Date(today.AddDays(1))
 			retainedID := occurrence.ID
 			series.RetainedOccurrenceShiftID = &retainedID
 			return series, nil
@@ -808,7 +807,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 			}},
 			occurrenceUpdater: &seriesOccurrenceUpdaterMock{updateFn: func(_ context.Context, updated *StaffShift, _ StaffShiftUpdateOptions) (*StaffShift, error) {
 				updates++
-				assert.Equal(t, "10:00", timezone.NormalizeWallClock(updated.StartTime).Format("15:04"))
+				assert.Equal(t, "10:00", calendar.NormalizeWallClock(updated.StartTime).Format("15:04"))
 				return updated, nil
 			}},
 		})
@@ -822,8 +821,8 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("repeated same-day edit preserves a detached one-off deviation", func(t *testing.T) {
-		today := timezone.NewDate(2026, 8, 24)
-		occurrenceDate := timezone.Date(today)
+		today := calendar.NewDate(2026, 8, 24)
+		occurrenceDate := calendar.Date(today)
 		seriesID := int64(12)
 		occurrence := &StaffShift{
 			StaffID:              5,
@@ -838,7 +837,7 @@ func TestSplitSeriesUnit_ErrorBranches(t *testing.T) {
 		repo := found(t)
 		repo.findByIDFn = func(context.Context, any) (*StaffShiftSeries, error) {
 			series := storedSeries(t)
-			series.ValidFrom = timezone.Date(today.AddDays(1))
+			series.ValidFrom = calendar.Date(today.AddDays(1))
 			return series, nil
 		}
 		updates := 0
@@ -876,42 +875,42 @@ func TestEndSeriesUnit_ErrorBranches(t *testing.T) {
 
 	t.Run("cap failure", func(t *testing.T) {
 		repo := found(t)
-		repo.capValidUntilFn = func(context.Context, int64, timezone.Date) error { return dbErr }
+		repo.capValidUntilFn = func(context.Context, int64, calendar.Date) error { return dbErr }
 		service := newSeriesServiceForTest(seriesServiceMocks{series: repo})
-		_, err := service.EndSeries(context.Background(), 12, timezone.NewDate(2026, 8, 24).AddDays(3))
+		_, err := service.EndSeries(context.Background(), 12, calendar.NewDate(2026, 8, 24).AddDays(3))
 		assert.ErrorIs(t, err, dbErr)
 	})
 
 	t.Run("delete failure", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: found(t),
-			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(context.Context, int64, timezone.Date) (int64, error) {
+			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(context.Context, int64, calendar.Date) (int64, error) {
 				return 0, dbErr
 			}},
 		})
-		_, err := service.EndSeries(context.Background(), 12, timezone.NewDate(2026, 8, 24).AddDays(3))
+		_, err := service.EndSeries(context.Background(), 12, calendar.NewDate(2026, 8, 24).AddDays(3))
 		assert.ErrorIs(t, err, dbErr)
 	})
 
 	t.Run("effective clamps to valid_from and tomorrow", func(t *testing.T) {
-		var capped, deleted timezone.Date
+		var capped, deleted calendar.Date
 		repo := found(t)
-		repo.capValidUntilFn = func(_ context.Context, _ int64, until timezone.Date) error {
+		repo.capValidUntilFn = func(_ context.Context, _ int64, until calendar.Date) error {
 			capped = until
 			return nil
 		}
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			series: repo,
-			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(_ context.Context, _ int64, from timezone.Date) (int64, error) {
+			shifts: &seriesShiftMockRepo{deleteNonDetachedFn: func(_ context.Context, _ int64, from calendar.Date) (int64, error) {
 				deleted = from
 				return 0, nil
 			}},
 		})
-		_, err := service.EndSeries(context.Background(), 12, timezone.NewDate(2026, 8, 24).AddDays(-30))
+		_, err := service.EndSeries(context.Background(), 12, calendar.NewDate(2026, 8, 24).AddDays(-30))
 		require.NoError(t, err)
-		assert.Equal(t, timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(1)), capped,
+		assert.Equal(t, calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(1)), capped,
 			"an end date in the past must clamp to tomorrow (past and current rows stay)")
-		assert.Equal(t, timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(1)), deleted,
+		assert.Equal(t, calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(1)), deleted,
 			"an end date in the past must not delete the current-day shift")
 	})
 }
@@ -926,7 +925,7 @@ func TestGetSeriesUnit(t *testing.T) {
 		stored := storedSeries(t)
 		stored.Weekdays = []int16{2, 4}
 		stored.WeekPattern = WeekPatternA
-		until := timezone.Date(timezone.NewDate(2026, 8, 24).AddDays(14))
+		until := calendar.Date(calendar.NewDate(2026, 8, 24).AddDays(14))
 		stored.ValidUntil = &until
 
 		service := newSeriesServiceForTest(seriesServiceMocks{

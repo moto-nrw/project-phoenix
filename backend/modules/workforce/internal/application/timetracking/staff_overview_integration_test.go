@@ -7,12 +7,10 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -20,12 +18,12 @@ import (
 
 type recordingAbsenceRepository struct {
 	timetracking.StaffAbsenceRepository
-	requestedDate timezone.Date
+	requestedDate calendar.Date
 }
 
 func (r *recordingAbsenceRepository) GetAbsenceMapForDate(
 	ctx context.Context,
-	date timezone.Date,
+	date calendar.Date,
 ) (map[int64]string, error) {
 	r.requestedDate = date
 	return r.StaffAbsenceRepository.GetAbsenceMapForDate(ctx, date)
@@ -38,12 +36,11 @@ type overviewFixture struct {
 	db        *testpkg.DB
 	repos     *api.RepositoryTestFactory
 	workforce workforce.Capability
-	rows      api.TimetableTestRepositories
 	ctx       context.Context
 	staff     []int64
 	svc       timetracking.StaffOverviewService
 	monthSvc  timetracking.WorkTimeMonthService
-	today     timezone.Date
+	today     calendar.Date
 }
 
 // newOverviewFixture builds `count` staff members. The account start is the
@@ -56,14 +53,12 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	owners := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
-	rows, err := api.NewTimetableTestRepositoriesWithMembers(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
-	require.NoError(t, err)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), owners)
 	ctx := testpkg.WithTestTenantRuntime(t, testpkg.TenantContext(tenantID))
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	f := &overviewFixture{
-		tenantID: tenantID, db: db, repos: repos, workforce: owners.Workforce, rows: rows, ctx: ctx, today: today,
+		tenantID: tenantID, db: db, repos: repos, workforce: owners.Workforce, ctx: ctx, today: today,
 	}
 
 	t.Cleanup(func() {
@@ -90,7 +85,7 @@ func newOverviewFixture(t *testing.T, count int) *overviewFixture {
 		}
 	}
 
-	monthStart := timezone.NewDate(today.Year(), today.Month(), 1)
+	monthStart := calendar.NewDate(today.Year(), today.Month(), 1)
 	settings := wtmIntSettings{accountStart: monthStart.String()}
 	f.monthSvc = timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(owners.Workforce).Breaks, repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))),
@@ -115,7 +110,7 @@ func (f *overviewFixture) newOverviewService(settings wtmIntSettings) timetracki
 
 // scheduleValidFrom is the start of every scheduled contract in these tests:
 // far enough in the past that no fixture month falls outside it.
-var scheduleValidFrom = timezone.NewDate(2020, time.January, 1)
+var scheduleValidFrom = calendar.NewDate(2020, time.January, 1)
 
 // addSchedule gives the staff member the same contractual Soll on all seven
 // weekdays, so the expected values do not depend on which day the test runs.
@@ -126,7 +121,7 @@ func (f *overviewFixture) addSchedule(t *testing.T, staffID int64, targetMinutes
 	}
 }
 
-func (f *overviewFixture) addSession(t *testing.T, staffID int64, date timezone.Date, duration time.Duration) *timetracking.WorkSession {
+func (f *overviewFixture) addSession(t *testing.T, staffID int64, date calendar.Date, duration time.Duration) *timetracking.WorkSession {
 	t.Helper()
 	checkIn := time.Date(date.Year(), date.Month(), date.Day(), 8, 0, 0, 0, time.UTC)
 	checkOut := checkIn.Add(duration)
@@ -154,7 +149,7 @@ func (f *overviewFixture) addSession(t *testing.T, staffID int64, date timezone.
 // reopenSession clears check-out on the staff member's session for that day —
 // the staff member is currently at work. It updates the fixture's existing row
 // because work_sessions is unique per staff and date.
-func (f *overviewFixture) reopenSession(t *testing.T, staffID int64, date timezone.Date) {
+func (f *overviewFixture) reopenSession(t *testing.T, staffID int64, date calendar.Date) {
 	t.Helper()
 	res, err := f.db.NewUpdate().
 		Table("active.work_sessions").
@@ -168,20 +163,16 @@ func (f *overviewFixture) reopenSession(t *testing.T, staffID int64, date timezo
 }
 
 // addShift plans a shift that covers the whole day, so it also covers "now".
-func (f *overviewFixture) addShift(t *testing.T, staffID int64, date timezone.Date) {
+func (f *overviewFixture) addShift(t *testing.T, staffID int64, date calendar.Date) {
 	t.Helper()
-	shift := &scheduleModels.StaffShift{
-		StaffID:   staffID,
-		Date:      scheduleModels.Date(date),
-		StartTime: time.Date(2000, time.January, 1, 0, 0, 0, 0, time.UTC),
-		EndTime:   time.Date(2000, time.January, 1, 23, 59, 59, 999999000, time.UTC),
-		CreatedBy: staffID,
-	}
-	shift.SetTenantID(f.tenantID)
-	require.NoError(t, f.rows.StaffShift.Create(f.ctx, shift))
+	_, err := f.workforce.CreateStaffShift(f.ctx, workforce.StaffShift{
+		TenantID: f.tenantID, StaffID: staffID, Date: date.String(),
+		StartTime: "00:00:00", EndTime: "23:59:59", CreatedBy: staffID,
+	})
+	require.NoError(t, err)
 }
 
-func (f *overviewFixture) addAbsence(t *testing.T, staffID int64, absenceType, status string, start, end timezone.Date) {
+func (f *overviewFixture) addAbsence(t *testing.T, staffID int64, absenceType, status string, start, end calendar.Date) {
 	t.Helper()
 	absence := &timetracking.StaffAbsence{
 		StaffID:     staffID,
@@ -261,10 +252,10 @@ func TestTimeTrackingOverview_AccountStartAfterRequestedMonthMatchesDetail(t *te
 	// treat the fixture's fixed 08:00 session as future work before 10:00
 	// Berlin. The account starts in the following month, preserving the
 	// standalone pre-account-month case this test covers.
-	requestedDate := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	requestedDate := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	f.addSession(t, f.staff[0], requestedDate, 4*time.Hour)
 	settings := wtmIntSettings{
-		accountStart: timezone.NewDate(f.today.Year(), f.today.Month(), 1).String(),
+		accountStart: calendar.NewDate(f.today.Year(), f.today.Month(), 1).String(),
 	}
 	svc := f.newOverviewService(settings)
 	monthSvc := timetracking.NewWorkTimeMonthService(
@@ -299,9 +290,9 @@ func TestTimeTrackingOverview_VacationMatchesQuotaEndpoint(t *testing.T) {
 
 	// An approved vacation day earlier this year plus a still-requested one:
 	// the requested days must be reserved, not counted as taken.
-	yearStart := timezone.NewDate(f.today.Year(), time.January, 5)
+	yearStart := calendar.NewDate(f.today.Year(), time.January, 5)
 	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeVacation, workforce.AbsenceStatusApproved, yearStart, yearStart.AddDays(2))
-	future := timezone.NewDate(f.today.Year(), time.December, 1)
+	future := calendar.NewDate(f.today.Year(), time.December, 1)
 	f.addAbsence(t, f.staff[0], workforce.AbsenceTypeVacation, workforce.AbsenceStatusRequested, future, future)
 
 	absenceSvc := timetracking.NewStaffAbsenceService(
@@ -333,16 +324,16 @@ func TestTimeTrackingOverview_HistoricalVacationStopsAtMonthEnd(t *testing.T) {
 		f.staff[0],
 		workforce.AbsenceTypeVacation,
 		workforce.AbsenceStatusApproved,
-		timezone.NewDate(historicalYear, time.February, 1),
-		timezone.NewDate(historicalYear, time.February, 7),
+		calendar.NewDate(historicalYear, time.February, 1),
+		calendar.NewDate(historicalYear, time.February, 7),
 	)
 	f.addAbsence(
 		t,
 		f.staff[0],
 		workforce.AbsenceTypeVacation,
 		workforce.AbsenceStatusApproved,
-		timezone.NewDate(historicalYear, time.November, 1),
-		timezone.NewDate(historicalYear, time.November, 7),
+		calendar.NewDate(historicalYear, time.November, 1),
+		calendar.NewDate(historicalYear, time.November, 7),
 	)
 
 	overview, err := f.svc.GetTimeTrackingOverview(f.ctx, timetracking.OverviewFilters{
@@ -411,7 +402,7 @@ func TestDashboardSummary_AbsenceKPIsUseBerlinToday(t *testing.T) {
 	f := newOverviewFixture(t, 1)
 	absenceRepo := &recordingAbsenceRepository{StaffAbsenceRepository: f.repos.StaffAbsence}
 	settings := wtmIntSettings{
-		accountStart: timezone.NewDate(f.today.Year(), f.today.Month(), 1).String(),
+		accountStart: calendar.NewDate(f.today.Year(), f.today.Month(), 1).String(),
 	}
 	svc := timetracking.NewStaffOverviewService(
 		api.OverviewStaff(f.repos.Staff), workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, absenceRepo,
@@ -457,7 +448,7 @@ func TestDashboardSummary_WeekExcludesAdjustmentsOutsideRange(t *testing.T) {
 	require.NoError(t, err)
 
 	weekStart := f.today.StartOfISOWeek()
-	effectiveDate := timezone.NewDate(f.today.Year(), f.today.Month(), 1)
+	effectiveDate := calendar.NewDate(f.today.Year(), f.today.Month(), 1)
 	if !effectiveDate.Before(weekStart) {
 		effectiveDate = f.today.AddDays(1)
 	}
@@ -664,8 +655,8 @@ func TestTimeTrackingOverview_RespectsFrozenMonths(t *testing.T) {
 	staffID := f.staff[0]
 
 	// Account start in the previous month so there is something to freeze.
-	prevMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
-	settings := wtmIntSettings{accountStart: timezone.NewDate(prevMonth.Year(), prevMonth.Month(), 1).String()}
+	prevMonth := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	settings := wtmIntSettings{accountStart: calendar.NewDate(prevMonth.Year(), prevMonth.Month(), 1).String()}
 	monthSvc := timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
 		workforceCompose.NewWorkScheduleTargets(workforceRepositoryAdapter.NewStaffWorkScheduleRepository(f.workforce)), workforceCompose.NewWorkTimeTargetModels(workforceRepositoryAdapter.NewWorkTimeModelRepository(f.workforce)), workforceCompose.NewTimeTrackingShifts(f.workforce),
@@ -695,9 +686,9 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 
 	f := newOverviewFixture(t, 1)
 	staffID := f.staff[0]
-	closedMonth := timezone.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
+	closedMonth := calendar.NewDate(f.today.Year(), f.today.Month(), 1).AddDays(-1)
 	settings := wtmIntSettings{
-		accountStart: timezone.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
+		accountStart: calendar.NewDate(closedMonth.Year(), closedMonth.Month(), 1).String(),
 	}
 	monthSvc := timetracking.NewWorkTimeMonthService(
 		workforceCompose.NewTimeTrackingTestRows(f.workforce).Sessions, workforceCompose.NewTimeTrackingTestRows(f.workforce).Breaks, f.repos.StaffAbsence, workforceCompose.StaffScheduleAssignments(api.MustNewStaffEmployment(testpkg.NewDatabase(t, f.db))),
@@ -738,4 +729,4 @@ func TestTimeTrackingOverview_ClosedMonthUsesFrozenBalance(t *testing.T) {
 	assert.Empty(t, filtered.Rows)
 }
 
-func monthOfDate(d timezone.Date) int { return d.Year()*12 + int(d.Month()) }
+func monthOfDate(d calendar.Date) int { return d.Year()*12 + int(d.Month()) }

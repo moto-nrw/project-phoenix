@@ -9,9 +9,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -62,11 +62,11 @@ type CreateTemplateInput struct {
 	// weekday of the series, which is the pre-#2129 shape.
 	WeekdayAssignments []timetable.WeekdayRosterAssignment
 	CreatedBy          *int64
-	RosterValidFrom    timezone.Date
+	RosterValidFrom    calendar.Date
 	// ScheduleValidFrom is the optional series start (#2135): every schedule
 	// row gets it as valid_from, so the materializer skips earlier dates
 	// (scheduleNotStartedOn). nil = the series starts with the planning period.
-	ScheduleValidFrom *timezone.Date
+	ScheduleValidFrom *calendar.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int

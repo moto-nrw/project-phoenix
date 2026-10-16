@@ -170,7 +170,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		StudentStatusRepo: r.StudentStatusDay, CrossTenantRepo: r.CrossTenant, Schools: NewActiveSchoolQuery(organizations),
 		StudentRepo: PresenceStudents(db, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff), RoomRepo: facilitiesLegacy.NewAttendanceRooms(r.Room),
 		ActivityGroupRepo: NewSessionActivities(r.GroupReads()), ActivityCatRepo: arrivalTimetable.NewCategoryCount(r.ActivityCategory), EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), DeviceRepo: NewSessionDeviceDirectory(devices, settings.Settings, logger),
-		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: hub, WorkSessionService: work.TimeTracking.AutoCheckIn,
+		StaffNames: NewAttendanceStaffNames(r.Staff, data.Users), DB: db.Pool(), Broadcaster: hub, WorkSessionService: presenceAutoCheckIn{checkIn: work.TimeTracking.AutoCheckIn},
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge, Logger: logger, Now: OptionalClock(clocks),
 	}
@@ -214,7 +214,7 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		Rows: operationRows, Lifecycle: tt.Instance.OperationLifecycle(),
 		Sessions: r.ActiveGroup, Presence: presence,
 		Arrivals: arrivals, Pickups: pickups, CareDays: careDay, Supervisions: r.GroupSupervisor, Visits: NewLoggedStudentPresence(db, logger),
-		People: TimetableOperationPeople{OperationPeople: data.Users, Membership: membership}, PlanningTracks: r.Timetable,
+		People: TimetableOperationPeople{OperationPeople: newTimetableOperationPeople(data.Users), Membership: membership}, PlanningTracks: r.Timetable,
 		Settings: settings.Settings, Broadcaster: hub, Logger: logger, Now: OptionalClock(clocks),
 	})
 	if err != nil {

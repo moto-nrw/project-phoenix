@@ -37,7 +37,7 @@ All paths below are relative to the repository root.
   School-admin runtime configuration uses tenant overrides and registry defaults
   only; consumers must not add env fallbacks, including for legacy compatibility.
   Exact exceptions and sync steps: [.claude/rules/env-docker-sync.md](.claude/rules/env-docker-sync.md).
-- **Dates and IDs:** calendar dates are `timezone.Date` / `YYYY-MM-DD`, instants
+- **Dates and IDs:** calendar dates are `calendar.Date` (`sharedkernel/calendar`) / `YYYY-MM-DD`, instants
   are timestamps, and clock times use wall-clock normalization. Backend `int64`
   IDs map to frontend strings. Load the date rule before changing date logic.
 - **API contracts:** paths use kebab-case; migrate touched legacy snake_case

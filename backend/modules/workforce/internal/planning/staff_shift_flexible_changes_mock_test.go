@@ -9,11 +9,9 @@ import (
 	"context"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,7 +25,7 @@ func TestShiftService_CreateCancelledSkipsOverlap(t *testing.T) {
 
 	existing := validShift(7) // 08:00–16:00
 	existing.ID = 1
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*StaffShift, error) {
 		return []*StaffShift{existing}, nil
 	}
 
@@ -47,7 +45,7 @@ func TestShiftService_OverlapIgnoresCancelledExisting(t *testing.T) {
 	cancelled := validShift(7) // 08:00–16:00, absent
 	cancelled.ID = 1
 	cancelled.Cancelled = true
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*StaffShift, error) {
 		return []*StaffShift{cancelled}, nil
 	}
 
@@ -62,7 +60,7 @@ func TestShiftService_CreateReplacementRejectsMissingOrigin(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
-		return nil, modelBase.ErrNotFound
+		return nil, errRowNotFound
 	}
 
 	replacement := validShift(8)
@@ -81,7 +79,7 @@ func TestShiftService_CreateReplacementRejectsCrossDateOrigin(t *testing.T) {
 	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
 		origin := validShift(7)
 		origin.ID = 5
-		origin.Date = timezone.NewDate(2026, 7, 7) // one day off the replacement
+		origin.Date = calendar.NewDate(2026, 7, 7) // one day off the replacement
 		return origin, nil
 	}
 
@@ -219,7 +217,7 @@ func TestShiftService_UpdateReplacementRejectsCrossDateMove(t *testing.T) {
 
 	edit := validShift(8)
 	edit.ID = 3
-	edit.Date = timezone.NewDate(2026, 7, 7) // moved a day off its origin
+	edit.Date = calendar.NewDate(2026, 7, 7) // moved a day off its origin
 
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.Error(t, err)
@@ -317,7 +315,7 @@ func TestShiftService_UpdateOriginResizeKeepingCoversSucceeds(t *testing.T) {
 	repo.findByOriginShiftIDFunc = func(_ context.Context, _ int64) ([]*StaffShift, error) {
 		return []*StaffShift{cover}, nil
 	}
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*StaffShift, error) {
 		return nil, nil
 	}
 	var saved *StaffShift
@@ -413,7 +411,7 @@ func TestShiftService_UpdateOriginRejectsDateMoveWithCovers(t *testing.T) {
 	edit := validShift(7)
 	edit.ID = 5
 	edit.Cancelled = true
-	edit.Date = timezone.NewDate(2026, 7, 7) // moved a day off its covers
+	edit.Date = calendar.NewDate(2026, 7, 7) // moved a day off its covers
 
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.Error(t, err)
@@ -441,12 +439,12 @@ func TestShiftService_UpdateOriginAllowsDateMoveWithoutCovers(t *testing.T) {
 
 	edit := validShift(7)
 	edit.ID = 5
-	edit.Date = timezone.NewDate(2026, 7, 8)
+	edit.Date = calendar.NewDate(2026, 7, 8)
 
 	_, err := svc.UpdateShift(context.Background(), edit)
 	require.NoError(t, err)
 	require.NotNil(t, saved)
-	assert.Equal(t, timezone.Date(timezone.NewDate(2026, 7, 8)), saved.Date)
+	assert.Equal(t, calendar.Date(calendar.NewDate(2026, 7, 8)), saved.Date)
 }
 
 // Marking an existing shift cancelled records the absence and skips overlap.
@@ -461,7 +459,7 @@ func TestShiftService_UpdateCanCancelShift(t *testing.T) {
 		return existing, nil
 	}
 	overlapChecked := false
-	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ timezone.Date) ([]*StaffShift, error) {
+	repo.findByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ calendar.Date) ([]*StaffShift, error) {
 		overlapChecked = true
 		return nil, nil
 	}
@@ -801,7 +799,7 @@ func TestShiftService_ApplyCancellation_RejectsCancellingAReplacement(t *testing
 func TestPlannedShiftMinutes_ExcludesCancelled(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 6)
+	date := calendar.NewDate(2026, 7, 6)
 	worked := testShift(t, 7, date, "08:00", "16:00") // 480 net minutes
 	absent := testShift(t, 7, date, "08:00", "16:00")
 	absent.Cancelled = true
@@ -820,7 +818,7 @@ func TestPlannedShiftMinutes_ExcludesCancelled(t *testing.T) {
 func TestUncoveredShiftIntervals_CancelledShiftCoversNothing(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 6)
+	date := calendar.NewDate(2026, 7, 6)
 	shift := testShift(t, 7, date, "08:00", "16:00")
 	shift.Cancelled = true
 

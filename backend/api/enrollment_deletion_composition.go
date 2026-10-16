@@ -9,6 +9,7 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	timetableProjection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose"
 )
 
 // enrollmentGuardianDirectory serves the deletion preview's guardians from
@@ -56,7 +57,8 @@ func NewEnrollmentDeletionModule(src EnrollmentDeletionSources) enrollmentCompos
 	deps := enrollmentCompose.DeletionModuleDependencies{
 		Owner: src.Owner, Guardians: src.Guardians,
 		CountAuditAdjustments: src.CountAuditAdjustments, CountBookings: src.CountBookings,
-		Delivery: src.Delivery, Logger: src.Logger,
+		SourceEnrollments: timetableProjection.CountSourceEnrollments,
+		Delivery:          src.Delivery, Logger: src.Logger,
 	}
 	if src.Audit != nil {
 		deps.Audit = enrollmentDeletionAudit{repo: src.Audit}

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -109,7 +109,7 @@ func (s *TemplateSplitService) endFromDateInTransaction(
 func (s *TemplateSplitService) deleteEndedInstances(
 	ctx context.Context,
 	templateID int64,
-	effectiveDate, requestedFrom timezone.Date,
+	effectiveDate, requestedFrom calendar.Date,
 ) (int64, error) {
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &templateID, false)
 	if err != nil {
@@ -127,8 +127,8 @@ func (s *TemplateSplitService) deleteEndedInstances(
 func (s *TemplateSplitService) capEndedSegment(
 	ctx context.Context,
 	templateID int64,
-	effectiveDate timezone.Date,
-	sourceValidUntil *timezone.Date,
+	effectiveDate calendar.Date,
+	sourceValidUntil *calendar.Date,
 ) (*timetable.EndTemplateResult, error) {
 	segmentEnrollments, segmentSupervisors, err := s.loadSegmentRosterCandidates(ctx, templateID, effectiveDate, sourceValidUntil)
 	if err != nil {
@@ -178,7 +178,7 @@ func (s *TemplateSplitService) capEndedSegment(
 func (s *TemplateSplitService) cascadeEndToSeriesSegments(
 	ctx context.Context,
 	templateID int64,
-	requestedFrom timezone.Date,
+	requestedFrom calendar.Date,
 ) (int64, error) {
 	segments, err := loadTemplateSeriesSegments(ctx, s.deps.GroupRepo, s.deps.ScheduleRepo, s.getLogger(), templateID)
 	if err != nil {
@@ -206,13 +206,13 @@ func (s *TemplateSplitService) cascadeEndToSeriesSegments(
 // segmentCascadeCap returns where the cascade caps a segment: the requested
 // date, but never before the segment start. A segment that already ends at or
 // before that date is left alone.
-func segmentCascadeCap(seg *templateSeriesSegment, requestedFrom timezone.Date) (timezone.Date, bool) {
+func segmentCascadeCap(seg *templateSeriesSegment, requestedFrom calendar.Date) (calendar.Date, bool) {
 	capAt := requestedFrom
 	if seg.ValidFrom != nil && capAt.Before(*seg.ValidFrom) {
 		capAt = *seg.ValidFrom
 	}
 	if seg.ValidUntil != nil && !capAt.Before(*seg.ValidUntil) {
-		return timezone.Date(""), false
+		return calendar.Date(""), false
 	}
 	return capAt, true
 }
@@ -223,7 +223,7 @@ func (s *TemplateSplitService) endCascadedSegment(
 	ctx context.Context,
 	templateID int64,
 	seg *templateSeriesSegment,
-	capAt timezone.Date,
+	capAt calendar.Date,
 ) (int64, error) {
 	enrollments, supervisors, err := s.loadSegmentRosterCandidates(ctx, seg.Group.ID, capAt, seg.ValidUntil)
 	if err != nil {

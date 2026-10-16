@@ -7,10 +7,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // GroupSubstitution is the retained row of education.group_substitution.
@@ -22,8 +20,16 @@ type GroupSubstitution struct {
 	GroupID              int64
 	RegularStaffID       *int64
 	SubstituteStaffID    int64
-	StartDate, EndDate   timezone.Date
+	StartDate, EndDate   calendar.Date
 	Reason               string
+}
+
+// SubstitutionBlocker is a current or upcoming group handover of a staff
+// member with its group named, the row that blocks removing their caregiver
+// capability.
+type SubstitutionBlocker struct {
+	ID                            int64
+	GroupName, StartDate, EndDate string
 }
 
 // GroupNames names the education groups of School Structure; an unknown ID
@@ -62,7 +68,7 @@ func (r *groupSubstitutionRepository) Create(ctx context.Context, entity *GroupS
 func (r *groupSubstitutionRepository) FindByID(ctx context.Context, id any) (*GroupSubstitution, error) {
 	substitutionID, err := legacyID(id)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
+		return nil, &databaseError{op: "find by id", err: err}
 	}
 	value, err := r.workforce.FindGroupSubstitution(ctx, substitutionID)
 	if err != nil {
@@ -74,7 +80,7 @@ func (r *groupSubstitutionRepository) FindByID(ctx context.Context, id any) (*Gr
 func (r *groupSubstitutionRepository) FindByIDForUpdate(ctx context.Context, id any) (*GroupSubstitution, error) {
 	substitutionID, err := legacyID(id)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id for update", Err: err}
+		return nil, &databaseError{op: "find by id for update", err: err}
 	}
 	value, err := r.workforce.LockGroupSubstitution(ctx, substitutionID)
 	if err != nil {
@@ -101,7 +107,7 @@ func (r *groupSubstitutionRepository) Update(ctx context.Context, entity *GroupS
 func (r *groupSubstitutionRepository) Delete(ctx context.Context, id any) error {
 	substitutionID, err := legacyID(id)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "delete", Err: err}
+		return &databaseError{op: "delete", err: err}
 	}
 	if err := r.workforce.DeleteGroupSubstitution(ctx, substitutionID); err != nil {
 		return writeError("delete", err)
@@ -121,7 +127,7 @@ func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[stri
 		switch field {
 		case "active":
 			if active, ok := value.(bool); ok && active {
-				filter.On = timezone.TodayDate().String()
+				filter.On = calendar.TodayDate().String()
 			}
 		case "date":
 			if date, ok := conditionDate(value); ok {
@@ -132,8 +138,8 @@ func (r *groupSubstitutionRepository) List(ctx context.Context, filters map[stri
 				filter.ReasonContains = text
 			}
 		default:
-			if err := applyGroupSubstitutionCondition(&filter, modelBase.FilterCondition{Field: field, Operator: modelBase.OpEqual, Value: value}); err != nil {
-				return nil, &modelBase.DatabaseError{Op: "list", Err: err}
+			if err := applyGroupSubstitutionEquality(&filter, field, value); err != nil {
+				return nil, &databaseError{op: "list", err: err}
 			}
 		}
 	}
@@ -149,18 +155,18 @@ func (r *groupSubstitutionRepository) FindByGroup(ctx context.Context, groupID i
 	return r.list(ctx, "find by group", workforce.GroupSubstitutionFilter{GroupID: groupID})
 }
 
-// ListActiveSubstitutionBlockers returns the staff member's current or
-// upcoming typed group handovers, newest start first, with the group name
-// attached; a group that is gone renders as "Unbekannte Gruppe".
-func (r *groupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error) {
+// ActiveSubstitutionBlockers returns the staff member's current or upcoming
+// typed group handovers, newest start first, with the group name attached; a
+// group that is gone renders as "Unbekannte Gruppe".
+func (r *groupSubstitutionRepository) ActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]SubstitutionBlocker, error) {
 	rows, err := r.list(ctx, "list active substitution blockers", workforce.GroupSubstitutionFilter{
 		SubstituteStaffID: staffID, TargetType: workforce.GroupSubstitutionTypeGroupHandover,
-		EndsOnOrAfter: timezone.TodayDate().String(),
+		EndsOnOrAfter: calendar.TodayDate().String(),
 	})
 	if err != nil {
 		return nil, err
 	}
-	blockers := make([]userModels.BlockerSubstitution, 0, len(rows))
+	blockers := make([]SubstitutionBlocker, 0, len(rows))
 	if len(rows) == 0 {
 		return blockers, nil
 	}
@@ -176,7 +182,7 @@ func (r *groupSubstitutionRepository) ListActiveSubstitutionBlockers(ctx context
 		if !found {
 			name = "Unbekannte Gruppe"
 		}
-		blockers = append(blockers, userModels.BlockerSubstitution{
+		blockers = append(blockers, SubstitutionBlocker{
 			ID: row.ID, GroupName: name, StartDate: row.StartDate.String(), EndDate: row.EndDate.String(),
 		})
 	}
@@ -209,63 +215,47 @@ func (r *groupSubstitutionRepository) loadGroups(ctx context.Context, rows []*Gr
 	}
 	groups, err := r.groups(ctx, ids)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load substitution groups", Err: err}
+		return nil, &databaseError{op: "load substitution groups", err: err}
 	}
 	return groups, nil
 }
 
-func applyGroupSubstitutionCondition(filter *workforce.GroupSubstitutionFilter, condition modelBase.FilterCondition) error {
-	switch {
-	case condition.Field == "tenant_id" && condition.Operator == modelBase.OpEqual:
-		id, ok := conditionInt64(condition.Value)
+// applyGroupSubstitutionEquality applies one equality filter of the legacy
+// map onto the capability filter.
+func applyGroupSubstitutionEquality(filter *workforce.GroupSubstitutionFilter, field string, value any) error {
+	switch field {
+	case "tenant_id":
+		id, ok := conditionInt64(value)
 		if !ok {
 			return errors.New("tenant_id filter must be an integer")
 		}
 		filter.TenantID = id
-	case condition.Field == "group_id" && condition.Operator == modelBase.OpEqual:
-		id, ok := conditionInt64(condition.Value)
+	case "group_id":
+		id, ok := conditionInt64(value)
 		if !ok {
 			return errors.New("group_id filter must be an integer")
 		}
 		filter.GroupID = id
-	case condition.Field == "group_id" && condition.Operator == modelBase.OpIn:
-		ids, ok := conditionInt64List(condition.Value)
-		if !ok {
-			return errors.New("group_id filter must be a list of integers")
-		}
-		filter.GroupIDs = ids
-	case condition.Field == "substitute_staff_id" && condition.Operator == modelBase.OpEqual:
-		id, ok := conditionInt64(condition.Value)
+	case "substitute_staff_id":
+		id, ok := conditionInt64(value)
 		if !ok {
 			return errors.New("substitute_staff_id filter must be an integer")
 		}
 		filter.SubstituteStaffID = id
-	case condition.Field == "regular_staff_id" && condition.Operator == modelBase.OpEqual:
-		id, ok := conditionInt64(condition.Value)
+	case "regular_staff_id":
+		id, ok := conditionInt64(value)
 		if !ok {
 			return errors.New("regular_staff_id filter must be an integer")
 		}
 		filter.RegularStaffID = id
-	case condition.Field == "target_type" && condition.Operator == modelBase.OpEqual:
-		targetType, ok := condition.Value.(string)
+	case "target_type":
+		targetType, ok := value.(string)
 		if !ok {
 			return errors.New("target_type filter must be a string")
 		}
 		filter.TargetType = targetType
-	case condition.Field == "start_date" && condition.Operator == modelBase.OpLessThanOrEqual:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("start_date filter must be a calendar date")
-		}
-		filter.OverlapTo = date
-	case condition.Field == "end_date" && condition.Operator == modelBase.OpGreaterThanOrEqual:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("end_date filter must be a calendar date")
-		}
-		filter.OverlapFrom = date
 	default:
-		return fmt.Errorf("unsupported group substitution filter %s %s", condition.Field, condition.Operator)
+		return fmt.Errorf("unsupported group substitution filter %s =", field)
 	}
 	return nil
 }
@@ -296,7 +286,7 @@ func applySubstitutionToLegacy(entity *GroupSubstitution, value workforce.GroupS
 	entity.GroupID = value.GroupID
 	entity.RegularStaffID = value.RegularStaffID
 	entity.SubstituteStaffID = value.SubstituteStaffID
-	entity.StartDate = timezone.Date(value.StartDate)
-	entity.EndDate = timezone.Date(value.EndDate)
+	entity.StartDate = calendar.Date(value.StartDate)
+	entity.EndDate = calendar.Date(value.EndDate)
 	entity.Reason = value.Reason
 }

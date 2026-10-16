@@ -8,8 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -42,7 +41,7 @@ const vacationOpeningUniqueConstraintName = "uq_svo_staff_year"
 // Jahresanspruch stays authoritative and later entitlement corrections shift
 // the Resturlaub coherently.
 type SetVacationOpeningRequest struct {
-	EffectiveDate timezone.Date
+	EffectiveDate calendar.Date
 	RemainingDays float64
 	Note          string
 }
@@ -61,7 +60,7 @@ func (s *staffAbsenceService) GetVacationOpening(ctx context.Context, staffID in
 // validateSetVacationOpening runs the pure request guards. Split out so the
 // booking path itself stays readable — the checks are a flat list with no
 // interaction between them.
-func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpeningRequest, today timezone.Date) error {
+func validateSetVacationOpening(staffID, decidedBy int64, req SetVacationOpeningRequest, today calendar.Date) error {
 	switch {
 	case staffID <= 0:
 		return fmt.Errorf("%w: staff id is required", ErrVacationOpeningInvalid)
@@ -142,7 +141,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 		return nil, fmt.Errorf("%w: %s", ErrVacationOpeningInvalid, err.Error())
 	}
 	if err := s.openingRepo.Create(ctx, opening); err != nil {
-		if modelBase.IsUniqueViolationOn(err, vacationOpeningUniqueConstraintName) {
+		if isUniqueViolationOn(err, vacationOpeningUniqueConstraintName) {
 			return nil, fmt.Errorf("%w: %d", ErrVacationOpeningExists, year)
 		}
 		return nil, fmt.Errorf("failed to create vacation opening: %w", err)
@@ -156,7 +155,7 @@ func (s *staffAbsenceService) SetVacationOpening(ctx context.Context, staffID, d
 // validate rows in file order before their sorted creation pass, and retaining
 // per-staff locks here could deadlock concurrent previews or imports. The
 // actual SetVacationOpening path still locks through insertion.
-func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
+func (s *staffAbsenceService) ValidateVacationOpeningAbsencesBefore(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
 	return s.rejectVacationAbsencesBefore(ctx, staffID, effectiveDate)
 }
 
@@ -175,7 +174,7 @@ func (s *staffAbsenceService) rejectVacationBeforeOpening(ctx context.Context, a
 		if opening == nil {
 			continue
 		}
-		yearStart := timezone.NewDate(year, time.January, 1)
+		yearStart := calendar.NewDate(year, time.January, 1)
 		if vacationAbsenceHasWorkingDayBefore(absence, yearStart, opening.EffectiveDate) {
 			return fmt.Errorf("%w: vacation absence contains a working day before opening date %s", ErrVacationOpeningAbsencesBeforeCutoff, opening.EffectiveDate.String())
 		}
@@ -231,9 +230,9 @@ func (s *staffAbsenceService) DeleteVacationOpening(ctx context.Context, staffID
 
 // rejectVacationAbsencesBefore blocks a takeover when vacation absences that
 // count against the quota already exist before the Stichtag in its year.
-func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, staffID int64, effectiveDate timezone.Date) error {
-	yearStart := timezone.NewDate(effectiveDate.Year(), time.January, 1)
-	yearEnd := timezone.NewDate(effectiveDate.Year(), time.December, 31)
+func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, staffID int64, effectiveDate calendar.Date) error {
+	yearStart := calendar.NewDate(effectiveDate.Year(), time.January, 1)
+	yearEnd := calendar.NewDate(effectiveDate.Year(), time.December, 31)
 	absences, err := s.absenceRepo.GetByStaffAndDateRange(ctx, staffID, yearStart, yearEnd)
 	if err != nil {
 		return fmt.Errorf("failed to check absences for vacation opening: %w", err)
@@ -261,7 +260,7 @@ func (s *staffAbsenceService) rejectVacationAbsencesBefore(ctx context.Context, 
 // vacation quota before cutoff within the requested calendar year. Vacation
 // quota currently counts Monday through Friday only; holidays are deliberately
 // not excluded by countWorkingDays yet.
-func vacationAbsenceHasWorkingDayBefore(absence *StaffAbsence, yearStart, cutoff timezone.Date) bool {
+func vacationAbsenceHasWorkingDayBefore(absence *StaffAbsence, yearStart, cutoff calendar.Date) bool {
 	from := absence.DateStart
 	if from.Before(yearStart) {
 		from = yearStart

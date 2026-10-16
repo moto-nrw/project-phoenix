@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/internal/application"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/ports"
@@ -54,7 +54,7 @@ type SickCascadeDependencies struct {
 	Logger      *slog.Logger
 	// Today is the calendar day the cascade's past-day guards compare
 	// against; nil means timezone.TodayDate.
-	Today func() timezone.Date
+	Today func() calendar.Date
 }
 
 // NewSickCascade binds the cascade Workforce's absence lifecycle calls. Every

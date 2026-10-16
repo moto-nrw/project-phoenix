@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -23,7 +23,7 @@ func CreateTestCareWithdrawalCompletion(
 	tb testing.TB,
 	db bun.IDB,
 	studentID, actorID int64,
-	firstGap timezone.Date,
+	firstGap calendar.Date,
 ) *CareWithdrawalCompletion {
 	tb.Helper()
 	return CreateTestCareWithdrawalCompletionConfirmedAt(tb, db, studentID, actorID, firstGap, time.Now())
@@ -92,7 +92,7 @@ func SetStudentLifecycle(
 	db *bun.DB,
 	studentID int64,
 	status string,
-	enrolledFrom, enrolledUntil *timezone.Date,
+	enrolledFrom, enrolledUntil *calendar.Date,
 ) {
 	tb.Helper()
 	query, err := updateStudentMembershipFixture(Ctx(tb), db, studentID)

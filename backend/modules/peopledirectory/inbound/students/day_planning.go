@@ -7,12 +7,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -62,7 +62,7 @@ const (
 // a real guarantee, not a wider constant — raise the weeks-ahead default to 2
 // AND derive the horizon from the resolved per-tenant settings (exposed to the
 // frontend), rather than assuming coverage the scheduler does not promise.
-func maxPlanningDate(today timezone.Date) timezone.Date {
+func maxPlanningDate(today calendar.Date) calendar.Date {
 	daysUntilSunday := (7 - int(today.Weekday())) % 7
 	return today.AddDays(daysUntilSunday)
 }
@@ -71,15 +71,15 @@ func maxPlanningDate(today timezone.Date) timezone.Date {
 // calendar day the day-planning pipeline is evaluated for. Empty means the
 // school-local today (derived from now, i.e. Berlin wall clock, so the day
 // switches at local midnight, not at UTC midnight).
-func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error) {
-	today := timezone.DateFromTime(now)
+func resolvePlanningDate(raw string, now time.Time) (calendar.Date, bool, error) {
+	today := calendar.DateFromTime(now)
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return today, true, nil
 	}
-	date, err := timezone.ParseDate(trimmed)
+	date, err := calendar.ParseDate(trimmed)
 	if err != nil {
-		return timezone.Date(""), false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
+		return calendar.Date(""), false, fmt.Errorf("invalid date %q, expected YYYY-MM-DD", raw)
 	}
 	// Planning is future-only. The pipeline projects the current recurring
 	// schedule definitions onto the requested day; for a past day that is a
@@ -88,13 +88,13 @@ func resolvePlanningDate(raw string, now time.Time) (timezone.Date, bool, error)
 	// page treats past dates as unsupported. Reject them at the boundary so a
 	// direct or stale client cannot bypass the UI and obtain such a plan (#1939).
 	if date.Before(today) {
-		return timezone.Date(""), false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
+		return calendar.Date(""), false, fmt.Errorf("date %q is in the past, planning is only available for today and future dates", raw)
 	}
 	// Mirror of the past guard at the far end: reject days beyond the
 	// materialization-backed horizon so a direct or stale client cannot obtain
 	// a plan the timetable signal cannot answer for (see maxPlanningDate).
 	if maxDate := maxPlanningDate(today); date.After(maxDate) {
-		return timezone.Date(""), false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
+		return calendar.Date(""), false, fmt.Errorf("date %q is beyond the supported planning horizon, planning is available through %s", raw, maxDate.String())
 	}
 	return date, date == today, nil
 }
@@ -153,7 +153,7 @@ func activeLiveExportFilters(filters studentExportFilters) []string {
 // the one asked. The page already neutralizes these filters for a non-today
 // date, so this only ever fires for a direct or stale client — the same
 // boundary reasoning as the past-date and horizon guards above (#1939).
-func liveFilterError(active []string, date timezone.Date, isToday bool) error {
+func liveFilterError(active []string, date calendar.Date, isToday bool) error {
 	if isToday || len(active) == 0 {
 		return nil
 	}
@@ -173,7 +173,7 @@ type dayPlanningTimes struct {
 	pickups  map[int64]*careplan.EffectivePickupTime
 }
 
-func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate timezone.Date, isToday bool, attendances map[int64]*studentpresence.DailyAttendanceStatus) (dayPlanningTimes, error) {
+func (rs *Resource) enrichWithDayPlanning(ctx context.Context, responses []StudentResponse, planningDate calendar.Date, isToday bool, attendances map[int64]*studentpresence.DailyAttendanceStatus) (dayPlanningTimes, error) {
 	// The parent's pending note runs FIRST and outside the full-access branch
 	// below: it is the review queue's signal, not part of the day plan, and its
 	// audience is whoever may decide the request. In a school without fixed
@@ -279,7 +279,7 @@ func (rs *Resource) enrichCurrentLocationWithDayPlanning(ctx context.Context, re
 		}
 		attendances[response.ID] = attendance
 	}
-	if _, err := rs.enrichWithDayPlanning(ctx, responses, timezone.DateFromTime(now), true, attendances); err != nil {
+	if _, err := rs.enrichWithDayPlanning(ctx, responses, calendar.DateFromTime(now), true, attendances); err != nil {
 		return err
 	}
 	*response = responses[0]
@@ -330,7 +330,7 @@ func applyAtSchoolLocation(
 // the children the caller may DECIDE the request for (the queue's own
 // AbsenceWritableStudentFilter), so a group supervisor still sees nothing
 // beyond their own children and no second filter is needed here.
-func (rs *Resource) applyPendingExcusedNotes(ctx context.Context, responses []StudentResponse, date timezone.Date) error {
+func (rs *Resource) applyPendingExcusedNotes(ctx context.Context, responses []StudentResponse, date calendar.Date) error {
 	if len(responses) == 0 {
 		return nil
 	}
@@ -352,21 +352,21 @@ func (rs *Resource) applyPendingExcusedNotes(ctx context.Context, responses []St
 	return nil
 }
 
-func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
+func (rs *Resource) loadDayPlanningArrivals(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectiveArrivalTime, error) {
 	if rs.ArrivalScheduleService == nil {
 		return map[int64]*careplan.EffectiveArrivalTime{}, nil
 	}
 	return rs.ArrivalScheduleService.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 }
 
-func (rs *Resource) loadDayPlanningPickups(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error) {
+func (rs *Resource) loadDayPlanningPickups(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectivePickupTime, error) {
 	if rs.PickupScheduleService == nil {
 		return map[int64]*careplan.EffectivePickupTime{}, nil
 	}
 	return rs.PickupScheduleService.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 }
 
-func (rs *Resource) loadDayPlanningTimetableIDs(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]struct{}, error) {
+func (rs *Resource) loadDayPlanningTimetableIDs(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]struct{}, error) {
 	timetableIDs := map[int64]struct{}{}
 	if rs.InstanceService == nil {
 		return timetableIDs, nil
@@ -403,7 +403,7 @@ func (rs *Resource) loadDayPlanningTimetableIDs(ctx context.Context, studentIDs 
 // signal — schools that do not maintain arrival/pickup plans must keep seeing
 // their full roster.
 func (rs *Resource) filterTimetableIDsByCareDay(
-	ctx context.Context, timetableIDs map[int64]struct{}, date timezone.Date,
+	ctx context.Context, timetableIDs map[int64]struct{}, date calendar.Date,
 ) (map[int64]struct{}, error) {
 	if rs.CareDayService == nil || len(timetableIDs) == 0 {
 		return timetableIDs, nil
@@ -441,7 +441,7 @@ func (rs *Resource) filterTimetableIDsByCareDay(
 // the request. Only enrich when the caller actually holds a permission that
 // gates the queue itself — users:update, or users:absence for the staff who
 // decide exactly these requests in a school without fixed groups (#2232).
-func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date timezone.Date) (map[int64]*excusedrequests.Request, error) {
+func (rs *Resource) loadPendingExcusedForDayPlanning(ctx context.Context, date calendar.Date) (map[int64]*excusedrequests.Request, error) {
 	if rs.ExcusedRequestService == nil ||
 		!securityruntime.CanReviewExcusedAbsenceRequests(sessiontoken.PermissionsFromCtx(ctx)) {
 		return map[int64]*excusedrequests.Request{}, nil

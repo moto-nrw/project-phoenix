@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // TimetableTestStaffAccountPeople resolves every account to the person
@@ -16,22 +16,18 @@ type TimetableTestStaffAccountPeople struct {
 	StaffID  int64
 }
 
-func (p TimetableTestStaffAccountPeople) FindByAccountID(context.Context, int64) (*users.Person, error) {
-	person := &users.Person{}
-	person.ID = p.PersonID
-	return person, nil
+func (p TimetableTestStaffAccountPeople) FindByAccountID(context.Context, int64) (*timetable.Person, error) {
+	return &timetable.Person{ID: p.PersonID}, nil
 }
 
-func (p TimetableTestStaffAccountPeople) GetStaffByPersonID(context.Context, int64) (*users.Staff, error) {
-	staff := &users.Staff{}
-	staff.ID = p.StaffID
-	return staff, nil
+func (p TimetableTestStaffAccountPeople) GetStaffByPersonID(context.Context, int64) (*timetable.StaffMember, error) {
+	return &timetable.StaffMember{ID: p.StaffID}, nil
 }
 
-func (TimetableTestStaffAccountPeople) GetByIDs(context.Context, []int64) (map[int64]*users.Person, error) {
+func (TimetableTestStaffAccountPeople) GetByIDs(context.Context, []int64) (map[int64]*timetable.Person, error) {
 	return nil, nil
 }
 
-func (TimetableTestStaffAccountPeople) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*users.Staff, error) {
+func (TimetableTestStaffAccountPeople) GetStaffWithPersonByIDs(context.Context, []int64) (map[int64]*timetable.StaffMember, error) {
 	return nil, nil
 }

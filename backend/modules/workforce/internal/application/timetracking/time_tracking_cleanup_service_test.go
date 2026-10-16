@@ -6,15 +6,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // Each test creates its own staff + session/absence rows with controlled
@@ -62,7 +61,7 @@ func TestTimeTrackingCleanup_DeletesOldSessions(t *testing.T) {
 	// session and absence deletions but we only have sessions here).
 	auditRows := findStaffDeletionRows(t, db, staff.ID)
 	require.Len(t, auditRows, 1)
-	assert.Equal(t, audit.DeletionTypeTimeTrackingRetention, auditRows[0].DeletionType)
+	assert.Equal(t, "time_tracking_retention", auditRows[0].DeletionType)
 	assert.Equal(t, 2, auditRows[0].RecordsDeleted)
 	assert.Equal(t, "system", auditRows[0].DeletedBy)
 	require.NotNil(t, auditRows[0].StaffID)
@@ -244,7 +243,7 @@ func insertSessionWithBusinessDate(t *testing.T, db *testpkg.DB, staffID int64, 
 	checkOut := createdAt.Add(8 * time.Hour)
 	s := &timetracking.WorkSession{
 		StaffID:      staffID,
-		Date:         timezone.DateFromTime(businessDate),
+		Date:         calendar.DateFromTime(businessDate),
 		Status:       workforce.WorkSessionStatusPresent,
 		Source:       workforce.WorkSessionSourceApp,
 		CheckInTime:  createdAt,
@@ -293,20 +292,13 @@ func insertEdit(t *testing.T, db *testpkg.DB, sessionID, staffID int64, createdA
 	old := "30"
 	newVal := "45"
 	notes := "test"
-	e := &audit.WorkSessionEdit{
-		SessionID: sessionID,
-		StaffID:   staffID,
-		EditedBy:  staffID,
-		FieldName: "break_minutes",
-		OldValue:  &old,
-		NewValue:  &newVal,
-		Notes:     &notes,
-		CreatedAt: createdAt,
-	}
-	e.SetTenantID(testpkg.Tenant(t))
-	_, err := db.NewInsert().Model(e).Exec(context.Background())
-	require.NoError(t, err)
-	return e.ID
+	var id int64
+	require.NoError(t, db.NewRaw(`INSERT INTO audit.work_session_edits
+		(tenant_id, session_id, staff_id, edited_by, field_name, old_value, new_value, notes, created_at)
+		VALUES (?, ?, ?, ?, 'break_minutes', ?, ?, ?, ?) RETURNING id`,
+		testpkg.Tenant(t), sessionID, staffID, staffID, old, newVal, notes, createdAt).
+		Scan(context.Background(), &id))
+	return id
 }
 
 func insertAbsence(t *testing.T, db *testpkg.DB, staffID int64, createdAt time.Time) int64 {
@@ -319,8 +311,8 @@ func insertAbsenceWithBusinessDates(t *testing.T, db *testpkg.DB, staffID int64,
 	a := &timetracking.StaffAbsence{
 		StaffID:     staffID,
 		AbsenceType: workforce.AbsenceTypeSick,
-		DateStart:   timezone.DateFromTime(dateStart),
-		DateEnd:     timezone.DateFromTime(dateEnd),
+		DateStart:   calendar.DateFromTime(dateStart),
+		DateEnd:     calendar.DateFromTime(dateEnd),
 		Status:      workforce.AbsenceStatusApproved,
 		CreatedBy:   staffID,
 	}
@@ -370,9 +362,22 @@ func countEditsForSession(t *testing.T, db *testpkg.DB, sessionID int64) int {
 	return int(n)
 }
 
-func findStaffDeletionRows(t *testing.T, db *testpkg.DB, staffID int64) []*audit.DataDeletion {
+// staffDeletionRow is one audit.data_deletions row as the retention suites
+// read it back.
+type staffDeletionRow struct {
+	bun.BaseModel `bun:"table:audit.data_deletions,alias:data_deletion"`
+
+	ID             int64  `bun:"id,pk"`
+	StudentID      *int64 `bun:"student_id"`
+	StaffID        *int64 `bun:"staff_id"`
+	DeletionType   string `bun:"deletion_type"`
+	RecordsDeleted int    `bun:"records_deleted"`
+	DeletedBy      string `bun:"deleted_by"`
+}
+
+func findStaffDeletionRows(t *testing.T, db *testpkg.DB, staffID int64) []*staffDeletionRow {
 	t.Helper()
-	var rows []*audit.DataDeletion
+	var rows []*staffDeletionRow
 	err := db.NewSelect().
 		Model(&rows).
 		Where("staff_id = ?", staffID).

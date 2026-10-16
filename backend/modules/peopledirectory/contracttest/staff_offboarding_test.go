@@ -9,17 +9,13 @@ import (
 	"testing"
 	"time"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
@@ -165,7 +161,7 @@ func assertConcurrentSupervisionRejected(t *testing.T, operation string) {
 					return err
 				}
 				return active.Active.CreateGroupSupervisor(writerCtx, &studentpresence.GroupSupervision{
-					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: timezone.TodayDate().String(),
+					StaffID: staff.ID, GroupID: group.ID, Role: "supervisor", StartDate: calendar.TodayDate().String(),
 				})
 			})
 		}()
@@ -674,7 +670,7 @@ func TestOffboardStaff_ActiveGroupHandoverBlocks(t *testing.T) {
 	sc := newOffboardingScenario(t)
 	staff := testpkg.CreateTestStaff(t, sc.db, "Handover", "Target")
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardHandover")
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	handover := testpkg.CreateTestGroupSubstitution(
 		t, sc.db, group.ID, nil, staff.ID, today, today.AddDays(1),
 	)
@@ -701,7 +697,7 @@ func TestOffboardStaff_CleansUpAssignments(t *testing.T) {
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, educationGroup.ID, teacher.ID)
 
 	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Other", "Substitute")
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, sc.db, educationGroup.ID, &staffID, otherStaff.ID,
 		today.AddDays(1), today.AddDays(8))
 
@@ -759,7 +755,7 @@ func TestOffboardStaff_BroadcastsGroupAccessChanged(t *testing.T) {
 	teacher := testpkg.CreateTestTeacher(t, sc.db, "Broadcast", "Teacher")
 	group := testpkg.CreateTestEducationGroup(t, sc.db, "OffboardBroadcastGroup")
 	groupTeacher := testpkg.CreateTestGroupTeacher(t, sc.db, group.ID, teacher.ID)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	regularStaffID := teacher.StaffID
 	otherStaff := testpkg.CreateTestStaff(t, sc.db, "Broadcast", "Substitute")
 	substitution := testpkg.CreateTestGroupSubstitution(
@@ -968,7 +964,7 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "SameDay", "Planned")
 	room := testpkg.CreateTestRoom(t, sc.db, fmt.Sprintf("OffbInstRoom-%d", time.Now().UnixNano()))
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	makeInstance := func(title string) *scheduleModels.ActivityInstance {
 		inst := &scheduleModels.ActivityInstance{
@@ -1024,9 +1020,9 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Absent", "Staff")
 	actor := testpkg.CreateTestStaff(t, sc.db, "Offboarding", "Admin")
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
-	makeAbsence := func(absenceType, status string, start, end timezone.Date) workforce.StaffAbsence {
+	makeAbsence := func(absenceType, status string, start, end calendar.Date) workforce.StaffAbsence {
 		absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, workforce.StaffAbsence{
 			StaffID:     staff.ID,
 			AbsenceType: absenceType,
@@ -1071,7 +1067,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		Scan(context.Background(), &auditedCount))
 	assert.Equal(t, "3", auditedCount, "audit record must count the deleted absences")
 
-	var tombstones []*auditModels.TimeTrackingDeletion
+	var tombstones []*testpkg.TimeTrackingDeletion
 	require.NoError(t, sc.db.NewSelect().
 		Model(&tombstones).
 		ModelTableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
@@ -1081,7 +1077,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	require.Len(t, tombstones, 3, "every deleted absence must leave a tombstone")
 	for _, tombstone := range tombstones {
 		assert.Equal(t, actor.ID, tombstone.DeletedBy)
-		assert.Equal(t, auditModels.TimeTrackingDeletionSourceAbsence, tombstone.Source)
+		assert.Equal(t, testpkg.AuditTimeTrackingDeletionSourceAbsence, tombstone.Source)
 		assert.Equal(t, "Personal-Offboarding", tombstone.Note)
 		var payload workforce.StaffAbsence
 		require.NoError(t, json.Unmarshal(tombstone.Payload, &payload))
@@ -1095,7 +1091,7 @@ func TestOffboardStaff_AbsenceAuditFailureRollsBackOffboarding(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Audit", "Rollback")
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	absence, err := sc.workTime.CreateStaffAbsence(sc.ctx, workforce.StaffAbsence{
 		StaffID:     staff.ID,
 		AbsenceType: workforce.AbsenceTypeVacation,
@@ -1134,9 +1130,9 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Shifted", "Offboard")
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
-	makeShift := func(date timezone.Date, startHour int) *scheduleModels.StaffShift {
+	makeShift := func(date calendar.Date, startHour int) *scheduleModels.StaffShift {
 		shift := &scheduleModels.StaffShift{
 			StaffID:   staff.ID,
 			Date:      scheduleModels.Date(date),
@@ -1184,15 +1180,14 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Modeled", "Staff")
-	model := &configModel.WorkTimeModel{
+	model, err := sc.workTime.CreateWorkTimeModel(sc.ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
 		Name:               fmt.Sprintf("offb-model-%d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
-	}
-	require.NoError(t, api.NewWorkTimeModelRepository(sc.workTime).Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
-		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
-	}))
-	_, err := sc.db.ExecContext(context.Background(),
+		RotationAnchorDate: "2026-01-05",
+		Entries:            []workforce.WorkTimeModelEntry{{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300}},
+	}})
+	require.NoError(t, err)
+	_, err = sc.db.ExecContext(context.Background(),
 		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
 	require.NoError(t, err)
 

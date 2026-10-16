@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -83,11 +83,11 @@ func TestGetStudentsDayLog_AdminSeesStatuses(t *testing.T) {
 		testpkg.AssignStudentToGroup(t, tc.db, s, group.ID)
 	}
 
-	checkIn := timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(8 * time.Hour)
-	checkOut := timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(15 * time.Hour)
-	testpkg.CreateTestAttendanceForDate(t, tc.db, present.ID, staff.ID, device.ID, timezone.NewDate(2026, 8, 24), checkIn, &checkOut)
+	checkIn := calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(8 * time.Hour)
+	checkOut := calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(15 * time.Hour)
+	testpkg.CreateTestAttendanceForDate(t, tc.db, present.ID, staff.ID, device.ID, calendar.NewDate(2026, 8, 24), checkIn, &checkOut)
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, sick.ID, today, absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, excused.ID, today, absencerecords.StudentStatusDayExcused)
 
@@ -195,7 +195,7 @@ func TestGetStudentsDayLog_FutureDateRejected(t *testing.T) {
 	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := calendar.TodayDate().AddDays(1)
 	req := testutil.NewRequest("GET", "/day-log?date="+tomorrow.String(), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -209,7 +209,7 @@ func TestGetStudentsDayLog_HistoricalDateRejected(t *testing.T) {
 	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
-	tooOld := timezone.TodayDate().AddDays(-40)
+	tooOld := calendar.TodayDate().AddDays(-40)
 	req := testutil.NewRequest("GET", "/day-log?date="+tooOld.String(), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 
@@ -223,7 +223,7 @@ func TestGetStudentsDayLog_RejectsHistoricalRosterWithoutGroupAssignments(t *tes
 	tc := setupStudentsRoute(t)
 	enableAttendanceLog(t, tc)
 
-	date := timezone.TodayDate().AddDays(-1)
+	date := calendar.TodayDate().AddDays(-1)
 	req := testutil.NewRequest("GET", "/day-log?date="+date.String(), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())

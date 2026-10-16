@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // matchRegeneratedInstances finds the freshly materialized planned
@@ -44,11 +44,11 @@ func (s *InstanceLifecycleService) matchRegeneratedInstances(
 	return matches, nil
 }
 
-func regeneratedMatchKeys(snapshots []deviationSnapshot, targetActivityGroupID *int64) ([]int64, []timezone.Date) {
+func regeneratedMatchKeys(snapshots []deviationSnapshot, targetActivityGroupID *int64) ([]int64, []calendar.Date) {
 	groupIDs := make([]int64, 0, len(snapshots))
-	dates := make([]timezone.Date, 0, len(snapshots))
+	dates := make([]calendar.Date, 0, len(snapshots))
 	seenGroups := make(map[int64]bool)
-	seenDates := make(map[timezone.Date]bool)
+	seenDates := make(map[calendar.Date]bool)
 	for _, snap := range snapshots {
 		groupID := snap.activityGroupID
 		if targetActivityGroupID != nil {
@@ -70,7 +70,7 @@ func indexRegeneratedCandidates(candidates []*scheduleModel.ActivityInstance) ma
 	byGroupDay := make(map[groupDay][]*scheduleModel.ActivityInstance)
 	for _, candidate := range candidates {
 		if candidate.ActivityGroupID != nil {
-			key := groupDay{*candidate.ActivityGroupID, timezone.Date(candidate.Date)}
+			key := groupDay{*candidate.ActivityGroupID, calendar.Date(candidate.Date)}
 			byGroupDay[key] = append(byGroupDay[key], candidate)
 		}
 	}
@@ -98,11 +98,11 @@ type seriesDeviationPreserver struct {
 	lifecycle *InstanceLifecycleService
 }
 
-func (p seriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantID int64, from, to timezone.Date) error {
+func (p seriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantID int64, from, to calendar.Date) error {
 	return p.lifecycle.acquireSubstituteDayLocks(ctx, tenantID, from, to)
 }
 
-func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to timezone.Date, templateID int64) (PreservedDeviations, error) {
+func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (PreservedDeviations, error) {
 	id := templateID
 	snapshots, occurrences, err := p.lifecycle.snapshotDeviations(ctx, from, to, &id)
 	if err != nil {

@@ -11,15 +11,14 @@ import (
 	"strings"
 	"time"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Group day log ("Tagesauswertung", issue #1456): for one calendar day and one
@@ -171,14 +170,14 @@ func (rs *Resource) dayLogLogger() *slog.Logger {
 // skipping care-plan resolution and reporting scheduled children as absent.
 type dayLogClock struct {
 	now   time.Time
-	today timezone.Date
+	today calendar.Date
 }
 
-func (c dayLogClock) isToday(date timezone.Date) bool { return date == c.today }
+func (c dayLogClock) isToday(date calendar.Date) bool { return date == c.today }
 
 func (rs *Resource) dayLogClock() dayLogClock {
 	now := rs.dayLogNow()
-	return dayLogClock{now: now, today: timezone.DateFromTime(now)}
+	return dayLogClock{now: now, today: calendar.DateFromTime(now)}
 }
 
 // parseDayLogDate reads the date query param (default: today). The student
@@ -186,20 +185,20 @@ func (rs *Resource) dayLogClock() dayLogClock {
 // roster cannot be reconstructed safely after a transfer. Until group
 // assignments have a dated source of truth, the day log is deliberately a
 // live-day view rather than attributing historical attendance to a wrong group.
-func parseDayLogDate(r *http.Request, today timezone.Date) (timezone.Date, error) {
+func parseDayLogDate(r *http.Request, today calendar.Date) (calendar.Date, error) {
 	date := today
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
-			return timezone.Date(""), errors.New("invalid date format, expected YYYY-MM-DD")
+			return calendar.Date(""), errors.New("invalid date format, expected YYYY-MM-DD")
 		}
 		date = parsed
 	}
 	if date.After(today) {
-		return timezone.Date(""), errors.New("date must not be in the future")
+		return calendar.Date(""), errors.New("date must not be in the future")
 	}
 	if date.Before(today) {
-		return timezone.Date(""), errors.New("historical day logs require dated group assignments")
+		return calendar.Date(""), errors.New("historical day logs require dated group assignments")
 	}
 	return date, nil
 }
@@ -218,7 +217,7 @@ var errNoPermittedDayLogGroups = errors.New("no_permitted_groups")
 // narrowed to the requested group_id. Admins see all groups. Every other
 // caller must have a linked staff record; verified staff see all groups
 // (#2329 — the former gdpr.attendance_log_scope per-group filter is gone).
-func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
+func (rs *Resource) resolveDayLogGroups(r *http.Request, date calendar.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
 	ctx := r.Context()
 
 	groups, err := rs.permittedDayLogGroups(ctx, date, logger)
@@ -236,7 +235,7 @@ func (rs *Resource) resolveDayLogGroups(r *http.Request, date timezone.Date, log
 
 // permittedDayLogGroups yields the unfiltered permitted set, or an empty set
 // when the caller is not staff at all. Errors here are dependency failures.
-func (rs *Resource) permittedDayLogGroups(ctx context.Context, date timezone.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
+func (rs *Resource) permittedDayLogGroups(ctx context.Context, date calendar.Date, logger *slog.Logger) ([]*SchoolGroup, error) {
 	if securityruntime.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx)) {
 		return rs.SchoolGroups.ListGroups(ctx)
 	}
@@ -308,7 +307,7 @@ type dayLogData struct {
 	clock               dayLogClock
 }
 
-func (rs *Resource) loadDayLogData(ctx context.Context, groups []*SchoolGroup, date timezone.Date, clock dayLogClock) (*dayLogData, error) {
+func (rs *Resource) loadDayLogData(ctx context.Context, groups []*SchoolGroup, date calendar.Date, clock dayLogClock) (*dayLogData, error) {
 	groupIDs := make([]int64, 0, len(groups))
 	for _, group := range groups {
 		groupIDs = append(groupIDs, group.ID)
@@ -359,7 +358,7 @@ func indexDayLogStudents(data *dayLogData, students []*Student) (studentIDs, per
 	return studentIDs, personIDs
 }
 
-func (rs *Resource) loadDayLogAttendance(ctx context.Context, data *dayLogData, date timezone.Date) error {
+func (rs *Resource) loadDayLogAttendance(ctx context.Context, data *dayLogData, date calendar.Date) error {
 	studentIDs := make([]int64, 0, len(data.persons))
 	for _, students := range data.studentsByGroup {
 		for _, student := range students {
@@ -376,7 +375,7 @@ func (rs *Resource) loadDayLogAttendance(ctx context.Context, data *dayLogData, 
 	return nil
 }
 
-func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date timezone.Date, clock dayLogClock) error {
+func (rs *Resource) loadDayLogSignOffs(ctx context.Context, data *dayLogData, studentIDs []int64, date calendar.Date, clock dayLogClock) error {
 	if rs.StudentStatusDayService != nil {
 		statuses, err := rs.StudentStatusDayService.GetSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 		if err != nil {
@@ -416,7 +415,7 @@ func (rs *Resource) dayLogNow() time.Time {
 	return time.Now()
 }
 
-func buildDayLogResponse(date timezone.Date, groups []*SchoolGroup, data *dayLogData) dayLogResponse {
+func buildDayLogResponse(date calendar.Date, groups []*SchoolGroup, data *dayLogData) dayLogResponse {
 	resp := dayLogResponse{Date: date.String(), Groups: make([]dayLogGroup, 0, len(groups))}
 	for _, group := range groups {
 		entry := dayLogGroup{
@@ -448,7 +447,7 @@ func buildDayLogResponse(date timezone.Date, groups []*SchoolGroup, data *dayLog
 // check-in or sick note must be reported — but before enrolled_from there is
 // nothing to be absent from: a derived absent / not-scheduled verdict would
 // report and count a child whose OGS time has not begun.
-func dayLogEnrollmentNotStarted(student *Student, row dayLogStudent, date timezone.Date) bool {
+func dayLogEnrollmentNotStarted(student *Student, row dayLogStudent, date calendar.Date) bool {
 	if student.EnrolledFrom == nil || !date.Before(*student.EnrolledFrom) {
 		return false
 	}
@@ -458,7 +457,7 @@ func dayLogEnrollmentNotStarted(student *Student, row dayLogStudent, date timezo
 // dayLogArrivalIsStillPending keeps a scheduled child out of today's live
 // absence verdict until their effective planned arrival is due. Retrospective
 // days always have a complete day and therefore never use this exception.
-func dayLogArrivalIsStillPending(row dayLogStudent, careDay careplan.CareDayStatus, arrival *careplan.EffectiveArrivalTime, date timezone.Date, clock dayLogClock) bool {
+func dayLogArrivalIsStillPending(row dayLogStudent, careDay careplan.CareDayStatus, arrival *careplan.EffectiveArrivalTime, date calendar.Date, clock dayLogClock) bool {
 	if row.Status != dayLogStatusAbsent ||
 		careDay != careplan.CareDayScheduled ||
 		arrival == nil ||
@@ -466,7 +465,7 @@ func dayLogArrivalIsStillPending(row dayLogStudent, careDay careplan.CareDayStat
 		!clock.isToday(date) {
 		return false
 	}
-	return timezone.NormalizeWallClock(clock.now).Before(timezone.NormalizeWallClock(*arrival.ArrivalTime))
+	return calendar.NormalizeWallClock(clock.now).Before(calendar.NormalizeWallClock(*arrival.ArrivalTime))
 }
 
 func sortDayLogStudents(students []dayLogStudent) {
@@ -643,7 +642,7 @@ func dayLogStatusLabel(status, source string) string {
 
 // writeDayLogAudit records the group-scoped access in audit.data_access_log.
 // Like the per-student history: no audit record, no data.
-func (rs *Resource) writeDayLogAudit(r *http.Request, date timezone.Date, groups []*SchoolGroup, logger *slog.Logger) error {
+func (rs *Resource) writeDayLogAudit(r *http.Request, date calendar.Date, groups []*SchoolGroup, logger *slog.Logger) error {
 	if rs.StudentHistoryService == nil {
 		logger.Error("audit log repo not configured, refusing to serve day log")
 		return errors.New("audit log repository not configured")

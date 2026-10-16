@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func boolPtrValue(v *bool) bool {
@@ -45,7 +45,7 @@ func (rs *Resource) persistStudentStatusHistory(ctx context.Context, student *St
 		return nil
 	}
 
-	today := timezone.DateFromTime(now)
+	today := calendar.DateFromTime(now)
 	// Only the sick status carries a free-text reason; excused stays note-less.
 	if err := rs.persistSingleStatusHistory(ctx, student.ID, absencerecords.StudentStatusDaySick, statusTransition{
 		wasActive: wasSick, isActive: boolPtrValue(student.Sick), clearRequested: clearRequested(req.Sick),
@@ -69,7 +69,7 @@ type statusTransition struct {
 	clearRequested bool
 }
 
-func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date timezone.Date, now time.Time, note *string) error {
+func (rs *Resource) persistSingleStatusHistory(ctx context.Context, studentID int64, status string, transition statusTransition, reportedAt time.Time, date calendar.Date, now time.Time, note *string) error {
 	if transition.isActive {
 		return rs.StudentStatusDayService.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 			StudentID:  studentID,
@@ -113,7 +113,7 @@ func (rs *Resource) logStatusHistoryError(studentID int64, err error) {
 	)
 }
 
-func (rs *Resource) notifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []timezone.Date, fromParent bool, actorAccountID int64) error {
+func (rs *Resource) notifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []calendar.Date, fromParent bool, actorAccountID int64) error {
 	if rs.AbsenceNotifier == nil {
 		return nil
 	}

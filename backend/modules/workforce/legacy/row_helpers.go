@@ -5,9 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The helpers below decode the generic repository's untyped arguments and
@@ -39,9 +38,9 @@ func legacyID(id any) (int64, error) {
 // DatabaseError, every other failure keeps its cause behind the operation.
 func readError(op string, err error, notFound error) error {
 	if notFound != nil && errors.Is(err, notFound) {
-		return &modelBase.DatabaseError{Op: op, Err: errors.Join(modelBase.ErrNotFound, sql.ErrNoRows)}
+		return &databaseError{op: op, err: errors.Join(errRecordNotFound, sql.ErrNoRows)}
 	}
-	return &modelBase.DatabaseError{Op: op, Err: err}
+	return &databaseError{op: op, err: err}
 }
 
 // writeError keeps the legacy write error shape. Validation
@@ -52,7 +51,7 @@ func writeError(op string, err error) error {
 	if errors.Is(err, workforce.ErrInvalidGroupSubstitution) {
 		return errors.New(err.Error())
 	}
-	return &modelBase.DatabaseError{Op: op, Err: err}
+	return &databaseError{op: op, err: err}
 }
 
 func conditionInt64(value any) (int64, bool) {
@@ -71,30 +70,11 @@ func conditionInt64(value any) (int64, bool) {
 	}
 }
 
-func conditionInt64List(value any) ([]int64, bool) {
-	switch typed := value.(type) {
-	case []int64:
-		return typed, true
-	case []any:
-		ids := make([]int64, 0, len(typed))
-		for _, entry := range typed {
-			id, ok := conditionInt64(entry)
-			if !ok {
-				return nil, false
-			}
-			ids = append(ids, id)
-		}
-		return ids, true
-	default:
-		return nil, false
-	}
-}
-
 func conditionDate(value any) (string, bool) {
 	switch typed := value.(type) {
-	case timezone.Date:
+	case calendar.Date:
 		return typed.String(), true
-	case *timezone.Date:
+	case *calendar.Date:
 		if typed == nil {
 			return "", false
 		}

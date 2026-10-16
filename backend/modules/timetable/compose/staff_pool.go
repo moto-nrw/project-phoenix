@@ -5,13 +5,11 @@ import (
 	"fmt"
 	"slices"
 	"sort"
-	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Staff availability pool for one care block (#1884): who could cover this
@@ -37,13 +35,13 @@ func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID
 	entries := make([]timetable.StaffPoolEntry, 0, len(staff))
 	for _, member := range staff {
 		if member != nil {
-			entries = append(entries, buildStaffPoolEntry(instance, member.ID, staffDisplayName(member), facts))
+			entries = append(entries, buildStaffPoolEntry(instance, member.ID, member.DisplayName(), facts))
 		}
 	}
 	return timetable.StaffPool{
 		InstanceID:      instance.ID,
 		Title:           instance.Title,
-		Date:            timezone.Date(instance.Date),
+		Date:            calendar.Date(instance.Date),
 		StartTime:       instance.StartTime,
 		EndTime:         instance.EndTime,
 		DienstplanInUse: dienstplanInUse,
@@ -53,7 +51,7 @@ func (d *conflictDetection) StaffPoolForInstance(ctx context.Context, instanceID
 
 // loadStaffPoolFacts reads the day's blocks, their staff rows, the day's
 // shifts, the week's Dienstplan usage and the staff directory.
-func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *scheduleModels.ActivityInstance) (*staffPoolFacts, bool, []*usersModels.Staff, error) {
+func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *scheduleModels.ActivityInstance) (*staffPoolFacts, bool, []*timetable.StaffMember, error) {
 	date := instance.Date
 	sameDay, err := d.deps.Instances.FindByTenantAndDateRange(ctx, date, date)
 	if err != nil {
@@ -81,7 +79,7 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load shifts: %w", err)
 	}
-	weekFrom, weekTo := timetable.ContainingCalendarWeek(timezone.Date(date))
+	weekFrom, weekTo := timetable.ContainingCalendarWeek(calendar.Date(date))
 	usedWeeks, err := d.deps.Shifts.FindUsedCalendarWeeks(ctx, scheduleModels.Date(weekFrom), scheduleModels.Date(weekTo))
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load used shift weeks: %w", err)
@@ -90,10 +88,10 @@ func (d *conflictDetection) loadStaffPoolFacts(ctx context.Context, instance *sc
 	if err != nil {
 		return nil, false, nil, fmt.Errorf("load staff directory: %w", err)
 	}
-	staff = slices.DeleteFunc(staff, func(member *usersModels.Staff) bool {
+	staff = slices.DeleteFunc(staff, func(member *timetable.StaffMember) bool {
 		return member != nil && member.IsGuest
 	})
-	sortStaffByName(staff)
+	timetable.SortStaffByName(staff)
 	return buildStaffPoolFacts(instance, plannable, rows, shifts), len(usedWeeks) > 0, staff, nil
 }
 
@@ -190,7 +188,7 @@ func buildStaffPoolEntry(target *scheduleModels.ActivityInstance, staffID int64,
 	sort.Strings(entry.ShiftWindows)
 	if entry.OnShift {
 		entry.CoversWindow = len(timetable.UncoveredShiftIntervals(
-			timezone.NormalizeWallClock(target.StartTime), timezone.NormalizeWallClock(target.EndTime), shiftWindowsOf(staffShifts),
+			calendar.NormalizeWallClock(target.StartTime), calendar.NormalizeWallClock(target.EndTime), shiftWindowsOf(staffShifts),
 		)) == 0
 	}
 	switch {
@@ -208,39 +206,4 @@ func buildStaffPoolEntry(target *scheduleModels.ActivityInstance, staffID int64,
 		entry.Category = timetable.StaffPoolNotOnShift
 	}
 	return entry
-}
-
-// staffDisplayName renders "First Last"; a person-less staff row degrades to
-// an empty name (the planner renders a fallback).
-func staffDisplayName(member *usersModels.Staff) string {
-	if member == nil || member.Person == nil {
-		return ""
-	}
-	return member.Person.FirstName + " " + member.Person.LastName
-}
-
-// sortStaffByName orders staff by last name, first name and ID, the order the
-// staff pool and the Dienstplan overview present them in.
-func sortStaffByName(staff []*usersModels.Staff) {
-	sort.Slice(staff, func(i, j int) bool {
-		left, right := staffSortName(staff[i]), staffSortName(staff[j])
-		if left == right {
-			return staffSortID(staff[i]) < staffSortID(staff[j])
-		}
-		return left < right
-	})
-}
-
-func staffSortID(staff *usersModels.Staff) int64 {
-	if staff == nil {
-		return 0
-	}
-	return staff.ID
-}
-
-func staffSortName(staff *usersModels.Staff) string {
-	if staff == nil || staff.Person == nil {
-		return ""
-	}
-	return strings.ToLower(staff.Person.LastName + "\x00" + staff.Person.FirstName)
 }

@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -124,7 +123,7 @@ type expectedArrival struct {
 // resolveExpectedArrival liest den Betreuungsplan des Kindes fuer heute. Eine
 // Ausnahme fuer den Tag schlaegt den Wochenplan; fehlt beides, ist heute kein
 // Betreuungstag.
-func (s *Service) resolveExpectedArrival(ctx context.Context, studentID int64, today timezone.Date) (expectedArrival, error) {
+func (s *Service) resolveExpectedArrival(ctx context.Context, studentID int64, today calendar.Date) (expectedArrival, error) {
 	if s.ArrivalSchedules == nil {
 		return expectedArrival{}, nil
 	}
@@ -164,7 +163,7 @@ func (s *Service) resolveExpectedArrival(ctx context.Context, studentID int64, t
 
 // arrivalWithoutPlan beantwortet einen Tag ohne Ankunftsplan: Eine
 // Abholzeit fuer heute macht ihn trotzdem zum Betreuungstag.
-func (s *Service) arrivalWithoutPlan(ctx context.Context, studentID int64, today timezone.Date) (expectedArrival, error) {
+func (s *Service) arrivalWithoutPlan(ctx context.Context, studentID int64, today calendar.Date) (expectedArrival, error) {
 	if s.PickupSchedules == nil {
 		return expectedArrival{resolved: true, isCareDay: false}, nil
 	}
@@ -178,7 +177,7 @@ func (s *Service) arrivalWithoutPlan(ctx context.Context, studentID int64, today
 // planWeekdayOf liefert den Wochentag, dessen Wochenplan heute gilt, und ob
 // das ueberhaupt ein Betreuungstag sein kann: Montag bis Freitag, oder ein
 // Wochenende, das dem Freitagsplan folgt (#3921).
-func planWeekdayOf(ctx context.Context, today timezone.Date) (int, bool, error) {
+func planWeekdayOf(ctx context.Context, today calendar.Date) (int, bool, error) {
 	weekday, err := calendar.PlanWeekday(ctx, today)
 	if err != nil {
 		return 0, false, err

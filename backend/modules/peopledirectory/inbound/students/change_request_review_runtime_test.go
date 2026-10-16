@@ -17,9 +17,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -82,7 +82,7 @@ func TestRequestReviewRuntimeEvidence(t *testing.T) {
 
 		excused := &testpkg.ExcusedAbsenceRequestRow{
 			StudentID: student.ID, SubmittedBy: account.ID,
-			Dates: []timezone.Date{timezone.TodayDate().AddDays(3)}, Note: "Arzttermin",
+			Dates: []calendar.Date{calendar.TodayDate().AddDays(3)}, Note: "Arzttermin",
 			AbsenceStatus: "excused", Status: "pending",
 		}
 		excused.TenantID = tenantID
@@ -99,7 +99,7 @@ func TestRequestReviewRuntimeEvidence(t *testing.T) {
 		reviewed := decidedBase.Add(-time.Duration(n*10+5) * time.Minute)
 		decidedExcused := &testpkg.ExcusedAbsenceRequestRow{
 			StudentID: student.ID, SubmittedBy: account.ID,
-			Dates: []timezone.Date{timezone.TodayDate().AddDays(-3)}, Note: "Krank",
+			Dates: []calendar.Date{calendar.TodayDate().AddDays(-3)}, Note: "Krank",
 			AbsenceStatus: "sick", Status: "approved", ReviewedBy: &account.ID, ReviewedAt: &reviewed,
 		}
 		decidedExcused.TenantID = tenantID

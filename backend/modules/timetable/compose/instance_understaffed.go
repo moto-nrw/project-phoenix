@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The "deliberately unstaffed" acknowledgement (Vertretungsplan, #1840): a
@@ -141,10 +141,10 @@ func (s *InstanceLifecycleService) AcknowledgeUnderstaffed(ctx context.Context, 
 	if err != nil {
 		return nil, err
 	}
-	if instance.Date.Before(timezone.TodayDate()) {
+	if instance.Date.Before(calendar.TodayDate()) {
 		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
-	if err := s.acquireSubstituteDayLock(ctx, timezone.Date(instance.Date)); err != nil {
+	if err := s.acquireSubstituteDayLock(ctx, calendar.Date(instance.Date)); err != nil {
 		return nil, timetable.DeviationInternal("lock day failed", err)
 	}
 	locked, err := s.loadDeviationInstance(ctx, instanceID)

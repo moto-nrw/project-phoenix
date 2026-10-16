@@ -9,10 +9,10 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -46,8 +46,8 @@ import (
 // overrides that is reapplied to the successor's rematerialized occurrences.
 // The composition root binds the retained instance service.
 type SeriesDeviations interface {
-	LockDeviationDays(ctx context.Context, tenantID int64, from, to timezone.Date) error
-	SnapshotDeviations(ctx context.Context, from, to timezone.Date, templateID int64) (PreservedDeviations, error)
+	LockDeviationDays(ctx context.Context, tenantID int64, from, to calendar.Date) error
+	SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (PreservedDeviations, error)
 }
 
 // PreservedDeviations is one snapshot of SeriesDeviations.
@@ -82,7 +82,7 @@ type TemplateSplitDependencies struct {
 	Staffing             StaffingAnnouncer
 	Logger               *slog.Logger
 	DB                   *bun.DB
-	Today                func() timezone.Date
+	Today                func() calendar.Date
 }
 
 // TemplateSplitService performs recurring-template scope operations.
@@ -105,7 +105,7 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitServ
 		return nil, err
 	}
 	if deps.Today == nil {
-		deps.Today = timezone.TodayDate
+		deps.Today = calendar.TodayDate
 	}
 	return &TemplateSplitService{
 		deps:                 deps,
@@ -414,7 +414,7 @@ func (s *TemplateSplitService) splitInTransaction(
 // series operation. A surviving deviated old-template row would dedupe apart
 // from the new template's materialized successor and show as a duplicate
 // block (#1840).
-func (s *TemplateSplitService) deleteSplitSourceInstances(ctx context.Context, oldID int64, effectiveDate timezone.Date) (int64, error) {
+func (s *TemplateSplitService) deleteSplitSourceInstances(ctx context.Context, oldID int64, effectiveDate calendar.Date) (int64, error) {
 	deleted, err := s.deps.InstanceRepo.DeletePlannedNonSpontaneousInWindow(ctx, scheduleModel.Date(effectiveDate), nil, &oldID, false)
 	if err != nil {
 		return 0, &ScheduleError{Op: "split template: delete planned instances", Err: err}
@@ -510,7 +510,7 @@ func reapplySplitDeviations(ctx context.Context, preserved PreservedDeviations, 
 func (s *TemplateSplitService) prepareSplitSource(
 	ctx context.Context,
 	in *TemplateSplitInput,
-) (*activitiesModel.Group, *timezone.Date, []*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
+) (*activitiesModel.Group, *calendar.Date, []*activitiesModel.StudentEnrollment, []*activitiesModel.SupervisorPlanned, error) {
 	old, err := s.loadTemplate(ctx, in.TemplateID)
 	if err != nil {
 		return nil, nil, nil, nil, err
@@ -588,10 +588,10 @@ func mirrorSplitTargets(in *TemplateSplitInput) {
 func (s *TemplateSplitService) capSplitSource(
 	ctx context.Context,
 	groupID int64,
-	effectiveDate timezone.Date,
+	effectiveDate calendar.Date,
 	enrollments []*activitiesModel.StudentEnrollment,
 	supervisors []*activitiesModel.SupervisorPlanned,
-	sourceValidUntil *timezone.Date,
+	sourceValidUntil *calendar.Date,
 ) error {
 	if _, err := s.deps.ScheduleRepo.CapValidUntil(ctx, groupID, effectiveDate.String()); err != nil {
 		return &ScheduleError{Op: "split template: cap schedules", Err: err}
@@ -616,7 +616,7 @@ func (s *TemplateSplitService) createSplitSuccessor(
 	old *activitiesModel.Group,
 	in TemplateSplitInput,
 	tenantID int64,
-	sourceValidUntil *timezone.Date,
+	sourceValidUntil *calendar.Date,
 	enrollments []*activitiesModel.StudentEnrollment,
 	supervisors []*activitiesModel.SupervisorPlanned,
 ) (*activitiesModel.Group, []int64, error) {
@@ -659,9 +659,9 @@ func (s *TemplateSplitService) materializeWindow(ctx context.Context, in Templat
 // splitMaterializationWindow returns the exact inclusive window shared by
 // deviation preservation and materialization. It clamps the lower bound to the
 // split date because the predecessor remains authoritative before that date.
-func splitMaterializationWindow(in TemplateSplitInput) (timezone.Date, timezone.Date, bool) {
+func splitMaterializationWindow(in TemplateSplitInput) (calendar.Date, calendar.Date, bool) {
 	if in.MaterializeFrom == nil || in.MaterializeTo == nil {
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 	from := *in.MaterializeFrom
 	if from.Before(in.EffectiveDate) {
@@ -669,7 +669,7 @@ func splitMaterializationWindow(in TemplateSplitInput) (timezone.Date, timezone.
 	}
 	to := *in.MaterializeTo
 	if from.After(to) {
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 	return from, to, true
 }

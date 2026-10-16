@@ -14,9 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -252,10 +251,10 @@ type WorkSessionService interface {
 	// "no active session found". The break variants above delegate here with
 	// the current day and keep their behaviour; CheckIn and CheckOut resolve
 	// the running block across days and ignore the pin.
-	CheckInOn(ctx context.Context, staffID int64, day timezone.Date, status, source, reason string) (*WorkSession, error)
-	CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*WorkSession, error)
-	StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error)
-	EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*WorkSession, error)
+	CheckInOn(ctx context.Context, staffID int64, day calendar.Date, status, source, reason string) (*WorkSession, error)
+	CheckOutOn(ctx context.Context, staffID int64, day calendar.Date, reason string) (*WorkSession, error)
+	StartBreakOn(ctx context.Context, staffID int64, day calendar.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error)
+	EndBreakOn(ctx context.Context, staffID int64, day calendar.Date) (*WorkSession, error)
 	GetSessionBreaks(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionBreak, error)
 	UpdateSession(ctx context.Context, staffID int64, sessionID int64, updates SessionUpdateRequest) (*WorkSession, error)
 	// UpdateSessionAsAdmin is the admin-facing counterpart. editorStaffID is
@@ -281,12 +280,12 @@ type WorkSessionService interface {
 	// GetHistory reads by the stored session date: one block is one row, filed
 	// under the day it started. That is the export contract, where a night
 	// block must appear in exactly one period, never in two.
-	GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
+	GetHistory(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error)
 	// GetHistoryIntersecting reads by interval and is what every reader needs
 	// that splits minutes onto Berlin calendar days: the history tables, the
 	// kiosk day state and the balances all have to see the block that started
 	// the evening before `from` and reaches into the range (#2402).
-	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error)
+	GetHistoryIntersecting(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error)
 	GetSessionEdits(ctx context.Context, staffID, sessionID int64) ([]*WorkSessionEditView, error)
 	// GetSessionEditsForStaff returns the audit trail of a session for a
 	// specific staff id. The caller is expected to have an admin-level
@@ -315,13 +314,13 @@ type WorkSessionService interface {
 	// ExportSessions renders the single-staff export. CSV serializes locally
 	// (data format); XLSX uses the workbook writer, and PDF delegates to the
 	// injected renderer for the shared document design (#1568).
-	ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*ExportFile, error)
+	ExportSessions(ctx context.Context, staffID int64, from, to calendar.Date, format string) (*ExportFile, error)
 	// DayExportRows exposes the export's merged session/absence day rows for
 	// the cross-staff export (#1417 2b) — same loading, same cell rendering.
-	DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error)
+	DayExportRows(ctx context.Context, staffID int64, from, to calendar.Date) ([]DayExportRow, error)
 	// DayExportRowsByStaffIDs loads the same rows for many staff members with
 	// batched repository calls, keyed by staff ID.
-	DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]DayExportRow, error)
+	DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]DayExportRow, error)
 	AutoEndExpiredBreaks(ctx context.Context) (int, error)
 
 	// Staff work-schedule operations (issue #584: moved out of api/staff).
@@ -441,12 +440,11 @@ func (s *workSessionService) now() time.Time {
 // the two equality conditions used by check-in and auto-check-in. Keeping the
 // lookup here avoids a per-field repository method while retaining the
 // chronological block order required by the caller.
-func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) ([]*WorkSession, error) {
-	options := modelBase.NewQueryOptions()
-	options.Filter.Equal("staff_id", staffID).Equal("date", date)
-	options.Sorting = (&modelBase.Sorting{}).AddField("check_in_time", modelBase.SortAsc)
-
-	sessions, err := s.repo.List(ctx, options)
+func (s *workSessionService) listSessionsByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*WorkSession, error) {
+	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{
+		StaffID: staffID, Date: date.String(),
+		Order: []workforce.WorkSessionOrder{{Field: workforce.WorkSessionOrderCheckInTime}},
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to list work sessions by staff and date: %w", err)
 	}
@@ -465,7 +463,7 @@ func (s *workSessionService) CheckIn(ctx context.Context, staffID int64, status,
 // in checkIn scans every day (a block opened before Berlin midnight is still
 // open after it), and a session that is created fresh is filed on the day its
 // own stamp falls on — see checkIn.
-func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ timezone.Date, status, source, reason string) (*WorkSession, error) {
+func (s *workSessionService) CheckInOn(ctx context.Context, staffID int64, _ calendar.Date, status, source, reason string) (*WorkSession, error) {
 	return s.checkIn(ctx, staffID, status, source, reason, true)
 }
 
@@ -492,7 +490,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 	}
 
 	now := s.now()
-	stampDay := timezone.DateFromTime(now)
+	stampDay := calendar.DateFromTime(now)
 
 	// Every block that reaches into the present, in one read: the open ones
 	// (they run to infinity, so the query returns them whatever day they were
@@ -596,7 +594,7 @@ func (s *workSessionService) checkIn(ctx context.Context, staffID int64, status,
 // later block resumes a work day that has already begun, exactly like the
 // pre-#2402 reopen path, which was exempt for the same reason. The returned
 // F9 deviation is recorded once the session exists.
-func (s *workSessionService) gateFirstBlock(ctx context.Context, staffID int64, day timezone.Date, now time.Time, reason string, enforceDeviationGate bool) (*plannedDeviation, error) {
+func (s *workSessionService) gateFirstBlock(ctx context.Context, staffID int64, day calendar.Date, now time.Time, reason string, enforceDeviationGate bool) (*plannedDeviation, error) {
 	if err := s.ensurePlannedStartReached(ctx, staffID, day, now); err != nil {
 		return nil, err
 	}
@@ -620,7 +618,7 @@ func (s *workSessionService) gateFirstBlock(ctx context.Context, staffID int64, 
 // of the day minus the configured tolerance. Arriving late is never refused,
 // and a day without a shift is not locked, so stepping in on a free day works;
 // an early start outside the window is entered afterwards by the leadership.
-func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staffID int64, day timezone.Date, now time.Time) error {
+func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staffID int64, day calendar.Date, now time.Time) error {
 	if s.settings == nil {
 		return nil
 	}
@@ -644,8 +642,8 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 	}
 	if opensAt := workforce.CheckInOpensAt(plannedStart, toleranceMinutes); now.Before(opensAt) {
 		return &PlannedStartNotReachedError{
-			PlannedStartTime: opensAt.In(timezone.Berlin).Format("15:04"),
-			CurrentTime:      now.In(timezone.Berlin).Format("15:04"),
+			PlannedStartTime: opensAt.In(calendar.Berlin).Format("15:04"),
+			CurrentTime:      now.In(calendar.Berlin).Format("15:04"),
 		}
 	}
 	return nil
@@ -653,7 +651,7 @@ func (s *workSessionService) ensurePlannedStartReached(ctx context.Context, staf
 
 // plannedDayWindow loads the staff member's shifts (schedule.staff_shifts) of
 // day and folds them into the window both check-in gates measure against.
-func (s *workSessionService) plannedDayWindow(ctx context.Context, staffID int64, day timezone.Date) (start, end time.Time, ok bool, err error) {
+func (s *workSessionService) plannedDayWindow(ctx context.Context, staffID int64, day calendar.Date) (start, end time.Time, ok bool, err error) {
 	shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, []int64{staffID}, day)
 	if err != nil {
 		return start, end, false, fmt.Errorf("failed to load planned shifts: %w", err)
@@ -691,26 +689,26 @@ func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason
 // Finding nothing open is not decided here: the day-scoped lookup each caller
 // performs next says "no active session found" on its own, and keeping that
 // one authority avoids two lookups disagreeing about whether a stamp exists.
-func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (timezone.Date, error) {
+func (s *workSessionService) openBlockDay(ctx context.Context, staffID int64) (calendar.Date, error) {
 	open, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
-	if err != nil && !modelBase.IsNoRows(err) {
-		return timezone.Date(""), fmt.Errorf(errGetCurrentSession, err)
+	if err != nil && !isRecordNotFound(err) {
+		return calendar.Date(""), fmt.Errorf(errGetCurrentSession, err)
 	}
 	if open != nil {
 		return open.Date, nil
 	}
-	return timezone.DateFromTime(s.now()), nil
+	return calendar.DateFromTime(s.now()), nil
 }
 
 // CheckOutOn ends the open session of an explicit calendar day.
-func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day timezone.Date, reason string) (*WorkSession, error) {
+func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day calendar.Date, reason string) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errors.New(errNoActiveSession)
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -779,8 +777,8 @@ type plannedDeviation struct {
 func (d *plannedDeviation) requiredError() *DeviationReasonRequiredError {
 	return &DeviationReasonRequiredError{
 		Action:           d.action,
-		PlannedTime:      d.planned.In(timezone.Berlin).Format("15:04"),
-		ActualTime:       d.actual.In(timezone.Berlin).Format("15:04"),
+		PlannedTime:      d.planned.In(calendar.Berlin).Format("15:04"),
+		ActualTime:       d.actual.In(calendar.Berlin).Format("15:04"),
 		DeviationMinutes: d.minutes,
 	}
 }
@@ -795,7 +793,7 @@ func (d *plannedDeviation) requiredError() *DeviationReasonRequiredError {
 // leaves are deliberately not gated — F9 targets unnoticed extra hours
 // ("früher kommen oder später gehen"), and missing time is already visible
 // in the saldo.
-func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID int64, day timezone.Date, now time.Time, action string) (*plannedDeviation, error) {
+func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID int64, day calendar.Date, now time.Time, action string) (*plannedDeviation, error) {
 	if s.settings == nil || s.staffShiftRepo == nil {
 		return nil, nil
 	}
@@ -845,8 +843,8 @@ func (s *workSessionService) detectPlannedDeviation(ctx context.Context, staffID
 // notes = the reason. The stamp and its audit row share the handler's tenant
 // transaction, so a failed audit write rolls the stamp back.
 func (s *workSessionService) recordDeviationReason(ctx context.Context, session *WorkSession, dev *plannedDeviation, reason string, now time.Time) error {
-	planned := dev.planned.In(timezone.Berlin).Format("15:04")
-	actual := dev.actual.In(timezone.Berlin).Format("15:04")
+	planned := dev.planned.In(calendar.Berlin).Format("15:04")
+	actual := dev.actual.In(calendar.Berlin).Format("15:04")
 	trimmed := strings.TrimSpace(reason)
 	edit := &WorkSessionEdit{
 		SessionID: session.ID,
@@ -969,14 +967,14 @@ func (s *workSessionService) StartBreak(ctx context.Context, staffID int64, plan
 }
 
 // StartBreakOn starts a break on the open session of an explicit calendar day.
-func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day timezone.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error) {
+func (s *workSessionService) StartBreakOn(ctx context.Context, staffID int64, day calendar.Date, plannedDurationMinutes *int) (*WorkSessionBreak, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDateForUpdate(ctx, staffID, day)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errors.New(errNoActiveSession)
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -1037,14 +1035,14 @@ func (s *workSessionService) EndBreak(ctx context.Context, staffID int64) (*Work
 }
 
 // EndBreakOn ends the active break on the open session of an explicit calendar day.
-func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day timezone.Date) (*WorkSession, error) {
+func (s *workSessionService) EndBreakOn(ctx context.Context, staffID int64, day calendar.Date) (*WorkSession, error) {
 	if err := s.lockStaffBalanceWrites(ctx, staffID); err != nil {
 		return nil, err
 	}
 	// Get the open session of the requested day
 	session, err := s.repo.GetOpenByStaffAndDate(ctx, staffID, day)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errors.New(errNoActiveSession)
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -1336,7 +1334,7 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 	}
 
 	checkOut := req.CheckOutTime
-	date := timezone.DateFromTime(req.Date)
+	date := calendar.DateFromTime(req.Date)
 	// A day can carry several blocks since #2402, so the Nachtrag no longer
 	// collides with an existing session per se — but it must not overlap one.
 	if err := s.assertNoBlockOverlap(ctx, targetStaffID, 0, req.CheckInTime, &checkOut); err != nil {
@@ -1500,7 +1498,7 @@ func assertNoBlockOverlapIn(siblings []*WorkSession, excludeID int64, checkIn ti
 			continue // sibling ends before (or exactly when) the new block starts
 		}
 		return fmt.Errorf("work session overlaps an existing block (%s–%s)",
-			sibling.CheckInTime.In(timezone.Berlin).Format("15:04"),
+			sibling.CheckInTime.In(calendar.Berlin).Format("15:04"),
 			formatBlockEnd(sibling.CheckOutTime))
 	}
 	return nil
@@ -1510,11 +1508,11 @@ func formatBlockEnd(checkOut *time.Time) string {
 	if checkOut == nil {
 		return "offen"
 	}
-	return checkOut.In(timezone.Berlin).Format("15:04")
+	return checkOut.In(calendar.Berlin).Format("15:04")
 }
 
 func (s *workSessionService) handleSessionNotFoundError(err error) error {
-	if modelBase.IsNoRows(err) {
+	if isRecordNotFound(err) {
 		return fmt.Errorf("session not found")
 	}
 	return fmt.Errorf("failed to get session: %w", err)
@@ -1526,7 +1524,7 @@ func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, upd
 	if updates.Date != nil {
 		// The wire carries an RFC3339 instant; only its Berlin calendar day
 		// matters for the DATE column.
-		newDate := timezone.DateFromTime(*updates.Date)
+		newDate := calendar.DateFromTime(*updates.Date)
 		if uc.session.Date != newDate {
 			uc.addAuditEdit("date", strPtr(uc.session.Date.String()), strPtr(newDate.String()))
 			uc.session.Date = newDate
@@ -1657,7 +1655,7 @@ func (s *workSessionService) applySimpleFieldUpdates(uc *sessionUpdateContext, u
 func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetCurrentByStaffID(ctx, staffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf(errGetCurrentSession, err)
@@ -1673,7 +1671,7 @@ func (s *workSessionService) GetCurrentSession(ctx context.Context, staffID int6
 func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID int64) (*WorkSession, error) {
 	session, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get latest open session: %w", err)
@@ -1683,7 +1681,7 @@ func (s *workSessionService) GetLatestOpenSession(ctx context.Context, staffID i
 }
 
 // GetHistory returns work sessions for a staff member in a date range with weekly aggregation
-func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
+func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
 	sessions, err := s.repo.GetHistoryByStaffID(ctx, staffID, from, to)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session history: %w", err)
@@ -1695,7 +1693,7 @@ func (s *workSessionService) GetHistory(ctx context.Context, staffID int64, from
 // consumer that lays minutes out on calendar days uses it: the history tables,
 // the kiosk day state, the balances. GetHistory keeps the stored-date contract
 // for the export, where a block is a single row under its start day.
-func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to timezone.Date) (*HistoryResponse, error) {
+func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID int64, from, to calendar.Date) (*HistoryResponse, error) {
 	end := to.AddDays(1).BerlinMidnight()
 	sessions, err := s.repo.ListOverlappingByStaffID(ctx, staffID, from.BerlinMidnight(), &end)
 	if err != nil {
@@ -1708,7 +1706,7 @@ func (s *workSessionService) GetHistoryIntersecting(ctx context.Context, staffID
 // range is carried through because the weekly summaries are aggregated per
 // calendar day: a block that reaches beyond the requested range (a night block
 // at either border) must not contribute the minutes it spends outside it.
-func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*WorkSession, from, to timezone.Date) (*HistoryResponse, error) {
+func (s *workSessionService) historyResponse(ctx context.Context, staffID int64, sessions []*WorkSession, from, to calendar.Date) (*HistoryResponse, error) {
 
 	// Collect session IDs for batch edit count query
 	sessionIDs := make([]int64, len(sessions))
@@ -1783,7 +1781,7 @@ func (s *workSessionService) historyResponse(ctx context.Context, staffID int64,
 // the next morning. Aggregating it whole would credit weeks the caller never
 // asked about — including ISO weeks with no visible row to explain them — so
 // only the days inside the range are counted (#2402).
-func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to timezone.Date) []WeeklySummary {
+func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to calendar.Date) []WeeklySummary {
 	weekMap := make(map[summaryWeekKey]*WeeklySummary)
 	var weekOrder []summaryWeekKey
 	now := time.Now()
@@ -1796,7 +1794,7 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		// choose freely (CreateSessionAsAdmin), so a block stamped 23:00 and
 		// filed on the following day would lose its pre-midnight minutes here
 		// while the balance — which starts at the check-in — still counts them.
-		firstDay, lastDay := timezone.DateFromTime(session.CheckInTime), timezone.DateFromTime(end)
+		firstDay, lastDay := calendar.DateFromTime(session.CheckInTime), calendar.DateFromTime(end)
 		if firstDay.Before(from) {
 			firstDay = from
 		}
@@ -1888,7 +1886,7 @@ func (s *workSessionService) getWeeklyTargetsForSummaries(ctx context.Context, s
 // holidayDatesForWeeks loads the public holidays covering the given weeks.
 // ok=false signals a resolver failure — then NO weekly Soll is shown rather
 // than one that ignores holidays and fakes minus hours (#1418 3a).
-func (s *workSessionService) holidayDatesForWeeks(ctx context.Context, weekStarts []timezone.Date) (map[timezone.Date]bool, bool) {
+func (s *workSessionService) holidayDatesForWeeks(ctx context.Context, weekStarts []calendar.Date) (map[calendar.Date]bool, bool) {
 	if s.holidayReader == nil || len(weekStarts) == 0 {
 		return nil, true
 	}
@@ -1932,7 +1930,7 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 	staffID int64,
 	staff *StaffScheduleAssignment,
 	sessions []*SessionResponse,
-	holidaySet map[timezone.Date]bool,
+	holidaySet map[calendar.Date]bool,
 ) map[summaryWeekKey]int {
 	weekStarts := sessionWeekStarts(sessions)
 	if len(weekStarts) == 0 {
@@ -1965,7 +1963,7 @@ func (s *workSessionService) weeklyTargetsFromDateValidSchedule(
 }
 
 // staffAnchorOf returns the staff-level rotation anchor when one is set.
-func staffAnchorOf(staff *StaffScheduleAssignment) *timezone.Date {
+func staffAnchorOf(staff *StaffScheduleAssignment) *calendar.Date {
 	if staff == nil {
 		return nil
 	}
@@ -1974,13 +1972,13 @@ func staffAnchorOf(staff *StaffScheduleAssignment) *timezone.Date {
 
 // sessionWeekStarts returns the deduplicated Monday week starts of the given
 // sessions in first-seen order.
-func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
-	weekStarts := make([]timezone.Date, 0)
-	seen := make(map[timezone.Date]struct{})
+func sessionWeekStarts(sessions []*SessionResponse) []calendar.Date {
+	weekStarts := make([]calendar.Date, 0)
+	seen := make(map[calendar.Date]struct{})
 	now := time.Now()
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
-		for day := timezone.DateFromTime(session.CheckInTime); !day.After(timezone.DateFromTime(end)); day = day.AddDays(1) {
+		for day := calendar.DateFromTime(session.CheckInTime); !day.After(calendar.DateFromTime(end)); day = day.AddDays(1) {
 			weekStart := day.StartOfISOWeek()
 			if _, ok := seen[weekStart]; ok {
 				continue
@@ -1994,14 +1992,14 @@ func sessionWeekStarts(sessions []*SessionResponse) []timezone.Date {
 
 // summaryKeyOf maps a Monday week start onto the ISO year/week summary key
 // (a Monday uniquely determines its ISO week, so the mapping is loss-free).
-func summaryKeyOf(weekStart timezone.Date) summaryWeekKey {
+func summaryKeyOf(weekStart calendar.Date) summaryWeekKey {
 	year, week := weekStart.UTCMidnight().ISOWeek()
 	return summaryWeekKey{Year: year, Week: week}
 }
 
 // summaryKeysOf rekeys the Monday-date targets of the shared model resolver
 // onto summary week keys.
-func summaryKeysOf(targets map[timezone.Date]int) map[summaryWeekKey]int {
+func summaryKeysOf(targets map[calendar.Date]int) map[summaryWeekKey]int {
 	if len(targets) == 0 {
 		return nil
 	}
@@ -2110,7 +2108,7 @@ func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64
 // checked out normally before they become stale.
 func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, error) {
 	// Today's Berlin calendar day for the PostgreSQL DATE column
-	today := timezone.DateFromTime(s.now())
+	today := calendar.DateFromTime(s.now())
 
 	// Keep sessions opened yesterday available through today. A night block
 	// may cross midnight and must not be closed by the first cleanup run.
@@ -2163,7 +2161,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	now := s.now()
 	// GetOpenSessions filters date < beforeDate; passing tomorrow includes
 	// today's open sessions, which is where forgotten checkouts live.
-	tomorrow := timezone.DateFromTime(now).AddDays(1)
+	tomorrow := calendar.DateFromTime(now).AddDays(1)
 	openSessions, err := s.repo.GetOpenSessions(ctx, tomorrow)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get open sessions: %w", err)
@@ -2180,13 +2178,13 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	}
 
 	// Batch the shift lookups per session date; latest shift end per staff wins.
-	latestEndByDate := make(map[timezone.Date]map[int64]*TimeTrackingShift)
-	byDate := make(map[timezone.Date][]int64)
+	latestEndByDate := make(map[calendar.Date]map[int64]*TimeTrackingShift)
+	byDate := make(map[calendar.Date][]int64)
 	for _, session := range openSessions {
 		byDate[session.Date] = append(byDate[session.Date], session.StaffID)
 	}
 	for date, staffIDs := range byDate {
-		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, timezone.Date(date))
+		shifts, err := s.staffShiftRepo.FindByStaffIDsAndDate(ctx, staffIDs, calendar.Date(date))
 		if err != nil {
 			return 0, fmt.Errorf("failed to load shifts for %s: %w", date.String(), err)
 		}
@@ -2211,7 +2209,7 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	for _, listedSession := range openSessions {
 		session, err := s.repo.LockOpenByIDForUpdate(ctx, listedSession.ID)
 		if err != nil {
-			if modelBase.IsNoRows(err) {
+			if isRecordNotFound(err) {
 				s.getLogger().InfoContext(ctx, "skipping auto-checkout side effects because session was already closed",
 					slog.Int64("session_id", listedSession.ID),
 					slog.Int64("staff_id", listedSession.StaffID))
@@ -2365,7 +2363,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// a block that crossed Berlin midnight is still running, and starting a
 	// supervision must return it instead of running into "already checked in".
 	currentSession, err := s.repo.GetLatestOpenByStaffID(ctx, staffID)
-	if err != nil && !modelBase.IsNoRows(err) {
+	if err != nil && !isRecordNotFound(err) {
 		return nil, fmt.Errorf("failed to check current session: %w", err)
 	}
 
@@ -2377,7 +2375,7 @@ func (s *workSessionService) EnsureCheckedIn(ctx context.Context, staffID int64,
 	// auto-created second block (#2402): whoever stamped out made a
 	// conscious decision, and a supervision start must not silently begin a
 	// new work block behind their back.
-	today := timezone.DateFromTime(s.now())
+	today := calendar.DateFromTime(s.now())
 	todaySessions, err := s.listSessionsByStaffAndDate(ctx, staffID, today)
 	if err != nil {
 		return nil, fmt.Errorf("failed to check today's session: %w", err)
@@ -2409,7 +2407,7 @@ var germanAbsenceTypeLabels = map[string]string{
 
 // exportRow represents a single row in the export (either a work session or an absence day)
 type exportRow struct {
-	Date timezone.Date
+	Date calendar.Date
 	// Start orders multiple blocks of the same day chronologically (#2402).
 	// Absence rows carry the zero value and sort before the day's sessions.
 	Start time.Time
@@ -2448,7 +2446,7 @@ func timeTrackingHeaders() []string {
 // ExportSessions renders the single-staff export of work sessions and
 // absences. CSV and XLSX stay plain data files (shared writers below);
 // PDF renders through the listexport design (#1568) as the print artifact.
-func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to timezone.Date, format string) (*ExportFile, error) {
+func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, from, to calendar.Date, format string) (*ExportFile, error) {
 	// Deliberately the stored-date read, not the intersecting one: an export
 	// row is a whole block, and a night block that reaches into the next month
 	// must be listed once, under the month it started in. Reading by interval
@@ -2528,7 +2526,7 @@ func (s *workSessionService) ExportSessions(ctx context.Context, staffID int64, 
 // buildTimeTrackingDocument shapes the merged export rows into the shared
 // listexport document: title block with the staff member's name, the
 // requested period as a filter pill, and the confidentiality footer.
-func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staffID int64, rows []exportRow, from, to timezone.Date) (TimeTrackingDocument, error) {
+func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staffID int64, rows []exportRow, from, to calendar.Date) (TimeTrackingDocument, error) {
 	subtitle := "Arbeitszeiten und Abwesenheiten"
 	if s.staffRepo != nil {
 		staffMap, err := s.staffRepo.StaffNames(ctx, []int64{staffID})
@@ -2567,7 +2565,7 @@ func (s *workSessionService) buildTimeTrackingDocument(ctx context.Context, staf
 // inside the requested export period. Repository range lookups deliberately
 // return overlapping absences, including records that start before `from` or
 // end after `to`.
-func clampAbsencesToRange(absences []*StaffAbsence, from, to timezone.Date) []*StaffAbsence {
+func clampAbsencesToRange(absences []*StaffAbsence, from, to calendar.Date) []*StaffAbsence {
 	clamped := make([]*StaffAbsence, 0, len(absences))
 	for _, absence := range absences {
 		if absence == nil || absence.DateEnd.Before(from) || to.Before(absence.DateStart) {
@@ -2726,13 +2724,11 @@ func (s *workSessionService) AutoEndExpiredBreaks(ctx context.Context) (int, err
 	if len(expiredBreaks) == 0 {
 		return 0, nil
 	}
-	sessionIDs := make([]interface{}, 0, len(expiredBreaks))
+	sessionIDs := make([]int64, 0, len(expiredBreaks))
 	for _, brk := range expiredBreaks {
 		sessionIDs = append(sessionIDs, brk.SessionID)
 	}
-	sessions, err := s.repo.List(ctx, &modelBase.QueryOptions{
-		Filter: modelBase.NewFilter().Where("id", modelBase.OpIn, sessionIDs),
-	})
+	sessions, err := s.repo.ListWithFilter(ctx, workforce.WorkSessionFilter{IDs: sessionIDs})
 	if err != nil {
 		return 0, fmt.Errorf("failed to resolve work sessions for balance lock: %w", err)
 	}
@@ -2815,7 +2811,7 @@ func (s *workSessionService) AssignScheduleTemplate(ctx context.Context, staff *
 
 // ApplyCustomScheduleRows replaces the schedule with custom rows and unbinds
 // any assigned template.
-func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor, validFrom timezone.Date) error {
+func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff *StaffScheduleBinding, entries []*WorkScheduleRow, anchor, validFrom calendar.Date) error {
 	// An omitted anchor keeps the staff-level one; the new version must be
 	// stamped with that same effective anchor, or it would silently re-parity
 	// once the staff anchor moves.
@@ -2828,7 +2824,7 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 	if effective.IsZero() && isRotationalSchedule(entries) {
 		effective = validFrom
 		if effective.IsZero() {
-			effective = timezone.DateFromTime(s.now())
+			effective = calendar.DateFromTime(s.now())
 		}
 	}
 	if err := s.scheduleRepo.ReplaceScheduleWithValidFrom(ctx, staff.ID, entries, effective, validFrom); err != nil {
@@ -2848,9 +2844,9 @@ func (s *workSessionService) ApplyCustomScheduleRows(ctx context.Context, staff 
 
 // SaveCustomScheduleAsTemplate persists the rows as a new reusable work time
 // model and binds it to the staff member.
-func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor timezone.Date, entries []*WorkTimeTemplateEntry) error {
+func (s *workSessionService) SaveCustomScheduleAsTemplate(ctx context.Context, staff *StaffScheduleBinding, name string, rotation int, anchor calendar.Date, entries []*WorkTimeTemplateEntry) error {
 	if anchor.IsZero() {
-		anchor = timezone.DateFromTime(s.now())
+		anchor = calendar.DateFromTime(s.now())
 	}
 	model := &WorkTimeTemplate{
 		Name:               name,
@@ -2913,9 +2909,9 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *Sta
 		return scheduleValidationErrorf("rotation_length must be between 1 and %d", MaxScheduleRotation)
 	}
 
-	anchor := timezone.Date("")
+	anchor := calendar.Date("")
 	if in.RotationAnchorDate != "" {
-		parsed, err := timezone.ParseDate(in.RotationAnchorDate)
+		parsed, err := calendar.ParseDate(in.RotationAnchorDate)
 		if err != nil {
 			return scheduleValidationErrorf("invalid rotation_anchor_date: %v", err)
 		}
@@ -2934,5 +2930,5 @@ func (s *workSessionService) applyCustomSchedule(ctx context.Context, staff *Sta
 		return nil
 	}
 
-	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor, timezone.Date(in.ValidFrom))
+	return s.ApplyCustomScheduleRows(ctx, staff, entries, anchor, calendar.Date(in.ValidFrom))
 }

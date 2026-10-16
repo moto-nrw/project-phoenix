@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -43,7 +43,7 @@ func New(dependencies Dependencies) (*timetable.Module, error) {
 		dependencies.Observe(observation)
 	}
 	service := application.New(store, transaction{}, studentDirectory{query: dependencies.Students}, roomDirectory{query: dependencies.Rooms}, dependencies.Sessions,
-		dependencies.LockStaffAssignment, func() string { return timezone.TodayDate().String() }, observe)
+		dependencies.LockStaffAssignment, func() string { return calendar.TodayDate().String() }, observe)
 	return timetable.NewModule(engine{service: service, observe: observe}), nil
 }
 

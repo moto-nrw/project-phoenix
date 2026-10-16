@@ -10,7 +10,6 @@ import (
 
 	api "github.com/moto-nrw/project-phoenix/api"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -136,7 +135,7 @@ func TestHandleFeatureToggleEnableSkipsThePurge(t *testing.T) {
 					event.Data.Source != nil && *event.Data.Source == "tenant_photos_enabled":
 					sawEnableSource = true
 				case event.Type == realtime.EventTenantSettingsChanged &&
-					event.Data.Source != nil && *event.Data.Source == configModel.KeyStudentPhotosEnabled:
+					event.Data.Source != nil && *event.Data.Source == settingStudentPhotosEnabled:
 					sawSettingsChanged = true
 				}
 			}

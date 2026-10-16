@@ -5,16 +5,15 @@ import (
 	"testing"
 	"time"
 
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -253,7 +252,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	oldDecision := time.Now().AddDate(0, 0, -30)
 	_, err = env.db.NewUpdate().TableExpr("enrollment.offering_change_requests").
 		Set("reviewed_at = ?", oldDecision).
-		Set("effective_from = ?", timezone.NewDate(2026, 8, 24).AddDays(-1)).
+		Set("effective_from = ?", calendar.NewDate(2026, 8, 24).AddDays(-1)).
 		Where("id = ?", row.ID).Exec(ctx)
 	require.NoError(t, err)
 	view, err := svc.GetForStudent(ctx, fx.studentID)
@@ -261,7 +260,7 @@ func TestOfferingChangeRequestService_GetForStudent_DropsOldWithdrawalAfterCareR
 	require.NotNil(t, view, "the status remains while the completion task is open")
 
 	changed, err := env.repos.CareWithdrawal.MarkObsoleteForRebooking(
-		ctx, fx.studentID, timezone.NewDate(2026, 8, 24).AddDays(-1), time.Now(),
+		ctx, fx.studentID, calendar.NewDate(2026, 8, 24).AddDays(-1), time.Now(),
 	)
 	require.NoError(t, err)
 	require.True(t, changed)

@@ -3,6 +3,7 @@ package testdb
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"os"
@@ -11,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // RunIDEnv carries the run identifier that stamps every clone of one test
@@ -251,12 +254,28 @@ func gcLocked(ctx context.Context, maint sqlExecutor, templateName string, spare
 		return nil, err
 	}
 
+	// Housekeeping must not hold the lifecycle lock behind a busy orphan.
+	// Bound DROP lock waits on the server without cancelling the session
+	// that owns the lifecycle lock; other packages can then create clones.
+	if _, err := maint.ExecContext(ctx, `SET lock_timeout = '1s'`); err != nil {
+		return nil, fmt.Errorf("bound orphan cleanup: %w", err)
+	}
+	defer func() {
+		resetCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, _ = maint.ExecContext(resetCtx, `RESET lock_timeout`)
+	}()
+
 	var dropped []string
 	for _, c := range clones {
 		if c.name == templateName || c.connected || hasAnyPrefix(c.name, sparePrefixes) {
 			continue
 		}
 		if err := dropDatabase(ctx, maint, c.name); err != nil {
+			var pgErr pgdriver.Error
+			if errors.As(err, &pgErr) && pgErr.Field('C') == "55P03" && ctx.Err() == nil {
+				continue // A later pass can retry after the contention clears.
+			}
 			return dropped, fmt.Errorf("drop orphaned clone %q: %w", c.name, err)
 		}
 		dropped = append(dropped, c.name)

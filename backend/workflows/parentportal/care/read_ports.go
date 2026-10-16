@@ -3,11 +3,11 @@ package care
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The read ports below are the rows the child flows read and lock. They name
@@ -76,7 +76,7 @@ type DataRequestReads interface {
 
 // StatusDayReads reads the child's active status days.
 type StatusDayReads interface {
-	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*absencerecords.StudentStatusDay, error)
+	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // CareOfferingReads reads care offerings by ID.
@@ -93,8 +93,8 @@ type CarePeriod struct {
 	RequestID        int64
 	PhaseID          int64
 	PhaseName        string
-	ServiceStartDate timezone.Date
-	ServiceEndDate   timezone.Date
+	ServiceStartDate calendar.Date
+	ServiceEndDate   calendar.Date
 }
 
 // CarePeriodReads lists the child's care periods from Enrollment, latest
@@ -108,8 +108,8 @@ type CarePeriodReads interface {
 type OfferingBooking struct {
 	CareOfferingID int64
 	SelectedDays   []string
-	ValidFrom      *timezone.Date
-	ValidUntil     *timezone.Date
+	ValidFrom      *calendar.Date
+	ValidUntil     *calendar.Date
 }
 
 // OfferingHistoryReads lists every offering selection one enrollment child

@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Start conflicts (WP-B9, matrix reworked in #2139: only person
@@ -186,7 +186,7 @@ func (d *conflictDetection) loadActiveStaffConflicts(ctx context.Context, assign
 	if len(staffIDs) == 0 {
 		return result
 	}
-	day := timezone.TodayDate().String()
+	day := calendar.TodayDate().String()
 	supervisions, err := d.deps.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{ActiveOn: &day, StaffIDs: staffIDs})
 	if err != nil {
 		d.logger.Warn("conflict detection: staff supervision batch lookup failed", slog.String("error", err.Error()))

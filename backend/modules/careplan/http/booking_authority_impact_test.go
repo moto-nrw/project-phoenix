@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"testing/synctest"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
@@ -91,20 +92,24 @@ func serve(t *testing.T, authority careplanhttp.BookingAuthority, target string)
 
 func TestBookingAuthorityImpactPreviewsTodayInTheSchoolTransaction(t *testing.T) {
 	t.Parallel()
-	impact := &careplan.BookingAuthorityImpact{
-		ReferenceDate:    calendar.TodayDate(),
-		BlockingChildren: []careplan.BookingAuthorityImpactChild{{StudentID: "17", FirstName: "Ada"}},
-	}
-	authority := &fakeAuthority{impact: impact}
 
-	rr, out := serve(t, authority, "/schools/4711/settings/booking-authority-impact")
+	// synctest freezes this test's clock at 2000-01-01 UTC for this call.
+	synctest.Test(t, func(t *testing.T) {
+		impact := &careplan.BookingAuthorityImpact{
+			ReferenceDate:    calendar.NewDate(2000, 1, 1),
+			BlockingChildren: []careplan.BookingAuthorityImpactChild{{StudentID: "17", FirstName: "Ada"}},
+		}
+		authority := &fakeAuthority{impact: impact}
 
-	require.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, int64(4711), authority.school, "the preview runs in the transaction of the school in the path")
-	assert.Equal(t, calendar.TodayDate(), authority.on)
-	assert.Same(t, impact, out.data)
-	assert.Equal(t, "Booking authority impact retrieved successfully", out.message)
-	assert.Contains(t, rr.Body.String(), `"blocking_children":[{"student_id":"17"`)
+		rr, out := serve(t, authority, "/schools/4711/settings/booking-authority-impact")
+
+		require.Equal(t, http.StatusOK, rr.Code)
+		assert.Equal(t, int64(4711), authority.school, "the preview runs in the transaction of the school in the path")
+		assert.Equal(t, calendar.NewDate(2000, 1, 1), authority.on)
+		assert.Same(t, impact, out.data)
+		assert.Equal(t, "Booking authority impact retrieved successfully", out.message)
+		assert.Contains(t, rr.Body.String(), `"blocking_children":[{"student_id":"17"`)
+	})
 }
 
 func TestBookingAuthorityImpactRejectsAnInvalidSchoolID(t *testing.T) {

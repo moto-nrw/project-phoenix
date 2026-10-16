@@ -109,7 +109,7 @@ func (s *Store) classArrivalExceptionDeleteQuery(ctx context.Context, class stri
 }
 
 // StaffNotice is the persisted shape of users.staff_notices. It mirrors
-// the retained users.StaffNotice model field for field; WherePK uses the
+// the retained schedule.StaffNotice model field for field; WherePK uses the
 // "staff_notice" alias.
 type StaffNotice struct {
 	bun.BaseModel           `bun:"table:staff_notices,alias:staff_notice"`

@@ -3,12 +3,11 @@ package compose
 import (
 	"context"
 	"errors"
-	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The row adapters in this file serve the time-tracking staff absence and
@@ -90,19 +89,11 @@ func (r staffAbsenceRepository) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r staffAbsenceRepository) List(ctx context.Context, options *modelBase.QueryOptions) ([]*StaffAbsence, error) {
-	filter, err := staffAbsenceFilterFromOptions(options)
-	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list with options", Err: err}
-	}
+func (r staffAbsenceRepository) ListWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 	return r.list(ctx, "list with options", filter)
 }
 
-func (r staffAbsenceRepository) CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error) {
-	filter, err := staffAbsenceFilterFromOptions(options)
-	if err != nil {
-		return 0, &modelBase.DatabaseError{Op: "count with options", Err: err}
-	}
+func (r staffAbsenceRepository) CountWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) (int, error) {
 	count, err := r.workforce.CountStaffAbsences(ctx, filter)
 	if err != nil {
 		return 0, rowReadError("count with options", err, nil)
@@ -110,7 +101,7 @@ func (r staffAbsenceRepository) CountWithOptions(ctx context.Context, options *m
 	return count, nil
 }
 
-func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string, cutoff *timezone.Date) (*timezone.Date, error) {
+func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
 	before := ""
 	if cutoff != nil {
 		before = cutoff.String()
@@ -122,14 +113,14 @@ func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string,
 	if oldest == "" {
 		return nil, nil
 	}
-	date, err := timezone.ParseDate(oldest)
+	date, err := calendar.ParseDate(oldest)
 	if err != nil {
 		return nil, err
 	}
 	return &date, nil
 }
 
-func (r staffAbsenceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timezone.Date) (int64, error) {
+func (r staffAbsenceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteStaffAbsencesOlderThan(ctx, column, cutoff.String())
 	if err != nil {
 		return 0, absenceWriteError("delete older than", err)
@@ -141,14 +132,14 @@ func (r staffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, staf
 	return r.workforce.LockStaffAbsenceWrites(ctx, staffID)
 }
 
-func (r staffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsence, error) {
 	return r.list(ctx, "get absences by staff and date range", workforce.StaffAbsenceFilter{
 		StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(),
 		Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}},
 	})
 }
 
-func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*StaffAbsence, error) {
 	result := make(map[int64][]*StaffAbsence, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -166,7 +157,7 @@ func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, s
 	return result, nil
 }
 
-func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*StaffAbsence, error) {
 	absences, err := r.list(ctx, "get absence by staff and date", workforce.StaffAbsenceFilter{
 		StaffID: staffID, OverlapFrom: date.String(), OverlapTo: date.String(),
 		Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1,
@@ -177,7 +168,7 @@ func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID i
 	return absences[0], nil
 }
 
-func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
+func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date calendar.Date) (map[int64]string, error) {
 	result, err := r.workforce.StaffAbsenceMapForDate(ctx, date.String())
 	if err != nil {
 		return nil, rowReadError("get effective absences for date", err, nil)
@@ -185,7 +176,7 @@ func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date t
 	return result, nil
 }
 
-func (r staffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, date timezone.Date) (map[int64]int64, error) {
+func (r staffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, date calendar.Date) (map[int64]int64, error) {
 	result, err := r.workforce.StaffAbsenceTypeIDMapForDate(ctx, date.String())
 	if err != nil {
 		return nil, rowReadError("get effective absences for date", err, nil)
@@ -240,108 +231,6 @@ func (r staffAbsenceRepository) list(ctx context.Context, op string, filter work
 		result = append(result, absenceToLegacy(value))
 	}
 	return result, nil
-}
-
-// staffAbsenceFilterFromOptions translates the generic query options the
-// retained callers still build into the typed capability filter. Only the
-// columns and operators those callers use are accepted; anything else is an
-// error rather than a silently ignored predicate.
-func staffAbsenceFilterFromOptions(options *modelBase.QueryOptions) (workforce.StaffAbsenceFilter, error) {
-	filter := workforce.StaffAbsenceFilter{}
-	if options == nil {
-		return filter, nil
-	}
-	if options.Filter != nil {
-		if len(options.Filter.OrFilters()) > 0 || len(options.Filter.AndFilters()) > 0 {
-			return filter, errors.New("nested staff absence filters are not supported")
-		}
-		for _, condition := range options.Filter.Conditions() {
-			if err := applyStaffAbsenceCondition(&filter, condition); err != nil {
-				return filter, err
-			}
-		}
-	}
-	if options.Sorting != nil {
-		for _, field := range options.Sorting.Fields {
-			switch field.Field {
-			case "id", "staff_id", "date_start", "date_end", "requested_at":
-				filter.Order = append(filter.Order, workforce.StaffAbsenceOrder{
-					Field: workforce.StaffAbsenceOrderField(field.Field), Descending: field.Direction == modelBase.SortDesc,
-				})
-			default:
-				return filter, fmt.Errorf("unsupported staff absence sort field %q", field.Field)
-			}
-		}
-	}
-	if options.Pagination != nil && options.Pagination.PageSize > 0 {
-		filter.Limit = options.Pagination.PageSize
-		if options.Pagination.Page > 1 {
-			filter.Offset = (options.Pagination.Page - 1) * options.Pagination.PageSize
-		}
-	}
-	return filter, nil
-}
-
-func applyStaffAbsenceCondition(filter *workforce.StaffAbsenceFilter, condition modelBase.FilterCondition) error {
-	switch {
-	case condition.Field == "staff_id" && condition.Operator == modelBase.OpEqual:
-		id, ok := conditionInt64(condition.Value)
-		if !ok {
-			return errors.New("staff_id filter must be an integer")
-		}
-		filter.StaffID = id
-	case condition.Field == "staff_id" && condition.Operator == modelBase.OpIn:
-		ids, ok := conditionInt64List(condition.Value)
-		if !ok {
-			return errors.New("staff_id filter must be a list of integers")
-		}
-		filter.StaffIDs = ids
-	case condition.Field == "status" && condition.Operator == modelBase.OpEqual:
-		status, ok := condition.Value.(string)
-		if !ok {
-			return errors.New("status filter must be a string")
-		}
-		filter.Statuses = []string{status}
-	case condition.Field == "status" && condition.Operator == modelBase.OpIn:
-		statuses, ok := conditionStringList(condition.Value)
-		if !ok {
-			return errors.New("status filter must be a list of strings")
-		}
-		filter.Statuses = statuses
-	case condition.Field == "absence_type" && condition.Operator == modelBase.OpEqual:
-		absenceType, ok := condition.Value.(string)
-		if !ok {
-			return errors.New("absence_type filter must be a string")
-		}
-		filter.Types = []string{absenceType}
-	case condition.Field == "date_start" && condition.Operator == modelBase.OpLessThanOrEqual:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_start filter must be a calendar date")
-		}
-		filter.OverlapTo = date
-	case condition.Field == "date_end" && condition.Operator == modelBase.OpGreaterThanOrEqual:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_end filter must be a calendar date")
-		}
-		filter.OverlapFrom = date
-	case condition.Field == "date_end" && condition.Operator == modelBase.OpLessThan:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_end filter must be a calendar date")
-		}
-		filter.DateEndBefore = date
-	case condition.Field == "date_start" && condition.Operator == modelBase.OpLessThan:
-		date, ok := conditionDate(condition.Value)
-		if !ok {
-			return errors.New("date_start filter must be a calendar date")
-		}
-		filter.DateStartBefore = date
-	default:
-		return fmt.Errorf("unsupported staff absence filter %s %s", condition.Field, condition.Operator)
-	}
-	return nil
 }
 
 // staffAbsenceAuditRepository serves StaffAbsenceAuditRepository from the
@@ -403,8 +292,8 @@ func applyAbsenceToLegacy(entity *StaffAbsence, value workforce.StaffAbsence) {
 	entity.StaffID = value.StaffID
 	entity.AbsenceType = value.AbsenceType
 	entity.AbsenceTypeID = value.AbsenceTypeID
-	entity.DateStart = timezone.Date(value.DateStart)
-	entity.DateEnd = timezone.Date(value.DateEnd)
+	entity.DateStart = calendar.Date(value.DateStart)
+	entity.DateEnd = calendar.Date(value.DateEnd)
 	entity.HalfDay = value.HalfDay
 	entity.StartHalfDay = value.StartHalfDay
 	entity.EndHalfDay = value.EndHalfDay

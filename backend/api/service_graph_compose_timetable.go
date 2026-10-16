@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -110,7 +109,7 @@ func composePresence(b graphBuild) (graphBuild, error) {
 		EducationGroupRepo: b.Presence.AttendanceEducationGroups, DeviceRepo: b.Presence.SessionDevices(b.settingsService),
 		StaffNames: b.Presence.AttendanceStaffNames(b.graph.Users), DB: b.DB.Pool(),
 		Broadcaster: b.graph.RealtimeHub, Tracker: b.ProductEvents,
-		WorkSessionService: b.graph.WorkSession.AutoCheckIn, AttendanceSyncer: attendanceSync,
+		WorkSessionService: presenceAutoCheckIn{checkIn: b.graph.WorkSession.AutoCheckIn}, AttendanceSyncer: attendanceSync,
 		TimetableBridgeCompleter: b.graph.TimetableBridge, Logger: logger, Now: b.now,
 	},
 		// Auto-clear of sick / excused flags respects the tenant's
@@ -132,7 +131,7 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	activities, err := arrivalTimetable.NewService(
 		b.Timetable, repos.ActivityGroup, repos.ActivitySchedule, repos.ActivitySupervisor, repos.StudentEnrollment,
-		b.Presence.SessionRecords, b.People.Staff, b.People.Students,
+		b.Presence.SessionRecords, NewTimetableStaff(b.People.Staff), b.People.Students,
 	)
 	if err != nil {
 		return b, err
@@ -172,10 +171,10 @@ func composeShiftPlanning(b graphBuild) (graphBuild, error) {
 		Workforce: b.WorkTime, Staff: NewPlanStaffDirectory(b.People.Staff), CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
 		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
-		Rooms:          facilitiesCompose.NewRoomRepository(b.Rooms),
+		Rooms:          facilitiesCompose.NewRoomNameDirectory(facilitiesCompose.NewRoomRepository(b.Rooms)),
 		ActivityGroups: arrivalTimetable.NewTimetableGroupReads(repos.ActivityGroup),
-		WorkSchedules:  workforceRepositoryAdapter.NewStaffWorkScheduleRepository(b.WorkTime),
-		WorkModels:     workforceRepositoryAdapter.NewWorkTimeModelRepository(b.WorkTime),
+		WorkSchedules:  b.WorkTime,
+		WorkModels:     b.WorkTime,
 		Holidays:       schoolCalendarCompose.NonWorkingDays{Calendar: b.Calendar}, NonWorkingDays: b.Calendar,
 		CategoryLinker: arrivalTimetable.ShiftTypeCategoryLinker(b.graph.Activities.SetCategoryShiftTypeLinks),
 		DB:             b.DB.Pool(), Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "shift_planning"),
@@ -277,7 +276,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 	b.timetableRows.Locks = arrivalTimetable.NewRetainedActivityRecoveryRepository(b.DB.Pool(), repos.InstanceStudent)
 	conflicts, err := b.TimetableWiring.ConflictDetection(TimetableConflictReaders{
 		Instances: repos.ActivityInstance, InstanceStaff: repos.InstanceStaff, InstanceStudents: repos.InstanceStudent,
-		Exceptions: repos.ActivityException, Schedules: repos.ActivitySchedule, Staff: b.People.Staff,
+		Exceptions: repos.ActivityException, Schedules: repos.ActivitySchedule, Staff: NewTimetableStaff(b.People.Staff),
 		CalendarPeriods: b.templateRows.CalendarPeriods, ArrivalExceptions: b.People.ArrivalExceptions,
 		Sessions: b.Presence.SessionRecords, Shifts: b.Workforce.ShiftRows, Presence: b.Presence.Presence,
 		ArrivalBaselines: b.arrivalBaselines, Logger: b.Logger.With("service", "timetable-conflicts"),
@@ -296,7 +295,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
 			CalendarPeriodRepo: b.templateRows.CalendarPeriods, DB: b.DB.Pool(),
 		},
-		Staff: b.People.Staff, Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
+		Staff: NewTimetableStaff(b.People.Staff), Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
 		Presence: b.Presence.Presence, SessionEnder: b.graph.Active, CareDays: b.graph.CareDay, CareDayLocks: b.CarePlan,
 		// The cancellation notice (#2601) rides on the announcement service,
 		// which is composed later.
@@ -323,7 +322,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 // acknowledgement hand over to the lifecycle.
 func composeDeviations(b graphBuild) (graphBuild, error) {
 	deps, err := b.TimetableWiring.StaffDeviations(TimetableDeviationInputs{
-		Rows: b.timetableRows, Staff: b.People.Staff, Supervisions: b.groupSupervisions,
+		Rows: b.timetableRows, Staff: NewTimetableStaff(b.People.Staff), Supervisions: b.groupSupervisions,
 		Lifecycle: b.instances.DeviationLifecycle(), Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "timetable-deviations"), Now: b.now,
 	})
@@ -383,7 +382,7 @@ func composeOperations(b graphBuild) (graphBuild, error) {
 	operations, err := b.TimetableWiring.Operations(TimetableOperationInputs{
 		Rows: b.timetableRows, PlanningTracks: b.Timetable, Sessions: b.Presence.SessionRecords,
 		Supervisions: b.groupSupervisions, Visits: b.Presence.Presence, Presence: b.graph.Active,
-		People: b.graph.Users, Settings: b.settingsService, CareDays: b.graph.CareDay,
+		People: newTimetableOperationPeople(b.graph.Users), Settings: b.settingsService, CareDays: b.graph.CareDay,
 		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: b.instances.OperationLifecycle(),
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "timetable-operations"), Now: b.now,
 	})

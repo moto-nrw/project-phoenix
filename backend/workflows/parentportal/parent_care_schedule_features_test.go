@@ -15,10 +15,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -103,7 +103,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 		INSERT INTO active.student_status_days
 			(tenant_id, student_id, date, status, reported_at, source)
 		VALUES (?, ?, ?, ?, now(), ?)
-	`, chain.TenantID, chain.StudentID, timezone.NewDate(2026, 8, 24),
+	`, chain.TenantID, chain.StudentID, calendar.NewDate(2026, 8, 24),
 		absencerecords.StudentStatusDayClassTrip, absencerecords.StudentStatusSourcePlanned)
 	require.NoError(t, err)
 	defer func() {
@@ -119,7 +119,7 @@ func TestGetChildCareSchedule_TodayAbsentReflectsStatusDay(t *testing.T) {
 	// ...even though ListSickDays still hides the staff-created class-trip row,
 	// which is exactly why the tile needs a separate parent-safe signal.
 	days, err := svc.ListSickDays(ctx, chain.AccountID, chain.StudentID,
-		timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
+		calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	assert.Empty(t, days, "class-trip days stay hidden from the parent sick-day list")
 }

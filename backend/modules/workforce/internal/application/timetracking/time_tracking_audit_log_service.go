@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrAuditLogInvalid marks a caller mistake in an audit log request — HTTP 400.
@@ -60,8 +60,8 @@ type AuditLogPage struct {
 
 // AuditLogListRequest carries the parsed query filters.
 type AuditLogListRequest struct {
-	From         *timezone.Date
-	To           *timezone.Date
+	From         *calendar.Date
+	To           *calendar.Date
 	StaffID      int64
 	ActorStaffID int64
 	Sources      []string
@@ -202,14 +202,14 @@ func (s *timeTrackingAuditLogService) decorate(ctx context.Context, entries []*T
 // retentionCutoff mirrors the cleanup service's window: today minus the
 // configured retention days. Session edits older than this are gone (their
 // sessions were deleted); the ledger sources are unaffected.
-func (s *timeTrackingAuditLogService) retentionCutoff(ctx context.Context) timezone.Date {
+func (s *timeTrackingAuditLogService) retentionCutoff(ctx context.Context) calendar.Date {
 	days := auditLogRetentionDefaultDays
 	if s.settings != nil {
 		if v, err := s.settings.TimeTrackingRetentionDays(ctx); err == nil && v > 0 {
 			days = v
 		}
 	}
-	return timezone.TodayDate().AddDays(-days)
+	return calendar.TodayDate().AddDays(-days)
 }
 
 func encodeAuditLogCursor(e *TimeTrackingAuditEntry) string {

@@ -12,15 +12,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -60,7 +59,7 @@ func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 	t.Helper()
 	events := &recordingParentEvents{}
 	f := newCareFixtureWithEmitter(t, parentmessaging.NewEmitter(events),
-		api.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 9, 9) }))
+		api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 9, 9) }))
 	// The approve path re-checks that the submitting guardian still has the
 	// child; the fixture's chain is that guardian.
 	events.guardians = []parentmessaging.PortalGuardian{{AccountID: f.chain.AccountID}}
@@ -69,12 +68,12 @@ func newPickupPillFixture(t *testing.T) (*careFixture, *recordingParentEvents) {
 
 // seedWeekdayPickup gives the child a weekly pickup time on the requested
 // day's weekday, so the request records a previous_pickup_time.
-func seedWeekdayPickup(t *testing.T, f *careFixture, ctx context.Context, date timezone.Date, hour, minute int) {
+func seedWeekdayPickup(t *testing.T, f *careFixture, ctx context.Context, date calendar.Date, hour, minute int) {
 	t.Helper()
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, hour, minute, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
@@ -87,7 +86,7 @@ func TestPickupChangePills_NameRequestedDayAndTime(t *testing.T) {
 
 	f, events := newPickupPillFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 9, 15) // a Tuesday
+	date := calendar.NewDate(2026, 9, 15) // a Tuesday
 	seedWeekdayPickup(t, f, ctx, date, 15, 30)
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 
@@ -153,7 +152,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 
 	f, _ := newPickupPillFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 9, 15)
+	date := calendar.NewDate(2026, 9, 15)
 	seedWeekdayPickup(t, f, ctx, date, 15, 30)
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 
@@ -170,7 +169,7 @@ func TestGetForReview_OpensDecidedAndPendingPickupRequests(t *testing.T) {
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 17, 0, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 17, 0, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 
@@ -207,7 +206,7 @@ func TestGetForReview_RefusesUnauthorizedAndForeignReaders(t *testing.T) {
 
 	f, _ := newPickupPillFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 9, 15)
+	date := calendar.NewDate(2026, 9, 15)
 	req, err := f.svc.CreatePickupChangeRequest(ctx, f.chain.StudentID, f.chain.AccountID, date,
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin")
 	require.NoError(t, err)
@@ -236,7 +235,7 @@ func nativeCareReviews(t *testing.T, f *careFixture) careplan.CareScheduleReview
 		People: f.sf.PeopleDirectory,
 		Scope: func(ctx context.Context) (requestreviewcompose.ReviewScope, error) {
 			// Match testpkg.RequestReviewPolicy used by this fixture's commands.
-			wide, _ := authorize.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
+			wide, _ := securityruntime.CanUpdateStudent(ctx, sessiontoken.PermissionsFromCtx(ctx),
 				careplan.ScheduleStudent{ID: f.chain.StudentID, TenantID: f.chain.TenantID}, f.sf.UserContext)
 			return requestreviewcompose.ReviewScope{SchoolWide: wide}, nil
 		},

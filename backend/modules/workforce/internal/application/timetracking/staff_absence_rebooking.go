@@ -8,9 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrAbsenceRebookingBlocked marks a rebooking the Leitung has to resolve
@@ -186,7 +185,7 @@ func (s *staffAbsenceService) loadRebookedAbsences(ctx context.Context, staffID 
 	for _, id := range ids {
 		absence, err := s.absenceRepo.FindByID(ctx, id)
 		if err != nil {
-			if modelBase.IsNoRows(err) {
+			if isRecordNotFound(err) {
 				return nil, fmt.Errorf("absence not found")
 			}
 			return nil, err
@@ -287,7 +286,7 @@ func validateRebookedAbsenceOverlaps(absences []*StaffAbsence, entries []rebooke
 
 // rejectClosedMonths blocks a change inside a closed month: its closing
 // balance is frozen, so the Stundenkonto would not follow the new type.
-func (s *staffAbsenceService) rejectClosedMonths(ctx context.Context, staffID int64, start, end timezone.Date) error {
+func (s *staffAbsenceService) rejectClosedMonths(ctx context.Context, staffID int64, start, end calendar.Date) error {
 	if s.snapshotRepo == nil {
 		return nil
 	}
@@ -339,7 +338,7 @@ func (s *staffAbsenceService) rebookingBalanceDelta(ctx context.Context, absence
 			if err != nil {
 				return 0, fmt.Errorf("failed to resolve targets for rebooking: %w", err)
 			}
-			targetByDay := make(map[timezone.Date]int, len(targets))
+			targetByDay := make(map[calendar.Date]int, len(targets))
 			for _, target := range targets {
 				targetByDay[target.Date] = target.TargetMinutes
 			}
@@ -376,15 +375,15 @@ func rebookingBalanceAbsences(absences []*StaffAbsence, entries []rebookedAbsenc
 	return before, after
 }
 
-func creditedAbsenceMinutes(absences []*StaffAbsence, start, end timezone.Date, targets map[timezone.Date]int) int {
+func creditedAbsenceMinutes(absences []*StaffAbsence, start, end calendar.Date, targets map[calendar.Date]int) int {
 	total := 0
 	walkCreditedAbsenceDays(absences, start, end,
-		func(d timezone.Date) int { return targets[d] },
-		func(_ timezone.Date, _ *StaffAbsence, minutes int, _ float64) { total += minutes })
+		func(d calendar.Date) int { return targets[d] },
+		func(_ calendar.Date, _ *StaffAbsence, minutes int, _ float64) { total += minutes })
 	return total
 }
 
-func rebookedDateRange(entries []rebookedAbsence) (timezone.Date, timezone.Date) {
+func rebookedDateRange(entries []rebookedAbsence) (calendar.Date, calendar.Date) {
 	start, end := entries[0].after.DateStart, entries[0].after.DateEnd
 	for _, entry := range entries[1:] {
 		if entry.after.DateStart.Before(start) {

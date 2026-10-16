@@ -7,7 +7,6 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -22,7 +21,7 @@ func TestTimetableOperationsStartRequiresAStaffIdentity(t *testing.T) {
 
 	deps := newTimetableOpsDeps()
 	deps.settings.scope = overviewScopeAdmins
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 430
 
 	result, err := deps.service.Start(context.Background(), 630, true, 340)
@@ -38,9 +37,9 @@ func TestTimetableOperationsStartDelegatesWhenStaffIsAssigned(t *testing.T) {
 	staffID := int64(230)
 	instanceID := int64(350)
 	deps := newTimetableOpsDeps()
-	deps.personService.accountPerson = &usersModels.Person{}
+	deps.personService.accountPerson = &timetable.Person{}
 	deps.personService.accountPerson.ID = 440
-	deps.personService.staffByPersonID[440] = &usersModels.Staff{}
+	deps.personService.staffByPersonID[440] = &timetable.StaffMember{}
 	deps.personService.staffByPersonID[440].ID = staffID
 	deps.instanceRepo.byID[instanceID] = instanceWithTimes(instanceID, scheduleModels.InstanceStatusPlanned, opsNow, opsNow.Add(time.Hour))
 	deps.staffRepo.byInstance[instanceID] = []*scheduleModels.InstanceStaff{{StaffID: staffID}}

@@ -18,9 +18,7 @@ import (
 
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -28,6 +26,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -284,7 +283,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	tenantID := newDisplayTestTenant(t, db)
-	testNow := time.Date(2026, 8, 24, 12, 0, 0, 0, timezone.Berlin)
+	testNow := time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin)
 	router := newDisplayRouter(t, db, func() time.Time { return testNow })
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("display-dash-%d@test.local", tenantID))
 	adminJWT := displayTestJWT(t, account.ID, tenantID, []string{"display:manage"})
@@ -293,7 +292,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 	activityGroup := testpkg.CreateTestActivityGroupForTenant(t, db, tenantID, "Fußball AG")
 	activeGroup := testpkg.CreateTestActiveGroupWithIDsForTenant(t, db, tenantID, activityGroup.ID, room.ID)
 	student := testpkg.CreateTestStudentForTenant(t, db, tenantID, "Emma", "Testkind", "1a")
-	testpkg.CreateTestVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, timezone.Now().Add(-30*time.Minute), nil)
+	testpkg.CreateTestVisitForTenant(t, db, tenantID, student.ID, activeGroup.ID, calendar.Now().Add(-30*time.Minute), nil)
 
 	_, rawToken := createDisplayViaAPI(t, router, adminJWT, "Eingang")
 
@@ -317,7 +316,7 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		assert.Equal(t, "active", payload.Status)
 		assert.Equal(t, fmt.Sprintf("Test School %d", tenantID), payload.SchoolName)
 		assert.Equal(t, "Eingang", payload.DisplayName)
-		assert.Equal(t, timezone.NewDate(2026, 8, 24).String(), payload.Date)
+		assert.Equal(t, calendar.NewDate(2026, 8, 24).String(), payload.Date)
 
 		var bauraum *displayHTTP.RoomOccupancy
 		for i := range payload.RoomOccupancy {
@@ -377,18 +376,18 @@ func TestDisplayDashboardPublic(t *testing.T) {
 		require.Len(t, payload.UpcomingActivities, 1, "past instance must be filtered: %s", rec.Body.String())
 		assert.Equal(t, fmt.Sprintf("%d", instances[0].ID), payload.UpcomingActivities[0].ID)
 		assert.Equal(t, "Hausaufgaben", payload.UpcomingActivities[0].Name)
-		assert.Equal(t, future.In(timezone.Berlin).Format("15:04"), payload.UpcomingActivities[0].StartTime)
+		assert.Equal(t, future.In(calendar.Berlin).Format("15:04"), payload.UpcomingActivities[0].StartTime)
 	})
 }
 
 func buildInstance(tenantID int64, title string, roomID int64, start time.Time) *testpkg.ActivityInstance {
 	inst := &testpkg.ActivityInstance{
-		Date:      testpkg.ScheduleDate(scheduleModels.DateFromTime(start)),
+		Date:      calendar.DateFromTime(start),
 		Title:     title,
-		StartTime: timezone.NormalizeWallClock(start.In(timezone.Berlin)),
-		EndTime:   timezone.NormalizeWallClock(start.In(timezone.Berlin).Add(45 * time.Minute)),
+		StartTime: calendar.NormalizeWallClock(start.In(calendar.Berlin)),
+		EndTime:   calendar.NormalizeWallClock(start.In(calendar.Berlin).Add(45 * time.Minute)),
 		RoomID:    roomID,
-		Status:    scheduleModels.InstanceStatusPlanned,
+		Status:    testpkg.ScheduleInstanceStatusPlanned,
 	}
 	inst.TenantID = tenantID
 	return inst
@@ -442,7 +441,7 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 
 	db := testpkg.SetupTestDB(t)
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	testNow := today.BerlinMidnight().Add(12 * time.Hour)
 	weekday := int(today.Weekday())
 	if weekday < 1 || weekday > 5 {
@@ -495,7 +494,7 @@ func TestDisplayDashboardPickupBuckets(t *testing.T) {
 
 func createAttendanceForTenant(t *testing.T, db *bun.DB, tenantID, studentID, staffID, deviceID int64, now time.Time, checkOut *time.Time) {
 	t.Helper()
-	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, staffID, deviceID, timezone.DateFromTime(now), now.Add(-4*time.Hour), checkOut)
+	testpkg.CreateTestAttendanceForTenant(t, db, tenantID, studentID, staffID, deviceID, calendar.DateFromTime(now), now.Add(-4*time.Hour), checkOut)
 }
 
 func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID int64, weekday int, staffID int64, pickupHHMM string) {
@@ -506,13 +505,13 @@ func createPickupScheduleForTenant(t *testing.T, db *bun.DB, tenantID, studentID
 	parsed, err := time.Parse("2006-01-02 15:04", "2000-01-01 "+pickupHHMM)
 	require.NoError(t, err)
 
-	row := &scheduleModels.StudentPickupSchedule{
+	row := &testpkg.StudentPickupSchedule{
+		TenantID:   tenantID,
 		StudentID:  studentID,
 		Weekday:    weekday,
 		PickupTime: parsed,
 		CreatedBy:  staffID,
 	}
-	row.SetTenantID(tenantID)
 	_, err = db.NewInsert().Model(row).ModelTableExpr("schedule.student_pickup_schedules").Exec(ctx)
 	require.NoError(t, err, "failed to create pickup schedule")
 }
@@ -562,7 +561,7 @@ func TestDisplayDashboardSchoolLifecycle(t *testing.T) {
 		defer cancel()
 		_, err := db.NewUpdate().
 			TableExpr("platform.schools").
-			Set("deleted_at = ?", timezone.Now()).
+			Set("deleted_at = ?", calendar.Now()).
 			Where("id = ?", tenantID).
 			Exec(ctx)
 		require.NoError(t, err)
@@ -703,7 +702,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 // to compose without one.
 func firstClock(clocks []func() time.Time) func() time.Time {
 	if len(clocks) == 0 {
-		return timezone.Now
+		return calendar.Now
 	}
 	return clocks[0]
 }

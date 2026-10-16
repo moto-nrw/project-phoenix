@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -49,7 +49,7 @@ func TestSchoolArrivalExceptionsScopeRatchet(t *testing.T) {
 
 	// A fixed future Monday: the service refuses past dates and weekends,
 	// and nothing here may depend on the wall clock.
-	date := timezone.NewDate(2099, time.March, 2)
+	date := calendar.NewDate(2099, time.March, 2)
 	permissions := []string{"class_day:read", "class_day:arrival_exception_write", "users:update", "admin:*"}
 	routes := []struct {
 		method string

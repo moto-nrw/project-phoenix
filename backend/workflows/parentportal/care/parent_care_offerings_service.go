@@ -9,12 +9,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CareOfferingSelection is one booked care offering of the current care period.
@@ -33,9 +32,9 @@ type CareOfferingSelection struct {
 	IncludesHoliday bool
 	// ValidFrom is set for a scheduled future booking. Nil means the offering
 	// has been effective since the start of the care period.
-	ValidFrom *timezone.Date
+	ValidFrom *calendar.Date
 	// ValidUntil is exclusive, mirroring the stored interval.
-	ValidUntil *timezone.Date
+	ValidUntil *calendar.Date
 	// StartsLater identifies an approved change that has not taken effect yet.
 	StartsLater bool
 }
@@ -46,7 +45,7 @@ type CareOfferingSelection struct {
 type PendingOfferingChange struct {
 	ID              int64
 	CreatedAt       time.Time
-	EffectiveFrom   timezone.Date
+	EffectiveFrom   calendar.Date
 	Note            string
 	Diff            []careplan.OfferingChangeDiffEntry
 	SubmittedBySelf bool
@@ -57,8 +56,8 @@ type ChildCareOfferings struct {
 	// PeriodName / PeriodStart / PeriodEnd describe the care period the
 	// offerings belong to. Zero values when the child has no enrollment.
 	PeriodName  string
-	PeriodStart timezone.Date
-	PeriodEnd   timezone.Date
+	PeriodStart calendar.Date
+	PeriodEnd   calendar.Date
 	Offerings   []CareOfferingSelection
 	// CanRequest gates the "Änderung anfragen" button. False without an
 	// approved enrollment behind the child, without the guardian permission,
@@ -75,7 +74,7 @@ type ChildCareOfferings struct {
 	// EarliestEffectiveFrom is the first date a new request may take effect
 	// under the school's notice period — the date picker's lower bound. Zero
 	// when requesting is not possible anyway.
-	EarliestEffectiveFrom timezone.Date
+	EarliestEffectiveFrom calendar.Date
 }
 
 // Reasons for a disabled change button. Wire-stable identifiers; the German
@@ -126,7 +125,7 @@ func (s *Service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 func (s *Service) loadChildCareOfferings(
 	ctx context.Context,
 	studentID int64,
-	today timezone.Date,
+	today calendar.Date,
 	view *ChildCareOfferings,
 ) (*CarePeriod, error) {
 	period, err := s.currentCarePeriod(ctx, studentID, today)
@@ -196,7 +195,7 @@ func pendingOfferingChange(view *careplan.OfferingChangeView, accountID int64, v
 	pending := &PendingOfferingChange{
 		ID:              view.Request.ID,
 		CreatedAt:       view.Request.CreatedAt,
-		EffectiveFrom:   timezone.Date(view.Request.EffectiveFrom),
+		EffectiveFrom:   calendar.Date(view.Request.EffectiveFrom),
 		Diff:            view.Diff,
 		SubmittedBySelf: view.Request.SubmittedBy == accountID,
 	}
@@ -213,13 +212,13 @@ func (s *Service) GetChildOfferingCatalog(
 	ctx context.Context,
 	accountID, studentID int64,
 ) (*careplan.OfferingChangeCatalog, error) {
-	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, timezone.Date(""))
+	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, calendar.Date(""))
 }
 
 func (s *Service) GetChildOfferingCatalogAt(
 	ctx context.Context,
 	accountID, studentID int64,
-	effectiveFrom timezone.Date,
+	effectiveFrom calendar.Date,
 ) (*careplan.OfferingChangeCatalog, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
 	if err != nil {
@@ -252,7 +251,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID int64,
 	selections []careplan.OfferingChangeSelection,
-	effectiveFrom timezone.Date,
+	effectiveFrom calendar.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
 	recipientGuardianProfileIDs []int64,
@@ -317,7 +316,7 @@ func (s *Service) EditOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
 	selections []careplan.OfferingChangeSelection,
-	effectiveFrom timezone.Date,
+	effectiveFrom calendar.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
 	expectedVersion string,
@@ -368,7 +367,7 @@ func (s *Service) EditOfferingChangeRequest(
 func (s *Service) currentCarePeriod(
 	ctx context.Context,
 	studentID int64,
-	today timezone.Date,
+	today calendar.Date,
 ) (*CarePeriod, error) {
 	if s.CarePeriods == nil {
 		return nil, nil
@@ -401,7 +400,7 @@ func (s *Service) currentCarePeriod(
 func (s *Service) carePeriodOfferings(
 	ctx context.Context,
 	requestChildID int64,
-	today timezone.Date,
+	today calendar.Date,
 ) ([]CareOfferingSelection, error) {
 	if s.OfferingHistory == nil || s.CareOfferingRepo == nil {
 		return []CareOfferingSelection{}, nil
@@ -426,7 +425,7 @@ func (s *Service) carePeriodOfferings(
 	}
 	items := make([]CareOfferingSelection, 0, len(links))
 	for _, link := range links {
-		if link == nil || (link.ValidUntil != nil && !timezone.Date(*link.ValidUntil).After(today)) {
+		if link == nil || (link.ValidUntil != nil && !calendar.Date(*link.ValidUntil).After(today)) {
 			continue
 		}
 		item, ok := careOfferingSelection(offeringByID[link.CareOfferingID], link, today)
@@ -455,7 +454,7 @@ func uniqueOfferingIDs(links []*OfferingBooking) []int64 {
 func careOfferingSelection(
 	offering *enrollmentModels.CareOffering,
 	link *OfferingBooking,
-	today timezone.Date,
+	today calendar.Date,
 ) (CareOfferingSelection, bool) {
 	if offering == nil {
 		// The offering was deleted from the catalog. Skipped rather than shown
@@ -469,10 +468,10 @@ func careOfferingSelection(
 		PriceCents:      offering.PriceCents,
 		IncludesLunch:   offering.IncludesLunch,
 		IncludesHoliday: offering.IncludesHolidayCare,
-		ValidFrom:       (*timezone.Date)(link.ValidFrom),
-		ValidUntil:      (*timezone.Date)(link.ValidUntil),
+		ValidFrom:       (*calendar.Date)(link.ValidFrom),
+		ValidUntil:      (*calendar.Date)(link.ValidUntil),
 	}
-	item.StartsLater = link.ValidFrom != nil && timezone.Date(*link.ValidFrom).After(today)
+	item.StartsLater = link.ValidFrom != nil && calendar.Date(*link.ValidFrom).After(today)
 	if offering.Description != nil {
 		item.Description = *offering.Description
 	}
@@ -558,7 +557,7 @@ func (s *Service) resolveOfferingChangeAvailabilityForStudent(
 	child *Child,
 	studentID int64,
 	period *CarePeriod,
-	today timezone.Date,
+	today calendar.Date,
 ) (bool, string) {
 	if period == nil {
 		return false, OfferingChangesReasonNoEnrollment
@@ -583,7 +582,7 @@ func (s *Service) resolveOfferingChangeAvailabilityForStudent(
 
 // hasCarePeriodOnOrAfter mirrors the offering-change catalog's period
 // selection: a lead time may land in a pre-approved upcoming period.
-func (s *Service) hasCarePeriodOnOrAfter(ctx context.Context, studentID int64, date timezone.Date) bool {
+func (s *Service) hasCarePeriodOnOrAfter(ctx context.Context, studentID int64, date calendar.Date) bool {
 	if s.CarePeriods == nil {
 		return false
 	}

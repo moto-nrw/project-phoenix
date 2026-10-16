@@ -27,7 +27,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -103,11 +102,11 @@ func (s *service) ReportForExport(ctx context.Context, filters studentpresence.S
 	return report, nil
 }
 
-func (s *service) today() timezone.Date {
-	return timezone.DateFromTime(s.cfg.Now())
+func (s *service) today() calendar.Date {
+	return calendar.DateFromTime(s.cfg.Now())
 }
 
-func (s *service) validate(filters studentpresence.StatisticsFilters, today timezone.Date) error {
+func (s *service) validate(filters studentpresence.StatisticsFilters, today calendar.Date) error {
 	if filters.From.IsZero() || filters.To.IsZero() {
 		return fmt.Errorf("%w: from and to are required", studentpresence.ErrInvalidStatisticsRange)
 	}
@@ -179,13 +178,13 @@ func (s *service) compute(ctx context.Context, filters studentpresence.Statistic
 
 // attendanceInputs are the reads only the attendance section needs.
 type attendanceInputs struct {
-	careDays   map[timezone.Date]bool
+	careDays   map[calendar.Date]bool
 	excluded   studentpresence.StatisticsExcludedDays
 	attendance []ports.AttendanceDay
 	statusDays []ports.StatusDay
 }
 
-func (s *service) loadAttendanceInputs(ctx context.Context, from, to timezone.Date) (attendanceInputs, error) {
+func (s *service) loadAttendanceInputs(ctx context.Context, from, to calendar.Date) (attendanceInputs, error) {
 	var (
 		inputs attendanceInputs
 		err    error
@@ -205,7 +204,7 @@ func (s *service) loadAttendanceInputs(ctx context.Context, from, to timezone.Da
 	return inputs, nil
 }
 
-func (s *service) fillRoomSection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today timezone.Date, students []*ports.StatisticsStudent, studentRows []studentpresence.StatisticsStudentRow) error {
+func (s *service) fillRoomSection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, students []*ports.StatisticsStudent, studentRows []studentpresence.StatisticsStudentRow) error {
 	rooms, err := s.roomRows(ctx, filters, today, students)
 	if err != nil {
 		return err
@@ -219,7 +218,7 @@ func (s *service) fillRoomSection(ctx context.Context, report *studentpresence.S
 	return nil
 }
 
-func (s *service) fillCourseSection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today timezone.Date, studentRows []studentpresence.StatisticsStudentRow) error {
+func (s *service) fillCourseSection(ctx context.Context, report *studentpresence.StatisticsReport, filters studentpresence.StatisticsFilters, today calendar.Date, studentRows []studentpresence.StatisticsStudentRow) error {
 	var err error
 	report.CourseDataDays, err = s.courseRetentionDays(ctx)
 	if err != nil {
@@ -244,7 +243,7 @@ func (s *service) fillCourseSection(ctx context.Context, report *studentpresence
 
 // careDays returns the ordered set of care days in the window and the
 // exclusion breakdown.
-func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, studentpresence.StatisticsExcludedDays, error) {
+func (s *service) careDays(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, studentpresence.StatisticsExcludedDays, error) {
 	var excluded studentpresence.StatisticsExcludedDays
 	holidays, err := s.holidayDates(ctx, from, to)
 	if err != nil {
@@ -259,7 +258,7 @@ func (s *service) careDays(ctx context.Context, from, to timezone.Date) (map[tim
 		return nil, excluded, err
 	}
 
-	care := map[timezone.Date]bool{}
+	care := map[calendar.Date]bool{}
 	for d := from; !d.After(to); d = d.AddDays(1) {
 		// A weekend counts only where it follows Friday's plan (#3921).
 		careWeekday, err := calendar.IsCareWeekday(ctx, d)
@@ -296,9 +295,9 @@ func countExclusions(excluded *studentpresence.StatisticsExcludedDays, holiday, 
 	return off
 }
 
-func (s *service) holidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+func (s *service) holidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
 	if s.cfg.Holidays == nil {
-		return map[timezone.Date]bool{}, nil
+		return map[calendar.Date]bool{}, nil
 	}
 	set, err := s.cfg.Holidays.HolidayDates(ctx, from, to)
 	if err != nil {
@@ -307,9 +306,9 @@ func (s *service) holidayDates(ctx context.Context, from, to timezone.Date) (map
 	return set, nil
 }
 
-func (s *service) closingDayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
+func (s *service) closingDayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
 	if s.cfg.ClosingDays == nil {
-		return map[timezone.Date]bool{}, nil
+		return map[calendar.Date]bool{}, nil
 	}
 	set, err := s.cfg.ClosingDays.ClosingDayDates(ctx, from, to)
 	if err != nil {
@@ -318,8 +317,8 @@ func (s *service) closingDayDates(ctx context.Context, from, to timezone.Date) (
 	return set, nil
 }
 
-func (s *service) holidayPeriodDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error) {
-	vacation := map[timezone.Date]bool{}
+func (s *service) holidayPeriodDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error) {
+	vacation := map[calendar.Date]bool{}
 	if s.cfg.Periods == nil {
 		return vacation, nil
 	}
@@ -366,10 +365,10 @@ func filterStudentsByGroup(students []*ports.StatisticsStudent, groupIDs []int64
 
 type dayKey struct {
 	studentID int64
-	date      timezone.Date
+	date      calendar.Date
 }
 
-func buildStudentRows(students []*ports.StatisticsStudent, careDays map[timezone.Date]bool, attendance []ports.AttendanceDay, statusDays []ports.StatusDay, today timezone.Date) []studentpresence.StatisticsStudentRow {
+func buildStudentRows(students []*ports.StatisticsStudent, careDays map[calendar.Date]bool, attendance []ports.AttendanceDay, statusDays []ports.StatusDay, today calendar.Date) []studentpresence.StatisticsStudentRow {
 	present := make(map[dayKey]bool, len(attendance))
 	for _, row := range attendance {
 		present[dayKey{row.StudentID, row.Date}] = true
@@ -411,7 +410,7 @@ func classifyStatusDays(statusDays []ports.StatusDay) map[dayKey]string {
 }
 
 // buildStudentRow counts one child's care days inside their enrollment.
-func buildStudentRow(st *ports.StatisticsStudent, careDays map[timezone.Date]bool, present map[dayKey]bool, status map[dayKey]string, today timezone.Date) studentpresence.StatisticsStudentRow {
+func buildStudentRow(st *ports.StatisticsStudent, careDays map[calendar.Date]bool, present map[dayKey]bool, status map[dayKey]string, today calendar.Date) studentpresence.StatisticsStudentRow {
 	row := studentpresence.StatisticsStudentRow{
 		StudentID:   st.ID,
 		SchoolClass: st.SchoolClass,
@@ -527,7 +526,7 @@ func rate(numerator, denominator int) *float64 {
 	return &v
 }
 
-func (s *service) roomRows(ctx context.Context, filters studentpresence.StatisticsFilters, today timezone.Date, students []*ports.StatisticsStudent) ([]studentpresence.StatisticsRoomRow, error) {
+func (s *service) roomRows(ctx context.Context, filters studentpresence.StatisticsFilters, today calendar.Date, students []*ports.StatisticsStudent) ([]studentpresence.StatisticsRoomRow, error) {
 	agg, err := s.cfg.Statistics.RoomUtilization(ctx, visitWindows(students, filters.From, filters.To, today))
 	if err != nil {
 		return nil, fmt.Errorf("load room utilization: %w", err)
@@ -677,7 +676,7 @@ func (s *service) recordAccess(ctx context.Context, filters studentpresence.Stat
 // visitWindows uses the owner's eligibility answer for every report date.
 // Adjacent eligible days form one interval so visits spanning midnight are
 // counted once and Berlin daylight-saving transitions preserve elapsed time.
-func visitWindows(students []*ports.StatisticsStudent, from, to, today timezone.Date) []ports.StudentVisitWindow {
+func visitWindows(students []*ports.StatisticsStudent, from, to, today calendar.Date) []ports.StudentVisitWindow {
 	windows := make([]ports.StudentVisitWindow, 0, len(students))
 	for _, student := range students {
 		if student == nil || student.EnrolledOn == nil {
@@ -689,7 +688,7 @@ func visitWindows(students []*ports.StatisticsStudent, from, to, today timezone.
 }
 
 // appendStudentVisitWindows appends one child's eligible intervals in order.
-func appendStudentVisitWindows(windows []ports.StudentVisitWindow, student *ports.StatisticsStudent, from, to, today timezone.Date) []ports.StudentVisitWindow {
+func appendStudentVisitWindows(windows []ports.StudentVisitWindow, student *ports.StatisticsStudent, from, to, today calendar.Date) []ports.StudentVisitWindow {
 	var current *ports.StudentVisitWindow
 	for day := from; !day.After(to); day = day.AddDays(1) {
 		if !student.EnrolledOn(day, today) {

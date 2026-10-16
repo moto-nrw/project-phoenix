@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -131,8 +130,8 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := testpkg.Ctx(t)
-	date := timezone.TodayDate().AddDays(3)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
+	date := calendar.TodayDate().AddDays(3)
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
 
 	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
@@ -163,8 +162,8 @@ func TestPickupChangeRejectsASecondOpenRequestForTheSameDay(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	date := timezone.TodayDate().AddDays(4)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
+	date := calendar.TodayDate().AddDays(4)
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
 
 	_, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
@@ -184,8 +183,8 @@ func TestSubmitPickupChangeRequestRejectsBadInput(t *testing.T) {
 	t.Parallel()
 
 	svc, db := buildPickupChangeService(t, true)
-	tomorrow := timezone.TodayDate().AddDays(1)
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	tomorrow := calendar.TodayDate().AddDays(1)
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 
 	t.Run("ohne Uhrzeit", func(t *testing.T) {
 		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 1, 1, tomorrow, time.Time{}, "", "Arzttermin", nil)
@@ -223,9 +222,9 @@ func TestSubmitPickupChangeRequestRejectsForeignChild(t *testing.T) {
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
-		chain.StudentID+999999, timezone.TodayDate().AddDays(1), pickup, "", "Arzttermin", nil)
+		chain.StudentID+999999, calendar.TodayDate().AddDays(1), pickup, "", "Arzttermin", nil)
 
 	require.Error(t, err, "ein nicht verknuepftes Kind muss abgewiesen werden")
 }
@@ -237,9 +236,9 @@ func TestSubmitPickupChangeRequestRespectsSchoolSetting(t *testing.T) {
 	svc, db := buildPickupChangeService(t, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
 	_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,
-		chain.StudentID, timezone.TodayDate().AddDays(1), pickup, "", "Arzttermin", nil)
+		chain.StudentID, calendar.TodayDate().AddDays(1), pickup, "", "Arzttermin", nil)
 
 	require.ErrorIs(t, err, parentService.ErrPickupChangeDisabled)
 }
@@ -252,8 +251,8 @@ func TestSubmitPickupChangeRequestBoundsTheDate(t *testing.T) {
 	svc, db := buildPickupChangeService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
-	today := timezone.TodayDate()
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 15, 0, 0, 0, time.UTC))
+	today := calendar.TodayDate()
 
 	t.Run("gestern", func(t *testing.T) {
 		_, err := svc.SubmitPickupChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID,

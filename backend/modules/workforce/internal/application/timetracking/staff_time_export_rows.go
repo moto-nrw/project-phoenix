@@ -6,8 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func sortStaffByName(staffMembers []OverviewStaff) {
@@ -137,14 +136,14 @@ func buildMonthExportRow(staff OverviewStaff, summary *MonthSummary) MonthExport
 // DayExportRow is one rendered day cell-row of the per-staff export, exposed
 // for the cross-staff evidence export.
 type DayExportRow struct {
-	Date  timezone.Date
+	Date  calendar.Date
 	Cells []string
 }
 
 // DayExportRows exposes the single-staff export's merged session/absence rows.
 // It delegates to the batched path so both export forms use the same loading
 // and rendering code.
-func (s *workSessionService) DayExportRows(ctx context.Context, staffID int64, from, to timezone.Date) ([]DayExportRow, error) {
+func (s *workSessionService) DayExportRows(ctx context.Context, staffID int64, from, to calendar.Date) ([]DayExportRow, error) {
 	rowsByStaff, err := s.DayExportRowsByStaffIDs(ctx, []int64{staffID}, from, to)
 	if err != nil {
 		return nil, err
@@ -155,7 +154,7 @@ func (s *workSessionService) DayExportRows(ctx context.Context, staffID int64, f
 // DayExportRowsByStaffIDs builds all cross-staff evidence rows with a constant
 // number of repository calls. It intentionally skips weekly summaries because
 // the export only consumes the per-session cells.
-func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]DayExportRow, error) {
+func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]DayExportRow, error) {
 	result := make(map[int64][]DayExportRow, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -208,10 +207,8 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 
 func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context, sessions []*WorkSession) ([]*SessionResponse, error) {
 	sessionIDs := make([]int64, len(sessions))
-	sessionIDValues := make([]interface{}, len(sessions))
 	for i, session := range sessions {
 		sessionIDs[i] = session.ID
-		sessionIDValues[i] = session.ID
 	}
 
 	editCounts, err := s.auditRepo.CountManualBySessionIDs(ctx, sessionIDs)
@@ -220,15 +217,10 @@ func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context,
 	}
 
 	breaksBySession := make(map[int64][]*WorkSessionBreak, len(sessions))
-	if len(sessionIDValues) > 0 {
-		options := modelBase.NewQueryOptions()
-		options.Filter.In("session_id", sessionIDValues...)
-		breaks, err := s.breakRepo.List(ctx, options)
+	if len(sessionIDs) > 0 {
+		breaksBySession, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get breaks for export: %w", err)
-		}
-		for _, brk := range breaks {
-			breaksBySession[brk.SessionID] = append(breaksBySession[brk.SessionID], brk)
 		}
 	}
 

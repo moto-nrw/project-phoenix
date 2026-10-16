@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
@@ -38,6 +37,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -53,7 +53,7 @@ import (
 // tenant-scoped FindByTenantAndDate reads isolated from any other suite seeding
 // data for "today". The Wednesday weekday matches the hardcoded pickup weekdays
 // in the care-day tests below.
-var listDate = timezone.NewDate(2020, 9, 2)
+var listDate = calendar.NewDate(2020, 9, 2)
 
 // pickupNow pins the slot list service clock (injected via Dependencies.Now)
 // so the pickup suite is deterministic regardless of the weekday CI runs on. A
@@ -63,14 +63,14 @@ var listDate = timezone.NewDate(2020, 9, 2)
 // rejected the weekend weekday, and no pickup time resolved. It is a fixed
 // Wednesday (Go weekday 3 == ISO 3), after listDate so slot reconciliations
 // still treat those 2020 occurrences as already started.
-var pickupNow = time.Date(2025, 9, 3, 12, 0, 0, 0, timezone.Berlin)
+var pickupNow = time.Date(2025, 9, 3, 12, 0, 0, 0, calendar.Berlin)
 
 // pickupDate is the calendar day of pickupNow — "today" from the injected
 // clock's point of view. A pickup cohort is refused for a past date
 // (ErrPickupCohortPastDate) and a reconciliation for a future date, so only
 // today satisfies both a pickup list and its reconciliation together. Pickup
 // weekdays are derived from it dynamically.
-var pickupDate = timezone.DateFromTime(pickupNow)
+var pickupDate = calendar.DateFromTime(pickupNow)
 
 func studentPickupScheduleRepository(db *bun.DB) scheduleModels.StudentPickupScheduleRepository {
 	return api.NewStudentScheduleRepositories(testpkg.MustDatabase(db), api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))).PickupSchedule
@@ -82,8 +82,8 @@ func studentPickupExceptionRepository(db *bun.DB) scheduleModels.StudentPickupEx
 
 // atOn returns the given Berlin wall-clock instant on calendar date d, so a
 // seeded visit/attendance lands on the same day as the list being built.
-func atOn(d timezone.Date, hour, minute int) time.Time {
-	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, 0, 0, timezone.Berlin)
+func atOn(d calendar.Date, hour, minute int) time.Time {
+	return time.Date(d.Year(), d.Month(), d.Day(), hour, minute, 0, 0, calendar.Berlin)
 }
 
 func newTestService(db *bun.DB) classday.SlotLists {
@@ -185,9 +185,9 @@ type slotListUserContext struct {
 type slotListParticipation map[int64]bool
 
 func (p slotListParticipation) ParticipatingStudentIDsByDate(
-	_ context.Context, studentIDs []int64, from, to timezone.Date,
-) (map[timezone.Date]map[int64]bool, error) {
-	result := make(map[timezone.Date]map[int64]bool)
+	_ context.Context, studentIDs []int64, from, to calendar.Date,
+) (map[calendar.Date]map[int64]bool, error) {
+	result := make(map[calendar.Date]map[int64]bool)
 	for day := from; !day.After(to); day = day.AddDays(1) {
 		result[day] = make(map[int64]bool, len(studentIDs))
 		for _, id := range studentIDs {
@@ -1502,7 +1502,7 @@ func TestBuildList_PickupReconciliationMarksPartialAbsenceAsExcused(t *testing.T
 
 	// 15:00 is long-day (short cutoff 14:30, long cutoff 16:00). Owning the
 	// pickup time at the partial cutoff keeps the child in that cohort.
-	from := timezone.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
+	from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))
 	exc := &scheduleModels.StudentPickupException{
 		StudentID:             partial.ID,
 		ExceptionDate:         scheduleModels.Date(pickupDate),
@@ -1848,7 +1848,7 @@ func TestBuildList_PickupCohortUsesEnrollmentInterval(t *testing.T) {
 	notYet := testpkg.CreateTestStudent(t, db, "SL-NotYet", fmt.Sprintf("NY-%d", suffix), "2a")   // pending, enrolled only after pickupDate
 	staff := testpkg.CreateTestStaff(t, db, "SL-EnrStaff", fmt.Sprintf("ES-%d", suffix))
 
-	setEnrollment := func(id int64, status userModels.StudentStatus, from, until *timezone.Date) {
+	setEnrollment := func(id int64, status userModels.StudentStatus, from, until *calendar.Date) {
 		_, err := db.NewUpdate().TableExpr(`users.student_school_memberships`).
 			Set(`status = ?`, string(status)).
 			Set(`enrolled_from = ?`, from).

@@ -5,12 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -33,7 +32,7 @@ type ScheduleDeviations interface {
 // ScheduleInstances reads the appointments of a period with the execution
 // state of their sessions, which decides whether one is still changeable.
 type ScheduleInstances interface {
-	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
 
 // ScheduleInstanceStaff reads the staff assignments of appointments. A
@@ -81,7 +80,7 @@ type substitutionMutation struct {
 
 func (a *SubstitutionAdapter) Overview(
 	ctx context.Context,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	includeTargets, canManage bool,
 ) (*education.ScheduleOverview, error) {
 	overview, err := a.overview(ctx, from, to, includeTargets, canManage)
@@ -93,7 +92,7 @@ func (a *SubstitutionAdapter) Overview(
 
 func (a *SubstitutionAdapter) overview(
 	ctx context.Context,
-	from, to timezone.Date,
+	from, to calendar.Date,
 	includeTargets, canManage bool,
 ) (*education.ScheduleOverview, error) {
 	if from.IsZero() || to.IsZero() || to.Before(from) || from.DaysUntil(to) >= 56 {
@@ -156,7 +155,7 @@ func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, d
 			continue
 		}
 		staff := make([]education.ScheduleAppointmentStaff, 0, len(rows))
-		canChange := canManage && !instance.Date.Before(timezone.TodayDate()) && isPlannableInstance(instance)
+		canChange := canManage && !instance.Date.Before(calendar.TodayDate()) && isPlannableInstance(instance)
 		for _, row := range rows {
 			member := staffByID[row.StaffID]
 			name := ""
@@ -272,7 +271,7 @@ func (a *SubstitutionAdapter) End(
 func (a *SubstitutionAdapter) end(ctx context.Context, substitutionID, actorAccountID int64) (*substitutionMutation, error) {
 	row, err := a.deps.InstanceStaff.FindByID(ctx, substitutionID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errSubstitutionNotFound
 		}
 		return nil, err

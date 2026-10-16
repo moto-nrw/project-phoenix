@@ -7,8 +7,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The adapters in this file let the Monatskarte math run over data loaded once
@@ -28,7 +28,7 @@ import (
 // Callers must never request a WIDER range than the prefetch covers; the
 // adapters serve their whole slice and cannot detect the mistake.
 type monthPrefetch struct {
-	from, to timezone.Date
+	from, to calendar.Date
 
 	staff          map[int64]*StaffScheduleAssignment
 	sessions       map[int64][]*WorkSession
@@ -39,7 +39,7 @@ type monthPrefetch struct {
 	schedules      map[int64]WorkScheduleTargets
 	scheduleHist   map[int64]bool
 	workTimeModels map[int64]*WorkTimeTargetModel
-	holidays       map[timezone.Date]bool
+	holidays       map[calendar.Date]bool
 	overrides      workforce.TargetOverrideDays
 	snapshots      map[int64][]*MonthSnapshot
 	settings       *memoSettingsResolver
@@ -130,13 +130,13 @@ func (r prefetchedBreakReader) GetBySessionIDs(_ context.Context, sessionIDs []i
 
 type prefetchedAbsenceReader struct{ p *monthPrefetch }
 
-func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*StaffAbsence, error) {
+func (r prefetchedAbsenceReader) GetByStaffAndDateRange(_ context.Context, staffID int64, _, _ calendar.Date) ([]*StaffAbsence, error) {
 	return r.p.absences[staffID], nil
 }
 
 type prefetchedAdjustmentReader struct{ p *monthPrefetch }
 
-func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error) {
+func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, staffID int64, from, to calendar.Date) ([]*StaffBalanceAdjustment, error) {
 	adjustments := r.p.adjustments[staffID]
 	result := make([]*StaffBalanceAdjustment, 0, len(adjustments))
 	for _, adjustment := range adjustments {
@@ -150,13 +150,13 @@ func (r prefetchedAdjustmentReader) GetByStaffAndDateRange(_ context.Context, st
 
 type prefetchedShiftReader struct{ p *monthPrefetch }
 
-func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffID int64, _, _ timezone.Date) ([]*TimeTrackingShift, error) {
+func (r prefetchedShiftReader) FindByStaffAndDateRange(_ context.Context, staffID int64, _, _ calendar.Date) ([]*TimeTrackingShift, error) {
 	return r.p.shifts[staffID], nil
 }
 
 type prefetchedScheduleReader struct{ p *monthPrefetch }
 
-func (r prefetchedScheduleReader) TargetsForStaff(_ context.Context, staffID int64, _, _ timezone.Date) (WorkScheduleTargets, error) {
+func (r prefetchedScheduleReader) TargetsForStaff(_ context.Context, staffID int64, _, _ calendar.Date) (WorkScheduleTargets, error) {
 	return r.p.schedules[staffID], nil
 }
 
@@ -179,7 +179,7 @@ func (r prefetchedModelReader) FindByID(_ context.Context, id int64) (*WorkTimeT
 // behaviourally identical to a per-range query.
 type prefetchedHolidayReader struct{ p *monthPrefetch }
 
-func (r prefetchedHolidayReader) HolidayDates(_ context.Context, _, _ timezone.Date) (map[timezone.Date]bool, error) {
+func (r prefetchedHolidayReader) HolidayDates(_ context.Context, _, _ calendar.Date) (map[calendar.Date]bool, error) {
 	return r.p.holidays, nil
 }
 

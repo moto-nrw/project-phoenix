@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -22,7 +22,7 @@ import (
 // they are recorders, so every run is checked for the audit records it
 // hands over. A fixed clock keeps the retention window off the wall clock.
 
-var cleanupToday = timezone.NewDate(2026, time.June, 15)
+var cleanupToday = calendar.NewDate(2026, time.June, 15)
 
 func cleanupClock() time.Time { return cleanupToday.BerlinMidnight().Add(12 * time.Hour) }
 
@@ -54,9 +54,9 @@ func (s fixedRetentionSettings) TimetableRetentionDays(context.Context) (int, er
 	return s.days, s.err
 }
 
-type recordingDeviationRetention struct{ cutoffs []timezone.Date }
+type recordingDeviationRetention struct{ cutoffs []calendar.Date }
 
-func (r *recordingDeviationRetention) DeleteDeviationEventsBefore(_ context.Context, cutoff timezone.Date) (int64, error) {
+func (r *recordingDeviationRetention) DeleteDeviationEventsBefore(_ context.Context, cutoff calendar.Date) (int64, error) {
 	r.cutoffs = append(r.cutoffs, cutoff)
 	return 0, nil
 }
@@ -164,7 +164,7 @@ func TestTimetableCleanupDeletesOldRowsKeepsFreshRows(t *testing.T) {
 	assert.Equal(t, 1, result.ExceptionsDeleted, "1 old exception deleted")
 	assert.Equal(t, 365, result.RetentionDays)
 	assert.Equal(t, cleanupToday.AddDays(-365), result.CutoffDate)
-	assert.Equal(t, []timezone.Date{cleanupToday.AddDays(-365)}, deviations.cutoffs,
+	assert.Equal(t, []calendar.Date{cleanupToday.AddDays(-365)}, deviations.cutoffs,
 		"the Änderungsprotokoll is cut at the same date as the instances")
 
 	f.assertRow(t, "schedule.activity_instances", oldID1, false)

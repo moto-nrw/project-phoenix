@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // allowanceUses spreads an absence over the weekdays it covers. Half-day
@@ -14,11 +14,11 @@ import (
 // allowance. The booking's entry day decides whether an expired rest may
 // still be drawn on.
 func allowanceUses(absence domain.StaffAbsence) ([]domain.AllowanceUse, error) {
-	start, err := timezone.ParseDate(absence.DateStart)
+	start, err := calendar.ParseDate(absence.DateStart)
 	if err != nil {
 		return nil, err
 	}
-	end, err := timezone.ParseDate(absence.DateEnd)
+	end, err := calendar.ParseDate(absence.DateEnd)
 	if err != nil {
 		return nil, err
 	}
@@ -27,7 +27,7 @@ func allowanceUses(absence domain.StaffAbsence) ([]domain.AllowanceUse, error) {
 		startHalf, endHalf = true, true
 	}
 	pending := absence.Status == domain.AbsenceStatusRequested || absence.Status == domain.AbsenceStatusQuestion
-	enteredOn := timezone.DateFromTime(absence.CreatedAt).String()
+	enteredOn := calendar.DateFromTime(absence.CreatedAt).String()
 	uses := make([]domain.AllowanceUse, 0, max(0, start.DaysUntil(end)+1))
 	for day := start; !day.After(end); day = day.AddDays(1) {
 		if day.Weekday() == time.Saturday || day.Weekday() == time.Sunday {
@@ -59,11 +59,11 @@ func allowanceSummaryToPublic(value domain.AbsenceTypeAllowanceSummary) workforc
 }
 
 func (e engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
-	from, err := timezone.ParseDate(start)
+	from, err := calendar.ParseDate(start)
 	if err != nil || from.IsZero() {
 		return nil, workforce.ErrAbsenceTypeAllowanceInvalid
 	}
-	to, err := timezone.ParseDate(end)
+	to, err := calendar.ParseDate(end)
 	if err != nil || to.IsZero() || to.Before(from) {
 		return nil, workforce.ErrAbsenceTypeAllowanceInvalid
 	}

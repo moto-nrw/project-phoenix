@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Dienstplan rows the planning services work on (#3424). They are
@@ -33,7 +33,7 @@ type StaffShift struct {
 	UpdatedAt time.Time     `json:"updated_at"`
 	TenantID  int64         `json:"tenant_id"`
 	StaffID   int64         `json:"staff_id"`
-	Date      timezone.Date `json:"date"`
+	Date      calendar.Date `json:"date"`
 	// StartTime/EndTime carry only a meaningful wall-clock portion.
 	StartTime    time.Time `json:"start_time"`
 	EndTime      time.Time `json:"end_time"`
@@ -48,7 +48,7 @@ type StaffShift struct {
 	// SeriesOccurrenceDate is the recurrence slot the row materialized for.
 	// It does not follow Date when an occurrence is moved, so exceptions,
 	// re-plans and splits keep addressing the source slot.
-	SeriesOccurrenceDate *timezone.Date `json:"-"`
+	SeriesOccurrenceDate *calendar.Date `json:"-"`
 	// Cancelled marks a shift that does not take place (#1841).
 	Cancelled bool `json:"cancelled"`
 	// ChangeReason carries the optional "why" of a flexible daily change.
@@ -123,8 +123,8 @@ type StaffShiftSeries struct {
 	CalendarPeriodID int64 `json:"calendar_period_id"`
 	// WeekPattern: 0 = every week, 1 = week A, 2 = week B.
 	WeekPattern  int            `json:"week_pattern"`
-	ValidFrom    timezone.Date  `json:"valid_from"`
-	ValidUntil   *timezone.Date `json:"valid_until,omitempty"`
+	ValidFrom    calendar.Date  `json:"valid_from"`
+	ValidUntil   *calendar.Date `json:"valid_until,omitempty"`
 	SeriesRootID *int64         `json:"series_root_id,omitempty"`
 	// RetainedOccurrenceShiftID records the current-day row a same-day
 	// permanent edit retained; it is separate from Detached, which one-off
@@ -213,7 +213,7 @@ type StaffShiftSeriesException struct {
 	UpdatedAt time.Time     `json:"updated_at"`
 	TenantID  int64         `json:"tenant_id"`
 	SeriesID  int64         `json:"series_id"`
-	Date      timezone.Date `json:"date"`
+	Date      calendar.Date `json:"date"`
 	CreatedBy int64         `json:"created_by"`
 }
 

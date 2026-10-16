@@ -24,10 +24,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -64,7 +63,7 @@ func TestGetStudentAttendanceStatus_NotCheckedIn(t *testing.T) {
 	assert.Equal(t, student.ID, result.StudentID)
 	assert.Equal(t, "not_checked_in", result.Status)
 	// Service uses timezone.TodayDate() — today's Berlin calendar day
-	expectedDate := timezone.NewDate(2026, 8, 24)
+	expectedDate := calendar.NewDate(2026, 8, 24)
 	assert.Equal(t, expectedDate, result.Date)
 	assert.Nil(t, result.CheckInTime)
 	assert.Nil(t, result.CheckOutTime)
@@ -329,7 +328,7 @@ func TestToggleStudentAttendance_CareEndedChildCanOnlyCheckOut(t *testing.T) {
 
 	_, err := db.NewUpdate().
 		TableExpr("users.student_school_memberships").
-		Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+		Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(ctx)
 	require.NoError(t, err)
@@ -902,7 +901,7 @@ func TestCheckOutStudentFromDevice_ClosesOpenRowWithoutActiveSupervisor(t *testi
 					_, err = db.NewUpdate().
 						Model(supervisor).
 						ModelTableExpr(`active.group_supervisors`).
-						Set("end_date = ?", timezone.TodayDate().AddDays(-1)).
+						Set("end_date = ?", calendar.TodayDate().AddDays(-1)).
 						Where("id = ?", supervisor.ID).
 						Exec(context.Background())
 					require.NoError(t, err)

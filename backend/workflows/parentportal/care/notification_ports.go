@@ -3,7 +3,7 @@ package care
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // AbsenceReport announces the parent's accepted absence inside its transaction.
@@ -12,7 +12,7 @@ type AbsenceReport struct {
 	TenantID       int64
 	StudentIDs     []int64
 	Status         string
-	Dates          []timezone.Date
+	Dates          []calendar.Date
 	FromParent     bool
 	ActorAccountID int64
 }

@@ -6,7 +6,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The People Directory rows the fixtures write. People Directory keeps its
@@ -144,8 +144,8 @@ type Guest struct {
 	ContactEmail      string         `bun:"contact_email"`
 	ContactPhone      string         `bun:"contact_phone"`
 	ActivityExpertise string         `bun:"activity_expertise,notnull"`
-	StartDate         *timezone.Date `bun:"start_date"`
-	EndDate           *timezone.Date `bun:"end_date"`
+	StartDate         *calendar.Date `bun:"start_date"`
+	EndDate           *calendar.Date `bun:"end_date"`
 	Notes             string         `bun:"notes"`
 
 	// Staff is the fixture's staff row; it is not stored with the guest row.
@@ -208,7 +208,7 @@ type CareWithdrawalCompletion struct {
 	CreatedAt               time.Time       `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt               time.Time       `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 	StudentID               *int64          `bun:"student_id"`
-	FirstBookinglessDay     timezone.Date   `bun:"first_bookingless_day,type:date,notnull"`
+	FirstBookinglessDay     calendar.Date   `bun:"first_bookingless_day,type:date,notnull"`
 	Trigger                 string          `bun:"trigger,notnull"`
 	WithdrawalConfirmedBy   *int64          `bun:"withdrawal_confirmed_by"`
 	WithdrawalConfirmedRole string          `bun:"withdrawal_confirmed_role,notnull"`

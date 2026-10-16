@@ -3,14 +3,14 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // WeeklyTargetOverrides re-prices the weeks a Sonderarbeitszeit touches
 // (#3259) with the daily Soll the Monatskarte uses; weeks without one are
 // absent from the result.
 type WeeklyTargetOverrides interface {
-	OverriddenWeeklyTargets(ctx context.Context, staffID int64, weekStarts []timezone.Date) (map[timezone.Date]int, error)
+	OverriddenWeeklyTargets(ctx context.Context, staffID int64, weekStarts []calendar.Date) (map[calendar.Date]int, error)
 }
 
 // withTargetOverrides replaces the weekly Soll of every week a
@@ -36,7 +36,7 @@ func (s *workSessionService) withTargetOverrides(ctx context.Context, staffID in
 
 // holidayScheduleMinutes sums the schedule Soll of the week's holiday days —
 // the amount a holiday week's target shrinks by.
-func holidayScheduleMinutes(entries []*WorkScheduleRow, staffAnchor *timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+func holidayScheduleMinutes(entries []*WorkScheduleRow, staffAnchor *calendar.Date, weekStart calendar.Date, holidaySet map[calendar.Date]bool) int {
 	total := 0
 	for offset := 0; offset < 7; offset++ {
 		day := weekStart.AddDays(offset)
@@ -51,7 +51,7 @@ func holidayScheduleMinutes(entries []*WorkScheduleRow, staffAnchor *timezone.Da
 
 // holidayTemplateMinutes is holidayScheduleMinutes for the work-time-template
 // fallback path.
-func holidayTemplateMinutes(template *WorkTimeTemplate, anchor timezone.Date, weekStart timezone.Date, holidaySet map[timezone.Date]bool) int {
+func holidayTemplateMinutes(template *WorkTimeTemplate, anchor calendar.Date, weekStart calendar.Date, holidaySet map[calendar.Date]bool) int {
 	total := 0
 	for offset := 0; offset < 7; offset++ {
 		day := weekStart.AddDays(offset)

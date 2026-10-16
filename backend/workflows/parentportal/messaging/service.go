@@ -12,10 +12,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -91,20 +91,20 @@ func New(cfg Config) *Service {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.Now == nil {
-		cfg.Now = timezone.Now
+		cfg.Now = calendar.Now
 	}
 	return &Service{Config: cfg}
 }
 
 func (s *Service) now() time.Time {
 	if s.Now == nil {
-		return timezone.Now()
+		return calendar.Now()
 	}
 	return s.Now()
 }
 
-func (s *Service) todayDate() timezone.Date {
-	return timezone.DateFromTime(s.now())
+func (s *Service) todayDate() calendar.Date {
+	return calendar.DateFromTime(s.now())
 }
 
 func (s *Service) resolveOwnedChild(ctx context.Context, accountID, studentID int64) (*Child, error) {

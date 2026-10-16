@@ -14,12 +14,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -94,7 +94,7 @@ type ChildCareSchedule struct {
 	// cached absence signal with THIS date (not the browser's request-start
 	// day) so a request that crosses Berlin midnight cannot bind the new day's
 	// today_absent to yesterday's pickup tile (#1725 review).
-	TodayDate timezone.Date
+	TodayDate calendar.Date
 }
 
 // GetChildCareSchedule returns the child's current weekly care plan with any
@@ -339,7 +339,7 @@ func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) care
 // notes/source), this returns only a boolean, so no hidden status detail
 // reaches the guardian. Must run inside the child's tenant transaction; a
 // missing repo (unwired) yields false rather than a panic.
-func (s *Service) hasActiveAbsenceToday(ctx context.Context, studentID int64, today timezone.Date) (bool, error) {
+func (s *Service) hasActiveAbsenceToday(ctx context.Context, studentID int64, today calendar.Date) (bool, error) {
 	if s.StatusDayRepo == nil {
 		return false, nil
 	}

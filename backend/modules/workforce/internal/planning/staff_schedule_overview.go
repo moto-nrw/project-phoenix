@@ -7,11 +7,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 const (
@@ -28,7 +26,7 @@ const (
 type StaffScheduleAssignment struct {
 	InstanceID    int64
 	StaffID       int64
-	Date          timezone.Date
+	Date          calendar.Date
 	StartTime     time.Time
 	EndTime       time.Time
 	ActivityTitle string
@@ -56,7 +54,7 @@ type StaffScheduleAssignment struct {
 // shift produce no summary at all (Dienstplan unused, matching coverage).
 type StaffWeeklySummary struct {
 	StaffID        int64
-	WeekStart      timezone.Date
+	WeekStart      calendar.Date
 	PlannedMinutes int
 	TargetMinutes  *int
 	DeltaMinutes   *int
@@ -77,10 +75,10 @@ type ShiftTypeMinutes struct {
 // Dienstplan. It is deliberately read-only: no assignment is linked to or
 // generated from a StaffShift row.
 type StaffScheduleOverview struct {
-	From            timezone.Date
-	To              timezone.Date
+	From            calendar.Date
+	To              calendar.Date
 	DienstplanInUse bool
-	UsedWeeks       []timezone.Date
+	UsedWeeks       []calendar.Date
 	Staff           []*workforce.PlanStaff
 	Shifts          []*StaffShift
 	Assignments     []StaffScheduleAssignment
@@ -91,19 +89,21 @@ type StaffScheduleOverview struct {
 // the production repositories continue to implement the wider domain
 // interfaces used by mutation services.
 type StaffShiftRangeReader interface {
-	FindByDateRange(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
+	FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
 }
 
 type StaffShiftWeekUsageReader interface {
-	FindUsedCalendarWeeks(ctx context.Context, start, end timezone.Date) ([]timezone.Date, error)
+	FindUsedCalendarWeeks(ctx context.Context, start, end calendar.Date) ([]calendar.Date, error)
 }
 
 type ActivityInstanceRangeReader interface {
-	FindByTenantAndDateRange(ctx context.Context, from, to timezone.Date) ([]*timetable.ScheduledInstance, error)
+	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
 
+// RoomBatchReader names the rooms an assignment takes place in (its "Ort");
+// a missing room is absent from the result.
 type RoomBatchReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModel.Room, error)
+	RoomNamesByID(ctx context.Context, ids []int64) (map[int64]string, error)
 }
 
 type StaffOverviewReader interface {
@@ -111,12 +111,17 @@ type StaffOverviewReader interface {
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
 
+// StaffWorkScheduleBatchReader returns every schedule version of the given
+// staff members valid in [from, to] (calendar dates in DateLayout); the
+// Workforce capability serves it.
 type StaffWorkScheduleBatchReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModel.CalendarDate) ([]*configModel.StaffWorkSchedule, error)
+	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffWorkSchedule, error)
 }
 
+// WorkTimeModelBatchReader resolves the given work-time templates; the
+// Workforce capability serves it.
 type WorkTimeModelBatchReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*configModel.WorkTimeModel, error)
+	ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]workforce.WorkTimeModel, error)
 }
 
 // InstanceStaffBatchReader reads the staff rows of timetable blocks.
@@ -145,11 +150,11 @@ type StaffScheduleOverviewDependencies struct {
 
 // HolidayDatesReader answers the tenant's non-working days as a date set.
 type HolidayDatesReader interface {
-	HolidayDates(ctx context.Context, from, to timezone.Date) (map[timezone.Date]bool, error)
+	HolidayDates(ctx context.Context, from, to calendar.Date) (map[calendar.Date]bool, error)
 }
 
 type StaffScheduleOverviewGetter interface {
-	GetOverview(ctx context.Context, from, to timezone.Date) (*StaffScheduleOverview, error)
+	GetOverview(ctx context.Context, from, to calendar.Date) (*StaffScheduleOverview, error)
 }
 
 type staffScheduleOverviewService struct {
@@ -173,15 +178,15 @@ type staffScheduleOverviewData struct {
 	// Mon–Fri request).
 	shifts           []*StaffShift
 	weekShifts       []*StaffShift
-	usedWeeks        []timezone.Date
+	usedWeeks        []calendar.Date
 	visibleInstances []*timetable.ScheduledInstance
 	assignmentRows   []*timetable.InstanceStaff
-	rooms            []*facilitiesModel.Room
+	roomNames        map[int64]string
 	staff            []*workforce.PlanStaff
-	workSchedules    []*configModel.StaffWorkSchedule
+	workSchedules    []*workforce.ScheduleRow
 }
 
-func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to timezone.Date) (*StaffScheduleOverview, error) {
+func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to calendar.Date) (*StaffScheduleOverview, error) {
 	if err := validateShiftRange(from, to); err != nil {
 		return nil, err
 	}
@@ -197,7 +202,7 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 	assignments := buildStaffScheduleAssignments(
 		data.visibleInstances,
 		indexAssignmentRows(data.assignmentRows),
-		indexRoomNames(data.rooms),
+		data.roomNames,
 		indexShifts(data.shifts),
 		usedWeeks,
 	)
@@ -218,7 +223,7 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 	}, nil
 }
 
-func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to timezone.Date) (*staffScheduleOverviewData, error) {
+func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, from, to calendar.Date) (*staffScheduleOverviewData, error) {
 	if s.deps.ShiftWeeks == nil {
 		return nil, errors.New("staff-shift week usage reader is not wired")
 	}
@@ -236,7 +241,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 	if err != nil {
 		return nil, fmt.Errorf("load used staff-shift weeks: %w", err)
 	}
-	usedWeeks := make([]timezone.Date, len(usedScheduleWeeks))
+	usedWeeks := make([]calendar.Date, len(usedScheduleWeeks))
 	copy(usedWeeks, usedScheduleWeeks)
 	instances, err := s.deps.Instances.FindByTenantAndDateRange(ctx, from, to)
 	if err != nil {
@@ -245,23 +250,18 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 
 	visibleInstances, instanceIDs := visibleActivityInstances(instances)
 
-	assignmentRows, staff, rooms, err := s.loadAssignmentData(ctx, visibleInstances, instanceIDs)
+	assignmentRows, staff, roomNames, err := s.loadAssignmentData(ctx, visibleInstances, instanceIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	var workSchedules []*configModel.StaffWorkSchedule
-	if s.deps.WorkSchedules != nil && len(staff) > 0 && len(usedWeeks) > 0 {
-		staffIDs := make([]int64, 0, len(staff))
-		for _, member := range staff {
-			if member != nil {
-				staffIDs = append(staffIDs, member.ID)
-			}
-		}
-		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(firstWeekFrom), workforceDate(lastWeekTo))
+	var workSchedules []*workforce.ScheduleRow
+	if staffIDs := overviewStaffIDs(staff); s.deps.WorkSchedules != nil && len(staffIDs) > 0 && len(usedWeeks) > 0 {
+		schedules, err := s.deps.WorkSchedules.StaffSchedulesInRange(ctx, staffIDs, firstWeekFrom.String(), lastWeekTo.String())
 		if err != nil {
 			return nil, fmt.Errorf("load staff work schedules: %w", err)
 		}
+		workSchedules = scheduleRows(schedules)
 	}
 
 	return &staffScheduleOverviewData{
@@ -270,7 +270,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 		usedWeeks:        usedWeeks,
 		visibleInstances: visibleInstances,
 		assignmentRows:   assignmentRows,
-		rooms:            rooms,
+		roomNames:        roomNames,
 		staff:            staff,
 		workSchedules:    workSchedules,
 	}, nil
@@ -282,7 +282,7 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 	ctx context.Context,
 	visibleInstances []*timetable.ScheduledInstance,
 	instanceIDs []int64,
-) ([]*timetable.InstanceStaff, []*workforce.PlanStaff, []*facilitiesModel.Room, error) {
+) ([]*timetable.InstanceStaff, []*workforce.PlanStaff, map[int64]string, error) {
 	assignmentRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load instance staff: %w", err)
@@ -292,11 +292,11 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 		return nil, nil, nil, err
 	}
 	assignmentRows = filterExternalCaregiverAssignments(assignmentRows, externalStaffIDs)
-	rooms, err := s.deps.Rooms.FindByIDs(ctx, effectiveAssignmentRoomIDs(visibleInstances, assignmentRows))
+	roomNames, err := s.deps.Rooms.RoomNamesByID(ctx, effectiveAssignmentRoomIDs(visibleInstances, assignmentRows))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load assignment rooms: %w", err)
 	}
-	return assignmentRows, staff, rooms, nil
+	return assignmentRows, staff, roomNames, nil
 }
 
 // loadPlannableStaff reads the staff directory without accountless guest
@@ -350,16 +350,6 @@ func visibleActivityInstances(instances []*timetable.ScheduledInstance) ([]*time
 	return visible, ids
 }
 
-func indexRoomNames(rooms []*facilitiesModel.Room) map[int64]string {
-	roomNames := make(map[int64]string, len(rooms))
-	for _, room := range rooms {
-		if room != nil {
-			roomNames[room.ID] = room.Name
-		}
-	}
-	return roomNames
-}
-
 func indexAssignmentRows(rows []*timetable.InstanceStaff) map[int64][]*timetable.InstanceStaff {
 	rowsByInstance := make(map[int64][]*timetable.InstanceStaff)
 	for _, row := range rows {
@@ -375,7 +365,7 @@ func buildStaffScheduleAssignments(
 	rowsByInstance map[int64][]*timetable.InstanceStaff,
 	roomNames map[int64]string,
 	shiftIndex map[staffDateKey][]*StaffShift,
-	usedWeeks map[timezone.Date]bool,
+	usedWeeks map[calendar.Date]bool,
 ) []StaffScheduleAssignment {
 	assignments := make([]StaffScheduleAssignment, 0)
 	for _, instance := range visibleInstances {
@@ -403,8 +393,8 @@ func newStaffScheduleAssignment(
 		InstanceID:         instance.ID,
 		StaffID:            row.StaffID,
 		Date:               instance.Date,
-		StartTime:          timezone.NormalizeWallClock(instance.StartTime),
-		EndTime:            timezone.NormalizeWallClock(instance.EndTime),
+		StartTime:          calendar.NormalizeWallClock(instance.StartTime),
+		EndTime:            calendar.NormalizeWallClock(instance.EndTime),
 		ActivityTitle:      instance.Title,
 		ActivityGroupID:    instance.ActivityGroupID,
 		RoomID:             roomID,
@@ -446,7 +436,7 @@ func effectiveAssignmentRoomIDs(instances []*timetable.ScheduledInstance, rows [
 
 // shiftsWithinRange filters the full-week shift load back down to the
 // requested viewport for the grid payload and assignment coverage.
-func shiftsWithinRange(shifts []*StaffShift, from, to timezone.Date) []*StaffShift {
+func shiftsWithinRange(shifts []*StaffShift, from, to calendar.Date) []*StaffShift {
 	filtered := make([]*StaffShift, 0, len(shifts))
 	for _, shift := range shifts {
 		if shift == nil || shift.Date.Before(from) || shift.Date.After(to) {
@@ -536,8 +526,8 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 	ctx context.Context,
 	staff []*workforce.PlanStaff,
-	schedules []*configModel.StaffWorkSchedule,
-	weekStarts []timezone.Date,
+	schedules []*workforce.ScheduleRow,
+	weekStarts []calendar.Date,
 ) (map[staffDateKey]int, error) {
 	targets := make(map[staffDateKey]int)
 
@@ -546,12 +536,7 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		return nil, err
 	}
 
-	entriesByStaff := make(map[int64][]*configModel.StaffWorkSchedule)
-	for _, entry := range schedules {
-		if entry != nil {
-			entriesByStaff[entry.StaffID] = append(entriesByStaff[entry.StaffID], entry)
-		}
-	}
+	entriesByStaff := scheduleRowsByStaff(schedules)
 
 	residual := make([]*workforce.PlanStaff, 0)
 	modelIDs := make([]int64, 0)
@@ -563,11 +548,11 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		found := false
 		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
 			for _, weekStart := range weekStarts {
-				if target, ok := configModel.WeeklyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(weekStart)); ok {
+				if target, ok := workforce.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
 					for offset := 0; offset < 7; offset++ {
 						day := weekStart.AddDays(offset)
 						if holidaySet[day] {
-							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(day))
+							dayTarget, _ := workforce.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
 							target -= dayTarget
 						}
 					}
@@ -589,34 +574,25 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 	if len(residual) == 0 || s.deps.WorkModels == nil {
 		return targets, nil
 	}
-	models, err := s.deps.WorkModels.FindByIDs(ctx, modelIDs)
+	modelsByID, err := s.loadWorkTimeTemplates(ctx, modelIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load work-time models: %w", err)
-	}
-	modelsByID := make(map[int64]*configModel.WorkTimeModel, len(models))
-	for _, model := range models {
-		if model != nil {
-			modelsByID[model.ID] = model
-		}
+		return nil, err
 	}
 	for _, member := range residual {
 		model := modelsByID[*member.WorkTimeModelID]
 		if model == nil {
 			continue
 		}
-		anchor := model.RotationAnchorDate
-		if member.RotationAnchorDate != nil {
-			anchor = workforceDate(*member.RotationAnchorDate)
-		}
-		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, workforceDates(weekStarts)) {
+		anchor := templateAnchor(member, model)
+		for weekStart, target := range workforce.WeeklyTargetsFromTemplate(model, anchor, weekStarts) {
 			for offset := 0; offset < 7; offset++ {
-				day := calendarDate(weekStart.AddDays(offset))
+				day := weekStart.AddDays(offset)
 				if holidaySet[day] {
-					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, workforceDate(day))
+					dayTarget, _ := workforce.DailyTargetFromTemplate(model, anchor, day)
 					target -= dayTarget
 				}
 			}
-			targets[staffDateKey{StaffID: member.ID, Date: calendarDate(weekStart)}] = target
+			targets[staffDateKey{StaffID: member.ID, Date: weekStart}] = target
 		}
 	}
 	return targets, nil
@@ -625,7 +601,7 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 // holidayDatesForWeeks loads the public holidays covering the given weeks.
 // A resolver error fails the overview read — a silently unreduced Soll
 // would fake minus hours in holiday weeks.
-func (s *staffScheduleOverviewService) holidayDatesForWeeks(ctx context.Context, weekStarts []timezone.Date) (map[timezone.Date]bool, error) {
+func (s *staffScheduleOverviewService) holidayDatesForWeeks(ctx context.Context, weekStarts []calendar.Date) (map[calendar.Date]bool, error) {
 	if s.deps.Holidays == nil || len(weekStarts) == 0 {
 		return nil, nil
 	}
@@ -715,8 +691,8 @@ func shiftTypeBreakdown(minutesByType map[int64]int) []ShiftTypeMinutes {
 // span minus the break duration (validation caps the break at the span, but
 // legacy rows are clamped defensively).
 func staffShiftNetMinutes(shift *StaffShift) int {
-	start := timezone.NormalizeWallClock(shift.StartTime)
-	end := timezone.NormalizeWallClock(shift.EndTime)
+	start := calendar.NormalizeWallClock(shift.StartTime)
+	end := calendar.NormalizeWallClock(shift.EndTime)
 	minutes := int(end.Sub(start)/time.Minute) - shift.BreakMinutes
 	if minutes < 0 {
 		return 0
@@ -724,8 +700,8 @@ func staffShiftNetMinutes(shift *StaffShift) int {
 	return minutes
 }
 
-func sortedCalendarWeeks(weeks []timezone.Date) []timezone.Date {
-	sorted := make([]timezone.Date, 0, len(weeks))
+func sortedCalendarWeeks(weeks []calendar.Date) []calendar.Date {
+	sorted := make([]calendar.Date, 0, len(weeks))
 	for _, week := range weeks {
 		if !week.IsZero() {
 			sorted = append(sorted, week)

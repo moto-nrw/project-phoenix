@@ -16,12 +16,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
@@ -149,7 +147,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	target := testpkg.CreateTestStudent(t, db, "DeleteService", "Target", "1a")
 	spared := testpkg.CreateTestStudent(t, db, "DeleteService", "Spared", "1a")
 	room := testpkg.CreateTestRoom(t, db, "delete-service-room")
-	instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
 		Title: "Shared deletion service instance", IsSpontaneous: true,
 	})
 	targetAssignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
@@ -219,7 +217,7 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 	var anonymized struct {
 		FirstName string
 		LastName  string
-		Birthday  *timezone.Date
+		Birthday  *calendar.Date
 		TagID     *string
 		AccountID *int64
 		DeletedAt *time.Time
@@ -239,18 +237,18 @@ func TestStudentDeletionWorkflow_DeletePreservesSharedInstanceAndAnonymizesPerso
 		StudentID      int64
 		ActorAccountID int64
 		Reason         string
-		Counts         auditModels.StudentDeletionCounts
+		Counts         studentdeletion.Counts
 	}
 	require.NoError(t, db.NewRaw(`SELECT student_id, actor_account_id, reason, counts FROM audit.student_deletions
 		WHERE tenant_id = ? AND actor_account_id = ? ORDER BY id DESC LIMIT 1`, target.TenantID, f.actorID).Scan(ctx, &audit))
 	assert.Equal(t, target.ID, audit.StudentID)
 	assert.Equal(t, f.actorID, audit.ActorAccountID)
 	assert.Equal(t, studentdeletion.ReasonTestData, audit.Reason)
-	assert.Equal(t, auditModels.StudentDeletionCounts(preview.Counts), audit.Counts)
+	assert.Equal(t, preview.Counts, audit.Counts)
 
-	var dataAudit auditModels.DataDeletion
+	var dataAudit testpkg.DataDeletion
 	require.NoError(t, db.NewSelect().Model(&dataAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, auditModels.DeletionTypeManual).Scan(ctx))
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, testpkg.AuditDeletionTypeManual).Scan(ctx))
 	assert.Equal(t, preview.Counts.Total()+1, dataAudit.RecordsDeleted)
 	assert.Equal(t, studentdeletion.ReasonTestData, dataAudit.DeletionReason)
 	assert.Equal(t, "account:"+fmt.Sprint(f.actorID), dataAudit.DeletedBy)
@@ -311,8 +309,12 @@ func TestStudentDeletionWorkflow_PreviewExcludesPreservedDeletionAudits(t *testi
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	target := testpkg.CreateTestStudent(t, db, "Preserved", "Audit", "1a")
-	priorAudit := auditModels.NewDataDeletion(target.ID, auditModels.DeletionTypeVisitRetention, 1, "system")
-	require.NoError(t, api.NewTestAuditPersistence(testpkg.NewDatabase(t, f.db), nil).DataDeletion.Create(ctx, priorAudit))
+	priorAudit := &testpkg.DataDeletion{
+		TenantID: target.TenantID, StudentID: &target.ID, DeletionType: testpkg.AuditDeletionTypeVisitRetention,
+		RecordsDeleted: 1, DeletedBy: "system", DeletedAt: time.Now(), Metadata: map[string]any{},
+	}
+	_, err := db.NewInsert().Model(priorAudit).Returning("*").Exec(ctx)
+	require.NoError(t, err)
 	var accessLogID int64
 	require.NoError(t, db.NewRaw(`
 		INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, student_id, range_start, range_end)
@@ -328,9 +330,9 @@ func TestStudentDeletionWorkflow_PreviewExcludesPreservedDeletionAudits(t *testi
 	require.NoError(t, err)
 
 	assert.Equal(t, 1, rowCount(t, db, "audit.data_deletions", priorAudit.ID), "history is retained per policy")
-	var deletionAudit auditModels.DataDeletion
+	var deletionAudit testpkg.DataDeletion
 	require.NoError(t, db.NewSelect().Model(&deletionAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, auditModels.DeletionTypeManual).Scan(ctx))
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, target.TenantID, target.ID, testpkg.AuditDeletionTypeManual).Scan(ctx))
 	assert.Equal(t, 1, deletionAudit.RecordsDeleted)
 	var detachedStudentID *int64
 	require.NoError(t, db.NewRaw(`SELECT student_id FROM audit.data_access_log WHERE id = ?`, accessLogID).Scan(ctx, &detachedStudentID))
@@ -347,7 +349,7 @@ func TestStudentDeletionWorkflow_RejectsStalePreview(t *testing.T) {
 	t.Run("an assignment added after the preview", func(t *testing.T) {
 		target := testpkg.CreateTestStudent(t, db, "DeleteStale", "Target", "1a")
 		room := testpkg.CreateTestRoom(t, db, "delete-stale-room")
-		instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+		instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
 			Title: "Stale deletion preview instance", IsSpontaneous: true,
 		})
 		preview, err := workflow.Preview(ctx, target.ID)
@@ -478,9 +480,9 @@ func TestStudentDeletionWorkflow_GraduatesUsePurgeNotDelete(t *testing.T) {
 	firstName, deletedAt := personSnapshot(t, db, alumnus.PersonID)
 	assert.Equal(t, "Gelöscht", firstName)
 	assert.NotNil(t, deletedAt)
-	var dataAudit auditModels.DataDeletion
+	var dataAudit testpkg.DataDeletion
 	require.NoError(t, db.NewSelect().Model(&dataAudit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, alumnus.TenantID, alumnus.ID, auditModels.DeletionTypeManual).Scan(ctx))
+		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, alumnus.TenantID, alumnus.ID, testpkg.AuditDeletionTypeManual).Scan(ctx))
 	assert.Equal(t, studentdeletion.ReasonGraduatePurge, dataAudit.DeletionReason)
 	assert.Equal(t, result.Counts.Total()+2, dataAudit.RecordsDeleted, "student and person on top of the dependent rows")
 }
@@ -576,13 +578,13 @@ func TestStudentDeletionWorkflow_RollsBackAfterEachOwnerCommand(t *testing.T) {
 			f := newDeletionFixture(t, db)
 			target := testpkg.CreateTestStudent(t, db, "Rollback", "Target", "1a")
 			room := testpkg.CreateTestRoom(t, db, "rollback-room-"+phase)
-			instance := testpkg.CreateTestActivityInstance(t, db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+			instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
 				Title: "Rollback deletion instance", IsSpontaneous: true,
 			})
 			assignment := testpkg.CreateTestInstanceStudent(t, db, instance.ID, target.ID, "")
 			document := storeStudentDocument(t, ctx, db, target.ID, f.actorID,
 				userModels.StudentDocumentCategorySonstiges, fmt.Sprintf("rollback-%s-%d.pdf", phase, target.ID))
-			completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, target.ID, f.actorID, timezone.TodayDate())
+			completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, target.ID, f.actorID, calendar.TodayDate())
 			transition := testpkg.CreateTestGradeTransition(t, db, "2026-2027", f.actorID)
 			history := testpkg.CreateTestGradeTransitionHistoryForTenant(t, db, target.TenantID, transition.ID, target.ID, "Rollback Target", "1a", testpkg.EducationTransitionActionPromoted)
 			legacyGuardian := testpkg.CreateTestParentAccount(t, db, "rollback-legacy-guardian@example.com")
@@ -715,17 +717,17 @@ func TestStudentDeletionWorkflow_RedactsPendingWithdrawalOutsideCompletionFlow(t
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Noah", "Direktloeschung", "3b")
-	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+	resolved := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, calendar.TodayDate())
 	resolvedAt := time.Now().Add(-2 * time.Hour)
 	changed, err := f.repos.CareWithdrawal.MarkResolved(ctx, resolved.ID, f.actorID, resolvedAt)
 	require.NoError(t, err)
 	require.True(t, changed)
-	obsolete := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate().AddDays(1))
+	obsolete := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, calendar.TodayDate().AddDays(1))
 	obsoleteAt := time.Now().Add(-time.Hour)
-	changed, err = f.repos.CareWithdrawal.MarkObsoleteForRebooking(ctx, student.ID, timezone.TodayDate(), obsoleteAt)
+	changed, err = f.repos.CareWithdrawal.MarkObsoleteForRebooking(ctx, student.ID, calendar.TodayDate(), obsoleteAt)
 	require.NoError(t, err)
 	require.True(t, changed)
-	pending := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate().AddDays(2))
+	pending := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, calendar.TodayDate().AddDays(2))
 	workflow := f.workflow(t)
 
 	preview, err := workflow.Preview(ctx, student.ID)
@@ -767,7 +769,7 @@ func TestStudentDeletionWorkflow_WithdrawalDeletesStudentAndRedactsCompletionAto
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lina", "Loeschung", "2a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, calendar.TodayDate())
 	workflow := f.workflow(t)
 
 	preview, err := workflow.PreviewWithdrawal(ctx, completion.ID)
@@ -814,7 +816,7 @@ func TestStudentDeletionWorkflow_WithdrawalTakesClassWritesBeforeRecurrence(t *t
 	ctx := testpkg.Ctx(t)
 	f := newDeletionFixture(t, db)
 	student := testpkg.CreateTestStudent(t, db, "Lock", "Order", "2a")
-	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, timezone.TodayDate())
+	completion := testpkg.CreateTestCareWithdrawalCompletion(t, db, student.ID, f.actorID, calendar.TodayDate())
 
 	order := &[]string{}
 	f.deps.Directory = recordingClassWritesDirectory{Directory: f.deps.Directory, order: order}
@@ -860,7 +862,7 @@ func TestStudentDeletionWorkflow_RetentionReasonOnlyForEndedCare(t *testing.T) {
 	require.ErrorIs(t, err, studentdeletion.ErrRetentionNotEnded)
 	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID), "the refused deletion left the child untouched")
 
-	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", timezone.TodayDate().AddDays(-1)).
+	_, err = db.NewUpdate().TableExpr("users.student_school_memberships").Set("enrolled_until = ?", calendar.TodayDate().AddDays(-1)).
 		Where("student_profile_id = ?", student.ID).Where("deleted_at IS NULL").Exec(ctx)
 	require.NoError(t, err)
 	fresh, err := workflow.Preview(ctx, student.ID)

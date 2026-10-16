@@ -7,12 +7,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -135,7 +134,7 @@ func TestArrivalSchedulesForDateUseTheRequestedProjectionDate(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Export")
 	setClassArrivalTimes(t, "8d", map[string]string{"mon": "11:45"})
 	testpkg.CreateTestArrivalSchedule(t, db, student.ID, scheduleModel.WeekdayMonday, staff.ID, "")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	rows, err := svc.GetWeeklySchedulesByStudentIDsForDate(ctx, []int64{student.ID}, monday)
 	require.NoError(t, err)
@@ -148,7 +147,7 @@ type tuesdayOnlyArrivalBaseline struct{}
 func (tuesdayOnlyArrivalBaseline) Project(
 	_ context.Context,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) (*careplan.ArrivalBaselineProjection, error) {
 	projection := &careplan.ArrivalBaselineProjection{
 		WeeklyByStudentDate:   make(careplan.ArrivalPlansByStudent, len(studentIDs)),
@@ -181,7 +180,7 @@ func TestArrivalDataForDateRangeKeepsMidweekBookingStart(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Mitte", "Woche", "8f")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(4))
 	require.NoError(t, err)
@@ -213,7 +212,7 @@ func TestArrivalExceptionsDoNotCreateUnbookedCareDays(t *testing.T) {
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ohne", "Buchung", "8k")
 	staff := testpkg.CreateTestStaff(t, db, "Betreuung", "Ausnahme")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 	arrivalTime := time.Date(2000, time.January, 1, 11, 45, 0, 0, time.UTC)
 	// The booking-authoritative baseline only returns Tuesday. Monday must stay
 	// unplanned even when the stored exception has an arrival time.
@@ -278,7 +277,7 @@ func TestArrivalDataForDateRangeKeepsOneRowPerWeekday(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), tuesdayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Bereich", "Woche", "8g")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(8))
 	require.NoError(t, err)
@@ -291,7 +290,7 @@ type weekendFridayArrivalBaseline struct{}
 func (weekendFridayArrivalBaseline) Project(
 	_ context.Context,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) (*careplan.ArrivalBaselineProjection, error) {
 	projection := &careplan.ArrivalBaselineProjection{
 		WeeklyByStudentDate:   make(careplan.ArrivalPlansByStudent, len(studentIDs)),
@@ -323,7 +322,7 @@ func TestArrivalDataForWeekendRangeReadsFridayRows(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), weekendFridayArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Wochenende", "Freitag", "8n")
-	saturday := mondayOnOrAfter(timezone.TodayDate()).AddDays(5)
+	saturday := mondayOnOrAfter(calendar.TodayDate()).AddDays(5)
 
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, saturday, saturday.AddDays(1))
 	require.NoError(t, err)
@@ -336,7 +335,7 @@ type firstMondayOnlyArrivalBaseline struct{}
 func (firstMondayOnlyArrivalBaseline) Project(
 	_ context.Context,
 	studentIDs []int64,
-	from, to timezone.Date,
+	from, to calendar.Date,
 ) (*careplan.ArrivalBaselineProjection, error) {
 	projection := &careplan.ArrivalBaselineProjection{
 		WeeklyByStudentDate:   make(careplan.ArrivalPlansByStudent, len(studentIDs)),
@@ -369,7 +368,7 @@ func TestArrivalDataForDateRangeDropsCareDayAfterBookingEnds(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	svc := nativeArrivalSchedules(t, repos.CarePlan(), firstMondayOnlyArrivalBaseline{}, nativeClassArrivalPlans(t), nil)
 	student := testpkg.CreateTestStudent(t, db, "Ende", "Buchung", "8l")
-	monday := mondayOnOrAfter(timezone.TodayDate())
+	monday := mondayOnOrAfter(calendar.TodayDate())
 
 	data, err := svc.GetStudentArrivalDataForDateRange(ctx, student.ID, monday, monday.AddDays(7))
 
@@ -387,8 +386,8 @@ type bookingMondayBaseline struct{}
 func (bookingMondayBaseline) Project(
 	_ context.Context,
 	studentIDs []int64,
-	from timezone.Date,
-	_ timezone.Date,
+	from calendar.Date,
+	_ calendar.Date,
 ) (*careplan.ArrivalBaselineProjection, error) {
 	projection := &careplan.ArrivalBaselineProjection{
 		BookingsAuthoritative: true,
@@ -427,7 +426,7 @@ func TestWeeklyWriteFailsWhenClassTimeCannotBeChecked(t *testing.T) {
 		{
 			StudentID:       student.ID,
 			Weekday:         scheduleModel.WeekdayMonday,
-			ExpectedArrival: timezone.NormalizeWallClock(mustParseHHMM(t, "11:45")),
+			ExpectedArrival: calendar.NormalizeWallClock(mustParseHHMM(t, "11:45")),
 			CreatedBy:       staff.ID,
 		},
 	})
@@ -477,8 +476,8 @@ func TestWeeklyWriteCollapsesIntoTheClassTime(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "Deckungs", "Kind", "8d")
 	setClassArrivalTimes(t, "8d", map[string]string{"mon": "11:45", "tue": "11:45"})
 
-	sameAsClass := timezone.NormalizeWallClock(mustParseHHMM(t, "11:45"))
-	deviating := timezone.NormalizeWallClock(mustParseHHMM(t, "12:15"))
+	sameAsClass := calendar.NormalizeWallClock(mustParseHHMM(t, "11:45"))
+	deviating := calendar.NormalizeWallClock(mustParseHHMM(t, "12:15"))
 	require.NoError(t, svc.UpsertBulkStudentArrivalSchedules(ctx, student.ID,
 		[]*careplan.ArrivalSchedule{
 			{StudentID: student.ID, Weekday: scheduleModel.WeekdayMonday, ExpectedArrival: sameAsClass, CreatedBy: staff.ID},

@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 479 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 48 ·
+Stand 16.10.2026 · Ratchet 333 · Composition 1.721 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 49 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,20 +11,18 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 105 |
-| [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone` | 85 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 48 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 96 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 54 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 10 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 11 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
-| [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 1 |
+| [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools des Kommando-Roots | 2 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 479 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 333 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -44,6 +42,23 @@ trägt den Mount. Inbound-Owner 33 → 32, Regeln 951 → 950; Keys und Budgets 
 `inbound-staff` und `inbound-classlistentries` entfallen. Zwei gleich enge Eigen-HTTP-Regeln
 ersetzen vier Capability-/Berechtigungsregeln; die stehende Root-Regel ersetzt beide
 Mount-Regeln. Inbound-Owner 32 → 30, Regeln 950 → 946; Keys und Budgets unverändert.
+
+#4078: `modules/facilities/http/rooms` gehört zu `facilities`; `inbound-rooms` entfällt.
+Die gleich enge Eigen-HTTP-Regel ersetzt die eine bisherige Capability-Regel. Der Import
+von `facilities/compose/httpadapter` bleibt als exakter #4004-Key bestehen: Die stehende
+Policy erlaubt der Komposition keine HTTP-Rolle. Inbound-Owner 30 → 29, Regeln 946 → 946;
+Keys und Budgets unverändert.
+
+#4078: `modules/emergencysnapshot/http` gehört zu `emergency-snapshot`.
+`inbound-emergency` und vier Regeln entfallen; drei gleich enge HTTP-Regeln erhalten
+Capability, Shared-HTTP-Runtime und Berechtigungsvertrag. Die Root-Reichweite steht bereits.
+Inbound-Owner 29 → 28, Regeln 946 → 945; Keys und Budgets unverändert.
+
+#4078: `modules/classday/http` gehört zu `class-day-view`; `inbound-classday` entfällt.
+Sieben gleich enge Nachfolger ersetzen acht Regeln. Die nun ungenutzte generische
+Regel `inbound.adapter-test.projection.public` entfällt zusätzlich. Die beiden eingehenden Schulportal-Regeln
+bleiben auf denselben Paketpfad und ihre bisherigen Produktions-/External-Test-Scopes begrenzt.
+Die Root-Reichweite steht bereits. Inbound-Owner 28 → 27, Regeln 945 → 943; Keys und Budgets unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
@@ -95,7 +110,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 - [x] [#2734](https://github.com/moto-nrw/project-phoenix/issues/2734) api/enrollment — 0 (alle 26 Keys weg, dazu `api -> api/enrollment` (#2750) und drei #3421-Keys des Elternportals, 239 → 209; `api/enrollment` Datei für Datei nach `modules/enrollment/http` (`enrollment`/`http`, die externen Suiten als `workflow-integration-test`), Owner `inbound-enrollment` gelöscht, seine Regeln an den neuen Punkt verschoben; kein `bun` und kein `database/sql` mehr, die Transaktionen laufen über `tenant.WithinTenant`/`WithinAdmin`; Anmeldungen und Angebote als eigene dekodierte Werte über dem öffentlichen Enrollment-Vokabular statt `models/enrollment`, der Angebotskatalog über `enrollmentCompose.CareOfferingValues`, das Autofill-Profil über den Enrollment-Port `GuardianAutofillReader` (gebunden in `services`), die Exporte über den Vertrag `modules/documentrendering/lists`, Kalender über `sharedkernel/calendar`; das Elternportal erreicht den Formularfluss über seinen Port `EnrollmentForms` statt über den Import; Composition 591 → 591)
 - [x] [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738) api/common — 0 (20 Keys weg, 262 → 242; gemeinsame HTTP-Schicht bleibt, gezielte Owner-Verträge per ADR 0046 / #3898, Policy-Epoche 33 → 33; Settings über öffentlichen Vertrag, Guardian-Renderer mit HTTP-Eingabewerten, SQL-Fehler beim Transaction Runtime, Byte-Speicherung nativ bei Delivery; DB-tragende Route-Wrapper, ungenutzte DB-Verdrahtung und `internal/storage` gelöscht; 8 ORM-Regeln und 12 HTTP-ORM-Ratchet-Einträge entfernt, Composition 596 → 596)
 - [x] [#2727](https://github.com/moto-nrw/project-phoenix/issues/2727) database/repositories/users — 0 (alle 14 Keys weg, 402 → 388; Tenant und Transaktion über die Runtime aus `modules/peopledirectory/compose`, Fehler- und Query-Formen über das `models/users`-Vokabular, Kalender über `sharedkernel/calendar`, Berechtigungen über `modules/securityruntime`; die Suiten komponieren über `api/testutil` → `services` und benennen Zeilen über `test`; eine stale Communication-Regel gelöscht, Composition 603 → 603)
-- [ ] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 1 (#3757: `internal/timezone` in Produktion, internen und externen Tests durch `sharedkernel/calendar` ersetzt; die drei Kalender-Keys entfernt, 265 → 262; keine neue Regel, Composition 596 → 596; #3991: Zeilen-Basis lokal (`users.Model`, `users.TenantModel`), die drei externen Tests in `package users`, `models/base` im internen und `models/users` im externen Test entfernt, 86 → 84, mit dem #3421-Key 86 → 83; offen: der Produktions-Key `models/users -> models/base` für das Repository-Vokabular in `repository.go` und `repository_vocabulary.go`, fällt mit #3990; eine Ersatzregel lehnt der Checker als Lockerung ab, eine Issue-Neuzuordnung des Keys ebenso; #4070: die sieben Regeln mit `issue` #2729 sind gelöscht, ihre acht Importe von `models/users` sind Keys, 1 → 9; #3990: Repository-Verträge, Abfrage- und Fehler-Vokabular nach `database/repositories/users` (eigene Typen, kein Alias auf `models/base`), die drei Root-Nähte vorher typisiert (#4105 Präsenz, #4107 Workforce, #4109 Timetable), Record-Fehler der Root über `transactionruntime.RecordErrors`, Unique-Prüfungen über `transactionruntime`; `models/users -> models/base` und `workflows/shiftplansync/compose -> models/users` entfernt, 9 → 7, Composition 1.743 → 1.741; Workforce-Dienstplan und Shift Plan Sync lesen Mitarbeitende als `workforce.PlanStaff`, die Root bildet die People-Directory-Zeilen über `api.NewPlanStaffDirectory` ab, 7 → 1; offen: `modules/timetable/compose` im internen Test)
+- [x] [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) models/users — 0 (#3757: `internal/timezone` in Produktion, internen und externen Tests durch `sharedkernel/calendar` ersetzt; die drei Kalender-Keys entfernt, 265 → 262; keine neue Regel, Composition 596 → 596; #3991: Zeilen-Basis lokal (`users.Model`, `users.TenantModel`), die drei externen Tests in `package users`, `models/base` im internen und `models/users` im externen Test entfernt, 86 → 84, mit dem #3421-Key 86 → 83; offen: der Produktions-Key `models/users -> models/base` für das Repository-Vokabular in `repository.go` und `repository_vocabulary.go`, fällt mit #3990; eine Ersatzregel lehnt der Checker als Lockerung ab, eine Issue-Neuzuordnung des Keys ebenso; #4070: die sieben Regeln mit `issue` #2729 sind gelöscht, ihre acht Importe von `models/users` sind Keys, 1 → 9; #3990: Repository-Verträge, Abfrage- und Fehler-Vokabular nach `database/repositories/users` (eigene Typen, kein Alias auf `models/base`), die drei Root-Nähte vorher typisiert (#4105 Präsenz, #4107 Workforce, #4109 Timetable), Record-Fehler der Root über `transactionruntime.RecordErrors`, Unique-Prüfungen über `transactionruntime`; `models/users -> models/base` und `workflows/shiftplansync/compose -> models/users` entfernt, 9 → 7, Composition 1.743 → 1.741; Workforce-Dienstplan und Shift Plan Sync lesen Mitarbeitende als `workforce.PlanStaff`, die Root bildet die People-Directory-Zeilen über `api.NewPlanStaffDirectory` ab, 7 → 1; offen: `modules/timetable/compose` im internen Test; Tagesinformationen als `models/schedule.StaffNotice`, die Timetable-Ports lesen `timetable.StaffMember`, `timetable.Person` und `timetable.LifecycleStudent`, die Root bildet die People-Directory-Zeilen ab, 1 → 0)
 
 ## Legacy-Nester auflösen · 31.074 LOC, 0 Keys
 
@@ -113,6 +128,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 - [x] [#3421](https://github.com/moto-nrw/project-phoenix/issues/3421) `inbound-parent.*` zu exaktem Debt konvertiert — 27 Regeln weg, 27 Keys unter #3421 (568 → 597; #3565 entfernt zwei; #3755 entfernt zwei: `services/users` in Produktion und internem Test, das Profil kommt über einen eigenen Port; #2734 entfernt drei: `api/enrollment` in Produktion und internem Test, `models/enrollment` im internen Test; #2743 entfernt einen: `modules/careplan/inbound/parent -> database/repositories` im externen Test; #3991 entfernt einen: `models/base` im internen Test, die Zeilen-Literale nennen `users.Model`); Stufe 2: die letzten 20 Keys weg, 81 → 61; Kalender über `sharedkernel/calendar`, die zurückgereichten People-Directory-, Care-Plan- und Enrollment-Werte über das Vokabular des Workflow-Ports, das Profil als HTTP-Werte über den eigenen Port (Übersetzung in der Root), die Locale-Prüfung über die Notification-Texte von Delivery, Transaktionen über `tenant.WithinTenant`/`WithinAdmin` ohne `*bun.DB`, die Handler-Suiten über `modules/settings` und `api/testutil` ohne viper; `api/common`, Session-Adapter und Tenant-Runtime als stehende Regeln per ADR 0051, Policy-Epoche 38 → 39, vier Regeln; HTTP-ORM-Ratchet −2 Einträge, Composition 259 → 259)
 - [x] [#3416](https://github.com/moto-nrw/project-phoenix/issues/3416) `issue`-Feld an Policy-Regeln und `rules.stale` (das `issue`-Feld hat #4070 wieder abgeschafft, ADR 0057)
 - [x] [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln in exakte Keys — 405 Regeln weg, 514 Keys unter #4072 bis #4078, #4081, #4004, #2729, #2750 und #4096 (6 → 520), Policy-Epoche 46 → 47; `models/*` als `legacy-model`, Session-Token-Runtime als `identity-access`/`http`, neun abgelaufene Cutover-Akzeptoren gelöscht, Temp-Rules-Ratchet strukturell
+- [x] [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools als eigenes Binary `cmd/devtools` (ADR 0060) — `cmd -> seed/api` und `cmd -> simulate` weg (492 → 490), Policy-Epoche 48 → 49; `cmd/devtools` ist das einzige Paket in `dev-tools`/`compose` mit acht `dev-tools.compose.*`-Regeln; HTTP-Client, Demo-Runtime samt Lease und Zufallsquelle aus `api` ins Binary; nur das Demo-Image enthält es; Composition 1.740 → 1.724
 - [x] [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423) Die acht Quality-Ratchets auf null — am 15.10.2026 aus #2580 gelöst, läuft als eigenes Ticket weiter
 
 ## api/students · 0 Keys

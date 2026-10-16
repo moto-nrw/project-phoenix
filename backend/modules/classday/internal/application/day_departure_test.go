@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The class day and the supervision sheet show the Abholart the OGS set or
@@ -25,7 +25,7 @@ func TestClassDayDeparturesUseTheDayAbholart(t *testing.T) {
 		{ID: 2, DepartureModes: []peopledirectory.DepartureMode{peopledirectory.DepartureBus}},
 	}
 
-	departures, err := svc.classDayDepartures(context.Background(), students, timezone.NewDate(2026, 9, 9), "wed")
+	departures, err := svc.classDayDepartures(context.Background(), students, calendar.NewDate(2026, 9, 9), "wed")
 	require.NoError(t, err)
 	assert.Equal(t, "Abholung", departures[1])
 	assert.Equal(t, "Bus", departures[2])
@@ -41,7 +41,7 @@ func TestSupervisionDepartureUsesTheDayAbholart(t *testing.T) {
 		"wed": {peopledirectory.DeparturePickup},
 	}}
 
-	departure, err := svc.supervisionDeparture(context.Background(), student, timezone.NewDate(2026, 9, 9), []int64{7})
+	departure, err := svc.supervisionDeparture(context.Background(), student, calendar.NewDate(2026, 9, 9), []int64{7})
 	require.NoError(t, err)
 	assert.Equal(t, "Geht alleine", departure)
 }

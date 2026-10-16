@@ -43,7 +43,7 @@ func newEnrollmentWiring(owners enrollmentWiringOwners) EnrollmentWiring {
 		Guardians:             enrollmentGuardianDirectory{guardians: owners.Persons},
 		ParentCarePeriods:     parentCarePeriods{owner: bookings},
 		ParentOfferingHistory: parentOfferingHistory{owner: bookings},
-		OfferingPlanning:      ManualPlanningReader{Query: enrollmentCompose.NewManualPlanningQuery(owners.DB.Pool()), CourseGroups: owners.Timetable},
+		OfferingPlanning:      ManualPlanningReader{Query: PlanningQuery{DB: owners.DB}, CourseGroups: owners.Timetable},
 		BindSettingsGuards:    bindEnrollmentSettingsGuards(bookings),
 		MailRenderers: func(defaultFrom email.Email) map[string]deliveryCompose.MailRenderer {
 			return enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom)

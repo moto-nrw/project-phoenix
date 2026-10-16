@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -20,7 +20,7 @@ func TestResolvePlanningDate(t *testing.T) {
 		date, isToday, err := resolvePlanningDate("", now)
 		require.NoError(t, err)
 		assert.True(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 1), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 1), date)
 	})
 
 	t.Run("day_switches_at_berlin_midnight_not_utc", func(t *testing.T) {
@@ -30,7 +30,7 @@ func TestResolvePlanningDate(t *testing.T) {
 		date, isToday, err := resolvePlanningDate("", lateNow)
 		require.NoError(t, err)
 		assert.True(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 2), date)
 
 		// The UTC date is yesterday from the school's perspective, so it is
 		// rejected as a past date rather than treated as another planning day.
@@ -42,14 +42,14 @@ func TestResolvePlanningDate(t *testing.T) {
 		date, isToday, err := resolvePlanningDate("2026-06-01", now)
 		require.NoError(t, err)
 		assert.True(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 1), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 1), date)
 	})
 
 	t.Run("tomorrow_is_not_today", func(t *testing.T) {
 		date, isToday, err := resolvePlanningDate("2026-06-02", now)
 		require.NoError(t, err)
 		assert.False(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 2), date)
 	})
 
 	t.Run("invalid_value_is_an_error", func(t *testing.T) {
@@ -75,7 +75,7 @@ func TestResolvePlanningDate(t *testing.T) {
 		date, isToday, err := resolvePlanningDate("2026-06-07", now)
 		require.NoError(t, err)
 		assert.False(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 7), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 7), date)
 
 		_, _, err = resolvePlanningDate("2026-06-08", now)
 		require.Error(t, err)
@@ -90,7 +90,7 @@ func TestResolvePlanningDate(t *testing.T) {
 		date, isToday, err := resolvePlanningDate("2026-06-07", sunday)
 		require.NoError(t, err)
 		assert.True(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 7), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 7), date)
 
 		_, _, err = resolvePlanningDate("2026-06-08", sunday)
 		require.Error(t, err)
@@ -103,11 +103,11 @@ func TestMaxPlanningDate(t *testing.T) {
 	// The horizon always closes with the Sunday of the CURRENT week — the only
 	// week the scheduler guarantees is materialized at every moment.
 	// Monday: this week's Sunday is 6 days out.
-	assert.Equal(t, timezone.NewDate(2026, time.June, 7), maxPlanningDate(timezone.NewDate(2026, time.June, 1)))
+	assert.Equal(t, calendar.NewDate(2026, time.June, 7), maxPlanningDate(calendar.NewDate(2026, time.June, 1)))
 	// Sunday: the current week ends today, so the horizon collapses to today.
-	assert.Equal(t, timezone.NewDate(2026, time.June, 7), maxPlanningDate(timezone.NewDate(2026, time.June, 7)))
+	assert.Equal(t, calendar.NewDate(2026, time.June, 7), maxPlanningDate(calendar.NewDate(2026, time.June, 7)))
 	// Saturday: one day left in the current week.
-	assert.Equal(t, timezone.NewDate(2026, time.June, 7), maxPlanningDate(timezone.NewDate(2026, time.June, 6)))
+	assert.Equal(t, calendar.NewDate(2026, time.June, 7), maxPlanningDate(calendar.NewDate(2026, time.June, 6)))
 }
 
 func TestResetLiveLocationFields(t *testing.T) {
@@ -216,7 +216,7 @@ func TestDailyStatusExportCellForDate(t *testing.T) {
 func TestExportFilterLabelsForDateAddsDateAndNeutralWording(t *testing.T) {
 	t.Parallel()
 
-	planningDate := timezone.NewDate(2026, time.June, 2)
+	planningDate := calendar.NewDate(2026, time.June, 2)
 
 	labels := exportFilterLabelsForDate(studentExportFilters{DayStatus: DayPlanningStatusComesToday}, planningDate, false)
 
@@ -230,7 +230,7 @@ func TestExportFilterLabelsForDateAddsDateAndNeutralWording(t *testing.T) {
 func TestExportFilterLabelsForDateWordsAbsenceStatusAsPlanned(t *testing.T) {
 	t.Parallel()
 
-	planningDate := timezone.NewDate(2026, time.June, 2)
+	planningDate := calendar.NewDate(2026, time.June, 2)
 
 	labels := exportFilterLabelsForDate(studentExportFilters{Status: "krank"}, planningDate, false)
 	assert.Contains(t, labels, "Geplanter Status: Krank")
@@ -286,10 +286,10 @@ func TestActiveLiveExportFilters(t *testing.T) {
 func TestLiveFilterError(t *testing.T) {
 	t.Parallel()
 
-	tomorrow := timezone.NewDate(2026, time.June, 2)
+	tomorrow := calendar.NewDate(2026, time.June, 2)
 
 	t.Run("today_accepts_live_filters", func(t *testing.T) {
-		require.NoError(t, liveFilterError([]string{"room_id"}, timezone.NewDate(2026, time.June, 1), true))
+		require.NoError(t, liveFilterError([]string{"room_id"}, calendar.NewDate(2026, time.June, 1), true))
 	})
 
 	t.Run("other_day_without_live_filters_is_fine", func(t *testing.T) {
@@ -314,14 +314,14 @@ func TestResolveExportPlanningDate(t *testing.T) {
 		date, isToday, errResp := resolveExportPlanningDate(studentExportFilters{Status: "anwesend", RoomID: "7"}, now)
 		require.Nil(t, errResp)
 		assert.True(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 1), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 1), date)
 	})
 
 	t.Run("planning_date_without_live_filters_resolves", func(t *testing.T) {
 		date, isToday, errResp := resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", Status: "all"}, now)
 		require.Nil(t, errResp)
 		assert.False(t, isToday)
-		assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
+		assert.Equal(t, calendar.NewDate(2026, time.June, 2), date)
 	})
 
 	t.Run("planning_date_rejects_live_filters", func(t *testing.T) {
@@ -337,7 +337,7 @@ func TestResolveExportPlanningDate(t *testing.T) {
 			date, isToday, errResp := resolveExportPlanningDate(studentExportFilters{Date: "2026-06-02", Status: status}, now)
 			require.Nil(t, errResp, "%s is planned per date, not a live snapshot", status)
 			assert.False(t, isToday)
-			assert.Equal(t, timezone.NewDate(2026, time.June, 2), date)
+			assert.Equal(t, calendar.NewDate(2026, time.June, 2), date)
 		}
 	})
 

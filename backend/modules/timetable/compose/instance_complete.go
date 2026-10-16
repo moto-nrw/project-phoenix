@@ -7,10 +7,10 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -246,7 +246,7 @@ func (s *InstanceLifecycleService) notScheduledStudentIDs(ctx context.Context, i
 	if len(studentIDs) == 0 {
 		return nil, nil
 	}
-	careDay, err := s.deps.CareDays.ResolveForDate(ctx, studentIDs, timezone.Date(instance.Date))
+	careDay, err := s.deps.CareDays.ResolveForDate(ctx, studentIDs, calendar.Date(instance.Date))
 	if err != nil {
 		return nil, &ScheduleError{Op: "complete instance: resolve care day", Err: err}
 	}

@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type courseRepoStub struct {
@@ -20,16 +20,16 @@ type courseRepoStub struct {
 	participErr   error
 }
 
-func (s courseRepoStub) CourseInstances(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]ports.CourseInstance, error) {
+func (s courseRepoStub) CourseInstances(context.Context, calendar.Date, calendar.Date, calendar.Date) ([]ports.CourseInstance, error) {
 	return s.instances, s.instanceErr
 }
 
-func (s courseRepoStub) CourseParticipation(context.Context, timezone.Date, timezone.Date, timezone.Date) ([]ports.CourseParticipation, error) {
+func (s courseRepoStub) CourseParticipation(context.Context, calendar.Date, calendar.Date, calendar.Date) ([]ports.CourseParticipation, error) {
 	return s.participation, s.participErr
 }
 
 func courseFilters() studentpresence.StatisticsFilters {
-	return studentpresence.StatisticsFilters{From: timezone.NewDate(2026, 6, 1), To: timezone.NewDate(2026, 6, 30)}
+	return studentpresence.StatisticsFilters{From: calendar.NewDate(2026, 6, 1), To: calendar.NewDate(2026, 6, 30)}
 }
 
 func courseFixture() courseRepoStub {
@@ -50,7 +50,7 @@ func courseFixture() courseRepoStub {
 // retention clamp is compute()'s job and has its own test.
 func callCourseSection(svc *service, filters studentpresence.StatisticsFilters, students []studentpresence.StatisticsStudentRow) ([]studentpresence.StatisticsCourseRow, []studentpresence.StatisticsCourseStudentRow, studentpresence.StatisticsCourseRow, error) {
 	return svc.courseSection(context.Background(), filters, filters.From, filters.To,
-		timezone.DateFromTime(fixedNow()), students)
+		calendar.DateFromTime(fixedNow()), students)
 }
 
 func courseStudents() []studentpresence.StatisticsStudentRow {
@@ -199,7 +199,7 @@ func TestCourseSection_WindowBehindRetentionReadsNothing(t *testing.T) {
 	courses, childRows, totals, err := svc.courseSection(
 		context.Background(), filters,
 		// clamped from is after to: nothing of the window survives retention
-		filters.To.AddDays(1), filters.To, timezone.DateFromTime(fixedNow()), courseStudents())
+		filters.To.AddDays(1), filters.To, calendar.DateFromTime(fixedNow()), courseStudents())
 	require.NoError(t, err)
 	assert.Empty(t, courses)
 	assert.Empty(t, childRows)

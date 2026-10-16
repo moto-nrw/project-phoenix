@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -228,7 +228,7 @@ func TestWeekdayPickupNoteSurvivesBookingBoundary(t *testing.T) {
 	// The device-scan path resolves one child at a time rather than through
 	// the tile's bulk endpoint. A note-only day must survive that path too.
 	single, err := tc.resource.PickupScheduleService.GetEffectivePickupTimeForDate(
-		testpkg.Ctx(t), noted.ID, timezone.NewDate(2026, time.January, 26),
+		testpkg.Ctx(t), noted.ID, calendar.NewDate(2026, time.January, 26),
 	)
 	require.NoError(t, err)
 	require.NotNil(t, single)

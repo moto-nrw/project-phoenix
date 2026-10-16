@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -24,7 +23,7 @@ type planningShifts struct {
 	update func(context.Context, *planning.StaffShift, planning.StaffShiftUpdateOptions) (*planning.StaffShift, error)
 	move   func(context.Context, planning.MoveShiftInput) (*planning.StaffShift, error)
 	cancel func(context.Context, planning.CancelShiftInput) (*planning.CancelShiftResult, error)
-	list   func(context.Context, int64, timezone.Date, timezone.Date) ([]*planning.StaffShift, error)
+	list   func(context.Context, int64, calendar.Date, calendar.Date) ([]*planning.StaffShift, error)
 	remove func(context.Context, int64) error
 }
 
@@ -40,10 +39,10 @@ func (s planningShifts) MoveShift(c context.Context, v planning.MoveShiftInput) 
 func (s planningShifts) ApplyCancellation(c context.Context, v planning.CancelShiftInput) (*planning.CancelShiftResult, error) {
 	return s.cancel(c, v)
 }
-func (s planningShifts) ListShifts(c context.Context, a, b timezone.Date) ([]*planning.StaffShift, error) {
+func (s planningShifts) ListShifts(c context.Context, a, b calendar.Date) ([]*planning.StaffShift, error) {
 	return s.list(c, 0, a, b)
 }
-func (s planningShifts) ListShiftsForStaff(c context.Context, id int64, a, b timezone.Date) ([]*planning.StaffShift, error) {
+func (s planningShifts) ListShiftsForStaff(c context.Context, id int64, a, b calendar.Date) ([]*planning.StaffShift, error) {
 	return s.list(c, id, a, b)
 }
 func (s planningShifts) DeleteShift(c context.Context, id int64) error { return s.remove(c, id) }
@@ -53,7 +52,7 @@ type planningSeries struct {
 	create func(context.Context, *planning.StaffShiftSeries) (*planning.SeriesResult, error)
 	split  func(context.Context, planning.SplitSeriesInput) (*planning.SeriesResult, error)
 	get    func(context.Context, int64) (*planning.StaffShiftSeries, error)
-	end    func(context.Context, int64, timezone.Date) (*planning.SeriesResult, error)
+	end    func(context.Context, int64, calendar.Date) (*planning.SeriesResult, error)
 }
 
 func (s planningSeries) CreateSeries(c context.Context, v *planning.StaffShiftSeries) (*planning.SeriesResult, error) {
@@ -65,22 +64,22 @@ func (s planningSeries) SplitSeries(c context.Context, v planning.SplitSeriesInp
 func (s planningSeries) GetSeries(c context.Context, id int64) (*planning.StaffShiftSeries, error) {
 	return s.get(c, id)
 }
-func (s planningSeries) EndSeries(c context.Context, id int64, d timezone.Date) (*planning.SeriesResult, error) {
+func (s planningSeries) EndSeries(c context.Context, id int64, d calendar.Date) (*planning.SeriesResult, error) {
 	return s.end(c, id, d)
 }
 
-type planningOverview func(context.Context, timezone.Date, timezone.Date) (*planning.StaffScheduleOverview, error)
+type planningOverview func(context.Context, calendar.Date, calendar.Date) (*planning.StaffScheduleOverview, error)
 
-func (f planningOverview) GetOverview(c context.Context, a, b timezone.Date) (*planning.StaffScheduleOverview, error) {
+func (f planningOverview) GetOverview(c context.Context, a, b calendar.Date) (*planning.StaffScheduleOverview, error) {
 	return f(c, a, b)
 }
 
 type planningExport struct {
 	planexport.Service
-	export func(context.Context, planexport.Params) (listexport.File, error)
+	export func(context.Context, planexport.Params) (planexport.File, error)
 }
 
-func (f planningExport) ExportDienstplan(c context.Context, p planexport.Params) (listexport.File, error) {
+func (f planningExport) ExportDienstplan(c context.Context, p planexport.Params) (planexport.File, error) {
 	return f.export(c, p)
 }
 func newPlanningFacade(deps planning.PlanningDependencies) workforce.StaffShiftPlanning {
@@ -142,7 +141,7 @@ func TestPlanningPreservesShiftEditsAndCancellation(t *testing.T) {
 			calls++
 			return &planning.CancelShiftResult{Shift: saved, Replacements: []*planning.StaffShift{saved, nil}}, nil
 		},
-		list: func(_ context.Context, id int64, a, b timezone.Date) ([]*planning.StaffShift, error) {
+		list: func(_ context.Context, id int64, a, b calendar.Date) ([]*planning.StaffShift, error) {
 			require.Contains(t, []int64{0, staff.ID}, id)
 			require.Equal(t, "2026-09-21", a.String())
 			require.Equal(t, "2026-09-25", b.String())
@@ -212,7 +211,7 @@ func TestPlanningSeriesPreservesRecurrenceAndExplicitClears(t *testing.T) {
 			require.Equal(t, "09:00", v.StartTime.Format("15:04"))
 			saved = v
 			calls++
-			return &planning.SeriesResult{Series: v, Created: 4, SkippedDates: []timezone.Date{timezone.NewDate(2026, 9, 23)}}, nil
+			return &planning.SeriesResult{Series: v, Created: 4, SkippedDates: []calendar.Date{calendar.NewDate(2026, 9, 23)}}, nil
 		},
 		split: func(_ context.Context, v planning.SplitSeriesInput) (*planning.SeriesResult, error) {
 			require.Equal(t, "2026-09-28", v.EffectiveDate.String())
@@ -225,7 +224,7 @@ func TestPlanningSeriesPreservesRecurrenceAndExplicitClears(t *testing.T) {
 			return &planning.SeriesResult{Series: saved, Created: 2, Deleted: 3}, nil
 		},
 		get: func(context.Context, int64) (*planning.StaffShiftSeries, error) { calls++; return saved, nil },
-		end: func(_ context.Context, _ int64, d timezone.Date) (*planning.SeriesResult, error) {
+		end: func(_ context.Context, _ int64, d calendar.Date) (*planning.SeriesResult, error) {
 			require.Equal(t, "2026-10-01", d.String())
 			calls++
 			return &planning.SeriesResult{Deleted: 5}, nil
@@ -269,16 +268,16 @@ func TestPlanningSeriesRejectsMalformedRecurrence(t *testing.T) {
 func TestPlanningOverviewAndExportRetainPublicResults(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	from := timezone.NewDate(2026, 9, 21)
-	to := timezone.NewDate(2026, 9, 25)
+	from := calendar.NewDate(2026, 9, 21)
+	to := calendar.NewDate(2026, 9, 25)
 	p := newPlanningFacade(planning.PlanningDependencies{
-		Overview: planningOverview(func(_ context.Context, a, b timezone.Date) (*planning.StaffScheduleOverview, error) {
+		Overview: planningOverview(func(_ context.Context, a, b calendar.Date) (*planning.StaffScheduleOverview, error) {
 			require.Equal(t, from, a)
 			require.Equal(t, to, b)
-			return &planning.StaffScheduleOverview{From: a, To: b, DienstplanInUse: true, UsedWeeks: []timezone.Date{a}, Assignments: []planning.StaffScheduleAssignment{{Date: a, ActivityTitle: "Betreuung", UncoveredIntervals: []timetable.ShiftCoverageInterval{{}}}}, WeeklySummaries: []planning.StaffWeeklySummary{{WeekStart: a, PlannedMinutes: 300}}}, nil
+			return &planning.StaffScheduleOverview{From: a, To: b, DienstplanInUse: true, UsedWeeks: []calendar.Date{a}, Assignments: []planning.StaffScheduleAssignment{{Date: a, ActivityTitle: "Betreuung", UncoveredIntervals: []timetable.ShiftCoverageInterval{{}}}}, WeeklySummaries: []planning.StaffWeeklySummary{{WeekStart: a, PlannedMinutes: 300}}}, nil
 		}),
-		PlanExport: planningExport{export: func(context.Context, planexport.Params) (listexport.File, error) {
-			return listexport.File{Filename: "plan.pdf", ContentType: "application/pdf", Data: []byte("document")}, nil
+		PlanExport: planningExport{export: func(context.Context, planexport.Params) (planexport.File, error) {
+			return planexport.File{Filename: "plan.pdf", ContentType: "application/pdf", Data: []byte("document")}, nil
 		}},
 	})
 	overview, err := p.Overview(ctx, from.String(), to.String())

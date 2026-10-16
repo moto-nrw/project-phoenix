@@ -1,22 +1,51 @@
 // Package legacy keeps the retained group substitution repository contract
-// and the personnel record contracts of the suites alive on top of the
-// Workforce capability while their consumers migrate (#2688). It performs no
-// persistence of its own: every adapter maps the legacy models onto the public
-// capability types and preserves the error shapes those callers still classify
-// on. The composition root constructs the adapters; nothing else imports them.
-// The staff absence adapters moved into modules/workforce/compose (#3996).
+// alive on top of the Workforce capability while its consumers migrate
+// (#2688). It performs no persistence of its own: the adapter maps the
+// retained rows onto the public capability types and preserves the error
+// shapes those callers still classify on. The composition root constructs the
+// adapter; nothing else imports it. The staff absence adapters moved into
+// modules/workforce/compose (#3996).
 package legacy
 
-import (
-	"fmt"
+import "fmt"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-)
+// databaseError is the retained repository error shape the callers still
+// see: the failed operation in front of its cause, the cause in the chain,
+// and the store-failure mark. It reads exactly as the generic repository's
+// DatabaseError did.
+type databaseError struct {
+	op  string
+	err error
+}
+
+func (e *databaseError) Error() string {
+	if e.err == nil {
+		return "database error during " + e.op
+	}
+	return "database error during " + e.op + ": " + e.err.Error()
+}
+
+func (e *databaseError) Unwrap() error { return e.err }
+
+// StoreFailure marks the error as the store's failure rather than a refusal
+// of the request.
+func (e *databaseError) StoreFailure() bool { return true }
+
+// errRecordNotFound is the persistence-neutral missing-row result. It carries
+// the repository not-found marker the callers classify a missing row by.
+var errRecordNotFound error = recordNotFoundError{}
+
+type recordNotFoundError struct{}
+
+func (recordNotFoundError) Error() string { return "repository: not found" }
+
+// RepositoryNotFound marks the not-found result by shape.
+func (recordNotFoundError) RepositoryNotFound() {}
 
 // rowsAffectedError is the legacy repository result for an update that
-// matched no row: the same DatabaseError the generic repository produced.
+// matched no row, as the generic repository produced it.
 func rowsAffectedError(op string) error {
-	return &modelBase.DatabaseError{Op: op, Err: fmt.Errorf("expected %d rows affected, got %d", 1, 0)}
+	return &databaseError{op: op, err: fmt.Errorf("expected %d rows affected, got %d", 1, 0)}
 }
 
 // uniqueIDs drops non-positive and repeated IDs, keeping first-seen order.
