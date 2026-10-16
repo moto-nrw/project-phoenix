@@ -28,10 +28,10 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
 
 const shutdownTimeout = 30 * time.Second
@@ -154,7 +154,7 @@ func newRuntime(config ServeConfig) (*Runtime, error) {
 		tracker:        tracker,
 		logger:         config.Logger,
 	}
-	var worker *scheduler.Scheduler
+	var worker schedulerPorts.Worker
 	if config.Process == ServeAPIOnly {
 		config.Logger.Info("embedded worker disabled; a standalone worker runs the jobs")
 	} else {
@@ -208,7 +208,7 @@ func resolveListenAddr(port string) string {
 }
 
 // newWorker assembles the embedded Worker root from one typed dependency value.
-func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*scheduler.Scheduler, error) {
+func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (schedulerPorts.Worker, error) {
 	if graph == nil || graph.services == nil || reads.carePlan == nil {
 		return nil, fmt.Errorf("worker serve graph is required")
 	}
@@ -247,7 +247,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 		submissionLimits:     enrollmentCompose.New(),
 		settingAudit:         settingsCompose.NewAuditRetention(),
 		exportTransfers:      exportTransferCompose.NewJournalRetention(),
-	}, logger.With("service", "scheduler"))
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -259,7 +259,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 	if err != nil {
 		return nil, fmt.Errorf("compose personal reminder notifications: %w", err)
 	}
-	return scheduler.NewWorker(workerDependencies(graph, reads, reminderNotifications, workerRoots{
+	return schedulerRuntimeCompose.NewWorker(workerDependencies(graph, reads, reminderNotifications, workerRoots{
 		logger:    logger.With("service", "scheduler"),
 		billing:   billing,
 		lease:     lease,
@@ -274,18 +274,18 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (*sche
 type workerRoots struct {
 	logger    *slog.Logger
 	billing   organizationModule.BillingReport
-	lease     scheduler.WorkerLease
-	runtime   scheduler.TenantRuntime
-	settings  scheduler.SettingsResolver
+	lease     schedulerPorts.WorkerLease
+	runtime   schedulerPorts.TenantRuntime
+	settings  schedulerPorts.SettingsResolver
 	retention workerRetention
-	bookings  scheduler.BookingConsistencyAudit
+	bookings  schedulerPorts.BookingConsistencyAudit
 }
 
 // workerDependencies builds the Worker's complete typed input in one literal;
 // no dependency is filled in after construction (#2749).
-func workerDependencies(graph *serveGraph, reads workerReads, reminderNotifications scheduler.ReminderNotificationTick, roots workerRoots) scheduler.WorkerDependencies {
+func workerDependencies(graph *serveGraph, reads workerReads, reminderNotifications schedulerPorts.ReminderNotificationTick, roots workerRoots) schedulerPorts.WorkerDependencies {
 	services, identity := graph.services, reads.identity
-	return scheduler.WorkerDependencies{
+	return schedulerPorts.WorkerDependencies{
 		Logger:                    roots.logger,
 		Getenv:                    os.Getenv,
 		SchoolRepo:                schedulerTenantDirectory{schools: reads.schools, billing: roots.billing},
@@ -295,7 +295,8 @@ func workerDependencies(graph *serveGraph, reads workerReads, reminderNotificati
 		Tracer:                    workerTracer(graph),
 		Settings:                  roots.settings,
 		Lease:                     roots.lease,
-		Retention:                 roots.retention.run,
+		RetentionSteps:            roots.retention.steps,
+		RetentionLog:              roots.retention.log,
 		CleanupRuns:               roots.retention.runs,
 		StaffDocumentCleaner:      graph.documents.staff,
 		StudentDocumentCleaner:    graph.documents.student,
@@ -340,7 +341,7 @@ func workerDependencies(graph *serveGraph, reads workerReads, reminderNotificati
 // fileStoreCleaner hands the File Storage sweep to the worker only when the
 // module was composed. A nil module behind a non-nil interface would pass the
 // scheduler's nil check and fail on the first tick.
-func fileStoreCleaner(graph *serveGraph) scheduler.FileStoreCleaner {
+func fileStoreCleaner(graph *serveGraph) schedulerPorts.FileStoreCleaner {
 	if graph.services.FileStore == nil {
 		return nil
 	}
@@ -350,22 +351,30 @@ func fileStoreCleaner(graph *serveGraph) scheduler.FileStoreCleaner {
 // rolloverDeadlineRunner hands the rollover deadline job to the worker only
 // when the module was composed, so a nil module never hides behind a non-nil
 // runner.
-func rolloverDeadlineRunner(rollovers enrollmentOwner.Rollovers) scheduler.RolloverDeadlineRunner {
+func rolloverDeadlineRunner(rollovers enrollmentOwner.Rollovers) schedulerPorts.RolloverDeadlineRunner {
 	if rollovers == nil {
 		return nil
 	}
-	return scheduler.NewRolloverDeadlineRunner(func(ctx context.Context, asOf time.Time) (any, error) {
-		return rollovers.RunDeadlineWorker(ctx, asOf)
-	})
+	return rolloverDeadlines{rollovers: rollovers}
 }
 
-func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.StaffMessageCleanup {
+// rolloverDeadlines runs Enrollment's rollover deadline job for the Worker,
+// which discards the job's summary.
+type rolloverDeadlines struct {
+	rollovers enrollmentOwner.Rollovers
+}
+
+func (r rolloverDeadlines) RunDeadlineWorker(ctx context.Context, asOf time.Time) (any, error) {
+	return r.rollovers.RunDeadlineWorker(ctx, asOf)
+}
+
+func staffMessageCleanup(service communication.StaffMessagingRuntime) schedulerPorts.StaffMessageCleanup {
 	if service == nil {
 		return nil
 	}
-	return func(ctx context.Context) (scheduler.StaffMessageCleanupResult, error) {
+	return func(ctx context.Context) (schedulerPorts.StaffMessageCleanupResult, error) {
 		result, err := service.CleanupExpiredStaffMessages(ctx)
-		return scheduler.StaffMessageCleanupResult{
+		return schedulerPorts.StaffMessageCleanupResult{
 			MessagesDeleted: result.MessagesDeleted,
 			ThreadsDeleted:  result.ThreadsDeleted,
 			RetentionDays:   result.RetentionDays,
@@ -373,8 +382,8 @@ func staffMessageCleanup(service communication.StaffMessagingRuntime) scheduler.
 	}
 }
 
-func workerTracer(graph *serveGraph) scheduler.WorkerTracer {
-	return scheduler.WorkerTracer{
+func workerTracer(graph *serveGraph) schedulerPorts.WorkerTracer {
+	return schedulerPorts.WorkerTracer{
 		StartJob: func(ctx context.Context, operation string) (context.Context, error) {
 			ctx, _, err := graph.tracer.StartJob(ctx, operation)
 			return ctx, err
@@ -383,10 +392,10 @@ func workerTracer(graph *serveGraph) scheduler.WorkerTracer {
 		Failure: func(ctx context.Context, operation, outcome string, err error) {
 			graph.tracer.Failure(ctx, "worker", operation, outcome, err)
 		},
-		Run: func(jobID scheduler.JobID, outcome string, duration time.Duration) {
+		Run: func(jobID schedulerPorts.JobID, outcome string, duration time.Duration) {
 			observability.RecordWorkerRunEvent(string(jobID), outcome, duration)
 		},
-		Batch: func(event scheduler.TenantBatchEvidence) {
+		Batch: func(event schedulerPorts.TenantBatchEvidence) {
 			observability.RecordWorkerTenantBatchEvent(
 				string(event.JobID),
 				event.Duration,
@@ -397,7 +406,7 @@ func workerTracer(graph *serveGraph) scheduler.WorkerTracer {
 				event.PoolWait,
 			)
 		},
-		Backlog: func(jobID scheduler.JobID, backlog int) {
+		Backlog: func(jobID schedulerPorts.JobID, backlog int) {
 			observability.SetWorkerTenantBatchBacklog(string(jobID), backlog)
 		},
 	}

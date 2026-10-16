@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 )
 
 // schedulerSessionMaintenance hands Student Presence's session maintenance
@@ -18,19 +18,19 @@ type schedulerSessionMaintenance struct {
 	presence studentpresence.SessionMaintenance
 }
 
-func newSchedulerSessionMaintenance(presence studentpresence.SessionMaintenance) scheduler.SessionMaintenance {
+func newSchedulerSessionMaintenance(presence studentpresence.SessionMaintenance) schedulerPorts.SessionMaintenance {
 	if presence == nil {
 		return nil
 	}
 	return schedulerSessionMaintenance{presence: presence}
 }
 
-func (m schedulerSessionMaintenance) EndDailySessions(ctx context.Context) (*scheduler.DailySessionsEnded, error) {
+func (m schedulerSessionMaintenance) EndDailySessions(ctx context.Context) (*schedulerPorts.DailySessionsEnded, error) {
 	result, err := m.presence.EndDailySessions(ctx)
 	if result == nil {
 		return nil, err
 	}
-	return &scheduler.DailySessionsEnded{
+	return &schedulerPorts.DailySessionsEnded{
 		SessionsEnded:       result.SessionsEnded,
 		VisitsEnded:         result.VisitsEnded,
 		SupervisorsEnded:    result.SupervisorsEnded,
@@ -50,35 +50,35 @@ type schedulerPresenceCleanup struct {
 	presence studentpresence.PresenceCleanup
 }
 
-func newSchedulerPresenceCleanup(presence studentpresence.PresenceCleanup) scheduler.PresenceCleanup {
+func newSchedulerPresenceCleanup(presence studentpresence.PresenceCleanup) schedulerPorts.PresenceCleanup {
 	if presence == nil {
 		return nil
 	}
 	return schedulerPresenceCleanup{presence: presence}
 }
 
-func (c schedulerPresenceCleanup) CleanupExpiredVisits(ctx context.Context) (*scheduler.ExpiredVisitCleanup, error) {
+func (c schedulerPresenceCleanup) CleanupExpiredVisits(ctx context.Context) (*schedulerPorts.ExpiredVisitCleanup, error) {
 	result, err := c.presence.CleanupExpiredVisits(ctx)
 	if result == nil {
 		return nil, err
 	}
-	return &scheduler.ExpiredVisitCleanup{StudentsProcessed: result.StudentsProcessed, RecordsDeleted: result.RecordsDeleted, Success: result.Success}, err
+	return &schedulerPorts.ExpiredVisitCleanup{StudentsProcessed: result.StudentsProcessed, RecordsDeleted: result.RecordsDeleted, Success: result.Success}, err
 }
 
-func (c schedulerPresenceCleanup) CleanupStaleSupervisors(ctx context.Context) (*scheduler.StaleSupervisorCleanup, error) {
+func (c schedulerPresenceCleanup) CleanupStaleSupervisors(ctx context.Context) (*schedulerPorts.StaleSupervisorCleanup, error) {
 	result, err := c.presence.CleanupStaleSupervisors(ctx)
 	if result == nil {
 		return nil, err
 	}
-	return &scheduler.StaleSupervisorCleanup{RecordsClosed: result.RecordsClosed, Success: result.Success}, err
+	return &schedulerPorts.StaleSupervisorCleanup{RecordsClosed: result.RecordsClosed, Success: result.Success}, err
 }
 
-func (c schedulerPresenceCleanup) CleanupStaleAttendance(ctx context.Context) (*scheduler.StaleAttendanceCleanup, error) {
+func (c schedulerPresenceCleanup) CleanupStaleAttendance(ctx context.Context) (*schedulerPorts.StaleAttendanceCleanup, error) {
 	result, err := c.presence.CleanupStaleAttendance(ctx)
 	if result == nil {
 		return nil, err
 	}
-	return &scheduler.StaleAttendanceCleanup{
+	return &schedulerPorts.StaleAttendanceCleanup{
 		RecordsClosed:    result.RecordsClosed,
 		StudentsAffected: result.StudentsAffected,
 		Success:          result.Success,
@@ -110,16 +110,16 @@ func endOfDayStatusForFlag(flagColumn string) (string, error) {
 
 // pwaUsageCleanup hands the Delivery Platform's standalone usage sweep to the
 // Worker. A nil service leaves the job unregistered.
-func pwaUsageCleanup(service deliveryCompose.PWAUsageService) scheduler.PWAUsageCleanup {
+func pwaUsageCleanup(service deliveryCompose.PWAUsageService) schedulerPorts.PWAUsageCleanup {
 	if service == nil {
 		return nil
 	}
-	return func(ctx context.Context) (scheduler.PWAUsageCleanupResult, error) {
+	return func(ctx context.Context) (schedulerPorts.PWAUsageCleanupResult, error) {
 		result, err := service.CleanupExpiredUsage(ctx)
 		if result == nil {
-			return scheduler.PWAUsageCleanupResult{}, err
+			return schedulerPorts.PWAUsageCleanupResult{}, err
 		}
-		return scheduler.PWAUsageCleanupResult{RowsDeleted: result.RowsDeleted, RetentionDays: result.RetentionDays}, err
+		return schedulerPorts.PWAUsageCleanupResult{RowsDeleted: result.RowsDeleted, RetentionDays: result.RetentionDays}, err
 	}
 }
 
@@ -129,7 +129,7 @@ type schedulerOverdueBroadcaster struct {
 	hub realtime.Broadcaster
 }
 
-func newSchedulerOverdueBroadcaster(hub *realtime.Hub) scheduler.InstanceOverdueBroadcaster {
+func newSchedulerOverdueBroadcaster(hub *realtime.Hub) schedulerPorts.InstanceOverdueBroadcaster {
 	if hub == nil {
 		return nil
 	}

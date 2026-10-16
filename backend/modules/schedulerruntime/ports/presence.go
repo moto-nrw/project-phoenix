@@ -1,4 +1,4 @@
-package scheduler
+package ports
 
 import (
 	"context"
@@ -6,10 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
-
-// The Worker's ports onto Student Presence, Care Plan and the Delivery
-// Platform's standalone usage and live events. They name only what the jobs
-// need; the root binds them to the owners (ADR 0058 point 2).
 
 // DailySessionsEnded is what ending a school's daily sessions reports.
 // EndedActiveGroupIDs are the active groups the session end closed; the

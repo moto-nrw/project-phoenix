@@ -4,32 +4,30 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
-)
 
-// JobID is the stable identity used for worker registration and runtime
-// evidence.
-type JobID string
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+)
 
 // Job is one embedded worker job. Start registers its polling loop with the
 // worker lifecycle.
 type Job interface {
-	ID() JobID
+	ID() ports.JobID
 	Start()
 }
 
 // Registry owns the complete ordered set of embedded worker jobs.
 type Registry struct {
 	jobs []Job
-	ids  []JobID
+	ids  []ports.JobID
 }
 
 // NewRegistry validates the worker graph before any job can start.
-func NewRegistry(required []JobID, jobs ...Job) (*Registry, error) {
+func NewRegistry(required []ports.JobID, jobs ...Job) (*Registry, error) {
 	requiredIDs, err := requiredJobIDSet(required)
 	if err != nil {
 		return nil, err
 	}
-	byID := make(map[JobID]Job, len(jobs))
+	byID := make(map[ports.JobID]Job, len(jobs))
 	for index, job := range jobs {
 		if isNilJob(job) {
 			return nil, fmt.Errorf("nil worker job at index %d", index)
@@ -47,11 +45,11 @@ func NewRegistry(required []JobID, jobs ...Job) (*Registry, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &Registry{jobs: ordered, ids: append([]JobID(nil), required...)}, nil
+	return &Registry{jobs: ordered, ids: append([]ports.JobID(nil), required...)}, nil
 }
 
-func requiredJobIDSet(required []JobID) (map[JobID]struct{}, error) {
-	ids := make(map[JobID]struct{}, len(required))
+func requiredJobIDSet(required []ports.JobID) (map[ports.JobID]struct{}, error) {
+	ids := make(map[ports.JobID]struct{}, len(required))
 	for _, id := range required {
 		if id == "" {
 			return nil, fmt.Errorf("empty required worker job ID")
@@ -64,7 +62,7 @@ func requiredJobIDSet(required []JobID) (map[JobID]struct{}, error) {
 	return ids, nil
 }
 
-func orderRequiredJobs(required []JobID, byID map[JobID]Job) ([]Job, error) {
+func orderRequiredJobs(required []ports.JobID, byID map[ports.JobID]Job) ([]Job, error) {
 	ordered := make([]Job, 0, len(required))
 	missing := make([]string, 0)
 	for _, id := range required {
@@ -99,8 +97,8 @@ func isNilDependency(dependency any) bool {
 }
 
 // IDs returns the stable job order used by logs and inventory checks.
-func (registry *Registry) IDs() []JobID {
-	return append([]JobID(nil), registry.ids...)
+func (registry *Registry) IDs() []ports.JobID {
+	return append([]ports.JobID(nil), registry.ids...)
 }
 
 // Start registers every validated job with the worker lifecycle.

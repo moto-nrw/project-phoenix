@@ -2,79 +2,23 @@ package scheduler
 
 import (
 	"fmt"
-	"log/slog"
-	"time"
-)
 
-// WorkerDependencies is the complete typed input to the embedded Worker root.
-// Construction replaces the former post-construction Set* graph.
-type WorkerDependencies struct {
-	Logger                    *slog.Logger
-	Getenv                    func(string) string
-	SchoolRepo                TenantDirectory
-	TenantRuntime             TenantRuntime
-	TenantRuntimeObserver     func(entryPoint, outcome string)
-	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
-	Tracer                    WorkerTracer
-	Settings                  SettingsResolver
-	Active                    SessionMaintenance
-	ActiveCleanup             PresenceCleanup
-	AuthCleanup               AuthCleanup
-	InvitationCleanup         InvitationCleaner
-	EmailChangeCleanup        EmailChangeTokenCleaner
-	OperatorInvitationCleanup OperatorInvitationCleaner
-	WorkSessionCleanup        WorkSessionCleaner
-	BreakAutoEnder            BreakAutoEnder
-	AutoCheckouter            AutoCheckouter
-	FeedbackCleaner           FeedbackCleaner
-	// Retention runs the owners' deletions of a school's nightly cleanup
-	// (#3950); NewRetentionRun builds it. CleanupRuns keeps each school's
-	// last successful nightly run.
-	Retention                 RetentionRun
-	CleanupRuns               CleanupRunLedger
-	StaffDocumentCleaner      StaffDocumentFileCleaner
-	StudentDocumentCleaner    StudentDocumentFileCleaner
-	FileStoreCleaner          FileStoreCleaner
-	Materializer              TimetableMaterializer
-	TimetableCleanup          TimetableCleanup
-	CalendarFeedCleanup       CalendarFeedCleaner
-	TimeTrackingCleanup       TimeTrackingCleanupService
-	StudentChangeLogCleanup   StudentChangeLogCleanup
-	PWAUsageCleanup           PWAUsageCleanup
-	StaffMessageCleanup       StaffMessageCleanup
-	BookingConsistency        BookingConsistencyAudit
-	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
-	AutoStart                 InstanceAutoStart
-	AutoEnd                   InstanceAutoEnd
-	InstanceRepo              DayInstanceReader
-	InstanceRoomRepo          ExistingRoomReader
-	InstanceStudentRepo       InstanceCheckoutCloser
-	TimetableBridge           TimetableBridgeCompleter
-	StudentStatusDayRepo      StudentStatusFlagArchiver
-	OverdueBroadcaster        InstanceOverdueBroadcaster
-	StudentLifecycleRepo      StudentLifecycleRepository
-	StudentLifecycleAudit     StudentLifecycleAuditor
-	CareExitEffector          CareExitEffector
-	OutboxWorker              OutboxWorkerRunner
-	RolloverDeadlineRunner    RolloverDeadlineRunner
-	ReminderNotifications     ReminderNotificationTick
-	// Lease elects the single Worker that runs jobs (#2726). Every Worker
-	// process, embedded in Serve or standalone, runs under it.
-	Lease WorkerLease
-	// AppointmentReminders is the established reminder capability consumed by
-	// the scheduler. It also exposes scheduled parent-announcement delivery,
-	// avoiding a second dependency in this shrink-only worker composition.
-	AppointmentReminders ReminderCommands
-}
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+)
 
 // NewWorker constructs and validates the complete embedded worker before the
 // Serve root can become ready.
-func NewWorker(deps WorkerDependencies) (*Scheduler, error) {
+func NewWorker(deps ports.WorkerDependencies) (*Scheduler, error) {
 	if err := validateWorkerDependencies(deps); err != nil {
 		return nil, err
 	}
 
+	retention, err := newRetentionRun(deps.RetentionSteps, deps.RetentionLog, deps.Logger)
+	if err != nil {
+		return nil, err
+	}
 	worker := newScheduler(deps)
+	worker.retention = retention
 	registry, err := NewRegistry(requiredWorkerJobIDs(), worker.jobDefinitions()...)
 	if err != nil {
 		return nil, fmt.Errorf("build worker registry: %w", err)
@@ -83,7 +27,7 @@ func NewWorker(deps WorkerDependencies) (*Scheduler, error) {
 	return worker, nil
 }
 
-func validateWorkerDependencies(deps WorkerDependencies) error {
+func validateWorkerDependencies(deps ports.WorkerDependencies) error {
 	required := []struct {
 		name  string
 		value any
@@ -104,11 +48,11 @@ func validateWorkerDependencies(deps WorkerDependencies) error {
 			return fmt.Errorf("worker dependency %s is required", dependency.name)
 		}
 	}
-	return deps.Lease.validate()
+	return validateWorkerLease(deps.Lease)
 }
 
-func requiredWorkerJobIDs() []JobID {
-	return []JobID{
+func requiredWorkerJobIDs() []ports.JobID {
+	return []ports.JobID{
 		"visit-cleanup",
 		"timetable-cleanup",
 		"time-tracking-cleanup",
@@ -141,7 +85,7 @@ func requiredWorkerJobIDs() []JobID {
 
 func (s *Scheduler) jobDefinitions() []Job {
 	jobs := make([]Job, 0, len(requiredWorkerJobIDs()))
-	add := func(ready bool, id JobID, start func()) {
+	add := func(ready bool, id ports.JobID, start func()) {
 		if ready {
 			jobs = append(jobs, schedulerJob{id: id, start: start})
 		}
@@ -177,10 +121,10 @@ func (s *Scheduler) jobDefinitions() []Job {
 }
 
 type schedulerJob struct {
-	id    JobID
+	id    ports.JobID
 	start func()
 }
 
-func (job schedulerJob) ID() JobID { return job.id }
+func (job schedulerJob) ID() ports.JobID { return job.id }
 
 func (job schedulerJob) Start() { job.start() }
