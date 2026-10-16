@@ -6,7 +6,6 @@ import (
 	"time"
 
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 )
 
@@ -150,11 +149,11 @@ func (p *Provisioning) GetSchoolPWAUsage(ctx context.Context, schoolID int64) (*
 		if _, err := p.findSchool(adminCtx, schoolID); err != nil {
 			return nil, err
 		}
-		rows, err := p.dashboard.PWAUsage(adminCtx, schoolID, pwa.UsageWindow)
+		rows, err := p.dashboard.PWAUsage(adminCtx, schoolID, time.Duration(p.pwaUsageWindowDays)*24*time.Hour)
 		if err != nil {
 			return nil, err
 		}
-		usage := &organizationtenancy.SchoolPWAUsage{WindowDays: pwa.UsageWindowDays}
+		usage := &organizationtenancy.SchoolPWAUsage{WindowDays: p.pwaUsageWindowDays}
 		for _, row := range rows {
 			portal := organizationtenancy.PWAPortalUsage{StandaloneUsers: row.StandaloneUsers, EligibleUsers: row.EligibleUsers}
 			switch row.Portal {

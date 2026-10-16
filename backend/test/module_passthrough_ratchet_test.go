@@ -169,7 +169,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 
 // modulePassthroughBudgetTotal is the sum of modulePassthroughBudgets.
 // Shrink-only, like every entry.
-const modulePassthroughBudgetTotal = 718
+const modulePassthroughBudgetTotal = 717
 
 // modulePassthroughBudgets is the register: module directory → pass-throughs
 // measured there. Sorted alphabetically so later diffs stay readable.
@@ -223,7 +223,7 @@ var modulePassthroughBudgets = map[string]int{
 	// the listings and the lookup that maps a miss to ErrPhaseNotFound),
 	// captcha (2: the tenant settings reads), the school brand and the
 	// approved-offering read by care offering follow.
-	"modules/enrollment": 17,
+	"modules/enrollment": 16,
 	// The target-state read, which only maps the port error to ErrUnavailable.
 	"modules/exporttransfer": 1,
 	// Room and toilet reads/writes in service.go.

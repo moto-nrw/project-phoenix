@@ -6,7 +6,6 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -26,7 +25,7 @@ type service struct {
 	// broadcaster announces group_access_changed after a write to either table
 	// that decides group access (#2084). Optional: services constructed without
 	// one (tests, CLI) simply emit nothing, they never fail the write.
-	broadcaster realtimeevents.Publisher
+	broadcaster GroupPublisher
 
 	// masterDataAudit records class assignment rewrites (#1772) in
 	// audit.staff_master_data_changes. Optional like the broadcaster.
@@ -37,7 +36,9 @@ type service struct {
 // that changed who may open which group. Typed handovers must be ended before
 // group deletion or staff offboarding; legacy cleanup still uses this signal.
 func (s *service) announceGroupAccessChanged(ctx context.Context, source string) {
-	realtimeevents.QueueGroupAccessChanged(ctx, s.broadcaster, nil, source)
+	if s.broadcaster != nil {
+		s.broadcaster.QueueGroupAccessChanged(ctx, source)
+	}
 }
 
 // NewService creates a new education service instance
@@ -51,7 +52,7 @@ func NewService(
 	students StudentCounter,
 	substitutionRepo HandoverReader,
 	runtime Runtime,
-	broadcaster realtimeevents.Publisher,
+	broadcaster GroupPublisher,
 	audit ClassAssignmentAudit,
 ) Service {
 	if runtime == nil {
