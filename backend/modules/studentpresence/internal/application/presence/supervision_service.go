@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -132,7 +131,7 @@ func (s *service) DeleteGroupSupervisor(ctx context.Context, id int64) error {
 func (s *service) EndSupervision(ctx context.Context, id int64) error {
 	supervision, err := s.SupervisorRepo.FindByID(ctx, id)
 	if err != nil {
-		if base.IsNoRows(err) {
+		if IsNoRows(err) {
 			return &ActiveError{Op: "EndSupervision", Err: ErrGroupSupervisorNotFound}
 		}
 		return &ActiveError{Op: "EndSupervision", Err: fmt.Errorf("failed to verify supervision: %w", err)}

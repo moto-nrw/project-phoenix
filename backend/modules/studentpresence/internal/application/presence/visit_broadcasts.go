@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -48,7 +47,7 @@ func (s *service) emitVisitCheckout(
 	activeGroupID := fmt.Sprintf("%d", endedVisit.ActiveGroupID)
 	eduGroupIDs := eduGroupIDsOf(educationGroupID)
 
-	realtimeevents.PublishVisitCheckOut(ctx, s.Broadcaster, s.getLogger(), realtimeevents.VisitChange{
+	s.Broadcaster.VisitCheckedOut(ctx, studentpresence.LiveVisitChange{
 		ActiveGroupID:    activeGroupID,
 		StudentID:        fmt.Sprintf("%d", endedVisit.StudentID),
 		EducationGroupID: educationGroupID,
@@ -123,12 +122,12 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 
 	// One event to the active-group topic carrying every checked-out student
 	// and every affected educational group.
-	realtimeevents.PublishBulkStudentChange(ctx, s.Broadcaster, s.getLogger(), false, sessionIDStr, allStudentIDs, allEduGroupIDs)
+	s.Broadcaster.BulkStudentChange(ctx, false, sessionIDStr, allStudentIDs, allEduGroupIDs)
 
 	// One event per distinct educational group, carrying only that group's
 	// students so each subscribed client invalidates the right detail caches.
 	for gid, ids := range eduGroups {
-		realtimeevents.PublishBulkStudentChangeToEducationGroup(ctx, s.Broadcaster, s.getLogger(), false, sessionIDStr, gid, ids)
+		s.Broadcaster.BulkStudentChangeToEducationGroup(ctx, false, sessionIDStr, gid, ids)
 	}
 
 	// Single tenant-wide broadcast for the entire batch, scoped to the
@@ -141,7 +140,10 @@ func (s *service) broadcastStudentCheckoutEvents(ctx context.Context, sessionIDS
 // ending transaction, because this runs from an after-commit hook where no
 // tenant role is set (#2951).
 func (s *service) broadcastActivityEndEvent(ctx context.Context, sessionIDStr string, data activityEndSSEData) {
-	realtimeevents.PublishActivityEnd(ctx, s.Broadcaster, s.getLogger(), realtimeevents.ActivitySession{
+	if s.Broadcaster == nil {
+		return
+	}
+	s.Broadcaster.SessionEnded(ctx, studentpresence.LiveSessionChange{
 		ActiveGroupID: sessionIDStr,
 		ActivityName:  data.ActivityName,
 		RoomID:        fmt.Sprintf("%d", data.RoomID),

@@ -66,7 +66,7 @@ func newServiceWithPresenceSync(t *testing.T, db *testpkg.DB, presence active.St
 		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
 		Logger:             slog.Default(),
 	}
 	if len(now) > 0 {
@@ -240,7 +240,7 @@ func TestBroadcast_UpdateVisitMoveSendsMovementEvents(t *testing.T) {
 		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student),
 		DeviceRepo:         api.NewSessionDeviceDirectory(devices, nil, nil),
 		DB:                 db,
-		Broadcaster:        broadcaster,
+		Broadcaster:        api.NewPresenceEvents(broadcaster, nil),
 		Logger:             slog.Default(),
 	})
 

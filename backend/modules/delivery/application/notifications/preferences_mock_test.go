@@ -10,6 +10,7 @@ import (
 
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -149,7 +150,7 @@ func TestGetForAccountMergesStoredDecisions(t *testing.T) {
 		notifications.TypePickupUpcoming: true,
 		notifications.TypePickupOverdue:  false,
 	}}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 	overview, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
 	require.NoError(t, err)
@@ -179,7 +180,7 @@ func TestGetForAccountMarksSchoolGatedTypesUnavailable(t *testing.T) {
 			return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
 		},
 	}
-	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
+	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)
 
 	overview, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
 	require.NoError(t, err)
@@ -197,14 +198,14 @@ func TestGetForAccountFailures(t *testing.T) {
 	t.Parallel()
 
 	t.Run("account id is required", func(t *testing.T) {
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		_, err := svc.GetForAccount(context.Background(), 0, notifications.PortalStaff)
 		require.Error(t, err)
 	})
 
 	t.Run("a failing repository surfaces", func(t *testing.T) {
 		repo := &fakePreferenceRepo{listErr: errors.New("boom")}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		_, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
 		require.Error(t, err)
 	})
@@ -213,13 +214,13 @@ func TestGetForAccountFailures(t *testing.T) {
 		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return false, errors.New("boom") },
 		}
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)
 		_, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
 		require.Error(t, err, "a broken read must not silently widen or narrow who gets notified")
 	})
 
 	t.Run("a missing settings service surfaces", func(t *testing.T) {
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, nil, nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, nil, nil, nil, securityruntime.HasPermission)
 		_, err := svc.GetForAccount(context.Background(), prefAccountA, notifications.PortalStaff)
 		require.ErrorContains(t, err, "no settings service configured")
 	})
@@ -230,7 +231,7 @@ func TestSetForAccount(t *testing.T) {
 
 	t.Run("records the decision", func(t *testing.T) {
 		repo := &fakePreferenceRepo{}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		require.NoError(t, svc.SetForAccount(context.Background(), prefAccountA, notifications.TypePickupUpcoming, true))
 
@@ -242,7 +243,7 @@ func TestSetForAccount(t *testing.T) {
 
 	t.Run("an unknown type is rejected", func(t *testing.T) {
 		repo := &fakePreferenceRepo{}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		err := svc.SetForAccount(context.Background(), prefAccountA, "not_a_type", true)
 		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
@@ -251,7 +252,7 @@ func TestSetForAccount(t *testing.T) {
 
 	t.Run("a parent type is rejected on the staff portal", func(t *testing.T) {
 		repo := &fakePreferenceRepo{}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		err := svc.SetForAccount(context.Background(), prefAccountA, notifications.TypeParentAnnouncement, true)
 		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
@@ -259,13 +260,13 @@ func TestSetForAccount(t *testing.T) {
 	})
 
 	t.Run("account id is required", func(t *testing.T) {
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		require.Error(t, svc.SetForAccount(context.Background(), 0, notifications.TypePickupUpcoming, true))
 	})
 
 	t.Run("a failing write surfaces", func(t *testing.T) {
 		repo := &fakePreferenceRepo{upsertErr: errors.New("boom")}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		require.Error(t, svc.SetForAccount(context.Background(), prefAccountA, notifications.TypePickupUpcoming, true))
 	})
 }
@@ -274,7 +275,7 @@ func TestDisableAllForAccount(t *testing.T) {
 	t.Parallel()
 
 	repo := &fakePreferenceRepo{}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 	require.NoError(t, svc.DisableAllForAccount(context.Background(), prefAccountA))
 	assert.Equal(t, []int64{prefAccountA}, repo.disabled)
@@ -285,7 +286,7 @@ func TestDisableAllForAccount(t *testing.T) {
 
 	require.Error(t, svc.DisableAllForAccount(context.Background(), 0))
 
-	failing := notifications.NewPreferenceService(&fakePreferenceRepo{disableErr: errors.New("boom")}, allSettingsOn(), nil, nil)
+	failing := notifications.NewPreferenceService(&fakePreferenceRepo{disableErr: errors.New("boom")}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 	require.Error(t, failing.DisableAllForAccount(context.Background(), prefAccountA))
 }
 
@@ -300,7 +301,7 @@ func TestFilterOptedIn(t *testing.T) {
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
 			notifications.TypePickupUpcoming: {prefAccountA},
 		}}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		got, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.NoError(t, err)
@@ -310,7 +311,7 @@ func TestFilterOptedIn(t *testing.T) {
 	})
 
 	t.Run("no candidates means nobody", func(t *testing.T) {
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		got, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, nil)
 		require.NoError(t, err)
 		assert.Empty(t, got)
@@ -318,7 +319,7 @@ func TestFilterOptedIn(t *testing.T) {
 
 	t.Run("an unknown type fails closed", func(t *testing.T) {
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{"": candidates}}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		got, err := svc.FilterOptedIn(context.Background(), "not_a_type", candidates)
 		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
@@ -334,7 +335,7 @@ func TestFilterOptedIn(t *testing.T) {
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
 			notifications.TypePickupUpcoming: candidates,
 		}}
-		svc := notifications.NewPreferenceService(repo, settings, nil, nil)
+		svc := notifications.NewPreferenceService(repo, settings, nil, nil, securityruntime.HasPermission)
 
 		got, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.NoError(t, err)
@@ -350,7 +351,7 @@ func TestFilterOptedIn(t *testing.T) {
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
 			notifications.TypeParentRequestDecided: candidates,
 		}}
-		svc := notifications.NewPreferenceService(repo, settings, nil, nil)
+		svc := notifications.NewPreferenceService(repo, settings, nil, nil, securityruntime.HasPermission)
 
 		got, err := svc.FilterOptedIn(context.Background(), notifications.TypeParentRequestDecided, candidates)
 		require.NoError(t, err)
@@ -361,14 +362,14 @@ func TestFilterOptedIn(t *testing.T) {
 		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, _ string) (bool, error) { return false, errors.New("boom") },
 		}
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)
 		_, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.Error(t, err)
 	})
 
 	t.Run("a failing repository surfaces", func(t *testing.T) {
 		repo := &fakePreferenceRepo{filterErr: errors.New("boom")}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		_, err := svc.FilterOptedIn(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.Error(t, err)
 	})
@@ -381,7 +382,7 @@ func TestHasAnyOptedIn(t *testing.T) {
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
 			notifications.TypePickupUpcoming: {prefAccountA},
 		}}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		hasAny, err := svc.HasAnyOptedIn(context.Background(), []string{
 			notifications.TypePickupUpcoming,
@@ -394,7 +395,7 @@ func TestHasAnyOptedIn(t *testing.T) {
 
 	t.Run("unknown types fail closed before the repository", func(t *testing.T) {
 		repo := &fakePreferenceRepo{}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		hasAny, err := svc.HasAnyOptedIn(context.Background(), []string{"not_a_type"})
 		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
@@ -404,7 +405,7 @@ func TestHasAnyOptedIn(t *testing.T) {
 
 	t.Run("repository failure surfaces", func(t *testing.T) {
 		repo := &fakePreferenceRepo{filterErr: errors.New("boom")}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		_, err := svc.HasAnyOptedIn(context.Background(), []string{notifications.TypePickupUpcoming})
 		require.Error(t, err)
@@ -434,7 +435,7 @@ func TestFilterOptedInByTypeBatchesGatesAndPreferences(t *testing.T) {
 		notifications.TypeActivityStart:      {prefAccountB},
 		notifications.TypeMyActivityStarting: {prefAccountB},
 	}}
-	svc := notifications.NewPreferenceService(repo, settings, nil, nil)
+	svc := notifications.NewPreferenceService(repo, settings, nil, nil, securityruntime.HasPermission)
 
 	got, err := svc.FilterOptedInByType(context.Background(), []string{
 		notifications.TypePickupUpcoming,
@@ -465,7 +466,7 @@ func TestFilterNotOptedOut(t *testing.T) {
 		repo := &fakePreferenceRepo{optedOut: map[string][]int64{
 			notifications.TypeParentAnnouncement: {prefAccountA},
 		}}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 
 		got, err := svc.FilterNotOptedOut(context.Background(), notifications.TypeParentAnnouncement, candidates)
 		require.NoError(t, err)
@@ -474,14 +475,14 @@ func TestFilterNotOptedOut(t *testing.T) {
 	})
 
 	t.Run("no candidates means nobody", func(t *testing.T) {
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		got, err := svc.FilterNotOptedOut(context.Background(), notifications.TypeParentAnnouncement, nil)
 		require.NoError(t, err)
 		assert.Empty(t, got)
 	})
 
 	t.Run("an unknown type fails closed", func(t *testing.T) {
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		got, err := svc.FilterNotOptedOut(context.Background(), "not_a_type", candidates)
 		require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
 		assert.Empty(t, got)
@@ -493,7 +494,7 @@ func TestFilterNotOptedOut(t *testing.T) {
 				return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
 			},
 		}
-		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil)
+		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)
 
 		got, err := svc.FilterNotOptedOut(context.Background(), notifications.TypePickupUpcoming, candidates)
 		require.NoError(t, err)
@@ -502,7 +503,7 @@ func TestFilterNotOptedOut(t *testing.T) {
 
 	t.Run("a failing repository surfaces", func(t *testing.T) {
 		repo := &fakePreferenceRepo{filterErr: errors.New("boom")}
-		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil)
+		svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 		_, err := svc.FilterNotOptedOut(context.Background(), notifications.TypeParentAnnouncement, candidates)
 		require.Error(t, err, "a broken read must not read as consent")
 	})
@@ -514,7 +515,7 @@ func TestFilterNotOptedOut(t *testing.T) {
 func TestGuardianPathsRequireTheirDependencies(t *testing.T) {
 	t.Parallel()
 
-	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil)
+	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, nil, securityruntime.HasPermission)
 	ctx := context.Background()
 
 	_, err := svc.GetForParent(ctx, prefAccountA)

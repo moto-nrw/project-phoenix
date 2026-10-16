@@ -28,7 +28,7 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -36,11 +36,11 @@ import (
 
 // stubSettings answers only the lookups the messaging service makes: the
 // parent-messaging feature flag and the staff-name visibility flag. Every other
-// SettingsService method is inherited from the embedded nil interface and would
+// settings method is inherited from the embedded nil interface and would
 // panic if unexpectedly called — student read access no longer consults any
 // setting (#2329), it follows from the caller's staff record alone.
 type stubSettings struct {
-	configService.SettingsService
+	parentmessaging.SettingsResolver
 	messagingEnabled bool
 	// staffNameVisible answers operations.parent_message_staff_name_visible, the
 	// flag the send path freezes onto each staff message. Defaults false so
@@ -103,6 +103,7 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := messaging.NewService(messaging.Config{
+		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: parentStore.NewParentMessageRepository(db),
 		ReadRepo:    repos.ParentMessageRead,
@@ -658,7 +659,8 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 	// Rebuild the service with the feature OFF, same DB.
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
 	disabled := messaging.NewService(messaging.Config{
-		ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
 		Settings:    stubSettings{messagingEnabled: false},
 		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),

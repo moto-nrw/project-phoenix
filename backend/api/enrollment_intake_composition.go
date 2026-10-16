@@ -38,7 +38,7 @@ func NewEnrollmentIntake(src EnrollmentIntakeSources) *enrollmentCompose.Intake 
 // intake's admin notification (#3780): the configured addresses plus every
 // enrollment manager of the school who switched "Neue Anmeldung" on.
 func NewEnrollmentAdminSubscribers(subscribers deliveryCompose.EmailSubscribers, accounts deliveryCompose.EmailAccounts) enrollmentCompose.AdminMailSubscribers {
-	return enrollmentAdminSubscribers{resolver: deliveryCompose.NewEmailRecipientResolver(subscribers, accounts)}
+	return enrollmentAdminSubscribers{resolver: deliveryCompose.NewEmailRecipientResolver(subscribers, accounts, securityruntime.HasPermission)}
 }
 
 type enrollmentAdminSubscribers struct {

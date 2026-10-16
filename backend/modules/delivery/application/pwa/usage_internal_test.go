@@ -76,6 +76,14 @@ func retentionSettings(days int) *settingsDouble {
 	}
 }
 
+// TestPWAUsageRetentionKeyMatchesTheRegistry pins the restated key to the
+// Settings Platform's name: a renamed registry key must fail here, not resolve
+// nothing at runtime.
+func TestPWAUsageRetentionKeyMatchesTheRegistry(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, configModel.KeyGDPRPWAUsageRetentionDays, settingPWAUsageRetentionDays)
+}
+
 func TestUsageServiceReportStaff(t *testing.T) {
 	t.Parallel()
 

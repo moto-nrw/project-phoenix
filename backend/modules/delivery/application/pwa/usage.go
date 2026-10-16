@@ -12,7 +12,6 @@ import (
 	"sync"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -25,6 +24,11 @@ const (
 	UsageWindowDays = 30
 	UsageWindow     = UsageWindowDays * 24 * time.Hour
 )
+
+// settingPWAUsageRetentionDays is the Settings Platform registry key of the
+// retention period. The registry owns it; this package may not import it, so
+// TestPWAUsageRetentionKeyMatchesTheRegistry pins the name.
+const settingPWAUsageRetentionDays = "gdpr.pwa_usage_retention_days"
 
 // snapshotTTL bounds how often a Prometheus scrape may hit the database.
 const snapshotTTL = time.Minute
@@ -176,7 +180,7 @@ func (s *usageService) CleanupExpiredUsage(ctx context.Context) (*CleanupResult,
 	if s.settings == nil {
 		return nil, fmt.Errorf("pwa usage cleanup: settings service not configured")
 	}
-	retentionDays, err := s.settings.ResolveInt(ctx, configModel.KeyGDPRPWAUsageRetentionDays)
+	retentionDays, err := s.settings.ResolveInt(ctx, settingPWAUsageRetentionDays)
 	if err != nil {
 		return nil, fmt.Errorf("resolve pwa usage retention: %w", err)
 	}

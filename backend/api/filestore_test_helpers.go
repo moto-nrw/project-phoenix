@@ -57,6 +57,7 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
 		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New())), Settings: settings.Settings, Logger: slog.Default(),
+		Fingerprints: SecurityFingerprints{},
 	})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db.Pool(),

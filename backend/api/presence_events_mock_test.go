@@ -1,9 +1,10 @@
-package realtimeevents
+package api
 
 import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -13,14 +14,14 @@ func presenceCtx() context.Context {
 	return testpkg.ContextForTenant(context.Background(), 42)
 }
 
-func TestPublishVisitCheckInRoutesToSessionAndEducationTopics(t *testing.T) {
+func TestPresenceEventsVisitCheckInRoutesToSessionAndEducationTopics(t *testing.T) {
 	t.Parallel()
 	publisher := testpkg.NewRecordingBroadcaster()
 	education := int64(7)
 	substatus := "late"
-	PublishVisitCheckIn(presenceCtx(), publisher, nil, VisitChange{
+	NewPresenceEvents(publisher, nil).VisitCheckedIn(presenceCtx(), studentpresence.LiveVisitChange{
 		ActiveGroupID: "12", StudentID: "99", EducationGroupID: &education, Source: "web",
-		Attendance: &AttendanceDetail{Status: "present", Substatus: &substatus},
+		Attendance: &studentpresence.LiveAttendanceDetail{Status: "present", Substatus: &substatus},
 	})
 
 	calls := publisher.Calls()
@@ -44,10 +45,10 @@ func TestPublishVisitCheckInRoutesToSessionAndEducationTopics(t *testing.T) {
 	}
 }
 
-func TestPublishVisitCheckOutOmitsAbsentScopeFields(t *testing.T) {
+func TestPresenceEventsVisitCheckOutOmitsAbsentScopeFields(t *testing.T) {
 	t.Parallel()
 	publisher := testpkg.NewRecordingBroadcaster()
-	PublishVisitCheckOut(presenceCtx(), publisher, nil, VisitChange{ActiveGroupID: "12", StudentID: "99"})
+	NewPresenceEvents(publisher, nil).VisitCheckedOut(presenceCtx(), studentpresence.LiveVisitChange{ActiveGroupID: "12", StudentID: "99"})
 
 	calls := publisher.Calls()
 	require.Len(t, calls, 1)
@@ -57,14 +58,14 @@ func TestPublishVisitCheckOutOmitsAbsentScopeFields(t *testing.T) {
 	assert.Nil(t, calls[0].Event.Data.AttendanceStatus)
 }
 
-func TestPublishRoomlessAttendanceChangeReachesOnlyTheEducationTopic(t *testing.T) {
+func TestPresenceEventsRoomlessAttendanceChangeReachesOnlyTheEducationTopic(t *testing.T) {
 	t.Parallel()
 	publisher := testpkg.NewRecordingBroadcaster()
-	PublishRoomlessAttendanceChange(presenceCtx(), publisher, nil, false, VisitChange{StudentID: "99"})
+	NewPresenceEvents(publisher, nil).RoomlessAttendanceChanged(presenceCtx(), false, studentpresence.LiveVisitChange{StudentID: "99"})
 	assert.Empty(t, publisher.Calls(), "without an educational group there is nobody to notify")
 
 	education := int64(7)
-	PublishRoomlessAttendanceChange(presenceCtx(), publisher, nil, true, VisitChange{ActiveGroupID: "ignored", StudentID: "99", EducationGroupID: &education, Source: "toggle"})
+	NewPresenceEvents(publisher, nil).RoomlessAttendanceChanged(presenceCtx(), true, studentpresence.LiveVisitChange{ActiveGroupID: "ignored", StudentID: "99", EducationGroupID: &education, Source: "toggle"})
 	calls := publisher.Calls()
 	require.Len(t, calls, 1)
 	assert.Equal(t, "edu:7", calls[0].Topic)
@@ -74,11 +75,11 @@ func TestPublishRoomlessAttendanceChangeReachesOnlyTheEducationTopic(t *testing.
 	assert.Equal(t, "toggle", *calls[0].Event.Data.Source)
 }
 
-func TestPublishBulkStudentChangeSplitsSessionAndEducationTopics(t *testing.T) {
+func TestPresenceEventsBulkStudentChangeSplitsSessionAndEducationTopics(t *testing.T) {
 	t.Parallel()
 	publisher := testpkg.NewRecordingBroadcaster()
-	PublishBulkStudentChange(presenceCtx(), publisher, nil, false, "12", []string{"1", "2"}, []string{"7"})
-	PublishBulkStudentChangeToEducationGroup(presenceCtx(), publisher, nil, true, "", 7, []string{"2"})
+	NewPresenceEvents(publisher, nil).BulkStudentChange(presenceCtx(), false, "12", []string{"1", "2"}, []string{"7"})
+	NewPresenceEvents(publisher, nil).BulkStudentChangeToEducationGroup(presenceCtx(), true, "", 7, []string{"2"})
 
 	calls := publisher.Calls()
 	require.Len(t, calls, 2)
@@ -98,11 +99,11 @@ func TestPublishBulkStudentChangeSplitsSessionAndEducationTopics(t *testing.T) {
 	assert.Equal(t, []string{"7"}, *calls[1].Event.Data.GroupIDs)
 }
 
-func TestPublishActivityLifecycleCarriesRoomFacts(t *testing.T) {
+func TestPresenceEventsSessionLifecycleCarriesRoomFacts(t *testing.T) {
 	t.Parallel()
 	publisher := testpkg.NewRecordingBroadcaster()
-	PublishActivityStart(presenceCtx(), publisher, nil, ActivitySession{ActiveGroupID: "12", ActivityName: "Fußball", RoomID: "3", RoomName: "Halle", SupervisorIDs: []string{"5"}})
-	PublishActivityEnd(presenceCtx(), publisher, nil, ActivitySession{ActiveGroupID: "12", ActivityName: "Fußball", RoomID: "3", RoomName: "Halle"})
+	NewPresenceEvents(publisher, nil).SessionStarted(presenceCtx(), studentpresence.LiveSessionChange{ActiveGroupID: "12", ActivityName: "Fußball", RoomID: "3", RoomName: "Halle", SupervisorIDs: []string{"5"}})
+	NewPresenceEvents(publisher, nil).SessionEnded(presenceCtx(), studentpresence.LiveSessionChange{ActiveGroupID: "12", ActivityName: "Fußball", RoomID: "3", RoomName: "Halle"})
 
 	calls := publisher.Calls()
 	require.Len(t, calls, 2)
@@ -122,11 +123,11 @@ func TestPublishActivityLifecycleCarriesRoomFacts(t *testing.T) {
 	}
 }
 
-func TestTenantRefreshesScopeOptionally(t *testing.T) {
+func TestPresenceEventsTenantRefreshesScopeOptionally(t *testing.T) {
 	t.Parallel()
 	publisher := testpkg.NewRecordingBroadcaster()
-	PublishSupervisionRefresh(presenceCtx(), publisher, nil, "12", "student_moved", []string{"7"})
-	PublishDashboardCountsChanged(presenceCtx(), publisher, nil, nil)
+	NewPresenceEvents(publisher, nil).SupervisionRefresh(presenceCtx(), "12", "student_moved", []string{"7"})
+	NewPresenceEvents(publisher, nil).DashboardCountsChanged(presenceCtx(), nil)
 
 	calls := publisher.CallsByMethod("tenant")
 	require.Len(t, calls, 2)
@@ -143,14 +144,14 @@ func TestTenantRefreshesScopeOptionally(t *testing.T) {
 	assert.Nil(t, calls[1].Event.Data.GroupIDs)
 }
 
-func TestPresenceProducersIgnoreMissingPublisher(t *testing.T) {
+func TestPresenceEventsIgnoreMissingPublisher(t *testing.T) {
 	t.Parallel()
 	ctx := presenceCtx()
 	assert.NotPanics(t, func() {
-		PublishVisitCheckIn(ctx, nil, nil, VisitChange{ActiveGroupID: "12", StudentID: "99"})
-		PublishBulkStudentChange(ctx, nil, nil, true, "12", nil, nil)
-		PublishActivityStart(ctx, nil, nil, ActivitySession{ActiveGroupID: "12"})
-		PublishSupervisionRefresh(ctx, nil, nil, "12", "student_moved", nil)
-		PublishDashboardCountsChanged(ctx, nil, nil, nil)
+		NewPresenceEvents(nil, nil).VisitCheckedIn(ctx, studentpresence.LiveVisitChange{ActiveGroupID: "12", StudentID: "99"})
+		NewPresenceEvents(nil, nil).BulkStudentChange(ctx, true, "12", nil, nil)
+		NewPresenceEvents(nil, nil).SessionStarted(ctx, studentpresence.LiveSessionChange{ActiveGroupID: "12"})
+		NewPresenceEvents(nil, nil).SupervisionRefresh(ctx, "12", "student_moved", nil)
+		NewPresenceEvents(nil, nil).DashboardCountsChanged(ctx, nil)
 	})
 }

@@ -279,8 +279,8 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	settings := parentSettingsStub{boolDefault: true}
-	emitter := communicationtest.NewParentEventEmitter(
-		db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
+	emitter := api.NewParentEventEmitter(
+		testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{

@@ -31,7 +31,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 
-	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
@@ -51,7 +51,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           emitter,
 		Logger:            slog.Default(),
 	})
@@ -95,7 +95,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 	// Capture the EMITTER's broadcaster (distinct from the service's own): the
 	// guardian fan-out rides BroadcastChildUpdateToGuardians on the emitter.
 	emitterBC := testpkg.NewRecordingBroadcaster()
-	emitter := communicationtest.NewParentEventEmitter(db, testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db), repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db),
 		parentSettingsStub{boolDefault: true}, emitterBC, slog.Default())
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		CarePlan:       repos.CarePlan(),
@@ -115,7 +115,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:   repos.ParentMessageRead,
-		Conversations:     communicationtest.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Emitter:           emitter,
 		Logger:            slog.Default(),
 	})

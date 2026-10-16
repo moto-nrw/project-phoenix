@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -44,7 +45,7 @@ func (s *emailConsentStub) RecordConsent(_ context.Context, accountID int64, not
 }
 
 func emailRouter(db *bun.DB, consent *emailConsentStub) chi.Router {
-	return NewResource(nil, nil, notificationsService.NewPreferenceService(consent, nil, nil, nil)).Router()
+	return NewResource(nil, nil, notificationsService.NewPreferenceService(consent, nil, nil, nil, securityruntime.HasPermission)).Router()
 }
 
 const enrollmentEmailPath = "/email-subscriptions/" + notificationsService.TypeEnrollmentSubmitted
@@ -112,7 +113,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 
 	t.Run("the school portal does not offer it", func(t *testing.T) {
 		prefs := &emailConsentStub{}
-		router := NewResource(nil, nil, notificationsService.NewPreferenceService(prefs, nil, nil, nil)).SchoolRouter()
+		router := NewResource(nil, nil, notificationsService.NewPreferenceService(prefs, nil, nil, nil, securityruntime.HasPermission)).SchoolRouter()
 
 		code, _ := do(t, router, manager, http.MethodGet, enrollmentEmailPath, nil)
 		assert.NotEqual(t, http.StatusOK, code)
