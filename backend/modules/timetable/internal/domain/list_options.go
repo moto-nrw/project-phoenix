@@ -49,7 +49,8 @@ type ListCondition struct {
 }
 
 // ListFilter holds the conditions of a list query and the alternative and
-// grouped filters the repositories reject as compound.
+// grouped filters the repositories reject as compound. Nothing builds a
+// grouped filter any more; the repositories still reject one.
 type ListFilter struct {
 	conditions []ListCondition
 	or         []ListFilter
@@ -75,10 +76,6 @@ func (f *ListFilter) GreaterThan(field string, value any) *ListFilter {
 	return f.Where(field, ListOpGreaterThan, value)
 }
 
-func (f *ListFilter) LessThan(field string, value any) *ListFilter {
-	return f.Where(field, ListOpLessThan, value)
-}
-
 func (f *ListFilter) ILike(field, value string) *ListFilter {
 	return f.Where(field, ListOpILike, value)
 }
@@ -90,12 +87,6 @@ func (f *ListFilter) In(field string, values ...any) *ListFilter {
 // Or adds an alternative filter.
 func (f *ListFilter) Or(filter ListFilter) *ListFilter {
 	f.or = append(f.or, filter)
-	return f
-}
-
-// And adds a grouped filter.
-func (f *ListFilter) And(filter ListFilter) *ListFilter {
-	f.and = append(f.and, filter)
 	return f
 }
 
