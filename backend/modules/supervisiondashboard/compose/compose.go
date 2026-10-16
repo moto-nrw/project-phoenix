@@ -1,6 +1,6 @@
 // Package compose names the supervision dashboard for the typed root: the
-// sources it reads, its constructor and the yard view. The dashboard's
-// adapter stays inside the owner (ADR 0053 point 2).
+// sources it reads and its constructor. The dashboard's adapter stays inside
+// the owner (ADR 0053 point 2).
 package compose
 
 import supervisiondashboardlegacy "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/legacy"
@@ -12,16 +12,8 @@ type Sources = supervisiondashboardlegacy.Sources
 // the dashboard's caller port (#4006).
 type CallerGroup = supervisiondashboardlegacy.CallerGroup
 
-// CallerContext is the caller the dashboard resolves its groups for, and
-// OpenRoomSessions are the running sessions it shows (#4006, #4010).
-type (
-	CallerContext    = supervisiondashboardlegacy.CallerContext
-	OpenRoomSessions = supervisiondashboardlegacy.OpenRoomSessions
-)
+// OpenRoomSessions are the running sessions the dashboard shows (#4010).
+type OpenRoomSessions = supervisiondashboardlegacy.OpenRoomSessions
 
-var (
-	// New builds the supervision dashboard over its sources.
-	New = supervisiondashboardlegacy.New
-	// NewYard adapts the yard service to the dashboard's yard view.
-	NewYard = supervisiondashboardlegacy.NewYard
-)
+// New builds the supervision dashboard over its sources.
+var New = supervisiondashboardlegacy.New

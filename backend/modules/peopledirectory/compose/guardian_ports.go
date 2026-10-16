@@ -3,6 +3,8 @@ package compose
 import (
 	"context"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // The guardian service's consumer-owned ports (#3755). The audit trail of
@@ -71,12 +73,5 @@ type GuardianDataAccessLog interface {
 }
 
 // GuardianRolePresets is the Security Runtime's role-preset policy of a
-// student-guardian relationship, as the guardian service applies it.
-type GuardianRolePresets interface {
-	// DefaultRole is the preset a new relationship takes when the caller
-	// chose none.
-	DefaultRole(relationshipType string, isPrimary, isEmergencyContact, canPickup bool) string
-	// Preset returns the stored role of a preset and the parent-portal
-	// permissions it grants.
-	Preset(role string) (string, []string)
-}
+// student-guardian relationship.
+type GuardianRolePresets interface{ ports.GuardianRolePresets }

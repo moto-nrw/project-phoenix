@@ -90,6 +90,16 @@ func (o testGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Context, 
 	return err
 }
 
+func (o testGuardianLinkOwners) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
+	result, err := o.queryDB(ctx).NewRaw(`UPDATE auth.guardian_student_access SET permissions = ?::jsonb
+		WHERE tenant_id = ? AND relationship_id = ?`, string(permissions), tenantID, relationshipID).Exec(ctx)
+	if err != nil {
+		return false, err
+	}
+	affected, err := result.RowsAffected()
+	return affected > 0, err
+}
+
 func otherTenantContext(t *testing.T, db *bun.DB) (context.Context, int64) {
 	t.Helper()
 	otherTenantID := testpkg.UniqueTestTenantID(t)
