@@ -3931,6 +3931,18 @@ the mirror reports a recovered panic through a port the composition binds to
 Sentry (`compose/attendance_mirror_report.go`). The Timetable composition goes
 from 14,106 to 6,195 LOC.
 
+The retained instance and participant adapters, their transitions and the
+recovery's Timetable and Student Presence halves follow into
+`internal/application`; they read the joined presence projection through the
+application's `PresenceReads` port, which the composition binds over the
+database (`compose/presence_reads.go`), and the filters of those reads are
+ports values. Epoch 60 adds `test-support.to.timetable-port`, the narrowing of
+`test-support.to.timetable-compose` the Timetable test support needs to name
+the filters (ADR 0058 addendum point 5). The legacy School Calendar
+repositories (calendar periods, closing days, date frames) follow; their
+not-found shape keeps `sql.ErrNoRows` through `transactionruntime.ErrNoRows`.
+The composition goes to 4,218 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

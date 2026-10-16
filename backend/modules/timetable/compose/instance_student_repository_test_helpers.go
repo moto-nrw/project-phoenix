@@ -10,6 +10,6 @@ import (
 // NewInstanceStudentRepository serves the retained participant repository
 // over the Timetable owner and Student Presence; preview answers the partial
 // absence blocks a pickup change excuses.
-func NewInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence participantPresence, preview application.PartialAbsences) scheduleModels.InstanceStudentRepository {
-	return newTimetableInstanceStudentRepository(db, capability, presence, preview)
+func NewInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence application.ParticipantPresence, preview application.PartialAbsences) scheduleModels.InstanceStudentRepository {
+	return application.NewInstanceStudentRepository(retainedPresenceReads(db), capability, presence, preview)
 }

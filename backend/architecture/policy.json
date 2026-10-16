@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 59,
+  "policy_epoch": 60,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -8440,6 +8440,17 @@
       "source_role": "test-support",
       "target_owner": "timetable-activities",
       "target_role": "compose"
+    },
+    {
+      "id": "test-support.to.timetable-port",
+      "description": "Timetable test support names the presence read filters the owner module it constructs takes (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "test-support",
+      "source_role": "test-support",
+      "target_owner": "timetable-activities",
+      "target_role": "port"
     },
     {
       "id": "meal-plan.compose.orm-sql",

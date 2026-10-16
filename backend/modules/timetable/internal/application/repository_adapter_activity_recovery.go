@@ -1,21 +1,40 @@
-package compose
+package application
 
 import (
 	"context"
 	"time"
-
-	"github.com/uptrace/bun"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
-// NewRetainedActivityRecoveryRepository composes the completion and reopen support of
-// a block from its two owners: Timetable locks the participants, Student
+// AssignmentRecovery is the Timetable side of a reopen: the planned
+// participants of the block are locked so a concurrent roster edit cannot
+// hide from the unchanged-row check.
+type AssignmentRecovery interface {
+	LockAttendance(context.Context, int64) error
+}
+
+// PresenceRecovery is the Student Presence capability the recovery needs:
+// the live group, its supervisors, its visits, the activity session and the
+// session attendance are all owned there (#2762).
+type PresenceRecovery interface {
+	LockOpenVisits(context.Context, int64) error
+	RestoreVisits(context.Context, []int64) error
+	LockOpenSupervisors(context.Context, int64) error
+	LockSupervisors(context.Context, []int64) error
+	RestoreGroup(context.Context, int64, time.Time) error
+	RestoreSupervisors(context.Context, []int64) error
+	RestoreAttendance(context.Context, []scheduleModels.CompletionAttendanceSnapshot) error
+	ReopenSession(context.Context, int64, int64) error
+}
+
+// RetainedActivityRecovery returns the completion and reopen support of a
+// block from its two owners: Timetable locks the participants, Student
 // Presence locks and restores the live group, the visits, the supervisors,
 // the attendance and the session (#2762).
-func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments scheduleModels.InstanceStudentRepository) scheduleModels.ActivityRecoveryRepository {
+func RetainedActivityRecovery(assignments scheduleModels.InstanceStudentRepository) (AssignmentRecovery, PresenceRecovery) {
 	owner, ok := assignments.(timetableInstanceStudentRepository)
 	if !ok {
 		panic("activity recovery: timetable assignment adapter is required")
@@ -26,9 +45,7 @@ func NewRetainedActivityRecoveryRepository(db *bun.DB, assignments scheduleModel
 	if !ok {
 		panic("activity recovery: the assignment adapter must compose the Student Presence module")
 	}
-	return NewActivityRecoveryRepository(db,
-		recoveryAssignments{capability: owner.timetable, presence: presence},
-		recoveryPresence{Module: presence})
+	return recoveryAssignments{capability: owner.timetable, presence: presence}, recoveryPresence{Module: presence}
 }
 
 // recoveryAssignments locks the attendance of one block in both owners so a
