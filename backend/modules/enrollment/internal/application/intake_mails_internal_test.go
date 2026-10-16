@@ -29,7 +29,8 @@ func TestSubmissionMailSubscriberLookupFailureKeepsConfirmationAndConfiguredReci
 	outbox := &decisionOutboxStub{}
 	savepointCalled := false
 	intake := NewIntake(IntakeDependencies{
-		Outbox: outbox, Settings: mailSettings{},
+		Notifications: newNotificationsForTest(NotificationDependencies{}),
+		Outbox:        outbox, Settings: mailSettings{},
 		AdminSubscribers: failingAdminSubscribers{err: errors.New("lookup failed")},
 		Logger:           slog.New(slog.DiscardHandler),
 		Runtime: Runtime{
@@ -54,6 +55,7 @@ func TestSubmissionMailSavepointControlFailureAborts(t *testing.T) {
 	t.Parallel()
 	controlErr := errors.New("savepoint control failed")
 	intake := NewIntake(IntakeDependencies{
+		Notifications:    newNotificationsForTest(NotificationDependencies{}),
 		Outbox:           &decisionOutboxStub{},
 		AdminSubscribers: failingAdminSubscribers{err: errors.New("lookup failed")},
 		Runtime: Runtime{

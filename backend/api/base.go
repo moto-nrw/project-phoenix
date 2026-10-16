@@ -1511,7 +1511,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		LockTemplateRecurrence:       svc.TimetableData.RecurrenceLock.LockRecurrenceWrites,
 		Broadcaster:                  svc.RealtimeHub,
 		ParentEventEmitter:           svc.ParentEventEmitter,
-		AbsenceNotifier:              svc.AbsenceNotifier,
+		AbsenceNotifier:              studentAbsenceNotifier{notifier: svc.AbsenceNotifier},
 		StudentPhotos:                svc.PeopleDirectory,
 		StudentConsents:              svc.StudentConsents,
 		PrivacyConsents:              presence,
