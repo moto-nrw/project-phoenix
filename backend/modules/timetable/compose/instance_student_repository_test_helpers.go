@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -7,9 +9,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// NewInstanceStudentRepository serves the retained participant repository
-// over the Timetable owner and Student Presence; preview answers the partial
-// absence blocks a pickup change excuses.
+// NewInstanceStudentRepository binds Timetable and Student Presence; preview returns blocks a pickup change excuses.
 func NewInstanceStudentRepository(db *bun.DB, capability timetable.InstanceStudentCapability, presence application.ParticipantPresence, preview application.PartialAbsences) scheduleModels.InstanceStudentRepository {
 	return application.NewInstanceStudentRepository(retainedPresenceReads(db), capability, presence, preview)
 }
