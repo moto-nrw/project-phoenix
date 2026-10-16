@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -41,6 +40,7 @@ type offboardingScenario struct {
 	db        *bun.DB
 	repos     *api.RepositoryTestFactory
 	timetable api.TimetableRepositories
+	owners    api.TimetableDependencies
 	workTime  workforce.Capability
 	rows      api.TimetableTestRepositories
 	authSvc   offboardingIdentity
@@ -90,6 +90,7 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 		db:        db,
 		repos:     repos,
 		timetable: api.NewTimetableRepositories(testpkg.MustDatabase(db), owners),
+		owners:    owners,
 		workTime:  owners.Workforce,
 		rows:      rows,
 		authSvc:   authService,
@@ -269,17 +270,13 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 		go func() {
 			writerDone <- tenant.WithinCurrentTenant(ctx, func(writerCtx context.Context) error {
 				if operation == "shift" {
-					return sc.rows.StaffShift.Create(writerCtx, &scheduleModels.StaffShift{StaffID: staff.ID, Date: scheduleModels.Date(testpkg.TodayDate().AddDays(1)), StartTime: testpkg.WallClock(8, 0), EndTime: testpkg.WallClock(12, 0), CreatedBy: staff.ID})
+					_, err := sc.workTime.CreateStaffShift(writerCtx, workforce.StaffShift{StaffID: staff.ID, Date: testpkg.TodayDate().AddDays(1).String(), StartTime: "08:00:00", EndTime: "12:00:00", CreatedBy: staff.ID})
+					return err
 				}
 				if operation == "move_history" {
-					stored, err := sc.timetable.ActivityInstance.FindByID(writerCtx, instance.ID)
-					if err != nil {
-						return err
-					}
-					stored.Date = scheduleModels.Date(testpkg.TodayDate().AddDays(1))
-					return sc.timetable.ActivityInstance.Update(writerCtx, stored)
+					return api.MoveActivityInstanceForTest(writerCtx, sc.timetable, instance.ID, testpkg.TodayDate().AddDays(1))
 				}
-				return sc.timetable.InstanceStaff.Create(writerCtx, &scheduleModels.InstanceStaff{InstanceID: instance.ID, StaffID: staff.ID})
+				return api.AssignInstanceStaffForTest(writerCtx, sc.owners, instance.ID, staff.ID)
 			})
 		}()
 		require.Eventually(t, func() bool {
@@ -303,7 +300,7 @@ func assertConcurrentPlanningRejected(t *testing.T, operation string) {
 		require.Len(t, rows, 1, "the historical assignment is retained")
 		persisted, err := sc.timetable.ActivityInstance.FindByID(ctx, instance.ID)
 		require.NoError(t, err)
-		require.Equal(t, scheduleModels.Date(date), persisted.Date, "history cannot be moved back into an operational assignment")
+		require.Equal(t, date.String(), persisted.Date.String(), "history cannot be moved back into an operational assignment")
 	} else {
 		require.Empty(t, rows)
 	}
@@ -967,29 +964,17 @@ func TestOffboardStaff_RemovesSameDayPlannedInstanceAssignments(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, sc.db, fmt.Sprintf("OffbInstRoom-%d", time.Now().UnixNano()))
 	today := calendar.TodayDate()
 
-	makeInstance := func(title string) *scheduleModels.ActivityInstance {
-		inst := &scheduleModels.ActivityInstance{
-			Date:          scheduleModels.Date(today),
-			Title:         title,
-			StartTime:     time.Date(2024, 1, 1, 14, 0, 0, 0, time.UTC),
-			EndTime:       time.Date(2024, 1, 1, 15, 0, 0, 0, time.UTC),
-			RoomID:        room.ID,
-			Status:        scheduleModels.InstanceStatusPlanned,
-			IsSpontaneous: true,
-		}
-		inst.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, sc.timetable.ActivityInstance.Create(sc.ctx, inst))
-		return inst
+	makeInstance := func(title string) *testpkg.ActivityInstance {
+		return testpkg.CreateTestActivityInstance(t, sc.db, today, room.ID, testpkg.ActivityInstanceOpts{
+			Title: title, StartHHMM: "14:00", EndHHMM: "15:00", IsSpontaneous: true,
+		})
 	}
 	plannedInst := makeInstance(fmt.Sprintf("offb-planned-%d", time.Now().UnixNano()))
 	completedInst := makeInstance(fmt.Sprintf("offb-completed-%d", time.Now().UnixNano()))
-	testpkg.SetActivityInstanceLifecycle(t, context.Background(), sc.db, completedInst.ID, scheduleModels.InstanceStatusCompleted)
+	testpkg.SetActivityInstanceLifecycle(t, context.Background(), sc.db, completedInst.ID, testpkg.ScheduleInstanceStatusCompleted)
 
-	makeAssignment := func(instanceID int64) *scheduleModels.InstanceStaff {
-		row := &scheduleModels.InstanceStaff{InstanceID: instanceID, StaffID: staff.ID}
-		row.SetTenantID(testpkg.Tenant(t))
-		require.NoError(t, sc.timetable.InstanceStaff.Create(sc.ctx, row))
-		return row
+	makeAssignment := func(instanceID int64) *testpkg.InstanceStaff {
+		return testpkg.CreateTestInstanceStaff(t, sc.db, instanceID, staff.ID, testpkg.InstanceStaffOpts{})
 	}
 	plannedRow := makeAssignment(plannedInst.ID)
 	completedRow := makeAssignment(completedInst.ID)
@@ -1133,16 +1118,10 @@ func TestOffboardStaff_RemovesUpcomingStaffShifts(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, sc.db, "Shifted", "Offboard")
 	today := calendar.TodayDate()
 
-	makeShift := func(date calendar.Date, startHour int) *scheduleModels.StaffShift {
-		shift := &scheduleModels.StaffShift{
-			StaffID:   staff.ID,
-			Date:      scheduleModels.Date(date),
-			StartTime: time.Date(1, 1, 1, startHour, 0, 0, 0, time.UTC),
-			EndTime:   time.Date(1, 1, 1, startHour+4, 0, 0, 0, time.UTC),
-			CreatedBy: staff.ID,
-		}
-		require.NoError(t, sc.rows.StaffShift.Create(sc.ctx, shift))
-		return shift
+	makeShift := func(date calendar.Date, startHour int) *testpkg.StaffShift {
+		return testpkg.CreateTestStaffShift(t, sc.db, staff.ID, date, testpkg.StaffShiftOpts{
+			StartHHMM: fmt.Sprintf("%02d:00", startHour), EndHHMM: fmt.Sprintf("%02d:00", startHour+4),
+		})
 	}
 	past := makeShift(today.AddDays(-1), 8)
 	sameDay := makeShift(today, 8)

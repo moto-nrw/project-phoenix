@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"

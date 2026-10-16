@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
@@ -80,17 +81,33 @@ func NewCalendarTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		UserContext:            identity.UserContext.Caller(),
 		Runtime:                calendarCompose.NewTenantRuntime(db.Pool()),
 		CalendarRenderer:       calendarCompose.NewCalendarRenderer(schoolCalendar),
-		Outbox:                 delivery.EmailOutbox,
+		Outbox:                 newCalendarOutbox(delivery.EmailOutbox),
 		PushOutbox:             deliveryCompose.NewDurablePushOutbox(delivery.Delivery),
 		Settings:               settings.Settings,
 		StaffFeedTombstoneRepo: feeds.Tombstone,
 		ParentsURL:             cfg.ParentsURL,
 		FrontendURL:            cfg.FrontendURL,
-		Notifier:               delivery.Notifications,
-		ReminderNotifier:       delivery.Notifications,
+		Notifier:               newCalendarNotifier(delivery.Notifications),
+		ReminderNotifier:       newCalendarReminderNotifier(delivery.Notifications),
 		Preferences:            delivery.NotificationPreferences,
 		Logger:                 logger.With("service", "calendar"),
 	})
 
 	return CalendarTestModule{Calendar: calendarSvc}, nil
 }
+
+// CalendarNoPushAudience is the error the root's Delivery binding of the
+// calendar reports when no guardian device can take a push; the calendar
+// treats it as nothing delivered, not as a failure.
+func CalendarNoPushAudience() error { return deliveryCompose.ErrNoWebPushSubscribers }
+
+// RenderCalendarMailForTest renders one queued calendar mail of the tenant
+// the way the Delivery outbox worker does; rendered reports a message.
+func RenderCalendarMailForTest(ctx context.Context, d CalendarEmailDependencies, tenantID int64, kind string, payload map[string]any) (rendered bool, err error) {
+	message, err := NewCalendarAppointmentRenderer(d)(ctx, &deliveryCompose.MailIntent{TenantID: tenantID, Kind: kind, Payload: payload})
+	return message != nil, err
+}
+
+// CalendarRenderCancelled is the error a calendar mail render reports when
+// the mail may never go out, so Delivery stops retrying it.
+func CalendarRenderCancelled() error { return deliveryCompose.ErrRenderCancelled }

@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 2732
+const moduleLegacyBudgetTotal = 2731
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 89845
+const moduleComposeBudgetTotal = 89839
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -180,7 +180,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/delivery/compose/email":                 36,
 	"modules/delivery/compose/realtime":              30,
 	"modules/devicefleet/compose":                    712,
-	"modules/devicefleet/compose/httpadapter":        88,
+	"modules/devicefleet/compose/httpadapter":        84,
 	"modules/devicefleet/compose/repositoryadapter":  298,
 	"modules/devicescan/compose":                     1513,
 	"modules/emergencysnapshot/compose":              13,
@@ -220,7 +220,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
-	"modules/timetable/compose":                       36299,
+	"modules/timetable/compose":                       36297,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
 	"modules/timetableblockdisplay/compose":           9,
@@ -250,7 +250,7 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/emergencysnapshot/legacy": 298,
 	// No ticket today.
-	"modules/facilities/compose/legacy": 518,
+	"modules/facilities/compose/legacy": 517,
 	// No ticket today. Two lines under the first seed: #3427 removed the
 	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
 	// replaced the user-context service with a local CallerContext port.

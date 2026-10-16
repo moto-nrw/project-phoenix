@@ -139,7 +139,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/selection/materialize.go:validateCareOfferingSelectionModeWithMissing":                 29,
 	"modules/careplan/selection/types.go:(*AvailabilityRule).NormalizeAndValidate":                           21,
 
-	"modules/facilities/compose/legacy/projections.go:historyNames": 26,
+	"modules/facilities/compose/legacy/projections.go:historyNames": 24,
 
 	"modules/filestorage/internal/application/attachments.go:(*Service).DeleteAttachment": 29,
 	"modules/filestorage/internal/application/attachments.go:(*Service).UploadAttachment": 17,
