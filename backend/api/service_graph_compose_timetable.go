@@ -293,7 +293,7 @@ func composeLifecycle(b graphBuild) (graphBuild, error) {
 		Rows: b.timetableRows,
 		Planning: arrivalTimetable.InstanceLifecycleDependencies{
 			IdempotencyRepo: repos.InstanceIdempotency, ExceptionRepo: repos.ActivityException,
-			CalendarPeriodRepo: b.templateRows.CalendarPeriods, DB: b.DB.Pool(),
+			CalendarPeriodRepo: b.templateRows.CalendarPeriods, Database: arrivalTimetable.NewTenantDatabase(b.DB.Pool()),
 		},
 		Staff: NewTimetableStaff(b.People.Staff), Sessions: b.Presence.SessionRecords, Supervisions: b.groupSupervisions,
 		Presence: b.Presence.Presence, SessionEnder: b.graph.Active, CareDays: b.graph.CareDay, CareDayLocks: b.CarePlan,
@@ -329,7 +329,7 @@ func composeDeviations(b graphBuild) (graphBuild, error) {
 	if err != nil {
 		return b, fmt.Errorf("compose timetable deviations: %w", err)
 	}
-	deps.DB = b.DB.Pool()
+	deps.Locks = arrivalTimetable.NewTenantDatabase(b.DB.Pool())
 	deviations, err := arrivalTimetable.NewStaffDeviations(deps)
 	if err != nil {
 		return b, fmt.Errorf("compose timetable deviations: %w", err)
@@ -383,7 +383,7 @@ func composeOperations(b graphBuild) (graphBuild, error) {
 		Rows: b.timetableRows, PlanningTracks: b.Timetable, Sessions: b.Presence.SessionRecords,
 		Supervisions: b.groupSupervisions, Visits: b.Presence.Presence, Presence: b.graph.Active,
 		People: newTimetableOperationPeople(b.graph.Users), Settings: b.settingsService, CareDays: b.graph.CareDay,
-		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: b.instances.OperationLifecycle(),
+		Arrivals: arrivals, Pickups: b.graph.PickupSchedule, Lifecycle: arrivalTimetable.NewOperationLifecycle(b.instances),
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "timetable-operations"), Now: b.now,
 	})
 	if err != nil {
