@@ -8,6 +8,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -15,8 +18,6 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // planSyncEnv composes the workflow against the real owners in a real
@@ -61,7 +62,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce:       capability,
-		Staff:           repos.Staff,
+		Staff:           api.NewPlanStaffDirectory(repos.Staff),
 		CalendarPeriods: repos.SchoolCalendar(),
 		DeviationEvents: repos.DeviationEvent,
 		Instances:       repos.InstanceReads(),
@@ -98,7 +99,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Deviations:        timetable.TimetableData.Deviations,
 		ActivityInstances: repos.InstanceReads(),
 		InstanceStaff:     repos.InstanceStaffReads(),
-		Staff:             repos.Staff,
+		Staff:             api.NewPlanStaffDirectory(repos.Staff),
 		Broadcaster:       broadcaster,
 		Logger:            logger,
 	})

@@ -9,14 +9,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 // overviewRepositories composes the retained readers and the Dienstplan row
@@ -94,7 +95,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
@@ -212,7 +213,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
@@ -296,7 +297,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 

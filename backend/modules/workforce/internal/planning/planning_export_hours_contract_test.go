@@ -4,13 +4,13 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
-	"github.com/stretchr/testify/require"
 )
 
 // hoursExport records what the hours sheet received from the facade.
@@ -38,7 +38,7 @@ func TestPlanningExportsTheHoursSheetFromTheWeeklySummaries(t *testing.T) {
 	monday := timezone.NewDate(2026, 9, 21)
 	typeID := int64(42)
 	target, delta := 1320, -30
-	anna := &usersModel.Staff{Person: &usersModel.Person{FirstName: "Anna", LastName: "Müller"}}
+	anna := &workforce.PlanStaff{Person: &workforce.PlanStaffPerson{FirstName: "Anna", LastName: "Müller"}}
 	anna.ID = 7
 	export := &hoursExport{}
 	p := newPlanningFacade(planning.PlanningDependencies{
@@ -46,7 +46,7 @@ func TestPlanningExportsTheHoursSheetFromTheWeeklySummaries(t *testing.T) {
 			require.Equal(t, monday, from)
 			require.Equal(t, monday.AddDays(6), to)
 			return &planning.StaffScheduleOverview{
-				Staff: []*usersModel.Staff{anna, nil},
+				Staff: []*workforce.PlanStaff{anna, nil},
 				WeeklySummaries: []planning.StaffWeeklySummary{{
 					StaffID: 7, WeekStart: monday, PlannedMinutes: 1290, TargetMinutes: &target, DeltaMinutes: &delta,
 					ByShiftType: []planning.ShiftTypeMinutes{{ShiftTypeID: &typeID, Minutes: 1200}, {Minutes: 90}},

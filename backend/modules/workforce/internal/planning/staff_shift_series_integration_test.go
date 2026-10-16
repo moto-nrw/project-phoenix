@@ -10,13 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
 )
 
 type seriesTestEnv struct {
@@ -50,12 +51,12 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	exceptionRows := workforceCompose.NewShiftSeriesExceptionRows(dependencies.Workforce)
 	shiftTypes := planning.NewShiftTypeService(workforceCompose.NewShiftTypeRows(dependencies.Workforce), slog.Default())
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
-	shifts := planning.NewStaffShiftService(shiftRows, repoFactory.Staff, shiftTypes, lockStaffShifts, slog.Default(),
+	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
 		planning.WithStaffShiftDeviationEvents(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent),
 	)
 	series := planning.NewStaffShiftSeriesService(
-		seriesRows, exceptionRows, shiftRows, repoFactory.Staff, planning.SchoolCalendarPeriods(dependencies.Calendar),
+		seriesRows, exceptionRows, shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), planning.SchoolCalendarPeriods(dependencies.Calendar),
 		shiftTypes, lockStaffShifts, slog.Default(), shifts,
 		planning.WithStaffShiftSeriesToday(today),
 	)
@@ -810,7 +811,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms: api.NewRoomRepository(countedDependencies.Rooms), Staff: repos.Staff,
+		Rooms: api.NewRoomRepository(countedDependencies.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(countedDependencies.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(countedDependencies.Workforce),
 	})
 

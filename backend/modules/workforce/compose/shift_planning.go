@@ -5,16 +5,16 @@ import (
 	"errors"
 	"log/slog"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
 )
 
 // The readers the Dienstplan side of Workforce needs from other owners. They
@@ -24,8 +24,8 @@ import (
 // StaffOverviewReader is the roster read the week grid needs: every staff
 // member of the tenant, plus the named ones an assignment refers to.
 type StaffOverviewReader interface {
-	ListAllWithPerson(ctx context.Context) ([]*usersModels.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
 
 // StaffDirectory adds the single lookup a shift write needs, to reject a
@@ -33,7 +33,7 @@ type StaffOverviewReader interface {
 // untyped id because the bound repository is the generic one.
 type StaffDirectory interface {
 	StaffOverviewReader
-	FindByID(ctx context.Context, id any) (*usersModels.Staff, error)
+	FindByID(ctx context.Context, id any) (*workforce.PlanStaff, error)
 }
 
 // CalendarPeriodLookup resolves the School Calendar period a series

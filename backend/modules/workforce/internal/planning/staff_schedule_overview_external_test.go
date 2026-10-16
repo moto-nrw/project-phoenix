@@ -5,10 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
 // TestStaffScheduleOverview_LeavesExternalCaregiversOut pins #3823: an
@@ -31,7 +33,7 @@ func TestStaffScheduleOverview_LeavesExternalCaregiversOut(t *testing.T) {
 		Instances:     &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
 		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{{InstanceID: instance.ID, StaffID: external.ID}}},
 		Rooms:         &fakeRoomReader{},
-		Staff:         &fakeStaffReader{rows: []*users.Staff{employee, external}},
+		Staff:         &fakeStaffReader{rows: []*workforce.PlanStaff{employee, external}},
 	})
 
 	got, err := service.GetOverview(context.Background(), monday, monday.AddDays(4))
@@ -60,7 +62,7 @@ func TestStaffScheduleOverview_KeepsAccountBackedGuestStaff(t *testing.T) {
 		Instances:     &fakeInstanceReader{rows: []*timetable.ScheduledInstance{instance}},
 		InstanceStaff: &fakeInstanceStaffReader{rows: []*timetable.InstanceStaff{{InstanceID: instance.ID, StaffID: guest.ID}}},
 		Rooms:         &fakeRoomReader{},
-		Staff:         &fakeStaffReader{rows: []*users.Staff{employee, guest}},
+		Staff:         &fakeStaffReader{rows: []*workforce.PlanStaff{employee, guest}},
 	})
 
 	got, err := service.GetOverview(context.Background(), monday, monday.AddDays(4))

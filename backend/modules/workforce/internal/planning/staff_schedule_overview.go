@@ -10,8 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 const (
@@ -81,7 +81,7 @@ type StaffScheduleOverview struct {
 	To              timezone.Date
 	DienstplanInUse bool
 	UsedWeeks       []timezone.Date
-	Staff           []*usersModel.Staff
+	Staff           []*workforce.PlanStaff
 	Shifts          []*StaffShift
 	Assignments     []StaffScheduleAssignment
 	WeeklySummaries []StaffWeeklySummary
@@ -107,8 +107,8 @@ type RoomBatchReader interface {
 }
 
 type StaffOverviewReader interface {
-	ListAllWithPerson(ctx context.Context) ([]*usersModel.Staff, error)
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*usersModel.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
 
 type StaffWorkScheduleBatchReader interface {
@@ -177,7 +177,7 @@ type staffScheduleOverviewData struct {
 	visibleInstances []*timetable.ScheduledInstance
 	assignmentRows   []*timetable.InstanceStaff
 	rooms            []*facilitiesModel.Room
-	staff            []*usersModel.Staff
+	staff            []*workforce.PlanStaff
 	workSchedules    []*configModel.StaffWorkSchedule
 }
 
@@ -282,7 +282,7 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 	ctx context.Context,
 	visibleInstances []*timetable.ScheduledInstance,
 	instanceIDs []int64,
-) ([]*timetable.InstanceStaff, []*usersModel.Staff, []*facilitiesModel.Room, error) {
+) ([]*timetable.InstanceStaff, []*workforce.PlanStaff, []*facilitiesModel.Room, error) {
 	assignmentRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load instance staff: %w", err)
@@ -302,12 +302,12 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 // loadPlannableStaff reads the staff directory without accountless guest
 // caregivers (#3823): they have no shifts to plan, so the duty roster carries
 // no row for them.
-func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*usersModel.Staff, map[int64]struct{}, error) {
+func (s *staffScheduleOverviewService) loadPlannableStaff(ctx context.Context) ([]*workforce.PlanStaff, map[int64]struct{}, error) {
 	directory, err := s.deps.Staff.ListAllWithPerson(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load staff directory: %w", err)
 	}
-	staff := make([]*usersModel.Staff, 0, len(directory))
+	staff := make([]*workforce.PlanStaff, 0, len(directory))
 	externalStaffIDs := make(map[int64]struct{})
 	for _, member := range directory {
 		if member == nil {
@@ -535,7 +535,7 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 // the fallback only when the schedule yields no target for any week at all.
 func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 	ctx context.Context,
-	staff []*usersModel.Staff,
+	staff []*workforce.PlanStaff,
 	schedules []*configModel.StaffWorkSchedule,
 	weekStarts []timezone.Date,
 ) (map[staffDateKey]int, error) {
@@ -553,7 +553,7 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		}
 	}
 
-	residual := make([]*usersModel.Staff, 0)
+	residual := make([]*workforce.PlanStaff, 0)
 	modelIDs := make([]int64, 0)
 	seenModels := make(map[int64]struct{})
 	for _, member := range staff {

@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 type fakeTargetOverrideDaysReader struct {
@@ -28,7 +28,7 @@ func (f *fakeTargetOverrideDaysReader) StaffTargetOverrideDays(_ context.Context
 func TestAddOverrideDeltas_OnlyCorrectsResolvedWeeks(t *testing.T) {
 	t.Parallel()
 
-	member := &usersModel.Staff{}
+	member := &workforce.PlanStaff{}
 	member.ID = 7
 	resolved := timezone.NewDate(2026, time.October, 19)
 	unresolved := timezone.NewDate(2026, time.October, 26)
@@ -39,7 +39,7 @@ func TestAddOverrideDeltas_OnlyCorrectsResolvedWeeks(t *testing.T) {
 		unresolved.String():            510,
 		unresolved.AddDays(1).String(): 510,
 	}
-	base := func(_ *usersModel.Staff, _ timezone.Date) int { return 400 }
+	base := func(_ *workforce.PlanStaff, _ timezone.Date) int { return 400 }
 
 	targets := map[staffDateKey]int{{StaffID: member.ID, Date: resolved}: 2000}
 	addOverrideDeltas(member, days, weekStarts, base, targets)
@@ -72,12 +72,12 @@ func TestWeeklyTargets_OverrideReplacesTheModelDayOfAnOutdatedSchedule(t *testin
 			11: {monday.String(): 510},
 		}},
 	}}
-	member := &usersModel.Staff{WorkTimeModelID: &modelID}
+	member := &workforce.PlanStaff{WorkTimeModelID: &modelID}
 	member.ID = 11
 
 	targets, err := service.weeklyTargets(
 		context.Background(),
-		[]*usersModel.Staff{member},
+		[]*workforce.PlanStaff{member},
 		[]*configModel.StaffWorkSchedule{{
 			StaffID: 11, WeekIndex: 0, RotationLength: 1,
 			DayOfWeek: configModel.DayMonday, TargetMinutes: 120,

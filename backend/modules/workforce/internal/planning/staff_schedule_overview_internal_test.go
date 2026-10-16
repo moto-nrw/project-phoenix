@@ -6,13 +6,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/models/facilities"
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func testClock(t *testing.T, value string) time.Time {
@@ -150,25 +152,25 @@ func (f *fakeRoomReader) FindByIDs(_ context.Context, ids []int64) ([]*facilitie
 }
 
 type fakeStaffReader struct {
-	rows      []*users.Staff
-	byID      map[int64]*users.Staff
+	rows      []*workforce.PlanStaff
+	byID      map[int64]*workforce.PlanStaff
 	err       error
 	listCalls int
 	findCalls int
 }
 
-func (f *fakeStaffReader) ListAllWithPerson(_ context.Context) ([]*users.Staff, error) {
+func (f *fakeStaffReader) ListAllWithPerson(_ context.Context) ([]*workforce.PlanStaff, error) {
 	f.listCalls++
 	return f.rows, f.err
 }
 
-func (f *fakeStaffReader) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*users.Staff, error) {
+func (f *fakeStaffReader) FindWithPersonByIDs(_ context.Context, _ []int64) (map[int64]*workforce.PlanStaff, error) {
 	f.findCalls++
 	return f.byID, f.err
 }
 
-func fakeStaff(id int64, first, last string) *users.Staff {
-	return &users.Staff{Person: &users.Person{FirstName: first, LastName: last}, PersonID: id + 100}
+func fakeStaff(id int64, first, last string) *workforce.PlanStaff {
+	return &workforce.PlanStaff{Person: &workforce.PlanStaffPerson{FirstName: first, LastName: last}, PersonID: id + 100}
 }
 
 type fakeOverviewHolidayService struct {
@@ -220,14 +222,14 @@ func TestStaffScheduleOverview_ReducesScheduleAndModelTargetsOnPublicHolidays(t 
 		Holidays:   holidayReader,
 		WorkModels: modelReader,
 	}}
-	scheduledStaff := &users.Staff{}
+	scheduledStaff := &workforce.PlanStaff{}
 	scheduledStaff.ID = 11
-	modelStaff := &users.Staff{WorkTimeModelID: &modelID}
+	modelStaff := &workforce.PlanStaff{WorkTimeModelID: &modelID}
 	modelStaff.ID = 12
 
 	targets, err := service.resolveWeeklyTargets(
 		context.Background(),
-		[]*users.Staff{scheduledStaff, modelStaff},
+		[]*workforce.PlanStaff{scheduledStaff, modelStaff},
 		[]*configModel.StaffWorkSchedule{
 			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 120, ValidFrom: workforceDate(validFrom)},
 			{StaffID: 11, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180, ValidFrom: workforceDate(validFrom)},
@@ -314,7 +316,7 @@ func TestStaffScheduleOverview_BatchesAndProjectsEffectiveDailyAssignments(t *te
 	}}
 	rooms.rows[0].ID = mainRoomID
 	rooms.rows[1].ID = overrideRoomID
-	staff := &fakeStaffReader{rows: []*users.Staff{
+	staff := &fakeStaffReader{rows: []*workforce.PlanStaff{
 		fakeStaff(3, "Clara", "Zulu"),
 		fakeStaff(1, "Anna", "Alpha"),
 		fakeStaff(2, "Berta", "Mitte"),
@@ -375,7 +377,7 @@ func TestStaffScheduleOverview_UsesTenantShiftWeeksPerISOWeek(t *testing.T) {
 			{InstanceID: 41, StaffID: 1}, {InstanceID: 42, StaffID: 1},
 		}},
 		Rooms: &fakeRoomReader{},
-		Staff: &fakeStaffReader{rows: []*users.Staff{staff}},
+		Staff: &fakeStaffReader{rows: []*workforce.PlanStaff{staff}},
 	})
 
 	got, err := service.GetOverview(context.Background(), monday, nextMonday)

@@ -7,9 +7,9 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,8 +46,8 @@ type ScheduleInstanceStaff interface {
 // ScheduleStaff reads the staff members with their persons the overview
 // names.
 type ScheduleStaff interface {
-	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
-	ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
+	ListAllWithPerson(ctx context.Context) ([]*workforce.PlanStaff, error)
 }
 
 type SubstitutionAdapterDependencies struct {
@@ -117,7 +117,7 @@ func (a *SubstitutionAdapter) overview(
 	}, nil
 }
 
-func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*timetable.ScheduledInstance) (map[int64][]*timetable.InstanceStaff, map[int64]*userModels.Staff, error) {
+func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances []*timetable.ScheduledInstance) (map[int64][]*timetable.InstanceStaff, map[int64]*workforce.PlanStaff, error) {
 	instanceIDs := make([]int64, 0, len(instances))
 	for _, instance := range instances {
 		if instance != nil {
@@ -148,7 +148,7 @@ func (a *SubstitutionAdapter) loadOverviewStaff(ctx context.Context, instances [
 	return deviationsByInstance, staffByID, nil
 }
 
-func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, deviations map[int64][]*timetable.InstanceStaff, staffByID map[int64]*userModels.Staff, canManage bool) []education.ScheduleAppointmentOverview {
+func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, deviations map[int64][]*timetable.InstanceStaff, staffByID map[int64]*workforce.PlanStaff, canManage bool) []education.ScheduleAppointmentOverview {
 	appointments := make([]education.ScheduleAppointmentOverview, 0, len(deviations))
 	for _, instance := range instances {
 		rows := deviations[instance.ID]
@@ -161,7 +161,7 @@ func projectSubstitutionAppointments(instances []*timetable.ScheduledInstance, d
 			member := staffByID[row.StaffID]
 			name := ""
 			if member != nil {
-				name = member.GetFullName()
+				name = member.FullName()
 			}
 			staff = append(staff, education.ScheduleAppointmentStaff{
 				AssignmentID: row.ID,
@@ -192,7 +192,7 @@ func (a *SubstitutionAdapter) loadTargets(ctx context.Context, include bool) ([]
 	}
 	for _, member := range members {
 		if member != nil {
-			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.GetFullName()})
+			targets = append(targets, education.StaffRef{ID: member.ID, FullName: member.FullName()})
 		}
 	}
 	return targets, nil
