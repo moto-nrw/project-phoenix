@@ -1,9 +1,10 @@
 // Package legacy adapts retained owner services to supervision ports (#2703).
-// The owners (identity, settings, presence, the Schulhof workflow, timetable
-// operations, day planning) remain in legacy service packages. Adapters
-// translate rows into plain records and delegate every rule to their owners.
-// They decide nothing themselves. Delete this package with the last
-// legacy source once each owner exposes the fact through its public capability.
+// The owners (identity, presence, timetable operations, day planning) remain
+// in legacy service packages. Adapters translate rows into plain records and
+// delegate every rule to their owners. They decide nothing themselves. The
+// root binds the access, settings and yard ports (#4077). Delete this
+// package with the last legacy source once each owner exposes the fact
+// through its public capability.
 package legacy
 
 import (
@@ -11,20 +12,14 @@ import (
 	"errors"
 	"fmt"
 	"sort"
-	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -35,27 +30,25 @@ type CallerGroup struct {
 	RoomID *int64
 }
 
-// CallerContext is the Identity & Access caller context the adapters read;
-// it answers the projection's CurrentStaffID and FullStudentAccess itself.
+// CallerContext is the Identity & Access caller context the adapters read.
 type CallerContext interface {
-	CurrentStaffID(context.Context) (*int64, error)
-	FullStudentAccess(context.Context) (bool, error)
-	HasCurrentStaff(context.Context) (bool, error)
 	GetMySupervisedGroups(context.Context) ([]*studentpresence.SessionDetail, error)
 	MyGroups(context.Context) ([]CallerGroup, error)
 }
 
-// Sources are the retained owner services the projection's ports adapt.
+// Sources are the retained owner services the projection's ports adapt and
+// the access, settings and yard ports the root binds.
 type Sources struct {
+	Access       supervisiondashboard.Access
 	Active       studentpresence.Presence
 	ActiveGroups OpenRoomSessions
 	OpenVisits   studentpresence.SessionReads
 	Rooms        supervisiondashboard.RoomDirectory
 	UserContext  CallerContext
 	Education    educationService.GroupRoomsQuery
-	Schulhof     facilitiesService.SchulhofService
+	Yard         supervisiondashboard.Yard
 	Operations   timetable.OperationQuery
-	Settings     supervisiondashboard.Resolver
+	Settings     supervisiondashboard.Settings
 	Pickups      careplan.BulkPickupDays
 	Arrivals     careplan.BulkArrivalTimes
 	Now          func() time.Time
@@ -68,8 +61,8 @@ var ErrIncompleteSources = errors.New("supervision dashboard adapters are not fu
 // New composes the supervision projection over the retained sources. Now is
 // optional; every other source is required.
 func New(sources Sources) (supervisiondashboard.Query, error) {
-	if sources.Active == nil || sources.UserContext == nil || sources.Education == nil ||
-		sources.Schulhof == nil || sources.Operations == nil || sources.Settings == nil ||
+	if sources.Access == nil || sources.Active == nil || sources.UserContext == nil || sources.Education == nil ||
+		sources.Yard == nil || sources.Operations == nil || sources.Settings == nil ||
 		sources.Pickups == nil || sources.Arrivals == nil {
 		return nil, ErrIncompleteSources
 	}
@@ -77,46 +70,18 @@ func New(sources Sources) (supervisiondashboard.Query, error) {
 		sources.Now = time.Now
 	}
 	return supervisiondashboard.New(supervisiondashboard.Dependencies{
-		Access:   access{settings: sources.Settings, CallerContext: sources.UserContext},
+		Access:   sources.Access,
 		Sessions: sessions{active: sources.Active, groups: sources.ActiveGroups, userContext: sources.UserContext},
 		Rooms:    sources.Rooms,
-		Yard:     yard{schulhof: sources.Schulhof},
+		Yard:     sources.Yard,
 		Groups:   groups{education: sources.Education, userContext: sources.UserContext},
 		Schedule: schedule{operations: sources.Operations},
 		Presence: presence{active: sources.Active, openVisits: sources.OpenVisits},
 		Planning: planning{pickups: sources.Pickups, arrivals: sources.Arrivals},
-		Settings: settings{settings: sources.Settings},
+		Settings: sources.Settings,
 		Calendar: calendar{},
 		Now:      sources.Now,
 	}), nil
-}
-
-type access struct {
-	settings supervisiondashboard.Resolver
-	CallerContext
-}
-
-// Caller asks the one school-wide overview rule (#2380). The organisational
-// group mode is deliberately not consulted here: it describes how the school
-// organises children, not who may open a running module.
-func (a access) Caller(ctx context.Context) (supervisiondashboard.Caller, error) {
-	principal, principalErr := permissions.PrincipalFromContext(ctx)
-	assignmentBound := principalErr == nil && principal.Scope() == permissions.ScopeSchool
-	admin := principalErr == nil && principal.HasAdminScope()
-	overview, err := authorize.HasOperationalOverview(ctx, a.settings, a.CallerContext, assignmentBound, admin)
-	if err != nil {
-		return supervisiondashboard.Caller{}, fmt.Errorf("resolve operational overview scope: %w", err)
-	}
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	userPermissions := sessiontoken.PermissionsFromCtx(ctx)
-	return supervisiondashboard.Caller{
-		AccountID:           int64(claims.ID),
-		TokenAdmin:          claims.IsAdmin,
-		AdminScope:          admin,
-		OperationalOverview: overview,
-		CanReadSchedules:    authorize.HasPermission(permissions.SchedulesRead, userPermissions),
-		CanReadStudents:     authorize.HasPermission(permissions.UsersRead, userPermissions),
-	}, nil
 }
 
 type sessions struct {
@@ -255,44 +220,6 @@ func (s sessions) rooms(ctx context.Context, groups []*studentpresence.SessionDe
 		result[room.ID] = room
 	}
 	return result, nil
-}
-
-type yard struct {
-	schulhof facilitiesService.SchulhofService
-}
-
-// NewYard exposes the existing courtyard projection independently of the
-// aggregate dashboard, for callers that only need courtyard status.
-func NewYard(source facilitiesService.SchulhofService) supervisiondashboard.Yard {
-	return yard{schulhof: source}
-}
-
-func (y yard) Status(ctx context.Context, staffID int64) (*supervisiondashboard.SchulhofStatus, error) {
-	status, err := y.schulhof.GetSchulhofStatus(ctx, staffID)
-	if err != nil {
-		return nil, err
-	}
-	return schulhofStatus(status), nil
-}
-
-func schulhofStatus(status *facilitiesService.SchulhofStatus) *supervisiondashboard.SchulhofStatus {
-	if status == nil {
-		return nil
-	}
-	return &supervisiondashboard.SchulhofStatus{
-		Exists:            status.Exists,
-		RoomID:            status.RoomID,
-		RoomName:          status.RoomName,
-		ActivityGroupID:   status.ActivityGroupID,
-		ActiveGroupID:     status.ActiveGroupID,
-		IsUserSupervising: status.IsUserSupervising,
-		SupervisionID:     status.SupervisionID,
-		SupervisorCount:   status.SupervisorCount,
-		StudentCount:      status.StudentCount,
-		Supervisors: mapSlice(status.Supervisors, func(supervisor facilitiesService.SupervisorInfo) supervisiondashboard.Supervisor {
-			return supervisiondashboard.Supervisor{ID: supervisor.ID, StaffID: supervisor.StaffID, Name: supervisor.Name, IsCurrentUser: supervisor.IsCurrentUser}
-		}),
-	}
 }
 
 type groups struct {
@@ -620,51 +547,6 @@ func wallClock(at *time.Time) *string {
 	}
 	formatted := at.Format("15:04")
 	return &formatted
-}
-
-type settings struct{ settings supervisiondashboard.Resolver }
-
-func (s settings) Prepare(ctx context.Context) (context.Context, error) {
-	return s.settings.Prefetch(ctx, []string{
-		configModel.KeyOperationalOverviewScope,
-		configModel.KeyGroupMode,
-		configModel.KeyStudentPhotosEnabled,
-		configModel.KeyWebSpontaneousActivities, configModel.KeyWeekendFollowsFriday,
-		configModel.KeyTrackingIndicatorsEnabled,
-		configModel.KeyTrackingIndicator1,
-		configModel.KeyTrackingIndicator2,
-		configModel.KeyTrackingIndicator3,
-	})
-}
-
-func (s settings) StudentPhotosEnabled(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModel.KeyStudentPhotosEnabled)
-}
-
-func (s settings) TrackingIndicatorLabels(ctx context.Context) ([]string, error) {
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyTrackingIndicatorsEnabled)
-	if err != nil || !enabled {
-		return nil, err
-	}
-	labels := make([]string, 0, 3)
-	for _, key := range []string{configModel.KeyTrackingIndicator1, configModel.KeyTrackingIndicator2, configModel.KeyTrackingIndicator3} {
-		value, err := s.settings.ResolveString(ctx, key)
-		if err != nil {
-			return nil, err
-		}
-		if value = strings.TrimSpace(value); value != "" {
-			labels = append(labels, value)
-		}
-	}
-	return labels, nil
-}
-
-func (s settings) SpontaneousActivitiesEnabled(ctx context.Context) (bool, error) {
-	enabled, err := s.settings.ResolveBool(ctx, configModel.KeyWebSpontaneousActivities)
-	if err != nil {
-		return false, fmt.Errorf("resolve spontaneous activities setting: %w", err)
-	}
-	return enabled, nil
 }
 
 type calendar struct{}

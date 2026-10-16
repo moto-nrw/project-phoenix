@@ -295,7 +295,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            settings,
 		Broadcaster:         testpkg.NewRecordingBroadcaster(),
-		Emitter:             emitter,
+		Emitter:             api.BindParentChildEvents(emitter),
 		Logger:              slog.Default(),
 	})
 

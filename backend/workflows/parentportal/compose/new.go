@@ -17,7 +17,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -88,6 +87,7 @@ type Dependencies struct {
 	MessageRepo               usersModels.ParentMessageRepository
 	MessageReadRepo           usersModels.ParentMessageReadRepository
 	Conversations             messaging.ConversationCore
+	MessagingEnabled          messaging.MessagingGate
 	AnnouncementRepo          usersModels.ParentAnnouncementRepository
 	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
@@ -100,7 +100,7 @@ type Dependencies struct {
 	Broadcaster           realtime.Broadcaster
 	AbsenceNotifier       care.AbsenceNotifier
 	ParentMessageNotifier care.StaffParentMessageNotifier
-	Emitter               *parentmessaging.Emitter
+	Emitter               care.ChildEvents
 }
 
 // New composes the guardian portal. messaging resolves children through the
@@ -155,7 +155,7 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,
 		MessageThreadRepo: deps.MessageThreadRepo, MessageRepo: deps.MessageRepo, MessageReadRepo: deps.MessageReadRepo,
-		Conversations: deps.Conversations, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
+		Conversations: deps.Conversations, MessagingEnabled: deps.MessagingEnabled, ParentMessageNotifier: deps.ParentMessageNotifier, Emitter: deps.Emitter,
 		ChangeRequestRepo: deps.ChangeRequestRepo, CareRequestRepo: deps.CareRequestRepo,
 		ExcusedRequestRepo: deps.ExcusedRequestRepo, OfferingChangeRequestRepo: deps.OfferingChangeRequestRepo,
 		FamilyProtectionEvents: deps.FamilyProtectionEvents, ParentRequestShares: deps.ParentRequestShares,

@@ -1,4 +1,4 @@
-package legacy
+package api
 
 import (
 	"context"
@@ -10,19 +10,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-type fakePresence struct {
+type emergencyFakePresence struct {
 	open     []int64
 	openDate string
 	visits   []studentpresence.VisitLocation
@@ -31,93 +30,93 @@ type fakePresence struct {
 	err      error
 }
 
-func (f *fakePresence) ListOpenAttendanceStudentIDs(_ context.Context, date string) ([]int64, error) {
+func (f *emergencyFakePresence) ListOpenAttendanceStudentIDs(_ context.Context, date string) ([]int64, error) {
 	f.openDate = date
 	return f.open, f.err
 }
 
-func (f *fakePresence) ListVisitLocations(_ context.Context, filter studentpresence.VisitLocationFilter) ([]studentpresence.VisitLocation, error) {
+func (f *emergencyFakePresence) ListVisitLocations(_ context.Context, filter studentpresence.VisitLocationFilter) ([]studentpresence.VisitLocation, error) {
 	f.filter = filter
 	return f.visits, f.err
 }
 
-func (f *fakePresence) ListSchoolStatuses(_ context.Context, _ []int64, _ string) ([]studentpresence.SchoolStatus, error) {
+func (f *emergencyFakePresence) ListSchoolStatuses(_ context.Context, _ []int64, _ string) ([]studentpresence.SchoolStatus, error) {
 	return f.statuses, f.err
 }
 
-type fakeMode struct {
+type emergencyFakeMode struct {
 	mode string
 	err  error
 }
 
-func (f fakeMode) GetPresenceMode(_ context.Context) (string, error) { return f.mode, f.err }
+func (f emergencyFakeMode) GetPresenceMode(_ context.Context) (string, error) { return f.mode, f.err }
 
-type fakeStudents struct {
-	rows map[int64]*usersModels.Student
+type emergencyFakeStudents struct {
+	rows map[int64]*users.Student
 	err  error
 }
 
-func (f fakeStudents) FindByIDs(_ context.Context, _ []int64) (map[int64]*usersModels.Student, error) {
+func (f emergencyFakeStudents) FindByIDs(_ context.Context, _ []int64) (map[int64]*users.Student, error) {
 	return f.rows, f.err
 }
 
-type fakePersons struct {
+type emergencyFakePersons struct {
 	rows []peopledirectory.Person
 	err  error
 }
 
-func (f fakePersons) ListPersonsByID(_ context.Context, _ []int64) ([]peopledirectory.Person, error) {
+func (f emergencyFakePersons) ListPersonsByID(_ context.Context, _ []int64) ([]peopledirectory.Person, error) {
 	return f.rows, f.err
 }
 
-type fakeContacts struct {
-	rows []usersModels.GuardianEmergencyContactRow
+type emergencyFakeContacts struct {
+	rows []users.GuardianEmergencyContactRow
 	err  error
 }
 
-func (f fakeContacts) ListEmergencyContactRows(_ context.Context, _ []int64) ([]usersModels.GuardianEmergencyContactRow, error) {
+func (f emergencyFakeContacts) ListEmergencyContactRows(_ context.Context, _ []int64) ([]users.GuardianEmergencyContactRow, error) {
 	return f.rows, f.err
 }
 
-type fakeRooms struct {
+type emergencyFakeRooms struct {
 	rows []facilities.Room
 	err  error
 	ids  []int64
 }
 
-func (f *fakeRooms) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
+func (f *emergencyFakeRooms) ListRoomsByID(_ context.Context, ids []int64) ([]facilities.Room, error) {
 	f.ids = ids
 	return f.rows, f.err
 }
 
-func fullSources() Sources {
-	return Sources{
-		Presence:     &fakePresence{},
-		PresenceMode: fakeMode{mode: "detailed"},
-		Students:     fakeStudents{},
-		Persons:      fakePersons{},
-		Contacts:     fakeContacts{},
-		Rooms:        &fakeRooms{},
-		Renderer:     listexport.NewService(),
+func emergencyFullSources() emergencySnapshotSources {
+	return emergencySnapshotSources{
+		Presence:     &emergencyFakePresence{},
+		PresenceMode: emergencyFakeMode{mode: "detailed"},
+		Students:     emergencyFakeStudents{},
+		Persons:      emergencyFakePersons{},
+		Contacts:     emergencyFakeContacts{},
+		Rooms:        &emergencyFakeRooms{},
+		Renderer:     lists.NewRendererService(),
 	}
 }
 
-func TestNewRejectsMissingSources(t *testing.T) {
+func TestEmergencySnapshotNewRejectsMissingSources(t *testing.T) {
 	t.Parallel()
-	_, err := New(Sources{})
-	require.ErrorIs(t, err, ErrIncompleteSources)
+	_, err := newEmergencySnapshot(emergencySnapshotSources{})
+	require.ErrorIs(t, err, errEmergencySnapshotSources)
 
-	sources := fullSources()
+	sources := emergencyFullSources()
 	sources.Renderer = nil
-	_, err = New(sources)
-	require.ErrorIs(t, err, ErrIncompleteSources)
+	_, err = newEmergencySnapshot(sources)
+	require.ErrorIs(t, err, errEmergencySnapshotSources)
 
-	query, err := New(fullSources())
+	query, err := newEmergencySnapshot(emergencyFullSources())
 	require.NoError(t, err)
 	require.NotNil(t, query)
 }
 
-func optionalString(value string) *string {
+func emergencyOptionalText(value string) *string {
 	if value == "" {
 		return nil
 	}
@@ -130,34 +129,34 @@ func optionalString(value string) *string {
 func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 	t.Parallel()
 	const kreativraum int64 = 7007
-	presence := &fakePresence{
+	presence := &emergencyFakePresence{
 		open: []int64{101, 202},
 		visits: []studentpresence.VisitLocation{{
 			Visit: studentpresence.Visit{StudentID: 101},
 			Group: &studentpresence.VisitGroup{RoomID: kreativraum},
 		}},
 	}
-	rooms := &fakeRooms{rows: []facilities.Room{{ID: kreativraum, Name: "Kreativraum"}}}
-	sources := fullSources()
+	rooms := &emergencyFakeRooms{rows: []facilities.Room{{ID: kreativraum, Name: "Kreativraum"}}}
+	sources := emergencyFullSources()
 	sources.Presence = presence
 	sources.Rooms = rooms
-	sources.Students = fakeStudents{rows: map[int64]*usersModels.Student{
+	sources.Students = emergencyFakeStudents{rows: map[int64]*users.Student{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b", HealthInfo: new("Nussallergie, Epipen im Gruppenraum")},
 		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
 	}}
-	sources.Persons = fakePersons{rows: []peopledirectory.Person{
+	sources.Persons = emergencyFakePersons{rows: []peopledirectory.Person{
 		{ID: 301, FirstName: "Mila", LastName: "Albrecht"},
 		{ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
-	sources.Contacts = fakeContacts{rows: []usersModels.GuardianEmergencyContactRow{
-		{StudentID: 202, FirstName: optionalString("Familie"), LastName: optionalString("Schmitt"), PhoneNumber: optionalString("02551 444")},
-		{StudentID: 101, FirstName: optionalString("Lea"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 111")},
-		{StudentID: 101, FirstName: optionalString("Noah"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 222")},
-		{StudentID: 101, FirstName: optionalString("Lea"), LastName: optionalString("Albrecht"), PhoneNumber: optionalString("02551 333")},
+	sources.Contacts = emergencyFakeContacts{rows: []users.GuardianEmergencyContactRow{
+		{StudentID: 202, FirstName: emergencyOptionalText("Familie"), LastName: emergencyOptionalText("Schmitt"), PhoneNumber: emergencyOptionalText("02551 444")},
+		{StudentID: 101, FirstName: emergencyOptionalText("Lea"), LastName: emergencyOptionalText("Albrecht"), PhoneNumber: emergencyOptionalText("02551 111")},
+		{StudentID: 101, FirstName: emergencyOptionalText("Noah"), LastName: emergencyOptionalText("Albrecht"), PhoneNumber: emergencyOptionalText("02551 222")},
+		{StudentID: 101, FirstName: emergencyOptionalText("Lea"), LastName: emergencyOptionalText("Albrecht"), PhoneNumber: emergencyOptionalText("02551 333")},
 	}}
 	generatedAt := time.Date(2026, 8, 26, 12, 0, 0, 0, time.UTC)
 	sources.Now = func() time.Time { return generatedAt }
-	query, err := New(sources)
+	query, err := newEmergencySnapshot(sources)
 	require.NoError(t, err)
 
 	doc, err := query.Document(context.Background(), generatedAt)
@@ -169,37 +168,37 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 	}, presence.filter, "the owner query keeps the retained selection")
 	assert.Equal(t, []int64{kreativraum}, rooms.ids)
 
-	assert.Equal(t, listexport.Document{
+	assert.Equal(t, lists.Document{
 		Title:       "Notfallliste",
 		Subtitle:    "2 anwesende Kinder",
 		GeneratedAt: generatedAt,
-		Columns: []listexport.Column{
-			{ID: listexport.ColumnName, Label: "Name"},
-			{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
-			{ID: listexport.ColumnCurrentLocation, Label: "Ort / Raum"},
-			{ID: listexport.ColumnContactPhone, Label: "Telefonnummer"},
-			{ID: listexport.ColumnContactName, Label: "Kontakt"},
-			{ID: listexport.ColumnHealthInfo, Label: "Gesundheit / Allergien"},
+		Columns: []lists.Column{
+			{ID: lists.ColumnName, Label: "Name"},
+			{ID: lists.ColumnSchoolClass, Label: "Klasse"},
+			{ID: lists.ColumnCurrentLocation, Label: "Ort / Raum"},
+			{ID: lists.ColumnID("contact_phone"), Label: "Telefonnummer"},
+			{ID: lists.ColumnContactName, Label: "Kontakt"},
+			{ID: lists.ColumnHealthInfo, Label: "Gesundheit / Allergien"},
 		},
-		Rows: []listexport.Row{
-			{Values: map[listexport.ColumnID]string{
-				listexport.ColumnName:            "Mila Albrecht",
-				listexport.ColumnSchoolClass:     "Klasse 3b",
-				listexport.ColumnCurrentLocation: "Kreativraum",
-				listexport.ColumnContactPhone:    "02551 111; 02551 222; 02551 333",
-				listexport.ColumnContactName:     "Lea Albrecht; Noah Albrecht",
-				listexport.ColumnHealthInfo:      "Nussallergie, Epipen im Gruppenraum",
+		Rows: []lists.Row{
+			{Values: map[lists.ColumnID]string{
+				lists.ColumnName:                "Mila Albrecht",
+				lists.ColumnSchoolClass:         "Klasse 3b",
+				lists.ColumnCurrentLocation:     "Kreativraum",
+				lists.ColumnID("contact_phone"): "02551 111; 02551 222; 02551 333",
+				lists.ColumnContactName:         "Lea Albrecht; Noah Albrecht",
+				lists.ColumnHealthInfo:          "Nussallergie, Epipen im Gruppenraum",
 			}},
-			{Values: map[listexport.ColumnID]string{
-				listexport.ColumnName:            "Max Schmitt",
-				listexport.ColumnSchoolClass:     "Klasse 2a",
-				listexport.ColumnCurrentLocation: "Unterwegs",
-				listexport.ColumnContactPhone:    "02551 444",
-				listexport.ColumnContactName:     "Familie Schmitt",
-				listexport.ColumnHealthInfo:      "Nicht hinterlegt",
+			{Values: map[lists.ColumnID]string{
+				lists.ColumnName:                "Max Schmitt",
+				lists.ColumnSchoolClass:         "Klasse 2a",
+				lists.ColumnCurrentLocation:     "Unterwegs",
+				lists.ColumnID("contact_phone"): "02551 444",
+				lists.ColumnContactName:         "Familie Schmitt",
+				lists.ColumnHealthInfo:          "Nicht hinterlegt",
 			}},
 		},
-	}, ToListExportDocument(doc))
+	}, emergencySnapshotListDocument(doc))
 
 	file, err := query.Export(context.Background())
 	require.NoError(t, err)
@@ -208,24 +207,24 @@ func TestExportRendersTheRetainedNotfallliste(t *testing.T) {
 	assert.NotEmpty(t, file.Data)
 }
 
-func TestBinaryModeMapsSchoolStatuses(t *testing.T) {
+func TestEmergencySnapshotBinaryModeMapsSchoolStatuses(t *testing.T) {
 	t.Parallel()
-	sources := fullSources()
-	sources.PresenceMode = fakeMode{mode: "binary"}
-	sources.Presence = &fakePresence{open: []int64{101, 202}, statuses: []studentpresence.SchoolStatus{
+	sources := emergencyFullSources()
+	sources.PresenceMode = emergencyFakeMode{mode: "binary"}
+	sources.Presence = &emergencyFakePresence{open: []int64{101, 202}, statuses: []studentpresence.SchoolStatus{
 		{StudentID: 101, Status: "checked_in"},
 		{StudentID: 202, Status: "on_yard"},
 	}}
-	sources.Students = fakeStudents{rows: map[int64]*usersModels.Student{
+	sources.Students = emergencyFakeStudents{rows: map[int64]*users.Student{
 		101: {PersonID: 301, SchoolClass: "Klasse 3b"},
 		202: {PersonID: 302, SchoolClass: "Klasse 2a"},
 	}}
-	sources.Persons = fakePersons{rows: []peopledirectory.Person{
+	sources.Persons = emergencyFakePersons{rows: []peopledirectory.Person{
 		{ID: 301, FirstName: "Mila", LastName: "Albrecht"},
 		{ID: 302, FirstName: "Max", LastName: "Schmitt"},
 	}}
-	sources.Rooms = &fakeRooms{err: errors.New("rooms must not be read in binary mode")}
-	query, err := New(sources)
+	sources.Rooms = &emergencyFakeRooms{err: errors.New("rooms must not be read in binary mode")}
+	query, err := newEmergencySnapshot(sources)
 	require.NoError(t, err)
 
 	snapshot, err := query.Snapshot(context.Background(), time.Date(2026, 5, 27, 12, 0, 0, 0, time.UTC))
@@ -235,35 +234,35 @@ func TestBinaryModeMapsSchoolStatuses(t *testing.T) {
 	assert.Equal(t, "Schulhof", snapshot.Rows[1].Location)
 }
 
-func TestBinaryStatusFailurePreservesLegacyMessage(t *testing.T) {
+func TestEmergencySnapshotBinaryStatusFailurePreservesLegacyMessage(t *testing.T) {
 	t.Parallel()
-	port := presence{facade: &fakePresence{err: errors.New("private database details")}}
+	port := emergencySnapshotPresenceReads{facade: &emergencyFakePresence{err: errors.New("private database details")}}
 	_, err := port.SchoolStatuses(context.Background(), []int64{101}, "2026-09-09")
 	require.EqualError(t, err, "active: GetStudentsAttendanceStatuses: database operation failed")
 }
 
 // One failing owner query surfaces through the projection unchanged.
-func TestOwnerFailuresSurface(t *testing.T) {
+func TestEmergencySnapshotOwnerFailuresSurface(t *testing.T) {
 	t.Parallel()
 	injected := errors.New("owner unavailable")
-	cases := map[string]func(*Sources){
-		"presence mode": func(s *Sources) { s.PresenceMode = fakeMode{err: injected} },
-		"students":      func(s *Sources) { s.Students = fakeStudents{err: injected} },
-		"persons":       func(s *Sources) { s.Persons = fakePersons{err: injected} },
-		"contacts":      func(s *Sources) { s.Contacts = fakeContacts{err: injected} },
-		"rooms":         func(s *Sources) { s.Rooms = &fakeRooms{err: injected} },
+	cases := map[string]func(*emergencySnapshotSources){
+		"presence mode": func(s *emergencySnapshotSources) { s.PresenceMode = emergencyFakeMode{err: injected} },
+		"students":      func(s *emergencySnapshotSources) { s.Students = emergencyFakeStudents{err: injected} },
+		"persons":       func(s *emergencySnapshotSources) { s.Persons = emergencyFakePersons{err: injected} },
+		"contacts":      func(s *emergencySnapshotSources) { s.Contacts = emergencyFakeContacts{err: injected} },
+		"rooms":         func(s *emergencySnapshotSources) { s.Rooms = &emergencyFakeRooms{err: injected} },
 	}
 	for name, breakSource := range cases {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			sources := fullSources()
-			sources.Presence = &fakePresence{open: []int64{101}, visits: []studentpresence.VisitLocation{{
+			sources := emergencyFullSources()
+			sources.Presence = &emergencyFakePresence{open: []int64{101}, visits: []studentpresence.VisitLocation{{
 				Visit: studentpresence.Visit{StudentID: 101}, Group: &studentpresence.VisitGroup{RoomID: 1},
 			}}}
-			sources.Students = fakeStudents{rows: map[int64]*usersModels.Student{101: {PersonID: 301}}}
-			sources.Persons = fakePersons{rows: []peopledirectory.Person{{ID: 301, FirstName: "Mila", LastName: "Albrecht"}}}
+			sources.Students = emergencyFakeStudents{rows: map[int64]*users.Student{101: {PersonID: 301}}}
+			sources.Persons = emergencyFakePersons{rows: []peopledirectory.Person{{ID: 301, FirstName: "Mila", LastName: "Albrecht"}}}
 			breakSource(&sources)
-			query, err := New(sources)
+			query, err := newEmergencySnapshot(sources)
 			require.NoError(t, err)
 			_, err = query.Export(context.Background())
 			require.ErrorIs(t, err, injected)
@@ -273,21 +272,21 @@ func TestOwnerFailuresSurface(t *testing.T) {
 
 // --- Database-backed adapters ---
 
-func newPresenceModule(t *testing.T, db *bun.DB) *studentpresence.Module {
+func emergencyPresenceModule(t *testing.T, db *bun.DB) *studentpresence.Module {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
 	return module
 }
 
-func TestPersonIdentityFilteringMatchesRetainedReader(t *testing.T) {
+func TestEmergencySnapshotPersonIdentityFilteringMatchesRetainedReader(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Filtering", "Parity", "3a")
 	people, err := peopleCompose.New(peopleCompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peopleCompose.Observation) {}})
 	require.NoError(t, err)
-	old := usersRepo.NewPersonRepository(peopleCompose.NewLegacyRepositoryRuntime(db))
+	old := peopleCompose.NewPersonRepository(db, nil)
 	ids := []int64{student.PersonID}
 	beforeOld, err := old.FindByIDs(ctx, ids)
 	require.NoError(t, err)
@@ -307,7 +306,7 @@ func TestPersonIdentityFilteringMatchesRetainedReader(t *testing.T) {
 // The presence adapter selects the latest open visit inside a running
 // session: an older closed visit and a visit in an ended session never
 // supply a room.
-func TestCurrentRoomIDsSelectLatestRunningSession(t *testing.T) {
+func TestEmergencySnapshotCurrentRoomIDsSelectLatestRunningSession(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
@@ -318,7 +317,7 @@ func TestCurrentRoomIDsSelectLatestRunningSession(t *testing.T) {
 	secondGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, secondRoom.ID)
 	first := testpkg.CreateTestStudent(t, db, "Visit", "First", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Visit", "Second", "1b")
-	port := presence{facade: newPresenceModule(t, db), mode: fakeMode{mode: "detailed"}}
+	port := emergencySnapshotPresenceReads{facade: emergencyPresenceModule(t, db), mode: emergencyFakeMode{mode: "detailed"}}
 
 	rooms, err := port.CurrentRoomIDs(ctx, nil)
 	require.NoError(t, err)
@@ -339,13 +338,13 @@ func TestCurrentRoomIDsSelectLatestRunningSession(t *testing.T) {
 	assert.NotContains(t, rooms, first.ID, "ended sessions cannot supply a current room")
 }
 
-// TestSnapshotInputsEnforceRLS proves the emergency snapshot projection
+// TestEmergencySnapshotInputsEnforceRLS proves the emergency snapshot projection
 // (#2704) stays inside the tenant: two schools seed the same shape (present
 // child in a running session with a linked guardian and phone number), the
 // projection's named inputs are invisible across the tenant boundary under
 // the least-privilege role, and each school's Notfallliste lists only its
 // own child with its own guardian.
-func TestSnapshotInputsEnforceRLS(t *testing.T) {
+func TestEmergencySnapshotInputsEnforceRLS(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	type fixture struct {
@@ -373,7 +372,7 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 			visit := testpkg.CreateTestVisit(t, db, student.ID, activeGroup.ID, checkIn, nil)
 			guardian := testpkg.CreateTestGuardianProfileNamed(t, db, "Guardian", side, "guardian-"+side)
 			link := testpkg.CreateTestStudentGuardianLink(t, db, student.ID, guardian.ID, "parent")
-			phone := &usersModels.GuardianPhoneNumber{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: usersModels.PhoneTypeMobile, IsPrimary: true}
+			phone := &users.GuardianPhoneNumber{GuardianProfileID: guardian.ID, PhoneNumber: "02551 " + side, PhoneType: peopledirectory.PhoneTypeMobile, IsPrimary: true}
 			phone.SetTenantID(testpkg.Tenant(t))
 			require.NoError(t, db.NewInsert().Model(phone).ModelTableExpr("users.guardian_phone_numbers").Scan(ctx))
 			var membershipID int64
@@ -420,14 +419,14 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 	require.NoError(t, err)
 	facilitiesModule, err := facilitiesCompose.NewUnobserved(db)
 	require.NoError(t, err)
-	query, err := New(Sources{
-		Presence:     newPresenceModule(t, db),
-		PresenceMode: fakeMode{mode: "detailed"},
-		Students:     newOwnerStudentSource(t, db),
+	query, err := newEmergencySnapshot(emergencySnapshotSources{
+		Presence:     emergencyPresenceModule(t, db),
+		PresenceMode: emergencyFakeMode{mode: "detailed"},
+		Students:     newEmergencyOwnerStudents(t, db),
 		Persons:      people,
-		Contacts:     usersRepo.NewGuardianRelationshipRepository(peopleCompose.NewLegacyRepositoryRuntime(db), testpkg.StudentDirectory{}, testpkg.GuardianLinks{}),
+		Contacts:     peopleCompose.NewGuardianRelationshipRepository(db, peopleCompose.GuardianRelationshipDependencies{Students: testpkg.StudentDirectory{}, Links: testpkg.GuardianLinks{}}),
 		Rooms:        facilitiesModule,
-		Renderer:     listexport.NewService(),
+		Renderer:     lists.NewRendererService(),
 	})
 	require.NoError(t, err)
 	for _, fixture := range fixtures {
@@ -449,35 +448,35 @@ func TestSnapshotInputsEnforceRLS(t *testing.T) {
 	}
 }
 
-// ownerStudentSource satisfies the snapshot's one-method student port from
+// emergencyOwnerStudents satisfies the snapshot's one-method student port from
 // People Directory, which owns users.students since #3349. This adapter-test
 // may not reach the legacy composition that production wires, so it speaks to
 // the owner directly — and therefore still reads real rows under real RLS,
 // which is the point of the checks below.
-type ownerStudentSource struct{ directory peopledirectory.Capability }
+type emergencyOwnerStudents struct{ directory peopledirectory.Capability }
 
-func newOwnerStudentSource(t *testing.T, db *bun.DB) ownerStudentSource {
+func newEmergencyOwnerStudents(t *testing.T, db *bun.DB) emergencyOwnerStudents {
 	t.Helper()
 	directory, err := peopleCompose.New(peopleCompose.Dependencies{
 		StudentDirectory: testpkg.StudentDirectory{},
 		DB:               db, Observe: func(peopleCompose.Observation) {},
 	})
 	require.NoError(t, err)
-	return ownerStudentSource{directory: directory}
+	return emergencyOwnerStudents{directory: directory}
 }
 
-func (s ownerStudentSource) FindByIDs(
+func (s emergencyOwnerStudents) FindByIDs(
 	ctx context.Context,
 	ids []int64,
-) (map[int64]*usersModels.Student, error) {
+) (map[int64]*users.Student, error) {
 	records, err := s.directory.ListStudentRecordsByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
 	// Only what the snapshot renders; the owner's record carries the rest.
-	result := make(map[int64]*usersModels.Student, len(records))
+	result := make(map[int64]*users.Student, len(records))
 	for _, record := range records {
-		student := &usersModels.Student{
+		student := &users.Student{
 			PersonID: record.PersonID, SchoolClass: record.SchoolClass,
 			HealthInfo: record.HealthInfo,
 		}
