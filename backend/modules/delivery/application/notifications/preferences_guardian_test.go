@@ -11,8 +11,6 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -42,7 +40,7 @@ func TestGuardianPreferencesAcrossSchools(t *testing.T) {
 	reminderEnabled := map[int64]bool{1: true, 2: true}
 	settings := &settingsDouble{
 		ResolveBoolFn: func(settingsCtx context.Context, key string) (bool, error) {
-			if key == configModel.KeyNotificationsDispatchEnabled {
+			if key == "notifications.dispatch_enabled" {
 				return true, nil
 			}
 			return reminderEnabled[tenant.FromContext(settingsCtx)], nil

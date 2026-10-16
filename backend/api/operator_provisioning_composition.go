@@ -54,7 +54,8 @@ func (owners operatorProvisioningOwners) compose(sources OperatorProvisioningSou
 	}
 	identity := sources.Identity
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
-		Organizations: owners.Organizations,
+		PWAUsageWindowDays: deliveryCompose.PWAUsageWindowDays,
+		Organizations:      owners.Organizations,
 		Identity: provisioningIdentity{
 			sessions: identity, invitations: identity, provisioning: identity,
 			administration: identity, schoolIdentity: identity, roles: identity, accounts: sources.Accounts,

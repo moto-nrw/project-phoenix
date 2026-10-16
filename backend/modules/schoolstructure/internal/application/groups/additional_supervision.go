@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -220,8 +219,12 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	if err != nil {
 		return nil, err
 	}
-	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "additional_supervision_assign")
-	realtimeevents.QueueActiveSupervisionChanged(ctx, s.deps.Broadcaster, s.deps.Logger, request.ActiveGroupID, "additional_supervisor_assigned")
+	if s.deps.Broadcaster != nil {
+		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "additional_supervision_assign")
+	}
+	if s.deps.Broadcaster != nil {
+		s.deps.Broadcaster.QueueActiveSupervisionChanged(ctx, request.ActiveGroupID, "additional_supervisor_assigned")
+	}
 	return &result, nil
 }
 

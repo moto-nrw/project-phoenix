@@ -8,7 +8,6 @@ import (
 	"errors"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -471,7 +470,7 @@ func TestAbsenceNotifierRespectsOnDutySetting(t *testing.T) {
 
 		require.Len(t, w.notifier.events, 1)
 		assert.Equal(t, []int64{absenceAdmin}, w.notifier.events[0].Audience.StaffAccountIDs)
-		assert.Equal(t, configModel.KeyNotificationsOnDutyOnly, w.settings.asked)
+		assert.Equal(t, "notifications.on_duty_only", w.settings.asked)
 	})
 
 	// Which work status counts as on duty is Workforce's rule

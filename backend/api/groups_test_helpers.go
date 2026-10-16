@@ -50,7 +50,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	}
 	groups := education.NewGroupManagement(tt.Group, tt.GroupTeacher, tt.ClassTeacher,
 		NewEducationRooms(tt.Facilities), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
-		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: publisher})
+		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(publisher, nil)})
 
 	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
