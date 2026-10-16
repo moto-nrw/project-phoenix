@@ -72,3 +72,31 @@ func (p storedGuardianPermission) GuardianAuthorizationData() (string, string, b
 }
 
 func (storedGuardianPermission) SetGuardianAuthorizationData(string, map[string]interface{}) {}
+
+// GuardianRoleClass groups the stored relationship roles by the access a
+// guardian invitation may build on them.
+type GuardianRoleClass int
+
+const (
+	// GuardianRoleClassRestricted is every role without parents-portal
+	// access that a confirmed invitation may upgrade to a legal guardian.
+	GuardianRoleClassRestricted GuardianRoleClass = iota
+	// GuardianRoleClassFull is a full guardian preset (primary, legal or
+	// co-guardian).
+	GuardianRoleClassFull
+	// GuardianRoleClassSocialWorker is the school-managed social worker
+	// preset, which no invitation may upgrade.
+	GuardianRoleClassSocialWorker
+)
+
+// ClassifyGuardianRole reports the class of a stored relationship role.
+func ClassifyGuardianRole(role string) GuardianRoleClass {
+	switch {
+	case IsFullGuardianRole(role):
+		return GuardianRoleClassFull
+	case authorize.NormalizeGuardianRole(role) == GuardianRoleSocialWorker:
+		return GuardianRoleClassSocialWorker
+	default:
+		return GuardianRoleClassRestricted
+	}
+}

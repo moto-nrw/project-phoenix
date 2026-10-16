@@ -66,3 +66,29 @@ func TestGuardianPermissionGranted(t *testing.T) {
 		}
 	}
 }
+
+// TestClassifyGuardianRoleGroupsTheStoredRoles pins the classes the guardian
+// invitation flows act on: full presets need no upgrade, the social worker
+// preset is school-managed, every other stored role (unknown ones included)
+// is a restricted contact.
+func TestClassifyGuardianRoleGroupsTheStoredRoles(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]GuardianRoleClass{
+		GuardianRolePrimaryGuardian: GuardianRoleClassFull,
+		" Legal_Guardian ":          GuardianRoleClassFull,
+		GuardianRoleCoGuardian:      GuardianRoleClassFull,
+		GuardianRoleSocialWorker:    GuardianRoleClassSocialWorker,
+		" SOCIAL_WORKER":            GuardianRoleClassSocialWorker,
+		GuardianRoleEmergency:       GuardianRoleClassRestricted,
+		GuardianRolePickupOnly:      GuardianRoleClassRestricted,
+		GuardianRoleCustom:          GuardianRoleClassRestricted,
+		"":                          GuardianRoleClassRestricted,
+		"unknown":                   GuardianRoleClassRestricted,
+	}
+	for role, want := range cases {
+		if got := ClassifyGuardianRole(role); got != want {
+			t.Errorf("ClassifyGuardianRole(%q) = %d, want %d", role, got, want)
+		}
+	}
+}
