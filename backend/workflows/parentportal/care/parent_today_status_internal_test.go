@@ -5,7 +5,6 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -195,7 +194,7 @@ func TestApplyAttendanceRowsPrefersOpenRow(t *testing.T) {
 	t.Parallel()
 
 	closedOut := berlinClock(t, 11, 40)
-	rows := []studentpresence.Attendance{
+	rows := []Attendance{
 		{CheckInTime: berlinClock(t, 8, 5), CheckOutTime: &closedOut},
 		{CheckInTime: berlinClock(t, 13, 5), CheckOutTime: nil},
 	}
