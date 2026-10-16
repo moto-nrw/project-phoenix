@@ -19,7 +19,10 @@ export interface BackendOperatorListItem {
   display_name: string;
   active: boolean;
   last_login?: string | null;
+  deactivated_at?: string | null;
+  deletion_due_at?: string | null;
   created_at: string;
+  is_self: boolean;
 }
 
 export interface BackendInvitationsListResponse {
@@ -54,7 +57,13 @@ export interface OperatorInfo {
   displayName: string;
   active: boolean;
   lastLogin?: string;
+  /** Set while the account is deactivated; the account is deleted later. */
+  deactivatedAt?: string;
+  /** When moto deletes the deactivated account. */
+  deletionDueAt?: string;
   createdAt: string;
+  /** The signed-in operator, who cannot deactivate their own account. */
+  isSelf: boolean;
 }
 
 export interface OperatorInvitationValidation {
@@ -100,7 +109,10 @@ export function mapOperatorInfo(data: BackendOperatorListItem): OperatorInfo {
     displayName: data.display_name,
     active: data.active,
     lastLogin: data.last_login ?? undefined,
+    deactivatedAt: data.deactivated_at ?? undefined,
+    deletionDueAt: data.deletion_due_at ?? undefined,
     createdAt: data.created_at,
+    isSelf: data.is_self,
   };
 }
 

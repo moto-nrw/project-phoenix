@@ -97,6 +97,19 @@ type OperatorInvitationCleaner interface {
 	SignInDataCleaner
 }
 
+// OperatorRetention deletes the moto team's own data after its fixed window
+// (#4047): the operator ledger entries before 1 January of last year, then
+// the operator accounts deactivated before that date. The ledger goes first,
+// because an entry still pointing at an account refuses its deletion.
+type OperatorRetention struct {
+	Ledger interface {
+		DeleteExpiredOperatorAuditLog(ctx context.Context) (int, error)
+	}
+	Accounts interface {
+		DeleteDeactivatedOperators(ctx context.Context) (int, error)
+	}
+}
+
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in
 // data Identity & Access owns (#3954): invitations for parents, e-mail codes
 // and passkey ceremonies of accounts and operators, and expired operator

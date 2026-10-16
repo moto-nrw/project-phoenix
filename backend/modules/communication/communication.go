@@ -81,8 +81,8 @@ func (a *Announcement) Validate() error {
 	if !IsValidSeverity(a.Severity) {
 		return errors.New("invalid severity")
 	}
-	if a.CreatedBy <= 0 {
-		return errors.New("created_by is required")
+	if a.CreatedBy < 0 {
+		return errors.New("created_by must not be negative")
 	}
 	if a.Version != nil && len(*a.Version) > maxVersionLen {
 		return fmt.Errorf("version must not exceed %d characters", maxVersionLen)
@@ -201,6 +201,13 @@ func (m *Module) CreateAnnouncement(ctx context.Context, value *Announcement, op
 	started := time.Now()
 	if value == nil {
 		err := &InvalidDataError{Err: errors.New("announcement cannot be nil")}
+		m.engine.ObserveRejection("create", time.Since(started), err)
+		return err
+	}
+	// A stored announcement may have lost its author with the operator
+	// account (#4047); a new one always names the operator creating it.
+	if operatorID <= 0 {
+		err := &InvalidDataError{Err: errors.New("created_by is required")}
 		m.engine.ObserveRejection("create", time.Since(started), err)
 		return err
 	}

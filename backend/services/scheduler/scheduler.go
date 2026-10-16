@@ -187,7 +187,8 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		pwaUsageCleanup:            deps.PWAUsageCleanup,
 		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
-		cleanupJobs:                buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
+		cleanupJobs: append(buildCleanupJobs(deps.AuthCleanup, deps.InvitationCleanup, deps.EmailChangeCleanup, deps.OperatorInvitationCleanup),
+			operatorRetentionJobs(deps.OperatorRetention)...),
 
 		activeService:          deps.Active,
 		breakAutoEnder:         deps.BreakAutoEnder,
@@ -1086,6 +1087,19 @@ func (s *Scheduler) runCleanupJobs(ctx context.Context) error {
 }
 
 // buildCleanupJobs constructs the set of cleanup jobs so other runners can reuse the same registry.
+// operatorRetentionJobs lists the hourly operator retention jobs in their
+// required order. A missing side leaves its job out.
+func operatorRetentionJobs(r ports.OperatorRetention) []CleanupJob {
+	var jobs []CleanupJob
+	if r.Ledger != nil {
+		jobs = append(jobs, CleanupJob{Description: "Operator audit log retention", Run: r.Ledger.DeleteExpiredOperatorAuditLog})
+	}
+	if r.Accounts != nil {
+		jobs = append(jobs, CleanupJob{Description: "Deactivated operator cleanup", Run: r.Accounts.DeleteDeactivatedOperators})
+	}
+	return jobs
+}
+
 func buildCleanupJobs(authService ports.AuthCleanup, invitationService ports.InvitationCleaner, emailChangeCleaner ports.EmailChangeTokenCleaner, operatorInvitationCleaner ports.OperatorInvitationCleaner) []CleanupJob {
 	var jobs []CleanupJob
 

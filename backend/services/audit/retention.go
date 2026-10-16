@@ -83,6 +83,25 @@ func followingYearCutoff(now time.Time) time.Time {
 	return time.Date(year-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
 }
 
+// operatorLedgerRetentionStore is the Audit append store's access to the
+// platform-wide operator ledger.
+type operatorLedgerRetentionStore interface {
+	DeleteExpiredOperatorAuditLog(ctx context.Context) (int64, error)
+}
+
+// DeleteExpiredOperatorAuditLog removes the operator-ledger entries once the
+// year after the entry has ended (#4047), the window of the access log. The
+// ledger belongs to moto, not to a school: the hourly cleanup runs it in an
+// administrative transaction and logs no school deletion.
+func (c *Command) DeleteExpiredOperatorAuditLog(ctx context.Context) (int, error) {
+	store, ok := c.store.(operatorLedgerRetentionStore)
+	if !ok {
+		return 0, fmt.Errorf("audit command: operator ledger retention store is required")
+	}
+	deleted, err := store.DeleteExpiredOperatorAuditLog(ctx)
+	return int(deleted), err
+}
+
 // DeleteExpiredDeletionLog removes the school's deletion-log rows older than
 // three years and reports how many went and the window in days.
 func (c *Command) DeleteExpiredDeletionLog(ctx context.Context) (int, int, error) {

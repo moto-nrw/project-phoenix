@@ -12,12 +12,24 @@ var (
 	// ErrOperatorSessionRotated reports a rotation hand-off that found no
 	// un-rotated row: the session was already rotated or does not exist.
 	ErrOperatorSessionRotated = errors.New("operator session was already rotated or not found")
+	// ErrOperatorSelfDeactivation reports an operator who tried to
+	// deactivate their own account.
+	ErrOperatorSelfDeactivation = errors.New("an operator cannot deactivate their own account")
 )
 
 const (
 	maxOperatorEmailLength       = 255
 	maxOperatorDisplayNameLength = 100
 )
+
+// OperatorStatusChange is one deactivation or reactivation of an operator
+// account by another operator. IPAddress is recorded in the operator ledger.
+type OperatorStatusChange struct {
+	OperatorID int64
+	ActorID    int64
+	IPAddress  string
+	Active     bool
+}
 
 // Operator is the platform-wide login identity of a moto operator. It has
 // no tenant; the platform portal authenticates it directly.
@@ -30,6 +42,7 @@ type Operator struct {
 	LastLogin      *time.Time
 	MFAAttempts    int
 	MFALockedUntil *time.Time
+	DeactivatedAt  *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
