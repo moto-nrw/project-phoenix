@@ -233,3 +233,102 @@ func TestPackageSelectorsNarrowOwnerProjection(t *testing.T) {
 		t.Fatal("selected alpha -> beta owner edge vanished")
 	}
 }
+
+func TestPackageSelectorOverlapClassifications(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name    string
+		mutate  func(*Rule, *Rule)
+		overlap bool
+	}{
+		{"source owner disjoint", func(a, b *Rule) {
+			a.SourcePackage, b.SourceOwner, b.SourceOwnerKind = "alpha/application", "beta", ""
+		}, false},
+		{"source owner overlaps", func(a, b *Rule) {
+			a.SourcePackage, b.SourceOwner, b.SourceOwnerKind = "alpha/application", "alpha", ""
+		}, true},
+		{"source role disjoint", func(a, b *Rule) {
+			a.SourcePackage, b.SourceRole = "alpha/application", "public"
+		}, false},
+		{"source test role overlaps", func(a, b *Rule) {
+			a.SourcePackage, b.SourceRole = "alpha/application", "module-internal-test"
+			a.Scopes, b.Scopes = []string{"internal_test"}, []string{"internal_test"}
+		}, true},
+		{"later scope overlaps", func(a, b *Rule) {
+			a.SourcePackage, b.SourceRole = "alpha/application", "module-behavior-test"
+			a.Scopes, b.Scopes = []string{"production", "external_test"}, []string{"production", "external_test"}
+		}, true},
+		{"source test role disjoint", func(a, b *Rule) {
+			a.SourcePackage, b.SourceRole = "alpha/application", "application"
+			a.Scopes, b.Scopes = []string{"internal_test"}, []string{"internal_test"}
+		}, false},
+		{"target owner disjoint", func(a, b *Rule) {
+			a.TargetOwnerKind, b.TargetOwnerKind = "domain", ""
+			a.TargetPackage, b.TargetOwner = "alpha/public", "beta"
+		}, false},
+		{"target owner overlaps", func(a, b *Rule) {
+			a.TargetOwnerKind, b.TargetOwnerKind = "domain", ""
+			a.TargetPackage, b.TargetOwner = "alpha/public", "alpha"
+		}, true},
+		{"same owner source disjoint", func(a, b *Rule) {
+			a.TargetOwnerKind, b.TargetOwnerKind = "", ""
+			a.SameOwner = true
+			a.SourcePackage, b.TargetOwner = "alpha/application", "beta"
+		}, false},
+		{"same owner target disjoint", func(a, b *Rule) {
+			a.TargetOwnerKind, b.TargetOwnerKind = "domain", ""
+			b.SameOwner = true
+			a.TargetPackage, b.SourceOwner, b.SourceOwnerKind = "alpha/public", "beta", ""
+		}, false},
+		{"same owner overlaps", func(a, b *Rule) {
+			a.TargetOwnerKind, b.TargetOwnerKind = "", ""
+			a.SameOwner, b.SameOwner = true, true
+			a.SourcePackage, b.TargetPackage = "alpha/application", "alpha/public"
+		}, true},
+		{"external source disjoint", func(a, b *Rule) {
+			a.TargetOwnerKind, b.TargetOwnerKind, a.TargetRole, b.TargetRole = "", "", "", ""
+			a.TargetClass, b.TargetClass = "stdlib", "stdlib"
+			a.SourcePackage, b.SourceOwner, b.SourceOwnerKind = "alpha/application", "beta", ""
+		}, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			p := selectorPolicy(t)
+			p.PolicyEpoch = targetOnlyRulesEpoch
+			p.Owners = []Owner{{ID: "alpha", Kind: "domain"}, {ID: "beta", Kind: "domain"}, {ID: "runtime", Kind: "platform"}}
+			p.Roles = append(p.Roles, "public")
+			p.ExternalClasses = []string{"stdlib"}
+			p.Packages = nil
+			for _, owner := range p.Owners {
+				for _, role := range []string{"application", "public"} {
+					p.Packages = append(p.Packages, Package{
+						Path: owner.ID + "/" + role, Owner: owner.ID, Role: role,
+						InternalTestRole: "module-internal-test", ExternalTestRole: "module-behavior-test",
+					})
+				}
+			}
+			a := Rule{ID: "first", Description: "First permission.", Scopes: []string{"production"}, SourceOwnerKind: "domain", TargetOwnerKind: "platform", TargetRole: "public"}
+			b := a
+			b.ID = "second"
+			tc.mutate(&a, &b)
+			// Each rule must be valid independently; only overlap may reject the pair.
+			for _, rule := range []Rule{a, b} {
+				p.Rules = []Rule{rule}
+				if err := p.Validate(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			for _, rules := range [][]Rule{{a, b}, {b, a}} {
+				p.Rules = rules
+				err := p.Validate()
+				if tc.overlap {
+					if err == nil || !strings.Contains(err.Error(), "overlaps") {
+						t.Fatalf("expected overlap rejection, got %v", err)
+					}
+				} else if err != nil {
+					t.Fatalf("disjoint rules rejected: %v", err)
+				}
+			}
+		})
+	}
+}

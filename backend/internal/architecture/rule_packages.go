@@ -49,6 +49,39 @@ func (p *Policy) rulePackage(ruleID, side, selector string) (Package, error) {
 	return pkg, nil
 }
 
+// overlappingScope intersects validated package classifications before comparing
+// selectors. Source roles depend on scope; target roles always use production.
+func (p *Policy) overlappingScope(left, right Rule, owners map[string]Owner) (string, bool) {
+	if left.SourcePackage == "" && right.SourcePackage == "" && left.TargetPackage == "" && right.TargetPackage == "" {
+		return overlappingScope(left, right, owners)
+	}
+	for _, scope := range left.Scopes {
+		if !slices.Contains(right.Scopes, scope) {
+			continue
+		}
+		if _, overlaps := overlappingScope(p.classifiedOverlapRule(left, scope), p.classifiedOverlapRule(right, scope), owners); overlaps {
+			return scope, true
+		}
+	}
+	return "", false
+}
+
+// classifiedOverlapRule is only used after package selectors have been validated
+// against their owner/role selectors, so the exact classification can narrow them.
+func (p *Policy) classifiedOverlapRule(rule Rule, scope string) Rule {
+	rule.Scopes = []string{scope}
+	for _, pkg := range p.Packages {
+		if rule.SourcePackage == pkg.Path {
+			rule.SourceOwner, rule.SourceOwnerKind = pkg.Owner, ""
+			rule.SourceRole = pkg.inScope(Scope(scope)).Role
+		}
+		if rule.TargetPackage == pkg.Path {
+			rule.TargetOwner, rule.TargetOwnerKind = pkg.Owner, ""
+		}
+	}
+	return rule
+}
+
 func packageSelectorsOverlap(left, right string) bool {
 	return left == "" || right == "" || left == right
 }

@@ -534,7 +534,7 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 			}
 		}
 		for _, previous := range validated {
-			if scope, overlaps := overlappingScope(previous, rule, owners); overlaps {
+			if scope, overlaps := p.overlappingScope(previous, rule, owners); overlaps {
 				return fmt.Errorf("rule %q overlaps rule %q for scope %q", rule.ID, previous.ID, scope)
 			}
 		}
