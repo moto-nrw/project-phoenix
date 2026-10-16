@@ -4741,7 +4741,11 @@ func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name s
 	return offering
 }
 
-type offeringStudentTestDirectory struct{ students usersModels.StudentRepository }
+type offeringStudentTestDirectory struct {
+	students interface {
+		FindByIDs(context.Context, []int64) (map[int64]*usersModels.Student, error)
+	}
+}
 
 func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, ids []int64) ([]TestOfferingStudent, error) {
 	students, err := d.students.FindByIDs(ctx, ids)

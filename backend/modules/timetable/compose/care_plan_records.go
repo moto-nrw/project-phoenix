@@ -234,9 +234,9 @@ type CarePlanRecords interface {
 	CareRequestRecords
 }
 
-// RetainedRecordErrors builds the retained People Directory repository error
-// shape the row callers still classify on; the root binds the People
-// Directory composition's.
+// RetainedRecordErrors builds the retained repository error shape the row
+// callers still classify on; the root binds the Transaction Runtime's
+// (transactionruntime.RecordErrors).
 type RetainedRecordErrors interface {
 	WrapRecordError(operation string, err error) error
 	MissingRecordError(operation string) error

@@ -20,6 +20,12 @@ type StaffMember struct {
 // those rows; the composition root binds it.
 type StaffMembers func(ctx context.Context, tenantIDs []int64) ([]StaffMember, error)
 
+// StaffPersons resolves the persons of staff members by ID; an unknown ID is
+// absent. People Directory owns those rows; the composition root binds it.
+type StaffPersons interface {
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.Person, error)
+}
+
 // GroupNames resolves group display names by ID; a group the caller cannot
 // see is absent. School Structure owns the groups; the composition root binds
 // it.
@@ -28,7 +34,7 @@ type GroupNames func(ctx context.Context, ids []int64) (map[int64]string, error)
 // NewStaffParentMessageReadRepository completes the read store's repository
 // contract: the staff-gated projections read the live staff accounts of each
 // school through members, their login accounts through persons.
-func NewStaffParentMessageReadRepository(db *bun.DB, members StaffMembers, persons usersModels.PersonRepository) usersModels.ParentMessageReadRepository {
+func NewStaffParentMessageReadRepository(db *bun.DB, members StaffMembers, persons StaffPersons) usersModels.ParentMessageReadRepository {
 	return parentMessageStaffRepository{ParentMessageReads: NewParentMessageReadRepository(db), members: members, persons: persons}
 }
 
@@ -40,7 +46,7 @@ func WithInboxGroupNames(reads usersModels.ParentMessageReadRepository, groups G
 // CurrentTenantStaffAccounts is the flat account set of the live staff
 // visible in the caller's transaction. The staff-messaging surface is
 // tenant-scoped, so every account belongs to the same school.
-func CurrentTenantStaffAccounts(members StaffMembers, persons usersModels.PersonRepository) func(context.Context) ([]int64, error) {
+func CurrentTenantStaffAccounts(members StaffMembers, persons StaffPersons) func(context.Context) ([]int64, error) {
 	return func(ctx context.Context) ([]int64, error) {
 		byTenant, err := staffAccountsByTenant(ctx, members, persons, nil)
 		if err != nil {
@@ -60,7 +66,7 @@ func CurrentTenantStaffAccounts(members StaffMembers, persons usersModels.Person
 // is every school the caller may see, unless tenantIDs bounds the lookup to
 // the schools the caller already knows — the guardian inbox does, so the
 // query never scans the whole platform's staff.
-func staffAccountsByTenant(ctx context.Context, listMembers StaffMembers, persons usersModels.PersonRepository, tenantIDs []int64) (map[int64][]int64, error) {
+func staffAccountsByTenant(ctx context.Context, listMembers StaffMembers, persons StaffPersons, tenantIDs []int64) (map[int64][]int64, error) {
 	members, err := listMembers(ctx, tenantIDs)
 	if err != nil {
 		return nil, fmt.Errorf("list staff for message projection: %w", err)
@@ -96,7 +102,7 @@ func staffAccountsByTenant(ctx context.Context, listMembers StaffMembers, person
 type parentMessageStaffRepository struct {
 	*ParentMessageReads
 	members StaffMembers
-	persons usersModels.PersonRepository
+	persons StaffPersons
 }
 
 var _ usersModels.ParentMessageReadRepository = parentMessageStaffRepository{}

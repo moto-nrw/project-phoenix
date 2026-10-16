@@ -126,7 +126,11 @@ func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *tes
 	assert.Empty(t, warnings)
 }
 
-type expiryDecisionStudents struct{ students usersModels.StudentRepository }
+type expiryDecisionStudents struct {
+	students interface {
+		List(context.Context, map[string]any) ([]*usersModels.Student, error)
+	}
+}
 
 func (d expiryDecisionStudents) ListEnrolledStudents(ctx context.Context) ([]enrollmentOwner.PhaseExpiryStudent, error) {
 	students, err := d.students.List(ctx, map[string]any{})

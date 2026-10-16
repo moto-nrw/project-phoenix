@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"strings"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -29,10 +30,10 @@ type CaregiverCapabilityServiceDependencies struct {
 	RequestActorScope      func(context.Context) (accountID int64, scope string)
 	Identity               CaregiverIdentity
 	Audit                  CaregiverCapabilityAudit
-	PersonRepo             userModels.PersonRepository
-	StaffRepo              userModels.StaffRepository
-	CaregiverBindingLock   userModels.CaregiverBindingLocker
-	TeacherRepo            userModels.TeacherRepository
+	PersonRepo             usersRepo.PersonRepository
+	StaffRepo              usersRepo.StaffRepository
+	CaregiverBindingLock   usersRepo.CaregiverBindingLocker
+	TeacherRepo            usersRepo.TeacherRepository
 	GroupTeacherRepo       GroupTeacherBlockers
 	GroupSubstitutionRepo  SubstitutionBlockers
 	GroupSupervisorRepo    SupervisionBlockers

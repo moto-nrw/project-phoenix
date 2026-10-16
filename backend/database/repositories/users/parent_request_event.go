@@ -37,7 +37,7 @@ func (r *ParentRequestEventRepository) Create(ctx context.Context, event *userMo
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &userModels.DatabaseError{Op: "create parent request event", Err: translateNotFound(err)}
+		return &DatabaseError{Op: "create parent request event", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -58,7 +58,7 @@ func (r *ParentRequestEventRepository) ListForRequest(
 		OrderExpr(`"parent_request_event".id`)
 	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &userModels.DatabaseError{Op: "list parent request events", Err: translateNotFound(err)}
+		return nil, &DatabaseError{Op: "list parent request events", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -81,7 +81,7 @@ func (r *ParentRequestEventRepository) ListForStudent(
 		Limit(int64(limit))
 	query = withTenantFilter(ctx, r.runtime, query, "parent_request_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &userModels.DatabaseError{Op: "list student parent request events", Err: translateNotFound(err)}
+		return nil, &DatabaseError{Op: "list student parent request events", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }

@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // RequestPeople keeps request decisions on the directory's tenant-scoped
@@ -48,7 +47,7 @@ func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *usersMo
 
 func requestStudentReadError(err error) error {
 	if errors.Is(err, peopledirectory.ErrStudentNotFound) || errors.Is(err, peopledirectory.ErrInvalidStudent) {
-		return usersModels.MissingStudentError("care request student", transactionruntime.ErrNoRows)
+		return usersModels.MissingStudentError("care request student")
 	}
 	return err
 }

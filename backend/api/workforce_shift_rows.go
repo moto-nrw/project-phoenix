@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
@@ -27,7 +27,7 @@ func newWorkforceShiftRows(capability workforceModule.Capability) *timetableComp
 	if capability == nil {
 		panic("staff shift rows: Workforce capability is required")
 	}
-	return timetableCompose.NewWorkforceShiftRows(workforceShiftRecords{capability: capability}, peopleCompose.RetainedRecordErrors{})
+	return timetableCompose.NewWorkforceShiftRows(workforceShiftRecords{capability: capability}, transactionruntime.RecordErrors{})
 }
 
 // newWorkforceShiftTypeRows binds the shift-type rows to the Workforce capability.
@@ -35,7 +35,7 @@ func newWorkforceShiftTypeRows(capability workforceModule.Capability) *timetable
 	if capability == nil {
 		panic("shift type rows: Workforce capability is required")
 	}
-	return timetableCompose.NewWorkforceShiftTypeRows(workforceShiftRecords{capability: capability}, peopleCompose.RetainedRecordErrors{})
+	return timetableCompose.NewWorkforceShiftTypeRows(workforceShiftRecords{capability: capability}, transactionruntime.RecordErrors{})
 }
 
 // workforceShiftRecords translates between the Timetable composition's

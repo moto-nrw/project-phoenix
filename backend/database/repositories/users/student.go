@@ -12,24 +12,19 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// StudentRepository implements users.StudentRepository interface
-type StudentRepository struct {
+// studentRepository implements the StudentRepository interface.
+type studentRepository struct {
 	runtime Runtime
-	// teacherGroupIDs resolves education.group_teacher through composition. This
-	// Postgres adapter stays independent of the School Membership owner and can
-	// resolve several teachers without one owner call per teacher.
-	teacherGroupIDs      func(context.Context, int64) ([]int64, error)
-	teacherStaffGroupIDs func(context.Context, []int64) ([]int64, error)
 }
 
 // NewStudentRepository creates a new StudentRepository
-func NewStudentRepository(runtime Runtime) users.StudentRepository {
-	return &StudentRepository{runtime: requireRuntime(runtime)}
+func NewStudentRepository(runtime Runtime) StudentRepository {
+	return &studentRepository{runtime: requireRuntime(runtime)}
 }
 
 // List retains the legacy equality-filter contract without a generic
 // repository that can accidentally fall back to the rollback view.
-func (r *StudentRepository) List(ctx context.Context, filters map[string]any) ([]*users.Student, error) {
+func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([]*users.Student, error) {
 	rows := make([]*users.Student, 0)
 	db := r.runtime.DB(ctx)
 	query := studentdirectoryview.ModelQuery(db, r.runtime.TenantID(ctx), &rows)
@@ -39,12 +34,12 @@ func (r *StudentRepository) List(ctx context.Context, filters map[string]any) ([
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &users.DatabaseError{Op: "list", Err: err}
+		return nil, &DatabaseError{Op: "list", Err: err}
 	}
 	return rows, nil
 }
 
-func (r *StudentRepository) CountWithOptions(ctx context.Context, options *users.QueryOptions) (int, error) {
+func (r *studentRepository) CountWithOptions(ctx context.Context, options *QueryOptions) (int, error) {
 	db := r.runtime.DB(ctx)
 	query := studentdirectoryview.Query(db, r.runtime.TenantID(ctx)).Column("student.id")
 	if options != nil && options.Filter != nil {
@@ -53,23 +48,9 @@ func (r *StudentRepository) CountWithOptions(ctx context.Context, options *users
 	}
 	count, err := query.Count(ctx)
 	if err != nil {
-		return 0, &users.DatabaseError{Op: "count with options", Err: err}
+		return 0, &DatabaseError{Op: "count with options", Err: err}
 	}
 	return int(count), nil
-}
-
-func (r *StudentRepository) BindTeacherGroupIDs(query func(context.Context, int64) ([]int64, error)) {
-	if query == nil {
-		panic("student repository: school membership is required")
-	}
-	r.teacherGroupIDs = query
-}
-
-func (r *StudentRepository) BindTeacherStaffGroupIDs(query func(context.Context, []int64) ([]int64, error)) {
-	if query == nil {
-		panic("student repository: school membership is required")
-	}
-	r.teacherStaffGroupIDs = query
 }
 
 // The child's own lifecycle moved to People Directory in #3349: the gates, the
@@ -85,44 +66,44 @@ func (r *StudentRepository) BindTeacherStaffGroupIDs(query func(context.Context,
 var errStudentWritesMoved = errors.New(
 	"student writes moved to People Directory: bind the directory before writing a child")
 
-func (r *StudentRepository) Create(context.Context, *users.Student) error {
+func (r *studentRepository) Create(context.Context, *users.Student) error {
 	return errStudentWritesMoved
 }
 
-func (r *StudentRepository) Update(context.Context, *users.Student) error {
+func (r *studentRepository) Update(context.Context, *users.Student) error {
 	return errStudentWritesMoved
 }
 
-func (r *StudentRepository) Delete(context.Context, any) error {
+func (r *studentRepository) Delete(context.Context, any) error {
 	return errStudentWritesMoved
 }
 
-func (r *StudentRepository) VerifyCompanionStrandingBatch(context.Context) error {
+func (r *studentRepository) VerifyCompanionStrandingBatch(context.Context) error {
 	return errStudentWritesMoved
 }
 
 // The rosters are the owner's: the child and the identity it renders under are
 // both its rows, so it answers them in one statement. These stay only as the
 // interface the retained StudentRepository declares.
-func (r *StudentRepository) FindByTeacherIDWithGroups(context.Context, int64) ([]*users.StudentWithGroupInfo, error) {
+func (r *studentRepository) FindByTeacherIDWithGroups(context.Context, int64) ([]*users.StudentWithGroupInfo, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByTeacherStaffIDsWithGroups(context.Context, []int64) ([]*users.StudentWithGroupInfo, error) {
+func (r *studentRepository) FindByTeacherStaffIDsWithGroups(context.Context, []int64) ([]*users.StudentWithGroupInfo, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindAllWithGroups(context.Context) ([]*users.StudentWithGroupInfo, error) {
+func (r *studentRepository) FindAllWithGroups(context.Context) ([]*users.StudentWithGroupInfo, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindOverlappingWithGroups(
+func (r *studentRepository) FindOverlappingWithGroups(
 	context.Context, calendar.Date, calendar.Date, calendar.Date,
 ) ([]*users.StudentWithGroupInfo, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindOverlappingWithGroupsOnDate(
+func (r *studentRepository) FindOverlappingWithGroupsOnDate(
 	context.Context, string, time.Time,
 ) ([]*users.StudentWithGroupInfo, error) {
 	return nil, errStudentWritesMoved
@@ -131,101 +112,101 @@ func (r *StudentRepository) FindOverlappingWithGroupsOnDate(
 // The scoped roster reads that replaced the generic filter surface are the
 // owner's: which children a lookup counts is its decision, not a filter the
 // caller assembles.
-func (r *StudentRepository) ListByGroupIDsIncludingAlumni(context.Context, []int64) ([]*users.Student, error) {
+func (r *studentRepository) ListByGroupIDsIncludingAlumni(context.Context, []int64) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) ListClassRoster(context.Context, string) ([]*users.Student, error) {
+func (r *studentRepository) ListClassRoster(context.Context, string) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) CountEnrolled(context.Context) (int, error) {
+func (r *studentRepository) CountEnrolled(context.Context) (int, error) {
 	return 0, errStudentWritesMoved
 }
 
 // The locked reads and the per-tenant class-writes gate are the owner's too:
 // it takes the gate before the row, which is what keeps the acquisition order
 // gate-then-rows for every writer.
-func (r *StudentRepository) FindByIDForUpdate(context.Context, int64) (*users.Student, error) {
+func (r *studentRepository) FindByIDForUpdate(context.Context, int64) (*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) LockStudentClassWritesShared(context.Context) error {
+func (r *studentRepository) LockStudentClassWritesShared(context.Context) error {
 	return errStudentWritesMoved
 }
 
 // The lifecycle status and the care window are the owner's too (#3349). These
 // stay only as the interface the retained StudentRepository declares; the
 // composition root routes them to People Directory.
-func (r *StudentRepository) UpdateStatus(context.Context, int64, users.StudentStatus) error {
+func (r *studentRepository) UpdateStatus(context.Context, int64, users.StudentStatus) error {
 	return errStudentWritesMoved
 }
 
-func (r *StudentRepository) TransitionStatus(
+func (r *studentRepository) TransitionStatus(
 	context.Context, int64, users.StudentStatus, users.StudentStatus,
 ) (bool, error) {
 	return false, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]calendar.Date, error) {
+func (r *studentRepository) FindCareBoundsByIDs(context.Context, []int64) (map[int64]calendar.Date, error) {
 	return nil, errStudentWritesMoved
 }
 
 // These reads moved to People Directory in #3349. They stay on this type
 // because the retained StudentRepository interface still declares them, and the
 // composition root routes them to the owner (database/repositories.NewStudentReads).
-func (r *StudentRepository) FindByID(context.Context, any) (*users.Student, error) {
+func (r *studentRepository) FindByID(context.Context, any) (*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByPersonID(context.Context, int64) (*users.Student, error) {
+func (r *studentRepository) FindByPersonID(context.Context, int64) (*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByIDs(context.Context, []int64) (map[int64]*users.Student, error) {
+func (r *studentRepository) FindByIDs(context.Context, []int64) (map[int64]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindReadScopeByIDs(context.Context, []int64) (map[int64]*users.Student, error) {
+func (r *studentRepository) FindReadScopeByIDs(context.Context, []int64) (map[int64]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByGroupID(context.Context, int64) ([]*users.Student, error) {
+func (r *studentRepository) FindByGroupID(context.Context, int64) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByGroupIDs(context.Context, []int64) ([]*users.Student, error) {
+func (r *studentRepository) FindByGroupIDs(context.Context, []int64) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) ExistsEnrolledByNameAndBirthday(
+func (r *studentRepository) ExistsEnrolledByNameAndBirthday(
 	context.Context, int64, string, string, calendar.Date,
 ) (bool, error) {
 	return false, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindEnrolledStudentIDByNameAndBirthday(
+func (r *studentRepository) FindEnrolledStudentIDByNameAndBirthday(
 	context.Context, int64, string, string, calendar.Date,
 ) (*int64, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) ListSchoolClasses(context.Context) ([]string, error) {
+func (r *studentRepository) ListSchoolClasses(context.Context) ([]string, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) CountByGroupIDs(context.Context, []int64) (map[int64]int, error) {
+func (r *studentRepository) CountByGroupIDs(context.Context, []int64) (map[int64]int, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindPendingDueForActivation(context.Context, calendar.Date) ([]*users.Student, error) {
+func (r *studentRepository) FindPendingDueForActivation(context.Context, calendar.Date) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindActiveDueForDeactivation(context.Context, calendar.Date) ([]*users.Student, error) {
+func (r *studentRepository) FindActiveDueForDeactivation(context.Context, calendar.Date) ([]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
 
-func (r *StudentRepository) FindByIDsForUpdate(context.Context, []int64) (map[int64]*users.Student, error) {
+func (r *studentRepository) FindByIDsForUpdate(context.Context, []int64) (map[int64]*users.Student, error) {
 	return nil, errStudentWritesMoved
 }
