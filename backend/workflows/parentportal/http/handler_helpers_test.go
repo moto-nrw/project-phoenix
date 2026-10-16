@@ -2,16 +2,18 @@ package parent
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -156,7 +158,7 @@ func TestSubmitParentEnrollment_StampsSubmitEligibility(t *testing.T) {
 func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	t.Parallel()
 	now := timezone.NewDate(2026, 9, 1)
-	enrolledFrom := careplan.Date(now.String())
+	enrolledFrom := now
 	in := &parentService.ChildSummary{
 		StudentID:    12345,
 		TenantID:     6789,
@@ -175,7 +177,7 @@ func TestToChildResponse_StringifiesIDs(t *testing.T) {
 	assert.Equal(t, "1a", out.SchoolClass)
 	assert.Equal(t, "active", out.Status)
 	require.NotNil(t, out.EnrolledFrom)
-	assert.Equal(t, enrolledFrom, *out.EnrolledFrom)
+	assert.Equal(t, careplan.Date(enrolledFrom.String()), *out.EnrolledFrom)
 	assert.Nil(t, out.EnrolledUntil, "nil pointers pass through unchanged")
 }
 
@@ -326,4 +328,31 @@ func TestSubmitParentEnrollment_HiddenSchoolAcceptsLinkedFamily(t *testing.T) {
 	require.Equal(t, http.StatusCreated, w.Code)
 	require.True(t, requestSvc.submitCalled)
 	assert.True(t, requestSvc.submitEligible)
+}
+
+func TestParentResponseDatesKeepLegacyWireStrings(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		name string
+		day  timezone.Date
+		want string
+	}{
+		{name: "unset", want: `""`},
+		{name: "day", day: timezone.NewDate(2026, 8, 24), want: `"2026-08-24"`},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			response := toChildResponse(&parentService.ChildSummary{EnrolledFrom: &test.day})
+			body, err := json.Marshal(response)
+			require.NoError(t, err)
+			var fields map[string]json.RawMessage
+			require.NoError(t, json.Unmarshal(body, &fields))
+			assert.JSONEq(t, test.want, string(fields["enrolled_from"]))
+			_, exists := fields["enrolled_until"]
+			assert.False(t, exists, "nil optional dates remain omitted")
+			value, err := json.Marshal(parentResponseDate(test.day))
+			require.NoError(t, err)
+			assert.JSONEq(t, test.want, string(value), "phase and request date fields use the same wire conversion")
+		})
+	}
 }
