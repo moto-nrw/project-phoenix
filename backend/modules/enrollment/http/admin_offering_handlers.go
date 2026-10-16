@@ -184,7 +184,7 @@ func optionalDateString(value *calendar.Date) string {
 
 // optionalInclusiveEndDateString renders a stored EXCLUSIVE interval end
 // as the inclusive last covered day, the shape the parent endpoint has
-// always used (modules/careplan/inbound/parent/care_offerings_handlers.go).
+// always used (workflows/parentportal/http/care_offerings_handlers.go).
 func optionalInclusiveEndDateString(value *calendar.Date) string {
 	if value == nil || value.IsZero() {
 		return ""

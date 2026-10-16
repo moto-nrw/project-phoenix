@@ -9,10 +9,12 @@ import (
 	"slices"
 	"strconv"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,10 +48,10 @@ func (s *InstanceLifecycleService) Reopen(ctx context.Context, instanceID, accou
 		return nil, err
 	}
 	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
-		if modelBase.IsUniqueViolation(err) {
+		if postgres.IsUniqueViolation(err) {
 			return nil, timetable.WithCode(fmt.Errorf("%w: concurrent check-in", timetable.ErrTimetableOperationConflict), timetable.CodeOperationStale)
 		}
-		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
+		return nil, &application.ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
 	}
 	instance.Status = scheduleModel.InstanceStatusActive
 	instance.ActiveGroupID = ptrTo(snapshot.ActiveGroupID)
@@ -86,7 +88,7 @@ func (s *InstanceLifecycleService) reopenableInstance(
 		return nil, snapshot, fmt.Errorf("%w: completion snapshot missing", timetable.ErrInvalidInstanceTransition)
 	}
 	if s.deps.RecoveryRepo == nil {
-		return nil, snapshot, &ScheduleError{Op: "reopen instance: restore snapshot", Err: errors.New("recovery repository not wired")}
+		return nil, snapshot, &application.ScheduleError{Op: "reopen instance: restore snapshot", Err: errors.New("recovery repository not wired")}
 	}
 	return instance, snapshot, nil
 }
@@ -107,7 +109,7 @@ func (s *InstanceLifecycleService) lockReopenSnapshotStudents(ctx context.Contex
 	}
 	closedVisits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{snapshot.ActiveGroupID}})
 	if err != nil {
-		return nil, &ScheduleError{Op: "reopen instance: load visits", Err: err}
+		return nil, &application.ScheduleError{Op: "reopen instance: load visits", Err: err}
 	}
 	studentByVisit := make(map[int64]int64, len(closedVisits))
 	for _, visit := range closedVisits {
@@ -125,11 +127,11 @@ func (s *InstanceLifecycleService) lockReopenSnapshotStudents(ctx context.Contex
 	studentIDs = slices.Compact(studentIDs)
 	locked, err := s.deps.StudentRepo.FindByIDsForUpdate(ctx, studentIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: "reopen instance: lock students", Err: err}
+		return nil, &application.ScheduleError{Op: "reopen instance: lock students", Err: err}
 	}
 	for _, studentID := range studentIDs {
 		if locked[studentID] == nil {
-			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: modelBase.ErrNotFound}
+			return nil, &application.ScheduleError{Op: "reopen instance: lock student", Err: domain.ErrRecordNotFound}
 		}
 	}
 	currentVisits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, NewestFirst: true, StudentOrder: true})
@@ -145,14 +147,14 @@ func (s *InstanceLifecycleService) lockReopenSnapshotStudents(ctx context.Contex
 func (s *InstanceLifecycleService) validateReopenOccupancy(ctx context.Context, instance *scheduleModel.ActivityInstance, snapshot scheduleModel.ActivityCompletionSnapshot) error {
 	capacity, ok, err := s.deps.Rooms.LockRoom(ctx, instance.RoomID)
 	if err != nil {
-		return &ScheduleError{Op: "reopen instance: lock room", Err: err}
+		return &application.ScheduleError{Op: "reopen instance: lock room", Err: err}
 	}
 	if !ok {
-		return &ScheduleError{Op: "reopen instance: lock room", Err: fmt.Errorf("room %d not found", instance.RoomID)}
+		return &application.ScheduleError{Op: "reopen instance: lock room", Err: fmt.Errorf("room %d not found", instance.RoomID)}
 	}
 	hasConflict, _, err := s.deps.ActiveGroupRepo.CheckRoomConflict(ctx, instance.RoomID, snapshot.ActiveGroupID)
 	if err != nil {
-		return &ScheduleError{Op: "reopen instance: check room", Err: err}
+		return &application.ScheduleError{Op: "reopen instance: check room", Err: err}
 	}
 	if hasConflict {
 		return studentpresence.ErrRoomConflict
@@ -162,7 +164,7 @@ func (s *InstanceLifecycleService) validateReopenOccupancy(ctx context.Context, 
 	}
 	currentOccupancy, err := s.deps.Presence.CountOpenVisitsInRoom(ctx, instance.RoomID)
 	if err != nil {
-		return &ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
+		return &application.ScheduleError{Op: "reopen instance: count room occupancy", Err: err}
 	}
 	if currentOccupancy+len(snapshot.VisitIDs) > *capacity {
 		// The typed refusal carries the numbers, so the client can name the
@@ -182,7 +184,7 @@ func (s *InstanceLifecycleService) validateReopenOccupancy(ctx context.Context, 
 func (s *InstanceLifecycleService) validateReopenAttendanceUnchanged(ctx context.Context, instance *scheduleModel.ActivityInstance) error {
 	if s.deps.RecoveryRepo != nil {
 		if err := s.deps.RecoveryRepo.LockAttendance(ctx, instance.ID); err != nil {
-			return &ScheduleError{Op: "reopen instance: lock attendance", Err: err}
+			return &application.ScheduleError{Op: "reopen instance: lock attendance", Err: err}
 		}
 	}
 	if instance.CompletedAt == nil {
@@ -190,7 +192,7 @@ func (s *InstanceLifecycleService) validateReopenAttendanceUnchanged(ctx context
 	}
 	rows, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return &ScheduleError{Op: "reopen instance: load attendance", Err: err}
+		return &application.ScheduleError{Op: "reopen instance: load attendance", Err: err}
 	}
 	for _, row := range rows {
 		if row.UpdatedAt.After(*instance.CompletedAt) {
@@ -208,11 +210,11 @@ func (s *InstanceLifecycleService) validateReopenSupervisorsUnchanged(ctx contex
 		return nil
 	}
 	if err := s.deps.RecoveryRepo.LockSupervisors(ctx, snapshot.SupervisorIDs); err != nil {
-		return &ScheduleError{Op: "reopen instance: lock supervisors", Err: err}
+		return &application.ScheduleError{Op: "reopen instance: lock supervisors", Err: err}
 	}
 	rows, err := s.deps.SupervisorRepo.FindByActiveGroupID(ctx, snapshot.ActiveGroupID, false)
 	if err != nil {
-		return &ScheduleError{Op: "reopen instance: load supervisors", Err: err}
+		return &application.ScheduleError{Op: "reopen instance: load supervisors", Err: err}
 	}
 	byID := make(map[int64]*studentpresence.StaffedSupervision, len(rows))
 	staffIDs := make([]int64, 0, len(rows))
@@ -242,7 +244,7 @@ func (s *InstanceLifecycleService) activeSupervisionsByStaff(ctx context.Context
 	day := calendar.TodayDate().String()
 	activeRows, err := s.deps.Presence.QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{ActiveOn: &day, StaffIDs: staffIDs})
 	if err != nil {
-		return nil, &ScheduleError{Op: "reopen instance: load staff supervisions", Err: err}
+		return nil, &application.ScheduleError{Op: "reopen instance: load staff supervisions", Err: err}
 	}
 	for _, row := range activeRows {
 		activeByStaff[row.StaffID] = append(activeByStaff[row.StaffID], row)

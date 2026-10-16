@@ -9,9 +9,10 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -48,10 +49,10 @@ func (s *InstanceLifecycleService) UpdatePlanned(ctx context.Context, instanceID
 	origSlot := capturedSlot{
 		ActivityGroupID: instance.ActivityGroupID,
 		Date:            calendar.Date(instance.Date),
-		StartHHMMSS:     formatTimeOfDay(instance.StartTime),
+		StartHHMMSS:     application.FormatTimeOfDay(instance.StartTime),
 	}
 	if err := s.updateLifecycleColumns(ctx, instance, applyPlannedEdit(instance, req)...); err != nil {
-		return nil, &ScheduleError{Op: "update instance", Err: duplicateTemplateInstance(err)}
+		return nil, &application.ScheduleError{Op: "update instance", Err: duplicateTemplateInstance(err)}
 	}
 	if err := s.consumeMovedSlot(ctx, origSlot, req); err != nil {
 		return nil, err
@@ -84,7 +85,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 	}
 	lockedDate := instance.Date
 	if err := s.acquireSubstituteDayLockPair(ctx, tenant.FromContext(ctx), calendar.Date(lockedDate), req.Date); err != nil {
-		return nil, &ScheduleError{Op: "update instance: lock day", Err: err}
+		return nil, &application.ScheduleError{Op: "update instance: lock day", Err: err}
 	}
 	instance, err = s.loadForTransition(ctx, instanceID)
 	if err != nil {
@@ -101,7 +102,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 	}
 	if req.CalendarPeriodID != nil || (calendar.Date(instance.Date) != req.Date && !instance.IsSpontaneous) {
 		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
-			return nil, &ScheduleError{Op: "update instance: validate calendar period", Err: err}
+			return nil, &application.ScheduleError{Op: "update instance: validate calendar period", Err: err}
 		}
 	}
 	templateType, err := s.validateInstanceReferences(ctx, req.Date, instanceReferences{
@@ -109,7 +110,7 @@ func (s *InstanceLifecycleService) editableInstance(ctx context.Context, instanc
 		allowExternalCaregivers: instance.IsSpontaneous && req.CalendarPeriodID == nil,
 	})
 	if err != nil {
-		return nil, &ScheduleError{Op: "update instance: validate references", Err: err}
+		return nil, &application.ScheduleError{Op: "update instance: validate references", Err: err}
 	}
 	instance.TemplateType = templateType
 	return instance, nil
@@ -153,7 +154,7 @@ func validateLegacyWeekendInstanceDate(ctx context.Context, existing, requested 
 	}
 	follows, err := calendar.WeekendFollowsFriday(ctx)
 	if err != nil {
-		return &ScheduleError{Op: "update instance: resolve weekend plan", Err: err}
+		return &application.ScheduleError{Op: "update instance: resolve weekend plan", Err: err}
 	}
 	if follows {
 		return nil
@@ -188,13 +189,13 @@ func (s *InstanceLifecycleService) validateInstanceDateInActiveCalendarPeriod(ct
 func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Context, instance *scheduleModel.ActivityInstance, staffIDs, studentIDs []int64, actorAccountID *int64) error {
 	prior, err := s.deps.InstanceStaffRepo.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return &ScheduleError{Op: "update instance: load existing staff", Err: err}
+		return &application.ScheduleError{Op: "update instance: load existing staff", Err: err}
 	}
 	priorByStaff := make(map[int64]*scheduleModel.InstanceStaff, len(prior))
 	for _, row := range prior {
 		priorByStaff[row.StaffID] = row
 	}
-	newStaffIDs := sliceutil.UniquePositive(staffIDs)
+	newStaffIDs := domain.UniquePositiveIDs(staffIDs)
 	rosterUnchanged := sameStaffMembership(newStaffIDs, priorByStaff)
 	if !rosterUnchanged {
 		if err := s.logDroppedDeviations(ctx, instance, prior, actorAccountID); err != nil {
@@ -205,20 +206,20 @@ func (s *InstanceLifecycleService) replaceInstanceAssignments(ctx context.Contex
 		return err
 	}
 	if err := s.deps.InstanceStaffRepo.DeleteByInstanceID(ctx, instance.ID); err != nil {
-		return &ScheduleError{Op: "update instance: clear staff", Err: err}
+		return &application.ScheduleError{Op: "update instance: clear staff", Err: err}
 	}
 	if err := s.deps.InstanceStudents.DeleteByInstanceID(ctx, instance.ID); err != nil {
-		return &ScheduleError{Op: "update instance: clear students", Err: err}
+		return &application.ScheduleError{Op: "update instance: clear students", Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
 	for _, staffID := range newStaffIDs {
 		row := recreatedStaffRow(instance.ID, staffID, priorByStaff[staffID], rosterUnchanged)
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: "update instance: assign staff", Err: err}
+			return &application.ScheduleError{Op: "update instance: assign staff", Err: err}
 		}
 	}
-	return s.assignInstanceStudents(ctx, instance, sliceutil.UniquePositive(studentIDs), tenantID, "update instance")
+	return s.assignInstanceStudents(ctx, instance, domain.UniquePositiveIDs(studentIDs), tenantID, "update instance")
 }
 
 // sameStaffMembership: staff_id is unique per block, so a length and
@@ -285,7 +286,7 @@ func (s *InstanceLifecycleService) logDroppedDeviations(ctx context.Context, ins
 func (s *InstanceLifecycleService) lockRosterCareDays(ctx context.Context, instance *scheduleModel.ActivityInstance, studentIDs []int64) error {
 	priorStudents, err := s.deps.InstanceStudents.FindByInstanceID(ctx, instance.ID)
 	if err != nil {
-		return &ScheduleError{Op: "update instance: load existing students", Err: err}
+		return &application.ScheduleError{Op: "update instance: load existing students", Err: err}
 	}
 	lockStudentIDs := make([]int64, 0, len(priorStudents)+len(studentIDs))
 	for _, row := range priorStudents {
@@ -294,7 +295,7 @@ func (s *InstanceLifecycleService) lockRosterCareDays(ctx context.Context, insta
 		}
 	}
 	lockStudentIDs = append(lockStudentIDs, studentIDs...)
-	return s.lockCareExceptionDaysForStudents(ctx, sliceutil.UniquePositive(lockStudentIDs), calendar.Date(instance.Date))
+	return s.lockCareExceptionDaysForStudents(ctx, domain.UniquePositiveIDs(lockStudentIDs), calendar.Date(instance.Date))
 }
 
 // lockCareExceptionDaysForStudents takes student → care-day locks for every
@@ -307,7 +308,7 @@ func (s *InstanceLifecycleService) lockCareExceptionDaysForStudents(ctx context.
 	slices.Sort(sorted)
 	for _, studentID := range sorted {
 		if err := s.deps.CareDayLocks.LockStudentAndExceptionDay(ctx, studentID, date.String()); err != nil {
-			return &ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
+			return &application.ScheduleError{Op: "lock care exception day for roster rewrite", Err: err}
 		}
 	}
 	return nil
@@ -331,12 +332,12 @@ func (s *InstanceLifecycleService) consumeMovedSlot(ctx context.Context, orig ca
 	if orig.ActivityGroupID == nil {
 		return nil // spontaneous before the edit — materialization never recreates it
 	}
-	if orig.Date == req.Date && orig.StartHHMMSS == formatTimeOfDay(req.StartTime) {
+	if orig.Date == req.Date && orig.StartHHMMSS == application.FormatTimeOfDay(req.StartTime) {
 		return nil // slot key unchanged — nothing vacated
 	}
 	existing, err := s.deps.ExceptionRepo.FindByActivityGroupAndDate(ctx, *orig.ActivityGroupID, scheduleModel.Date(orig.Date))
 	if err != nil {
-		return &ScheduleError{Op: "update instance: check slot exception", Err: err}
+		return &application.ScheduleError{Op: "update instance: check slot exception", Err: err}
 	}
 	if existing != nil {
 		s.getLogger().Warn("moved instance: exception already exists for original date, leaving it untouched",
@@ -355,7 +356,7 @@ func (s *InstanceLifecycleService) consumeMovedSlot(ctx context.Context, orig ca
 	}
 	exc.SetTenantID(tenant.FromContext(ctx))
 	if err := s.deps.ExceptionRepo.Create(ctx, exc); err != nil {
-		return &ScheduleError{Op: "update instance: consume moved slot", Err: err}
+		return &application.ScheduleError{Op: "update instance: consume moved slot", Err: err}
 	}
 	s.getLogger().Info("moved instance: original slot consumed via cancelled exception",
 		slog.Int64("activity_group_id", *orig.ActivityGroupID),

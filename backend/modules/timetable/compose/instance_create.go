@@ -10,10 +10,11 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -25,7 +26,7 @@ import (
 func (s *InstanceLifecycleService) CreateInstance(ctx context.Context, req timetable.CreateInstanceInput) (*timetable.LifecycleInstance, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return nil, &ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
+		return nil, &application.ScheduleError{Op: "create instance", Err: errors.New("no tenant in context")}
 	}
 	if !s.hasTx(ctx) {
 		var created *timetable.LifecycleInstance
@@ -45,7 +46,7 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 ) (*scheduleModel.ActivityInstance, error) {
 	idempotencyFingerprint, err := s.createInstanceIdempotencyFingerprint(req)
 	if err != nil {
-		return nil, &ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
+		return nil, &application.ScheduleError{Op: "create instance: fingerprint idempotency key", Err: err}
 	}
 	if existing, replayed, err := s.replayIdempotentCreate(ctx, req, idempotencyFingerprint, "create instance: find idempotency key"); replayed || err != nil {
 		return existing, err
@@ -58,7 +59,7 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 	}
 	if req.IsSpontaneous == nil || !*req.IsSpontaneous {
 		if err := s.validateInstanceDateInActiveCalendarPeriod(ctx, req.Date); err != nil {
-			return nil, &ScheduleError{Op: "create instance: validate calendar period", Err: err}
+			return nil, &application.ScheduleError{Op: "create instance: validate calendar period", Err: err}
 		}
 	}
 	allowExternalCaregivers := req.IsSpontaneous != nil && *req.IsSpontaneous
@@ -67,7 +68,7 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 		studentIDs: req.StudentIDs, createdByStaffID: req.CreatedByStaffID, allowExternalCaregivers: allowExternalCaregivers,
 	})
 	if err != nil {
-		return nil, &ScheduleError{Op: "create instance: validate references", Err: err}
+		return nil, &application.ScheduleError{Op: "create instance: validate references", Err: err}
 	}
 	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
 	inst.TemplateType = templateType
@@ -92,7 +93,7 @@ func (s *InstanceLifecycleService) replayIdempotentCreate(
 	}
 	existing, err := s.findCreateByIdempotencyKey(ctx, *req.IdempotencyKey)
 	if err != nil {
-		return nil, false, &ScheduleError{Op: op, Err: err}
+		return nil, false, &application.ScheduleError{Op: op, Err: err}
 	}
 	if existing == nil {
 		return nil, false, nil
@@ -134,8 +135,8 @@ func (s *InstanceLifecycleService) createInstanceIdempotencyFingerprint(req time
 		return nil, nil
 	}
 	isSpontaneous := req.IsSpontaneous != nil && *req.IsSpontaneous
-	staffIDs := sliceutil.UniquePositive(slices.Clone(req.StaffIDs))
-	studentIDs := sliceutil.UniquePositive(slices.Clone(req.StudentIDs))
+	staffIDs := domain.UniquePositiveIDs(slices.Clone(req.StaffIDs))
+	studentIDs := domain.UniquePositiveIDs(slices.Clone(req.StudentIDs))
 	slices.Sort(staffIDs)
 	slices.Sort(studentIDs)
 	payload, err := json.Marshal(struct {
@@ -177,23 +178,23 @@ func idempotentCreateResult(existing *scheduleModel.ActivityInstance, fingerprin
 func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, inst *scheduleModel.ActivityInstance) (*scheduleModel.ActivityInstance, bool, error) {
 	if inst.IdempotencyKey == nil {
 		if err := s.deps.InstanceRepo.Create(ctx, inst); err != nil {
-			return nil, false, &ScheduleError{Op: "create instance: insert", Err: duplicateTemplateInstance(err)}
+			return nil, false, &application.ScheduleError{Op: "create instance: insert", Err: duplicateTemplateInstance(err)}
 		}
 		return inst, true, nil
 	}
 	inserted, err := s.deps.IdempotencyRepo.CreateIdempotent(ctx, inst)
 	if err != nil {
-		return nil, false, &ScheduleError{Op: "create instance: insert idempotent", Err: duplicateTemplateInstance(err)}
+		return nil, false, &application.ScheduleError{Op: "create instance: insert idempotent", Err: duplicateTemplateInstance(err)}
 	}
 	if inserted {
 		return inst, true, nil
 	}
 	existing, err := s.findCreateByIdempotencyKey(ctx, *inst.IdempotencyKey)
 	if err != nil {
-		return nil, false, &ScheduleError{Op: "create instance: load idempotent result", Err: err}
+		return nil, false, &application.ScheduleError{Op: "create instance: load idempotent result", Err: err}
 	}
 	if existing == nil {
-		return nil, false, &ScheduleError{
+		return nil, false, &application.ScheduleError{
 			Op:  "create instance: load idempotent result",
 			Err: errors.New("idempotent insert conflict has no matching row"),
 		}
@@ -203,7 +204,7 @@ func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, in
 }
 
 func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Context, key string) (*scheduleModel.ActivityInstance, error) {
-	options := modelBase.NewQueryOptions().WithPagination(1, 1)
+	options := domain.NewListOptions().WithPagination(1, 1)
 	options.Filter.Equal("idempotency_key", key)
 	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.InstanceRepo, options)
 	if err != nil || len(instances) == 0 {
@@ -213,15 +214,15 @@ func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Contex
 }
 
 func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Context, inst *scheduleModel.ActivityInstance, req timetable.CreateInstanceInput, tenantID int64) error {
-	for _, staffID := range sliceutil.UniquePositive(req.StaffIDs) {
+	for _, staffID := range domain.UniquePositiveIDs(req.StaffIDs) {
 		// A nil RoomID falls back to the block's room at runtime.
 		row := &scheduleModel.InstanceStaff{InstanceID: inst.ID, StaffID: staffID, IsPrimary: false}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStaffRepo.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: "create instance: assign staff", Err: err}
+			return &application.ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	studentIDs := sliceutil.UniquePositive(req.StudentIDs)
+	studentIDs := domain.UniquePositiveIDs(req.StudentIDs)
 	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, calendar.Date(inst.Date)); err != nil {
 		return err
 	}
@@ -239,14 +240,14 @@ func (s *InstanceLifecycleService) assignInstanceStudents(ctx context.Context, i
 		}
 		row.SetTenantID(tenantID)
 		if err := s.deps.InstanceStudents.Create(ctx, row); err != nil {
-			return &ScheduleError{Op: op + ": assign student", Err: err}
+			return &application.ScheduleError{Op: op + ": assign student", Err: err}
 		}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActiveStatusDaysForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return &ScheduleError{Op: op + ": apply student status days", Err: err}
+		return &application.ScheduleError{Op: op + ": apply student status days", Err: err}
 	}
 	if _, err := s.deps.InstanceStudents.ApplyActivePartialAbsencesForInstance(ctx, inst.ID, inst.Date); err != nil {
-		return &ScheduleError{Op: op + ": apply student partial absences", Err: err}
+		return &application.ScheduleError{Op: op + ": apply student partial absences", Err: err}
 	}
 	return nil
 }
@@ -269,7 +270,7 @@ const templateInstanceUniqueIndex = "idx_activity_instances_template_unique"
 // duplicateTemplateInstance classifies a write that collides with another
 // block of the same template slot; the storage error stays in the chain.
 func duplicateTemplateInstance(err error) error {
-	if modelBase.IsUniqueViolationOn(err, templateInstanceUniqueIndex) {
+	if postgres.IsUniqueViolationOn(err, templateInstanceUniqueIndex) {
 		return fmt.Errorf("%w: %w", timetable.ErrDuplicateTemplateInstance, err)
 	}
 	return err

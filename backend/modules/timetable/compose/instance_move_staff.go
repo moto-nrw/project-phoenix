@@ -4,10 +4,11 @@ import (
 	"context"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -82,7 +83,7 @@ func (s *InstanceLifecycleService) planStaffMove(ctx context.Context, targetID i
 	if err != nil {
 		return nil, err
 	}
-	if calendar.Date(target.Date) != lockedDate || !isPlannableInstance(target) {
+	if calendar.Date(target.Date) != lockedDate || !application.IsPlannableInstance(target) {
 		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, "block was changed concurrently; reopen it and try again")
 	}
 	source, err := s.loadMoveSource(ctx, target, in.SourceInstanceID)
@@ -117,7 +118,7 @@ func (s *InstanceLifecycleService) loadMoveSource(ctx context.Context, target *s
 	if err != nil {
 		return nil, err
 	}
-	if !isPlannableInstance(source) {
+	if !application.IsPlannableInstance(source) {
 		return nil, timetable.DeviationConflict(timetable.CodeInvalidTransition, "source block is no longer editable")
 	}
 	if source.Date != target.Date {
@@ -129,7 +130,7 @@ func (s *InstanceLifecycleService) loadMoveSource(ctx context.Context, target *s
 func (s *InstanceLifecycleService) requireStaff(ctx context.Context, staffID int64) error {
 	staff, err := s.deps.StaffRepo.FindWithPerson(ctx, staffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return timetable.DeviationNotFound("staff not found").WithCode(timetable.CodeStaffNotFound).OnField("staff_id")
 		}
 		return timetable.DeviationInternal("load staff failed", err)

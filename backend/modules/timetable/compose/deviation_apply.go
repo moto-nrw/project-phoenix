@@ -5,9 +5,10 @@ import (
 	"time"
 	"unicode/utf8"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -54,7 +55,7 @@ func (s *staffDeviations) ApplyDeviations(ctx context.Context, instanceID int64,
 		return s.cancelDeviation(ctx, instanceID, instance, in)
 	}
 
-	if !isPlannableInstance(instance) {
+	if !application.IsPlannableInstance(instance) {
 		return nil, timetable.DeviationConflict(timetable.CodeInvalidTransition, msgInstanceNotEditable)
 	}
 
@@ -101,7 +102,7 @@ func (s *staffDeviations) loadDeviationInstance(ctx context.Context, instanceID 
 	if err != nil {
 		// FindByID wraps sql.ErrNoRows in a DatabaseError (never (nil, nil)), so a
 		// stale link or deleted/other-tenant instance maps to 404 here.
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 		}
 		return nil, timetable.DeviationInternal("load instance failed", err)

@@ -12,6 +12,7 @@ import (
 	"github.com/getsentry/sentry-go"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -58,7 +59,7 @@ func NewAttendanceMirror(deps AttendanceMirrorDependencies) (timetable.Attendanc
 }
 
 func (s *attendanceMirror) getLogger() *slog.Logger {
-	return orDefaultLogger(s.logger)
+	return application.OrDefaultLogger(s.logger)
 }
 
 // recoverMirrorPanic returns unexpected failures to the transaction owner and

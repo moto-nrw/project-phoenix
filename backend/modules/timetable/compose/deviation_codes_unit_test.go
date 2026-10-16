@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"testing"
 
-	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -80,18 +79,4 @@ func TestSubstituteRefusalCodes(t *testing.T) {
 	err = validateExplicitScopeInstances(calendar.NewDate(2030, 1, 1), &[]int64{}, &deviationReadSet{})
 	require.ErrorAs(t, err, &de)
 	assert.Equal(t, timetable.CodeInstancesRequired, de.Code)
-}
-
-// TestTemplateGradeLimitNamesTheCap pins that a Jahrgang above the school's
-// maximum carries its code and the requested grade and the cap (#2516).
-func TestTemplateGradeLimitNamesTheCap(t *testing.T) {
-	t.Parallel()
-
-	gradeSix := int16(6)
-	err := ValidateTemplateTargetGradeLimit(4, nil, activitiesModel.TargetGroupTypeJahrgang, &gradeSix)
-	require.ErrorIs(t, err, timetable.ErrTemplateTargetGradeExceedsLimit)
-	coded, ok := timetable.AsCoded(err)
-	require.True(t, ok)
-	assert.Equal(t, timetable.CodeTemplateGradeAboveMax, coded.Code)
-	assert.Equal(t, timetable.RefusalValues{Grade: 6, Max: 4}, coded.Values)
 }

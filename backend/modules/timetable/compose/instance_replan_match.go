@@ -3,8 +3,9 @@ package compose
 import (
 	"context"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,8 +23,8 @@ func (s *InstanceLifecycleService) matchRegeneratedInstances(
 		return matches, nil
 	}
 	groupIDs, dates := regeneratedMatchKeys(snapshots, targetActivityGroupID)
-	options := modelBase.NewQueryOptions()
-	options.Filter = modelBase.NewFilter().
+	options := domain.NewListOptions()
+	options.Filter = domain.NewListFilter().
 		In("activity_group_id", anyArgs(groupIDs)...).
 		In("date", anyArgs(dates)...).
 		Equal("status", scheduleModel.InstanceStatusPlanned).
@@ -85,7 +86,7 @@ func matchRegeneratedCandidate(candidates []*scheduleModel.ActivityInstance, sta
 		return candidates[0]
 	}
 	for _, candidate := range candidates {
-		if formatTimeOfDay(candidate.StartTime) == startTime {
+		if application.FormatTimeOfDay(candidate.StartTime) == startTime {
 			return candidate
 		}
 	}
@@ -102,7 +103,7 @@ func (p seriesDeviationPreserver) LockDeviationDays(ctx context.Context, tenantI
 	return p.lifecycle.acquireSubstituteDayLocks(ctx, tenantID, from, to)
 }
 
-func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (PreservedDeviations, error) {
+func (p seriesDeviationPreserver) SnapshotDeviations(ctx context.Context, from, to calendar.Date, templateID int64) (application.PreservedDeviations, error) {
 	id := templateID
 	snapshots, occurrences, err := p.lifecycle.snapshotDeviations(ctx, from, to, &id)
 	if err != nil {

@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -37,7 +38,7 @@ type operatorProvisioningOwners struct {
 // and the service graph's values.
 func (owners operatorProvisioningOwners) compose(sources OperatorProvisioningSources) (organizationtenancy.Provisioning, error) {
 	adapters, err := NewOperatorProvisioningAdapters(OperatorProvisioningDependencies{
-		PersonStudents: peopleCompose.NewLegacyRepositoryRuntime(owners.DB.Pool()),
+		PersonStudents: operatorPersonStudentMembership(owners.DB),
 		Devices:        sources.Devices,
 		Persons:        owners.Persons,
 		Membership:     owners.Membership,
@@ -368,4 +369,15 @@ func provisioningIdentityError(err error) error {
 		return organizationtenancy.MarkIdentityStoreFailure(&retainedError{text: err.Error(), sentinel: sentinel.retained, cause: err})
 	}
 	return organizationtenancy.MarkIdentityStoreFailure(err)
+}
+
+// operatorPersonStudentMembership reads the operator listing's student facts
+// through the retained People Directory runtime over the student directory
+// projection.
+func operatorPersonStudentMembership(db transactionruntime.Database) operatorPersonStudents {
+	runtime := peopleCompose.NewLegacyRepositoryRuntime(db.Pool())
+	students := studentDirectoryView.NewReader()
+	return func(ctx context.Context, personIDs []int64) (map[int64]bool, error) {
+		return runtime.OperatorPersonStudentMembership(ctx, students, personIDs)
+	}
 }

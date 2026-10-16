@@ -3862,6 +3862,27 @@ they cover, 945 → 938 rules: `care-plan.application.public`,
 The existing per-owner rules into the tenant runtime and into other domains
 stay; they already have the accepted shape.
 
+Epoch 53 adds `timetable-activities.postgres.transaction-runtime`: the
+Timetable composition stops importing `models/base` and `internal/sliceutil`
+(both #4004 keys go). List options, the store error, the not-found sentinel
+and the ID helpers are Timetable's own values in `internal/domain`; the
+unique-violation classification is reached through the owner's postgres
+adapter, which delegates to the transaction runtime.
+
+Epoch 54 moves the staff notices (#2180), the Timetable templates, the
+materialization, the series conversion, the roster maintenance and the
+conflict detection (11,264 LOC) from the composition into
+`internal/application`; the staff notice repository and its row mapping go
+to `internal/adapters/postgres`. The template services take a
+`TenantTransactions` port instead of the database handle; the composition
+binds it to the tenant runtime. It adds
+`timetable-activities.application.school-calendar.public`,
+`timetable-activities.application.tenant-runtime`,
+`timetable-activities.application.transaction-runtime`,
+`timetable-activities.application.student-presence.public` and, for the moved
+internal tests, `timetable-activities.module-internal-test.tenant-runtime`
+(the internal-test mirror of the reach, ADR 0058 addendum point 4).
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
