@@ -191,7 +191,7 @@ func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, 
 		Now:             firstTemplateClock(clocks),
 	})
 	converter, err := timetableCompose.NewInstanceSeriesConversion(timetableCompose.InstanceSeriesConversionDependencies{
-		DB:             db,
+		Transactions:   timetableCompose.NewTenantTransactions(db),
 		InstanceRepo:   repoFactory.ActivityInstance,
 		Lifecycle:      serviceFactory.Instance,
 		Templates:      res.Templates,

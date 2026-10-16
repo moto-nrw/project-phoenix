@@ -20,6 +20,10 @@ package architecture
 //     role already holds into its implementation, so the direction ADR 0058
 //     fixed stays.
 //
+// The internal tests of that code (role module-internal-test, scope
+// internal_test) may reach exactly what the per-owner production rules
+// above may reach; they test unexported functions and move with the code.
+//
 // Every other owner kind, role, target, external class and scope stays under
 // the ordinary loosening guards.
 
@@ -31,11 +35,20 @@ var internalReachSourceRoles = map[string]bool{"application": true, "postgres": 
 // classification of database failures.
 var internalReachPlatformTargets = map[string]bool{"tenant-runtime": true, "transaction-runtime": true}
 
+// internalReachTestRole is the role of the internal tests of a domain's
+// implementation packages.
+const internalReachTestRole = "module-internal-test"
+
 // reviewedInternalReachRule reports whether a rule lies inside the reviewed
 // reach of a domain owner's implementation.
 func reviewedInternalReachRule(rule Rule, base *Policy, owners map[string]Owner) bool {
-	if !internalReachSourceRoles[rule.SourceRole] || rule.TargetRole != "public" || rule.TargetClass != "" ||
-		rule.TargetOwnerKind != "" || len(rule.Scopes) != 1 || rule.Scopes[0] != string(ScopeProduction) {
+	if rule.TargetRole != "public" || rule.TargetClass != "" || rule.TargetOwnerKind != "" || len(rule.Scopes) != 1 {
+		return false
+	}
+	switch {
+	case internalReachSourceRoles[rule.SourceRole] && rule.Scopes[0] == string(ScopeProduction):
+	case rule.SourceRole == internalReachTestRole && rule.Scopes[0] == string(ScopeInternalTest) && !rule.SameOwner:
+	default:
 		return false
 	}
 	if rule.SameOwner {

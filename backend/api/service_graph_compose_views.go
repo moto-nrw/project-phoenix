@@ -154,7 +154,7 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 		return b, err
 	}
 	converter, err := arrivalTimetable.NewInstanceSeriesConversion(arrivalTimetable.InstanceSeriesConversionDependencies{
-		DB: b.DB.Pool(), InstanceRepo: b.TimetableWiring.Repositories.ActivityInstance, Lifecycle: b.instances,
+		Transactions: arrivalTimetable.NewTenantTransactions(b.DB.Pool()), InstanceRepo: b.TimetableWiring.Repositories.ActivityInstance, Lifecycle: b.instances,
 		Templates: templates, RecurrenceLock: b.TimetableWiring.RecurrenceLock,
 	})
 	if err != nil {
@@ -189,7 +189,7 @@ func (b *graphBuild) composeTemplates() (timetable.TemplateAdministration, error
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable templates: %w", err)
 	}
-	deps.DB = b.DB.Pool()
+	deps.Transactions = arrivalTimetable.NewTenantTransactions(b.DB.Pool())
 	templates, err := arrivalTimetable.NewTemplateAdministration(deps)
 	if err != nil {
 		return nil, fmt.Errorf("compose timetable templates: %w", err)

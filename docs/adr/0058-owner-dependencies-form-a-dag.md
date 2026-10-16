@@ -122,6 +122,10 @@ From policy epoch 50 a reviewed epoch may add exactly these rules
    into its implementation, so the direction recorded above stays, and the
    reverse direction stays forbidden.
 
+4. The internal tests of that code (role `module-internal-test`, scope
+   `internal_test` only) may reach what points 2 and 3 admit in production;
+   they test unexported functions and move with the code.
+
 A per-owner rule is added in the change that first uses it. The composition's
 rule into the same target goes once the composition no longer needs it.
 Projection, workflow and platform sources, other targets, external classes
