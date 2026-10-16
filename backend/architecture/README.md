@@ -1308,6 +1308,33 @@ tests). That is not a claim that all of them are target: the direction and
 cycle criteria of ADR 0058 are #3417's, which judges for example
 `settings-platform.http.inbound-common`.
 
+#4072 removed 25 of the 34 platform keys (519 → 494) without a rule. Each
+platform declares what it needs in its own vocabulary and the root binds the
+owner:
+
+- Settings Platform: the operator routes take the operator and the school
+  slug through ports (`OperatorIdentity`, `SchoolLookup`); Care Plan's
+  review before booking-led care moved to Care Plan's own HTTP adapter
+  `modules/careplan/http`, which the operator router mounts; the root wraps
+  Care Plan's refusal of the switch in `settings.BookingAuthorityBlockedError`.
+  The wizard tables stay Settings Platform's: their repositories are generic
+  over the state shape, School Setup instantiates them with its own types.
+- Document Rendering: the plan export's translations of Workforce, Timetable
+  and Facilities records moved from `modules/planexport/compose` into the root
+  (`api/plan_export.go`); the package is deleted. `lists` names the plan columns the root's suites read.
+- Audit Platform: the booking consistency audit reads approved bookings in
+  `auditlog.ApprovedBooking` and `auditlog.ApprovedBookingOfferingLink`; the
+  root binds Enrollment. Its suite runs in the root over the real owners.
+- Delivery Platform: the staff recipient resolver reads groups, accounts,
+  thread claims and the staff on duty through its own ports;
+  `workforce.OnDutyStaffIDs` keeps the on-duty rule in Workforce. The strings
+  Delivery shares with Care Plan's status days and the reminder workflow are
+  pinned where they are handed over.
+
+The nine `services/scheduler` keys remain with the Worker track (#4067). The
+cut of `organization-tenancy -> delivery-platform` that ADR 0058 point 6
+assigns to #4072 is still open; its keys are carried by #4075 and #4076.
+
 ### Relocating a package without losing its debt
 
 A violation is identified by `scope|rule|source|target`, so moving a package

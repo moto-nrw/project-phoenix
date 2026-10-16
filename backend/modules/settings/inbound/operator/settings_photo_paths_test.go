@@ -49,8 +49,9 @@ func setupOperatorSettingsWithSchoolRepoRoute(t *testing.T) *operatorSettingsTes
 	db, svc := setupOperatorSettingsModule(t)
 	tc := &operatorSettingsTestContext{db: db}
 	resource := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
-		Settings: svc.OperatorSchoolSettings(tc.runValueSetHook),
-		Schools:  svc.Schools,
+		Settings:   svc.OperatorSchoolSettings(tc.runValueSetHook),
+		Schools:    svc.SchoolSlugs(),
+		OperatorID: operatorAccount(t, db),
 	})
 
 	router := chi.NewRouter()

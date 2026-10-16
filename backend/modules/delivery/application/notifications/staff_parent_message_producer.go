@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -34,10 +33,17 @@ type StaffParentMessageNotifier interface {
 	NotifyStaffParentMessage(ctx context.Context, report StaffParentMessageReport) error
 }
 
+// StaffMessageClaims debounces the staff notification of one thread: a
+// claim succeeds at most once per cooldown. The root binds it to the
+// thread store.
+type StaffMessageClaims interface {
+	ClaimStaffMessageNotification(ctx context.Context, threadID int64, cooldown time.Duration) (bool, error)
+}
+
 type staffParentMessageNotifier struct {
 	notifier   Service
 	recipients StaffRecipientResolver
-	threads    userModel.ParentMessageThreadRepository
+	threads    StaffMessageClaims
 	db         *bun.DB
 	logger     *slog.Logger
 }
@@ -46,7 +52,7 @@ type staffParentMessageNotifier struct {
 func NewStaffParentMessageNotifier(
 	notifier Service,
 	recipients StaffRecipientResolver,
-	threads userModel.ParentMessageThreadRepository,
+	threads StaffMessageClaims,
 	db *bun.DB,
 	logger *slog.Logger,
 ) StaffParentMessageNotifier {

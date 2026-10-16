@@ -8,7 +8,6 @@ import (
 	"sort"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -32,12 +31,19 @@ const (
 // children collapses into a single count instead of one notification each.
 const absenceAggregateThreshold = 3
 
+// The full-day statuses an absence report announces. They are the values of
+// the status days Care Plan records; the root pins that they match (#4072).
+const (
+	AbsenceStatusSick    = "sick"
+	AbsenceStatusExcused = "excused"
+)
+
 // AbsenceReport describes one submitted absence, whatever path recorded it.
 type AbsenceReport struct {
 	TenantID int64
 	// StudentIDs are the children covered by this one submission.
 	StudentIDs []int64
-	// Status is active.StudentStatusDaySick or ...Excused. Anything else is
+	// Status is AbsenceStatusSick or AbsenceStatusExcused. Anything else is
 	// ignored: a class trip is not news, and a cleared status is not either.
 	Status string
 	// Dates the submission covers. The notification only fires when today is
@@ -137,7 +143,7 @@ func (n *absenceNotifier) notify(ctx context.Context, report AbsenceReport) erro
 		return nil
 	}
 	switch report.Status {
-	case absencerecords.StudentStatusDaySick, absencerecords.StudentStatusDayExcused:
+	case AbsenceStatusSick, AbsenceStatusExcused:
 	default:
 		// A class trip is not news, and a cleared status even less so.
 		return nil
@@ -246,12 +252,12 @@ func (n *absenceNotifier) resolveDeliveries(ctx context.Context, report AbsenceR
 
 func absenceBody(report AbsenceReport) string {
 	if len(report.StudentIDs) > 1 {
-		if report.Status == absencerecords.StudentStatusDayExcused {
+		if report.Status == AbsenceStatusExcused {
 			return fmt.Sprintf(absenceReportedBodyExcusedMany, len(report.StudentIDs))
 		}
 		return fmt.Sprintf(absenceReportedBodySickMany, len(report.StudentIDs))
 	}
-	if report.Status == absencerecords.StudentStatusDayExcused {
+	if report.Status == AbsenceStatusExcused {
 		return absenceReportedBodyExcused
 	}
 	if report.FromParent {

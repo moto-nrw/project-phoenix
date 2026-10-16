@@ -730,7 +730,8 @@ func TestPersonalReminderNotificationsRequireEveryDependency(t *testing.T) {
 // The copy table and the type list are two halves of one contract: a type
 // without wording would dispatch the generic fallback, which reads like a bug.
 // That every type is in the notification catalogue is pinned beside the
-// catalogue (modules/delivery/application/notifications).
+// catalogue (modules/delivery/application/notifications); both sides pin the
+// wire vocabulary independently, without a platform-to-workflow import.
 func TestEveryPersonalReminderTypeHasCopy(t *testing.T) {
 	t.Parallel()
 
@@ -741,4 +742,13 @@ func TestEveryPersonalReminderTypeHasCopy(t *testing.T) {
 		assert.NotEmpty(t, copyFor.singular)
 		assert.Contains(t, copyFor.plural, "%d")
 	}
+}
+
+// Pin the notice vocabulary where this workflow hands it to Delivery.
+func TestPersonalReminderNoticeWireVocabulary(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t, []string{"pickup_upcoming", "pickup_overdue", "activity_start", "activity_overdue", "my_activity_starting"}, personalReminderTypes)
+	assert.Equal(t, "normal", NoticePriorityNormal)
+	assert.Equal(t, "high", NoticePriorityHigh)
+	assert.Equal(t, "staff", NoticeScopeStaff)
 }
