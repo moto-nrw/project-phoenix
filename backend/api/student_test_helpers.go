@@ -18,7 +18,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -358,7 +357,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		repos.CarePlan.LockExceptionDay,
 		now,
 	)
-	ogsGroupLiveService, err := groupliveCompose.New(groupliveCompose.Sources{
+	ogsGroupLiveService, err := newGroupLive(groupLiveSources{
 		Presence:          NewLoggedStudentPresence(db, logger),
 		People:            GroupRosterPeople(usersService),
 		Education:         educationService,
