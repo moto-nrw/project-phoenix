@@ -159,10 +159,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-iot-sessions",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-messaging",
       "kind": "inbound"
     },
@@ -818,7 +814,7 @@
     },
     {
       "path": "api/iot/sessions",
-      "owner": "inbound-iot-sessions",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -6158,17 +6154,6 @@
       "target_role": "compose"
     },
     {
-      "id": "inbound-iot-sessions.to.session-end",
-      "description": "The kiosk session end endpoint calls exactly one owner facade.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-sessions",
-      "source_role": "http",
-      "target_owner": "session-end",
-      "target_role": "public"
-    },
-    {
       "id": "open-room-move.port.facilities",
       "description": "Open-room move ports name the Facilities room lock through its public contract (#3066).",
       "scopes": [
@@ -7678,17 +7663,6 @@
         "production"
       ],
       "source_owner": "process-device-scan",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot-sessions.to.process-device-scan",
-      "description": "inbound-iot-sessions calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot-sessions",
       "source_role": "http",
       "target_owner": "process-device-scan",
       "target_role": "public"
@@ -11636,17 +11610,6 @@
       "target_role": "http"
     },
     {
-      "id": "inbound-iot.compose.inbound-iot-sessions.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-iot-sessions",
-      "target_role": "http"
-    },
-    {
       "id": "inbound-iot.compose.device-fleet.http",
       "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
       "scopes": [
@@ -11677,17 +11640,6 @@
       "source_owner": "inbound-iot",
       "source_role": "compose",
       "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.session-end.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "session-end",
       "target_role": "public"
     },
     {

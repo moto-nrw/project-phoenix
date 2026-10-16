@@ -17,7 +17,6 @@ import (
 	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
 	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
 	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
 )
 
 // delegateHandler creates an http.HandlerFunc that delegates to a subrouter.
@@ -53,7 +52,7 @@ type ServiceDependencies struct {
 	ErrorReports iotAPI.ErrorReportRelay
 	// SessionEnd is the application workflow behind POST /session/end
 	// (#2697): one UnitOfWork over the Presence and Timetable commands.
-	SessionEnd       sessionend.Command
+	SessionEnd       sessionsAPI.EndSession
 	SessionLifecycle devicescan.SessionLifecycle
 	Logger           *slog.Logger
 
