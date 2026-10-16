@@ -1,21 +1,20 @@
-package studentdirectoryview
+package postgres
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	domain "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
-// studentRecordRow is the whole users.students row. The departure plans are
+// directoryRecordRow is the whole users.students row. The departure plans are
 // selected in the same statement as everything else: the retained repository
 // needed a second query for them because its generic list could not reach
 // scan-only columns, and one statement is both cheaper and atomic.
-type studentRecordRow struct {
+type directoryRecordRow struct {
 	ID        int64     `bun:"id"`
 	CreatedAt time.Time `bun:"created_at"`
 	UpdatedAt time.Time `bun:"updated_at"`
@@ -38,10 +37,10 @@ type studentRecordRow struct {
 	HealthInfo      *string `bun:"health_info"`
 	PickupStatus    *string `bun:"pickup_status"`
 
-	DepartureDays          departure.DepartureDays         `bun:"departure_days"`
-	AllowedDepartureModes  departure.AllowedDepartureModes `bun:"allowed_departure_modes"`
-	PickupDays             departure.PickupDays            `bun:"pickup_days"`
-	BusDays                departure.BusDays               `bun:"bus_days"`
+	DepartureDays          directory.DepartureDays         `bun:"departure_days"`
+	AllowedDepartureModes  directory.AllowedDepartureModes `bun:"allowed_departure_modes"`
+	PickupDays             directory.PickupDays            `bun:"pickup_days"`
+	BusDays                directory.BusDays               `bun:"bus_days"`
 	DepartureCompanionNote *string                         `bun:"departure_companion_note"`
 
 	Sick         *bool      `bun:"sick"`
@@ -58,8 +57,8 @@ type studentRecordRow struct {
 	EmailContactAcceptedAt   *time.Time `bun:"email_contact_accepted_at"`
 }
 
-func (r studentRecordRow) toDomain() domain.StudentRecord {
-	record := domain.StudentRecord{
+func (r directoryRecordRow) toDomain() directory.StudentRecord {
+	record := directory.StudentRecord{
 		ID: r.ID, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, TenantID: r.TenantID,
 		PersonID: r.PersonID, SchoolClass: r.SchoolClass, GroupID: r.GroupID, Status: r.Status,
 
@@ -93,17 +92,17 @@ const studentRecordColumns = `"student".id, "student".created_at, "student".upda
 	"student".photo_path, "student".photo_consent_given_at, "student".photo_consent_given_by,
 	"student".agb_accepted_at, "student".data_processing_accepted_at, "student".email_contact_accepted_at`
 
-func (s *Projection) ListDirectory(
+func (s *studentDirectoryReads) ListDirectory(
 	ctx context.Context,
-	filter Filter,
-) ([]domain.StudentRecord, OperationStats, error) {
+	filter directoryFilter,
+) ([]directory.StudentRecord, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, OperationStats{}, err
+		return nil, directoryStats{}, err
 	}
-	rows := []studentRecordRow{}
+	rows := []directoryRecordRow{}
 	query := applyStudentDirectoryFilter(
-		withStudentTenant(db.NewSelect().TableExpr(studentSource).
+		withStudentTenant(s.rows.StudentRows(db, 0).
 			ColumnExpr(studentRecordColumns), tenantID),
 		filter,
 	)
@@ -116,7 +115,7 @@ func (s *Projection) ListDirectory(
 		query = query.Limit(int64(filter.PageSize)).Offset(int64((page - 1) * filter.PageSize))
 	}
 
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
@@ -124,26 +123,26 @@ func (s *Projection) ListDirectory(
 		return nil, stats, fmt.Errorf("student directory projection: list student directory: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.StudentRecord, 0, len(rows))
+	result := make([]directory.StudentRecord, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row.toDomain())
 	}
 	return result, stats, nil
 }
 
-func (s *Projection) CountDirectory(
+func (s *studentDirectoryReads) CountDirectory(
 	ctx context.Context,
-	filter Filter,
-) (int, OperationStats, error) {
+	filter directoryFilter,
+) (int, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return 0, OperationStats{}, err
+		return 0, directoryStats{}, err
 	}
 	query := applyStudentDirectoryFilter(
-		withStudentTenant(db.NewSelect().TableExpr(studentSource), tenantID),
+		withStudentTenant(s.rows.StudentRows(db, 0), tenantID),
 		filter,
 	)
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	total, err := query.Count(ctx)
 	stats.StatementDuration = time.Since(started)
@@ -154,17 +153,17 @@ func (s *Projection) CountDirectory(
 	return int(total), stats, nil
 }
 
-func (s *Projection) ListDirectoryIDs(ctx context.Context) ([]int64, OperationStats, error) {
+func (s *studentDirectoryReads) ListDirectoryIDs(ctx context.Context) ([]int64, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, OperationStats{}, err
+		return nil, directoryStats{}, err
 	}
 	ids := []int64{}
-	query := withStudentTenant(db.NewSelect().TableExpr(studentSource), tenantID).
+	query := withStudentTenant(s.rows.StudentRows(db, 0), tenantID).
 		ColumnExpr(`"student".id`).
-		Where(`"student".status != ?`, domain.StudentStatusAlumnus).
+		Where(`"student".status != ?`, directory.StudentStatusAlumnus).
 		OrderExpr(`"student".id ASC`)
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &ids)
 	stats.StatementDuration = time.Since(started)
@@ -180,9 +179,9 @@ func (s *Projection) ListDirectoryIDs(ctx context.Context) ([]int64, OperationSt
 // first-number grade match, the same guardian substring, and the same two
 // visibility groups. A graduate is out unless the caller names it, and the
 // care window is the half-open enrolment interval around the caller's day.
-func applyStudentDirectoryFilter(query *bun.SelectQuery, filter Filter) *bun.SelectQuery {
+func applyStudentDirectoryFilter(query *bun.SelectQuery, filter directoryFilter) *bun.SelectQuery {
 	query = query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
-		group = group.WhereOr(`"student".status != ?`, domain.StudentStatusAlumnus)
+		group = group.WhereOr(`"student".status != ?`, directory.StudentStatusAlumnus)
 		if len(filter.KeepAlumni) > 0 {
 			group = group.WhereOr(`"student".id IN (?)`, bun.List(filter.KeepAlumni))
 		}
@@ -190,10 +189,10 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter Filter) *bun.Sel
 	})
 
 	switch filter.CareStatus {
-	case domain.StudentCareStatusEnded:
+	case directory.StudentCareStatusEnded:
 		query = query.Where(`"student".enrolled_until IS NOT NULL`).
 			Where(`"student".enrolled_until < ?`, filter.CareStatusOn)
-	case domain.StudentCareStatusAll:
+	case directory.StudentCareStatusAll:
 		// No boundary: the caller manages both sides.
 	default:
 		query = query.WhereGroup(" AND ", func(group *bun.SelectQuery) *bun.SelectQuery {
@@ -222,22 +221,22 @@ func applyStudentDirectoryFilter(query *bun.SelectQuery, filter Filter) *bun.Sel
 
 // FindRecord reads one owned row, optionally under a row lock the caller's
 // transaction holds until it commits.
-func (s *Projection) FindRecord(
+func (s *studentDirectoryReads) FindRecord(
 	ctx context.Context,
 	studentID int64,
 	lock string,
-) (domain.StudentRecord, bool, OperationStats, error) {
+) (directory.StudentRecord, bool, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return domain.StudentRecord{}, false, OperationStats{}, err
+		return directory.StudentRecord{}, false, directoryStats{}, err
 	}
-	rows := []studentRecordRow{}
-	query := withStudentTenant(db.NewSelect().TableExpr(studentSource).
+	rows := []directoryRecordRow{}
+	query := withStudentTenant(s.rows.StudentRows(db, 0).
 		ColumnExpr(studentRecordColumns).Where(`"student".id = ?`, studentID), tenantID)
 	if lock != "" {
 		query = query.For(lock)
 	}
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
@@ -245,13 +244,13 @@ func (s *Projection) FindRecord(
 		// A NOWAIT acquisition the holder refuses is the caller's retriable
 		// conflict, not a failure of this read.
 		if isLockNotAvailable(err) {
-			return domain.StudentRecord{}, false, stats,
-				fmt.Errorf("student directory projection: find student record: %w", domain.ErrStudentLockBusy)
+			return directory.StudentRecord{}, false, stats,
+				fmt.Errorf("student directory projection: find student record: %w", directory.ErrStudentLockBusy)
 		}
-		return domain.StudentRecord{}, false, stats, fmt.Errorf("student directory projection: find student record: %w", err)
+		return directory.StudentRecord{}, false, stats, fmt.Errorf("student directory projection: find student record: %w", err)
 	}
 	if len(rows) == 0 {
-		return domain.StudentRecord{}, false, stats, nil
+		return directory.StudentRecord{}, false, stats, nil
 	}
 	stats.Rows = 1
 	return rows[0].toDomain(), true, stats, nil
@@ -259,19 +258,19 @@ func (s *Projection) FindRecord(
 
 // ListRecordsByIDs reads the owned rows of the given children, alumni
 // included, ordered by id.
-func (s *Projection) ListRecordsByIDs(
+func (s *studentDirectoryReads) ListRecordsByIDs(
 	ctx context.Context,
 	ids []int64,
-) ([]domain.StudentRecord, OperationStats, error) {
+) ([]directory.StudentRecord, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, OperationStats{}, err
+		return nil, directoryStats{}, err
 	}
-	rows := []studentRecordRow{}
-	query := withStudentTenant(db.NewSelect().TableExpr(studentSource).
+	rows := []directoryRecordRow{}
+	query := withStudentTenant(s.rows.StudentRows(db, 0).
 		ColumnExpr(studentRecordColumns).Where(`"student".id IN (?)`, bun.List(ids)), tenantID).
 		OrderExpr(`"student".id ASC`)
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
 	err = query.Scan(ctx, &rows)
 	stats.StatementDuration = time.Since(started)
@@ -279,7 +278,7 @@ func (s *Projection) ListRecordsByIDs(
 		return nil, stats, fmt.Errorf("student directory projection: list student records: %w", err)
 	}
 	stats.Rows = int64(len(rows))
-	result := make([]domain.StudentRecord, 0, len(rows))
+	result := make([]directory.StudentRecord, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, row.toDomain())
 	}

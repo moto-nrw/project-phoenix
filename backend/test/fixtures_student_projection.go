@@ -87,7 +87,8 @@ func AssertMissingStudentProjectionStates(t *testing.T, db *bun.DB, membershipID
 }
 
 // StudentDirectory stands in for the student directory projection in suites
-// that compose Care Plan outside the root. Test support may not reach the
+// that compose Care Plan or the retained People Directory repositories
+// outside the root. Test support may not reach the
 // projection (ADR 0058), so it embeds the same three-owner row source as the
 // production projection does, like StudentGuardianLinks does for the guardian
 // links. The care-exit reads are not mapped: a suite that reaches them fails
@@ -114,6 +115,16 @@ const studentDirectorySource = `(SELECT p.id, p.tenant_id, p.person_id, p.create
 // StudentRows is the directory row source a Care Plan statement embeds.
 func (StudentDirectory) StudentRows(db bun.IDB, tenantID int64) *bun.SelectQuery {
 	query := db.NewSelect().TableExpr(studentDirectorySource)
+	if tenantID > 0 {
+		query = query.Where(`"student".tenant_id = ?`, tenantID)
+	}
+	return query
+}
+
+// StudentModelRows is the directory row source with BUN's model column
+// selection, for the retained People Directory repositories.
+func (StudentDirectory) StudentModelRows(db bun.IDB, tenantID int64, model any) *bun.SelectQuery {
+	query := db.NewSelect().Model(model).ModelTableExpr(studentDirectorySource)
 	if tenantID > 0 {
 		query = query.Where(`"student".tenant_id = ?`, tenantID)
 	}

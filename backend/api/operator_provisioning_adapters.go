@@ -29,9 +29,7 @@ type accountEmailQuery interface {
 }
 
 // operatorPersonStudents is the operator person listing's student-facts port.
-type operatorPersonStudents interface {
-	OperatorPersonStudentMembership(ctx context.Context, personIDs []int64) (map[int64]bool, error)
-}
+type operatorPersonStudents func(ctx context.Context, personIDs []int64) (map[int64]bool, error)
 
 // provisioningPersonRows are the person reads and writes of a person's
 // deletion.
@@ -51,7 +49,8 @@ type provisioningStaffRows interface {
 // rows the Organisation & Tenancy provisioning seams (#3253) bind to.
 type OperatorProvisioningDependencies struct {
 	// PersonStudents marks which persons of the operator listing are
-	// students (peopleCompose.LegacyRepositoryRuntime).
+	// students (peopleCompose.LegacyRepositoryRuntime over the student
+	// directory projection).
 	PersonStudents operatorPersonStudents
 	Devices        devicefleet.Capability
 	Persons        peopledirectory.Query
@@ -228,7 +227,7 @@ func (p provisioningPeople) ListPersons(ctx context.Context, tenantIDs []int64) 
 		return []organizationCompose.PersonListing{}, err
 	}
 	personIDs, accountIDs := operatorPersonIDs(persons)
-	students, err := p.students.OperatorPersonStudentMembership(ctx, personIDs)
+	students, err := p.students(ctx, personIDs)
 	if err != nil {
 		return nil, err
 	}

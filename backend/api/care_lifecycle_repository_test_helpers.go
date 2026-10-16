@@ -75,7 +75,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 		lock = func(context.Context) error { return nil }
 	}
 	return carePlanCompose.NewCareLifecycle(carePlanCompose.CareLifecycleDependencies{
-		StudentDirectory: studentDirectoryView.NewCareReader(),
+		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               r.db.Pool(), Records: r.CarePlan,
 		Owners:                NewCareLifecycleOwners(r.sources, NewCareEndRecorder(config.Audit)),
 		LockCareBookingWrites: lock,
