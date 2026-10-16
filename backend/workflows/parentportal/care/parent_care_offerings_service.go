@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -530,7 +530,7 @@ func (s *Service) offeringChangesEnabledForTenant(ctx context.Context, tenantID 
 	if s.Settings == nil {
 		return false
 	}
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyEnrollmentOfferingChangesEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyEnrollmentOfferingChangesEnabled)
 	if err != nil {
 		s.Logger.Warn("parent: resolve offering-changes setting failed, failing closed",
 			slog.Int64("tenant_id", tenantID),
@@ -541,7 +541,7 @@ func (s *Service) offeringChangesEnabledForTenant(ctx context.Context, tenantID 
 	if !enabled {
 		return false
 	}
-	careOfferingsEnabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModel.KeyEnrollmentCareOfferingsEnabled)
+	careOfferingsEnabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyEnrollmentCareOfferingsEnabled)
 	if err != nil {
 		s.Logger.Warn("parent: resolve care-offerings setting failed, failing closed",
 			slog.Int64("tenant_id", tenantID),

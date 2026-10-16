@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -178,7 +177,7 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 		RelationshipType:   strings.TrimSpace(input.RelationshipType),
 		IsEmergencyContact: input.IsEmergencyContact,
 		CanPickup:          input.CanPickup,
-		PickupNotes:        strutil.TrimPtrToNil(input.PickupNotes),
+		PickupNotes:        trimGuardianText(input.PickupNotes),
 		EmergencyPriority:  1,
 	}
 	authorize.ApplyDefaultStudentGuardianRole(link)

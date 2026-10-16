@@ -1,9 +1,5 @@
 package care
 
-import (
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-)
-
 // RequestReasonPolicy is the school policy for submitting families and deciding staff.
 type RequestReasonPolicy string
 
@@ -20,11 +16,11 @@ type RequestReasonPolicy string
 // whatever the policy says.
 func (policy RequestReasonPolicy) RequiresReason(staff bool) bool {
 	switch string(policy) {
-	case configModels.ReasonPolicyNobody:
+	case ReasonPolicyNobody:
 		return false
-	case configModels.ReasonPolicyGuardians:
+	case ReasonPolicyGuardians:
 		return !staff
-	case configModels.ReasonPolicyStaff:
+	case ReasonPolicyStaff:
 		return staff
 	default:
 		return true

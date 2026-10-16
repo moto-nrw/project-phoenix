@@ -12,7 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -174,7 +174,7 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 // requireTrackAEditEnabled checks the school's direct-edit switch, and the
 // guardian-management switch for the guardian's own contact fields.
 func (s *Service) requireTrackAEditEnabled(ctx context.Context, tenantID int64, target string) error {
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentMasterDataEditEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyParentMasterDataEditEnabled)
 	if err != nil {
 		return fmt.Errorf("parent: resolve master-data edit setting: %w", err)
 	}

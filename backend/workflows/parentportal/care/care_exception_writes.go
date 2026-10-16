@@ -10,7 +10,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -62,7 +62,7 @@ func (s *Service) submitCareException(ctx context.Context, accountID, studentID 
 		return nil, err
 	}
 
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, configModels.KeyParentPickupChangeEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, KeyParentPickupChangeEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
