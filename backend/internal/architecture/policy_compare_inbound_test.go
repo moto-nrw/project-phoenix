@@ -124,3 +124,19 @@ func TestInboundOwnerTransitionStrictness(t *testing.T) {
 		})
 	}
 }
+
+func TestPackageSelectorInboundSuccessorStaysExact(t *testing.T) {
+	t.Parallel()
+	base, candidate := inboundTransitionPolicies()
+	other := candidate.Packages[0]
+	other.Path = "modules/meals/other"
+	base.Packages = append(base.Packages, other)
+	candidate.Packages = append(candidate.Packages, other)
+	candidate.Rules[0].SourcePackage = "modules/meals/http"
+	if err := compareReclassification(base, candidate); err != nil {
+		t.Fatalf("package-narrowed inbound successor rejected: %v", err)
+	}
+	if got := importLoosenings(base, candidate); !slices.Equal(got, []string(nil)) {
+		t.Fatalf("successor gained package reach: %v", got)
+	}
+}

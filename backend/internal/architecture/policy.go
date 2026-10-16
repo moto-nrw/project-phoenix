@@ -81,9 +81,11 @@ type Rule struct {
 	ID              string   `json:"id"`
 	Description     string   `json:"description"`
 	Scopes          []string `json:"scopes"`
+	SourcePackage   string   `json:"source_package,omitempty"`
 	SourceOwner     string   `json:"source_owner"`
 	SourceOwnerKind string   `json:"source_owner_kind"`
 	SourceRole      string   `json:"source_role"`
+	TargetPackage   string   `json:"target_package,omitempty"`
 	TargetOwner     string   `json:"target_owner"`
 	TargetOwnerKind string   `json:"target_owner_kind"`
 	TargetRole      string   `json:"target_role"`
@@ -99,7 +101,9 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 	var decoded ruleJSON
 	wire := struct {
 		*ruleJSON
-		Issue json.RawMessage `json:"issue"`
+		Issue         json.RawMessage `json:"issue"`
+		SourcePackage json.RawMessage `json:"source_package"`
+		TargetPackage json.RawMessage `json:"target_package"`
 	}{ruleJSON: &decoded}
 	decoder := json.NewDecoder(bytes.NewReader(data))
 	decoder.DisallowUnknownFields()
@@ -112,6 +116,24 @@ func (r *Rule) UnmarshalJSON(data []byte) error {
 		}
 		if _, err := ParseGitHubIssue(decoded.Issue); err != nil {
 			return err
+		}
+	}
+	for _, selector := range []struct {
+		name   string
+		value  json.RawMessage
+		target *string
+	}{
+		{"source_package", wire.SourcePackage, &decoded.SourcePackage},
+		{"target_package", wire.TargetPackage, &decoded.TargetPackage},
+	} {
+		if selector.value == nil {
+			continue
+		}
+		if err := json.Unmarshal(selector.value, selector.target); err != nil {
+			return err
+		}
+		if strings.TrimSpace(*selector.target) == "" {
+			return fmt.Errorf("rule %q %s must name a package when present", decoded.ID, selector.name)
 		}
 	}
 	*r = Rule(decoded)
@@ -150,7 +172,7 @@ func DecodePolicy(reader io.Reader) (*Policy, error) {
 	return decodePolicy(reader, false)
 }
 
-func decodePolicy(reader io.Reader, allowSchema2 bool) (*Policy, error) {
+func decodePolicy(reader io.Reader, allowOlderSchema bool) (*Policy, error) {
 	decoder := json.NewDecoder(reader)
 	decoder.DisallowUnknownFields()
 	var policy Policy
@@ -160,9 +182,15 @@ func decodePolicy(reader io.Reader, allowSchema2 bool) (*Policy, error) {
 	if err := requireJSONEnd(decoder); err != nil {
 		return nil, err
 	}
-	// Only immutable base policies may cross the schema-2 transition.
-	if allowSchema2 && policy.SchemaVersion == 2 {
-		policy.SchemaVersion = 3
+	// Only immutable bases may cross the schema-2/3 transition. Old schemas
+	// cannot carry the new selectors, even when read through this path.
+	if allowOlderSchema && (policy.SchemaVersion == 2 || policy.SchemaVersion == 3) {
+		for _, rule := range policy.Rules {
+			if rule.SourcePackage != "" || rule.TargetPackage != "" {
+				return nil, fmt.Errorf("package selectors require policy schema 4")
+			}
+		}
+		policy.SchemaVersion = 4
 	}
 	if err := policy.Validate(); err != nil {
 		return nil, fmt.Errorf("validate policy: %w", err)
@@ -223,8 +251,8 @@ func (p *Policy) Validate() error {
 }
 
 func (p *Policy) validateHeader() error {
-	if p.SchemaVersion != 3 {
-		return fmt.Errorf("schema_version must be 3, got %d", p.SchemaVersion)
+	if p.SchemaVersion != 4 {
+		return fmt.Errorf("schema_version must be 4, got %d", p.SchemaVersion)
 	}
 	if p.PolicyEpoch < 1 {
 		return fmt.Errorf("policy_epoch must be a positive integer")
@@ -497,13 +525,16 @@ func (p *Policy) validateRules(owners map[string]Owner, roles, classes map[strin
 		if err := validateRule(rule, seenIDs, owners, roles, classes); err != nil {
 			return err
 		}
+		if err := p.validateRulePackages(rule); err != nil {
+			return err
+		}
 		if p.PolicyEpoch >= targetOnlyRulesEpoch {
 			if err := validateTargetOnlyRule(rule, owners); err != nil {
 				return err
 			}
 		}
 		for _, previous := range validated {
-			if scope, overlaps := overlappingScope(previous, rule, owners); overlaps {
+			if scope, overlaps := p.overlappingScope(previous, rule, owners); overlaps {
 				return fmt.Errorf("rule %q overlaps rule %q for scope %q", rule.ID, previous.ID, scope)
 			}
 		}
@@ -551,6 +582,9 @@ func validateRule(rule Rule, seenIDs map[string]struct{}, owners map[string]Owne
 }
 
 func overlappingScope(left, right Rule, owners map[string]Owner) (string, bool) {
+	if !packageSelectorsOverlap(left.SourcePackage, right.SourcePackage) || !packageSelectorsOverlap(left.TargetPackage, right.TargetPackage) {
+		return "", false
+	}
 	if left.TargetClass != right.TargetClass || (left.TargetClass == "" && left.TargetRole != right.TargetRole) {
 		return "", false
 	}
