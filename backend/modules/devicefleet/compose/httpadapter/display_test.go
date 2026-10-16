@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -18,14 +17,12 @@ import (
 
 	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	devicefleetLegacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/legacy"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -45,18 +42,22 @@ func newDisplayTestTenant(t *testing.T, db *bun.DB) int64 {
 	return tenantID
 }
 
-// SettingsRows are the tenant setting rows the settings service persists.
-type SettingsRows struct {
-	Values configModel.SettingValueRepository
-	Audit  configModel.SettingAuditRepository
+// DisplaySettings is the tenant settings service over the test database in
+// the terms the display suites use it: the routes' feature toggle, the
+// tenant facts a display token reads, and the switch of display.enabled
+// for the tenant in the context.
+type DisplaySettings struct {
+	FeatureEnabled func(context.Context) (bool, error)
+	TenantFacts    func(devicefleetLegacy.SchoolDirectory) devicefleetCompose.TenantFacts
+	Enable         func(context.Context) error
+	Reset          func(context.Context) error
 }
 
 // DisplayComposition is what the display suites take from the root's graph
-// over the test database: the setting rows, the fleet dependencies with the
-// rooms the fleet reads, the retained rows the dashboard reads, and Care Plan
-// with the approved offerings its pickup schedule projects.
+// over the test database: the fleet dependencies with the rooms the fleet
+// reads, the retained rows the dashboard reads, and Care Plan with the
+// approved offerings its pickup schedule projects.
 type DisplayComposition struct {
-	Settings          SettingsRows
 	Fleet             devicefleetCompose.Dependencies
 	Dashboard         devicefleetLegacy.DashboardDependencies
 	CarePlan          careplan.Capability
@@ -67,8 +68,8 @@ type DisplayComposition struct {
 // over. The root imports this package, so these internal tests cannot import
 // it; root_composition_test.go (package httpadapter_test) binds them.
 var RootCompositions struct {
-	SettingsRows func(t *testing.T, db testpkg.Database) SettingsRows
-	Display      func(t *testing.T, db testpkg.Database) DisplayComposition
+	Settings func(t *testing.T, db testpkg.Database) DisplaySettings
+	Display  func(t *testing.T, db testpkg.Database) DisplayComposition
 }
 
 // enableDisplayFeature turns on the opt-in display.enabled setting (issue
@@ -78,11 +79,9 @@ var RootCompositions struct {
 // TestDisplayFeatureGate below covers the off-by-default behavior directly.
 func enableDisplayFeature(t *testing.T, db *bun.DB, tenantID int64) {
 	t.Helper()
-	repos := RootCompositions.SettingsRows(t, testpkg.NewDatabase(t, db))
-	settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
-	testpkg.SetTenantRuntime(t, settingsService, db)
+	settings := RootCompositions.Settings(t, testpkg.NewDatabase(t, db))
 	ctx := testpkg.TenantContext(tenantID)
-	require.NoError(t, settingsService.SetValue(ctx, configModel.KeyDisplayEnabled, true, nil, nil))
+	require.NoError(t, settings.Enable(ctx))
 }
 
 func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http.Handler {
@@ -90,8 +89,7 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	display := RootCompositions.Display(t, testpkg.NewDatabase(t, db))
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	settingsService := configSvc.NewSettingsService(display.Settings.Values, display.Settings.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
-	testpkg.SetTenantRuntime(t, settingsService, db)
+	settings := RootCompositions.Settings(t, testpkg.NewDatabase(t, db))
 	pickup, err := careplanCompose.NewPickupSchedules(db, display.CarePlan, newPickupBaselineService(display.CarePlan, display.ApprovedOfferings), nil, nil, nil)
 	require.NoError(t, err)
 	dashboard := display.Dashboard
@@ -100,15 +98,12 @@ func newDisplayRouter(t *testing.T, db *bun.DB, clocks ...func() time.Time) http
 	dependencies.DB = db
 	dependencies.Presence = presence
 	dependencies.Dashboard = devicefleetLegacy.NewDashboardSources(dashboard)
-	dependencies.Tenants = devicefleetLegacy.NewTenantFacts(devicefleetLegacy.TenantFactDependencies{
-		Schools:  displaySchools{db: db},
-		Settings: settingsService,
-	})
+	dependencies.Tenants = settings.TenantFacts(displaySchools{db: db})
 	dependencies.Now = firstClock(clocks)
 	dependencies.Observe = func(devicefleetCompose.Observation) {}
 	fleet, err := devicefleetCompose.New(dependencies)
 	require.NoError(t, err)
-	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settingsService).Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(NewResource(fleet, settings.FeatureEnabled).Router())
 }
 
 // displaySchools reads the display facts straight from the seeded
@@ -688,9 +683,7 @@ func TestDisplayFeatureGate(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "dashboard must work once the feature is on: %s", rec.Body.String())
 
 		ctx := tenant.WithTenantID(context.Background(), tenantID)
-		repos := RootCompositions.SettingsRows(t, testpkg.NewDatabase(t, db))
-		settingsService := configSvc.NewSettingsService(repos.Values, repos.Audit, nil, testpkg.SettingsRuntime(t, db), slog.Default())
-		require.NoError(t, settingsService.ResetValue(ctx, configModel.KeyDisplayEnabled, nil, nil))
+		require.NoError(t, RootCompositions.Settings(t, testpkg.NewDatabase(t, db)).Reset(ctx))
 
 		rec = doDashboardRequest(t, router, rawToken)
 		assert.Equal(t, http.StatusNotFound, rec.Code, "an opted-out tenant's token must 404 like an unknown token: %s", rec.Body.String())

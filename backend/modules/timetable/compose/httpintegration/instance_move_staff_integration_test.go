@@ -15,7 +15,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -217,8 +216,7 @@ func TestMoveStaffBetweenBlocks_RejectsExternalCaregiver(t *testing.T) {
 	t.Parallel()
 
 	s := makeMoveSetup(t)
-	external := &usersModels.Guest{StaffID: s.otherID, ActivityExpertise: "Musik"}
-	external.SetTenantID(s.tenantID)
+	external := &testpkg.Guest{TenantID: s.tenantID, StaffID: s.otherID, ActivityExpertise: "Musik"}
 	_, err := s.db.NewInsert().Model(external).ModelTableExpr(`users.guests`).Exec(s.ctx)
 	require.NoError(t, err)
 

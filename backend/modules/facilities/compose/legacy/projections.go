@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	activityModels "github.com/moto-nrw/project-phoenix/models/activities"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -15,7 +14,7 @@ import (
 
 func OccupancyProjection(
 	groups RoomOccupancyQuery,
-	activities activityGroupProjection,
+	activities ActivityGroupNames,
 	membership schoolmembership.Query,
 	persons peopledirectory.Query,
 ) facilitiesService.OccupancyProjection {
@@ -28,7 +27,7 @@ func projectRoomOccupancy(
 	ctx context.Context,
 	rooms []facilitiesModule.Room,
 	groups RoomOccupancyQuery,
-	activities activityGroupProjection,
+	activities ActivityGroupNames,
 	membership schoolmembership.Query,
 	persons peopledirectory.Query,
 ) ([]facilitiesService.RoomWithOccupancy, error) {
@@ -79,8 +78,16 @@ func occupancyViews(
 	return result
 }
 
-type activityGroupProjection interface {
-	ListWithCategory(context.Context, *activityModels.GroupListQuery) ([]*activityModels.Group, error)
+// ActivityGroupName names an activity group and its category, if it has one.
+type ActivityGroupName struct {
+	Name     string
+	Category *string
+}
+
+// ActivityGroupNames reads the names of activity groups by ID, missing ones
+// absent. The root binds it to the Timetable owner.
+type ActivityGroupNames interface {
+	ListActivityGroupNames(ctx context.Context, ids []int64) (map[int64]ActivityGroupName, error)
 }
 
 type activityLabel struct {
@@ -91,7 +98,7 @@ type activityLabel struct {
 func roomActivityLabels(
 	ctx context.Context,
 	facts []RoomOccupancyFact,
-	activities activityGroupProjection,
+	activities ActivityGroupNames,
 ) (map[int64]activityLabel, error) {
 	groupIDs := make([]int64, 0)
 	for _, fact := range facts {
@@ -100,32 +107,28 @@ func roomActivityLabels(
 	if len(groupIDs) == 0 {
 		return map[int64]activityLabel{}, nil
 	}
-	groups, err := activities.ListWithCategory(ctx, &activityModels.GroupListQuery{IDs: groupIDs})
+	groups, err := activities.ListActivityGroupNames(ctx, groupIDs)
 	if err != nil {
 		return nil, err
 	}
-	groupsByID := make(map[int64]*activityModels.Group, len(groups))
-	for _, group := range groups {
-		groupsByID[group.ID] = group
-	}
 	result := make(map[int64]activityLabel, len(facts))
 	for _, fact := range facts {
-		result[fact.RoomID] = labelsForActivityGroups(fact.ActivityGroupIDs, groupsByID)
+		result[fact.RoomID] = labelsForActivityGroups(fact.ActivityGroupIDs, groups)
 	}
 	return result, nil
 }
 
-func labelsForActivityGroups(ids []int64, groups map[int64]*activityModels.Group) activityLabel {
+func labelsForActivityGroups(ids []int64, groups map[int64]ActivityGroupName) activityLabel {
 	names := make([]string, 0, len(ids))
 	categories := make([]string, 0, len(ids))
 	for _, id := range ids {
-		group := groups[id]
-		if group == nil {
+		group, ok := groups[id]
+		if !ok {
 			continue
 		}
 		names = append(names, group.Name)
 		if group.Category != nil {
-			categories = append(categories, group.Category.Name)
+			categories = append(categories, *group.Category)
 		}
 	}
 	return activityLabel{GroupName: joinedSorted(names), CategoryName: joinedSorted(categories)}
@@ -212,7 +215,7 @@ func supervisorNamesByRoom(
 	return result
 }
 
-func HistoryProjection(groups RoomHistoryQuery, activities activityGroupProjection, membership schoolmembership.Query, persons peopledirectory.Query) facilitiesService.RoomHistoryProjection {
+func HistoryProjection(groups RoomHistoryQuery, activities ActivityGroupNames, membership schoolmembership.Query, persons peopledirectory.Query) facilitiesService.RoomHistoryProjection {
 	return func(ctx context.Context, roomID int64, start, end time.Time, staffID *int64) ([]facilitiesService.RoomSessionEntry, error) {
 		rows, err := groups.ListRoomSessionHistory(ctx, roomID, start, end, staffID)
 		if err != nil {
@@ -257,7 +260,7 @@ type RoomHistoryQuery interface {
 	ListRoomSessionHistory(context.Context, int64, time.Time, time.Time, *int64) ([]RoomSessionFact, error)
 }
 
-func historyNames(ctx context.Context, rows []RoomSessionFact, activities activityGroupProjection, membership schoolmembership.Query, persons peopledirectory.Query) (map[int64]string, map[int64]string, error) {
+func historyNames(ctx context.Context, rows []RoomSessionFact, activities ActivityGroupNames, membership schoolmembership.Query, persons peopledirectory.Query) (map[int64]string, map[int64]string, error) {
 	activityIDs, staffIDs := []int64{}, []int64{}
 	for _, row := range rows {
 		if row.ActivityGroupID != nil {
@@ -267,17 +270,13 @@ func historyNames(ctx context.Context, rows []RoomSessionFact, activities activi
 	}
 	activityNames, supervisorNames := map[int64]string{}, map[int64]string{}
 	if len(activityIDs) > 0 {
-		groups, err := activities.ListWithCategory(ctx, &activityModels.GroupListQuery{IDs: activityIDs})
+		groups, err := activities.ListActivityGroupNames(ctx, activityIDs)
 		if err != nil {
 			return nil, nil, err
 		}
-		names := map[int64]string{}
-		for _, group := range groups {
-			names[group.ID] = group.Name
-		}
 		for _, row := range rows {
 			if row.ActivityGroupID != nil {
-				activityNames[row.SessionID] = names[*row.ActivityGroupID]
+				activityNames[row.SessionID] = groups[*row.ActivityGroupID].Name
 			}
 		}
 	}
