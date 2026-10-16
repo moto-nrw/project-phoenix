@@ -86,7 +86,7 @@ func followingYearCutoff(now time.Time) time.Time {
 // operatorLedgerRetentionStore is the Audit append store's access to the
 // platform-wide operator ledger.
 type operatorLedgerRetentionStore interface {
-	DeleteExpiredOperatorAuditLog(ctx context.Context, cutoff time.Time) (int64, error)
+	DeleteExpiredOperatorAuditLog(ctx context.Context) (int64, error)
 }
 
 // DeleteExpiredOperatorAuditLog removes the operator-ledger entries once the
@@ -98,7 +98,7 @@ func (c *Command) DeleteExpiredOperatorAuditLog(ctx context.Context) (int, error
 	if !ok {
 		return 0, fmt.Errorf("audit command: operator ledger retention store is required")
 	}
-	deleted, err := store.DeleteExpiredOperatorAuditLog(ctx, followingYearCutoff(time.Now()))
+	deleted, err := store.DeleteExpiredOperatorAuditLog(ctx)
 	return int(deleted), err
 }
 

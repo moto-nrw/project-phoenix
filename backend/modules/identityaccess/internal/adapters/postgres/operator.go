@@ -194,10 +194,18 @@ func (s *Store) DeleteOperator(ctx context.Context, id int64) (domain.OperationS
 	return stats, nil
 }
 
-// DeleteDeactivatedOperators removes the accounts deactivated before cutoff.
-// The cascades take their credentials and sessions along; a ledger entry
-// still pointing at an account refuses the whole deletion.
-func (s *Store) DeleteDeactivatedOperators(ctx context.Context, cutoff time.Time) (int, domain.OperationStats, error) {
+// operatorDeletionCutoffSQL is 1 January of last year in Berlin. It reads
+// the new year an hour late, so the operator ledger's one-minute-late cleanup
+// has already removed entries that would block account deletion.
+const operatorDeletionCutoffSQL = `(
+	(date_trunc('year', (statement_timestamp() AT TIME ZONE 'Europe/Berlin') - INTERVAL '1 hour') - INTERVAL '1 year')
+	AT TIME ZONE 'Europe/Berlin'
+)`
+
+// DeleteDeactivatedOperators removes accounts before the database-clock
+// cutoff. The cascades take their credentials and sessions along; a ledger
+// entry still pointing at an account refuses the whole deletion.
+func (s *Store) DeleteDeactivatedOperators(ctx context.Context) (int, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
 		return 0, domain.OperationStats{}, err
@@ -205,7 +213,7 @@ func (s *Store) DeleteDeactivatedOperators(ctx context.Context, cutoff time.Time
 	started := time.Now()
 	result, err := db.NewDelete().Model((*operatorRow)(nil)).
 		Where(`NOT "operator".active`).
-		Where(`"operator".deactivated_at < ?`, cutoff).
+		Where(`"operator".deactivated_at < ` + operatorDeletionCutoffSQL).
 		Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {

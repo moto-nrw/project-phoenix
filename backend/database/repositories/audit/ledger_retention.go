@@ -63,10 +63,19 @@ func (a *Appender) DeleteExpiredDataDeletions(ctx context.Context, cutoff time.T
 	return deleted, nil
 }
 
-// DeleteExpiredOperatorAuditLog removes the platform-wide operator-ledger
-// entries before cutoff (#4047). The ledger has no school, so the call needs
-// the administrative transaction of the hourly cleanup, not a tenant.
-func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context, cutoff time.Time) (int64, error) {
+// operatorAuditLogCutoffSQL is 1 January of last year in Berlin. It reads
+// the new year a minute late so that the database clock remains the one
+// source of time for ledger rows and their retention.
+const operatorAuditLogCutoffSQL = `(
+	(date_trunc('year', (statement_timestamp() AT TIME ZONE 'Europe/Berlin') - INTERVAL '1 minute') - INTERVAL '1 year')
+	AT TIME ZONE 'Europe/Berlin'
+)`
+
+// DeleteExpiredOperatorAuditLog removes platform-wide operator-ledger
+// entries before the database-clock cutoff (#4047). The ledger has no school,
+// so the call needs the administrative transaction of the hourly cleanup,
+// not a tenant.
+func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context) (int64, error) {
 	const operation = "delete expired operator audit log"
 	db, _, err := database(ctx, a.runtime)
 	if err != nil {
@@ -74,7 +83,7 @@ func (a *Appender) DeleteExpiredOperatorAuditLog(ctx context.Context, cutoff tim
 	}
 	result, err := db.NewDelete().
 		TableExpr("platform.operator_audit_log").
-		Where("created_at < ?", cutoff).
+		Where("created_at < " + operatorAuditLogCutoffSQL).
 		Exec(ctx)
 	if err != nil {
 		return 0, wrapDatabase(operation, err)

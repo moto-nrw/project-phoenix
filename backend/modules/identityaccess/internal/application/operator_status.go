@@ -2,10 +2,8 @@ package application
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The accounts of team members who left (#4047): another operator
@@ -13,19 +11,6 @@ import (
 // and the hourly cleanup deletes it once the operator ledger has lost the
 // entries written before the deactivation. A reactivation clears the
 // deactivation, so the deletion window starts over.
-
-// operatorDeletionMargin reads the year an hour early: right after New Year
-// the account cutoff stays a year older than the ledger cutoff, so the
-// ledger has already lost the account's entries when the account goes.
-const operatorDeletionMargin = time.Hour
-
-// operatorDeletionCutoff is 1 January of last year (Berlin), the cutoff of
-// the operator ledger: an account deactivated before it has no ledger entry
-// left.
-func operatorDeletionCutoff(now time.Time) time.Time {
-	year := now.In(calendar.Berlin).Add(-operatorDeletionMargin).Year()
-	return time.Date(year-1, time.January, 1, 0, 0, 0, 0, calendar.Berlin)
-}
 
 // ChangeOperatorStatus deactivates or reactivates another operator's account
 // and records the change in the operator ledger.
@@ -77,7 +62,7 @@ func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change do
 // an administrative transaction; the hourly cleanup hands its own in.
 func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (deleted int, err error) {
 	err = p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		deleted, err = p.operators.deleteDeactivatedOperators(txCtx, operatorDeletionCutoff(p.now()))
+		deleted, err = p.operators.deleteDeactivatedOperators(txCtx)
 		return err
 	})
 	return deleted, err
