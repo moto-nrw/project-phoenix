@@ -1614,7 +1614,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		},
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(modules.organizations)),
 		ErrorReports:            errorReports,
-		SessionEnd:              sessionEnd,
+		SessionEnd:              BindIoTSessionEnd(sessionEnd),
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),

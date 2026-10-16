@@ -172,6 +172,18 @@ Epoche 55 → 56; 16 Inbound-Owner, 912 Regeln, 228 Keys, #4078 6,
 Composition 1.657 und alle Budgets bleiben unverändert. Keine Route, Response,
 IoT-Zeichenkette oder Assertion ändert sich.
 
+#4078: `api/iot/sessions` gehört jetzt als HTTP-Adapter zu
+`process-device-scan`; `inbound-iot-sessions` entfällt. Der Adapter erhält
+Session End über seinen eigenen Callback, den Root an denselben Workflow
+bindet. Close-Zeitpunkt, unveränderter Fehler, Status und Rollback bleiben
+gleich. Drei bisher interne Handlerfälle laufen über diese Root-Bindung und
+den öffentlichen Router; ihre elf Assertions und die 25 Assertions der
+HTTP-Suite bleiben vollständig unverändert. Die vorhandene Root-Testkomposition
+liefert die identischen Workflow-Werte, ohne neue Testrolle oder Regel.
+Vier Regeln entfallen ohne Nachfolger. Inbound-Owner 16 → 15, Regeln
+902 → 898; #4078 6, #4079 15, Composition 1.657 und alle Budgets bleiben
+gleich. Keine Route, Response oder IoT-Zeichenkette ändert sich.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
