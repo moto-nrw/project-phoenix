@@ -24,7 +24,7 @@ if [[ "${1:-}" == build ]]; then
   cp "$(dirname "$0")/deadcode" "$3"
   exit 0
 fi
-if [[ "$*" == 'tool deadcode -test ./...' ]]; then
+if [[ "$*" == 'tool deadcode -tags=testhooks -test ./...' ]]; then
   mode=tests
 else
   mode=production

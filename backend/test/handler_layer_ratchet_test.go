@@ -22,9 +22,7 @@ import (
 // Five patterns, each with its own per-file allowlist:
 //
 //	R1 — repository-typed declarations (struct fields, constructor params)
-//	     anywhere under api/ except the test composition hooks
-//	     (api/*_test_helpers.go, #4005), which build the retained repositories
-//	     for tests and serve no request.
+//	     anywhere under the production build of api/.
 //	R2 — service repository-getter calls (`.XxxRepository()`) anywhere in the
 //	     backend except database/ and test/: the getters are scheduled for
 //	     deletion from the PersonService interface, so non-api consumers
@@ -50,8 +48,8 @@ import (
 // modules/*/inbound and workflows/*/http, nested module layouts included
 // (modules/careplan/requestfeed/http). Their hits have registers of their own
 // (moduleHTTP*Allowlist), first measured on 2026-10-15 on top of development
-// c49b81c3a9, with the same semantics. No file there is exempt: test hooks in
-// those trees count. R2 already scans the whole backend.
+// c49b81c3a9, with the same semantics. Every file in the default production
+// build counts. R2 already scans the whole backend.
 //
 // Known limitation: R1 matches the textual "name pkg.SomethingRepository"
 // declaration shape, so it is bypassable via type aliases and embedded
@@ -232,22 +230,7 @@ func scanAPIRepoDecls(backendRoot string) (map[string]int, error) {
 	if err != nil {
 		return nil, err
 	}
-	for file := range counts {
-		if isAPITestHookFile(file) {
-			delete(counts, file)
-		}
-	}
 	return counts, nil
-}
-
-// isAPITestHookFile reports whether a backend-relative path is one of the
-// root's test composition hooks: the api/*_test_helpers.go files that moved
-// out of the legacy composition (#4005). They compose the graph tests run
-// against and are no request handlers. #4094 takes them out of the production
-// build; this exemption goes with it.
-func isAPITestHookFile(rel string) bool {
-	return strings.HasPrefix(rel, "api/") && !strings.Contains(strings.TrimPrefix(rel, "api/"), "/") &&
-		strings.HasSuffix(rel, "_test_helpers.go")
 }
 
 func scanRepoGetterCalls(backendRoot string) (map[string]int, error) {
@@ -350,6 +333,13 @@ func scanTree(backendRoot, root string, skipDirs map[string]bool, countLine func
 			return nil
 		}
 		if !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+		active, buildErr := productionGoSources(backendRoot)
+		if buildErr != nil {
+			return buildErr
+		}
+		if !active[filepath.Clean(path)] {
 			return nil
 		}
 		hits, scanErr := countFileHits(path, countLine)
