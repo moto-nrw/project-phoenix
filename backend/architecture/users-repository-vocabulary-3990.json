@@ -30,7 +30,8 @@
   "atomic_cutover": "Repository contracts and their query/error types now belong to database/repositories/users, with no alias on models/base. models/users retains rows and sentinels. Consumers use narrow ports; Shift Plan Sync receives application.ScheduleStaff instead of users.StaffRepository. Root record errors and unique-violation checks use Transaction Runtime. The two listed keys retire without a new policy rule or baseline entry.",
   "tests": [
     "scripts/run-go-toolchain.sh scripts/backend-architecture.sh check",
-    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh validate-ticket --all --base-ref d79c1dc6166bf856802cf83ffdb91469a9411554"
+    "scripts/run-go-toolchain.sh scripts/backend-architecture.sh validate-ticket --all --base-ref d79c1dc6166bf856802cf83ffdb91469a9411554",
+    "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development attempted after merging 0ce3ca295ca398ef1591f0fa34514548dda72d86; database bootstrap stopped because TEST_DB_DSN is unset, before the 176 selected packages ran."
   ],
   "runtime_evidence": {
     "source": "PR #4112 CI at a94211d756 and local reproduction on 2026-10-16. The migration-evidence step rejected two unclaimed removals; the deterministic architecture step passed.",
@@ -42,7 +43,7 @@
       "https://github.com/moto-nrw/project-phoenix/actions/runs/38832404773/job/116753930692"
     ],
     "workload": "Evidence-only CI repair. The local validator compares against the exact CI base d79c1dc6166bf856802cf83ffdb91469a9411554 using the pinned Go toolchain and default cache. No runtime benchmark, database suite or manual HTTP smoke is claimed for this correction.",
-    "thresholds": "Both retired keys must have complete evidence; baseline remains at 517 keys and composition at 1741. No policy, baseline or runtime code changes in this correction.",
+    "thresholds": "Both retired keys must have complete evidence. Initial PR totals: 517 baseline keys and composition 1741. After merging development at 0ce3ca295ca398ef1591f0fa34514548dda72d86, combined totals are 512 keys and composition 1740; the PR still retires two keys and two composition targets. No new policy permission or baseline key.",
     "affected_rows": {
       "state": "not_applicable",
       "reason": "This correction adds retirement evidence only; it changes no runtime code, queries, transactions, schema, data or configuration. No runtime measurement was performed."
@@ -97,7 +98,7 @@
     },
     "errors": {
       "state": "measured",
-      "result": "The exact PR-base validator reproduced both unclaimed removals before this record, then passed with 2 retirements covered out of 2 across 89 files. Local architecture check passed with 517 remaining keys and composition 1743 -> 1741. Context validation reported zero errors and all 13 checker tests passed."
+      "result": "The exact PR-base validator reproduced both unclaimed removals before this record, then passed with 2 retirements covered out of 2 across 89 files. Local architecture check passed with 517 remaining keys and composition 1743 -> 1741. Context validation reported zero errors and all 13 checker tests passed. After merging development at 0ce3ca295ca398ef1591f0fa34514548dda72d86, retirement validation passed across 90 files with both removals covered. Affected-package tests stopped at bootstrap because TEST_DB_DSN is unset; no database test pass is claimed."
     }
   },
   "rollback_and_cleanup": "Revert the #3990 code cutover together with its baseline removals and evidence if a caller regression appears. This evidence-only correction changes no code, schema, data or configuration and requires no data cleanup.",
