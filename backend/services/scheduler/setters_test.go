@@ -14,7 +14,6 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -188,7 +187,7 @@ func TestRunOverdueForTenant_EmitsSchulhofLikeAnyRoom(t *testing.T) {
 			Date:      today,
 			StartTime: time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 			RoomID:    roomID,
-			Status:    timetable.InstanceStatusPlanned,
+			Planned:   true,
 		}
 	}
 	// Room 251 is the school's Schulhof, 252 a Lernraum: the tick resolves
@@ -221,7 +220,7 @@ func TestRunOverdueForTenant_FailsClosedWhenRoomResolutionFails(t *testing.T) {
 		Date:      today,
 		StartTime: time.Date(1, 1, 1, 10, 0, 0, 0, time.UTC),
 		RoomID:    253,
-		Status:    timetable.InstanceStatusPlanned,
+		Planned:   true,
 	}
 
 	tests := []struct {
@@ -360,14 +359,14 @@ func TestRunInstanceOverdueTaskPolling_ExitsOnDone(t *testing.T) {
 // -----------------------------------------------------------------------------
 
 type fakeAutoStartService struct {
-	run    func(context.Context) (*timetable.AutoStartResult, error)
+	run    func(context.Context) (*AutoStartRun, error)
 	mu     sync.Mutex
 	calls  int
 	err    error
-	result *timetable.AutoStartResult
+	result *AutoStartRun
 }
 
-func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*timetable.AutoStartResult, error) {
+func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*AutoStartRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -377,7 +376,7 @@ func (f *fakeAutoStartService) RunForTenant(ctx context.Context, _ time.Time) (*
 	if f.result != nil {
 		return f.result, f.err
 	}
-	return &timetable.AutoStartResult{}, f.err
+	return &AutoStartRun{}, f.err
 }
 
 type autoStartFailureObservations struct {
@@ -436,7 +435,7 @@ func autoStartFailureScheduler(t *testing.T, tenantIDs []int64, commandErr error
 	s.minuteSnapshotLoader = func(context.Context) (*schedulerMinuteSnapshot, error) {
 		return &schedulerMinuteSnapshot{tenantIDs: tenantIDs}, errSchedulerSettingsBatchUnsupported
 	}
-	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*timetable.AutoStartResult, error) {
+	s.autoStart = &fakeAutoStartService{run: func(ctx context.Context) (*AutoStartRun, error) {
 		id := testpkg.TenantIDFromContext(ctx)
 		observed.called = append(observed.called, id)
 		if id == tenantIDs[0] {
@@ -445,7 +444,7 @@ func autoStartFailureScheduler(t *testing.T, tenantIDs []int64, commandErr error
 		}
 		_, stored := s.tenantBatchCursors.Load(JobID("timetable-auto-start"))
 		assert.False(t, stored, "failed tenant must not advance the successful cursor")
-		return &timetable.AutoStartResult{}, nil
+		return &AutoStartRun{}, nil
 	}}
 	return s, observed
 }
@@ -533,7 +532,7 @@ func TestCheckAndRunAutoStart_DefaultDisabled(t *testing.T) {
 func TestCheckAndRunAutoStart_EnabledBySettings(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeAutoStartService{result: &timetable.AutoStartResult{Checked: 2, Started: 1}}
+	svc := &fakeAutoStartService{result: &AutoStartRun{Checked: 2, Started: 1}}
 	s := unitScheduler(&Scheduler{
 		autoStart: svc,
 		logger:    slog.Default(),
@@ -557,10 +556,10 @@ type fakeAutoEndService struct {
 	calls  int
 	grace  time.Duration
 	err    error
-	result *timetable.AutoEndResult
+	result *AutoEndRun
 }
 
-func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*timetable.AutoEndResult, error) {
+func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace time.Duration) (*AutoEndRun, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.calls++
@@ -568,7 +567,7 @@ func (f *fakeAutoEndService) RunForTenant(_ context.Context, _ time.Time, grace 
 	if f.result != nil {
 		return f.result, f.err
 	}
-	return &timetable.AutoEndResult{}, f.err
+	return &AutoEndRun{}, f.err
 }
 
 func TestScheduleAutoEndTask_MissingService(t *testing.T) {
@@ -615,7 +614,7 @@ func TestCheckAndRunAutoEnd_DefaultDisabled(t *testing.T) {
 func TestCheckAndRunAutoEnd_PassesConfiguredGrace(t *testing.T) {
 	t.Parallel()
 
-	svc := &fakeAutoEndService{result: &timetable.AutoEndResult{Checked: 1, Completed: 1}}
+	svc := &fakeAutoEndService{result: &AutoEndRun{Checked: 1, Completed: 1}}
 	s := unitScheduler(&Scheduler{
 		autoEnd: svc,
 		logger:  slog.Default(),
@@ -684,7 +683,7 @@ func TestRunOverdueForTenant_BroadcastFailure(t *testing.T) {
 		Date:      today,
 		StartTime: startTime,
 		RoomID:    42,
-		Status:    timetable.InstanceStatusPlanned,
+		Planned:   true,
 	}
 
 	repo := &fakeInstanceRepo{instances: []DayInstance{inst}}
