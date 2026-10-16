@@ -15,6 +15,7 @@ import (
 )
 
 func TestParentDeliveryPublicErrorsKeepDiagnosticsAndCause(t *testing.T) {
+	t.Parallel()
 	source := deliveryCompose.NewPushSubscriptionService(nil, nil, nil, deliveryCompose.VAPIDConfig{}, nil)
 	_, original := source.PublicKey()
 	_, translated := bindParentPushSubscriptions(source).PublicKey()
@@ -50,6 +51,7 @@ func (s parentPreferenceProjectionStub) GetForParent(context.Context, int64) (*d
 }
 
 func TestParentPreferenceProjectionPreservesWireShape(t *testing.T) {
+	t.Parallel()
 	for _, row := range []*devices.PreferenceOverview{
 		nil,
 		{},
