@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/inbound/parent"
+	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
 
 // stubParentAuthService supplies the login runtime the composition root
