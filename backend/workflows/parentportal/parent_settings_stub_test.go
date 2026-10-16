@@ -4,16 +4,14 @@ import (
 	"context"
 	"strconv"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-
-	configService "github.com/moto-nrw/project-phoenix/services/config"
+	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // parentSettingsStub answers ResolveBoolForTenant / ResolveStringForTenant
 // from maps; every other SettingsService method panics via the embedded nil
 // interface, keeping the tests honest about what the services touch.
 type parentSettingsStub struct {
-	configService.SettingsService
+	parentService.SettingsService
 	boolValues               map[string]bool
 	boolDefault              bool  // returned for keys not in boolValues
 	boolErr                  error // returned by every bool lookup when set
@@ -30,7 +28,7 @@ func (s parentSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, key
 	if v, ok := s.boolValues[key]; ok {
 		return v, nil
 	}
-	if key == configModels.KeyParentSickReportsEnabled || key == configModels.KeyParentExcusedReportsEnabled {
+	if key == parentService.KeyParentSickReportsEnabled || key == parentService.KeyParentExcusedReportsEnabled {
 		return true, nil
 	}
 	return s.boolDefault, nil

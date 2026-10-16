@@ -426,7 +426,7 @@ func inboundSuccessorRule(base, candidate *Policy, rule Rule) bool {
 					changed = true
 				}
 			}
-			if !changed || !sameRulePermission(rule, replacement) {
+			if !changed || !rulePermissionContains(replacement, rule) {
 				covered = false
 				break
 			}
@@ -781,7 +781,7 @@ func rolePointKey(direction string, scope Scope, owner, role string) string {
 
 func candidateRuleCoveredDirectly(candidate Rule, baseRules []Rule) bool {
 	for _, base := range baseRules {
-		if sameRulePermission(candidate, base) && scopesContain(base.Scopes, candidate.Scopes) {
+		if rulePermissionContains(base, candidate) && scopesContain(base.Scopes, candidate.Scopes) {
 			return true
 		}
 	}
@@ -789,7 +789,8 @@ func candidateRuleCoveredDirectly(candidate Rule, baseRules []Rule) bool {
 }
 
 func sameRulePermission(left, right Rule) bool {
-	return left.SourceOwner == right.SourceOwner && left.SourceOwnerKind == right.SourceOwnerKind && left.SourceRole == right.SourceRole &&
+	return left.SourcePackage == right.SourcePackage && left.TargetPackage == right.TargetPackage &&
+		left.SourceOwner == right.SourceOwner && left.SourceOwnerKind == right.SourceOwnerKind && left.SourceRole == right.SourceRole &&
 		left.TargetOwner == right.TargetOwner && left.TargetOwnerKind == right.TargetOwnerKind && left.TargetRole == right.TargetRole &&
 		left.TargetClass == right.TargetClass && left.SameOwner == right.SameOwner
 }
@@ -815,7 +816,7 @@ func sliceContains(values []string, want string) bool {
 func uncoveredRulePermission(rule Rule, base, candidate *Policy, owners []Owner, roles []string) string {
 	for _, rawScope := range rule.Scopes {
 		scope := Scope(rawScope)
-		for _, source := range matchingOwnerRoles(candidate, rule, owners, roles) {
+		for _, source := range matchingOwnerRoles(candidate, rule, scope, owners, roles) {
 			if rule.TargetClass != "" {
 				if !policyAllowsExternal(base, scope, rulePointPackage(source), ExternalPackage{Class: rule.TargetClass}) {
 					return fmt.Sprintf("rule %s newly allows %s %s/%s -> external class %s", rule.ID, scope, source.Owner.ID, source.Role, rule.TargetClass)
@@ -831,11 +832,19 @@ func uncoveredRulePermission(rule Rule, base, candidate *Policy, owners []Owner,
 }
 
 type ownerRole struct {
+	Path  string
 	Owner Owner
 	Role  string
 }
 
-func matchingOwnerRoles(policy *Policy, rule Rule, owners []Owner, roles []string) []ownerRole {
+func matchingOwnerRoles(policy *Policy, rule Rule, scope Scope, owners []Owner, roles []string) []ownerRole {
+	if rule.SourcePackage != "" {
+		pkg, err := policy.firstPartyPackage(policy.absolutePackage(rule.SourcePackage))
+		if err != nil || !policy.matchesSource(rule, pkg.inScope(scope)) {
+			return nil
+		}
+		return []ownerRole{{Path: pkg.Path, Owner: Owner{ID: pkg.Owner}, Role: pkg.inScope(scope).Role}}
+	}
 	var matches []ownerRole
 	for _, owner := range owners {
 		for _, candidateRole := range roles {
@@ -852,6 +861,13 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 	sourcePackage := rulePointPackage(source)
 	for _, target := range owners {
 		targetPackage := rulePointPackage(ownerRole{Owner: target, Role: rule.TargetRole})
+		if rule.TargetPackage != "" {
+			selected, err := candidate.firstPartyPackage(candidate.absolutePackage(rule.TargetPackage))
+			if err != nil || selected.Owner != target.ID {
+				continue
+			}
+			targetPackage = selected
+		}
 		if !candidate.matchesTarget(rule, sourcePackage, targetPackage) {
 			continue
 		}
@@ -864,7 +880,7 @@ func uncoveredFirstPartyPermission(rule Rule, base, candidate *Policy, scope Sco
 }
 
 func rulePointPackage(point ownerRole) Package {
-	return Package{Owner: point.Owner.ID, Role: point.Role, InternalTestRole: point.Role, ExternalTestRole: point.Role}
+	return Package{Path: point.Path, Owner: point.Owner.ID, Role: point.Role, InternalTestRole: point.Role, ExternalTestRole: point.Role}
 }
 
 func ruleUniverseOwners(base, candidate *Policy) []Owner {

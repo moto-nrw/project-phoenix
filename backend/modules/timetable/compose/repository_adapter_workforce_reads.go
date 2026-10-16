@@ -7,6 +7,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -74,7 +75,7 @@ func scheduledInstances(rows []*scheduleModels.ActivityInstance) []*timetable.Sc
 			result = append(result, nil)
 			continue
 		}
-		instance := ScheduledInstanceOf(row)
+		instance := application.ScheduledInstanceOf(row)
 		result = append(result, &instance)
 	}
 	return result

@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -25,17 +25,17 @@ import (
 // prior mealSettings behavior.
 func mealPlanSettings(enabled bool, resolveErr error) parentSettingsStub {
 	return parentSettingsStub{
-		boolValues: map[string]bool{configModels.KeyMealPlanEnabled: enabled},
+		boolValues: map[string]bool{parentService.KeyMealPlanEnabled: enabled},
 		boolErr:    resolveErr,
 		stringValues: map[string]string{
-			configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 		},
 	}
 }
 
 func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub, moduleOverride ...*fakeMealPlan) *parentService.Portal {
 	t.Helper()
-	enabled := settings.boolValues[configModels.KeyMealPlanEnabled]
+	enabled := settings.boolValues[parentService.KeyMealPlanEnabled]
 	mealPlan := &fakeMealPlan{available: enabled, err: settings.boolErr, entries: []mealplanModule.Entry{
 		{Date: mealplanModule.Date("2026-08-24"), Position: 0, Dish: "Spaghetti"},
 		{Date: mealplanModule.Date("2026-08-24"), Position: 1, Dish: "Salat"},

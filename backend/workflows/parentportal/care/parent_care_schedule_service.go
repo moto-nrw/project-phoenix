@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -209,18 +209,18 @@ func (s *Service) resolveCareScheduleRequestCapabilities(ctx context.Context, te
 		}
 		return s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
 	}
-	bookingsAuthoritative, err := resolve(configModels.KeyEnrollmentBookingsAuthoritative)
+	bookingsAuthoritative, err := resolve(KeyEnrollmentBookingsAuthoritative)
 	if err != nil {
 		return CareScheduleRequestCapabilities{}, false, fmt.Errorf("parent: resolve bookings-authoritative setting: %w", err)
 	}
 	if bookingsAuthoritative {
 		return CareScheduleRequestCapabilities{}, true, nil
 	}
-	pickup, err := resolve(configModels.KeyParentCarePickupRequestEnabled)
+	pickup, err := resolve(KeyParentCarePickupRequestEnabled)
 	if err != nil {
 		return CareScheduleRequestCapabilities{}, false, fmt.Errorf("parent: resolve pickup request setting: %w", err)
 	}
-	mode, err := resolve(configModels.KeyParentCareModeRequestEnabled)
+	mode, err := resolve(KeyParentCareModeRequestEnabled)
 	if err != nil {
 		return CareScheduleRequestCapabilities{}, false, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
 	}

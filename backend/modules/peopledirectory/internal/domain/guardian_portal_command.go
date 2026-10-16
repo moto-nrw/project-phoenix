@@ -36,7 +36,16 @@ const (
 	DefaultGuardianContactMethod = "phone"
 	DefaultGuardianLanguage      = "de"
 	DefaultGuardianRole          = "custom"
+	// GuardianRoleLegalGuardian is the preset a confirmed guardian
+	// invitation promotes a restricted contact to (#2172).
+	GuardianRoleLegalGuardian = "legal_guardian"
 )
+
+// GuardianAccountHolder is a profile with the parent account it holds.
+type GuardianAccountHolder struct {
+	ID        int64
+	AccountID *int64
+}
 
 // GuardianContact is the contact slice of users.guardian_profiles.
 type GuardianContact struct {

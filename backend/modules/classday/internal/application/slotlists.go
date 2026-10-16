@@ -27,7 +27,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -99,7 +98,7 @@ type SlotListDependencies struct {
 	Rules           ports.Rules
 	Settings        ports.Settings
 	Access          ports.ReadAccess
-	ListExport      *listexport.RendererService
+	ListExport      ListRenderer
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
@@ -119,7 +118,7 @@ type service struct {
 	rules           ports.Rules
 	settings        ports.Settings
 	access          ports.ReadAccess
-	listExport      *listexport.RendererService
+	listExport      ListRenderer
 	// now is the clock the service reads "today" and "has this slot started
 	// yet" from. Production leaves it nil (→ time.Now); tests inject a fixed
 	// instant so the pickup suite is not at the mercy of the weekday CI runs on.
@@ -2446,15 +2445,15 @@ func countRows(rows []classday.Row, source classday.Source) classday.Counters {
 	}
 }
 
-func (s *service) RenderList(ctx context.Context, requested classday.Params, format listexport.Format) (listexport.File, error) {
+func (s *service) RenderList(ctx context.Context, requested classday.Params, format classday.Format) (classday.File, error) {
 	result, err := s.BuildList(ctx, requested)
 	if err != nil {
-		return listexport.File{}, err
+		return classday.File{}, err
 	}
 	// BuildList already refused a malformed day, so this parse cannot fail.
 	date, err := parseDate(requested.Date)
 	if err != nil {
-		return listexport.File{}, err
+		return classday.File{}, err
 	}
 	params := listRequest{Params: requested, date: date}
 
@@ -2464,47 +2463,47 @@ func (s *service) RenderList(ctx context.Context, requested classday.Params, for
 	// out a file that differs from the approved preview (#1565 review pass 2). An
 	// empty ExpectedSignature (older client or a direct render) skips the guard.
 	if params.ExpectedSignature != "" && result.Signature != params.ExpectedSignature {
-		return listexport.File{}, classday.ErrListDrifted
+		return classday.File{}, classday.ErrListDrifted
 	}
 
 	pickupBased := params.Target == classday.TargetPickupCohort
-	columns := []listexport.Column{
-		{ID: listexport.ColumnName, Label: "Name"},
-		{ID: listexport.ColumnSchoolClass, Label: "Klasse"},
-		{ID: listexport.ColumnGroup, Label: "Gruppe"},
-		{ID: listexport.ColumnSlot, Label: "Angebot / Zeitraum"},
+	columns := []classday.ExportColumn{
+		{ID: classday.ExportColumnName, Label: "Name"},
+		{ID: classday.ExportColumnSchoolClass, Label: "Klasse"},
+		{ID: classday.ExportColumnGroup, Label: "Gruppe"},
+		{ID: classday.ExportColumnSlot, Label: "Angebot / Zeitraum"},
 	}
 	if pickupBased {
-		columns = append(columns, listexport.Column{ID: listexport.ColumnPlannedPickup, Label: "Geplante Abholung"})
+		columns = append(columns, classday.ExportColumn{ID: classday.ExportColumnPlannedPickup, Label: "Geplante Abholung"})
 	}
-	columns = append(columns, listexport.Column{ID: listexport.ColumnPresenceStatus, Label: "Status"})
+	columns = append(columns, classday.ExportColumn{ID: classday.ExportColumnPresenceStatus, Label: "Status"})
 
 	// The PDF renderer treats a Row with GroupTitle as a pure section marker
 	// and drops its Values (pdf_design.go paginate). Emit one marker row per
 	// section followed by plain value rows — the same shape the grouped
 	// student exports produce. Rows arrive sorted by GroupTitle (sortRows),
 	// so sections are contiguous.
-	docRows := make([]listexport.Row, 0, len(result.Rows))
+	docRows := make([]classday.ExportRow, 0, len(result.Rows))
 	currentGroup := ""
 	for _, row := range result.Rows {
 		if row.GroupTitle != "" && row.GroupTitle != currentGroup {
 			currentGroup = row.GroupTitle
-			docRows = append(docRows, listexport.Row{GroupTitle: row.GroupTitle})
+			docRows = append(docRows, classday.ExportRow{GroupTitle: row.GroupTitle})
 		}
-		values := map[listexport.ColumnID]string{
-			listexport.ColumnName:           row.Name,
-			listexport.ColumnSchoolClass:    row.SchoolClass,
-			listexport.ColumnGroup:          row.GroupName,
-			listexport.ColumnSlot:           row.Slot,
-			listexport.ColumnPresenceStatus: row.StatusLabel,
+		values := map[classday.ExportColumnID]string{
+			classday.ExportColumnName:           row.Name,
+			classday.ExportColumnSchoolClass:    row.SchoolClass,
+			classday.ExportColumnGroup:          row.GroupName,
+			classday.ExportColumnSlot:           row.Slot,
+			classday.ExportColumnPresenceStatus: row.StatusLabel,
 		}
 		if pickupBased {
-			values[listexport.ColumnPlannedPickup] = row.PickupTime
+			values[classday.ExportColumnPlannedPickup] = row.PickupTime
 		}
-		docRows = append(docRows, listexport.Row{Values: values})
+		docRows = append(docRows, classday.ExportRow{Values: values})
 	}
 
-	doc := listexport.Document{
+	doc := classday.ExportDocument{
 		Title:       documentTitle(result),
 		Subtitle:    subtitle(result),
 		GeneratedAt: time.Now(),
