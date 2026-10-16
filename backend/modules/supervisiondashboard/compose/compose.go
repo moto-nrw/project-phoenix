@@ -12,12 +12,8 @@ type Sources = supervisiondashboardlegacy.Sources
 // the dashboard's caller port (#4006).
 type CallerGroup = supervisiondashboardlegacy.CallerGroup
 
-// CallerContext is the caller the dashboard resolves its groups for, and
-// OpenRoomSessions are the running sessions it shows (#4006, #4010).
-type (
-	CallerContext    = supervisiondashboardlegacy.CallerContext
-	OpenRoomSessions = supervisiondashboardlegacy.OpenRoomSessions
-)
+// OpenRoomSessions are the running sessions the dashboard shows (#4010).
+type OpenRoomSessions = supervisiondashboardlegacy.OpenRoomSessions
 
 // New builds the supervision dashboard over its sources.
 var New = supervisiondashboardlegacy.New
