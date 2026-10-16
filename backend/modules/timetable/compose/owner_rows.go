@@ -32,7 +32,7 @@ type OwnerRows struct {
 	ArrivalExceptions scheduleModels.StudentArrivalExceptionRepository
 	// DeviationEvents reads and Deviations appends the Änderungsprotokoll.
 	DeviationEvents DeviationEventReader
-	Deviations      DeviationProtocol
+	Deviations      application.DeviationProtocol
 	// Locks serializes attendance writes with a completion; optional.
 	Locks scheduleModels.ActivityRecoveryRepository
 }
@@ -41,7 +41,7 @@ type OwnerRows struct {
 // and the instance lifecycle.
 type OwnerRooms interface {
 	RoomNames
-	LifecycleRooms
+	application.LifecycleRooms
 }
 
 // OperationTemplates is the template read of the operational day, which the
@@ -86,7 +86,7 @@ func (r OwnerRows) RoomNames() RoomNames { return r.Rooms }
 
 // LifecycleRooms serves the instance lifecycle's Facilities rooms: the
 // reference check, the start's room lock and the auto-start's room names.
-func (r OwnerRows) LifecycleRooms() LifecycleRooms { return r.Rooms }
+func (r OwnerRows) LifecycleRooms() application.LifecycleRooms { return r.Rooms }
 
 // EducationGroupNames names School Structure's education groups.
 func (r OwnerRows) EducationGroupNames() EducationGroupNames { return r.EducationGroups }
