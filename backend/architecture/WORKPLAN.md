@@ -3,16 +3,16 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 206 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
+Stand 16.10.2026 · Ratchet 204 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-59.341 in `compose`
+59.273 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 88 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 86 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 32 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 206 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 204 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -30,8 +30,8 @@ Die Root übersetzt Enrollments öffentliche Reads. Die vorhandenen Owner-Codecs
 im Leseweg: Dekodierfehler, Not-found-Marker, Katalogreihenfolge und leere ID-Filter ändern
 sich nicht. Der Kalender hält nun die bereits bestehende Wochentagsübersetzung gemeinsam;
 das Enrollment-Modell und der Workflow delegieren an dieselbe Implementierung.
-Drei `models/enrollment`-Keys fallen: 209 → 206, #4073 35 → 32. Regeln 893,
-Composition 1.657, Compose 59.341 LOC und alle Budgets bleiben unverändert.
+Drei `models/enrollment`-Keys fallen: 207 → 204, #4073 35 → 32. Regeln 888,
+Composition 1.657, Compose 59.273 LOC und alle Budgets bleiben unverändert.
 Keine neue Freigabe, Rolle, Klassifizierung, Paketverschiebung oder Regel.
 
 #4073: Kind-, Phasen- und Einschreibungsleseports geben Workflow-eigene DTOs zurück.
@@ -212,6 +212,25 @@ Produktions- sowie Testrollen bleiben identisch. Ein AST-Audit über alle
 Importpfade. Epoche 58 → 59; Regeln, Legacy-Keys, Composition und Budgets
 bleiben gleich. Keine Route, Response, IoT-Zeichenkette oder Assertion ändert
 sich; die vorangehende Sessions-Owner-Übernahme muss zuerst gemergt sein.
+
+#4078: `api/absence-types` und `api/work-time-models` gehören zu Workforce/HTTP;
+`inbound-absence-types` und `inbound-work-time-models` entfallen. Ihre unveränderten
+Bindungen von Authentifizierung, Actor, Berechtigungen, Fehlern und
+Nachbenachrichtigung liegen in Root. Die bisherigen Kompositionsfälle laufen
+über diese Bindungen, ohne den veränderlichen `ComposeAbsenceTypes`-Testhook.
+Alle 243 Assertions bleiben unverändert: 39 für Abwesenheitsarten einschließlich
+der bisherigen Setup-Prüfung, 197 für Time Tracking und sieben für Arbeitszeitmodelle.
+Time Tracking erhält seine elf Tenant-Transaktionen über einen Root-gebundenen
+Port statt über Bun. Root validiert dieselbe Tenant-ID und bindet die öffentliche
+Unit-of-Work-API; HTTP erhält weder Pool noch Transaktionsobjekt.
+Fünf Regeln entfallen ohne Nachfolger, einschließlich der breiten HTTP-ORM-Regel
+und der eingehenden Workflow-Test-Regel für Arbeitszeitmodell-HTTP.
+Inbound-Owner 15 → 13, Regeln 893 → 888, Legacy-Keys 214 → 212; Composition bleibt gleich.
+Zwei erledigte #4004-Kanten des bisherigen Compose-Adapters entfallen mit
+Nachweis in `workforce-configuration-http-owner-4078.json`.
+Das Compose-Budget sinkt von 67.428 auf 67.360 LOC, der HTTP-Adapter-Eintrag von
+81 auf 13. Der Dateigrößen-Eintrag für Time Tracking sinkt von 863 auf 862;
+der ORM-Ausnahmeeintrag entfällt. Keine Route, Response oder Assertion ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

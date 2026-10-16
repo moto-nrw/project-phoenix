@@ -99,3 +99,7 @@ func optionalDateString(value *calendar.Date) *string {
 	text := value.String()
 	return &text
 }
+
+// TenantTransaction runs a write in the request tenant's unit of work.
+// The composition root binds the transaction runtime; HTTP receives no database.
+type TenantTransaction func(context.Context, int64, func(context.Context) error) error
