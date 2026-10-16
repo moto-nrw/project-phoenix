@@ -12,6 +12,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -22,18 +24,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
 )
 
 // buildReadService wires the full parent messaging stack including the guardian
 // profile repo (so resolveGuardianName resolves a real name) and returns the
 // service, broadcaster, db, and repo factory.
-func buildReadService(t *testing.T, enabled bool) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
+func buildReadService(t *testing.T, enabled bool) (*parentportal.MessagingFlows, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.StaffParentMessageNotifier) (*messaging.Service, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier) (*parentportal.MessagingFlows, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
@@ -46,14 +46,14 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.Staf
 	bc := testpkg.NewRecordingBroadcaster()
 	settings := messagingSettingsStub{
 		boolValues: map[string]bool{
-			care.KeyParentSickNoteEnabled: true,
-			care.KeyParentNotesEnabled:    enabled,
+			parentportal.KeyParentSickNoteEnabled: true,
+			parentportal.KeyParentNotesEnabled:    enabled,
 		},
 		stringValues: map[string]string{
-			care.KeyGuardianParentInviteMode: care.ParentInviteModeDisabled,
+			parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDisabled,
 		},
 	}
-	svc := messaging.New(messaging.Config{
+	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		MessagingEnabled:      api.BindParentMessagingGate(settings, slog.Default()),
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),
@@ -71,10 +71,10 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.Staf
 }
 
 type recordingStaffParentMessageNotifier struct {
-	reports []care.StaffParentMessageReport
+	reports []parentportal.StaffParentMessageReport
 }
 
-func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report care.StaffParentMessageReport) error {
+func (n *recordingStaffParentMessageNotifier) NotifyStaffParentMessage(_ context.Context, report parentportal.StaffParentMessageReport) error {
 	n.reports = append(n.reports, report)
 	return nil
 }
@@ -236,7 +236,7 @@ func TestListChildThreads_NotOwnedDenied(t *testing.T) {
 	}()
 
 	_, err := svc.ListChildThreads(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, other.ID)
-	require.ErrorIs(t, err, care.ErrChildNotLinked)
+	require.ErrorIs(t, err, parentportal.ErrChildNotLinked)
 }
 
 // --- UnreadMessageCount -------------------------------------------------
@@ -296,7 +296,7 @@ func TestPostChildMessage_NotifiesStaffAfterCommit(t *testing.T) {
 	view, err := svc.PostChildMessage(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, "Hallo OGS")
 	require.NoError(t, err)
 	require.Len(t, notifier.reports, 1)
-	assert.Equal(t, care.StaffParentMessageReport{
+	assert.Equal(t, parentportal.StaffParentMessageReport{
 		TenantID:       chain.TenantID,
 		ThreadID:       view.ThreadID,
 		MessageID:      view.Messages[0].ID,

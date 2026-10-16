@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // unconfiguredRequestSharer is the package care_test copy of the internal
@@ -22,7 +22,7 @@ func (unconfiguredRequestSharer) ShareRequestInTx(
 	return errors.New("parent: request sharing service is not configured")
 }
 
-func (unconfiguredRequestSharer) LoadRequestShareVisibility(context.Context, int64) (care.RequestShareVisibility, error) {
+func (unconfiguredRequestSharer) LoadRequestShareVisibility(context.Context, int64) (parentportal.RequestShareVisibility, error) {
 	return submitterOnlyVisibility{}, nil
 }
 
@@ -37,7 +37,7 @@ func (submitterOnlyVisibility) Allows(_ string, _, accountID, submittedBy int64)
 // interface, keeping the tests honest about what the services touch. Test-only
 // copy of the workflows/parentportal behaviour-test stub for the care-schedule tests.
 type parentSettingsStub struct {
-	care.SettingsService
+	parentportal.SettingsService
 	boolValues   map[string]bool
 	stringValues map[string]string
 }

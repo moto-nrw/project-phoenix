@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
@@ -13,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -23,11 +24,11 @@ import (
 // die der Tagesstatus braucht. ArrivalSchedules bleibt bewusst nil: ohne
 // Betreuungsplan ist CareDayResolved false, und der Test kann sich auf die
 // Anwesenheit konzentrieren, die hier geprueft wird.
-func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
+func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	return care.New(care.Config{
+	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
@@ -42,7 +43,7 @@ func buildTodayStatusService(t *testing.T) (*care.Service, *bun.DB) {
 
 // buildTodayStatusServiceWithSchedule adds the real arrival-schedule service, so
 // the care-day branches run against actual rows instead of a stubbed answer.
-func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) {
+func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
@@ -55,7 +56,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*care.Service, *bun.DB) 
 	pickups, err := careplanCompose.NewPickupSchedules(db, repos.CarePlan(), newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)), // Auto-excusal (#2360) is not what these cases assert.
 		nil, pickupStudents, slog.Default())
 	require.NoError(t, err)
-	return care.New(care.Config{
+	return parentportal.NewChildFlows(parentportal.ChildConfig{
 		RequestSharing:   unconfiguredRequestSharer{},
 		ChildRepo:        repos.ParentChildReads(),
 		Attendance:       parentAttendance(t, db),
@@ -190,7 +191,7 @@ func TestGetChildTodayStatusPresent(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, status.AtOgs, "eine offene Anwesenheit belegt die Ja-Aussage")
 	assert.True(t, *status.AtOgs)
-	assert.Equal(t, care.DayStatePresent, status.State)
+	assert.Equal(t, parentportal.DayStatePresent, status.State)
 	assert.Equal(t, calendar.NormalizeWallClock(checkIn).Format("15:04"), status.Since)
 	assert.Empty(t, status.Until)
 }
@@ -209,7 +210,7 @@ func TestGetChildTodayStatusWithoutAttendanceIsUnknown(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Nil(t, status.AtOgs, "ohne Beleg darf keine Ja/Nein-Aussage entstehen")
-	assert.Equal(t, care.DayStateUnknown, status.State)
+	assert.Equal(t, parentportal.DayStateUnknown, status.State)
 }
 
 // TestGetChildTodayStatusCareDayWithoutAttendance ist der Fall, der Eltern am
@@ -250,10 +251,10 @@ func TestGetChildTodayStatusCareDayWithoutArrivalTime(t *testing.T) {
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
 	if !seeded {
-		assert.Equal(t, care.DayStateNoCare, status.State)
+		assert.Equal(t, parentportal.DayStateNoCare, status.State)
 		return
 	}
-	assert.Equal(t, care.DayStateUnknown, status.State)
+	assert.Equal(t, parentportal.DayStateUnknown, status.State)
 	assert.Empty(t, status.ExpectedFrom, "a missing class time must not appear as 00:00")
 }
 
@@ -276,7 +277,7 @@ func TestGetChildTodayStatusPresentOnCareDay(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, status.AtOgs, "eine offene Anwesenheit belegt die Ja-Aussage")
 	assert.True(t, *status.AtOgs)
-	assert.Equal(t, care.DayStatePresent, status.State)
+	assert.Equal(t, parentportal.DayStatePresent, status.State)
 	assert.Equal(t, calendar.NormalizeWallClock(checkIn).Format("15:04"), status.Since)
 	assert.Empty(t, status.ExpectedFrom, "wer da ist, wird nicht mehr erwartet")
 }
@@ -309,7 +310,7 @@ func TestGetChildTodayStatusPickupOnlyDoesNotClaimNoCare(t *testing.T) {
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 
 	require.NoError(t, err)
-	assert.Equal(t, care.DayStateUnknown, status.State)
+	assert.Equal(t, parentportal.DayStateUnknown, status.State)
 	assert.Nil(t, status.AtOgs, "ohne Ankunftszeit darf der Status nicht keine Betreuung behaupten")
 }
 
@@ -361,11 +362,11 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 
 	require.NoError(t, err)
-	assert.Equal(t, care.DayStateNoCare, status.State)
+	assert.Equal(t, parentportal.DayStateNoCare, status.State)
 	assert.Empty(t, status.ExpectedFrom)
 }
 
-func parentAttendance(t *testing.T, db *bun.DB) care.AttendanceReader {
+func parentAttendance(t *testing.T, db *bun.DB) parentportal.AttendanceReader {
 	t.Helper()
 	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
