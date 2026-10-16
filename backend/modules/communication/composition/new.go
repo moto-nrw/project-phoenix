@@ -15,7 +15,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -59,16 +58,23 @@ func NewOperatorAnnouncementAudit(create func(context.Context, *platformModels.O
 
 type Observation = ports.Observation
 
+// ViewerNames resolves the display names of announcement viewers; the root
+// binds it to People Directory.
+type (
+	ViewerNames    = ports.ViewerNames
+	OperationStats = domain.OperationStats
+)
+
 type Dependencies struct {
 	DB            *bun.DB
 	Organizations organizationtenancy.Capability
-	People        peopledirectory.Query
+	Viewers       ViewerNames
 	Audit         Audit
 	Observe       func(Observation)
 }
 
 func New(dependencies Dependencies) (*communication.Module, error) {
-	if dependencies.DB == nil || dependencies.Organizations == nil || dependencies.People == nil || dependencies.Audit == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.Organizations == nil || dependencies.Viewers == nil || dependencies.Audit == nil || dependencies.Observe == nil {
 		return nil, errors.New("communication compose: all dependencies are required")
 	}
 	database := func(ctx context.Context) (bun.IDB, error) {
@@ -85,9 +91,18 @@ func New(dependencies Dependencies) (*communication.Module, error) {
 	store := postgres.New(database)
 	service := application.New(
 		store,
-		audience.New(database),
+		audience.Map(audience.New(database), audience.Rows[domain.Announcement, domain.AnnouncementViewDetail, domain.OperationStats]{
+			Announcement: func(row audience.Announcement) domain.Announcement { return domain.Announcement(row) },
+			Target: func(value domain.Announcement) audience.Target {
+				return audience.Target{PublishedAt: value.PublishedAt, TargetRoles: value.TargetRoles, TargetOrgIDs: value.TargetOrgIDs, TargetTenantIDs: value.TargetTenantIDs}
+			},
+			View: func(row audience.ViewDetail) domain.AnnouncementViewDetail { return domain.AnnouncementViewDetail(row) },
+			Stats: func(stats audience.Stats) domain.OperationStats {
+				return domain.OperationStats{Queries: stats.Queries, Rows: stats.Rows, StatementDuration: stats.StatementDuration}
+			},
+		}),
 		targets{capability: dependencies.Organizations},
-		viewerNames{query: dependencies.People},
+		dependencies.Viewers,
 		audit{port: dependencies.Audit},
 		transaction{},
 		func(observation ports.Observation) {
@@ -96,26 +111,6 @@ func New(dependencies Dependencies) (*communication.Module, error) {
 		},
 	)
 	return communication.NewModule(engine{service: service, observe: dependencies.Observe}), nil
-}
-
-type viewerNames struct{ query peopledirectory.Query }
-
-func (v viewerNames) NamesByAccount(ctx context.Context, accountIDs []int64) (map[int64]string, domain.OperationStats, error) {
-	people, err := v.query.ListPersonsByAccount(ctx, accountIDs)
-	if err != nil {
-		return nil, domain.OperationStats{Queries: 1}, err
-	}
-	result := make(map[int64]string, len(people))
-	for _, person := range people {
-		if person.AccountID == nil {
-			continue
-		}
-		name := person.FullName()
-		if name != " " {
-			result[*person.AccountID] = name
-		}
-	}
-	return result, domain.OperationStats{Queries: 1, Rows: int64(len(people))}, nil
 }
 
 type transaction struct{}
