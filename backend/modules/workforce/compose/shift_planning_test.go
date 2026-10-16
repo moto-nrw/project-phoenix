@@ -6,7 +6,6 @@ import (
 	"errors"
 	"testing"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,9 +32,10 @@ func TestShiftRowsKeepTheRepositoryErrorShapes(t *testing.T) {
 
 	_, err := rows.FindByID(ctx, int64(987654321))
 	require.Error(t, err)
-	var databaseErr *modelBase.DatabaseError
+	var databaseErr interface{ StoreFailure() bool }
 	require.ErrorAs(t, err, &databaseErr, "a missing row stays a repository database error")
-	assert.ErrorIs(t, err, modelBase.ErrNotFound)
+	var notFound interface{ RepositoryNotFound() }
+	assert.ErrorAs(t, err, &notFound, "the missing row carries the repository not-found marker")
 	assert.ErrorIs(t, err, sql.ErrNoRows, "callers classify the driver no-rows value")
 
 	_, err = rows.FindByID(ctx, "not-an-id")

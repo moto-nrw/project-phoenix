@@ -8,8 +8,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	substitution "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -44,12 +44,12 @@ func TestScheduleSubstitutionExternalInterfacePartialCoverage(t *testing.T) {
 	require.NotNil(t, result.ScheduleSubstitution)
 	require.Equal(t, 1, result.ScheduleSubstitution.TotalAffected)
 
-	firstRows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, absent.ID, true, false)
 	requireScheduleStaffState(t, firstRows, replacement.ID, false, true)
 
-	secondRows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), second.ID)
+	secondRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), second.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, secondRows, absent.ID, false, false)
 	for _, row := range secondRows {
@@ -81,7 +81,7 @@ func TestScheduleSubstitutionExternalInterfaceDayWideAbsence(t *testing.T) {
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 	}
@@ -98,7 +98,7 @@ func TestScheduleSubstitutionExternalInterfaceActiveAppointmentSyncsOnce(t *test
 	absent := testpkg.CreateTestStaff(t, db, "Alex", "Aktiv")
 	replacement := testpkg.CreateTestStaff(t, db, "Rita", "Ersatz")
 	instance := testpkg.CreateTestActivityInstance(t, db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
-		Title: "Laufender Termin", Status: scheduleModels.InstanceStatusActive, ActiveGroupID: &activeGroup.ID,
+		Title: "Laufender Termin", Status: timetable.InstanceStatusActive, ActiveGroupID: &activeGroup.ID,
 	})
 	testpkg.CreateTestInstanceStaff(t, db, instance.ID, absent.ID, testpkg.InstanceStaffOpts{})
 	testpkg.CreateTestGroupSupervisor(t, db, absent.ID, activeGroup.ID, "supervisor")
@@ -152,7 +152,7 @@ func TestScheduleSubstitutionExternalInterfaceConflictRollsBack(t *testing.T) {
 	})
 	require.ErrorIs(t, err, substitution.ErrConflict)
 
-	firstRows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), first.ID)
+	firstRows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), first.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, firstRows, firstAbsent.ID, false, false)
 	for _, row := range firstRows {
@@ -187,7 +187,7 @@ func TestScheduleSubstitutionExternalInterfaceWriteFailureRollsBack(t *testing.T
 	})
 	require.Error(t, err)
 
-	rows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, false, false)
 	for _, row := range rows {
@@ -320,14 +320,11 @@ func TestScheduleSubstitutionExternalInterfacePermissionAndTenantIsolation(t *te
 		Date: testpkg.ScheduleDate(date), Title: "Fremder Termin", RoomID: foreignRoom.ID,
 		StartTime: time.Date(2000, time.January, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(2000, time.January, 1, 15, 0, 0, 0, time.UTC),
-		Status:    scheduleModels.InstanceStatusPlanned,
+		Status:    timetable.InstanceStatusPlanned,
 	}
 	foreignInstance.TenantID = foreignTenant
 	testpkg.InsertActivityInstanceRow(t, context.Background(), db, foreignInstance)
-	foreignRow := &scheduleModels.InstanceStaff{InstanceID: foreignInstance.ID, StaffID: foreignAbsent.ID}
-	foreignRow.SetTenantID(foreignTenant)
-	_, err = db.NewInsert().Model(foreignRow).ModelTableExpr(`schedule.instance_staff`).Exec(context.Background())
-	require.NoError(t, err)
+	testpkg.CreateTestInstanceStaffForTenant(t, db, foreignTenant, foreignInstance.ID, foreignAbsent.ID, testpkg.InstanceStaffOpts{})
 
 	caller = scheduleSubstitutionCaller(t)
 	foreignSelected := []int64{foreignInstance.ID}
@@ -369,7 +366,7 @@ func TestScheduleSubstitutionExternalInterfaceUsesBulkPlanning(t *testing.T) {
 	require.Len(t, result.ScheduleSubstitution.Days, 2)
 	require.Equal(t, 2, result.ScheduleSubstitution.TotalAffected)
 	for _, instanceID := range []int64{first.ID, second.ID} {
-		rows, findErr := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instanceID)
+		rows, findErr := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instanceID)
 		require.NoError(t, findErr)
 		requireScheduleStaffState(t, rows, absent.ID, true, false)
 		requireScheduleStaffState(t, rows, replacement.ID, false, true)
@@ -399,7 +396,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 		},
 	})
 	require.NoError(t, err)
-	rows, err := repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err := repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
 	require.NoError(t, err)
 	var substitutionID int64
 	for _, row := range rows {
@@ -412,7 +409,7 @@ func TestScheduleSubstitutionExternalInterfaceEndsTypedAppointmentSubstitution(t
 	require.NoError(t, service.End(testpkg.Ctx(t), caller, substitution.EndRequest{
 		Type: substitution.TargetScheduleSubstitution, ID: substitutionID,
 	}))
-	rows, err = repos.InstanceStaff.FindByInstanceID(testpkg.Ctx(t), instance.ID)
+	rows, err = repos.InstanceStaffReads().FindByInstanceID(testpkg.Ctx(t), instance.ID)
 	require.NoError(t, err)
 	requireScheduleStaffState(t, rows, absent.ID, true, false)
 	for _, row := range rows {
@@ -476,7 +473,7 @@ func TestScheduleSubstitutionExternalInterfaceReturnsNarrowOverview(t *testing.T
 	require.NotContains(t, string(payload), "person_id")
 }
 
-func requireScheduleStaffState(t *testing.T, rows []*scheduleModels.InstanceStaff, staffID int64, absent, substitute bool) {
+func requireScheduleStaffState(t *testing.T, rows []*timetable.InstanceStaff, staffID int64, absent, substitute bool) {
 	t.Helper()
 	for _, row := range rows {
 		if row.StaffID == staffID {

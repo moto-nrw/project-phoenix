@@ -6,18 +6,16 @@ import (
 	"github.com/uptrace/bun/driver/pgdriver"
 )
 
-// sqlStateUniqueViolation is PostgreSQL's unique_violation.
-const sqlStateUniqueViolation = "23505"
+// groupSubstitutionTransferIndex is the one unique index of
+// education.group_substitution besides its primary key: a group transfer per
+// group, substitute and start day.
+const groupSubstitutionTransferIndex = "idx_no_duplicate_group_transfers_tenant"
 
-// isUniqueViolation reports whether err carries PostgreSQL's unique_violation.
-func isUniqueViolation(err error) bool {
+// isUniqueViolationOn reports whether PostgreSQL rejected the write on the
+// named unique index or constraint. A unique index raises only a
+// unique_violation, so the integrity class together with the index name
+// identifies it.
+func isUniqueViolationOn(err error, index string) bool {
 	pgErr, ok := errors.AsType[pgdriver.Error](err)
-	return ok && pgErr.Field('C') == sqlStateUniqueViolation
-}
-
-// isUniqueViolationOn is isUniqueViolation restricted to one constraint or
-// unique index name (the driver's message field 'n').
-func isUniqueViolationOn(err error, constraint string) bool {
-	pgErr, ok := errors.AsType[pgdriver.Error](err)
-	return ok && constraint != "" && pgErr.Field('C') == sqlStateUniqueViolation && pgErr.Field('n') == constraint
+	return ok && index != "" && pgErr.IntegrityViolation() && pgErr.Field('n') == index
 }

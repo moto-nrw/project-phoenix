@@ -130,7 +130,7 @@ func (s *Store) CreateGroupSubstitution(ctx context.Context, value domain.GroupS
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableGroupSubstitution).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if isUniqueViolationOn(err, groupSubstitutionTransferIndex) {
 			return domain.GroupSubstitution{}, stats, &domain.ConflictError{Kind: domain.ErrGroupSubstitutionExists, Cause: err}
 		}
 		return domain.GroupSubstitution{}, stats, fmt.Errorf("workforce postgres: insert group substitution: %w", err)
@@ -163,7 +163,7 @@ func (s *Store) UpdateGroupSubstitution(ctx context.Context, value domain.GroupS
 	result, err := query.Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if isUniqueViolation(err) {
+		if isUniqueViolationOn(err, groupSubstitutionTransferIndex) {
 			return domain.GroupSubstitution{}, false, stats, &domain.ConflictError{Kind: domain.ErrGroupSubstitutionExists, Cause: err}
 		}
 		return domain.GroupSubstitution{}, false, stats, fmt.Errorf("workforce postgres: update group substitution: %w", err)

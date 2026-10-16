@@ -64,18 +64,20 @@ func isRecordNotFound(err error) bool {
 }
 
 // driverError is the shape of a PostgreSQL driver error: its message fields
-// by their protocol code.
+// by their protocol code and its integrity-constraint class.
 type driverError interface {
 	error
 	Field(byte) string
+	IntegrityViolation() bool
 }
 
-// isUniqueViolationOn reports whether err carries PostgreSQL's
-// unique_violation (SQLSTATE 23505) on the named constraint or unique index.
-// The row adapters keep the driver error in the chain.
+// isUniqueViolationOn reports whether PostgreSQL rejected the write on the
+// named unique index or constraint; the row adapters keep the driver error in
+// the chain. A unique index or constraint raises only a unique_violation, so
+// the integrity class together with its name identifies it.
 func isUniqueViolationOn(err error, constraint string) bool {
 	var pgErr driverError
-	return constraint != "" && errors.As(err, &pgErr) && pgErr.Field('C') == "23505" && pgErr.Field('n') == constraint
+	return constraint != "" && errors.As(err, &pgErr) && pgErr.IntegrityViolation() && pgErr.Field('n') == constraint
 }
 
 // The Student Presence supervision rows. The Workforce time records and their

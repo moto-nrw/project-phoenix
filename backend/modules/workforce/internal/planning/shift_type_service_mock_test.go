@@ -470,6 +470,6 @@ func TestIsShiftTypeNameConflict(t *testing.T) {
 
 	assert.False(t, isShiftTypeNameConflict(nil), "nil is never a conflict")
 	assert.False(t, isShiftTypeNameConflict(errors.New("plain")), "a plain error is not a pg conflict")
-	// A pgdriver.Error zero value has no SQLSTATE, so the 23505 check fails.
+	// A bare driver error is not the Workforce store's name conflict.
 	assert.False(t, isShiftTypeNameConflict(pgdriver.Error{}), "a pg error without 23505 is not a conflict")
 }
