@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 281 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 54 ·
+Stand 16.10.2026 · Ratchet 281 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 78.575 in `compose`
 
@@ -98,7 +98,7 @@ Owner, Produktions- und Testrollen sowie alle 52 Go-Dateinamen bleiben gleich.
 Die Relocation benennt drei bestehende #4073-Keys und vier Funktionslängen-Einträge
 nur um. Aktive Evidenz-Dateiverweise folgen den Dateien; historische Keys bleiben
 unverändert. Keine neuen Regeln, höheren Budgets oder geänderten Assertions/HTTP-Verträge.
-Policy-Epoche 53 → 54; 281 Keys und Composition 1.664 bleiben unverändert.
+Policy-Epoche 54 → 55 nach dem Merge von #4156; 281 Keys und Composition 1.664 bleiben unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

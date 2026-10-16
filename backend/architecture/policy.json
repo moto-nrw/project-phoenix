@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 54,
+  "policy_epoch": 55,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
