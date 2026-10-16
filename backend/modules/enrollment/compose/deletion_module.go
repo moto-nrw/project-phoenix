@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // DeletionOwner is the Enrollment owner slice the admin deletion and the
@@ -50,7 +51,7 @@ func NewDeletionModule(deps DeletionModuleDependencies) DeletionModule {
 	preview := NewDeletionPreview(DeletionPreviewDependencies{
 		Enrollment: deps.Owner, Guardians: deps.Guardians,
 		CountAuditAdjustments: deps.CountAuditAdjustments, CountBookings: deps.CountBookings,
-		CountSourceEnrollments: newStore().SourceEnrollments(deps.SourceEnrollments),
+		CountSourceEnrollments: newStore().SourceEnrollments(deps.SourceEnrollments, tenant.NewTransactionRunner()),
 	})
 	deletions := NewDeletions(DeletionDependencies{
 		Requests: deps.Owner, Children: deps.Owner, Preview: preview, Audit: deps.Audit,
