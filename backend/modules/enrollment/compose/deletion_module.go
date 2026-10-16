@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
 )
 
 // DeletionOwner is the Enrollment owner slice the admin deletion and the
@@ -28,10 +29,12 @@ type DeletionModuleDependencies struct {
 	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
 	// CountBookings counts the bookings of the request children.
 	CountBookings func(context.Context, []int64) (int, error)
-	Audit         EnrollmentDeletionAudit
-	Delivery      EnrollmentDeletionDelivery
-	Retention     RetentionSettings
-	Logger        *slog.Logger
+	// SourceEnrollments counts the timetable enrollments a request sourced.
+	SourceEnrollments postgres.SourceEnrollmentCount
+	Audit             EnrollmentDeletionAudit
+	Delivery          EnrollmentDeletionDelivery
+	Retention         RetentionSettings
+	Logger            *slog.Logger
 }
 
 // DeletionModule is the admin deletion and the retention cleanup over one
@@ -47,6 +50,7 @@ func NewDeletionModule(deps DeletionModuleDependencies) DeletionModule {
 	preview := NewDeletionPreview(DeletionPreviewDependencies{
 		Enrollment: deps.Owner, Guardians: deps.Guardians,
 		CountAuditAdjustments: deps.CountAuditAdjustments, CountBookings: deps.CountBookings,
+		CountSourceEnrollments: newStore().SourceEnrollments(deps.SourceEnrollments),
 	})
 	deletions := NewDeletions(DeletionDependencies{
 		Requests: deps.Owner, Children: deps.Owner, Preview: preview, Audit: deps.Audit,

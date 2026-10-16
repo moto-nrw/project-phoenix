@@ -2156,6 +2156,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/timetableprojection/compose",
+      "owner": "timetable-legacy-view",
+      "role": "compose",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/timetableprojection/integration",
       "owner": "timetable-legacy-view",
       "role": "test-support",
@@ -2180,6 +2187,13 @@
       "path": "modules/presenceprojection",
       "owner": "presence-legacy-view",
       "role": "postgres",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/presenceprojection/compose",
+      "owner": "presence-legacy-view",
+      "role": "compose",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },

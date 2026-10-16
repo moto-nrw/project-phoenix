@@ -107,6 +107,15 @@ func CountActiveCourseEnrollments(ctx context.Context, db bun.IDB, tenantID int6
 	return counts, nil
 }
 
+// CountSourceEnrollments counts the timetable enrollments an enrollment
+// request (childID nil) or one of its children sourced.
+func CountSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64, childID *int64) (int, error) {
+	if childID == nil {
+		return CountRequestSourceEnrollments(ctx, db, tenantID, requestID)
+	}
+	return CountChildSourceEnrollments(ctx, db, tenantID, requestID, *childID)
+}
+
 func CountRequestSourceEnrollments(ctx context.Context, db bun.IDB, tenantID, requestID int64) (int, error) {
 	if tenantID <= 0 {
 		return 0, ErrInvalidTenantID
