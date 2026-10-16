@@ -287,7 +287,7 @@ func (d ParentPortalSchools) SchoolName(ctx context.Context, tenantID int64) (st
 }
 
 func (d ParentPortalSchools) SchoolNames(ctx context.Context, ids []int64) (map[int64]string, error) {
-	schools, err := organizationCompose.SchoolsByID(ctx, d.Schools, ids)
+	schools, err := schoolsByID(ctx, d.Schools, ids)
 	if err != nil {
 		return nil, err
 	}
