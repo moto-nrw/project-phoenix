@@ -36,7 +36,13 @@ func TestPersonalReminderNoticesSpeakTheEventVocabulary(t *testing.T) {
 	t.Parallel()
 
 	assert.Equal(t, reminders.TypeMyActivityStarting, notifications.TypeMyActivityStarting)
-	for _, notificationType := range reminders.PersonalReminderTypes() {
+	for _, notificationType := range []string{
+		reminders.TypePickupUpcoming,
+		reminders.TypePickupOverdue,
+		reminders.TypeActivityStart,
+		reminders.TypeActivityOverdue,
+		reminders.TypeMyActivityStarting,
+	} {
 		_, known := notifications.GetType(notificationType)
 		assert.True(t, known, "%s is not in the notification catalogue", notificationType)
 	}

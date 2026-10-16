@@ -53,12 +53,8 @@ const (
 	NoticeScopeStaff     = "staff"
 )
 
-// PersonalReminderTypes returns the notification kinds the producer can send,
-// in the order the consent lookup runs.
-func PersonalReminderTypes() []string {
-	return append([]string(nil), personalReminderTypes...)
-}
-
+// personalReminderTypes are the notification kinds the producer can send, in
+// the order the consent lookup runs.
 var personalReminderTypes = []string{
 	TypePickupUpcoming,
 	TypePickupOverdue,

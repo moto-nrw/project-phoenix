@@ -734,7 +734,7 @@ func TestPersonalReminderNotificationsRequireEveryDependency(t *testing.T) {
 func TestEveryPersonalReminderTypeHasCopy(t *testing.T) {
 	t.Parallel()
 
-	for _, notificationType := range PersonalReminderTypes() {
+	for _, notificationType := range personalReminderTypes {
 		copyFor, ok := reminderCopyByType[notificationType]
 		require.True(t, ok, "missing copy for %s", notificationType)
 		assert.NotEmpty(t, copyFor.title)
