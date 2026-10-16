@@ -4,7 +4,6 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -40,7 +39,7 @@ func (s notificationModeSettings) NotifyPerDecision(ctx context.Context) (string
 	if s.settings == nil {
 		return "", nil
 	}
-	return s.settings.ResolveString(ctx, configModel.KeyEnrollmentNotifyPerDecision)
+	return s.settings.ResolveString(ctx, settingKeyNotifyPerDecision)
 }
 
 // collectionSettings reads the grade and class collection toggles from a
@@ -54,15 +53,15 @@ type collectionSettings struct {
 }
 
 func (s collectionSettings) CollectGradeLevel(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectGradeLevel)
+	return s.settings.ResolveBool(ctx, settingKeyCollectGradeLevel)
 }
 
 func (s collectionSettings) CollectSchoolClass(ctx context.Context) (bool, error) {
-	return s.settings.ResolveBool(ctx, configModel.KeyEnrollmentCollectSchoolClass)
+	return s.settings.ResolveBool(ctx, settingKeyCollectSchoolClass)
 }
 
 func (s collectionSettings) GradeLevelMax(ctx context.Context) (int, error) {
-	return s.settings.ResolveInt(ctx, configModel.KeyEnrollmentGradeLevelMax)
+	return s.settings.ResolveInt(ctx, settingKeyGradeLevelMax)
 }
 
 func (s collectionSettings) LockClassCollectionPair(ctx context.Context) error {

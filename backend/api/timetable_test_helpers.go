@@ -110,7 +110,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		GroupRepo:       sessionGroups, SupervisorRepo: sessionSupervisors,
 		StudentRepo: PresenceStudents(db, r.Student), RoomRepo: facilitiesLegacy.NewAttendanceRooms(r.Room), ActivityGroupRepo: NewSessionActivities(r.GroupReads()),
 		EducationGroupRepo: NewAttendanceEducationGroups(r.Group, r.Student), StaffRepo: NewAttendanceStaffDirectory(r.Staff),
-		DB: db.Pool(), Broadcaster: hub, Logger: logger, Now: now,
+		DB: db.Pool(), Broadcaster: NewPresenceEvents(hub, logger), Logger: logger, Now: now,
 		AttendanceSyncer:         attendanceMirror,
 		TimetableBridgeCompleter: bridge,
 	}, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))

@@ -189,16 +189,12 @@ func (s *staffAssignmentService) resolveRoomNames(ctx context.Context, rows []*t
 	for id := range idSet {
 		ids = append(ids, id)
 	}
-	names := make(map[int64]string, len(ids))
 	if len(ids) == 0 {
-		return names, nil
+		return make(map[int64]string), nil
 	}
-	rooms, err := s.deps.RoomRepo.FindByIDs(ctx, ids)
+	names, err := s.deps.RoomRepo.RoomNamesByID(ctx, ids)
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve room names for staff assignments: %w", err)
-	}
-	for _, room := range rooms {
-		names[room.ID] = room.Name
 	}
 	return names, nil
 }

@@ -52,12 +52,9 @@ type (
 	QueryOptions                       = repository.QueryOptions
 	RequestQueueFilters                = repository.RequestQueueFilters
 	Staff                              = upstream.Staff
-	StaffFinancialDataRepository       = upstream.StaffFinancialDataRepository
-	StaffMasterDataRepository          = upstream.StaffMasterDataRepository
 	StaffMessageReadRepository         = upstream.StaffMessageReadRepository
 	StaffMessageRepository             = upstream.StaffMessageRepository
 	StaffMessageThreadRepository       = upstream.StaffMessageThreadRepository
-	StaffQualificationRepository       = upstream.StaffQualificationRepository
 	StaffRepository                    = repository.StaffRepository
 	StaffWithRoleInfo                  = upstream.StaffWithRoleInfo
 	Student                            = upstream.Student

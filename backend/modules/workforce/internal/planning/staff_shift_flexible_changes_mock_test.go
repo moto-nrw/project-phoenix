@@ -9,7 +9,6 @@ import (
 	"context"
 	"testing"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -61,7 +60,7 @@ func TestShiftService_CreateReplacementRejectsMissingOrigin(t *testing.T) {
 
 	svc, repo, _ := shiftServiceFixture()
 	repo.findByIDFunc = func(_ context.Context, _ any) (*StaffShift, error) {
-		return nil, modelBase.ErrNotFound
+		return nil, errRowNotFound
 	}
 
 	replacement := validShift(8)

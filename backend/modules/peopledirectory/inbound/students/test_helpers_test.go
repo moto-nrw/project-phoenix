@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -95,8 +94,8 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	// wake (parent_child_updated fan-out after a care write, #1725) is exercised
 	// and assertable via broadcaster.CallsByMethod("guardian"). Message-independent:
 	// it reads the guardian list and broadcasts regardless of the messaging setting.
-	parentEventEmitter := communicationtest.NewParentEventEmitter(
-		db, testpkg.TenantRuntime(t, db),
+	parentEventEmitter := api.NewParentEventEmitter(
+		testpkg.MustDatabase(db), testpkg.TenantRuntime(t, db),
 		repoFactory.ParentMessageThread,
 		repoFactory.ParentMessage,
 		svc.Settings,

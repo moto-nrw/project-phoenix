@@ -8,7 +8,6 @@ import (
 	"strings"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
@@ -348,7 +347,7 @@ func (s *Store) CreateWorkSession(ctx context.Context, value domain.WorkSession)
 	_, err = db.NewInsert().Model(row).ModelTableExpr(tableWorkSessions).Returning("*").Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
+		if isUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
 			return domain.WorkSession{}, stats, &domain.ConflictError{Kind: domain.ErrWorkSessionAlreadyOpen, Cause: err}
 		}
 		return domain.WorkSession{}, stats, fmt.Errorf("workforce postgres: insert work session: %w", err)
@@ -374,7 +373,7 @@ func (s *Store) UpdateWorkSession(ctx context.Context, value domain.WorkSession)
 		Returning("*"), aliasWorkSession, tenantID)
 	stats, err := execAffected(ctx, query, "update work session")
 	if err != nil {
-		if modelBase.IsUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
+		if isUniqueViolationOn(err, domain.WorkSessionOpenConstraint) {
 			return domain.WorkSession{}, false, stats, &domain.ConflictError{Kind: domain.ErrWorkSessionAlreadyOpen, Cause: err}
 		}
 		return domain.WorkSession{}, false, stats, err

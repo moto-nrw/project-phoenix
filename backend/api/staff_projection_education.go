@@ -154,6 +154,22 @@ func newGroupSubstitutions(rows GroupSubstitutionRows, groups func(context.Conte
 	return groupSubstitutions{GroupSubstitutionRows: rows, groups: groups, membership: membership}
 }
 
+// ListActiveSubstitutionBlockers translates the Workforce handover blockers
+// into the People Directory's caregiver-capability blocker rows.
+func (r groupSubstitutions) ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error) {
+	blockers, err := r.ActiveSubstitutionBlockers(ctx, staffID, tenantID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]userModels.BlockerSubstitution, 0, len(blockers))
+	for _, blocker := range blockers {
+		result = append(result, userModels.BlockerSubstitution{
+			ID: blocker.ID, GroupName: blocker.GroupName, StartDate: blocker.StartDate, EndDate: blocker.EndDate,
+		})
+	}
+	return result, nil
+}
+
 // FindGroupHandovers lists the substitutions of one group as School
 // Structure values, the group service's deletion guard.
 func (r groupSubstitutions) FindGroupHandovers(ctx context.Context, groupID int64) ([]*educationRepo.GroupSubstitution, error) {
@@ -262,6 +278,9 @@ type GroupSubstitutionRepository interface {
 	FindGroupHandovers(ctx context.Context, groupID int64) ([]*educationRepo.GroupSubstitution, error)
 	// ListWithRelations is ListWithOptions with the group and staff attached.
 	ListWithRelations(ctx context.Context, query educationRepo.HandoverQuery) ([]*educationRepo.GroupSubstitution, error)
+	// ListActiveSubstitutionBlockers returns current/upcoming typed group
+	// handovers as caregiver-capability blocker rows.
+	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error)
 }
 
 // GroupSubstitutionRows are the Workforce rows of the contract, served over
@@ -273,9 +292,9 @@ type GroupSubstitutionRows interface {
 	Delete(ctx context.Context, id any) error
 	List(ctx context.Context, filters map[string]any) ([]*workforceCompose.GroupSubstitution, error)
 	FindByIDForUpdate(ctx context.Context, id any) (*workforceCompose.GroupSubstitution, error)
-	// ListActiveSubstitutionBlockers returns current/upcoming typed group
-	// handovers as caregiver-capability blocker rows.
-	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error)
+	// ActiveSubstitutionBlockers returns current/upcoming typed group
+	// handovers with their group named.
+	ActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]workforceCompose.SubstitutionBlocker, error)
 	ListWithFilter(ctx context.Context, filter workforce.GroupSubstitutionFilter) ([]*workforceCompose.GroupSubstitution, error)
 	FindByGroup(ctx context.Context, groupID int64) ([]*workforceCompose.GroupSubstitution, error)
 }

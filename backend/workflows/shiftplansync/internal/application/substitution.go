@@ -5,7 +5,6 @@ import (
 	"errors"
 	"log/slog"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -272,7 +271,7 @@ func (a *SubstitutionAdapter) End(
 func (a *SubstitutionAdapter) end(ctx context.Context, substitutionID, actorAccountID int64) (*substitutionMutation, error) {
 	row, err := a.deps.InstanceStaff.FindByID(ctx, substitutionID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, errSubstitutionNotFound
 		}
 		return nil, err

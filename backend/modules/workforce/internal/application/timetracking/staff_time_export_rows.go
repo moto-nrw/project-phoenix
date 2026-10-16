@@ -6,7 +6,6 @@ import (
 	"slices"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -208,10 +207,8 @@ func (s *workSessionService) DayExportRowsByStaffIDs(ctx context.Context, staffI
 
 func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context, sessions []*WorkSession) ([]*SessionResponse, error) {
 	sessionIDs := make([]int64, len(sessions))
-	sessionIDValues := make([]interface{}, len(sessions))
 	for i, session := range sessions {
 		sessionIDs[i] = session.ID
-		sessionIDValues[i] = session.ID
 	}
 
 	editCounts, err := s.auditRepo.CountManualBySessionIDs(ctx, sessionIDs)
@@ -220,15 +217,10 @@ func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context,
 	}
 
 	breaksBySession := make(map[int64][]*WorkSessionBreak, len(sessions))
-	if len(sessionIDValues) > 0 {
-		options := modelBase.NewQueryOptions()
-		options.Filter.In("session_id", sessionIDValues...)
-		breaks, err := s.breakRepo.List(ctx, options)
+	if len(sessionIDs) > 0 {
+		breaksBySession, err = s.breakRepo.GetBySessionIDs(ctx, sessionIDs)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get breaks for export: %w", err)
-		}
-		for _, brk := range breaks {
-			breaksBySession[brk.SessionID] = append(breaksBySession[brk.SessionID], brk)
 		}
 	}
 

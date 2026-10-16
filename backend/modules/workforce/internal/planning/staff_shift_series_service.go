@@ -7,8 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -195,7 +193,7 @@ func (s *staffShiftSeriesService) updateTodayOccurrence(
 
 	occurrence, err := s.shiftRepo.FindByID(ctx, input.OccurrenceShiftID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return false, fmt.Errorf("%w: current series occurrence not found", ErrSeriesInvalid)
 		}
 		return false, fmt.Errorf("find current series occurrence: %w", err)
@@ -238,7 +236,7 @@ func (s *staffShiftSeriesService) getLogger() *slog.Logger {
 }
 
 func (s *staffShiftSeriesService) broadcastTimeTrackingChanged(ctx context.Context) {
-	realtimeevents.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 func (s *staffShiftSeriesService) lockShiftWrites(ctx context.Context, staffID int64) error {
@@ -260,7 +258,7 @@ func (p *SeriesPeriod) weekCycle() schoolcalendar.WeekCycle {
 func (s *staffShiftSeriesService) loadPeriodForSeries(ctx context.Context, series *StaffShiftSeries) (*SeriesPeriod, error) {
 	found, err := s.periodRepo.FindSeriesPeriod(ctx, series.CalendarPeriodID)
 	if err != nil {
-		if modelBase.IsNoRows(err) || errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
+		if isRecordNotFound(err) || errors.Is(err, schoolcalendar.ErrCalendarPeriodNotFound) {
 			return nil, fmt.Errorf("%w: calendar period not found", ErrSeriesInvalid)
 		}
 		return nil, fmt.Errorf("find calendar period for series: %w", err)
@@ -440,7 +438,7 @@ func (s *staffShiftSeriesService) CreateSeries(ctx context.Context, series *Staf
 	}
 	staff, err := s.staffRepo.FindByID(ctx, series.StaffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, fmt.Errorf("%w: staff member not found", ErrSeriesInvalid)
 		}
 		return nil, fmt.Errorf("find staff member for series: %w", err)
@@ -504,7 +502,7 @@ func (s *staffShiftSeriesService) loadSeries(ctx context.Context, id int64) (*St
 	}
 	series, err := s.seriesRepo.FindByID(ctx, id)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrSeriesNotFound
 		}
 		return nil, fmt.Errorf("find staff shift series: %w", err)

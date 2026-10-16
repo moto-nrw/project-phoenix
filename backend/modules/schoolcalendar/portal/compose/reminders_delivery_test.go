@@ -10,7 +10,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/email"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -151,7 +150,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	require.Equal(t, 1, queued)
 
 	reminder := outbox.enqueued[len(outbox.enqueued)-1]
-	require.Equal(t, platformModels.EmailKindAppointmentReminder, reminder.Kind)
+	require.Equal(t, emailKindAppointmentReminder, reminder.Kind)
 	require.Contains(t, reminder.Payload, "guardian_account_id",
 		"without the scope the renderer has nothing to re-check")
 	require.Contains(t, reminder.Payload, "student_ids")

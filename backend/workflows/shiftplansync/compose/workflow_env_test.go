@@ -65,7 +65,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		DeviationEvents: repos.DeviationEvent,
 		Instances:       repos.InstanceReads(),
 		InstanceStaff:   repos.InstanceStaffReads(),
-		Rooms:           repos.Room,
+		Rooms:           api.NewTimetableRoomNames(repos.Facilities),
 		ActivityGroups:  repos.GroupReads(),
 		DB:              db,
 		Broadcaster:     timetable.RealtimeHub,

@@ -1,10 +1,10 @@
-package compose
+package api
 
 import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -14,34 +14,47 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// buildWorkforce composes the module over the test tenant runtime. The staff
-// assignment closures stand in for the School Membership capability, which
-// this package cannot compose without an import cycle through the test
-// support package.
-func buildWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
+// The Workforce adapters that serve the Settings Platform's retained
+// work-time contracts (staff work schedules and templates) over the Workforce
+// capability. The adapters translate between two owners, so their suite runs
+// in the root.
+
+// The schedule day indexes (Monday=0 … Sunday=6) the fixtures use.
+const (
+	adapterDayMonday    = 0
+	adapterDayTuesday   = 1
+	adapterDayWednesday = 2
+	adapterDayThursday  = 3
+	adapterDayFriday    = 4
+)
+
+// adapterWorkforce composes the Workforce capability over the test database
+// with the School Membership owner.
+func adapterWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
 	t.Helper()
-	runtime := testpkg.ConfigRuntime(db)
-	capability, err := New(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
-		DB:           db,
-		LiveStaffIDs: runtime.LiveStaffIDs,
-		Observe:      func(Observation) {},
-	})
+	membership, err := NewSchoolMembership(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	capability, err := NewWorkforce(testpkg.NewDatabase(t, db), membership)
 	require.NoError(t, err)
 	return capability
 }
 
-func buildScheduleRepository(t *testing.T, db *bun.DB) configModel.StaffWorkScheduleRepository {
+func adapterScheduleRepository(t *testing.T, db *bun.DB) configModels.StaffWorkScheduleRepository {
 	t.Helper()
-	return repositoryadapter.NewStaffWorkScheduleRepository(buildWorkforce(t, db))
+	return repositoryadapter.NewStaffWorkScheduleRepository(adapterWorkforce(t, db))
 }
 
-func buildModelRepository(t *testing.T, db *bun.DB) configModel.WorkTimeModelRepository {
+func adapterModelRepository(t *testing.T, db *bun.DB) configModels.WorkTimeModelRepository {
 	t.Helper()
-	return repositoryadapter.NewWorkTimeModelRepository(buildWorkforce(t, db))
+	return repositoryadapter.NewWorkTimeModelRepository(adapterWorkforce(t, db))
 }
 
-func testCalendarDate(year int, month time.Month, day int) configModel.CalendarDate {
-	return configModel.NewCalendarDate(year, month, day)
+func adapterCalendarDate(year int, month time.Month, day int) configModels.CalendarDate {
+	return configModels.CalendarDate(calendar.NewDate(year, month, day).String())
+}
+
+func adapterDatePointer(d configModels.CalendarDate) *configModels.CalendarDate {
+	return &d
 }
 
 func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) {
@@ -52,29 +65,29 @@ func TestStaffWorkScheduleReplaceSchedule_UsesExclusiveValidUntil(t *testing.T) 
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Exclusive")
 
-	repo := buildScheduleRepository(t, db)
-	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+	repo := adapterScheduleRepository(t, db)
+	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModels.StaffWorkSchedule{
 		{
-			DayOfWeek:      configModel.DayMonday,
+			DayOfWeek:      adapterDayMonday,
 			TargetMinutes:  240,
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate("")))
-	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+	}, configModels.CalendarDate("")))
+	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModels.StaffWorkSchedule{
 		{
-			DayOfWeek:      configModel.DayTuesday,
+			DayOfWeek:      adapterDayTuesday,
 			TargetMinutes:  300,
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate("")))
+	}, configModels.CalendarDate("")))
 
-	today := configModel.CalendarDate(calendar.TodayDate().String())
+	today := configModels.CalendarDate(calendar.TodayDate().String())
 	entries, err := repo.GetByStaffIDAndDate(ctx, staff.ID, today)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	assert.Equal(t, configModel.DayTuesday, entries[0].DayOfWeek)
+	assert.Equal(t, adapterDayTuesday, entries[0].DayOfWeek)
 	assert.Equal(t, 300, entries[0].TargetMinutes)
 }
 
@@ -86,30 +99,30 @@ func TestStaffWorkScheduleReplaceSchedule_InvalidEntryKeepsCurrentSchedule(t *te
 
 	staff := testpkg.CreateTestStaff(t, db, "Schedule", "Invalid")
 
-	repo := buildScheduleRepository(t, db)
-	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+	repo := adapterScheduleRepository(t, db)
+	require.NoError(t, repo.ReplaceSchedule(ctx, staff.ID, []*configModels.StaffWorkSchedule{
 		{
-			DayOfWeek:      configModel.DayMonday,
+			DayOfWeek:      adapterDayMonday,
 			TargetMinutes:  240,
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate("")))
+	}, configModels.CalendarDate("")))
 
-	err := repo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+	err := repo.ReplaceSchedule(ctx, staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			DayOfWeek:      9,
 			TargetMinutes:  300,
 			WeekIndex:      0,
 			RotationLength: 1,
 		},
-	}, configModel.CalendarDate(""))
+	}, configModels.CalendarDate(""))
 	require.Error(t, err)
 
 	entries, err := repo.GetCurrentByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, entries, 1)
-	assert.Equal(t, configModel.DayMonday, entries[0].DayOfWeek)
+	assert.Equal(t, adapterDayMonday, entries[0].DayOfWeek)
 	assert.Equal(t, 240, entries[0].TargetMinutes)
 }
 
@@ -122,15 +135,15 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 	ownStaff := testpkg.CreateTestStaff(t, db, "Schedule", "Owner")
 	otherStaff := testpkg.CreateTestStaff(t, db, "Schedule", "Other")
 
-	queryDate := testCalendarDate(2026, time.June, 8)
-	otherRow := &configModel.StaffWorkSchedule{
+	queryDate := adapterCalendarDate(2026, time.June, 8)
+	otherRow := &configModels.StaffWorkSchedule{
 		StaffID:        otherStaff.ID,
 		WeekIndex:      0,
 		RotationLength: 1,
-		DayOfWeek:      configModel.DayMonday,
+		DayOfWeek:      adapterDayMonday,
 		TargetMinutes:  480,
 		ValidFrom:      queryDate.AddDays(10),
-		ValidUntil:     ptrDate(queryDate.AddDays(20)),
+		ValidUntil:     adapterDatePointer(queryDate.AddDays(20)),
 	}
 	otherRow.SetTenantID(testpkg.Tenant(t))
 	_, err := db.NewInsert().
@@ -139,7 +152,7 @@ func TestStaffWorkScheduleGetByStaffIDAndDate_DoesNotLeakOtherStaffRows(t *testi
 		Exec(ctx)
 	require.NoError(t, err)
 
-	repo := buildScheduleRepository(t, db)
+	repo := adapterScheduleRepository(t, db)
 	entries, err := repo.GetByStaffIDAndDate(ctx, ownStaff.ID, queryDate)
 	require.NoError(t, err)
 	assert.Empty(t, entries)
@@ -153,16 +166,16 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 
 	staff := testpkg.CreateTestStaff(t, db, "Template", "Refresh")
 
-	repo := buildModelRepository(t, db)
-	model := &configModel.WorkTimeModel{
+	repo := adapterModelRepository(t, db)
+	model := &configModels.WorkTimeModel{
 		Name:               "Refresh assigned schedule",
 		RotationLength:     1,
-		RotationAnchorDate: testCalendarDate(2026, time.January, 5),
+		RotationAnchorDate: adapterCalendarDate(2026, time.January, 5),
 	}
-	require.NoError(t, repo.Create(ctx, model, []*configModel.WorkTimeModelEntry{
+	require.NoError(t, repo.Create(ctx, model, []*configModels.WorkTimeModelEntry{
 		{
 			WeekIndex:     0,
-			DayOfWeek:     configModel.DayMonday,
+			DayOfWeek:     adapterDayMonday,
 			TargetMinutes: 300,
 		},
 	}))
@@ -175,15 +188,15 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 		_ = repo.Delete(ctx, model.ID)
 	}()
 
-	scheduleRepo := buildScheduleRepository(t, db)
-	require.NoError(t, scheduleRepo.ReplaceSchedule(ctx, staff.ID, []*configModel.StaffWorkSchedule{
+	scheduleRepo := adapterScheduleRepository(t, db)
+	require.NoError(t, scheduleRepo.ReplaceSchedule(ctx, staff.ID, []*configModels.StaffWorkSchedule{
 		{
 			WeekIndex:      0,
 			RotationLength: 1,
-			DayOfWeek:      configModel.DayMonday,
+			DayOfWeek:      adapterDayMonday,
 			TargetMinutes:  300,
 		},
-	}, configModel.CalendarDate("")))
+	}, configModels.CalendarDate("")))
 	_, err := db.NewUpdate().
 		Table("users.staff_employment_profiles").
 		Set("work_time_model_id = ?", model.ID).
@@ -194,14 +207,14 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 
 	// One capability call: the template edit and the assigned-staff refresh
 	// are the same unit of work.
-	_, err = buildWorkforce(t, db).UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
+	_, err = adapterWorkforce(t, db).UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
 		ID: model.ID,
 		WorkTimeModelFields: workforce.WorkTimeModelFields{
 			Name:               model.Name,
 			RotationLength:     1,
 			RotationAnchorDate: "2026-06-01",
 			Entries: []workforce.WorkTimeModelEntry{
-				{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 420},
+				{WeekIndex: 0, DayOfWeek: adapterDayTuesday, TargetMinutes: 420},
 			},
 		},
 	})
@@ -210,7 +223,7 @@ func TestWorkTimeModelRefreshAssignedStaffSchedules_UpdatesCurrentSnapshots(t *t
 	currentRows, err := scheduleRepo.GetCurrentByStaffID(ctx, staff.ID)
 	require.NoError(t, err)
 	require.Len(t, currentRows, 1)
-	assert.Equal(t, configModel.DayTuesday, currentRows[0].DayOfWeek)
+	assert.Equal(t, adapterDayTuesday, currentRows[0].DayOfWeek)
 	assert.Equal(t, 420, currentRows[0].TargetMinutes)
 
 	var oldRows int
@@ -230,23 +243,23 @@ func TestWorkTimeModelUpdate_MissingModelDoesNotDeleteEntries(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 
-	repo := buildModelRepository(t, db)
-	model := &configModel.WorkTimeModel{
+	repo := adapterModelRepository(t, db)
+	model := &configModels.WorkTimeModel{
 		Name:               "Update safety test",
 		RotationLength:     1,
-		RotationAnchorDate: testCalendarDate(2026, time.January, 5),
+		RotationAnchorDate: adapterCalendarDate(2026, time.January, 5),
 	}
-	entries := []*configModel.WorkTimeModelEntry{
+	entries := []*configModels.WorkTimeModelEntry{
 		{
 			WeekIndex:     0,
-			DayOfWeek:     configModel.DayMonday,
+			DayOfWeek:     adapterDayMonday,
 			TargetMinutes: 480,
 		},
 	}
 	require.NoError(t, repo.Create(ctx, model, entries))
 	defer func() { _ = repo.Delete(ctx, model.ID) }()
 
-	_, err := buildWorkforce(t, db).UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
+	_, err := adapterWorkforce(t, db).UpdateWorkTimeModel(ctx, workforce.UpdateWorkTimeModel{
 		ID: model.ID + 100000,
 		WorkTimeModelFields: workforce.WorkTimeModelFields{
 			Name:               "Missing update",
@@ -269,16 +282,16 @@ func TestWorkTimeModelDelete_BlocksAssignedModel(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	staff := testpkg.CreateTestStaff(t, db, "Assigned", "Template")
-	repo := buildModelRepository(t, db)
-	model := &configModel.WorkTimeModel{
+	repo := adapterModelRepository(t, db)
+	model := &configModels.WorkTimeModel{
 		Name:               "Assigned delete safety",
 		RotationLength:     1,
-		RotationAnchorDate: testCalendarDate(2026, time.January, 5),
+		RotationAnchorDate: adapterCalendarDate(2026, time.January, 5),
 	}
-	entries := []*configModel.WorkTimeModelEntry{
+	entries := []*configModels.WorkTimeModelEntry{
 		{
 			WeekIndex:     0,
-			DayOfWeek:     configModel.DayMonday,
+			DayOfWeek:     adapterDayMonday,
 			TargetMinutes: 480,
 		},
 	}
@@ -320,32 +333,32 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 	second := testpkg.CreateTestStaff(t, db, "Range", "Second")
 	foreign := testpkg.CreateTestStaffForTenant(t, db, foreignTenantID, "Range", "Foreign")
 
-	from := testCalendarDate(2026, time.June, 8)
+	from := adapterCalendarDate(2026, time.June, 8)
 	to := from.AddDays(6)
-	rows := []*configModel.StaffWorkSchedule{
+	rows := []*configModels.StaffWorkSchedule{
 		// Intersects: open-ended and valid before the range.
-		{StaffID: first.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayMonday, TargetMinutes: 240, ValidFrom: from.AddDays(-30)},
+		{StaffID: first.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: adapterDayMonday, TargetMinutes: 240, ValidFrom: from.AddDays(-30)},
 		// Intersects: window ends inside the range (valid_until exclusive).
-		{StaffID: second.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayTuesday, TargetMinutes: 300, ValidFrom: from.AddDays(-30), ValidUntil: ptrDate(from.AddDays(2))},
+		{StaffID: second.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: adapterDayTuesday, TargetMinutes: 300, ValidFrom: from.AddDays(-30), ValidUntil: adapterDatePointer(from.AddDays(2))},
 		// Disjoint: window closed before the range starts.
-		{StaffID: first.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayWednesday, TargetMinutes: 700, ValidFrom: from.AddDays(-30), ValidUntil: ptrDate(from)},
+		{StaffID: first.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: adapterDayWednesday, TargetMinutes: 700, ValidFrom: from.AddDays(-30), ValidUntil: adapterDatePointer(from)},
 		// Disjoint: window starts after the range ends.
-		{StaffID: second.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: configModel.DayThursday, TargetMinutes: 700, ValidFrom: to.AddDays(1)},
+		{StaffID: second.ID, WeekIndex: 0, RotationLength: 1, DayOfWeek: adapterDayThursday, TargetMinutes: 700, ValidFrom: to.AddDays(1)},
 	}
 	for _, row := range rows {
 		row.SetTenantID(testpkg.Tenant(t))
 		_, err := db.NewInsert().Model(row).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 		require.NoError(t, err)
 	}
-	foreignRow := &configModel.StaffWorkSchedule{
+	foreignRow := &configModels.StaffWorkSchedule{
 		StaffID: foreign.ID, WeekIndex: 0, RotationLength: 1,
-		DayOfWeek: configModel.DayMonday, TargetMinutes: 480, ValidFrom: from.AddDays(-30),
+		DayOfWeek: adapterDayMonday, TargetMinutes: 480, ValidFrom: from.AddDays(-30),
 	}
 	foreignRow.SetTenantID(foreignTenantID)
 	_, err := db.NewInsert().Model(foreignRow).ModelTableExpr("config.staff_work_schedules").Exec(ctx)
 	require.NoError(t, err)
 
-	repo := buildScheduleRepository(t, db)
+	repo := adapterScheduleRepository(t, db)
 
 	empty, err := repo.FindByStaffIDsValidInRange(ctx, nil, from, to)
 	require.NoError(t, err)
@@ -360,8 +373,8 @@ func TestStaffWorkScheduleFindByStaffIDsValidInRange_BatchesAndIsolates(t *testi
 		assert.NotEqual(t, 700, entry.TargetMinutes, "disjoint validity windows must not be returned")
 		assert.NotEqual(t, foreign.ID, entry.StaffID, "foreign tenant rows must not cross the tenant boundary")
 	}
-	assert.Equal(t, first.ID, byDay[configModel.DayMonday])
-	assert.Equal(t, second.ID, byDay[configModel.DayTuesday])
+	assert.Equal(t, first.ID, byDay[adapterDayMonday])
+	assert.Equal(t, second.ID, byDay[adapterDayTuesday])
 }
 
 func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
@@ -373,21 +386,21 @@ func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, foreignTenantID)
 	foreignCtx := testpkg.TenantContext(foreignTenantID)
 
-	repo := buildModelRepository(t, db)
-	anchor := testCalendarDate(2026, time.January, 5)
+	repo := adapterModelRepository(t, db)
+	anchor := adapterCalendarDate(2026, time.January, 5)
 
-	localA := &configModel.WorkTimeModel{Name: "FindByIDs A", RotationLength: 1, RotationAnchorDate: anchor}
-	require.NoError(t, repo.Create(ctx, localA, []*configModel.WorkTimeModelEntry{
-		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 240},
-		{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 300},
+	localA := &configModels.WorkTimeModel{Name: "FindByIDs A", RotationLength: 1, RotationAnchorDate: anchor}
+	require.NoError(t, repo.Create(ctx, localA, []*configModels.WorkTimeModelEntry{
+		{WeekIndex: 0, DayOfWeek: adapterDayMonday, TargetMinutes: 240},
+		{WeekIndex: 0, DayOfWeek: adapterDayTuesday, TargetMinutes: 300},
 	}))
-	localB := &configModel.WorkTimeModel{Name: "FindByIDs B", RotationLength: 2, RotationAnchorDate: anchor}
-	require.NoError(t, repo.Create(ctx, localB, []*configModel.WorkTimeModelEntry{
-		{WeekIndex: 1, DayOfWeek: configModel.DayFriday, TargetMinutes: 180},
+	localB := &configModels.WorkTimeModel{Name: "FindByIDs B", RotationLength: 2, RotationAnchorDate: anchor}
+	require.NoError(t, repo.Create(ctx, localB, []*configModels.WorkTimeModelEntry{
+		{WeekIndex: 1, DayOfWeek: adapterDayFriday, TargetMinutes: 180},
 	}))
-	foreignModel := &configModel.WorkTimeModel{Name: "FindByIDs Foreign", RotationLength: 1, RotationAnchorDate: anchor}
-	require.NoError(t, repo.Create(foreignCtx, foreignModel, []*configModel.WorkTimeModelEntry{
-		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 480},
+	foreignModel := &configModels.WorkTimeModel{Name: "FindByIDs Foreign", RotationLength: 1, RotationAnchorDate: anchor}
+	require.NoError(t, repo.Create(foreignCtx, foreignModel, []*configModels.WorkTimeModelEntry{
+		{WeekIndex: 0, DayOfWeek: adapterDayMonday, TargetMinutes: 480},
 	}))
 	defer func() {
 		_ = repo.Delete(ctx, localA.ID)
@@ -402,7 +415,7 @@ func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 	models, err := repo.FindByIDs(ctx, []int64{localA.ID, localB.ID, foreignModel.ID})
 	require.NoError(t, err)
 	require.Len(t, models, 2, "foreign tenant models must be absent from the result")
-	byID := make(map[int64]*configModel.WorkTimeModel, len(models))
+	byID := make(map[int64]*configModels.WorkTimeModel, len(models))
 	for _, model := range models {
 		byID[model.ID] = model
 	}
@@ -423,8 +436,4 @@ func TestWorkTimeModelFindByIDs_BatchesEntriesAndIsolates(t *testing.T) {
 				"the foreign tenant's entry must not cross the tenant boundary")
 		}
 	}
-}
-
-func ptrDate(d configModel.CalendarDate) *configModel.CalendarDate {
-	return &d
 }

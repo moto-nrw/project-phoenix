@@ -7,8 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
@@ -370,13 +368,18 @@ func TestDeleteVacationOpening_WritesTombstoneAndRestoresSummary(t *testing.T) {
 	assert.InDelta(t, 30, summary.RemainingDays, 0.001,
 		"without a takeover the Resturlaub is the plain Jahresanspruch again")
 
-	var tombstones []auditModels.TimeTrackingDeletion
+	var tombstones []struct {
+		TenantID  int64           `bun:"tenant_id"`
+		SourceID  int64           `bun:"source_id"`
+		DeletedBy int64           `bun:"deleted_by"`
+		Payload   json.RawMessage `bun:"payload"`
+	}
 	require.NoError(t, f.db.NewSelect().
-		Model(&tombstones).
-		ModelTableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
+		TableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
+		Column("tenant_id", "source_id", "deleted_by", "payload").
 		Where(`"time_tracking_deletion".staff_id = ?`, f.staff).
-		Where(`"time_tracking_deletion".source = ?`, auditModels.TimeTrackingDeletionSourceVacationOpening).
-		Scan(f.ctx))
+		Where(`"time_tracking_deletion".source = ?`, "vacation_opening").
+		Scan(f.ctx, &tombstones))
 	require.Len(t, tombstones, 1, "the delete must leave exactly one tombstone")
 	assert.Equal(t, opening.ID, tombstones[0].SourceID)
 	assert.Equal(t, f.admin, tombstones[0].DeletedBy)
@@ -456,24 +459,10 @@ func TestVacationOpeningRepository_BatchAndListReads(t *testing.T) {
 		assert.Empty(t, byStaff)
 	})
 
-	t.Run("list by year", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("year", f.cutoff.Year())
-
-		openings, err := repo.List(f.ctx, options)
+	t.Run("another year is empty", func(t *testing.T) {
+		byStaff, err := repo.GetByStaffIDsAndYear(f.ctx, []int64{f.staff, f.admin}, f.cutoff.Year()-1)
 
 		require.NoError(t, err)
-		require.Len(t, openings, 1)
-		assert.Equal(t, f.staff, openings[0].StaffID)
-	})
-
-	t.Run("list of another year is empty", func(t *testing.T) {
-		options := modelBase.NewQueryOptions()
-		options.Filter.Equal("year", f.cutoff.Year()-1)
-
-		openings, err := repo.List(f.ctx, options)
-
-		require.NoError(t, err)
-		assert.Empty(t, openings)
+		assert.Empty(t, byStaff)
 	})
 }

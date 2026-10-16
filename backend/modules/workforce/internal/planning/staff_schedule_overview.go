@@ -7,8 +7,6 @@ import (
 	"sort"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	facilitiesModel "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -102,8 +100,10 @@ type ActivityInstanceRangeReader interface {
 	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
 
+// RoomBatchReader names the rooms an assignment takes place in (its "Ort");
+// a missing room is absent from the result.
 type RoomBatchReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*facilitiesModel.Room, error)
+	RoomNamesByID(ctx context.Context, ids []int64) (map[int64]string, error)
 }
 
 type StaffOverviewReader interface {
@@ -111,12 +111,17 @@ type StaffOverviewReader interface {
 	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*workforce.PlanStaff, error)
 }
 
+// StaffWorkScheduleBatchReader returns every schedule version of the given
+// staff members valid in [from, to] (calendar dates in DateLayout); the
+// Workforce capability serves it.
 type StaffWorkScheduleBatchReader interface {
-	FindByStaffIDsValidInRange(ctx context.Context, staffIDs []int64, from, to configModel.CalendarDate) ([]*configModel.StaffWorkSchedule, error)
+	StaffSchedulesInRange(ctx context.Context, staffIDs []int64, from, to string) ([]workforce.StaffWorkSchedule, error)
 }
 
+// WorkTimeModelBatchReader resolves the given work-time templates; the
+// Workforce capability serves it.
 type WorkTimeModelBatchReader interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*configModel.WorkTimeModel, error)
+	ListWorkTimeModelsByIDs(ctx context.Context, ids []int64) ([]workforce.WorkTimeModel, error)
 }
 
 // InstanceStaffBatchReader reads the staff rows of timetable blocks.
@@ -176,9 +181,9 @@ type staffScheduleOverviewData struct {
 	usedWeeks        []calendar.Date
 	visibleInstances []*timetable.ScheduledInstance
 	assignmentRows   []*timetable.InstanceStaff
-	rooms            []*facilitiesModel.Room
+	roomNames        map[int64]string
 	staff            []*workforce.PlanStaff
-	workSchedules    []*configModel.StaffWorkSchedule
+	workSchedules    []*workforce.ScheduleRow
 }
 
 func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to calendar.Date) (*StaffScheduleOverview, error) {
@@ -197,7 +202,7 @@ func (s *staffScheduleOverviewService) GetOverview(ctx context.Context, from, to
 	assignments := buildStaffScheduleAssignments(
 		data.visibleInstances,
 		indexAssignmentRows(data.assignmentRows),
-		indexRoomNames(data.rooms),
+		data.roomNames,
 		indexShifts(data.shifts),
 		usedWeeks,
 	)
@@ -245,23 +250,18 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 
 	visibleInstances, instanceIDs := visibleActivityInstances(instances)
 
-	assignmentRows, staff, rooms, err := s.loadAssignmentData(ctx, visibleInstances, instanceIDs)
+	assignmentRows, staff, roomNames, err := s.loadAssignmentData(ctx, visibleInstances, instanceIDs)
 	if err != nil {
 		return nil, err
 	}
 
-	var workSchedules []*configModel.StaffWorkSchedule
-	if s.deps.WorkSchedules != nil && len(staff) > 0 && len(usedWeeks) > 0 {
-		staffIDs := make([]int64, 0, len(staff))
-		for _, member := range staff {
-			if member != nil {
-				staffIDs = append(staffIDs, member.ID)
-			}
-		}
-		workSchedules, err = s.deps.WorkSchedules.FindByStaffIDsValidInRange(ctx, staffIDs, workforceDate(firstWeekFrom), workforceDate(lastWeekTo))
+	var workSchedules []*workforce.ScheduleRow
+	if staffIDs := overviewStaffIDs(staff); s.deps.WorkSchedules != nil && len(staffIDs) > 0 && len(usedWeeks) > 0 {
+		schedules, err := s.deps.WorkSchedules.StaffSchedulesInRange(ctx, staffIDs, firstWeekFrom.String(), lastWeekTo.String())
 		if err != nil {
 			return nil, fmt.Errorf("load staff work schedules: %w", err)
 		}
+		workSchedules = scheduleRows(schedules)
 	}
 
 	return &staffScheduleOverviewData{
@@ -270,7 +270,7 @@ func (s *staffScheduleOverviewService) loadOverviewData(ctx context.Context, fro
 		usedWeeks:        usedWeeks,
 		visibleInstances: visibleInstances,
 		assignmentRows:   assignmentRows,
-		rooms:            rooms,
+		roomNames:        roomNames,
 		staff:            staff,
 		workSchedules:    workSchedules,
 	}, nil
@@ -282,7 +282,7 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 	ctx context.Context,
 	visibleInstances []*timetable.ScheduledInstance,
 	instanceIDs []int64,
-) ([]*timetable.InstanceStaff, []*workforce.PlanStaff, []*facilitiesModel.Room, error) {
+) ([]*timetable.InstanceStaff, []*workforce.PlanStaff, map[int64]string, error) {
 	assignmentRows, err := s.deps.InstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load instance staff: %w", err)
@@ -292,11 +292,11 @@ func (s *staffScheduleOverviewService) loadAssignmentData(
 		return nil, nil, nil, err
 	}
 	assignmentRows = filterExternalCaregiverAssignments(assignmentRows, externalStaffIDs)
-	rooms, err := s.deps.Rooms.FindByIDs(ctx, effectiveAssignmentRoomIDs(visibleInstances, assignmentRows))
+	roomNames, err := s.deps.Rooms.RoomNamesByID(ctx, effectiveAssignmentRoomIDs(visibleInstances, assignmentRows))
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("load assignment rooms: %w", err)
 	}
-	return assignmentRows, staff, rooms, nil
+	return assignmentRows, staff, roomNames, nil
 }
 
 // loadPlannableStaff reads the staff directory without accountless guest
@@ -348,16 +348,6 @@ func visibleActivityInstances(instances []*timetable.ScheduledInstance) ([]*time
 		ids = append(ids, instance.ID)
 	}
 	return visible, ids
-}
-
-func indexRoomNames(rooms []*facilitiesModel.Room) map[int64]string {
-	roomNames := make(map[int64]string, len(rooms))
-	for _, room := range rooms {
-		if room != nil {
-			roomNames[room.ID] = room.Name
-		}
-	}
-	return roomNames
 }
 
 func indexAssignmentRows(rows []*timetable.InstanceStaff) map[int64][]*timetable.InstanceStaff {
@@ -536,7 +526,7 @@ func (s *staffScheduleOverviewService) buildWeeklySummaries(ctx context.Context,
 func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 	ctx context.Context,
 	staff []*workforce.PlanStaff,
-	schedules []*configModel.StaffWorkSchedule,
+	schedules []*workforce.ScheduleRow,
 	weekStarts []calendar.Date,
 ) (map[staffDateKey]int, error) {
 	targets := make(map[staffDateKey]int)
@@ -546,12 +536,7 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		return nil, err
 	}
 
-	entriesByStaff := make(map[int64][]*configModel.StaffWorkSchedule)
-	for _, entry := range schedules {
-		if entry != nil {
-			entriesByStaff[entry.StaffID] = append(entriesByStaff[entry.StaffID], entry)
-		}
-	}
+	entriesByStaff := scheduleRowsByStaff(schedules)
 
 	residual := make([]*workforce.PlanStaff, 0)
 	modelIDs := make([]int64, 0)
@@ -563,11 +548,11 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 		found := false
 		if entries := entriesByStaff[member.ID]; len(entries) > 0 {
 			for _, weekStart := range weekStarts {
-				if target, ok := configModel.WeeklyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(weekStart)); ok {
+				if target, ok := workforce.WeeklyTargetFromSchedule(entries, member.RotationAnchorDate, weekStart); ok {
 					for offset := 0; offset < 7; offset++ {
 						day := weekStart.AddDays(offset)
 						if holidaySet[day] {
-							dayTarget, _ := configModel.DailyTargetFromSchedule(entries, workforceDatePointer(member.RotationAnchorDate), workforceDate(day))
+							dayTarget, _ := workforce.DailyTargetFromSchedule(entries, member.RotationAnchorDate, day)
 							target -= dayTarget
 						}
 					}
@@ -589,34 +574,25 @@ func (s *staffScheduleOverviewService) resolveWeeklyTargets(
 	if len(residual) == 0 || s.deps.WorkModels == nil {
 		return targets, nil
 	}
-	models, err := s.deps.WorkModels.FindByIDs(ctx, modelIDs)
+	modelsByID, err := s.loadWorkTimeTemplates(ctx, modelIDs)
 	if err != nil {
-		return nil, fmt.Errorf("load work-time models: %w", err)
-	}
-	modelsByID := make(map[int64]*configModel.WorkTimeModel, len(models))
-	for _, model := range models {
-		if model != nil {
-			modelsByID[model.ID] = model
-		}
+		return nil, err
 	}
 	for _, member := range residual {
 		model := modelsByID[*member.WorkTimeModelID]
 		if model == nil {
 			continue
 		}
-		anchor := model.RotationAnchorDate
-		if member.RotationAnchorDate != nil {
-			anchor = workforceDate(*member.RotationAnchorDate)
-		}
-		for weekStart, target := range configModel.WeeklyTargetsFromModel(model, anchor, workforceDates(weekStarts)) {
+		anchor := templateAnchor(member, model)
+		for weekStart, target := range workforce.WeeklyTargetsFromTemplate(model, anchor, weekStarts) {
 			for offset := 0; offset < 7; offset++ {
-				day := calendarDate(weekStart.AddDays(offset))
+				day := weekStart.AddDays(offset)
 				if holidaySet[day] {
-					dayTarget, _ := configModel.DailyTargetFromModel(model, anchor, workforceDate(day))
+					dayTarget, _ := workforce.DailyTargetFromTemplate(model, anchor, day)
 					target -= dayTarget
 				}
 			}
-			targets[staffDateKey{StaffID: member.ID, Date: calendarDate(weekStart)}] = target
+			targets[staffDateKey{StaffID: member.ID, Date: weekStart}] = target
 		}
 	}
 	return targets, nil

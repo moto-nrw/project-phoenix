@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -37,7 +36,7 @@ func (m *seriesMockRepo) FindByID(ctx context.Context, id any) (*StaffShiftSerie
 	if m.findByIDFn != nil {
 		return m.findByIDFn(ctx, id)
 	}
-	return nil, modelBase.ErrNotFound
+	return nil, errRowNotFound
 }
 
 func (m *seriesMockRepo) Update(context.Context, *StaffShiftSeries) error { return nil }
@@ -240,7 +239,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	t.Run("staff missing", func(t *testing.T) {
 		service := newSeriesServiceForTest(seriesServiceMocks{
 			staff: &shiftMockStaffRepo{findByIDFunc: func(context.Context, interface{}) (*workforce.PlanStaff, error) {
-				return nil, modelBase.ErrNotFound
+				return nil, errRowNotFound
 			}},
 		})
 		_, err := service.CreateSeries(context.Background(), unitSeries(t))
@@ -255,7 +254,7 @@ func TestCreateSeriesUnit_ErrorBranches(t *testing.T) {
 	})
 
 	t.Run("period missing", func(t *testing.T) {
-		service := newSeriesServiceForTest(seriesServiceMocks{period: seriesFakePeriodRepo{err: modelBase.ErrNotFound}})
+		service := newSeriesServiceForTest(seriesServiceMocks{period: seriesFakePeriodRepo{err: errRowNotFound}})
 		_, err := service.CreateSeries(context.Background(), unitSeries(t))
 		assert.ErrorIs(t, err, ErrSeriesInvalid)
 	})
@@ -389,7 +388,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 	t.Run("maps a missing or unreadable occurrence to the correct error", func(t *testing.T) {
 		for name, findErr := range map[string]error{
-			"missing":          modelBase.ErrNotFound,
+			"missing":          errRowNotFound,
 			"database failure": errors.New("read failed"),
 		} {
 			t.Run(name, func(t *testing.T) {
@@ -405,7 +404,7 @@ func TestUpdateTodayOccurrence(t *testing.T) {
 
 				_, err := service.updateTodayOccurrence(context.Background(), input, false)
 				require.Error(t, err)
-				if errors.Is(findErr, modelBase.ErrNotFound) {
+				if errors.Is(findErr, errRowNotFound) {
 					assert.ErrorIs(t, err, ErrSeriesInvalid)
 				} else {
 					assert.ErrorIs(t, err, findErr)

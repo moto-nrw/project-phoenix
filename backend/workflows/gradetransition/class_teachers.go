@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 )
@@ -67,7 +66,7 @@ func (w *Workflow) remapClassTeacherAssignments(ctx context.Context, transitionI
 		if kept[assignment.StaffID] == nil {
 			kept[assignment.StaffID] = make(map[string]bool)
 		}
-		kept[assignment.StaffID][schoolclass.Normalize(assignment.SchoolClass)] = true
+		kept[assignment.StaffID][schoolstructure.NormalizeClass(assignment.SchoolClass)] = true
 	}
 	if len(affected) == 0 {
 		return nil
@@ -87,7 +86,7 @@ func (w *Workflow) remapClassTeacherAssignments(ctx context.Context, transitionI
 		if target == "" {
 			continue // graduated: the assignment is dropped
 		}
-		key := schoolclass.Normalize(target)
+		key := schoolstructure.NormalizeClass(target)
 		if kept[assignment.StaffID][key] {
 			continue // the staff member already holds the target class
 		}
@@ -138,7 +137,7 @@ func (w *Workflow) revertClassTeacherAssignments(ctx context.Context, transition
 	}
 	current := make(map[staffClass]schoolmembership.ClassAssignment, len(assignments))
 	for _, assignment := range assignments {
-		current[staffClass{assignment.StaffID, schoolclass.Normalize(assignment.SchoolClass)}] = assignment
+		current[staffClass{assignment.StaffID, schoolstructure.NormalizeClass(assignment.SchoolClass)}] = assignment
 	}
 	// ledgerCreated: pairs the apply inserted at all. deletedCreated: the
 	// subset this revert actually found and deleted; a pair in the first set
@@ -149,7 +148,7 @@ func (w *Workflow) revertClassTeacherAssignments(ctx context.Context, transition
 		if entry.Action != schoolstructure.LedgerActionCreated {
 			continue
 		}
-		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
+		key := staffClass{entry.StaffID, schoolstructure.NormalizeClass(entry.SchoolClass)}
 		ledgerCreated[key] = true
 		if row, ok := current[key]; ok {
 			if err := w.deps.Membership.DeleteClassAssignment(ctx, row.ID); err != nil {
@@ -166,12 +165,12 @@ func (w *Workflow) revertClassTeacherAssignments(ctx context.Context, transition
 		if !liveStaff[entry.StaffID] {
 			continue // offboarded since the apply: do not resurrect scope
 		}
-		key := staffClass{entry.StaffID, schoolclass.Normalize(entry.SchoolClass)}
+		key := staffClass{entry.StaffID, schoolstructure.NormalizeClass(entry.SchoolClass)}
 		if ledgerCreated[key] && !deletedCreated[key] {
 			continue
 		}
 		if target := renames[strings.TrimSpace(entry.SchoolClass)]; target != "" {
-			pair := staffClass{entry.StaffID, schoolclass.Normalize(target)}
+			pair := staffClass{entry.StaffID, schoolstructure.NormalizeClass(target)}
 			if ledgerCreated[pair] && !deletedCreated[pair] {
 				continue // the admin removed the renamed row after the apply
 			}

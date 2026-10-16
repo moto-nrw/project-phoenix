@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -64,9 +65,28 @@ func (owners operatorProvisioningOwners) compose(sources OperatorProvisioningSou
 		Categories:          adapters.Categories,
 		Settings:            provisioningSettings{settings: sources.Settings},
 		Audit:               adapters.Audit,
+		Secrets:             provisioningSecrets{},
 		Logger:              sources.Logger,
 		ActiveAccountCounts: adapters.ActiveAccountCounts,
 	})
+}
+
+// provisioningUsernameSuffixLength is the length of the suffix that keeps
+// generated usernames unique.
+const provisioningUsernameSuffixLength = 6
+
+// provisioningSecrets draws the provisioning secrets from Security Runtime.
+type provisioningSecrets struct{}
+
+// APIKey returns a fresh device API key.
+func (provisioningSecrets) APIKey() (string, error) { return securityruntime.DeviceAPIKey() }
+
+// UsernameSuffix returns six random lowercase letters and digits. A failing
+// random source yields an empty suffix; the username stays unique through
+// the account's other name parts and the registration's conflict check.
+func (provisioningSecrets) UsernameSuffix() string {
+	suffix, _ := securityruntime.RandomLowerAlphanumeric(provisioningUsernameSuffixLength)
+	return suffix
 }
 
 type provisioningRoles interface {
