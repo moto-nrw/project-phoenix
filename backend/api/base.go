@@ -17,7 +17,6 @@ import (
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
 	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -1540,7 +1539,7 @@ func mountPresenceRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceau
 	if err != nil {
 		return err
 	}
-	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), supervisiondashboardCompose.NewYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
+	active := presenceAPI.NewResource(operations, activePeople{source: NewAttendanceRoutePeople(svc.Users)}, teacherGroupIDs(in.modules), newSupervisionYard(svc.Schulhof), activeStaffAccess{source: peopleCompose.NewAttendanceRouteStaff(in.modules.userContext)}, svc.Settings, apiCommon.ProtectedTenantRoutes, logger.With("handler", "active"), presence, activeRequestRuntime(), activeAuthorization(), openRoomMove)
 	active.SupervisionDashboardService = svc.SupervisionDashboard
 	iot, err := newIoTResource(in, deviceAuth, presence, openRoomMove)
 	if err != nil {

@@ -9,7 +9,6 @@ import (
 	"time"
 
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
@@ -399,7 +398,7 @@ type IdentityComposition struct {
 	Access               *identityaccess.Module
 	Caller               CallerRowReads
 	GroupLiveCaller      GroupLiveCallerContext
-	SupervisionCaller    supervisiondashboardCompose.CallerContext
+	SupervisionCaller    SupervisionCallerContext
 	GuardianInvitations  GuardianInvitationReads
 	ParentGuardianAccess parentportal.GuardianAccess
 	// MailRenderers render the Identity & Access mail kinds of the outbox.

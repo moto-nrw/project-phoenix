@@ -114,10 +114,12 @@ func composeProjections(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.OGSGroupLive = live
 	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{
+		Access: newSupervisionAccess(b.settingsService, b.identity.SupervisionCaller),
 		Active: b.graph.Active, ActiveGroups: b.Presence.OpenRoomSessions, OpenVisits: b.graph.Active,
 		Rooms: b.Presence.OpenRooms, UserContext: b.identity.SupervisionCaller, Education: b.graph.Education,
-		Schulhof: b.graph.Schulhof, Operations: b.graph.TimetableOperations, Settings: b.settingsService,
-		Pickups: b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule, Now: b.now,
+		Yard: newSupervisionYard(b.graph.Schulhof), Operations: b.graph.TimetableOperations,
+		Settings: newSupervisionSettings(b.settingsService),
+		Pickups:  b.graph.PickupSchedule, Arrivals: b.graph.ArrivalSchedule, Now: b.now,
 	})
 	if err != nil {
 		return b, fmt.Errorf("compose supervision dashboard projection: %w", err)

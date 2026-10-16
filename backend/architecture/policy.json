@@ -11422,17 +11422,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "calendar-view.adapter-test.identity-access-adapter",
-      "description": "Adapter tests place JWT claims and permissions in the context (#2703).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "calendar-view",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "inbound-statistics.http-common",
       "description": "Statistics handlers reuse common HTTP rendering, the tenant group and the permission gates (#2703).",
       "scopes": [

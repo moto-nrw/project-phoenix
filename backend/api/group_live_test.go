@@ -53,8 +53,8 @@ func TestGroupLiveDecideDayFollowsTheSharedPrecedence(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			inputs := projectionValue(t, argumentOf(decide), tc.inputs)
-			assert.Equal(t, projectionValue(t, resultOf(decide), tc.want), decide(inputs))
+			inputs := decodeAs(t, argumentOf(decide), tc.inputs)
+			assert.Equal(t, decodeAs(t, resultOf(decide), tc.want), decide(inputs))
 		})
 	}
 }
