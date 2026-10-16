@@ -18,9 +18,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Resource struct {
