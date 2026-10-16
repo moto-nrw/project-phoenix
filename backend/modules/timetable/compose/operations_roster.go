@@ -9,10 +9,10 @@ import (
 	"time"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -443,7 +443,7 @@ func (s *operations) loadRosterTemplateGroup(ctx context.Context, activityGroupI
 	}
 	group, err := s.deps.Templates.FindByID(ctx, *activityGroupID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, err

@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 289 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
+Stand 16.10.2026 · Ratchet 284 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 53 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,8 +11,8 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 22 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 93 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 19 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 91 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 54 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 289 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 284 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -98,8 +98,8 @@ Die Root hält die Middleware-/Identitäts-/Tenant-Verdrahtung und die fünf bis
 HTTP-Suiten; deren Assertions bleiben unverändert. Der Decoder kommt über die
 bestehende Owner-Komposition. Workbook-Fixtures bleiben im Fileformat-Adapter,
 seine Rendering-Testregel entfällt. Dreizehn Regeln werden durch eine gleich enge
-Eigen-HTTP-Regel ersetzt; Inbound-Owner 22 → 21, Regeln 934 → 922,
-Keys 291 → 289, #4078 10 → 9, #2750 1 → 0. Composition bleibt gleich; das
+Eigen-HTTP-Regel ersetzt; Inbound-Owner 22 → 21, Regeln 935 → 923,
+Keys 286 → 284, #4078 10 → 9, #2750 1 → 0. Composition bleibt gleich; das
 Compose-LOC-Budget sinkt um 131 und die verwaiste HTTP-ORM-Ausnahme entfällt.
 Der Retirement-Nachweis liegt in `data-import-http-owner-4078.json`.
 Die physische Verschiebung nach `modules/dataimport/http` folgt separat gemäß ADR 0020.

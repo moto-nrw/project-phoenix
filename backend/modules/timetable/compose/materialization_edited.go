@@ -9,9 +9,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -91,7 +91,7 @@ func (s *materializationService) DetectEditedInWindow(
 func (s *materializationService) loadDetectionTemplate(ctx context.Context, templateID int64) (*activities.Group, error) {
 	tmpl, err := s.groupRepo.FindByID(ctx, templateID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, nil
 		}
 		return nil, &ScheduleError{Op: "detect edited: load template", Err: err}

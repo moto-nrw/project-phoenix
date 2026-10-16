@@ -10,10 +10,10 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -134,8 +134,8 @@ func (s *InstanceLifecycleService) createInstanceIdempotencyFingerprint(req time
 		return nil, nil
 	}
 	isSpontaneous := req.IsSpontaneous != nil && *req.IsSpontaneous
-	staffIDs := sliceutil.UniquePositive(slices.Clone(req.StaffIDs))
-	studentIDs := sliceutil.UniquePositive(slices.Clone(req.StudentIDs))
+	staffIDs := domain.UniquePositiveIDs(slices.Clone(req.StaffIDs))
+	studentIDs := domain.UniquePositiveIDs(slices.Clone(req.StudentIDs))
 	slices.Sort(staffIDs)
 	slices.Sort(studentIDs)
 	payload, err := json.Marshal(struct {
@@ -203,7 +203,7 @@ func (s *InstanceLifecycleService) insertCreatedInstance(ctx context.Context, in
 }
 
 func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Context, key string) (*scheduleModel.ActivityInstance, error) {
-	options := modelBase.NewQueryOptions().WithPagination(1, 1)
+	options := domain.NewListOptions().WithPagination(1, 1)
 	options.Filter.Equal("idempotency_key", key)
 	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.deps.InstanceRepo, options)
 	if err != nil || len(instances) == 0 {
@@ -213,7 +213,7 @@ func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Contex
 }
 
 func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Context, inst *scheduleModel.ActivityInstance, req timetable.CreateInstanceInput, tenantID int64) error {
-	for _, staffID := range sliceutil.UniquePositive(req.StaffIDs) {
+	for _, staffID := range domain.UniquePositiveIDs(req.StaffIDs) {
 		// A nil RoomID falls back to the block's room at runtime.
 		row := &scheduleModel.InstanceStaff{InstanceID: inst.ID, StaffID: staffID, IsPrimary: false}
 		row.SetTenantID(tenantID)
@@ -221,7 +221,7 @@ func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Conte
 			return &ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}
-	studentIDs := sliceutil.UniquePositive(req.StudentIDs)
+	studentIDs := domain.UniquePositiveIDs(req.StudentIDs)
 	if err := s.lockCareExceptionDaysForStudents(ctx, studentIDs, calendar.Date(inst.Date)); err != nil {
 		return err
 	}
@@ -269,7 +269,7 @@ const templateInstanceUniqueIndex = "idx_activity_instances_template_unique"
 // duplicateTemplateInstance classifies a write that collides with another
 // block of the same template slot; the storage error stays in the chain.
 func duplicateTemplateInstance(err error) error {
-	if modelBase.IsUniqueViolationOn(err, templateInstanceUniqueIndex) {
+	if postgres.IsUniqueViolationOn(err, templateInstanceUniqueIndex) {
 		return fmt.Errorf("%w: %w", timetable.ErrDuplicateTemplateInstance, err)
 	}
 	return err

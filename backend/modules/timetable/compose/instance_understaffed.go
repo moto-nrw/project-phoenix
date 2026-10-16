@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -163,7 +163,7 @@ func (s *InstanceLifecycleService) AcknowledgeUnderstaffed(ctx context.Context, 
 func (s *InstanceLifecycleService) loadDeviationInstance(ctx context.Context, instanceID int64) (*scheduleModel.ActivityInstance, error) {
 	instance, err := s.deps.InstanceRepo.FindByID(ctx, instanceID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return nil, timetable.DeviationNotFound(msgInstanceNotFound).WithCode(timetable.CodeDeviationInstanceNotFound)
 		}
 		return nil, timetable.DeviationInternal("load instance failed", err)

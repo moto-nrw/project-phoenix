@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -36,7 +36,7 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 	defer func() {
 		result.DurationMS = time.Since(startedAt).Milliseconds()
 	}()
-	options := modelBase.NewQueryOptions()
+	options := domain.NewListOptions()
 	options.Filter.Equal("status", scheduleModel.InstanceStatusActive)
 	instances, err := legacyList[*scheduleModel.ActivityInstance](ctx, s.instances, options)
 	if err != nil {
@@ -92,7 +92,7 @@ func (s *instanceAutoEnd) classifyCompletionFailure(ctx context.Context, instanc
 	if errors.Is(err, timetable.ErrInvalidInstanceTransition) {
 		current, findErr := s.instances.FindByID(ctx, instanceID)
 		if findErr != nil {
-			if modelBase.IsNoRows(findErr) {
+			if domain.IsRecordNotFound(findErr) {
 				result.SkippedConcurrent++
 				return nil
 			}

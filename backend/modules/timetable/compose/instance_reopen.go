@@ -9,10 +9,11 @@ import (
 	"slices"
 	"strconv"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -46,7 +47,7 @@ func (s *InstanceLifecycleService) Reopen(ctx context.Context, instanceID, accou
 		return nil, err
 	}
 	if err := s.deps.RecoveryRepo.Restore(ctx, instance.ID, snapshot, s.now()); err != nil {
-		if modelBase.IsUniqueViolation(err) {
+		if postgres.IsUniqueViolation(err) {
 			return nil, timetable.WithCode(fmt.Errorf("%w: concurrent check-in", timetable.ErrTimetableOperationConflict), timetable.CodeOperationStale)
 		}
 		return nil, &ScheduleError{Op: "reopen instance: restore snapshot", Err: err}
@@ -129,7 +130,7 @@ func (s *InstanceLifecycleService) lockReopenSnapshotStudents(ctx context.Contex
 	}
 	for _, studentID := range studentIDs {
 		if locked[studentID] == nil {
-			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: modelBase.ErrNotFound}
+			return nil, &ScheduleError{Op: "reopen instance: lock student", Err: domain.ErrRecordNotFound}
 		}
 	}
 	currentVisits, err := s.deps.Presence.ListVisits(ctx, studentpresence.VisitFilter{StudentIDs: studentIDs, OpenOnly: true, NewestFirst: true, StudentOrder: true})

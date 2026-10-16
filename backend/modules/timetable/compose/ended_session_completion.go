@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -100,8 +100,8 @@ func (c *endedSessionCompletion) CompleteActiveByActiveGroupIDs(ctx context.Cont
 // the timeout or the nightly close, and their mirrored block's end is only
 // the placeholder hour the mirror wrote.
 func (c *endedSessionCompletion) recordSpontaneousEnds(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) error {
-	instances, err := c.deps.Instances.List(ctx, &modelBase.QueryOptions{
-		Filter: modelBase.NewFilter().In("active_group_id", int64Args(activeGroupIDs)...),
+	instances, err := c.deps.Instances.List(ctx, &domain.ListOptions{
+		Filter: domain.NewListFilter().In("active_group_id", int64Args(activeGroupIDs)...),
 	})
 	if err != nil {
 		return fmt.Errorf("complete bridged instances: load spontaneous blocks: %w", err)
@@ -172,8 +172,8 @@ func (c *endedSessionCompletion) notScheduledForEndedSessions(ctx context.Contex
 // endedInstanceDates maps each block bridged to one of the sessions to its
 // date.
 func (c *endedSessionCompletion) endedInstanceDates(ctx context.Context, activeGroupIDs []int64) (map[int64]calendar.Date, error) {
-	instances, err := c.deps.Instances.List(ctx, &modelBase.QueryOptions{
-		Filter: modelBase.NewFilter().In("active_group_id", int64Args(activeGroupIDs)...),
+	instances, err := c.deps.Instances.List(ctx, &domain.ListOptions{
+		Filter: domain.NewListFilter().In("active_group_id", int64Args(activeGroupIDs)...),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("complete bridged instances: load instances: %w", err)

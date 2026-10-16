@@ -15,7 +15,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,13 +24,13 @@ import (
 func TestNormalizeSickReason(t *testing.T) {
 	t.Parallel()
 
-	assert.Nil(t, strutil.TrimPtrToNil(nil), "nil stays nil")
+	assert.Nil(t, trimPtrToNil(nil), "nil stays nil")
 
 	blank := "   "
-	assert.Nil(t, strutil.TrimPtrToNil(&blank), "blank trims to nil")
+	assert.Nil(t, trimPtrToNil(&blank), "blank trims to nil")
 
 	raw := "  Fieber, beim Arzt  "
-	got := strutil.TrimPtrToNil(&raw)
+	got := trimPtrToNil(&raw)
 	require.NotNil(t, got)
 	assert.Equal(t, "Fieber, beim Arzt", *got, "non-blank is trimmed")
 }

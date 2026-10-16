@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 51,
+  "policy_epoch": 53,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1005,7 +1005,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/rotation",
+      "path": "modules/identityaccess/internal/application/rotation",
       "owner": "identity-access",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -1231,13 +1231,6 @@
     {
       "path": "internal/seedtoken",
       "owner": "security-runtime",
-      "role": "domain",
-      "internal_test_role": "module-internal-test",
-      "external_test_role": "module-behavior-test"
-    },
-    {
-      "path": "internal/sliceutil",
-      "owner": "legacy-shared",
       "role": "domain",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
@@ -8861,6 +8854,17 @@
       "target_class": "orm-sql"
     },
     {
+      "id": "timetable-activities.postgres.transaction-runtime",
+      "description": "Timetable & Activities' postgres adapter classifies unique violations through the transaction runtime's public contract (ADR 0058 addendum, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "timetable-activities",
+      "source_role": "postgres",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
       "id": "timetable-activities.compose.tenant-runtime",
       "description": "Timetable & Activities composition resolves ambient tenant transactions through the shared runtime.",
       "scopes": [
@@ -15329,6 +15333,11 @@
     }
   ],
   "relocations": [
+    {
+      "from": "auth/rotation",
+      "to": "modules/identityaccess/internal/application/rotation",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
     {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
