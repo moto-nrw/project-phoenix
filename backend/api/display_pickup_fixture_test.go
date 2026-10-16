@@ -1,4 +1,4 @@
-package httpadapter
+package api
 
 import (
 	"context"

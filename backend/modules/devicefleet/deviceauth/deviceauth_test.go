@@ -12,6 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/auth/device/devicetest"
+
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -398,7 +400,7 @@ func TestSchoolLookup_Classification(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			deleted, err := schoolLookup{schools: tc.schools}.IsSchoolDeleted(context.Background(), 100)
+			deleted, err := schoolLookup{schools: tc.schools, errors: devicetest.SchoolErrors()}.IsSchoolDeleted(context.Background(), 100)
 			assert.Equal(t, tc.wantDeleted, deleted)
 			switch {
 			case tc.wantErr != nil:
@@ -451,7 +453,7 @@ func TestDeviceOnly_SchoolGuard(t *testing.T) {
 			d := activeDevice(12, "kiosk")
 			d.TenantID = 100
 			fleet.add("kiosk-key", d)
-			rr := serve(router(New(Dependencies{Devices: fleet, Schools: tc.schools}).DeviceOnly(), nil), request(http.MethodGet, "kiosk-key", nil))
+			rr := serve(router(New(Dependencies{Devices: fleet, Schools: tc.schools, SchoolErrors: devicetest.SchoolErrors()}).DeviceOnly(), nil), request(http.MethodGet, "kiosk-key", nil))
 			assert.Equal(t, tc.wantCode, rr.Code, rr.Body.String())
 			if tc.wantCode == http.StatusForbidden {
 				assert.Contains(t, rr.Body.String(), `"detail":"device is not active"`)
@@ -474,3 +476,6 @@ func TestBindTenant(t *testing.T) {
 	_, err = bindTenant(context.Background(), 0)
 	require.Error(t, err)
 }
+
+// Exercise the real Root-bound classifier with the existing assertions.
+func isTransientDBErr(err error) bool { return devicetest.SchoolErrors().Transient(err) }
