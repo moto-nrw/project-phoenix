@@ -14,7 +14,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -109,8 +109,8 @@ func buildWriteService(t *testing.T, sickEnabled, notesEnabled bool, reportFlags
 func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlags ...map[string]bool) (parentportalcompose.Dependencies, *testpkg.RecordingBroadcaster, *bun.DB) {
 	t.Helper()
 	values := map[string]bool{
-		configModels.KeyParentSickNoteEnabled: sickEnabled,
-		configModels.KeyParentNotesEnabled:    notesEnabled,
+		parentService.KeyParentSickNoteEnabled: sickEnabled,
+		parentService.KeyParentNotesEnabled:    notesEnabled,
 	}
 	for _, flags := range reportFlags {
 		for key, value := range flags {
@@ -131,7 +131,7 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 		Settings: parentSettingsStub{
 			boolValues: values,
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		MealPlan:    availableMealPlan(false),
@@ -146,23 +146,25 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChild,
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled: sickEnabled,
-				configModels.KeyParentNotesEnabled:    notesEnabled,
-			},
-			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentService.KeyParentSickNoteEnabled: sickEnabled,
+			parentService.KeyParentNotesEnabled:    notesEnabled,
 		},
+		stringValues: map[string]string{
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
+		},
+	}
+	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:          repos.CarePlan(),
+		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:      careProfiles(t, db),
+		ChildRepo:         repos.ParentChild,
+		StatusDayRepo:     repos.StudentStatusDay,
+		StudentRepo:       repos.Student,
+		CareExceptions:    repos.CarePlan(),
+		Settings:          settings,
 		Broadcaster:       bc,
 		MessageThreadRepo: repos.ParentMessageThread,
 		MessageRepo:       communicationtest.NewParentMessageRepository(db),
@@ -448,11 +450,11 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		},
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled: true,
-				configModels.KeyParentNotesEnabled:    true,
+				parentService.KeyParentSickNoteEnabled: true,
+				parentService.KeyParentNotesEnabled:    true,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		},
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
@@ -921,8 +923,8 @@ func TestParentReportKindsAreIndependent(t *testing.T) {
 				t.Parallel()
 				ctx := testpkg.OwnCtx(t)
 				svc, _, db := buildWriteService(t, true, true, map[string]bool{
-					configModels.KeyParentSickReportsEnabled:    sickEnabled,
-					configModels.KeyParentExcusedReportsEnabled: excusedEnabled,
+					parentService.KeyParentSickReportsEnabled:    sickEnabled,
+					parentService.KeyParentExcusedReportsEnabled: excusedEnabled,
 				})
 				chain := testpkg.CreateTestParentGuardianChain(t, db)
 				flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

@@ -129,6 +129,8 @@ const (
 	ColumnBirthday          = listexport.ColumnBirthday
 	ColumnAge               = listexport.ColumnAge
 	ColumnGuardianContacts  = listexport.ColumnGuardianContacts
+	ColumnSlot              = listexport.ColumnSlot
+	ColumnPresenceStatus    = listexport.ColumnPresenceStatus
 )
 
 // Columns of the weekly plans (Dienstplan, Betreuungsplan): the row label and

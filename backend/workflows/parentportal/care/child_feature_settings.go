@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // childFeatureSettings holds the tenant settings behind ChildFeatureFlags,
@@ -35,22 +33,22 @@ type childFeatureSettings struct {
 // childFeatureSettingKeys lists the settings ChildFeatures batch-resolves.
 func childFeatureSettingKeys() []string {
 	return []string{
-		configModels.KeyParentSickNoteEnabled,
-		configModels.KeyParentSickReportsEnabled,
-		configModels.KeyParentExcusedReportsEnabled,
-		configModels.KeyParentSickRequiresApproval,
-		configModels.KeyParentExcusedRequiresApproval,
-		configModels.KeyParentNotesEnabled,
-		configModels.KeyParentPickupChangeEnabled,
-		configModels.KeyParentPickupChangeCutoffTime,
-		configModels.KeyParentCareModeRequestEnabled,
-		configModels.KeyGuardianParentInviteMode,
-		configModels.KeyGuardianParentCanRemove,
-		configModels.KeyParentMasterDataEditEnabled,
-		configModels.KeyParentMasterDataRequestEnabled,
-		configModels.KeyParentNewsEnabled,
-		configModels.KeyParentGuardianManagementEnabled,
-		configModels.KeyParentRequestReasonPolicy,
+		KeyParentSickNoteEnabled,
+		KeyParentSickReportsEnabled,
+		KeyParentExcusedReportsEnabled,
+		KeyParentSickRequiresApproval,
+		KeyParentExcusedRequiresApproval,
+		KeyParentNotesEnabled,
+		KeyParentPickupChangeEnabled,
+		KeyParentPickupChangeCutoffTime,
+		KeyParentCareModeRequestEnabled,
+		KeyGuardianParentInviteMode,
+		KeyGuardianParentCanRemove,
+		KeyParentMasterDataEditEnabled,
+		KeyParentMasterDataRequestEnabled,
+		KeyParentNewsEnabled,
+		KeyParentGuardianManagementEnabled,
+		KeyParentRequestReasonPolicy,
 	}
 }
 
@@ -58,16 +56,14 @@ func childFeatureSettingKeys() []string {
 // settings service supports one, and falls back to single-key lookups.
 type childSettingResolver struct {
 	ctx      context.Context
-	settings configService.SettingsService
+	settings SettingsService
 	tenantID int64
-	snapshot *configService.SettingsSnapshot
+	snapshot SettingsSnapshot
 }
 
 func (s *Service) newChildSettingResolver(ctx context.Context, tenantID int64) (childSettingResolver, error) {
 	r := childSettingResolver{ctx: ctx, settings: s.Settings, tenantID: tenantID}
-	if batch, ok := s.Settings.(interface {
-		ResolveManyForTenant(context.Context, int64, []string) (*configService.SettingsSnapshot, error)
-	}); ok {
+	if batch, ok := s.Settings.(BatchSettingsService); ok {
 		snapshot, err := batch.ResolveManyForTenant(ctx, tenantID, childFeatureSettingKeys())
 		if err != nil {
 			return childSettingResolver{}, fmt.Errorf("parent: resolve child feature settings: %w", err)
@@ -107,7 +103,7 @@ func (s *Service) resolveChildFeatureSettings(ctx context.Context, tenantID int6
 	}
 	// The Abholart of one day (#3945) needs the one-day change and the
 	// school's permission to ask for a different Abholart at all.
-	if out.pickupChangeMode, err = r.resolveBool(configModels.KeyParentCareModeRequestEnabled); err != nil {
+	if out.pickupChangeMode, err = r.resolveBool(KeyParentCareModeRequestEnabled); err != nil {
 		return out, fmt.Errorf("parent: resolve departure-mode request setting: %w", err)
 	}
 	out.pickupChangeMode = out.pickupChangeMode && out.pickupChange
@@ -125,22 +121,22 @@ func (s *Service) resolveChildFeatureSettings(ctx context.Context, tenantID int6
 
 func (r childSettingResolver) resolveAbsenceAndNoteSettings(out *childFeatureSettings) error {
 	var err error
-	if out.sick, err = r.resolveBool(configModels.KeyParentSickNoteEnabled); err != nil {
+	if out.sick, err = r.resolveBool(KeyParentSickNoteEnabled); err != nil {
 		return fmt.Errorf("parent: resolve sick-note setting: %w", err)
 	}
-	if out.sickApproval, err = r.resolveBool(configModels.KeyParentSickRequiresApproval); err != nil {
+	if out.sickApproval, err = r.resolveBool(KeyParentSickRequiresApproval); err != nil {
 		return fmt.Errorf("parent: resolve sick-approval setting: %w", err)
 	}
-	if out.sickReports, err = r.resolveBool(configModels.KeyParentSickReportsEnabled); err != nil {
+	if out.sickReports, err = r.resolveBool(KeyParentSickReportsEnabled); err != nil {
 		return fmt.Errorf("parent: resolve sick reports: %w", err)
 	}
-	if out.excusedReports, err = r.resolveBool(configModels.KeyParentExcusedReportsEnabled); err != nil {
+	if out.excusedReports, err = r.resolveBool(KeyParentExcusedReportsEnabled); err != nil {
 		return fmt.Errorf("parent: resolve excused reports: %w", err)
 	}
-	if out.excusedApproval, err = r.resolveBool(configModels.KeyParentExcusedRequiresApproval); err != nil {
+	if out.excusedApproval, err = r.resolveBool(KeyParentExcusedRequiresApproval); err != nil {
 		return fmt.Errorf("parent: resolve excused-approval setting: %w", err)
 	}
-	if out.notes, err = r.resolveBool(configModels.KeyParentNotesEnabled); err != nil {
+	if out.notes, err = r.resolveBool(KeyParentNotesEnabled); err != nil {
 		return fmt.Errorf("parent: resolve notes setting: %w", err)
 	}
 	return nil
@@ -149,11 +145,11 @@ func (r childSettingResolver) resolveAbsenceAndNoteSettings(out *childFeatureSet
 // resolvePickupChangeSettings resolves the one-day pickup change switch and the
 // school's same-day cutoff; a switched-off change has no cutoff.
 func (s *Service) resolvePickupChangeSettings(r childSettingResolver) (bool, careplan.SameDayCutoff, error) {
-	enabled, err := r.resolveBool(configModels.KeyParentPickupChangeEnabled)
+	enabled, err := r.resolveBool(KeyParentPickupChangeEnabled)
 	if err != nil {
 		return false, careplan.SameDayCutoff{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
-	pickupCutoffClock, err := r.resolveString(configModels.KeyParentPickupChangeCutoffTime)
+	pickupCutoffClock, err := r.resolveString(KeyParentPickupChangeCutoffTime)
 	if err != nil {
 		return false, careplan.SameDayCutoff{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
 	}
@@ -169,16 +165,16 @@ func (s *Service) resolvePickupChangeSettings(r childSettingResolver) (bool, car
 
 func (r childSettingResolver) resolveRelatedAccountAndMasterDataSettings(out *childFeatureSettings) error {
 	var err error
-	if out.inviteMode, err = r.resolveString(configModels.KeyGuardianParentInviteMode); err != nil {
+	if out.inviteMode, err = r.resolveString(KeyGuardianParentInviteMode); err != nil {
 		return fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
-	if out.canRemove, err = r.resolveBool(configModels.KeyGuardianParentCanRemove); err != nil {
+	if out.canRemove, err = r.resolveBool(KeyGuardianParentCanRemove); err != nil {
 		return fmt.Errorf("parent: resolve remove setting: %w", err)
 	}
-	if out.masterEdit, err = r.resolveBool(configModels.KeyParentMasterDataEditEnabled); err != nil {
+	if out.masterEdit, err = r.resolveBool(KeyParentMasterDataEditEnabled); err != nil {
 		return fmt.Errorf("parent: resolve master-data edit setting: %w", err)
 	}
-	if out.masterRequest, err = r.resolveBool(configModels.KeyParentMasterDataRequestEnabled); err != nil {
+	if out.masterRequest, err = r.resolveBool(KeyParentMasterDataRequestEnabled); err != nil {
 		return fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
 	return nil
@@ -197,13 +193,13 @@ func (s *Service) resolveMealSettings(ctx context.Context, tenantID int64, out *
 
 func (r childSettingResolver) resolvePortalSettings(out *childFeatureSettings) error {
 	var err error
-	if out.news, err = r.resolveBool(configModels.KeyParentNewsEnabled); err != nil {
+	if out.news, err = r.resolveBool(KeyParentNewsEnabled); err != nil {
 		return fmt.Errorf("parent: resolve parent-news setting: %w", err)
 	}
-	if out.guardianManagement, err = r.resolveBool(configModels.KeyParentGuardianManagementEnabled); err != nil {
+	if out.guardianManagement, err = r.resolveBool(KeyParentGuardianManagementEnabled); err != nil {
 		return fmt.Errorf("parent: resolve guardian-management setting: %w", err)
 	}
-	if out.reasonPolicy, err = r.resolveString(configModels.KeyParentRequestReasonPolicy); err != nil {
+	if out.reasonPolicy, err = r.resolveString(KeyParentRequestReasonPolicy); err != nil {
 		return fmt.Errorf("parent: resolve reason policy: %w", err)
 	}
 	return nil

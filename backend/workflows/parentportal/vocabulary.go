@@ -11,6 +11,9 @@ import (
 )
 
 type (
+	ChildEvent                      = care.ChildEvent
+	ChildEvents                     = care.ChildEvents
+	MessagingGate                   = messaging.MessagingGate
 	AttendanceReader                = care.AttendanceReader
 	Attendance                      = care.Attendance
 	AttendanceFilter                = care.AttendanceFilter
@@ -164,7 +167,10 @@ type (
 	GuardianSubmitStatus             = care.GuardianSubmitStatus
 	InboxThread                      = messaging.InboxThread
 	ParentMessage                    = messaging.ParentMessage
+	RequestReasonPolicy              = care.RequestReasonPolicy
 	SettingsService                  = care.SettingsService
+	SettingsSnapshot                 = care.SettingsSnapshot
+	BatchSettingsService             = care.BatchSettingsService
 	StudentDataChangeRequest         = care.StudentDataChangeRequest
 )
 
@@ -184,4 +190,33 @@ const (
 var (
 	CanonicalDayToISOWeekday   = care.CanonicalDayToISOWeekday
 	ErrGuardianProfileNotFound = care.ErrGuardianProfileNotFound
+)
+
+// Settings keys and policy values consumed by the guardian workflow.
+const (
+	KeyGuardianParentCanRemove         = care.KeyGuardianParentCanRemove
+	KeyGuardianParentInviteMode        = care.KeyGuardianParentInviteMode
+	KeyMealPlanEnabled                 = care.KeyMealPlanEnabled
+	KeyParentCareArrivalRequestEnabled = care.KeyParentCareArrivalRequestEnabled
+	KeyParentCareModeRequestEnabled    = care.KeyParentCareModeRequestEnabled
+	KeyParentCarePickupRequestEnabled  = care.KeyParentCarePickupRequestEnabled
+	KeyParentExcusedReportsEnabled     = care.KeyParentExcusedReportsEnabled
+	KeyParentExcusedRequiresApproval   = care.KeyParentExcusedRequiresApproval
+	KeyParentGuardianManagementEnabled = care.KeyParentGuardianManagementEnabled
+	KeyParentMasterDataEditEnabled     = care.KeyParentMasterDataEditEnabled
+	KeyParentMasterDataRequestEnabled  = care.KeyParentMasterDataRequestEnabled
+	KeyParentNotesEnabled              = care.KeyParentNotesEnabled
+	KeyParentPickupChangeCutoffTime    = care.KeyParentPickupChangeCutoffTime
+	KeyParentPickupChangeEnabled       = care.KeyParentPickupChangeEnabled
+	KeyParentRequestReasonPolicy       = care.KeyParentRequestReasonPolicy
+	KeyParentSickNoteEnabled           = care.KeyParentSickNoteEnabled
+	KeyParentSickReportsEnabled        = care.KeyParentSickReportsEnabled
+	KeyParentSickRequiresApproval      = care.KeyParentSickRequiresApproval
+	ParentInviteModeDirect             = care.ParentInviteModeDirect
+	ParentInviteModeDisabled           = care.ParentInviteModeDisabled
+	ParentInviteModeStaffApproval      = care.ParentInviteModeStaffApproval
+	ReasonPolicyBoth                   = care.ReasonPolicyBoth
+	ReasonPolicyGuardians              = care.ReasonPolicyGuardians
+	ReasonPolicyNobody                 = care.ReasonPolicyNobody
+	ReasonPolicyStaff                  = care.ReasonPolicyStaff
 )

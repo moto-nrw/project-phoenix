@@ -8,11 +8,10 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -145,7 +144,7 @@ func (s *Service) GuardianReasonRequired(ctx context.Context, tenantID int64) bo
 	if s.Settings == nil {
 		return true
 	}
-	policy, err := s.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyParentRequestReasonPolicy)
+	policy, err := s.Settings.ResolveStringForTenant(ctx, tenantID, KeyParentRequestReasonPolicy)
 	if err != nil {
 		s.Logger.Warn("parent: resolve reason policy failed, requiring a reason",
 			slog.Int64("tenant_id", tenantID),
@@ -153,5 +152,5 @@ func (s *Service) GuardianReasonRequired(ctx context.Context, tenantID int64) bo
 		)
 		return true
 	}
-	return configService.ReasonRequiredFor(policy, false)
+	return RequestReasonPolicy(policy).RequiresReason(false)
 }

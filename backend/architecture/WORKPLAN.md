@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 281 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 54 ·
+Stand 16.10.2026 · Ratchet 218 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 57 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 59.694 in `compose`
 
@@ -12,18 +12,26 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 90 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 54 |
-| [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 88 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 40 |
+| [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 7 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 10 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
-| [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 1 |
+| [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 281 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 218 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Kind-Ereignisse und Messaging-Aktivierungsprüfung laufen über eigene Workflow-Ports.
+Die Root übersetzt Ereignisse in Communications öffentlichen, typisierten Elternvertrag und
+bindet die gemeinsame Fail-open-Policy. Assertions, Empfänger-/Akteurtrennung, Referenzzeilen,
+After-Commit-Fan-out und Beziehungsschutz bleiben gleich. Der deklarationsbezogene Zugriff
+auf die Kompatibilitätsschicht bleibt vorerst bestehen. Zwei Keys fallen: Care und Compose
+nennen keinen konkreten Emitter mehr. Keys 230 → 228, #4073 42 → 40, Regeln 902 → 902,
+Composition 1.657 unverändert, Portal-Compose 507 LOC unverändert. Keine neue Freigabe.
 
 #4078: Der Meal-Plan-HTTP-Adapter liegt bereits unter `modules/mealplan/http` und gehört jetzt
 zu `meal-plan`; `inbound-mealplan` und seine zwei Regeln sind gelöscht. Eine gleich enge
@@ -83,7 +91,7 @@ Paketpfade, Go-Code, Keys (307), #4078-Keys (10) und Budgets bleiben unveränder
 #4078: Der Elternportal-HTTP-Adapter gehört zu `parent-portal`; `inbound-parent` entfällt.
 Die Owner-Zuordnung kommt vor der physischen Verschiebung: ADR 0020 verlangt bei einer
 Relocation denselben Owner und dieselben Rollen. Die Verschiebung nach
-`workflows/parentportal/http` folgt als eigener, schuldenneutraler Schnitt.
+`workflows/parentportal/http` ist ein eigener, schuldenneutraler Schnitt.
 Die stehende Root-Reichweite löst den einen #2750-Key `api → parent` auf.
 Laufzeit-Code, Routen, Antworten, Assertions und offene #4073-/#4004-Keys bleiben hier unverändert.
 Der bestehende endliche Parent-HTTP-Epochenschutz folgt nur dem Owner-Namen;
@@ -92,6 +100,89 @@ gleich enge Nachfolger bleiben. Der Retirement-Nachweis liegt
 in `parent-portal-http-owner-4078.json`; Composition und Budgets bleiben unverändert.
 Nach dem Merge von #4147: Inbound-Owner 23 → 22, Regeln 936 → 934, Keys 303 → 302;
 #2750 2 → 1, #4078 10 → 10 und #4079 15 → 15, Policy-Epoche 51 unverändert.
+
+#4078: Parent-HTTP liegt nach ADR 0020 unter `workflows/parentportal/http`.
+Owner, Produktions- und Testrollen sowie alle 52 Go-Dateinamen bleiben gleich.
+Die Relocation benennt drei bestehende #4073-Keys und vier Funktionslängen-Einträge
+nur um. Aktive Evidenz-Dateiverweise folgen den Dateien; historische Keys bleiben
+unverändert. Keine neuen Regeln, höheren Budgets oder geänderten Assertions/HTTP-Verträge.
+Policy-Epoche 54 → 55 nach dem Merge von #4156; 281 Keys und Composition 1.664 bleiben unverändert.
+
+#4078: Data Import übernimmt seinen HTTP-Adapter; `inbound-import` entfällt.
+Die Root hält die Middleware-/Identitäts-/Tenant-Verdrahtung und die fünf bisherigen
+HTTP-Suiten; deren Assertions bleiben unverändert. Der Decoder kommt über die
+bestehende Owner-Komposition. Workbook-Fixtures bleiben im Fileformat-Adapter,
+seine Rendering-Testregel entfällt. Dreizehn Regeln werden durch eine gleich enge
+Eigen-HTTP-Regel ersetzt; Inbound-Owner 22 → 21, Regeln 938 → 926,
+Keys 281 → 279, #4078 10 → 9, #2750 1 → 0. Composition bleibt gleich; das
+Compose-LOC-Budget sinkt um 131 und die verwaiste HTTP-ORM-Ausnahme entfällt.
+Der Retirement-Nachweis liegt in `data-import-http-owner-4078.json`.
+Die physische Verschiebung nach `modules/dataimport/http` folgt separat gemäß ADR 0020.
+
+#4078: Statistik-HTTP gehört zu `student-presence`; `inbound-statistics` entfällt.
+Die Root bindet dieselbe Berechtigungspaar-Prüfung, den Actor und den Export über
+verbraucherseitige HTTP-Ports. Das Dokument wird unverändert in den bestehenden
+Rendering-Vertrag übersetzt; keine zusätzliche Reichweite für andere HTTP-Pakete.
+Zwei Suiten laufen unverändert über die Root und bestehende Fixture-Zeilen statt
+über private Modelle; alle 144 Assertions bleiben erhalten. Sieben Regeln entfallen,
+kein Nachfolger: Die stehenden Regeln tragen Public/Common und den Root-Mount.
+Inbound-Owner 21 → 20, Regeln 925 → 918, Keys 273 → 270,
+#4078 9 → 6; Composition 1.664, Budgets und #4079 bleiben unverändert.
+Retirement-Nachweis: `statistics-http-owner-4078.json`.
+
+#4078: Die IoT-Datenrouten (`api/iot/data`) gehören zu `process-device-scan`;
+`inbound-iot-data` entfällt. Drei bestehende Regeln werden gleich eng ersetzt:
+Eigen-Public, das öffentliche Feedback und die bestehende IoT-Komposition zum
+HTTP-Adapter. Pfad, Produktions- und Testrollen bleiben gleich; kein Go-Code,
+keine Route, Response, IoT-Zeichenkette oder Assertion ändert sich.
+Inbound-Owner 20 → 19, Regeln 918 → 918; 270 Keys, #4078 6, Composition 1.664,
+Epoche 55 und alle Budgets bleiben unverändert. Die physische Relocation folgt
+separat gemäß ADR 0020.
+
+#4078: IoT-Staffclock und die gemeinsamen IoT-HTTP-Fehler gehören zu
+`process-device-scan`; `inbound-iot-staffclock` und `inbound-iot-internal-shared`
+entfallen. Drei überflüssige Regeln werden gelöscht, ohne Nachfolger: Die
+stehenden Scan-Public- und IoT-Kompositionsregeln decken die reklassifizierten
+HTTP-Pakete. Pfade, Produktions-/Testrollen, Go-Code, Verträge und Assertions
+bleiben unverändert. Inbound-Owner 19 → 17, Regeln 918 → 915; 270 Keys,
+#4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben unverändert.
+
+#4078: IoT-Check-in gehört zu `process-device-scan`; `inbound-iot-checkin`
+entfällt. Die Root-Testunterstützung baut für die bestehende Kiosk-Suite exakt
+wie zuvor das unbeobachtete Student-Presence-Modul. Nur Import und Konstruktor-
+Aufruf wechseln; alle Assertions und Produktionshandler bleiben unverändert.
+Drei Regeln entfallen, ohne Nachfolger. Inbound-Owner 17 → 16, Regeln 915 → 912;
+270 Keys, #4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben gleich.
+Keine IoT-Zeichenkette, Route oder Response ändert sich.
+
+#4078: Data-Import-HTTP und die vier übernommenen IoT-Pakete liegen nach
+ADR 0020 unter `modules/dataimport/http` bzw. `modules/devicescan/http`.
+Alle 61 Go-Dateinamen, Owner, Produktions- und Testrollen bleiben gleich.
+Import- und Registry-Pfade folgen den Dateien; der Funktionslängen-Eintrag
+behält seinen Wert 66, historische Retirement-Keys bleiben unverändert.
+Der IoT-Deklarations-Lookup folgt zwei verschobenen Dateien; kanonische
+Golden-Identitäten, Code-Tabelle, Header und Assertions bleiben unverändert.
+Der PyrePortal-Quellscan liest dieselben zwei verschobenen Dateien zusätzlich
+über seine bestehende Quellliste; Code-Liste und Assertions bleiben gleich.
+Der bisher nur unter `api/` liegende 139-Zeilen-Feedback-Handler wird für die
+Modulgrenze in private Schritte unter 60 Zeilen geteilt, ohne neue Allowlist.
+Row-Lock, Graduierten-Prüfung, Zeitstempel und Antworten bleiben in gleicher
+Reihenfolge; ein Inlining-Audit reproduziert alle ursprünglichen Statements.
+Epoche 55 → 56; 16 Inbound-Owner, 902 Regeln, 218 Keys, #4078 6,
+Composition 1.657 und alle Budgets bleiben unverändert. Keine Route, Response,
+IoT-Zeichenkette oder Assertion ändert sich.
+
+#4078: `api/iot/sessions` gehört jetzt als HTTP-Adapter zu
+`process-device-scan`; `inbound-iot-sessions` entfällt. Der Adapter erhält
+Session End über seinen eigenen Callback, den Root an denselben Workflow
+bindet. Close-Zeitpunkt, unveränderter Fehler, Status und Rollback bleiben
+gleich. Drei bisher interne Handlerfälle laufen über diese Root-Bindung und
+den öffentlichen Router; ihre elf Assertions und die 25 Assertions der
+HTTP-Suite bleiben vollständig unverändert. Die vorhandene Root-Testkomposition
+liefert die identischen Workflow-Werte, ohne neue Testrolle oder Regel.
+Vier Regeln entfallen ohne Nachfolger. Inbound-Owner 16 → 15, Regeln
+902 → 898; #4078 6, #4079 15, Composition 1.657 und alle Budgets bleiben
+gleich. Keine Route, Response oder IoT-Zeichenkette ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

@@ -14,7 +14,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -237,7 +237,7 @@ func NewAuthTestModule(db transactionruntime.Database, unit tenant.UnitOfWork, o
 	}, logger)
 	sessionRepos := SessionRepositoriesOf(r, organizations, audits.AuthEvent, deliveryCompose.NewPushSubscriptionRepository(db.Pool()))
 	if settingsOverrides.staffCreateErr != nil {
-		sessionRepos.Lifecycle.Staff = failingStaffDirectory{staffRows: r.Staff, err: settingsOverrides.staffCreateErr}
+		sessionRepos.Lifecycle.Membership = failingStaffMembership{lifecycleMembership: r.Membership, err: settingsOverrides.staffCreateErr}
 	}
 	// The operator flows are composed here too: the operator second factor
 	// and both portals' passkey ceremonies (#3331) mint their sessions
@@ -397,14 +397,16 @@ type IdentityAccessTestConfig struct {
 	RateLimitEnabled    bool
 }
 
-// failingStaffDirectory fails every staff insert; every other operation is
-// the real repository.
-type failingStaffDirectory struct {
-	staffRows
+// failingStaffMembership fails every staff insert; the caregiver profile
+// insert is the real owner command.
+type failingStaffMembership struct {
+	lifecycleMembership
 	err error
 }
 
-func (d failingStaffDirectory) Create(context.Context, *userModels.Staff) error { return d.err }
+func (d failingStaffMembership) CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error) {
+	return schoolmembership.Staff{}, d.err
+}
 
 // mfaTestSecret is the signing secret the composed test module derives its
 // trusted-device HMAC key from: the process configuration, exactly as the

@@ -9,6 +9,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -103,7 +104,7 @@ func TestTemplateEndFromDate_RequiresTenantBeforeMutation(t *testing.T) {
 	_, err := svc.EndFromDate(context.Background(), timetable.EndTemplateCommand{TemplateID: 201, EffectiveDate: future})
 
 	require.Error(t, err)
-	var scheduleErr *ScheduleError
+	var scheduleErr *ports.ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "end template", scheduleErr.Op)
 	assert.Zero(t, groupRepo.findCalls)
@@ -226,7 +227,7 @@ func TestTemplateEndFromDate_ErrorBranches(t *testing.T) {
 				require.ErrorIs(t, err, tt.wantErr)
 				return
 			}
-			var scheduleErr *ScheduleError
+			var scheduleErr *ports.ScheduleError
 			require.ErrorAs(t, err, &scheduleErr)
 			assert.Equal(t, tt.wantOp, scheduleErr.Op)
 		})

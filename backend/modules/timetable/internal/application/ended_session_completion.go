@@ -9,6 +9,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -46,7 +47,7 @@ type EndedSessionParticipants interface {
 type EndedSessionCompletionDependencies struct {
 	Instances    EndedSessionInstances
 	Participants EndedSessionParticipants
-	CareDays     CareDays
+	CareDays     ports.CareDays
 }
 
 type endedSessionCompletion struct {

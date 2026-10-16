@@ -5,23 +5,25 @@ import (
 	"errors"
 	"log/slog"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 )
 
 // Identity & Access owns the admin staff-view preview, staff offboarding
 // access, the school identity chain, parent accounts and guardian relative
-// access (#3225). This file binds the seams those flows need to the retained
-// owners the root still composes (persons, staff, teachers, students,
-// guardian profiles and relationships, the audit ledger, the guardian
-// invitation storage and delivery) and serves the retained auth service's
-// consumer-owned port over the public module.
+// access (#3225). This file binds the seams those flows need to the owners:
+// the identity chain's persons and invited guardian contacts are created
+// through the People Directory, as are the guardian profile and relationship
+// writes; staff and caregiver profiles go through School Membership, and the
+// guardian role class comes from Security Runtime. The reads, the audit
+// ledger and the guardian invitation storage and delivery are still bound to
+// the retained repositories the root composes.
 
 // LifecycleWiring is the retained material the lifecycle seams are bound to.
 // The module composition fills repos from the session repositories.
@@ -36,8 +38,29 @@ type LifecycleWiring struct {
 	GuardianMail *GuardianInvitationWiring
 }
 
-// LifecycleRepositories are the retained repositories the lifecycle seams
-// read and write.
+// lifecyclePeople are the People Directory commands the lifecycle writes
+// persons, invited guardian contacts and guardian relationships through.
+type lifecyclePeople interface {
+	CreateSchoolIdentityPerson(context.Context, peopledirectory.SchoolIdentityPerson) (int64, error)
+	LinkAccount(ctx context.Context, personID, accountID int64) error
+	LinkTag(ctx context.Context, personID int64, tagID string) error
+	CreateInvitedGuardian(context.Context, peopledirectory.InvitedGuardian) (int64, error)
+	DeleteGuardianProfile(ctx context.Context, guardianID int64) error
+	LinkGuardianProfileToAccount(ctx context.Context, guardianID, accountID int64) error
+	LinkInvitedGuardian(context.Context, peopledirectory.InvitedGuardianLink) (bool, error)
+	PromoteGuardianLinkToLegalGuardian(ctx context.Context, linkID int64) error
+	DeleteStudentGuardianLink(ctx context.Context, linkID int64) error
+}
+
+// lifecycleMembership are the School Membership commands the lifecycle
+// creates staff and caregiver profiles through.
+type lifecycleMembership interface {
+	CreateStaff(context.Context, schoolmembership.CreateStaff) (schoolmembership.Staff, error)
+	CreateTeacher(context.Context, schoolmembership.CreateTeacher) (schoolmembership.Teacher, error)
+}
+
+// LifecycleRepositories are the identity chain the lifecycle seams read and
+// write: the retained repositories and the owner commands.
 type LifecycleRepositories struct {
 	Persons          personRows
 	Staff            staffRows
@@ -46,13 +69,17 @@ type LifecycleRepositories struct {
 	GuardianProfiles guardianProfileRows
 	StudentGuardians studentGuardianRows
 	authEvents       authEventLedger
+	// People and Membership create the persons, invited guardian contacts,
+	// staff and caregiver profiles.
+	People     lifecyclePeople
+	Membership lifecycleMembership
 }
 
 func (w LifecycleWiring) complete() bool {
 	r := w.repos
 	return r.Persons != nil && r.Staff != nil && r.Teachers != nil && r.Students != nil &&
-		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.authEvents != nil && w.Audit != nil &&
-		w.Caregivers.complete()
+		r.GuardianProfiles != nil && r.StudentGuardians != nil && r.authEvents != nil && r.People != nil && r.Membership != nil &&
+		w.Audit != nil && w.Caregivers.complete()
 }
 
 func lifecycleDependencies(wiring *LifecycleWiring, logger *slog.Logger) (*identityaccessCompose.LifecycleDependencies, error) {
@@ -60,7 +87,7 @@ func lifecycleDependencies(wiring *LifecycleWiring, logger *slog.Logger) (*ident
 		return nil, nil
 	}
 	if !wiring.complete() {
-		return nil, errors.New("identity access composition: every lifecycle repository, the audit command and the caregiver profiles are required")
+		return nil, errors.New("identity access composition: every lifecycle repository and owner command, the audit command and the caregiver profiles are required")
 	}
 	delivery, enrollments, err := guardianInvitationDependencies(wiring.GuardianMail)
 	if err != nil {
@@ -153,21 +180,20 @@ func (d staffDirectory) FindPersonNames(ctx context.Context, accountIDs []int64)
 	return personNames(persons), nil
 }
 
+// CreatePerson creates the person at the school in context; the flows run in
+// that school's transaction, so record.TenantID names the same school.
 func (d staffDirectory) CreatePerson(ctx context.Context, record identityaccessCompose.PersonRecord) (int64, error) {
-	person := &userModels.Person{FirstName: record.FirstName, LastName: record.LastName, TagID: record.TagID}
-	person.SetTenantID(record.TenantID)
-	if err := d.repos.Persons.Create(ctx, person); err != nil {
-		return 0, err
-	}
-	return person.ID, nil
+	return d.repos.People.CreateSchoolIdentityPerson(ctx, peopledirectory.SchoolIdentityPerson{
+		FirstName: record.FirstName, LastName: record.LastName, TagID: record.TagID,
+	})
 }
 
 func (d staffDirectory) LinkPersonToAccount(ctx context.Context, personID, accountID int64) error {
-	return d.repos.Persons.LinkToAccount(ctx, personID, accountID)
+	return d.repos.People.LinkAccount(ctx, personID, accountID)
 }
 
 func (d staffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error {
-	return d.repos.Persons.LinkToRFIDCard(ctx, personID, tagID)
+	return d.repos.People.LinkTag(ctx, personID, tagID)
 }
 
 // IsStudentPerson: the repository reports "not a student" as sql.ErrNoRows
@@ -197,10 +223,11 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 	return staffMember(staff), true, nil
 }
 
-func (d staffDirectory) CreateStaff(ctx context.Context, tenantID, personID int64) (int64, error) {
-	staff := &userModels.Staff{PersonID: personID}
-	staff.SetTenantID(tenantID)
-	if err := d.repos.Staff.Create(ctx, staff); err != nil {
+// CreateStaff creates the staff row at the school in context, which is the
+// school tenantID names.
+func (d staffDirectory) CreateStaff(ctx context.Context, _, personID int64) (int64, error) {
+	staff, err := d.repos.Membership.CreateStaff(ctx, schoolmembership.CreateStaff{StaffFields: schoolmembership.StaffFields{PersonID: personID}})
+	if err != nil {
 		return 0, err
 	}
 	return staff.ID, nil
@@ -224,10 +251,11 @@ func (d staffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID i
 	return d.caregivers.hasLive(ctx, accountID)
 }
 
-func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error) {
-	teacher := &userModels.Teacher{StaffID: staffID, Role: position}
-	teacher.SetTenantID(tenantID)
-	if err := d.repos.Teachers.Create(ctx, teacher); err != nil {
+// CreateCaregiverProfile creates the caregiver profile at the school in
+// context, which is the school tenantID names.
+func (d staffDirectory) CreateCaregiverProfile(ctx context.Context, _, staffID int64, position string) (int64, error) {
+	teacher, err := d.repos.Membership.CreateTeacher(ctx, schoolmembership.CreateTeacher{TeacherFields: schoolmembership.TeacherFields{StaffID: staffID, Role: position}})
+	if err != nil {
 		return 0, err
 	}
 	return teacher.ID, nil
@@ -340,30 +368,20 @@ func (d guardianDirectory) FindGuardianProfiles(ctx context.Context, ids []int64
 	return result, nil
 }
 
+// CreateGuardianProfile creates the invited contact at the school in context;
+// the invite flow takes record.TenantID from that context.
 func (d guardianDirectory) CreateGuardianProfile(ctx context.Context, record identityaccessCompose.GuardianProfile) (int64, error) {
-	email := record.Email
-	profile := &userModels.GuardianProfile{
-		FirstName: record.FirstName, LastName: record.LastName, Email: &email,
-		PreferredContactMethod: "email", LanguagePreference: "de",
-	}
-	if record.TenantID > 0 {
-		profile.SetTenantID(record.TenantID)
-	}
-	if err := profile.Validate(); err != nil {
-		return 0, err
-	}
-	if err := d.repos.GuardianProfiles.Create(ctx, profile); err != nil {
-		return 0, err
-	}
-	return profile.ID, nil
+	return d.repos.People.CreateInvitedGuardian(ctx, peopledirectory.InvitedGuardian{
+		FirstName: record.FirstName, LastName: record.LastName, Email: record.Email,
+	})
 }
 
 func (d guardianDirectory) DeleteGuardianProfile(ctx context.Context, id int64) error {
-	return d.repos.GuardianProfiles.Delete(ctx, id)
+	return d.repos.People.DeleteGuardianProfile(ctx, id)
 }
 
 func (d guardianDirectory) LinkGuardianProfileToAccount(ctx context.Context, profileID, accountID int64) error {
-	return d.repos.GuardianProfiles.LinkAccount(ctx, profileID, accountID)
+	return d.repos.People.LinkGuardianProfileToAccount(ctx, profileID, accountID)
 }
 
 func (d guardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (identityaccessCompose.StudentGuardianLink, bool, error) {
@@ -380,27 +398,17 @@ func (d guardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context,
 	return studentGuardianLink(link), true, nil
 }
 
+// LinkStudentGuardianIfAbsent links in the school in context; the invite
+// flows take link.TenantID from that same context.
 func (d guardianDirectory) LinkStudentGuardianIfAbsent(ctx context.Context, link identityaccessCompose.StudentGuardianLink) (bool, error) {
-	rel := &userModels.StudentGuardian{
+	return d.repos.People.LinkInvitedGuardian(ctx, peopledirectory.InvitedGuardianLink{
 		StudentID: link.StudentID, GuardianProfileID: link.GuardianProfileID,
 		RelationshipType: link.RelationshipType, EmergencyPriority: link.EmergencyPriority,
-	}
-	if link.TenantID > 0 {
-		rel.SetTenantID(link.TenantID)
-	}
-	return d.repos.StudentGuardians.LinkIfNotExists(ctx, rel)
+	})
 }
 
 func (d guardianDirectory) PromoteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	link, err := d.repos.StudentGuardians.FindByID(ctx, linkID)
-	if err != nil {
-		return err
-	}
-	if link == nil {
-		return userModels.ErrStudentGuardianNotFound
-	}
-	peopleCompose.ApplyGuardianRolePreset(guardianRolePresets, link, securityruntime.GuardianRoleLegalGuardian)
-	return d.repos.StudentGuardians.Update(ctx, link)
+	return d.repos.People.PromoteGuardianLinkToLegalGuardian(ctx, linkID)
 }
 
 func studentGuardianLinks(links []*userModels.StudentGuardian) []identityaccessCompose.StudentGuardianLink {
@@ -430,14 +438,14 @@ func (d guardianDirectory) ListStudentGuardianLinksByProfile(ctx context.Context
 }
 
 func (d guardianDirectory) DeleteStudentGuardianLink(ctx context.Context, linkID int64) error {
-	return d.repos.StudentGuardians.Delete(ctx, linkID)
+	return d.repos.People.DeleteStudentGuardianLink(ctx, linkID)
 }
 
 func (d guardianDirectory) GuardianRoleClass(role string) identityaccessCompose.GuardianRoleClass {
-	switch {
-	case securityruntime.IsFullGuardianRole(role):
+	switch securityruntime.ClassifyGuardianRole(role) {
+	case securityruntime.GuardianRoleClassFull:
 		return identityaccessCompose.GuardianRoleFull
-	case isSocialWorkerGuardianRole(role):
+	case securityruntime.GuardianRoleClassSocialWorker:
 		return identityaccessCompose.GuardianRoleSocialWorker
 	default:
 		return identityaccessCompose.GuardianRoleRestricted
@@ -486,11 +494,4 @@ func (a financialAudit) RecordPayerRemoved(ctx context.Context, guardianProfileI
 		NewValue:          "false",
 		Note:              "Erziehungsberechtigte Person vom Kind entfernt",
 	})
-}
-
-// isSocialWorkerGuardianRole reports whether the stored relationship role is
-// the school-managed social worker preset.
-func isSocialWorkerGuardianRole(role string) bool {
-	normalized, _ := securityruntime.StudentGuardianRolePreset(role)
-	return normalized == securityruntime.GuardianRoleSocialWorker
 }

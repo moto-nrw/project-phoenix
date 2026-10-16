@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // Service implements the ActivityService interface
@@ -17,7 +18,7 @@ type Service struct {
 	supervisorRepo  activities.SupervisorPlannedRepository
 	enrollmentRepo  activities.StudentEnrollmentRepository
 	activeGroupRepo activityOccupancy
-	staffRepo       LifecycleStaff
+	staffRepo       ports.LifecycleStaff
 	studentRepo     RosterStudents
 }
 
@@ -33,7 +34,7 @@ func NewService(
 	supervisorRepo activities.SupervisorPlannedRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	activeGroupRepo activityOccupancy,
-	staffRepo LifecycleStaff,
+	staffRepo ports.LifecycleStaff,
 	studentRepo RosterStudents,
 ) (*Service, error) {
 	return &Service{
@@ -66,8 +67,6 @@ const (
 	opDeleteSupervisor     = "delete supervisor"
 	opCheckPermissions     = "check permissions"
 )
-
-// ======== Category Methods ========
 
 // CreateCategory creates a new activity category
 func (s *Service) CreateCategory(ctx context.Context, category *activities.Category) (*activities.Category, error) {

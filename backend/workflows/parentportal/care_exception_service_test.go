@@ -13,7 +13,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -107,7 +107,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		StudentRepo:    repos.Student,
 		CareExceptions: records,
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),
@@ -139,7 +139,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		StudentRepo:    repos.Student,
 		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: pickupChangeEnabled},
+			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
 		},
 		Broadcaster: bc,
 		Logger:      slog.Default(),
@@ -834,7 +834,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		StudentRepo:    repos.Student,
 		CareExceptions: stubArrivalRepo{CareExceptions: repos.CarePlan(), findErr: errBoom},
 		Settings: parentSettingsStub{
-			boolValues: map[string]bool{configModels.KeyParentPickupChangeEnabled: true},
+			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),

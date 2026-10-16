@@ -878,6 +878,44 @@ func TestListGroupsToleratesMissingRoomNames(t *testing.T) {
 	assert.Nil(t, empty)
 }
 
+// TestListGroupsSortsWithTheInjectedCollation pins that the projection, not
+// the directory, orders the visible groups: bytewise comparison puts "Zebra"
+// ahead of "Äpfel", so the directory order cannot pass for the sorted one.
+func TestListGroupsSortsWithTheInjectedCollation(t *testing.T) {
+	t.Parallel()
+
+	names := func(groups []Group) []string {
+		result := make([]string, 0, len(groups))
+		for _, group := range groups {
+			result = append(result, group.Name)
+		}
+		return result
+	}
+	withCollation := func(f *fakes) Query {
+		return New(Dependencies{
+			Access: f, Groups: f, Roster: f, Presence: f, Planning: f, Transfers: f,
+			Settings: f, Calendar: f, ExcusedRequests: f, Collate: strings.Compare,
+		})
+	}
+
+	supervised := &fakes{caller: fullCaller, supervisedGroups: func(context.Context) ([]GroupRecord, error) { return twoGroups(), nil }}
+	got, err := withCollation(supervised).ListGroups(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Zebra", "Äpfel"}, names(got), "the supervised groups follow the collation")
+
+	overview := &fakes{
+		caller: func(context.Context) (Caller, error) {
+			return Caller{CanReadGroups: true, OperationalOverview: true}, nil
+		},
+		tenantGroups: func(context.Context) ([]GroupRecord, error) {
+			return append(twoGroups(), GroupRecord{ID: 3, Name: "Mitte"}), nil
+		},
+	}
+	got, err = withCollation(overview).ListGroups(context.Background())
+	require.NoError(t, err)
+	assert.Equal(t, []string{"Mitte", "Zebra", "Äpfel"}, names(got), "the tenant groups follow the collation")
+}
+
 func TestNewRejectsIncompleteWiring(t *testing.T) {
 	t.Parallel()
 

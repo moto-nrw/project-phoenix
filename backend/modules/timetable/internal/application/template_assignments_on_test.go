@@ -7,6 +7,7 @@ import (
 	"time"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -88,7 +89,7 @@ func TestTemplateAssignmentsOn_NilDependencies(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, assignments.StudentIDs)
 	assert.Nil(t, assignments.StaffIDs)
-	var scheduleErr *ScheduleError
+	var scheduleErr *ports.ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Contains(t, scheduleErr.Op, "validate dependencies")
 }

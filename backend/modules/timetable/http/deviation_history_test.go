@@ -11,7 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +69,7 @@ func TestDeviationHistory_ReturnsEventsWithResolvedNames(t *testing.T) {
 	}
 	require.Len(t, mine, 1)
 	ev := mine[0]
-	assert.Equal(t, timetableCompose.DeviationEventSubstitution, ev.EventType)
+	assert.Equal(t, timetablePorts.DeviationEventSubstitution, ev.EventType)
 	require.NotNil(t, ev.SubjectStaffName)
 	assert.Contains(t, *ev.SubjectStaffName, "Planned", "subject staff display name resolved")
 	require.NotNil(t, ev.RelatedStaffName)

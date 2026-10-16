@@ -8,7 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -309,7 +309,7 @@ func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, p
 // contact/pickup management feature switched on
 // (operations.parent_guardian_management_enabled).
 func (s *Service) guardianManagementEnabled(ctx context.Context, tenantID int64) (bool, error) {
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, configModels.KeyParentGuardianManagementEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, KeyParentGuardianManagementEnabled)
 	if err != nil {
 		return false, fmt.Errorf("parent: resolve guardian-management setting: %w", err)
 	}

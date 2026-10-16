@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/devicescan"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
@@ -21,6 +22,7 @@ import (
 	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
@@ -45,7 +47,7 @@ type ActiveTestModule struct {
 	ArrivalSchedule     careplan.ArrivalScheduleService
 	TimetableOperations timetable.OperationCapability
 	CareDay             careplan.CareDayQuery
-	Instance            *arrivalTimetable.InstanceLifecycleService
+	Instance            timetablePorts.InstanceLifecycle
 	// Deviations are the Timetable owner's deviation writes over the same
 	// repositories (#3424 slice S3).
 	Deviations           timetable.StaffDeviations
@@ -224,9 +226,11 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{Active: presence, ActiveGroups: OpenRoomSessionPresence{Presence: NewLoggedStudentPresence(db, logger), Activities: timetableOwner},
-		OpenVisits: presence, Rooms: OpenRoomDirectory{Rooms: rooms}, UserContext: SupervisionCaller{CallerRows: groups.UserContext}, Education: groups.Education,
-		Schulhof: yard, Operations: operations, Settings: settings.Settings, Pickups: pickups, Arrivals: arrivals, Now: OptionalClock(clocks)})
+	caller := SupervisionCaller{CallerRows: groups.UserContext}
+	dashboard, err := supervisiondashboardCompose.New(supervisiondashboardCompose.Sources{Access: newSupervisionAccess(settings.Settings, caller),
+		Active: presence, ActiveGroups: OpenRoomSessionPresence{Presence: NewLoggedStudentPresence(db, logger), Activities: timetableOwner},
+		OpenVisits: presence, Rooms: OpenRoomDirectory{Rooms: rooms}, UserContext: caller, Education: groups.Education,
+		Yard: newSupervisionYard(yard), Operations: operations, Settings: newSupervisionSettings(settings.Settings), Pickups: pickups, Arrivals: arrivals, Now: OptionalClock(clocks)})
 	if err != nil {
 		return ActiveTestModule{}, fmt.Errorf("compose supervision dashboard projection: %w", err)
 	}
@@ -237,7 +241,21 @@ func NewActiveTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return ActiveTestModule{}, err
 	}
-	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: supervisiondashboardCompose.NewYard(yard)},
+	return ActiveTestModule{GroupsTestModule: groups, IoTDataTestModule: data, Settings: settings.Settings, Schulhof: activeTestYard{SchulhofService: yard, Yard: newSupervisionYard(yard)},
 		PickupSchedule: pickups, ArrivalSchedule: arrivals, TimetableOperations: operations, SupervisionDashboard: dashboard, CareDay: careDay, Instance: tt.Instance, Deviations: tt.TimetableData.Deviations,
 		SessionEnd: sessionEnd, SessionLifecycle: devicescanCompose.NewSessionLifecycle(presence, devicescanCompose.NewSupervisionQuery(NewLoggedStudentPresence(db, logger)), data.Users, data.IoT, nil, logger)}, nil
+}
+
+// Session-end HTTP fixtures use the same values the root binds in production.
+type iotTestSessionLifecycle = devicescan.SessionLifecycle
+type iotTestSessionToEnd = devicescan.SessionToEnd
+type iotTestSessionEndResult = sessionend.Result
+type iotTestSessionConflict = devicescan.ConflictInfoResponse
+
+func iotSessionEndTestFailures() (notFound, alreadyEnded error) {
+	return sessionend.ErrSessionNotFound, sessionend.ErrSessionAlreadyEnded
+}
+
+func iotSessionEndTestInvalidRequest(message string) error {
+	return devicescan.InvalidRequest(message)
 }

@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -34,27 +34,29 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
 	require.NoError(t, err)
-	return parentportalcompose.New(parentportalcompose.Dependencies{
-		CarePlan:            repos.CarePlan(),
-		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChild,
-		StudentRepo:         repos.Student,
-		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		Settings: parentSettingsStub{
-			boolValues: map[string]bool{
-				configModels.KeyParentSickNoteEnabled:           true,
-				configModels.KeyParentNotesEnabled:              true,
-				configModels.KeyParentCareArrivalRequestEnabled: true,
-				configModels.KeyParentCarePickupRequestEnabled:  true,
-				configModels.KeyParentCareModeRequestEnabled:    true,
-			},
-			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
-			},
+	settings := parentSettingsStub{
+		boolValues: map[string]bool{
+			parentService.KeyParentSickNoteEnabled:           true,
+			parentService.KeyParentNotesEnabled:              true,
+			parentService.KeyParentCareArrivalRequestEnabled: true,
+			parentService.KeyParentCarePickupRequestEnabled:  true,
+			parentService.KeyParentCareModeRequestEnabled:    true,
 		},
+		stringValues: map[string]string{
+			parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
+		},
+	}
+	return parentportalcompose.New(parentportalcompose.Dependencies{
+		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:               repos.CarePlan(),
+		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:           careProfiles(t, db),
+		ChildRepo:              repos.ParentChild,
+		StudentRepo:            repos.Student,
+		StudentGuardianRepo:    repos.StudentGuardian,
+		GuardianProfileRepo:    repos.GuardianProfile,
+		PersonRepo:             repos.Person,
+		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
 		Broadcaster:            testpkg.NewRecordingBroadcaster(),
 		ArrivalSchedules:       sf.ArrivalSchedule,

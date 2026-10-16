@@ -1,16 +1,13 @@
 package parentaudience
 
-import (
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
-	"github.com/uptrace/bun"
-)
+import "github.com/uptrace/bun"
 
 // guardianLinks is the guardian-link projection (#2756) a query joins as sg.
 // A positive school scopes it the way the old `sg.tenant_id = ?` did; zero
 // leaves the school to the feed queries' own correlation with the
 // announcement row.
-func guardianLinks(db bun.IDB, schoolID int64) *bun.SelectQuery {
-	return guardianlinkview.Query(db, schoolID)
+func (p *Projection) guardianLinks(db bun.IDB, schoolID int64) *bun.SelectQuery {
+	return p.links.GuardianLinkRows(db, schoolID)
 }
 
 // The care row is an existence filter, just as in the former compatibility

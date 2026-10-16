@@ -15,11 +15,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -222,7 +221,7 @@ func (s *offeringChangesStub) EarliestEffectiveFrom(
 }
 
 type offeringChangeSettingsStub struct {
-	configSvc.SettingsService
+	SettingsService
 	enabled              bool
 	careOfferingsEnabled *bool
 	err                  error
@@ -235,7 +234,7 @@ func (s offeringChangeSettingsStub) ResolveBoolForTenant(
 	_ int64,
 	key string,
 ) (bool, error) {
-	if key == configModel.KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
+	if key == KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
 		return *s.careOfferingsEnabled, s.err
 	}
 	return s.enabled, s.err
@@ -584,7 +583,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 
 	tests := []struct {
 		name       string
-		settings   configSvc.SettingsService
+		settings   SettingsService
 		child      *Child
 		period     *CarePeriod
 		want       bool

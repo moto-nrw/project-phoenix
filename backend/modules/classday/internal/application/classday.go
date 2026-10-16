@@ -4,9 +4,9 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/schoolclass"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 )
 
 // ClassDayDependencies wires the school-portal capability of the projection.
@@ -82,7 +82,7 @@ func resolveRequestedClass(requested string, assigned []string) (string, error) 
 		return assigned[0], nil
 	}
 	for _, class := range assigned {
-		if schoolclass.Normalize(class) == schoolclass.Normalize(requested) {
+		if schoolstructure.NormalizeClass(class) == schoolstructure.NormalizeClass(requested) {
 			return class, nil
 		}
 	}

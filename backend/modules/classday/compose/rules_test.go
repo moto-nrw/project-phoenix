@@ -3,10 +3,10 @@ package compose_test
 import (
 	"testing"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 func ptrDate(d calendar.Date) *calendar.Date { return &d }
@@ -32,27 +32,27 @@ func TestRulesEnrolledOn_ImmediateActivation(t *testing.T) {
 	}{
 		{
 			name:    "active child with future enrolled_from is eligible now (immediate activation)",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledFrom: ptrDate(future)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledFrom: ptrDate(future)},
 			want:    true,
 		},
 		{
 			name:    "expired child without attendance is excluded",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledUntil: ptrDate(past)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledUntil: ptrDate(past)},
 			want:    false,
 		},
 		{
 			name:    "pending child before enrolled_from is excluded (interval is source of truth)",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusPending), EnrolledFrom: ptrDate(future)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusPending, EnrolledFrom: ptrDate(future)},
 			want:    false,
 		},
 		{
 			name:    "pending child already enrolled on the date is included",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusPending), EnrolledFrom: ptrDate(past)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusPending, EnrolledFrom: ptrDate(past)},
 			want:    true,
 		},
 		{
 			name:    "inactive legacy child without enrollment bounds is excluded",
-			student: ports.StudentFacts{Status: string(userModels.StudentStatusInactive)},
+			student: ports.StudentFacts{Status: testpkg.StudentStatusInactive},
 			want:    false,
 		},
 	}
@@ -79,7 +79,7 @@ func TestRulesEnrolledOn_HistoricalDateBeforeEnrollment(t *testing.T) {
 	withinWindow := today.AddDays(-10)
 
 	activeChild := func(from calendar.Date) ports.StudentFacts {
-		return ports.StudentFacts{Status: string(userModels.StudentStatusActive), EnrolledFrom: ptrDate(from)}
+		return ports.StudentFacts{Status: testpkg.StudentStatusActive, EnrolledFrom: ptrDate(from)}
 	}
 	rules := compose.Rules{}
 

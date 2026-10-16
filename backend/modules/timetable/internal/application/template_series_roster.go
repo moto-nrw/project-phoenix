@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -87,7 +88,7 @@ func (s *TemplateService) reconcileSeriesPredecessorRoster(
 	}
 	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
 	if err != nil {
-		return &ScheduleError{Op: "update template: resolve series roster", Err: err}
+		return &ports.ScheduleError{Op: "update template: resolve series roster", Err: err}
 	}
 
 	reconciled := 0
@@ -283,11 +284,11 @@ func (s *TemplateService) reconcilePredecessorSegmentRoster(
 	// child staff had hand-removed from one occurrence from being resurrected.
 	priorEnrollments, err := s.deps.StudentEnrollmentRepo.FindByGroupID(ctx, seg.Group.ID)
 	if err != nil {
-		return &ScheduleError{Op: "update template: load predecessor enrollments", Err: err}
+		return &ports.ScheduleError{Op: "update template: load predecessor enrollments", Err: err}
 	}
 	priorSupervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, seg.Group.ID)
 	if err != nil {
-		return &ScheduleError{Op: "update template: load predecessor supervisors", Err: err}
+		return &ports.ScheduleError{Op: "update template: load predecessor supervisors", Err: err}
 	}
 
 	// A weekday already supplied by an externally-owned row (care offering,
@@ -330,7 +331,7 @@ func (s *TemplateService) reconcilePredecessorOccurrences(
 		if _, _, err := s.newRosterReconciler().reconcileSourcedTemplateRosters(
 			ctx, templateID, touchedStudents, from, priorEnrollments,
 		); err != nil {
-			return &ScheduleError{Op: "update template: reconcile predecessor occurrences", Err: err}
+			return &ports.ScheduleError{Op: "update template: reconcile predecessor occurrences", Err: err}
 		}
 	}
 	if len(touchedStaff) > 0 && s.deps.ActivityInstanceRepo != nil && s.deps.InstanceStaffRepo != nil {
@@ -391,7 +392,7 @@ func (s *TemplateService) reconcilePredecessorEnrollmentRows(
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
-			return nil, &ScheduleError{Op: "update template: create predecessor enrollment", Err: err}
+			return nil, &ports.ScheduleError{Op: "update template: create predecessor enrollment", Err: err}
 		}
 		touched[key.personID] = true
 	}
@@ -410,11 +411,11 @@ func (s *TemplateService) retirePredecessorEnrollment(
 	switch classifyOwnedRosterRetirement(judged.validFrom, judged.validUntil, true, window.from, window.until) {
 	case rosterRetirementDelete:
 		if err := s.deps.StudentEnrollmentRepo.Delete(ctx, row.ID); err != nil {
-			return false, &ScheduleError{Op: "update template: delete predecessor enrollment", Err: err}
+			return false, &ports.ScheduleError{Op: "update template: delete predecessor enrollment", Err: err}
 		}
 	case rosterRetirementClose:
 		if err := s.deps.StudentEnrollmentRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(window.from)); err != nil {
-			return false, &ScheduleError{Op: "update template: close predecessor enrollment", Err: err}
+			return false, &ports.ScheduleError{Op: "update template: close predecessor enrollment", Err: err}
 		}
 	default:
 		return false, nil
@@ -475,7 +476,7 @@ func (s *TemplateService) reconcilePredecessorSupervisorRows(
 		}
 		supervisor.SetTenantID(tenantID)
 		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {
-			return nil, &ScheduleError{Op: "update template: create predecessor supervisor", Err: err}
+			return nil, &ports.ScheduleError{Op: "update template: create predecessor supervisor", Err: err}
 		}
 		touched[key.personID] = true
 	}
@@ -514,11 +515,11 @@ func (s *TemplateService) retirePredecessorSupervisor(
 	switch classifyOwnedRosterRetirement(judged.validFrom, judged.validUntil, true, window.from, window.until) {
 	case rosterRetirementDelete:
 		if err := s.deps.ActivitySupervisorRepo.Delete(ctx, row.ID); err != nil {
-			return false, &ScheduleError{Op: "update template: delete predecessor supervisor", Err: err}
+			return false, &ports.ScheduleError{Op: "update template: delete predecessor supervisor", Err: err}
 		}
 	case rosterRetirementClose:
 		if err := s.deps.ActivitySupervisorRepo.SetValidUntilByID(ctx, row.ID, activitiesModel.Date(window.from)); err != nil {
-			return false, &ScheduleError{Op: "update template: close predecessor supervisor", Err: err}
+			return false, &ports.ScheduleError{Op: "update template: close predecessor supervisor", Err: err}
 		}
 	default:
 		return false, nil

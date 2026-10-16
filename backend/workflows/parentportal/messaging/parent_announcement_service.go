@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -436,7 +435,7 @@ func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, an
 	if s.Settings == nil {
 		return false
 	}
-	key := configModel.KeyParentNewsEnabled
+	key := care.KeyParentNewsEnabled
 	on, err := s.Settings.ResolveBoolForTenant(ctx, tenantID, key)
 	if err != nil {
 		s.Logger.Warn("parent: resolve announcement feature flag failed, hiding announcement",
@@ -464,7 +463,7 @@ func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (u
 		return scope, nil
 	}
 	for _, tenantID := range allTenantIDs {
-		if s.tenantFlag(ctx, tenantID, configModel.KeyParentNewsEnabled) {
+		if s.tenantFlag(ctx, tenantID, care.KeyParentNewsEnabled) {
 			scope.TenantIDs = append(scope.TenantIDs, tenantID)
 		}
 		scope.SystemOnlyTenantIDs = append(scope.SystemOnlyTenantIDs, tenantID)
