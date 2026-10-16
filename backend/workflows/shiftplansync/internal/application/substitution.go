@@ -43,10 +43,17 @@ type ScheduleInstanceStaff interface {
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error)
 }
 
+// ScheduleStaff reads the staff members with their persons the overview
+// names.
+type ScheduleStaff interface {
+	FindWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
+	ListAllWithPerson(ctx context.Context) ([]*userModels.Staff, error)
+}
+
 type SubstitutionAdapterDependencies struct {
 	Instances     ScheduleInstances
 	InstanceStaff ScheduleInstanceStaff
-	Staff         userModels.StaffRepository
+	Staff         ScheduleStaff
 	Engine        ScheduleDeviations
 	Broadcaster   realtime.Broadcaster
 	Logger        *slog.Logger

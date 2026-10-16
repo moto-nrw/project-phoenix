@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // deviceAPIKeyConstraint is the unique constraint PostgreSQL generated for
@@ -177,9 +178,9 @@ func provisioningDevice(device devicefleet.Device) organizationCompose.Provision
 // API key constraint and, for any other one, the per-school device ID.
 func deviceWriteError(err error) error {
 	switch {
-	case userModels.IsUniqueViolationOn(err, deviceAPIKeyConstraint):
+	case transactionruntime.IsUniqueViolationOn(err, deviceAPIKeyConstraint):
 		return fmt.Errorf("%w: %w", organizationCompose.ErrDeviceAPIKeyTaken, err)
-	case userModels.IsUniqueViolation(err):
+	case transactionruntime.IsUniqueViolation(err):
 		return fmt.Errorf("%w: %w", organizationCompose.ErrDeviceIDTaken, err)
 	default:
 		return err
@@ -363,7 +364,7 @@ func (c provisioningCategories) SeedCategories(ctx context.Context, tenantID int
 	schoolCtx := peopleCompose.WithCallerTenant(ctx, tenantID)
 	for _, value := range categories {
 		if err := c.categories.CreateCategory(schoolCtx, value.Name, value.Description, value.Color); err != nil {
-			if userModels.IsUniqueViolation(err) {
+			if transactionruntime.IsUniqueViolation(err) {
 				continue
 			}
 			return err

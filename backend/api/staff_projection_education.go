@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
@@ -297,7 +298,7 @@ func NewEducationHandovers(substitutions GroupSubstitutionRepository) EducationH
 func (h EducationHandovers) Create(ctx context.Context, handover *educationRepo.GroupSubstitution) error {
 	row := workforceSubstitution(handover)
 	if err := h.substitutions.Create(ctx, row); err != nil {
-		if userModels.IsUniqueViolation(err) {
+		if transactionruntime.IsUniqueViolation(err) {
 			return educationRepo.ErrHandoverExists
 		}
 		return err

@@ -13,6 +13,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -36,7 +37,7 @@ type payrollScenario struct {
 }
 
 type serializingStaffRepo struct {
-	userModels.StaffRepository
+	peopleVocabulary.StaffRepository
 	calls           atomic.Int32
 	firstLocked     chan struct{}
 	secondAttempted chan struct{}
@@ -85,7 +86,7 @@ func newPayrollScenario(t *testing.T) *payrollScenario {
 	return &payrollScenario{db: db, repos: repos, svc: svc, ctx: testpkg.Ctx(t), updateStaff: updateStaff}
 }
 
-func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff userModels.StaffRepository) api.StaffAdminDependencies {
+func payrollAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory, staff peopleVocabulary.StaffRepository) api.StaffAdminDependencies {
 	return api.StaffAdminDependencies{
 		DB: testpkg.MustDatabase(db), Staff: staff, Persons: repos.Person, Membership: repos.SchoolMembership(),
 		MasterDataAudit: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).StaffMasterDataChange, PersonnelNumber: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).PersonnelNumberChange, DataAccessLog: api.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).DataAccessLog,

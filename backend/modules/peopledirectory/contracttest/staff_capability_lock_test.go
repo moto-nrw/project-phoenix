@@ -7,13 +7,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-func newCaregiverBindingLocker(db *bun.DB) userModels.CaregiverBindingLocker {
+func newCaregiverBindingLocker(db *bun.DB) peopleVocabulary.CaregiverBindingLocker {
 	return api.NewPeopleRepositorySuiteCaregiverBindingLocker(testpkg.MustDatabase(db))
 }
 

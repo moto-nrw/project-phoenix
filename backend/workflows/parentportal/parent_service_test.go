@@ -201,7 +201,7 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 
 // --- portal locale profile -----------------------------------------------
 
-// stubGuardianProfileRepo implements userModels.GuardianProfileRepository.
+// stubGuardianProfileRepo implements the guardian profile repository.
 // Only FindByAccountID and UpdatePortalLocaleByAccountID carry behaviour; the
 // rest satisfy the interface and are never exercised by the profile tests.
 type stubGuardianProfileRepo struct {

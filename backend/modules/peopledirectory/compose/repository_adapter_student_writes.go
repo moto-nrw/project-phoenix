@@ -232,7 +232,7 @@ func translateStudentWriteError(err error) error {
 // enrollment approval, the imports, the master-data review — goes through the
 // owner without knowing it.
 type studentRepositoryWithOwnerWrites struct {
-	userModels.StudentRepository
+	usersRepo.StudentRepository
 	writes *StudentWrites
 	reads  *StudentReads
 	// The teacher assignment is School Membership's, so the roster reads
@@ -461,7 +461,7 @@ type StudentRepositoryOwner interface {
 
 // NewStudentRepository composes the retained read surface of the child table
 // with People Directory's reads and writes (#3349).
-func NewStudentRepository(dependencies StudentRepositoryDependencies) userModels.StudentRepository {
+func NewStudentRepository(dependencies StudentRepositoryDependencies) usersRepo.StudentRepository {
 	repository := usersRepo.NewStudentRepository(NewLegacyRepositoryRuntime(dependencies.DB))
 	if dependencies.Directory == nil {
 		return repository

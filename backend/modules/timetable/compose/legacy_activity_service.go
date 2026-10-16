@@ -6,7 +6,6 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 )
 
@@ -18,8 +17,8 @@ type Service struct {
 	supervisorRepo  activities.SupervisorPlannedRepository
 	enrollmentRepo  activities.StudentEnrollmentRepository
 	activeGroupRepo activityOccupancy
-	staffRepo       userModels.StaffRepository
-	studentRepo     userModels.StudentRepository
+	staffRepo       LifecycleStaff
+	studentRepo     LifecycleStudents
 }
 
 type activityOccupancy interface {
@@ -34,8 +33,8 @@ func NewService(
 	supervisorRepo activities.SupervisorPlannedRepository,
 	enrollmentRepo activities.StudentEnrollmentRepository,
 	activeGroupRepo activityOccupancy,
-	staffRepo userModels.StaffRepository,
-	studentRepo userModels.StudentRepository,
+	staffRepo LifecycleStaff,
+	studentRepo LifecycleStudents,
 ) (*Service, error) {
 	return &Service{
 		timetable:       timetableCapability,
