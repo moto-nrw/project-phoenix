@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
@@ -155,7 +156,7 @@ func composePlanning(b graphBuild) (graphBuild, error) {
 	if err != nil {
 		return b, err
 	}
-	converter, err := arrivalTimetable.NewInstanceSeriesConversion(arrivalTimetable.InstanceSeriesConversionDependencies{
+	converter, err := arrivalTimetable.NewInstanceSeriesConversion(timetablePorts.InstanceSeriesConversionDependencies{
 		Transactions: arrivalTimetable.NewTenantTransactions(b.DB.Pool()), InstanceRepo: b.TimetableWiring.Repositories.ActivityInstance, Lifecycle: b.instances,
 		Templates: templates, RecurrenceLock: b.TimetableWiring.RecurrenceLock,
 	})

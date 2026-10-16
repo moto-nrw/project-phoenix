@@ -7,19 +7,19 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 )
 
 // Offboarding needs the owner store and transaction runtime, not the student,
 // room or care-plan graph used by activity planning.
 type Offboarding struct {
-	store    ports.Store
-	sessions ports.SessionFacts
-	tx       ports.Transaction
-	observe  ports.Observer
+	store    internalports.Store
+	sessions internalports.SessionFacts
+	tx       internalports.Transaction
+	observe  internalports.Observer
 }
 
-func NewOffboarding(store ports.Store, tx ports.Transaction, sessions ports.SessionFacts, observe ports.Observer) *Offboarding {
+func NewOffboarding(store internalports.Store, tx internalports.Transaction, sessions internalports.SessionFacts, observe internalports.Observer) *Offboarding {
 	if store == nil || tx == nil || sessions == nil || observe == nil {
 		panic("timetable: offboarding dependencies are required")
 	}
@@ -121,6 +121,6 @@ func (o *Offboarding) run(ctx context.Context, operation string, callback func(c
 	if err != nil {
 		stats.Rows = 0
 	}
-	o.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
+	o.observe(internalports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	return err
 }

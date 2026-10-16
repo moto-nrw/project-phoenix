@@ -7,20 +7,20 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 type failedConflictPresence struct {
-	compose.LifecyclePresence
+	timetablePorts.LifecyclePresence
 	err   error
 	reads int
 }
 
 type failedReopenSupervisions struct {
-	compose.LifecyclePresence
+	timetablePorts.LifecyclePresence
 	err   error
 	reads int
 }
@@ -84,7 +84,7 @@ func TestInstanceStartPropagatesPresenceFailureAndRetries(t *testing.T) {
 	require.ErrorIs(t, err, injected)
 	assert.Nil(t, result)
 	require.Equal(t, 1, fault.reads)
-	var classified *compose.ScheduleError
+	var classified *timetablePorts.ScheduleError
 	require.ErrorAs(t, err, &classified)
 	assert.Empty(t, broadcaster.Calls())
 	stored, err := s.timetable.ActivityInstance.FindByID(s.ctx, instance.ID)

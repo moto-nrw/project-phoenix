@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -17,12 +18,12 @@ import (
 // composition root hands this view over.
 
 // NewOperationLifecycle is the lifecycle as the operational commands drive it.
-func NewOperationLifecycle(s *application.InstanceLifecycleService) application.OperationLifecycle {
+func NewOperationLifecycle(s ports.InstanceLifecycle) ports.OperationLifecycle {
 	return operationLifecycle{lifecycle: s}
 }
 
 type operationLifecycle struct {
-	lifecycle *application.InstanceLifecycleService
+	lifecycle ports.InstanceLifecycle
 }
 
 func (l operationLifecycle) CreateSpontaneous(ctx context.Context, in timetable.SpontaneousStart) (int64, error) {

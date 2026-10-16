@@ -13,6 +13,7 @@ import (
 	"github.com/go-chi/render"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -260,7 +261,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 	)
 	s.res.Templates = timetableData
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
-		timetableCompose.InstanceSeriesConversionDependencies{
+		timetablePorts.InstanceSeriesConversionDependencies{
 			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      s.res.InstanceService,
@@ -309,7 +310,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 	failingInstanceService := &mockInstanceService{updateErr: errors.New("link failed")}
 	repoFactory := mustTimetableTestRepositories(s.db)
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
-		timetableCompose.InstanceSeriesConversionDependencies{
+		timetablePorts.InstanceSeriesConversionDependencies{
 			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      failingInstanceService,

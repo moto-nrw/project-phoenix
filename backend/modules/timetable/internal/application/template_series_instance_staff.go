@@ -8,6 +8,7 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -77,11 +78,11 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 ) (*instanceStaffReconciliation, error) {
 	supervisors, err := s.deps.ActivitySupervisorRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return nil, &ScheduleError{Op: "reconcile predecessor staff: load supervisors", Err: err}
+		return nil, &ports.ScheduleError{Op: "reconcile predecessor staff: load supervisors", Err: err}
 	}
 	existingRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
-		return nil, &ScheduleError{Op: "reconcile predecessor staff: load existing rows", Err: err}
+		return nil, &ports.ScheduleError{Op: "reconcile predecessor staff: load existing rows", Err: err}
 	}
 	pass := &instanceStaffReconciliation{
 		supervisors:  supervisors,
@@ -115,7 +116,7 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 	instanceDate := calendar.Date(inst.Date)
 	planWeekday, err := calendar.PlanWeekday(ctx, instanceDate)
 	if err != nil {
-		return &ScheduleError{Op: "reconcile predecessor staff: resolve weekend plan", Err: err}
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: resolve weekend plan", Err: err}
 	}
 	primaryStaffID, hasPrimary := effectivePrimarySupervisor(pass.supervisors, instanceDate, periodID, planWeekday)
 	for _, staffID := range staffIDs {
@@ -150,7 +151,7 @@ func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceSt
 		IsPrimary:  isPrimary,
 	}
 	if err := s.deps.InstanceStaffRepo.Create(ctx, fresh); err != nil {
-		return &ScheduleError{Op: "reconcile predecessor staff: add staff", Err: err}
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: add staff", Err: err}
 	}
 	pass.existing[key] = fresh
 	pass.created++
@@ -167,7 +168,7 @@ func (s *TemplateService) repointOccurrencePrimary(ctx context.Context, row *sch
 	}
 	row.IsPrimary = wantPrimary
 	if _, err := s.deps.InstanceStaffRepo.UpdateColumns(ctx, row, "is_primary"); err != nil {
-		return &ScheduleError{Op: "reconcile predecessor staff: update primary", Err: err}
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: update primary", Err: err}
 	}
 	pass.repointed++
 	return nil
@@ -175,7 +176,7 @@ func (s *TemplateService) repointOccurrencePrimary(ctx context.Context, row *sch
 
 func (s *TemplateService) removeOccurrenceStaff(ctx context.Context, key instanceStudentPair, row *scheduleModel.InstanceStaff, pass *instanceStaffReconciliation) error {
 	if err := s.deps.InstanceStaffRepo.Delete(ctx, row.ID); err != nil {
-		return &ScheduleError{Op: "reconcile predecessor staff: remove staff", Err: err}
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: remove staff", Err: err}
 	}
 	delete(pass.existing, key)
 	pass.removed++
