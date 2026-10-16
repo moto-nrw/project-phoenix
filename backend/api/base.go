@@ -115,6 +115,7 @@ import (
 	workforceHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/httpadapter"
 	workforceShiftPlanning "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/shiftplanning"
 	"github.com/moto-nrw/project-phoenix/observability"
+	tenantRuntime "github.com/moto-nrw/project-phoenix/tenant"
 	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
 	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
@@ -1850,7 +1851,7 @@ func mountCalendarRoutes(root, tenant chi.Router, in routeInputs) {
 func mountDeliveryRoutes(root, tenant chi.Router, in routeInputs) {
 	svc := in.modules.services
 	files := filestoreAPI.NewResource(svc.FileStore, in.logger.With("handler", "filestore"))
-	sse := sseAPI.NewResource(svc.RealtimeHub, in.modules.userContext, in.db.Pool(), in.logger.With("handler", "sse"))
+	sse := sseAPI.NewResource(svc.RealtimeHub, in.modules.userContext, tenantRuntime.WithinTenant, in.logger.With("handler", "sse"))
 	sse.SetSchoolAccess(in.modules.identity)
 	tenant.Mount("/files", files.Router())
 	// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer

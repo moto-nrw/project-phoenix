@@ -5,7 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SubscriptionResolver resolves the caller's live-update topics through the
@@ -25,12 +25,15 @@ type SetupRejection interface {
 	SetupMessage() string
 }
 
+// TenantTransaction runs topic lookup inside the validated school's unit of work.
+type TenantTransaction func(context.Context, tenant.TenantID, func(context.Context) error) error
+
 // Resource defines the SSE resource with dependencies
 type Resource struct {
-	hub     *realtime.Hub
-	userCtx SubscriptionResolver
-	db      *bun.DB
-	logger  *slog.Logger
+	hub         *realtime.Hub
+	userCtx     SubscriptionResolver
+	runTenantTx TenantTransaction
+	logger      *slog.Logger
 	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
 	// SetSchoolAccess; the school handler refuses to stream without it.
 	schoolAccess SchoolAccessChecker
@@ -52,13 +55,13 @@ func loggerOrDefault(logger *slog.Logger) *slog.Logger {
 func NewResource(
 	hub *realtime.Hub,
 	userCtx SubscriptionResolver,
-	db *bun.DB,
+	runTenantTx TenantTransaction,
 	logger *slog.Logger,
 ) *Resource {
 	return &Resource{
-		hub:     hub,
-		userCtx: userCtx,
-		db:      db,
-		logger:  logger,
+		hub:         hub,
+		userCtx:     userCtx,
+		runTenantTx: runTenantTx,
+		logger:      logger,
 	}
 }
