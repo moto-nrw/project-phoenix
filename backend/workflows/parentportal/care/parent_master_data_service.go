@@ -12,9 +12,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -68,13 +68,13 @@ type ChildMasterData struct {
 	// Identity — Track B editable, shown here read-only.
 	FirstName string
 	LastName  string
-	Birthday  *timezone.Date
+	Birthday  *calendar.Date
 
 	// School-controlled — read-only.
 	SchoolClass   string
 	Status        string
-	EnrolledFrom  *timezone.Date
-	EnrolledUntil *timezone.Date
+	EnrolledFrom  *calendar.Date
+	EnrolledUntil *calendar.Date
 
 	// Health — Track A editable.
 	HealthInfo *string

@@ -9,11 +9,11 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // OfferingRequestResponse is the staff-facing projection of one parent
@@ -55,12 +55,12 @@ type PreviewOfferingRequestBody struct {
 
 // parseConfirmedEffectiveFrom reads the staff-confirmed effective date. An
 // empty value is no date at all, which the caller decides how to treat.
-func parseConfirmedEffectiveFrom(raw string) (*timezone.Date, error) {
+func parseConfirmedEffectiveFrom(raw string) (*calendar.Date, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
 	}
-	parsed, err := timezone.ParseDate(trimmed)
+	parsed, err := calendar.ParseDate(trimmed)
 	if err != nil {
 		return nil, errors.New("effective_from must be a date (YYYY-MM-DD)")
 	}

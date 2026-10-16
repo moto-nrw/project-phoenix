@@ -8,12 +8,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	enrollmentFixture "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -47,7 +46,7 @@ func newBookingAuthorityLifecycle(t *testing.T, db *bun.DB, authoritative bool, 
 
 func createCareBooking(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64,
-	key string, validFrom, validUntil *timezone.Date,
+	key string, validFrom, validUntil *calendar.Date,
 ) *enrollmentFixture.RequestChild {
 	t.Helper()
 	offering := createCareBookingOffering(t, db, scope, studentID, key, validFrom, validUntil)
@@ -84,11 +83,11 @@ func createCareBooking(
 
 func createCareBookingOffering(
 	t *testing.T, db *bun.DB, scope testpkg.TenantScope, studentID int64, key string,
-	validFrom, validUntil *timezone.Date,
+	validFrom, validUntil *calendar.Date,
 ) *testpkg.CareOffering {
 	t.Helper()
 	// Keep the phase around the scenario's booking, not the day CI runs.
-	start := timezone.NewDate(2026, 8, 1)
+	start := calendar.NewDate(2026, 8, 1)
 	end := start.AddDays(365)
 	if validFrom != nil {
 		start = validFrom.AddDays(-30)
@@ -136,7 +135,7 @@ func createCareBookingSource(
 	require.NoError(t, owner.InsertRequest(ctx, request))
 	child := &enrollmentFixture.RequestChild{
 		RequestID: request.ID, FirstName: "Test", LastName: "Kind",
-		DateOfBirth: enrollmentFixture.Date(timezone.TodayDate().AddDays(-2500)), Status: enrollmentModels.ChildStatusApproved,
+		DateOfBirth: enrollmentFixture.Date(calendar.TodayDate().AddDays(-2500)), Status: enrollmentModels.ChildStatusApproved,
 		CreatedStudentID: &studentID,
 	}
 	child.TenantID = scope.TenantID
@@ -145,7 +144,7 @@ func createCareBookingSource(
 }
 
 func createImpactStudents(
-	t *testing.T, db *bun.DB, scope testpkg.TenantScope, gap timezone.Date,
+	t *testing.T, db *bun.DB, scope testpkg.TenantScope, gap calendar.Date,
 ) (blocker, planned *testpkg.Student) {
 	t.Helper()
 	blocker = testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Ohne", "Buchung", "1a")
@@ -164,7 +163,7 @@ func TestBookingAuthorityImpactAndActivationUseTheSameEvaluation(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	ctx := scope.Context()
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	plannedGap := today.AddDays(7)
 
 	blocker, planned := createImpactStudents(t, db, scope, plannedGap)
@@ -200,14 +199,14 @@ func TestBookingAuthorityIncludesImmediatelyActivatedStudents(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Sofort", "Aktiv", "1a")
-	futureStart := timezone.TodayDate().AddDays(14)
+	futureStart := calendar.TodayDate().AddDays(14)
 	_, err := db.NewUpdate().TableExpr("users.student_school_memberships").
 		Set("enrolled_from = ?", futureStart).
 		Where("tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL", scope.TenantID, student.ID).
 		Exec(scope.Context())
 	require.NoError(t, err)
 
-	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), calendar.TodayDate())
 	require.NoError(t, err)
 	require.Len(t, impact.BlockingChildren, 1)
 	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.BlockingChildren[0].StudentID)
@@ -226,7 +225,7 @@ func TestBookingAuthorityExcludesLegacyInactiveStudentWithoutEnrollmentBounds(t 
 		Exec(scope.Context())
 	require.NoError(t, err)
 
-	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), calendar.TodayDate())
 	require.NoError(t, err)
 	assert.Empty(t, impact.BlockingChildren)
 }
@@ -236,7 +235,7 @@ func TestBookingAuthorityIncludesBookingsFromExistingStudentApproval(t *testing.
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Bestehend", "Gebucht", "1a")
-	gap := timezone.TodayDate().AddDays(7)
+	gap := calendar.TodayDate().AddDays(7)
 	child := createCareBooking(t, db, scope, student.ID, "matched", nil, &gap)
 
 	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
@@ -244,7 +243,7 @@ func TestBookingAuthorityIncludesBookingsFromExistingStudentApproval(t *testing.
 		Where("id = ?", child.ID).Exec(scope.Context())
 	require.NoError(t, err)
 
-	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), calendar.TodayDate())
 	require.NoError(t, err)
 	require.Len(t, impact.PlannedCompletions, 1)
 	assert.Equal(t, fmt.Sprintf("%d", student.ID), impact.PlannedCompletions[0].StudentID)
@@ -265,7 +264,7 @@ func TestBookingAuthorityExcludesUnapprovedBookingForExistingStudent(t *testing.
 		Exec(scope.Context())
 	require.NoError(t, err)
 
-	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), timezone.TodayDate())
+	impact, err := bookingAuthorityService(t, db, true).PreviewBookingAuthorityImpact(scope.Context(), calendar.TodayDate())
 	require.NoError(t, err)
 	assert.Empty(t, impact.PlannedCompletions)
 	require.Len(t, impact.BlockingChildren, 1)
@@ -279,7 +278,7 @@ func TestBookingParticipationBoundaryKeepsActualPresenceVisible(t *testing.T) {
 	ctx := scope.Context()
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Live", "Sicher", "2a")
 	studentID := student.ID
-	firstGap := timezone.TodayDate().AddDays(2)
+	firstGap := calendar.TodayDate().AddDays(2)
 	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal.UpsertPending(ctx, &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: firstGap,
 		Trigger:                 userModels.CareWithdrawalTriggerBookingExpired,
@@ -304,7 +303,7 @@ func TestDirectWithdrawalBoundaryDoesNotDependOnBookingAuthority(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Direkt", "Abgemeldet", "2b")
 	studentID := student.ID
-	firstGap := timezone.TodayDate()
+	firstGap := calendar.TodayDate()
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
@@ -333,7 +332,7 @@ func TestBookingParticipationRangeExcludesAlumniWithoutDateBoundary(t *testing.T
 		Exec(scope.Context())
 	require.NoError(t, err)
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	participating, err := bookingAuthorityService(t, db, false).ParticipatingStudentIDsByDate(
 		scope.Context(), []int64{student.ID}, today, today.AddDays(2),
 	)
@@ -350,24 +349,24 @@ func TestNaturalBookingEndSchedulerIsIdempotent(t *testing.T) {
 	ctx := tenant.WithTenantID(scope.Context(), scope.TenantID)
 	planned := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Geplant", "Ende", "3a")
 	overdue := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Überfällig", "Ende", "3b")
-	plannedGap := timezone.NewDate(2026, 8, 24).AddDays(5)
-	overdueGap := timezone.NewDate(2026, 8, 24).AddDays(-3)
+	plannedGap := calendar.NewDate(2026, 8, 24).AddDays(5)
+	overdueGap := calendar.NewDate(2026, 8, 24).AddDays(-3)
 	createCareBooking(t, db, scope, planned.ID, "planned-scheduler", nil, &plannedGap)
 	createCareBooking(t, db, scope, overdue.ID, "overdue-scheduler", nil, &overdueGap)
 	svc := bookingAuthorityService(t, db, true)
 
-	_, err := svc.ApplyDueEffects(ctx, timezone.NewDate(2026, 8, 24))
+	_, err := svc.ApplyDueEffects(ctx, calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	rows, total, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
 	updatedAt := map[int64]time.Time{*rows[0].StudentID: rows[0].UpdatedAt, *rows[1].StudentID: rows[1].UpdatedAt}
-	_, err = svc.ApplyDueEffects(ctx, timezone.NewDate(2026, 8, 24))
+	_, err = svc.ApplyDueEffects(ctx, calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	rows, total, err = api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal.ListPending(ctx, userModels.CareWithdrawalCompletionFilter{Page: 1, PageSize: 20})
 	require.NoError(t, err)
 	require.Equal(t, 2, total)
-	assert.ElementsMatch(t, []timezone.Date{plannedGap, overdueGap}, []timezone.Date{
+	assert.ElementsMatch(t, []calendar.Date{plannedGap, overdueGap}, []calendar.Date{
 		rows[0].FirstBookinglessDay,
 		rows[1].FirstBookinglessDay,
 	})
@@ -382,7 +381,7 @@ func TestNaturalSchedulerPreservesConfirmedWithdrawalAudit(t *testing.T) {
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Audit", "Bleibt", "3c")
 	actor := testpkg.CreateTestAccount(t, db, "booking-audit@example.test")
-	gap := timezone.TodayDate().AddDays(5)
+	gap := calendar.TodayDate().AddDays(5)
 	createCareBooking(t, db, scope, student.ID, "audit", nil, &gap)
 	studentID := student.ID
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal
@@ -392,7 +391,7 @@ func TestNaturalSchedulerPreservesConfirmedWithdrawalAudit(t *testing.T) {
 	}))
 	before := requirePendingCompletion(t, repo, scope.Context(), student.ID)
 
-	_, err := bookingAuthorityService(t, db, true).ApplyDueEffects(scope.Context(), timezone.TodayDate())
+	_, err := bookingAuthorityService(t, db, true).ApplyDueEffects(scope.Context(), calendar.TodayDate())
 	require.NoError(t, err)
 	after := requirePendingCompletion(t, repo, scope.Context(), student.ID)
 	assert.Equal(t, before.Trigger, after.Trigger)
@@ -417,8 +416,8 @@ func TestOverdueRebookingReplacesTheStaleCompletion(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Nachträglich", "Gebucht", "3d")
-	oldGap := timezone.NewDate(2026, 8, 24).AddDays(-2)
-	newGap := timezone.NewDate(2026, 8, 24).AddDays(5)
+	oldGap := calendar.NewDate(2026, 8, 24).AddDays(-2)
+	newGap := calendar.NewDate(2026, 8, 24).AddDays(5)
 	createCareBooking(t, db, scope, student.ID, "renewed", &oldGap, &newGap)
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal
 	studentID := student.ID
@@ -438,8 +437,8 @@ func assertFiniteRebookingHistory(t *testing.T, oldOffset, newOffset int) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Neu", "Gebucht", "3d")
-	oldGap := timezone.TodayDate().AddDays(oldOffset)
-	newGap := timezone.TodayDate().AddDays(newOffset)
+	oldGap := calendar.TodayDate().AddDays(oldOffset)
+	newGap := calendar.TodayDate().AddDays(newOffset)
 	createCareBooking(t, db, scope, student.ID, "old-window", nil, &oldGap)
 	svc := bookingAuthorityService(t, db, true)
 	require.NoError(t, svc.ReconcileAuthoritativeBookingChange(scope.Context(), careplan.CareWithdrawalBookingChange{StudentID: student.ID}))
@@ -482,7 +481,7 @@ func TestBookingMutationPlansFutureNaturalEndImmediately(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Direkt", "Geplant", "3c")
-	gap := timezone.NewDate(2026, 8, 24).AddDays(9)
+	gap := calendar.NewDate(2026, 8, 24).AddDays(9)
 	createCareBooking(t, db, scope, student.ID, "direct-future", nil, &gap)
 
 	err := bookingAuthorityService(t, db, true).ReconcileAuthoritativeBookingChange(
@@ -502,7 +501,7 @@ func TestConfirmedWithdrawalCannotBypassBookingAuthority(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Bewusst", "Abgemeldet", "3e")
-	gap := timezone.TodayDate().AddDays(4)
+	gap := calendar.TodayDate().AddDays(4)
 
 	err := bookingAuthorityService(t, db, false).ReconcileAuthoritativeBookingChange(
 		scope.Context(), careplan.CareWithdrawalBookingChange{
@@ -534,7 +533,7 @@ func assertNonCareMutationKeepsConfirmedWithdrawal(t *testing.T, authoritative b
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Direkt", "Bleibt", "3f")
 	studentID := student.ID
-	gap := timezone.TodayDate().AddDays(4)
+	gap := calendar.TodayDate().AddDays(4)
 	repo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CareWithdrawal
 	require.NoError(t, repo.UpsertPending(scope.Context(), &userModels.CareWithdrawalCompletion{
 		StudentID: &studentID, FirstBookinglessDay: gap, Trigger: userModels.CareWithdrawalTriggerDirectSchool,
@@ -554,7 +553,7 @@ func TestConcurrentBookingAuthorityActivationCreatesOneCompletion(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	scope := testpkg.NewTenantScope(t, db)
 	student := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Parallel", "Aktiviert", "3d")
-	gap := timezone.TodayDate().AddDays(11)
+	gap := calendar.TodayDate().AddDays(11)
 	createCareBooking(t, db, scope, student.ID, "concurrent-enable", nil, &gap)
 	svc := lockedBookingAuthorityService(t, db)
 
@@ -565,7 +564,7 @@ func TestConcurrentBookingAuthorityActivationCreatesOneCompletion(t *testing.T) 
 		go func() {
 			defer wg.Done()
 			errs <- testpkg.WithTenantTx(t, context.Background(), db, scope.TenantID, func(ctx context.Context, _ bun.Tx) error {
-				_, err := svc.ApplyBookingAuthoritySetting(ctx, timezone.TodayDate(), true)
+				_, err := svc.ApplyBookingAuthoritySetting(ctx, calendar.TodayDate(), true)
 				return err
 			})
 		}()
@@ -592,11 +591,11 @@ func TestBookingAuthorityReconciliationQueryCountIsIndependentOfStudentCount(t *
 	counter := testpkg.NewQueryCounter()
 	countedDB := db.WithQueryHook(counter)
 
-	_, err := bookingAuthorityService(t, countedDB, true).ApplyBookingAuthoritySetting(small.Context(), timezone.TodayDate(), true)
+	_, err := bookingAuthorityService(t, countedDB, true).ApplyBookingAuthoritySetting(small.Context(), calendar.TodayDate(), true)
 	require.NoError(t, err)
 	smallCount := counter.Total()
 	counter.Reset()
-	_, err = bookingAuthorityService(t, countedDB, true).ApplyBookingAuthoritySetting(large.Context(), timezone.TodayDate(), true)
+	_, err = bookingAuthorityService(t, countedDB, true).ApplyBookingAuthoritySetting(large.Context(), calendar.TodayDate(), true)
 	require.NoError(t, err)
 	assert.Equal(t, smallCount, counter.Total(), "reconciliation must use fixed batch queries")
 }
@@ -617,7 +616,7 @@ func TestDisablingBookingAuthorityObsoletesOnlyOpenBookingCompletions(t *testing
 	// RFID tag release runs through the People Directory composition (#2661).
 	repos, err := api.NewRepositoryTestFactoryWithPeopleDirectory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	require.NoError(t, err)
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 
 	openStudent := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Offen", "Aufgabe", "4a")
 	resolvedStudent := testpkg.CreateTestStudentForTenant(t, db, scope.TenantID, "Erledigt", "Aufgabe", "4b")

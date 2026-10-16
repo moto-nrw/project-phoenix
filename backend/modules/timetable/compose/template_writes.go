@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -198,7 +198,7 @@ func findOrCreateTimeframe(ctx context.Context, repo scheduleModel.TimeframeRepo
 			// time.Time.Equal here: schedule.timeframes stores SQL TIME, and
 			// drivers may decode TIME with a different date anchor than the
 			// caller's HH:MM parser uses.
-			if timezone.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && timezone.SameClockTime(*tf.EndTime, end) {
+			if calendar.SameClockTime(tf.StartTime, start) && tf.EndTime != nil && calendar.SameClockTime(*tf.EndTime, end) {
 				return tf.ID, nil
 			}
 		}
@@ -267,7 +267,7 @@ type TemplateServiceDependencies struct {
 	Staffing               StaffingAnnouncer
 	Logger                 *slog.Logger
 	DB                     *bun.DB
-	Today                  func() timezone.Date
+	Today                  func() calendar.Date
 }
 
 // TemplateService holds the template writes (create, update, archive, the
@@ -279,7 +279,7 @@ type TemplateService struct {
 // NewTemplateService creates the template writes.
 func NewTemplateService(deps TemplateServiceDependencies) *TemplateService {
 	if deps.Today == nil {
-		deps.Today = timezone.TodayDate
+		deps.Today = calendar.TodayDate
 	}
 	return &TemplateService{deps: deps}
 }

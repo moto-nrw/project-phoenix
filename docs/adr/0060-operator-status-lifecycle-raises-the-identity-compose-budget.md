@@ -38,10 +38,10 @@ single-call delegations.
 ## Decision
 
 1. `moduleComposeBudgets["modules/identityaccess/compose"]` rises from 7,339
-   to 7,356 and `moduleComposeBudgetTotal` from 90,352 to 90,369.
+   to 7,356 and `moduleComposeBudgetTotal` rises by the same 17 lines.
 2. `modulePassthroughComposeBudgets["modules/identityaccess/compose"]` rises
-   from 484 to 486 and `modulePassthroughComposeBudgetTotal` from 2,393 to
-   2,395.
+   from 484 to 486 and `modulePassthroughComposeBudgetTotal` rises by the same
+   two.
 3. The raise covers exactly the methods named above. Every other number keeps
    falling under ADR 0057 point 5.
 

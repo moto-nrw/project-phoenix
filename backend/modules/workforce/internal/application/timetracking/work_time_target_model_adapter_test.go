@@ -6,15 +6,14 @@ import (
 	"testing"
 
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/services/config/settingstest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
 func TestWorkTimeTargetModelPreservesRotationAndPartialReadError(t *testing.T) {
 	t.Parallel()
-	anchor := timezone.NewDate(2026, 3, 23)
+	anchor := calendar.NewDate(2026, 3, 23)
 	template := settingstest.Template{ID: 7, RotationLength: 2, Anchor: anchor, Entries: []settingstest.TemplateEntry{
 		{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 360},
 		{WeekIndex: 1, DayOfWeek: 0, TargetMinutes: 420},
@@ -26,7 +25,7 @@ func TestWorkTimeTargetModelPreservesRotationAndPartialReadError(t *testing.T) {
 	require.Equal(t, template.ID, model.ID)
 	require.Equal(t, anchor, model.RotationAnchorDate)
 	for _, test := range []struct {
-		date   timezone.Date
+		date   calendar.Date
 		target int
 	}{
 		{anchor.AddDays(-7), 420}, {anchor, 360}, {anchor.AddDays(7), 420}, {anchor.AddDays(14), 360},

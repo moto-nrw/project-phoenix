@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ScheduledInstanceOf maps a retained instance row, whose status carries the
@@ -14,7 +14,7 @@ func ScheduledInstanceOf(row *scheduleModels.ActivityInstance) timetable.Schedul
 		CreatedAt:             row.CreatedAt,
 		UpdatedAt:             row.UpdatedAt,
 		TenantID:              row.TenantID,
-		Date:                  timezone.Date(row.Date),
+		Date:                  calendar.Date(row.Date),
 		ActivityGroupID:       row.ActivityGroupID,
 		CalendarPeriodID:      row.CalendarPeriodID,
 		Title:                 row.Title,

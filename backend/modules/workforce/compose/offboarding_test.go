@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
@@ -49,9 +49,9 @@ func TestOffboardingWorkforceCannotDeleteAnotherTenantsPlans(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Isolated", "Offboarding")
 	module := buildWorkforce(t, db)
-	absence, err := module.CreateStaffAbsence(ctx, testAbsence(staff.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, timezone.NewDate(2026, 3, 5)))
+	absence, err := module.CreateStaffAbsence(ctx, testAbsence(staff.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, calendar.NewDate(2026, 3, 5)))
 	require.NoError(t, err)
-	shift, err := module.CreateStaffShift(ctx, testShift(staff.ID, timezone.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
+	shift, err := module.CreateStaffShift(ctx, testShift(staff.ID, calendar.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
 	require.NoError(t, err)
 	runtime := testpkg.ConfigRuntime(db)
 	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error {
@@ -84,7 +84,7 @@ func TestOffboardingWorkforceDetectsDriftAndBlocksHandovers(t *testing.T) {
 	require.NoError(t, err)
 	preview, err := offboarding.Preview(ctx, staff.ID, "2026-02-01")
 	require.NoError(t, err)
-	planned, err := module.CreateStaffShift(ctx, testShift(staff.ID, timezone.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
+	planned, err := module.CreateStaffShift(ctx, testShift(staff.ID, calendar.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
 	require.NoError(t, err)
 	_, err = offboarding.Execute(ctx, staff.ID, staff.ID, "2026-02-01", preview.Revision)
 	require.ErrorIs(t, err, workforce.ErrOffboardingConflict)
@@ -113,12 +113,12 @@ func TestOffboardingWorkforceRollsBackPlansAndCapsSeriesOnRetry(t *testing.T) {
 	runtime := testpkg.ConfigRuntime(db)
 	offboarding, err := NewOffboarding(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment, DB: db, LiveStaffIDs: runtime.LiveStaffIDs, Observe: func(Observation) {}}, func(context.Context, workforce.StaffAbsence, int64) error { return nil })
 	require.NoError(t, err)
-	period := testpkg.CreateTestCalendarPeriod(t, db, "Offboarding year", timezone.NewDate(2026, 1, 1), timezone.NewDate(2026, 12, 31))
+	period := testpkg.CreateTestCalendarPeriod(t, db, "Offboarding year", calendar.NewDate(2026, 1, 1), calendar.NewDate(2026, 12, 31))
 	series, err := module.CreateStaffShiftSeries(ctx, workforce.StaffShiftSeries{StaffID: staff.ID, Weekdays: []int{1}, StartTime: "09:00:00", EndTime: "12:00:00", CalendarPeriodID: period.ID, ValidFrom: "2026-01-01", CreatedBy: staff.ID})
 	require.NoError(t, err)
-	history, err := module.CreateStaffShift(ctx, testShift(staff.ID, timezone.NewDate(2026, 1, 5), "09:00:00", "12:00:00"))
+	history, err := module.CreateStaffShift(ctx, testShift(staff.ID, calendar.NewDate(2026, 1, 5), "09:00:00", "12:00:00"))
 	require.NoError(t, err)
-	planned, err := module.CreateStaffShift(ctx, testShift(staff.ID, timezone.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
+	planned, err := module.CreateStaffShift(ctx, testShift(staff.ID, calendar.NewDate(2026, 3, 5), "09:00:00", "12:00:00"))
 	require.NoError(t, err)
 	preview, err := offboarding.Preview(ctx, staff.ID, "2026-02-01")
 	require.NoError(t, err)
@@ -157,9 +157,9 @@ func TestOffboardingWorkforcePreservesHistoryAndRequiresAbsenceAudit(t *testing.
 	ctx := testpkg.Ctx(t)
 	staff := testpkg.CreateTestStaff(t, db, "Workforce", "Offboarding")
 	module := buildWorkforce(t, db)
-	history, err := module.CreateStaffAbsence(ctx, testAbsence(staff.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, timezone.NewDate(2026, 1, 5)))
+	history, err := module.CreateStaffAbsence(ctx, testAbsence(staff.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, calendar.NewDate(2026, 1, 5)))
 	require.NoError(t, err)
-	future, err := module.CreateStaffAbsence(ctx, testAbsence(staff.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, timezone.NewDate(2026, 3, 5)))
+	future, err := module.CreateStaffAbsence(ctx, testAbsence(staff.ID, workforce.AbsenceTypeSick, workforce.AbsenceStatusReported, calendar.NewDate(2026, 3, 5)))
 	require.NoError(t, err)
 	runtime := testpkg.ConfigRuntime(db)
 	failure := errors.New("absence audit unavailable")

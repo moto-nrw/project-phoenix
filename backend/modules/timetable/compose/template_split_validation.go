@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TemplateSplitInput mirrors the update-template request plus the split
@@ -20,7 +20,7 @@ import (
 // is_primary flag.
 type TemplateSplitInput struct {
 	TemplateID              int64
-	EffectiveDate           timezone.Date
+	EffectiveDate           calendar.Date
 	Name                    string
 	Type                    string // care | activity | external
 	Weekdays                []int  // ISO 8601, Mo=1 … Su=7
@@ -88,8 +88,8 @@ type TemplateSplitInput struct {
 	// onto the successor. It only applies to the explicit-roster path: a
 	// carried-over roster keeps each row's own weekday scope.
 	WeekdayAssignments []timetable.WeekdayRosterAssignment
-	MaterializeFrom    *timezone.Date
-	MaterializeTo      *timezone.Date
+	MaterializeFrom    *calendar.Date
+	MaterializeTo      *calendar.Date
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max. Missing or out-of-range values are rejected.
 	GradeLevelMax int
@@ -100,7 +100,7 @@ type TemplateSplitInput struct {
 
 // validateSplitInput checks the semantic rules the handler's Bind cannot:
 // dates, weekday range, week pattern, time order, activity type.
-func validateSplitInput(in *TemplateSplitInput, today timezone.Date, rules SchoolClassRules) error {
+func validateSplitInput(in *TemplateSplitInput, today calendar.Date, rules SchoolClassRules) error {
 	if err := validateSplitTemplateFields(*in, rules); err != nil {
 		return err
 	}
@@ -163,7 +163,7 @@ func validateSplitTemplateFields(in TemplateSplitInput, rules SchoolClassRules) 
 	return nil
 }
 
-func validateSplitRecurrence(in TemplateSplitInput, today timezone.Date) error {
+func validateSplitRecurrence(in TemplateSplitInput, today calendar.Date) error {
 	if len(in.Weekdays) == 0 {
 		return fmt.Errorf("%w: at least one weekday is required", timetable.ErrSplitInvalidInput)
 	}
@@ -218,7 +218,7 @@ func validateSplitTargetGroup(in *TemplateSplitInput) error {
 	return nil
 }
 
-func validateTemplateEndInput(in timetable.EndTemplateCommand, today timezone.Date) error {
+func validateTemplateEndInput(in timetable.EndTemplateCommand, today calendar.Date) error {
 	if in.TemplateID <= 0 {
 		return fmt.Errorf("%w: template id is required", timetable.ErrSplitInvalidInput)
 	}
@@ -295,21 +295,21 @@ func (s *TemplateSplitService) loadTemplate(ctx context.Context, id int64) (*act
 func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
 	ctx context.Context,
 	templateID int64,
-	effectiveDate timezone.Date,
+	effectiveDate calendar.Date,
 	op string,
 	clampBeforeStart bool,
-) (timezone.Date, *timezone.Date, error) {
+) (calendar.Date, *calendar.Date, error) {
 	schedules, err := s.deps.ScheduleRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
-		return timezone.Date(""), nil, &ScheduleError{Op: op + ": load schedule envelope", Err: err}
+		return calendar.Date(""), nil, &ScheduleError{Op: op + ": load schedule envelope", Err: err}
 	}
 	validFrom, validUntil, err := commonScheduleValidityEnvelope(schedules)
 	if err != nil {
-		return timezone.Date(""), nil, &ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
+		return calendar.Date(""), nil, &ScheduleError{Op: op + ": inspect schedule envelope", Err: err}
 	}
 	if validFrom != nil && effectiveDate.Before(*validFrom) {
 		if !clampBeforeStart {
-			return timezone.Date(""), nil, fmt.Errorf(
+			return calendar.Date(""), nil, fmt.Errorf(
 				"%w: effective_date %s is before segment valid_from %s",
 				timetable.ErrSplitInvalidInput,
 				effectiveDate.String(),
@@ -319,7 +319,7 @@ func (s *TemplateSplitService) normalizeEffectiveDateInSegment(
 		effectiveDate = *validFrom
 	}
 	if validUntil != nil && !effectiveDate.Before(*validUntil) {
-		return timezone.Date(""), nil, fmt.Errorf(
+		return calendar.Date(""), nil, fmt.Errorf(
 			"%w: effective_date %s must be before segment valid_until %s",
 			timetable.ErrSplitInvalidInput,
 			effectiveDate.String(),

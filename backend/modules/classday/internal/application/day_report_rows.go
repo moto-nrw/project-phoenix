@@ -4,8 +4,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // classDayReportedAt answers "since when is this known" for a deviating row,
@@ -37,7 +37,7 @@ func classDayReportedAt(facts classDayFacts, studentID int64, status string, pic
 //
 // It builds the report for the plan weekday key: the
 // date's own, or Friday's for a weekend that follows Friday's plan (#3921).
-func buildClassDayReportFor(schoolClass string, date timezone.Date, weekday, phaseName string, rosterRows []DayRosterRow, facts classDayFacts) *classday.DayReport {
+func buildClassDayReportFor(schoolClass string, date calendar.Date, weekday, phaseName string, rosterRows []DayRosterRow, facts classDayFacts) *classday.DayReport {
 	report := &classday.DayReport{
 		SchoolClass: schoolClass,
 		Date:        classday.Date(date.String()),

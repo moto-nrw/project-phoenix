@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -35,7 +34,7 @@ func (w *weekdayArrivals) GetStudentArrivalScheduleForWeekday(_ context.Context,
 func TestResolveExpectedArrivalOnAFollowingWeekend(t *testing.T) {
 	t.Parallel()
 
-	saturday := timezone.NewDate(2026, time.September, 12)
+	saturday := calendar.NewDate(2026, time.September, 12)
 	for _, follows := range []bool{true, false} {
 		arrivals := &weekdayArrivals{weekday: 5}
 		svc := &Service{ArrivalSchedules: arrivals}

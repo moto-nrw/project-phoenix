@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // maxShiftRangeDays caps date-range queries so a malformed request cannot
@@ -40,9 +40,9 @@ var (
 // StaffShiftService manages planned per-date staff shifts (Dienstplan).
 type StaffShiftService interface {
 	// ListShifts returns all staff shifts in the range (admin week view).
-	ListShifts(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error)
+	ListShifts(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error)
 	// ListShiftsForStaff returns one staff member's shifts in the range.
-	ListShiftsForStaff(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error)
+	ListShiftsForStaff(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffShift, error)
 	// CreateShift validates and persists a new shift.
 	CreateShift(ctx context.Context, shift *StaffShift) (*StaffShift, error)
 	// UpdateShift validates and persists changes to an existing shift.
@@ -208,7 +208,7 @@ func sameShiftTypeID(a, b *int64) bool {
 	return *a == *b
 }
 
-func validateShiftRange(start, end timezone.Date) error {
+func validateShiftRange(start, end calendar.Date) error {
 	if start.IsZero() || end.IsZero() {
 		return fmt.Errorf("%w: start and end dates are required", ErrShiftInvalid)
 	}
@@ -221,7 +221,7 @@ func validateShiftRange(start, end timezone.Date) error {
 	return nil
 }
 
-func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.Date) ([]*StaffShift, error) {
+func (s *staffShiftService) ListShifts(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error) {
 	if err := validateShiftRange(start, end); err != nil {
 		return nil, err
 	}
@@ -235,7 +235,7 @@ func (s *staffShiftService) ListShifts(ctx context.Context, start, end timezone.
 	return shifts, nil
 }
 
-func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int64, start, end timezone.Date) ([]*StaffShift, error) {
+func (s *staffShiftService) ListShiftsForStaff(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffShift, error) {
 	if staffID <= 0 {
 		return nil, fmt.Errorf("%w: staff ID is required", ErrShiftInvalid)
 	}
@@ -565,8 +565,8 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	// extra origin read (#1841).
 	revalidateOrigin := shift.OriginShiftID != nil &&
 		(shift.Date != existing.Date ||
-			!timezone.SameClockTime(shift.StartTime, existing.StartTime) ||
-			!timezone.SameClockTime(shift.EndTime, existing.EndTime))
+			!calendar.SameClockTime(shift.StartTime, existing.StartTime) ||
+			!calendar.SameClockTime(shift.EndTime, existing.EndTime))
 	// Lock every staff member this edit touches — the shift's own staff plus, for
 	// a replacement date/window edit, the origin's staff — in a stable sorted order
 	// so concurrent cross-covering edits never lock the same pair in opposite
@@ -614,8 +614,8 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	// touching the origin, so this check never fires there), so here reject any
 	// date or window change while covers still hang off this shift. The cover load
 	// is skipped entirely when neither the date nor the window moved (#1841).
-	originWindowChanged := !timezone.SameClockTime(shift.StartTime, existing.StartTime) ||
-		!timezone.SameClockTime(shift.EndTime, existing.EndTime)
+	originWindowChanged := !calendar.SameClockTime(shift.StartTime, existing.StartTime) ||
+		!calendar.SameClockTime(shift.EndTime, existing.EndTime)
 	if shift.OriginShiftID == nil && (shift.Date != existing.Date || originWindowChanged) {
 		covers, err := s.repo.FindByOriginShiftID(ctx, shift.ID)
 		if err != nil {

@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -19,6 +18,7 @@ import (
 	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -94,7 +94,7 @@ type stubActivationSettings struct {
 	bookingsAuthoritative *bool
 }
 
-const decisionTestToday timezone.Date = "2026-08-24"
+const decisionTestToday calendar.Date = "2026-08-24"
 
 func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
 	if key == enrollmentKeys.DefaultActivationMode {
@@ -229,8 +229,8 @@ func setupEnrollmentTestEnv(t *testing.T, decisionSettings api.EnrollmentDecisio
 	sourcePhase := &enrollmentTest.Phase{
 		Name:             "rollover-source-" + t.Name(),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2026, 9, 1)),
-		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2027, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2026, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2027, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 		FormSchemaID:     &schema.ID,
@@ -353,7 +353,7 @@ func composeBookings(
 	}
 	options := []api.BookingMaterializationOption{
 		api.WithBookingCatalog(catalog),
-		api.WithBookingToday(func() timezone.Date { return decisionTestToday }),
+		api.WithBookingToday(func() calendar.Date { return decisionTestToday }),
 		api.WithBookingSettings(bookingSettings),
 		api.WithBookingWithdrawals(careWithdrawal),
 	}
@@ -415,7 +415,7 @@ func composeDecisions(
 		Settings:               settings,
 		LockTemplateRecurrence: lockTemplateRecurrence,
 		Logger:                 slog.Default(),
-		Today:                  func() timezone.Date { return decisionTestToday },
+		Today:                  func() calendar.Date { return decisionTestToday },
 	})
 }
 
@@ -560,11 +560,11 @@ func updateSourcePhase(t *testing.T, env *decisionTestEnv) {
 	require.NoError(t, env.repos.Enrollment().UpdatePhase(testpkg.Ctx(t), &phase))
 }
 
-func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate timezone.Date) {
+func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate calendar.Date) {
 	t.Helper()
 	env.sourcePhase.ServiceStartDate = enrollmentTest.Date(serviceStartDate)
-	if !timezone.Date(env.sourcePhase.ServiceEndDate).After(serviceStartDate) {
-		env.sourcePhase.ServiceEndDate = enrollmentTest.Date(timezone.NewDate(serviceStartDate.Year(), serviceStartDate.Month()+10, serviceStartDate.Day()))
+	if !calendar.Date(env.sourcePhase.ServiceEndDate).After(serviceStartDate) {
+		env.sourcePhase.ServiceEndDate = enrollmentTest.Date(calendar.NewDate(serviceStartDate.Year(), serviceStartDate.Month()+10, serviceStartDate.Day()))
 	}
 	updateSourcePhase(t, env)
 }
@@ -599,7 +599,7 @@ func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirs
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        childFirst,
 			LastName:         childLast,
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 		}},
 	})

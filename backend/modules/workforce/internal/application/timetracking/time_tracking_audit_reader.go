@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimeTrackingAuditReader supplies the merged feed and its accepted sources.
@@ -32,8 +32,8 @@ type TimeTrackingAuditCursor struct {
 }
 
 type TimeTrackingAuditFilter struct {
-	From         *timezone.Date
-	To           *timezone.Date
+	From         *calendar.Date
+	To           *calendar.Date
 	StaffID      int64
 	ActorStaffID int64
 	Sources      []string

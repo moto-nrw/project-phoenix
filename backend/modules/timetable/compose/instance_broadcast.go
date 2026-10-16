@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -227,7 +227,7 @@ func touchedActivitiesOf(touched map[int64]*scheduleModel.ActivityInstance) time
 	for activeGroupID, instance := range touched {
 		if instance != nil {
 			out[activeGroupID] = timetable.TouchedActivity{
-				InstanceID: instance.ID, Date: timezone.Date(instance.Date), StartTime: instance.StartTime,
+				InstanceID: instance.ID, Date: calendar.Date(instance.Date), StartTime: instance.StartTime,
 			}
 		}
 	}

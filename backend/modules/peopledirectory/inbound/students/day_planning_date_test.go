@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -38,7 +38,7 @@ func TestListStudents_DayPlanningForDate(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, tc.db, "DatePlan", "Creator")
 	device := testpkg.CreateTestDevice(t, tc.db, "date-planning-device")
 
-	tomorrow := timezone.NewDate(2026, time.June, 2)
+	tomorrow := calendar.NewDate(2026, time.June, 2)
 
 	// Planning signals: one child only planned for Mondays, two planned for the
 	// requested Tuesday.

@@ -5,8 +5,8 @@ import (
 	"math"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func hasOneDecimalPlace(value float64) bool {
@@ -35,7 +35,7 @@ type StaffVacationOpening struct {
 	base.TenantModel
 	StaffID              int64         `bun:"staff_id,notnull" json:"staff_id"`
 	Year                 int           `bun:"year,notnull" json:"year"`
-	EffectiveDate        timezone.Date `bun:"effective_date,notnull,type:date" json:"effective_date"`
+	EffectiveDate        calendar.Date `bun:"effective_date,notnull,type:date" json:"effective_date"`
 	TakenBeforeDays      float64       `bun:"taken_before_days,notnull" json:"taken_before_days"`
 	EnteredRemainingDays float64       `bun:"entered_remaining_days,notnull" json:"entered_remaining_days"`
 	Note                 string        `bun:"note,notnull,default:''" json:"note"`

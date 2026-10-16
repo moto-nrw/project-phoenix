@@ -3,8 +3,8 @@ package care
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // DayState ist die auf Elternsicht reduzierte Projektion eines Betreuungstages.
@@ -141,7 +141,7 @@ func berlinHHMM(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.In(timezone.Berlin).Format("15:04")
+	return t.In(calendar.Berlin).Format("15:04")
 }
 
 // hhmm gibt die Berliner Wandzeit eines Zeitpunkts als HH:MM zurueck.
@@ -149,5 +149,5 @@ func hhmm(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return timezone.NormalizeWallClock(t).Format("15:04")
+	return calendar.NormalizeWallClock(t).Format("15:04")
 }

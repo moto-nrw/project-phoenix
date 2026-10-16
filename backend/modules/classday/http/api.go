@@ -17,7 +17,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -118,9 +117,9 @@ func (rs *Resource) getClassDay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	date := timezone.TodayDate()
+	date := calendar.TodayDate()
 	if raw := strings.TrimSpace(r.URL.Query().Get("date")); raw != "" {
-		parsed, err := timezone.ParseDate(raw)
+		parsed, err := calendar.ParseDate(raw)
 		if err != nil {
 			common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("ungültiges Datum, erwartet JJJJ-MM-TT")))
 			return

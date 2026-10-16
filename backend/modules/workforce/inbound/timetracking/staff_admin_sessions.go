@@ -11,7 +11,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -37,13 +37,13 @@ func (rs *StaffAdminResource) getStaffHistory(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	from, err := timezone.ParseDate(fromStr)
+	from, err := calendar.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	to, err := timezone.ParseDate(toStr)
+	to, err := calendar.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -85,12 +85,12 @@ func (rs *StaffAdminResource) exportStaffSessions(w http.ResponseWriter, r *http
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
 		return
 	}
-	from, err := timezone.ParseDate(fromStr)
+	from, err := calendar.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
-	to, err := timezone.ParseDate(toStr)
+	to, err := calendar.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -301,7 +301,7 @@ func (rs *StaffAdminResource) getStaffVacationQuota(w http.ResponseWriter, r *ht
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	year, err := parseYearQuery(r, timezone.TodayDate())
+	year, err := parseYearQuery(r, calendar.TodayDate())
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
@@ -332,7 +332,7 @@ func (rs *StaffAdminResource) setStaffVacationQuota(w http.ResponseWriter, r *ht
 		return
 	}
 	if body.Year == 0 {
-		body.Year = timezone.TodayDate().Year()
+		body.Year = calendar.TodayDate().Year()
 	}
 	// Every change of the Urlaubsanspruch is recorded with its reason (#3256).
 	if strings.TrimSpace(body.Reason) == "" {
@@ -373,7 +373,7 @@ func parseInt64Param(r *http.Request, name string) (int64, error) {
 	return v, nil
 }
 
-func parseYearQuery(r *http.Request, today timezone.Date) (int, error) {
+func parseYearQuery(r *http.Request, today calendar.Date) (int, error) {
 	yearStr := r.URL.Query().Get("year")
 	if yearStr == "" {
 		return today.Year(), nil
@@ -548,13 +548,13 @@ func (rs *StaffAdminResource) getStaffAbsences(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	from, err := timezone.ParseDate(fromStr)
+	from, err := calendar.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
 		return
 	}
 
-	to, err := timezone.ParseDate(toStr)
+	to, err := calendar.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
 		return
@@ -766,12 +766,12 @@ func (rs *StaffAdminResource) getCompTimeBalancePreview(w http.ResponseWriter, r
 		common.RenderError(w, r, common.ErrorNotFound(errors.New("staff not found")))
 		return
 	}
-	dateStart, err := timezone.ParseDate(r.URL.Query().Get("date_start"))
+	dateStart, err := calendar.ParseDate(r.URL.Query().Get("date_start"))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_start format, expected YYYY-MM-DD")))
 		return
 	}
-	dateEnd, err := timezone.ParseDate(r.URL.Query().Get("date_end"))
+	dateEnd, err := calendar.ParseDate(r.URL.Query().Get("date_end"))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid date_end format, expected YYYY-MM-DD")))
 		return

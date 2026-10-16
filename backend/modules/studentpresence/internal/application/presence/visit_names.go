@@ -3,12 +3,12 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *service) todayVisitNames(ctx context.Context, studentIDs []int64) ([]visitGroupNames, error) {
-	since := timezone.TodayDate().BerlinMidnight()
+	since := calendar.TodayDate().BerlinMidnight()
 	locations, err := s.SchoolPresence.ListVisitLocations(ctx, studentpresence.VisitLocationFilter{VisitFilter: studentpresence.VisitFilter{
 		StudentIDs: studentIDs, EnteredFrom: &since,
 	}})

@@ -11,8 +11,8 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (rs *Resource) prefetchListSettings(ctx context.Context) (context.Context, error) {
@@ -76,11 +76,11 @@ func (rs *Resource) listStudents(w http.ResponseWriter, r *http.Request) {
 // is rendered for.
 type studentListPlan struct {
 	params       *studentListParams
-	planningDate timezone.Date
+	planningDate calendar.Date
 	isToday      bool
 	// departureDate is the day whose departure plan and companions apply:
 	// the Friday before a weekend that follows Friday's plan (#3921).
-	departureDate timezone.Date
+	departureDate calendar.Date
 }
 
 // parseStudentListPlan reads the list request. The planning date is resolved
@@ -108,7 +108,7 @@ func (rs *Resource) parseStudentListPlan(r *http.Request) (studentListPlan, rend
 		return studentListPlan{}, common.ErrorInvalidRequest(err)
 	}
 	params.careStatusOn = planningDate
-	params.careStatusToday = timezone.DateFromTime(now)
+	params.careStatusToday = calendar.DateFromTime(now)
 	departure, err := departurePlanDate(r.Context(), planningDate)
 	if err != nil {
 		return studentListPlan{}, common.ErrorInternalServerWrap("resolve weekend plan failed", err)

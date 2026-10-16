@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,11 +23,11 @@ func TestNewInstanceSeriesConversion_RejectsNilDeps(t *testing.T) {
 }
 
 func TestConvertInstanceToSeries_RejectsInvalidInput(t *testing.T) {
-	zeroDate := timezone.Date("")
+	zeroDate := calendar.Date("")
 	t.Parallel()
 
 	svc := &instanceSeriesConversion{}
-	date := timezone.NewDate(2026, time.May, 4)
+	date := calendar.NewDate(2026, time.May, 4)
 	periodID := int64(11)
 
 	tests := []struct {

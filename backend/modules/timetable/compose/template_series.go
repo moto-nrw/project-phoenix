@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Split-series segment resolution (#2187).
@@ -27,8 +27,8 @@ import (
 type templateSeriesSegment struct {
 	Group      *activitiesModel.Group
 	Weekdays   []int // distinct schedule weekdays, ascending
-	ValidFrom  *timezone.Date
-	ValidUntil *timezone.Date
+	ValidFrom  *calendar.Date
+	ValidUntil *calendar.Date
 }
 
 // loadTemplateSeriesSegments resolves templateID to its stable split-series

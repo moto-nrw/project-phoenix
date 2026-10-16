@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -122,7 +122,7 @@ func (s *InstanceLifecycleService) validateGuardianNotice(ctx context.Context, i
 		return err
 	}
 	// A block that already lies in the past is bookkeeping, not news.
-	if instance.Date.Before(timezone.TodayDate()) {
+	if instance.Date.Before(calendar.TodayDate()) {
 		return timetable.WithCode(fmt.Errorf("%w: block is in the past", timetable.ErrGuardianNoticeInvalid),
 			timetable.CodeGuardianNoticePast)
 	}

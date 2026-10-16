@@ -22,7 +22,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -30,6 +29,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CallerContext is the Identity & Access caller context the adapters read.
@@ -58,7 +58,7 @@ type Sources struct {
 	Settings          grouplive.Resolver
 	Pickups           careplan.BulkPickupDays
 	Arrivals          careplan.BulkArrivalTimes
-	PlannedStudentIDs func(context.Context, []int64, timezone.Date) ([]int64, error)
+	PlannedStudentIDs func(context.Context, []int64, calendarpkg.Date) ([]int64, error)
 	CareDays          careplan.CareDayQuery
 	CareParticipation careplan.CareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
@@ -125,8 +125,8 @@ func (a access) FullStudentAccess(ctx context.Context) (bool, error) {
 
 // parseDay converts the projection's calendar day into the retained
 // signatures' date value.
-func parseDay(date grouplive.Date) (timezone.Date, error) {
-	return timezone.ParseDate(string(date))
+func parseDay(date grouplive.Date) (calendarpkg.Date, error) {
+	return calendarpkg.ParseDate(string(date))
 }
 
 type directory struct {
@@ -330,7 +330,7 @@ func (p presence) TrackingIndicators(ctx context.Context, studentIDs []int64, la
 type planning struct {
 	arrivals careplan.BulkArrivalTimes
 	pickups  careplan.BulkPickupDays
-	planned  func(context.Context, []int64, timezone.Date) ([]int64, error)
+	planned  func(context.Context, []int64, calendarpkg.Date) ([]int64, error)
 	careDays careplan.CareDayQuery
 }
 
@@ -531,9 +531,9 @@ func (s settings) TrackingIndicatorLabels(ctx context.Context) ([]string, error)
 type calendar struct{ now func() time.Time }
 
 func (c calendar) Today() grouplive.Date {
-	return grouplive.Date(timezone.DateFromTime(c.now()).String())
+	return grouplive.Date(calendarpkg.DateFromTime(c.now()).String())
 }
 
-func (c calendar) Clock(at time.Time) string { return at.In(timezone.Berlin).Format("15:04") }
+func (c calendar) Clock(at time.Time) string { return at.In(calendarpkg.Berlin).Format("15:04") }
 
 func (c calendar) Now() time.Time { return c.now() }

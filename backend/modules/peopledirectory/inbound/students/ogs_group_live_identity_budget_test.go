@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -61,7 +61,7 @@ func TestOGSGroupLiveIdentityQueryBudget(t *testing.T) {
 
 	// Substitution with an unassigned regular slot so both substitution
 	// projections (GetMyGroups relations + GetSubstitutedGroupIDs) have a row.
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	subGroup := testpkg.CreateTestEducationGroup(t, tc.db, "IdentityBudgetSubGroup")
 	testpkg.CreateTestGroupSubstitution(t, tc.db, subGroup.ID, nil, teacher.StaffID,
 		today.AddDays(-1), today.AddDays(3))

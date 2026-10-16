@@ -10,7 +10,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
@@ -24,6 +23,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/requestreview"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
@@ -99,7 +99,7 @@ type WeekdayPickupNoteReplacer interface {
 // planned-block lookup the day planning reads (#584): which of the children
 // have a planned block on a date.
 type PlannedStudents interface {
-	GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date timezone.Date) ([]int64, error)
+	GetPlannedStudentIDsByDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]int64, error)
 }
 
 // StudentPresence is the consumer-owned presence port of the students inbound
@@ -278,8 +278,8 @@ func NewResource(cfg ResourceConfig) *Resource {
 	return &Resource{ResourceConfig: cfg}
 }
 
-func (rs *Resource) todayDate() timezone.Date {
-	return timezone.DateFromTime(rs.Now())
+func (rs *Resource) todayDate() calendar.Date {
+	return calendar.DateFromTime(rs.Now())
 }
 
 // Router returns a configured router for student endpoints

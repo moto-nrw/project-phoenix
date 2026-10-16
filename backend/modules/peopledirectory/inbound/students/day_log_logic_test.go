@@ -7,22 +7,21 @@ import (
 	"testing"
 	"time"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func dayLogAttendanceRow(checkIn time.Time, checkOut *time.Time) *studentpresence.Attendance {
-	return &studentpresence.Attendance{StudentID: 1, Date: timezone.TodayDate().String(), CheckInTime: checkIn, CheckOutTime: checkOut}
+	return &studentpresence.Attendance{StudentID: 1, Date: calendar.TodayDate().String(), CheckInTime: checkIn, CheckOutTime: checkOut}
 }
 
 func dayLogStatusRow(status, source string, reportedAt time.Time) *absencerecords.StudentStatusDay {
-	return &absencerecords.StudentStatusDay{StudentID: 1, Date: timezone.TodayDate(), Status: status, Source: source, ReportedAt: reportedAt}
+	return &absencerecords.StudentStatusDay{StudentID: 1, Date: calendar.TodayDate(), Status: status, Source: source, ReportedAt: reportedAt}
 }
 
 func TestClassifyDayLogStudent_PresentWinsAndCarriesHint(t *testing.T) {
@@ -83,7 +82,7 @@ func TestClassifyDayLogStudent_NotScheduledAndAbsent(t *testing.T) {
 func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	request := httptest.NewRequest("GET", "/day-log?date="+today.AddDays(-1).String(), nil)
 
 	_, err := parseDayLogDate(request, today)
@@ -101,13 +100,13 @@ func TestParseDayLogDateRejectsHistoryWithoutDatedGroupAssignments(t *testing.T)
 func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
 	t.Parallel()
 
-	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, timezone.Berlin)
+	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, calendar.Berlin)
 	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
 
 	clock := rs.dayLogClock()
 	date, err := parseDayLogDate(httptest.NewRequest("GET", "/day-log", nil), clock.today)
 	require.NoError(t, err)
-	assert.Equal(t, timezone.NewDate(2026, time.July, 26), date)
+	assert.Equal(t, calendar.NewDate(2026, time.July, 26), date)
 
 	// The care-plan branch runs after the rollover; the frozen clock still
 	// resolves the requested day as live.
@@ -128,11 +127,11 @@ func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
 func TestDayLogArrivalIsStillPending(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
-	arrival := timezone.NormalizeWallClock(now.Add(2 * time.Hour))
+	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, calendar.Berlin)
+	arrival := calendar.NormalizeWallClock(now.Add(2 * time.Hour))
 	row := dayLogStudent{Status: dayLogStatusAbsent}
 
-	clock := dayLogClock{now: now, today: timezone.DateFromTime(now)}
+	clock := dayLogClock{now: now, today: calendar.DateFromTime(now)}
 
 	assert.True(t, dayLogArrivalIsStillPending(row, careplan.CareDayScheduled,
 		&careplan.EffectiveArrivalTime{ArrivalTime: &arrival}, clock.today, clock))
@@ -145,9 +144,9 @@ func TestDayLogArrivalIsStillPending(t *testing.T) {
 func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
-	date := timezone.DateFromTime(now)
-	arrival := timezone.NormalizeWallClock(now.Add(2 * time.Hour))
+	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, calendar.Berlin)
+	date := calendar.DateFromTime(now)
+	arrival := calendar.NormalizeWallClock(now.Add(2 * time.Hour))
 	group := &SchoolGroup{Name: "Gruppe A"}
 	group.ID = 1
 	student := &Student{}
@@ -177,8 +176,8 @@ func TestBuildDayLogResponse_OmitsStudentBeforeScheduledArrival(t *testing.T) {
 func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.July, 26, 12, 0, 0, 0, timezone.Berlin)
-	date := timezone.DateFromTime(now)
+	now := time.Date(2026, time.July, 26, 12, 0, 0, 0, calendar.Berlin)
+	date := calendar.DateFromTime(now)
 	startsLater := date.AddDays(7)
 	group := &SchoolGroup{Name: "Gruppe A"}
 	group.ID = 1
@@ -219,16 +218,16 @@ func TestBuildDayLogResponse_SkipsDerivedVerdictBeforeEnrollmentStart(t *testing
 func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
 	t.Parallel()
 
-	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, timezone.Berlin)
+	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, calendar.Berlin)
 	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
 	clock := rs.dayLogClock()
 
-	var gotDate, gotToday timezone.Date
+	var gotDate, gotToday calendar.Date
 	// Returning an error stops loadDayLogData right after the roster query, so
 	// the assertion needs no downstream service doubles.
 	rosterQueried := errors.New("roster queried")
 	rs.Persons = personRecordsFake{
-		listStudentsForDay: func(_ context.Context, _ []int64, date, today timezone.Date) ([]peopleModule.StudentRecord, error) {
+		listStudentsForDay: func(_ context.Context, _ []int64, date, today calendar.Date) ([]peopleModule.StudentRecord, error) {
 			gotDate, gotToday = date, today
 			return nil, rosterQueried
 		},
@@ -239,14 +238,14 @@ func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
 	_, err := rs.loadDayLogData(context.Background(), []*SchoolGroup{group}, clock.today, clock)
 
 	require.ErrorIs(t, err, rosterQueried)
-	assert.Equal(t, timezone.NewDate(2026, time.July, 26), gotDate)
+	assert.Equal(t, calendar.NewDate(2026, time.July, 26), gotDate)
 	assert.Equal(t, clock.today, gotToday, "eligibility must use the request's frozen day, not the process clock")
 }
 
 func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 	t.Parallel()
 
-	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, timezone.Berlin)
+	now := time.Date(2026, time.July, 26, 8, 0, 0, 0, calendar.Berlin)
 	stub := &stubCareDayService{verdicts: map[int64]careplan.CareDayStatus{
 		10: careplan.CareDayNotScheduled,
 	}}
@@ -257,7 +256,7 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 		arrivalTimes:    map[int64]*careplan.EffectiveArrivalTime{},
 	}
 
-	clock := dayLogClock{now: now, today: timezone.DateFromTime(now)}
+	clock := dayLogClock{now: now, today: calendar.DateFromTime(now)}
 
 	require.NoError(t, rs.loadDayLogSignOffs(context.Background(), pastData, []int64{10}, clock.today.AddDays(-1), clock))
 	assert.Empty(t, stub.askedFor)
@@ -283,7 +282,7 @@ func TestBuildDayLogExportDocument_UsesMarkerRowConvention(t *testing.T) {
 		{Name: "Gruppe A", Counters: dayLogCounters{Present: 1, NotScheduled: 2}, Students: []dayLogStudent{{FirstName: "Mia", LastName: "Bauer", Status: dayLogStatusPresent, Label: "Anwesend"}}},
 		{Name: "Gruppe B", Students: []dayLogStudent{{FirstName: "Paul", LastName: "Wolf", Status: dayLogStatusAbsent, Label: "Abwesend"}}},
 	}}
-	doc := buildDayLogExportDocument(multi, timezone.TodayDate())
+	doc := buildDayLogExportDocument(multi, calendar.TodayDate())
 	require.Len(t, doc.Rows, 4)
 	assert.Equal(t, "Gruppe A", doc.Rows[0].GroupTitle)
 	assert.Empty(t, doc.Rows[0].Values, "marker rows carry no values")
@@ -294,7 +293,7 @@ func TestBuildDayLogExportDocument_UsesMarkerRowConvention(t *testing.T) {
 	assert.Equal(t, "Gruppe A: 1 Anwesend · 0 Krank · 0 Entschuldigt · 0 Klassenfahrt · 2 Nicht eingeplant · 0 Abwesend", doc.Filters[0])
 
 	single := dayLogResponse{Groups: multi.Groups[:1]}
-	doc = buildDayLogExportDocument(single, timezone.TodayDate())
+	doc = buildDayLogExportDocument(single, calendar.TodayDate())
 	require.Len(t, doc.Rows, 1)
 	assert.Empty(t, doc.Rows[0].GroupTitle, "single-group export stays ungrouped")
 	assert.Equal(t, "Bauer, Mia", doc.Rows[0].Values["name"])

@@ -13,12 +13,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/internal/strutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -43,7 +43,7 @@ func applyPersonUpdates(req *UpdateStudentRequest, person *peopleModule.Person) 
 	}
 	if req.Birthday != nil {
 		if *req.Birthday != "" {
-			parsedBirthday, err := timezone.ParseDate(*req.Birthday)
+			parsedBirthday, err := calendar.ParseDate(*req.Birthday)
 			if err != nil {
 				result.err = fmt.Errorf("invalid birthday format, expected YYYY-MM-DD: %w", err)
 				return result
@@ -373,7 +373,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
-	if err := rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, timezone.DateFromTime(statusHistoryNow)); err != nil {
+	if err := rs.scheduleStudentUpdateWakes(ctx, tenantID, student.ID, req, companionsChanged, reportedStatus, calendar.DateFromTime(statusHistoryNow)); err != nil {
 		return false, err
 	}
 	return companionsChanged, nil

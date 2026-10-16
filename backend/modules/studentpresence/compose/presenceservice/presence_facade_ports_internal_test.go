@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -67,7 +67,7 @@ func TestPresenceFacadePortReads(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("has open attendance delegates date and result", func(t *testing.T) {
-		date := timezone.DateFromTime(timezone.NewDate(2026, 8, 24).BerlinMidnight())
+		date := calendar.DateFromTime(calendar.NewDate(2026, 8, 24).BerlinMidnight())
 		port := &attendancePortForFacadeTest{has: true}
 		facade := &presenceFacade{attendance: port}
 
@@ -82,7 +82,7 @@ func TestPresenceFacadePortReads(t *testing.T) {
 		expectedErr := errors.New("attendance lookup failed")
 		facade := &presenceFacade{attendance: &attendancePortForFacadeTest{err: expectedErr}}
 
-		hasOpen, err := facade.HasOpenAttendanceOn(ctx, timezone.NewDate(2026, 8, 24))
+		hasOpen, err := facade.HasOpenAttendanceOn(ctx, calendar.NewDate(2026, 8, 24))
 
 		require.ErrorIs(t, err, expectedErr)
 		assert.False(t, hasOpen)
@@ -107,7 +107,7 @@ func TestStudentHistory_HasPlannedSlotsInRange_NilSlotRepo(t *testing.T) {
 
 	history := NewStudentHistory(nil, nil, nil, nil)
 
-	has, err := history.HasPlannedSlotsInRange(context.Background(), timezone.NewDate(2032, 3, 2), timezone.NewDate(2032, 3, 6))
+	has, err := history.HasPlannedSlotsInRange(context.Background(), calendar.NewDate(2032, 3, 2), calendar.NewDate(2032, 3, 6))
 	require.NoError(t, err)
 	assert.False(t, has, "without a slot repository there is no care-plan signal")
 }

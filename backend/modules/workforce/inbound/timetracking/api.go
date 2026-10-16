@@ -15,8 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	staffshifts "github.com/moto-nrw/project-phoenix/api/staff-shifts"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -186,25 +186,25 @@ func (rs *Resource) getStaffIDFromClaims(ctx context.Context, claims Identity) (
 
 // parseDateRange extracts and validates "from" and "to" query parameters as dates.
 // Returns the parsed times or renders an error and returns false.
-func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to timezone.Date, ok bool) {
+func parseDateRange(w http.ResponseWriter, r *http.Request) (from, to calendar.Date, ok bool) {
 	fromStr := r.URL.Query().Get("from")
 	toStr := r.URL.Query().Get("to")
 
 	if fromStr == "" || toStr == "" {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("from and to query parameters are required")))
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 
-	from, err := timezone.ParseDate(fromStr)
+	from, err := calendar.ParseDate(fromStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid from date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 
-	to, err = timezone.ParseDate(toStr)
+	to, err = calendar.ParseDate(toStr)
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid to date format, expected YYYY-MM-DD")))
-		return timezone.Date(""), timezone.Date(""), false
+		return calendar.Date(""), calendar.Date(""), false
 	}
 
 	return from, to, true

@@ -11,12 +11,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -33,7 +33,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 	var requestID int64
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		request, err := tc.resource.ExcusedRequestService.CreateRequest(ctx, chain.StudentID, chain.AccountID,
-			[]excusedrequests.Date{excusedrequests.Date(timezone.TodayDate())}, note)
+			[]excusedrequests.Date{excusedrequests.Date(calendar.TodayDate())}, note)
 		if err == nil {
 			requestID = request.ID
 		}
@@ -136,7 +136,7 @@ func TestParentAbsenceReviewScopeKeepsReadsAndDecisionsConsistent(t *testing.T) 
 	// parent-request policy allows an unassigned reviewer to approve.
 	require.NoError(t, tc.settings().SetValue(testpkg.Ctx(t), settings.KeyStudentAbsenceEditScope,
 		settings.StudentAbsenceEditScopeAdmins, nil, nil))
-	date := timezone.TodayDate().AddDays(1)
+	date := calendar.TodayDate().AddDays(1)
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), tc.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
 		request, err := tc.resource.ExcusedRequestService.CreateRequest(ctx, chain.StudentID, chain.AccountID,
 			[]excusedrequests.Date{excusedrequests.Date(date)}, note)

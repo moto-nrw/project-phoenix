@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func liveGroupToPublic(row ports.LiveGroup) studentpresence.LiveGroup {
@@ -41,7 +41,7 @@ func (e engine) EndGroup(ctx context.Context, groupID int64, at time.Time) error
 }
 
 func (e engine) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.Time) (studentpresence.EndedGroupSessions, error) {
-	row, err := e.Service.EndGroupSessions(ctx, groupIDs, at, timezone.DateFromTime(at))
+	row, err := e.Service.EndGroupSessions(ctx, groupIDs, at, calendar.DateFromTime(at))
 	if err != nil {
 		return studentpresence.EndedGroupSessions{}, err
 	}
@@ -53,7 +53,7 @@ func (e engine) EndGroupSessions(ctx context.Context, groupIDs []int64, at time.
 
 func (e engine) EndGroupSession(ctx context.Context, groupID int64, at time.Time) (studentpresence.EndedGroupSession, error) {
 	// Supervisions end on the school's calendar day of the close instant.
-	row, err := e.Service.EndGroupSession(ctx, groupID, at, timezone.DateFromTime(at))
+	row, err := e.Service.EndGroupSession(ctx, groupID, at, calendar.DateFromTime(at))
 	if err != nil {
 		return studentpresence.EndedGroupSession{}, groupSessionError(err)
 	}

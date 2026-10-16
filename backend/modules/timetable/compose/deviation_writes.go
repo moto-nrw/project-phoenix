@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -283,7 +283,7 @@ func (s *staffDeviations) addSubstitute(ctx context.Context, op substituteWriteO
 		StaffID:   subID,
 		GroupID:   *op.Instance.ActiveGroupID,
 		Role:      "supervisor",
-		StartDate: timezone.DateFromTime(now).String(),
+		StartDate: calendar.DateFromTime(now).String(),
 	}
 	newSup.TenantID = tenant.FromContext(ctx)
 	if err := s.deps.Supervisions.CreateSupervision(ctx, newSup); err != nil {

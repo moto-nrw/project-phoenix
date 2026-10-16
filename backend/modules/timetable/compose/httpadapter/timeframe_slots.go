@@ -5,8 +5,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Timetable owner keeps clock values as timezone-free HH:MM:SS strings
@@ -112,21 +112,21 @@ func availableTimeframeSlots(ctx context.Context, timeframes timetableModule.Tim
 	if duration <= 0 {
 		return nil, timetableModule.ErrInvalidDuration
 	}
-	start = timezone.NormalizeWallClock(start)
-	end = timezone.NormalizeWallClock(end)
+	start = calendar.NormalizeWallClock(start)
+	end = calendar.NormalizeWallClock(end)
 
 	existing, err := overlappingTimeframes(ctx, timeframes, start, end)
 	if err != nil {
 		return nil, err
 	}
 	sort.Slice(existing, func(i, j int) bool {
-		return timezone.NormalizeWallClock(existing[i].StartTime).Before(timezone.NormalizeWallClock(existing[j].StartTime))
+		return calendar.NormalizeWallClock(existing[i].StartTime).Before(calendar.NormalizeWallClock(existing[j].StartTime))
 	})
 
 	var available []timeframeSlot
 	current := start
 	for _, tf := range existing {
-		tfStart := timezone.NormalizeWallClock(tf.StartTime)
+		tfStart := calendar.NormalizeWallClock(tf.StartTime)
 		if current.Before(tfStart) {
 			gapEnd := tfStart
 			if gapEnd.Sub(current) >= duration {
@@ -137,7 +137,7 @@ func availableTimeframeSlots(ctx context.Context, timeframes timetableModule.Tim
 			// Open-ended timeframe, no more available slots.
 			return available, nil
 		}
-		current = timezone.NormalizeWallClock(*tf.EndTime)
+		current = calendar.NormalizeWallClock(*tf.EndTime)
 	}
 	if current.Before(end) && end.Sub(current) >= duration {
 		gapEnd := end

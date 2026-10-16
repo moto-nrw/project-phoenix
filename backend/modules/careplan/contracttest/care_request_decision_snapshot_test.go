@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -212,7 +212,7 @@ func TestDecide_PickupChangeFreezesDiff(t *testing.T) {
 
 	// A fixed future Monday lets the exception's weekday fallback (the live
 	// Monday plan) supply the old side without depending on the wall clock.
-	date := timezone.NewDate(2026, 8, 31)
+	date := calendar.NewDate(2026, 8, 31)
 	req, err := f.svc.CreatePickupChangeRequest(
 		f.staffCtx(f.chain.AccountID), f.chain.StudentID, f.chain.AccountID,
 		date, time.Date(0, 1, 1, 16, 30, 0, 0, time.UTC), "Arzttermin",

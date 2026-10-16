@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type Weekday int
@@ -84,17 +84,17 @@ type DailyList struct {
 
 func CutoffAt(date Date, cutoffTime string) time.Time {
 	clock, _ := time.Parse("15:04", cutoffTime)
-	return time.Date(date.Year(), date.Month(), date.Day(), clock.Hour(), clock.Minute(), 0, 0, timezone.Berlin)
+	return time.Date(date.Year(), date.Month(), date.Day(), clock.Hour(), clock.Minute(), 0, 0, calendar.Berlin)
 }
 
 func Changeable(now time.Time, date Date, cutoffTime string) bool {
-	now = now.In(timezone.Berlin)
+	now = now.In(calendar.Berlin)
 	today := Date(now.Format("2006-01-02"))
 	return !date.Before(today) && !now.After(CutoffAt(date, cutoffTime))
 }
 
 func NextEffectiveDate(now time.Time, cutoffTime string) Date {
-	now = now.In(timezone.Berlin)
+	now = now.In(calendar.Berlin)
 	date := Date(now.Format("2006-01-02"))
 	if now.After(CutoffAt(date, cutoffTime)) {
 		date = date.AddDays(1)

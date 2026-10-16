@@ -9,13 +9,12 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,14 +22,14 @@ import (
 )
 
 func newPickupChangeFixture(t *testing.T) *careFixture {
-	return newCareFixture(t, api.WithCareRequestToday(func() timezone.Date { return timezone.NewDate(2026, 8, 24) }))
+	return newCareFixture(t, api.WithCareRequestToday(func() calendar.Date { return calendar.NewDate(2026, 8, 24) }))
 }
 
 // nextSchoolDay moves a date off the weekend. A pickup schedule only knows
 // Monday to Friday, so a plain "today + 2" made this test fail every Thursday
 // and Friday — the calendar, not the code, decided whether it was green
 // (#2419).
-func nextSchoolDay(d timezone.Date) timezone.Date {
+func nextSchoolDay(d calendar.Date) calendar.Date {
 	for d.Weekday() == time.Saturday || d.Weekday() == time.Sunday {
 		d = d.AddDays(1)
 	}
@@ -42,13 +41,13 @@ func TestPickupChangeRequestAppliesOnlyAfterStaffApproval(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
+	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
 	pickup := time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC)
 	weekday := int(date.Weekday())
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    weekday,
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	t.Cleanup(func() {
@@ -293,7 +292,7 @@ func TestPickupChangeApprovalRollsBackWhenAutoExcusalFails(t *testing.T) {
 }
 
 func assertPickupApprovalRolledBack(
-	t *testing.T, f *careFixture, ctx context.Context, date timezone.Date, slotID, requestID int64,
+	t *testing.T, f *careFixture, ctx context.Context, date calendar.Date, slotID, requestID int64,
 ) {
 	t.Helper()
 	exception, err := f.repos.StudentPickupException.FindByStudentIDAndDate(ctx, f.chain.StudentID, scheduleModels.Date(date))
@@ -346,15 +345,15 @@ func holdInstanceStudentLock(t *testing.T, f *careFixture, slotID int64) func() 
 	return unlock
 }
 
-func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, timezone.Date, int64) {
+func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, calendar.Date, int64) {
 	t.Helper()
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
+	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx, &careplan.PickupSchedule{
 		StudentID:  f.chain.StudentID,
 		Weekday:    int(date.Weekday()),
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)),
 		CreatedBy:  f.staffID,
 	}))
 	room := testpkg.CreateTestRoom(t, f.db, "Pickup request auto excusal")
@@ -374,7 +373,7 @@ func newPickupApprovalAutoExcusalScenario(t *testing.T) (*careFixture, timezone.
 }
 
 // seedPickupChangeRequest books a pending parent pickup change for a future day.
-func seedPickupChangeRequest(t *testing.T, f *careFixture, date timezone.Date) *carerequests.Request {
+func seedPickupChangeRequest(t *testing.T, f *careFixture, date calendar.Date) *carerequests.Request {
 	t.Helper()
 	req, err := f.svc.CreatePickupChangeRequest(
 		f.staffCtx(f.staffAccount),
@@ -396,7 +395,7 @@ func TestPickupChangeApprovalYieldsToStaffException(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(3)
+	date := calendar.NewDate(2026, 8, 24).AddDays(3)
 	req := seedPickupChangeRequest(t, f, date)
 
 	staffPickup := time.Date(2000, 1, 1, 16, 0, 0, 0, time.UTC)
@@ -433,7 +432,7 @@ func TestPickupChangeApprovalYieldsToExcusedAbsence(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(4)
+	date := calendar.NewDate(2026, 8, 24).AddDays(4)
 	req := seedPickupChangeRequest(t, f, date)
 
 	// Source stays "guardian" on purpose: that isolates the excusal rule from
@@ -465,7 +464,7 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24)
+	date := calendar.NewDate(2026, 8, 24)
 	req, err := f.svc.CreatePickupChangeRequest(
 		ctx,
 		f.chain.StudentID,
@@ -476,7 +475,7 @@ func TestPickupChangeApprovalRejectsCompletedSameDayPickup(t *testing.T) {
 	)
 	require.NoError(t, err)
 	device := testpkg.CreateTestDeviceForTenant(t, f.db, f.chain.TenantID, "pickup-review-checkout")
-	checkedOutAt := timezone.Now()
+	checkedOutAt := calendar.Now()
 	attendance := studentpresence.Attendance{
 		TenantID:     f.chain.TenantID,
 		StudentID:    f.chain.StudentID,
@@ -504,7 +503,7 @@ func TestPickupChangeApprovalRejectsDateAfterPlannedCareEnd(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(4)
+	date := calendar.NewDate(2026, 8, 24).AddDays(4)
 	req := seedPickupChangeRequest(t, f, date)
 	lastCareDay := date.AddDays(-1)
 	_, err := f.db.NewUpdate().
@@ -534,7 +533,7 @@ func TestPickupChangeRequestsForDifferentDaysCoexist(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	tuesday := timezone.NewDate(2026, 8, 24).AddDays(7)
+	tuesday := calendar.NewDate(2026, 8, 24).AddDays(7)
 	wednesday := tuesday.AddDays(1)
 
 	first := seedPickupChangeRequest(t, f, tuesday)
@@ -583,7 +582,7 @@ func TestPickupChangeApprovalRejectsExpiredRequest(t *testing.T) {
 		SubmittedBy: f.chain.AccountID,
 		RequestKind: scheduleModels.CareRequestKindPickupChange,
 		Payload: map[string]any{
-			"date":        timezone.NewDate(2026, 8, 24).AddDays(-1).String(),
+			"date":        calendar.NewDate(2026, 8, 24).AddDays(-1).String(),
 			"pickup_time": "14:30",
 			"reason":      "Arzttermin",
 		},
@@ -615,7 +614,7 @@ func TestListPickupChangeRequestsReturnsTheParentsOwn(t *testing.T) {
 
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
-	date := timezone.NewDate(2026, 8, 24).AddDays(6)
+	date := calendar.NewDate(2026, 8, 24).AddDays(6)
 	req := seedPickupChangeRequest(t, f, date)
 
 	rows, err := f.svc.ListPickupChangeRequests(ctx, f.chain.StudentID, time.Now().AddDate(0, -2, 0))
@@ -639,10 +638,10 @@ type pickupCorrecter interface {
 
 // approvedPickupChange files a pickup change and approves it, returning the
 // request and the day it covers.
-func approvedPickupChange(t *testing.T, f *careFixture) (*carerequests.Request, timezone.Date) {
+func approvedPickupChange(t *testing.T, f *careFixture) (*carerequests.Request, calendar.Date) {
 	t.Helper()
 	ctx := f.staffCtx(f.staffAccount)
-	date := nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2))
+	date := nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2))
 	req, err := f.svc.CreatePickupChangeRequest(
 		ctx, f.chain.StudentID, f.chain.AccountID, date,
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
@@ -711,7 +710,7 @@ func TestPickupChangeCorrectRefusesAnUndecidedRequest(t *testing.T) {
 	f := newPickupChangeFixture(t)
 	ctx := f.staffCtx(f.staffAccount)
 	req, err := f.svc.CreatePickupChangeRequest(
-		ctx, f.chain.StudentID, f.chain.AccountID, nextSchoolDay(timezone.NewDate(2026, 8, 24).AddDays(2)),
+		ctx, f.chain.StudentID, f.chain.AccountID, nextSchoolDay(calendar.NewDate(2026, 8, 24).AddDays(2)),
 		time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), "Arzttermin",
 	)
 	require.NoError(t, err)

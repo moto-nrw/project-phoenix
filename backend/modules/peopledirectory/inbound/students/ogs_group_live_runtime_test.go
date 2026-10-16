@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -39,7 +39,7 @@ func TestOGSGroupLiveRuntime(t *testing.T) {
 			student := testpkg.CreateTestStudent(t, tc.db, "LiveRuntime", fmt.Sprintf("Child%02d", size), "LR1")
 			testpkg.AssignStudentToGroup(t, tc.db, student.ID, group.ID)
 			now := fixedCalendarClock()
-			testpkg.CreateTestAttendanceForDate(t, tc.db, student.ID, teacher.Staff.ID, device.ID, timezone.DateFromTime(now), now.Add(-time.Hour), nil)
+			testpkg.CreateTestAttendanceForDate(t, tc.db, student.ID, teacher.Staff.ID, device.ID, calendar.DateFromTime(now), now.Add(-time.Hour), nil)
 			testpkg.CreateTestVisit(t, tc.db, student.ID, activeGroup.ID, now.Add(-time.Hour), nil)
 			size++
 		}

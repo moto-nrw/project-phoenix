@@ -5,9 +5,9 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // instanceReferences are the tenant-scoped foreign ids a planner write
@@ -25,7 +25,7 @@ type instanceReferences struct {
 // tenant and returns the block type of the linked template ("" without one).
 // date is the date the rows will LIVE on (the target of a move): it decides
 // whether a graduated child is still refused.
-func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Context, date timezone.Date, refs instanceReferences) (string, error) {
+func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Context, date calendar.Date, refs instanceReferences) (string, error) {
 	groupType, err := s.validateActivityGroupReference(ctx, refs.activityGroupID)
 	if err != nil {
 		return "", err
@@ -163,7 +163,7 @@ func (s *InstanceLifecycleService) validateCreatedByStaffReference(ctx context.C
 // would otherwise recreate the rows the graduation archived (#405 review).
 // The caller holds the grade-transition gate, so the status cannot flip.
 // Past rosters are frozen history and stay editable.
-func (s *InstanceLifecycleService) validateStudentReferences(ctx context.Context, date timezone.Date, studentIDs []int64) error {
+func (s *InstanceLifecycleService) validateStudentReferences(ctx context.Context, date calendar.Date, studentIDs []int64) error {
 	uniqueStudentIDs := sliceutil.UniquePositive(studentIDs)
 	if len(uniqueStudentIDs) == 0 {
 		return nil
@@ -175,7 +175,7 @@ func (s *InstanceLifecycleService) validateStudentReferences(ctx context.Context
 	if len(found) != len(uniqueStudentIDs) {
 		return fmt.Errorf("%w: invalid student_ids", timetable.ErrInvalidInstanceReference)
 	}
-	if date.Before(timezone.TodayDate()) {
+	if date.Before(calendar.TodayDate()) {
 		return nil
 	}
 	for _, id := range uniqueStudentIDs {

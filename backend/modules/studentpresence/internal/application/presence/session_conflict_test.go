@@ -91,12 +91,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	activeSvc "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -451,7 +450,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, &device.ID, session.DeviceID)
 
 		// Verify supervisors were assigned
-		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		assert.Len(t, supervisors, 2, "Expected 2 supervisors")
 	})
@@ -498,7 +497,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		visit := testpkg.CreateTestVisit(t, db, student.ID, session1.ID, time.Now().Add(-15*time.Minute), nil)
 		activeGroupID := session1.ID
 		mirroredInstance := &scheduleModels.ActivityInstance{
-			Date:            scheduleModels.Date(timezone.TodayDate()),
+			Date:            scheduleModels.Date(calendar.TodayDate()),
 			ActivityGroupID: &activityGroup.ID,
 			Title:           "Force Transfer Activity",
 			StartTime:       time.Date(2000, 1, 1, 14, 0, 0, 0, time.UTC),
@@ -538,7 +537,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, scheduleModels.InstanceStatusCompleted, completedMirror.Status, "expected old timetable mirror to be completed")
 		assert.NotNil(t, completedMirror.CompletedAt, "expected completed mirror timestamp")
 
-		oldActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session1.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		oldActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session1.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
@@ -549,7 +548,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, session1.ID, allOldSupervisors[0].GroupID)
 		assert.NotNil(t, allOldSupervisors[0].EndDate, "expected old supervisor row to be ended, not moved")
 
-		newActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session2.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		newActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session2.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		require.Len(t, newActiveSupervisors, 2, "expected old and new supervisors on the new session")
 
@@ -592,7 +591,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		require.NotNil(t, session2)
 		assert.NotEqual(t, session1.ID, session2.ID)
 
-		oldActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session1.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		oldActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session1.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		assert.Empty(t, oldActiveSupervisors, "expected old session to have no active supervisors")
 
@@ -604,7 +603,7 @@ func TestForceStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.Equal(t, "Supervisor", allOldSupervisors[0].Role)
 		assert.NotNil(t, allOldSupervisors[0].EndDate, "expected old supervisor row to be ended")
 
-		newActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session2.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		newActiveSupervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session2.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		require.Len(t, newActiveSupervisors, 1, "expected role casing mismatch not to duplicate the same staff member")
 		assert.Equal(t, staff.ID, newActiveSupervisors[0].StaffID)
@@ -664,7 +663,7 @@ func TestStartActivitySessionWithSupervisors(t *testing.T) {
 		assert.NotNil(t, session)
 
 		// Verify both supervisors assigned
-		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(timezone.TodayDate().String())})
+		supervisors, err := testSchoolPresence(t, db).QueryGroupSupervisions(ctx, studentpresence.GroupSupervisionFilter{GroupIDs: []int64{session.ID}, ActiveOn: new(calendar.TodayDate().String())})
 		require.NoError(t, err)
 		assert.Len(t, supervisors, 2)
 	})

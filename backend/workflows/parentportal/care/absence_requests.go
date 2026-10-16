@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ListExcusedRequests is the legacy-named read path for the child's pending and
@@ -48,7 +48,7 @@ func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 
 // carePlanDates hands the calendar days to the Care Plan owner in its own
 // canonical form; both types carry YYYY-MM-DD.
-func carePlanDates(dates []timezone.Date) []careplan.Date {
+func carePlanDates(dates []calendar.Date) []careplan.Date {
 	result := make([]careplan.Date, len(dates))
 	for i := range dates {
 		result[i] = careplan.Date(dates[i])
@@ -105,7 +105,7 @@ func mapExcusedRequestError(err error, op string) error {
 // service.
 func (s *Service) EditExcusedRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
-	dates []timezone.Date, note, expectedVersion string,
+	dates []calendar.Date, note, expectedVersion string,
 ) (*careplan.ExcusedAbsenceRequest, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
@@ -153,7 +153,7 @@ func (s *Service) EditExcusedRequest(
 // (source=planned/manual) are an internal scheduled status the parent neither set
 // nor manages here, so they are NOT surfaced. Class-trip days stay excluded for
 // the same reason.
-func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err

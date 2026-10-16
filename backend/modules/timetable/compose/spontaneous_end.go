@@ -3,8 +3,8 @@ package compose
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // lastWallClockMinute is 23:59, the latest end a block of one day can have.
@@ -25,12 +25,12 @@ func spontaneousCompletionEnd(instance *scheduleModel.ActivityInstance, complete
 	if startMinute >= lastWallClockMinute {
 		return time.Time{}, false
 	}
-	berlin := completedAt.In(timezone.Berlin)
+	berlin := completedAt.In(calendar.Berlin)
 	endMinute := berlin.Hour()*60 + berlin.Minute()
-	if timezone.DateFromTime(completedAt).String() != instance.Date.String() {
+	if calendar.DateFromTime(completedAt).String() != instance.Date.String() {
 		endMinute = lastWallClockMinute
 	}
 	endMinute = min(max(endMinute, startMinute+1), lastWallClockMinute)
 	clock := time.Date(1, time.January, 1, endMinute/60, endMinute%60, 0, 0, time.UTC)
-	return timezone.NormalizeWallClock(clock), true
+	return calendar.NormalizeWallClock(clock), true
 }

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,18 +62,18 @@ type conversionPlainGroupRepo struct {
 	activitiesModel.GroupRepository
 }
 
-func conversionValidFrom() timezone.Date {
-	return timezone.NewDate(2026, time.May, 4)
+func conversionValidFrom() calendar.Date {
+	return calendar.NewDate(2026, time.May, 4)
 }
 
-func conversionEnrollment(studentID int64, from timezone.Date) *activitiesModel.StudentEnrollment {
+func conversionEnrollment(studentID int64, from calendar.Date) *activitiesModel.StudentEnrollment {
 	return &activitiesModel.StudentEnrollment{
 		StudentID: studentID,
 		ValidFrom: activitiesModel.Date(from),
 	}
 }
 
-func conversionSupervisor(staffID int64, from timezone.Date) *activitiesModel.SupervisorPlanned {
+func conversionSupervisor(staffID int64, from calendar.Date) *activitiesModel.SupervisorPlanned {
 	return &activitiesModel.SupervisorPlanned{
 		StaffID:   staffID,
 		ValidFrom: activitiesModel.Date(from),

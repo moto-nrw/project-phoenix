@@ -7,10 +7,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,13 +24,13 @@ func (r auditFeedRecords) ListEntries(ctx context.Context, filter audit.TimeTrac
 func TestTimeTrackingAuditReaderPreservesQueryAndPartialRows(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-	date := timezone.NewDate(2026, 3, 29)
-	zero := timezone.Date("")
+	date := calendar.NewDate(2026, 3, 29)
+	zero := calendar.Date("")
 	now := time.Date(2026, 3, 29, 12, 0, 0, 0, time.UTC)
 	readErr := errors.New("partial query")
 	row := &audit.TimeTrackingAuditLogEntry{OccurredAt: now, Source: "session_edit", EntryID: 7, ActorIsSystem: true, Reason: "reason", Detail: []byte(`{"fields":[]}`)}
 	row.StaffID, row.ActorStaffID = &row.EntryID, &row.EntryID
-	for _, day := range []*timezone.Date{nil, &zero, &date} {
+	for _, day := range []*calendar.Date{nil, &zero, &date} {
 		reader := api.NewTimeTrackingAuditReader(auditFeedRecords{read: func(gotCtx context.Context, filter audit.TimeTrackingAuditLogFilter) ([]*audit.TimeTrackingAuditLogEntry, error) {
 			require.Equal(t, ctx, gotCtx)
 			if day == nil {

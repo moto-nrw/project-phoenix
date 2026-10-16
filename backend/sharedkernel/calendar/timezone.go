@@ -1,4 +1,4 @@
-// Package timezone provides consistent timezone handling for the application.
+// Package calendar provides consistent timezone handling for the application.
 // All date calculations use Europe/Berlin since the app is only used in Germany.
 package calendar
 
@@ -35,7 +35,7 @@ func Today() time.Time {
 // Example:
 //
 //	t := time.Date(2026, 1, 18, 0, 30, 0, 0, time.UTC) // 00:30 UTC = 01:30 CET
-//	date := timezone.DateOf(t) // 2026-01-18 00:00:00 Europe/Berlin
+//	date := calendar.DateOf(t) // 2026-01-18 00:00:00 Europe/Berlin
 func DateOf(t time.Time) time.Time {
 	inBerlin := t.In(Berlin)
 	return time.Date(

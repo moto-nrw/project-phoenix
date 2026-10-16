@@ -6,10 +6,10 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -87,8 +87,8 @@ func (s *operations) overviewPastReaches(inst *scheduleModels.ActivityInstance) 
 	if inst.TemplateType == timetable.GroupTypeDuty {
 		return false
 	}
-	now := s.now().In(timezone.Berlin)
-	return timezone.Date(inst.Date) == timezone.DateFromTime(now) && plannedPastToday(inst, now)
+	now := s.now().In(calendar.Berlin)
+	return calendar.Date(inst.Date) == calendar.DateFromTime(now) && plannedPastToday(inst, now)
 }
 
 // requireScopedAction gates attendance, starts and ends, which each have a
@@ -121,9 +121,9 @@ func (s *operations) requireScopedAction(ctx context.Context, accountID int64, i
 // expired into the read-only past overview.
 func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.ActivityInstance) bool {
 	if action == ScopedBlockStart {
-		now := s.now().In(timezone.Berlin)
+		now := s.now().In(calendar.Berlin)
 		return inst.Status == scheduleModels.InstanceStatusPlanned &&
-			timezone.Date(inst.Date) == timezone.DateFromTime(now) &&
+			calendar.Date(inst.Date) == calendar.DateFromTime(now) &&
 			!plannedPastToday(inst, now)
 	}
 	return inst.Status == scheduleModels.InstanceStatusActive && inst.ActiveGroupID != nil
@@ -258,7 +258,7 @@ func (s *operations) supervises(ctx context.Context, activeGroupID, staffID int6
 // so the supervisor list would keep access after a withdrawn assignment.
 func (s *operations) operatesLoadedBlock(ctx context.Context, inst *scheduleModels.ActivityInstance, staffRows []*scheduleModels.InstanceStaff, staffID int64, supervises func() (bool, error)) (bool, error) {
 	if isAssignmentBoundPortal(ctx) {
-		return timezone.Date(inst.Date) == s.today() && staffAssigned(staffRows, staffID), nil
+		return calendar.Date(inst.Date) == s.today() && staffAssigned(staffRows, staffID), nil
 	}
 	if staffAssigned(staffRows, staffID) {
 		return true, nil

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -24,7 +24,7 @@ func TestQueueActivityUpdates_BroadcastsOnlyAfterCommit(t *testing.T) {
 	tenantID := tenant.FromContext(testpkg.Ctx(t))
 	touched := timetable.TouchedActivities{123: {
 		InstanceID: 456,
-		Date:       timezone.NewDate(2026, 7, 15),
+		Date:       calendar.NewDate(2026, 7, 15),
 		StartTime:  time.Date(1970, 1, 1, 9, 30, 0, 0, time.UTC),
 	}}
 
@@ -50,7 +50,7 @@ func TestQueueActivityUpdates_DropsEventOnRollback(t *testing.T) {
 	broadcaster := &lifecycleEventRecorder{}
 	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{Broadcaster: broadcaster}}
 	tenantID := tenant.FromContext(testpkg.Ctx(t))
-	touched := timetable.TouchedActivities{123: {Date: timezone.NewDate(2026, 7, 15)}}
+	touched := timetable.TouchedActivities{123: {Date: calendar.NewDate(2026, 7, 15)}}
 	rollback := errors.New("rollback")
 
 	err := testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(ctx context.Context, _ bun.Tx) error {

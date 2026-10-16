@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CareDays is the consumer-owned port to Care Plan's care-day verdict
@@ -13,10 +13,10 @@ import (
 // verdict and owns the rules that read it; the timetable only asks.
 type CareDays interface {
 	// ResolveForDate resolves the verdict of the children on one date.
-	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]timetable.CareDayStatus, error)
+	ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]timetable.CareDayStatus, error)
 	// ResolveForRange resolves the verdicts of the children over an
 	// inclusive window in one pass.
-	ResolveForRange(ctx context.Context, studentIDs []int64, from, to timezone.Date) (map[int64]map[timezone.Date]timetable.CareDayStatus, error)
+	ResolveForRange(ctx context.Context, studentIDs []int64, from, to calendar.Date) (map[int64]map[calendar.Date]timetable.CareDayStatus, error)
 	// AttendanceRowCareDay applies Care Plan's row rule: the verdict a
 	// planned participant row shows, given the block's completion and the
 	// plan verdict of the day.

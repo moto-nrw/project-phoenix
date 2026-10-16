@@ -8,7 +8,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
@@ -30,7 +30,7 @@ func TestStudentDeletionHandlers_RequirePreviewAndExplicitConfirmation(t *testin
 	target := testpkg.CreateTestStudent(t, tc.db, "DeleteApi", "Target", "1a")
 	spared := testpkg.CreateTestStudent(t, tc.db, "DeleteApi", "Spared", "1a")
 	room := testpkg.CreateTestRoom(t, tc.db, "delete-api-room")
-	instance := testpkg.CreateTestActivityInstance(t, tc.db, timezone.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
+	instance := testpkg.CreateTestActivityInstance(t, tc.db, calendar.TodayDate(), room.ID, testpkg.ActivityInstanceOpts{
 		Title:         "Shared API deletion instance",
 		IsSpontaneous: true,
 	})

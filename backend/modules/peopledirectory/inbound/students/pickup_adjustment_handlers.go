@@ -10,10 +10,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -26,7 +26,7 @@ type pickupAdjustmentRequest struct {
 	Schedules                   []PickupScheduleRequest             `json:"schedules"`
 	ArrivalSchedules            *[]ArrivalScheduleRequestItem       `json:"arrival_schedules,omitempty"`
 	CareDays                    []int                               `json:"care_days"`
-	EffectiveFrom               *timezone.Date                      `json:"effective_from,omitempty"`
+	EffectiveFrom               *calendar.Date                      `json:"effective_from,omitempty"`
 	Selections                  *[]pickupAdjustmentSelectionRequest `json:"selections,omitempty"`
 	ExcludedAutoOfferingIDs     []string                            `json:"excluded_auto_offering_ids,omitempty"`
 	PreviewToken                string                              `json:"preview_token,omitempty"`
@@ -221,7 +221,7 @@ func pickupAdjustmentPreviewInput(
 	studentID int64,
 	body pickupAdjustmentRequest,
 ) (careplan.PickupAdjustmentPreviewInput, error) {
-	effectiveFrom := timezone.TodayDate()
+	effectiveFrom := calendar.TodayDate()
 	if body.EffectiveFrom != nil {
 		effectiveFrom = *body.EffectiveFrom
 	}

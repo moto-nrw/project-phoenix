@@ -16,13 +16,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
 	"github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // PresenceSource is the slice of the Student Presence facade the projection
@@ -247,7 +247,7 @@ func (c contacts) EmergencyContacts(ctx context.Context, studentIDs []int64) ([]
 type calendar struct{}
 
 func (calendar) DayOf(at time.Time) emergencysnapshot.Date {
-	return emergencysnapshot.Date(timezone.DateFromTime(at).String())
+	return emergencysnapshot.Date(calendarpkg.DateFromTime(at).String())
 }
 
 type renderer struct {

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,7 +34,7 @@ func TestAttendanceHistoryRejectsFailedVisitReadAndCanRetry(t *testing.T) {
 	staff := testpkg.CreateTestStaff(t, tc.db, "History", "Staff")
 	device := testpkg.CreateTestDevice(t, tc.db, "history-failure")
 	account := testpkg.CreateTestAccount(t, tc.db, "history-failure-reader")
-	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, timezone.Today().Add(8*time.Hour), nil)
+	testpkg.CreateTestAttendance(t, tc.db, student.ID, staff.ID, device.ID, calendar.Today().Add(8*time.Hour), nil)
 	original := tc.resource.StudentHistoryService
 	fault := &failedHistoryVisits{StudentHistory: original}
 	tc.resource.StudentHistoryService = fault

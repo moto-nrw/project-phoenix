@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -16,7 +16,7 @@ import (
 // utcToday returns today's date (Berlin calendar day) at midnight UTC,
 // matching how DATE values scan back into instants.
 func utcToday() time.Time {
-	return timezone.NewDate(2026, 8, 24).UTCMidnight()
+	return calendar.NewDate(2026, 8, 24).UTCMidnight()
 }
 
 // =============================================================================

@@ -13,7 +13,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -21,6 +20,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -42,7 +42,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	const actorID = 23
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 
 	t.Run("planned status write keeps the whole submission together", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
@@ -55,7 +55,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 			req,
 			[]string{"users:update"},
 			absencerecords.StudentStatusDaySick,
-			[]timezone.Date{today},
+			[]calendar.Date{today},
 		)
 		require.NoError(t, writeContext.AfterCreate(ctx, []int64{41, 42}))
 
@@ -64,7 +64,7 @@ func TestStaffAbsenceNotificationCallbacks(t *testing.T) {
 		assert.Equal(t, tenantID, report.TenantID)
 		assert.Equal(t, []int64{41, 42}, report.StudentIDs)
 		assert.Equal(t, absencerecords.StudentStatusDaySick, report.Status)
-		assert.Equal(t, []timezone.Date{today}, report.Dates)
+		assert.Equal(t, []calendar.Date{today}, report.Dates)
 		assert.False(t, report.FromParent)
 		assert.Equal(t, int64(actorID), report.ActorAccountID)
 	})
@@ -118,7 +118,7 @@ func TestStatusDayRangeParsing(t *testing.T) {
 func TestStatusDayOverviewRangeUsesSingleTodaySnapshot(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 5, 25)
+	today := calendar.NewDate(2026, 5, 25)
 	from, to, err := parseStatusDayOverviewRange(
 		httptest.NewRequest("GET", "/status-days", nil),
 		today,
@@ -126,7 +126,7 @@ func TestStatusDayOverviewRangeUsesSingleTodaySnapshot(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, today, from)
-	assert.Equal(t, timezone.NewDate(2026, 7, 25), to)
+	assert.Equal(t, calendar.NewDate(2026, 7, 25), to)
 }
 
 func TestStatusDayDateHelpers(t *testing.T) {
@@ -135,8 +135,8 @@ func TestStatusDayDateHelpers(t *testing.T) {
 	dates, err := parseStatusDayDates([]string{"2026-05-25", "2026-05-27"})
 	require.NoError(t, err)
 	require.Len(t, dates, 2)
-	assert.Equal(t, timezone.NewDate(2026, 5, 25), dates[0])
-	assert.Equal(t, timezone.NewDate(2026, 5, 27), dates[1])
+	assert.Equal(t, calendar.NewDate(2026, 5, 25), dates[0])
+	assert.Equal(t, calendar.NewDate(2026, 5, 27), dates[1])
 
 	_, err = parseStatusDayDates([]string{"2026-05-25", "broken"})
 	require.ErrorContains(t, err, "invalid date format")
@@ -207,7 +207,7 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 	sick := &absencerecords.StudentStatusDay{
 		ID:         42,
 		StudentID:  90,
-		Date:       timezone.NewDate(2026, 5, 25),
+		Date:       calendar.NewDate(2026, 5, 25),
 		Status:     absencerecords.StudentStatusDaySick,
 		ReportedAt: reportedSick,
 		Source:     absencerecords.StudentStatusSourcePlanned,
@@ -215,7 +215,7 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 	excused := &absencerecords.StudentStatusDay{
 		ID:         43,
 		StudentID:  91,
-		Date:       timezone.NewDate(2026, 5, 26),
+		Date:       calendar.NewDate(2026, 5, 26),
 		Status:     absencerecords.StudentStatusDayExcused,
 		ReportedAt: reportedExcused,
 		Source:     absencerecords.StudentStatusSourceManual,
@@ -245,7 +245,7 @@ func TestStudentStatusDayResponsesAndEffectiveStatus(t *testing.T) {
 	classTrip := &absencerecords.StudentStatusDay{
 		ID:         44,
 		StudentID:  92,
-		Date:       timezone.NewDate(2026, 5, 27),
+		Date:       calendar.NewDate(2026, 5, 27),
 		Status:     absencerecords.StudentStatusDayClassTrip,
 		ReportedAt: reportedExcused.Add(time.Hour),
 		Source:     absencerecords.StudentStatusSourcePlanned,
@@ -276,7 +276,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 			{
 				ID:         42,
 				StudentID:  90,
-				Date:       timezone.DateFromTime(now),
+				Date:       calendar.DateFromTime(now),
 				Status:     absencerecords.StudentStatusDaySick,
 				ReportedAt: now,
 				Source:     absencerecords.StudentStatusSourcePlanned,
@@ -288,7 +288,7 @@ func TestApplyStatusDaysForDateUsesRequestedDate(t *testing.T) {
 
 	require.NoError(t, resource.applyStatusDaysForDate(context.Background(), responses, now))
 
-	assert.Equal(t, timezone.DateFromTime(now), repo.findByIDsDate)
+	assert.Equal(t, calendar.DateFromTime(now), repo.findByIDsDate)
 	assert.Equal(t, []int64{90, 91}, repo.findByIDsStudentIDs)
 	assert.True(t, responses[0].Sick)
 	assert.False(t, responses[0].Excused)
@@ -356,7 +356,7 @@ func TestStudentStatusDayHandlers_CreateGetDelete(t *testing.T) {
 	require.Equal(t, http.StatusOK, getRR.Code)
 	assert.Contains(t, getRR.Body.String(), `"label":"Krank"`)
 
-	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 5, 25), timezone.NewDate(2026, 5, 26))
+	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 5, 25), calendar.NewDate(2026, 5, 26))
 	require.NoError(t, err)
 	require.Len(t, rows, 2)
 
@@ -376,13 +376,13 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	db := testpkg.SetupTestDB(t)
 
 	resource := newStatusDayTestResource(db, func() time.Time {
-		return timezone.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
+		return calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(12 * time.Hour)
 	})
 	notifier := &recordingAbsenceNotifier{}
 	resource.AbsenceNotifier = notifier
 	student := testpkg.CreateTestStudent(t, db, "StatusToday", "Student", "ST1")
 	router := statusDayTestRouter(resource)
-	today := timezone.NewDate(2026, 8, 24).Format(dateFormatYYYYMMDD)
+	today := calendar.NewDate(2026, 8, 24).Format(dateFormatYYYYMMDD)
 
 	sickReq := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/status-days", student.ID), map[string]any{
 		"status": absencerecords.StudentStatusDaySick,
@@ -420,7 +420,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	require.Equal(t, http.StatusConflict, excusedRR.Code)
 	require.Len(t, notifier.reports, 1, "a conflict must not notify or overwrite")
 
-	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
+	rows, err := resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDaySick, rows[0].Status)
@@ -452,7 +452,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripRR := executeStatusDayHandler(t, router, classTripReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusConflict, classTripRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
+	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDayExcused, rows[0].Status)
@@ -468,7 +468,7 @@ func TestStudentStatusDayHandlers_TodayUpdatesLiveStatusAndClearsOpposite(t *tes
 	classTripAfterDeleteRR := executeStatusDayHandler(t, router, classTripAfterDeleteReq, testutil.AdminTestClaims(42), []string{"admin:*"})
 	require.Equal(t, http.StatusCreated, classTripAfterDeleteRR.Code)
 
-	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, timezone.NewDate(2026, 8, 24), timezone.NewDate(2026, 8, 24))
+	rows, err = resource.StudentStatusDayService.GetActiveByStudentAndDateRange(testpkg.Ctx(t), student.ID, calendar.NewDate(2026, 8, 24), calendar.NewDate(2026, 8, 24))
 	require.NoError(t, err)
 	require.Len(t, rows, 1)
 	assert.Equal(t, absencerecords.StudentStatusDayClassTrip, rows[0].Status)
@@ -675,7 +675,7 @@ func TestStudentStatusDayHandlers_RepositoryErrors(t *testing.T) {
 	t.Run("delete maps clear error to internal server error", func(t *testing.T) {
 		resource := newStatusDayTestResource(db)
 		resource.StudentStatusDayService = presenceservice.NewStatusDays(&fakeStatusDayRepo{
-			findByIDRow:  &absencerecords.StudentStatusDay{ID: 42, StudentID: student.ID, Date: timezone.TodayDate(), Status: absencerecords.StudentStatusDaySick},
+			findByIDRow:  &absencerecords.StudentStatusDay{ID: 42, StudentID: student.ID, Date: calendar.TodayDate(), Status: absencerecords.StudentStatusDaySick},
 			clearByIDErr: errors.New("clear failed"),
 		}, nil, nil, lockExceptionDay)
 		req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/status-days/42", student.ID), nil)
@@ -723,7 +723,7 @@ type fakeStatusDayRepo struct {
 	findRangeErr        error
 	findRangeRows       []*absencerecords.StudentStatusDay
 	findByIDsRows       []*absencerecords.StudentStatusDay
-	findByIDsDate       timezone.Date
+	findByIDsDate       calendar.Date
 	findByIDsStudentIDs []int64
 }
 
@@ -731,7 +731,7 @@ func (r *fakeStatusDayRepo) UpsertReported(_ context.Context, _ *absencerecords.
 	return r.upsertErr
 }
 
-func (r *fakeStatusDayRepo) MarkCleared(_ context.Context, _ int64, _ string, _ timezone.Date, _ time.Time, _ string) error {
+func (r *fakeStatusDayRepo) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string) error {
 	return nil
 }
 
@@ -739,7 +739,7 @@ func (r *fakeStatusDayRepo) MarkClearedByID(_ context.Context, _ int64, _ time.T
 	return r.clearByIDErr
 }
 
-func (r *fakeStatusDayRepo) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []timezone.Date, _ time.Time, _ string) error {
+func (r *fakeStatusDayRepo) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string) error {
 	return r.clearForDatesErr
 }
 
@@ -753,7 +753,7 @@ func (r *fakeStatusDayRepo) FindActiveByID(_ context.Context, _ int64) (*absence
 	return nil, errFakeRowNotFound
 }
 
-func (r *fakeStatusDayRepo) FindActiveByStudentAndDateRange(_ context.Context, studentID int64, startDate, _ timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *fakeStatusDayRepo) FindActiveByStudentAndDateRange(_ context.Context, studentID int64, startDate, _ calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	if r.findRangeErr != nil {
 		return nil, r.findRangeErr
 	}
@@ -772,19 +772,19 @@ func (r *fakeStatusDayRepo) FindActiveByStudentAndDateRange(_ context.Context, s
 	}, nil
 }
 
-func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *fakeStatusDayRepo) FindActiveByStudentIDsAndDate(_ context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	r.findByIDsStudentIDs = append([]int64(nil), studentIDs...)
 	r.findByIDsDate = date
 	return r.findByIDsRows, nil
 }
 
-func (r *fakeStatusDayRepo) FindSignedOffByStudentIDsAndDate(_ context.Context, studentIDs []int64, date timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *fakeStatusDayRepo) FindSignedOffByStudentIDsAndDate(_ context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	r.findByIDsStudentIDs = append([]int64(nil), studentIDs...)
 	r.findByIDsDate = date
 	return r.findByIDsRows, nil
 }
 
-func (r *fakeStatusDayRepo) FindByStudentAndDateRange(_ context.Context, _ int64, _, _ timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (r *fakeStatusDayRepo) FindByStudentAndDateRange(_ context.Context, _ int64, _, _ calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, nil
 }
 
@@ -814,11 +814,11 @@ func executeStatusDayHandler(tb testing.TB, router chi.Router, req *http.Request
 }
 
 // Stubs for the issue #585 refactor interface additions — unused here.
-func (r *fakeStatusDayRepo) ArchiveAndClearStatusFlag(context.Context, string, string, string, timezone.Date, time.Time, string) (int64, error) {
+func (r *fakeStatusDayRepo) ArchiveAndClearStatusFlag(context.Context, string, string, string, calendar.Date, time.Time, string) (int64, error) {
 	return 0, nil
 }
 
-func (r *fakeStatusDayRepo) CountEffectiveDashboardAbsences(context.Context, timezone.Date) (*absencerecords.StudentStatusCounts, error) {
+func (r *fakeStatusDayRepo) CountEffectiveDashboardAbsences(context.Context, calendar.Date) (*absencerecords.StudentStatusCounts, error) {
 	return &absencerecords.StudentStatusCounts{}, nil
 }
 

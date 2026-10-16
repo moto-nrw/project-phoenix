@@ -22,8 +22,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -57,7 +57,7 @@ type careRequestDetailBody struct {
 // careRequestTodayClock fixes the request window on a Berlin date so the
 // fixture dates below never depend on the wall clock.
 func careRequestTodayClock() time.Time {
-	return timezone.NewDate(2026, 9, 9).BerlinMidnight().Add(12 * time.Hour)
+	return calendar.NewDate(2026, 9, 9).BerlinMidnight().Add(12 * time.Hour)
 }
 
 func getCareRequestDetail(t *testing.T, tc *testContext, requestID int64, claims sessiontoken.AppClaims, perms []string) (int, careRequestDetailBody) {
@@ -84,11 +84,11 @@ func TestCareRequestDetail_OpensPickupChangeBeforeAndAfterDecision(t *testing.T)
 
 	// A pickup change for a school day within the request window, with a
 	// weekly pickup on that weekday so the request records the previous time.
-	date := timezone.NewDate(2026, 9, 15) // a Tuesday
+	date := calendar.NewDate(2026, 9, 15) // a Tuesday
 	require.NoError(t, tc.resource.PickupScheduleService.UpsertStudentPickupSchedule(tenantCtx, &careplan.PickupSchedule{
 		StudentID:  chain.StudentID,
 		Weekday:    int(date.Weekday()),
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 		CreatedBy:  staff.ID,
 	}))
 	pending, err := tc.careRequests.CreatePickupChange(tenantCtx, carerequests.PickupChangeCreateInput{
@@ -148,7 +148,7 @@ func TestCareRequestDetail_RefusesUnauthorizedReaders(t *testing.T) {
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, tc.db, "Paula", "Planerin")
 	tenantCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 
-	date := timezone.NewDate(2026, 9, 15)
+	date := calendar.NewDate(2026, 9, 15)
 	pending, err := tc.careRequests.CreatePickupChange(tenantCtx, carerequests.PickupChangeCreateInput{
 		StudentID: chain.StudentID, GuardianAccountID: chain.AccountID, Date: date,
 		PickupTime: time.Date(2000, 1, 1, 14, 30, 0, 0, time.UTC), Reason: "Arzttermin", ReasonRequired: true,

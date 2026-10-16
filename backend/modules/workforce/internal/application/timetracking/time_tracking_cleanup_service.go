@@ -36,8 +36,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -67,7 +67,7 @@ type TimeTrackingCleanupResult struct {
 	AbsencesDeleted int
 	StaffAffected   int
 	RetentionDays   int
-	CutoffDate      timezone.Date
+	CutoffDate      calendar.Date
 	DurationMS      int64
 }
 
@@ -78,9 +78,9 @@ type TimeTrackingCleanupPreview struct {
 	AbsencesToDelete int
 	StaffAffected    int
 	RetentionDays    int
-	CutoffDate       timezone.Date
-	OldestSession    *timezone.Date
-	OldestAbsence    *timezone.Date
+	CutoffDate       calendar.Date
+	OldestSession    *calendar.Date
+	OldestAbsence    *calendar.Date
 }
 
 // TimeTrackingCleanupStats returns the current state of the time-tracking
@@ -88,10 +88,10 @@ type TimeTrackingCleanupPreview struct {
 type TimeTrackingCleanupStats struct {
 	TotalSessions int
 	TotalAbsences int
-	OldestSession *timezone.Date
-	OldestAbsence *timezone.Date
+	OldestSession *calendar.Date
+	OldestAbsence *calendar.Date
 	RetentionDays int
-	CutoffDate    timezone.Date
+	CutoffDate    calendar.Date
 }
 
 // TimeTrackingCleanupService drives GDPR retention cleanup for the
@@ -311,13 +311,13 @@ func (s *timeTrackingCleanupService) resolveRetentionDays(ctx context.Context) i
 
 // cutoffForDays returns the calendar-day cutoff: anything older than
 // today minus retentionDays will be deleted.
-func cutoffForDays(retentionDays int) timezone.Date {
-	return timezone.TodayDate().AddDays(-retentionDays)
+func cutoffForDays(retentionDays int) calendar.Date {
+	return calendar.TodayDate().AddDays(-retentionDays)
 }
 
 // olderThanOptions builds query options selecting rows whose dateColumn is
 // strictly before the cutoff.
-func olderThanOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryOptions {
+func olderThanOptions(dateColumn string, cutoff calendar.Date) *modelBase.QueryOptions {
 	options := modelBase.NewQueryOptions()
 	options.Filter = modelBase.NewFilter().LessThan(dateColumn, cutoff)
 	return options
@@ -325,7 +325,7 @@ func olderThanOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryO
 
 // staffImpactOptions extends olderThanOptions with the (staff_id, id)
 // ordering the audit sample bookkeeping relies on.
-func staffImpactOptions(dateColumn string, cutoff timezone.Date) *modelBase.QueryOptions {
+func staffImpactOptions(dateColumn string, cutoff calendar.Date) *modelBase.QueryOptions {
 	options := olderThanOptions(dateColumn, cutoff)
 	sorting := &modelBase.Sorting{}
 	sorting.AddField("staff_id", modelBase.SortAsc).AddField("id", modelBase.SortAsc)
@@ -353,7 +353,7 @@ type perStaffSampleIDs struct {
 // caller's RLS transaction.
 func (s *timeTrackingCleanupService) collectStaffImpact(
 	ctx context.Context,
-	cutoff timezone.Date,
+	cutoff calendar.Date,
 ) (perStaffCounts, perStaffSamples, error) {
 	counts := make(perStaffCounts)
 	samples := make(perStaffSamples)
@@ -394,7 +394,7 @@ func (s *timeTrackingCleanupService) writeStaffAuditRows(
 	ctx context.Context,
 	tenantID int64,
 	retentionDays int,
-	cutoff timezone.Date,
+	cutoff calendar.Date,
 	counts perStaffCounts,
 	samples perStaffSamples,
 ) error {

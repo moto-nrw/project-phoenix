@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -21,14 +20,14 @@ import (
 // Day Abholart (#3945): the one-day request may ask for a different Abholart,
 // with or without a different Gehzeit.
 
-const dayDepartureRequestToday = timezone.Date("2026-08-24")
+const dayDepartureRequestToday = calendar.Date("2026-08-24")
 
 // buildDayDepartureRequestService pins both clocks to dayDepartureRequestToday,
 // so the requested days stay care days whatever the wall clock says.
 func buildDayDepartureRequestService(t *testing.T, departureModeRequests bool) (*parentService.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildPickupChangeServiceWithRequestOptions(t,
-		[]api.CareRequestOption{api.WithCareRequestToday(func() timezone.Date { return dayDepartureRequestToday })},
+		[]api.CareRequestOption{api.WithCareRequestToday(func() calendar.Date { return dayDepartureRequestToday })},
 		withDepartureModeRequests(departureModeRequests),
 		func(cfg *parentportalcompose.Dependencies) {
 			cfg.Now = func() time.Time { return dayDepartureRequestToday.BerlinMidnight().Add(12 * time.Hour) }
@@ -106,7 +105,7 @@ func TestDayDepartureRequestNeedsTheSchoolsAbholartSetting(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrCareRequestFieldDisabled)
 
 	// The Gehzeit alone stays open: the school only closed the Abholart.
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 0, 0, 0, time.UTC))
 	_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
 }
@@ -154,7 +153,7 @@ func TestDayDepartureRequestRespectsTheOGSDayValue(t *testing.T) {
 	_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, time.Time{}, "pickup", "Oma holt ab", nil)
 	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
 
-	pickup := timezone.NormalizeWallClock(time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC))
+	pickup := calendar.NormalizeWallClock(time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC))
 	_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
 }
