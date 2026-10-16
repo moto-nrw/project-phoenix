@@ -1,7 +1,7 @@
 // The Kinderkontingent at the CSV import (#3571): the preview names how many
 // children the import would add next to the free places, and an import that
 // does not fit never starts. An import that only updates children always runs.
-package compose_test
+package api
 
 import (
 	"encoding/json"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -248,7 +247,7 @@ func TestImportStudents_DoesNotCountANewChildWhoseCareAlreadyEnded(t *testing.T)
 // that progress in the answer and names the refusal next to it.
 func TestBatchFailure_KeepsProgressAndNamesTheChildQuotaRefusal(t *testing.T) {
 	t.Parallel()
-	runtime := importCompose.HTTPRuntime(nil, nil, nil, nil)
+	runtime := dataImportHTTPRuntime(nil, nil, nil)
 	rr := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/students/import", nil)
 	progress := map[string]int{"CreatedCount": 100, "UpdatedCount": 0, "ErrorCount": 0, "TotalRows": 160}

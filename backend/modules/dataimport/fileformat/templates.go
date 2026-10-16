@@ -145,7 +145,7 @@ func getStudentImportExamples() [][]any {
 // writeExcelHeaders writes headers to the first row
 func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
 	for i, header := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		cell, _ := excelCellName(i+1, 1)
 		if err := f.SetCellValue(sheetName, cell, header); err != nil {
 			slog.Default().Error("Error setting header", slog.String("error", err.Error()))
 		}
@@ -156,7 +156,7 @@ func writeExcelHeaders(f *excelize.File, sheetName string, headers []string) {
 func writeExcelExampleRows(f *excelize.File, sheetName string, examples [][]any) {
 	for rowIdx, row := range examples {
 		for colIdx, value := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
+			cell, _ := excelCellName(colIdx+1, rowIdx+2)
 			if err := f.SetCellValue(sheetName, cell, value); err != nil {
 				slog.Default().Error("Error setting cell value", slog.String("error", err.Error()))
 			}
@@ -273,7 +273,7 @@ func writeHinweiseSheet(f *excelize.File) {
 	for excelRow <= totalRows {
 		// Check if this row is a section header
 		if label, ok := sectionRows[excelRow]; ok {
-			cell, _ := excelize.CoordinatesToCellName(1, excelRow)
+			cell, _ := excelCellName(1, excelRow)
 			_ = f.SetCellValue(sheetName, cell, label)
 			_ = f.MergeCell(sheetName, cell, fmt.Sprintf("D%d", excelRow))
 			_ = f.SetCellStyle(sheetName, cell, fmt.Sprintf("D%d", excelRow), sectionStyle)
@@ -287,7 +287,7 @@ func writeHinweiseSheet(f *excelize.File) {
 
 		row := dataRows[dataIdx]
 		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, excelRow)
+			cell, _ := excelCellName(colIdx+1, excelRow)
 			_ = f.SetCellValue(sheetName, cell, val)
 
 			// Style header row
@@ -399,7 +399,7 @@ func writeStaffHinweiseSheet(f *excelize.File) {
 	}
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+1)
+			cell, _ := excelCellName(colIdx+1, rowIdx+1)
 			_ = f.SetCellValue(sheetName, cell, val)
 		}
 	}
@@ -440,7 +440,7 @@ func writeClassListHinweiseSheet(f *excelize.File) {
 	}
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+1)
+			cell, _ := excelCellName(colIdx+1, rowIdx+1)
 			_ = f.SetCellValue(sheetName, cell, val)
 		}
 	}
@@ -488,11 +488,29 @@ func writeOpeningBalanceHinweiseSheet(f *excelize.File) {
 	}
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+1)
+			cell, _ := excelCellName(colIdx+1, rowIdx+1)
 			_ = f.SetCellValue(sheetName, cell, val)
 		}
 	}
 	_ = f.SetColWidth(sheetName, "A", "A", 18)
 	_ = f.SetColWidth(sheetName, "B", "B", 10)
 	_ = f.SetColWidth(sheetName, "C", "C", 90)
+}
+
+// newExcelSheet initializes the workbook used by templates and parser fixtures.
+func newExcelSheet(sheetName string) (*excelize.File, error) {
+	file := excelize.NewFile()
+	if sheetName != "Sheet1" {
+		if err := setupExcelSheet(file, sheetName); err != nil {
+			if closeErr := file.Close(); closeErr != nil {
+				slog.Default().Error("Error closing Excel file", slog.String("error", closeErr.Error()))
+			}
+			return nil, err
+		}
+	}
+	return file, nil
+}
+
+func excelCellName(column, row int) (string, error) {
+	return excelize.CoordinatesToCellName(column, row)
 }

@@ -1,8 +1,8 @@
-// Package importapi_test tests the import API handlers with hermetic test pattern.
+// These import HTTP tests exercise the Root composition with hermetic fixtures.
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks).
-package compose_test
+package api
 
 import (
 	"bytes"
@@ -21,9 +21,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat"
+	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -51,7 +50,12 @@ func adminBearer(t *testing.T, accountID int64) testutil.RequestOption {
 type testContext struct {
 	db       *bun.DB
 	student  func(context.Context, int64) (peopledirectory.EnrollmentRecord, error)
-	resource *importAPI.Resource
+	resource interface {
+		Router() chi.Router
+		DownloadStaffTemplate(http.ResponseWriter, *http.Request)
+		PreviewStaffImport(http.ResponseWriter, *http.Request)
+		ImportStaff(http.ResponseWriter, *http.Request)
+	}
 }
 
 // setupImportRoute initializes test database, services, and resource.
@@ -60,7 +64,7 @@ func setupImportRoute(t *testing.T) *testContext {
 
 	db, svc := setupImportModule(t)
 	// Create import resource
-	resource := importAPI.NewResource(importAPI.Dependencies{Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport, Files: fileformat.Decoder{}, Runtime: importCompose.HTTPRuntime(db, svc.PeopleDirectory, svc.Membership, nil)})
+	resource := importAPI.NewResource(importAPI.Dependencies{Students: svc.Import, Staff: svc.StaffImport, ClassList: svc.ClassListImport, Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(svc.PeopleDirectory, svc.Membership, nil)})
 
 	return &testContext{
 		db: db,

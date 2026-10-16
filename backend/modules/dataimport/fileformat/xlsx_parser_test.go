@@ -7,28 +7,28 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/xuri/excelize/v2"
 )
 
 // createTestXLSX creates an in-memory Excel file for testing
 func createTestXLSX(t *testing.T, headers []string, rows [][]string) *bytes.Buffer {
 	t.Helper()
 
-	f := excelize.NewFile()
+	f, err := newExcelSheet("Sheet1")
+	require.NoError(t, err)
 	defer func() { _ = f.Close() }()
 
 	sheetName := f.GetSheetName(0)
 
 	// Write headers
 	for i, h := range headers {
-		cell, _ := excelize.CoordinatesToCellName(i+1, 1)
+		cell, _ := excelCellName(i+1, 1)
 		_ = f.SetCellValue(sheetName, cell, h)
 	}
 
 	// Write data rows
 	for rowIdx, row := range rows {
 		for colIdx, val := range row {
-			cell, _ := excelize.CoordinatesToCellName(colIdx+1, rowIdx+2)
+			cell, _ := excelCellName(colIdx+1, rowIdx+2)
 			_ = f.SetCellValue(sheetName, cell, val)
 		}
 	}
@@ -104,7 +104,8 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 	})
 
 	t.Run("normalizes Excel date-formatted birthday cells", func(t *testing.T) {
-		f := excelize.NewFile()
+		f, err := newExcelSheet("Sheet1")
+		require.NoError(t, err)
 		defer func() { _ = f.Close() }()
 
 		sheetName := f.GetSheetName(0)
@@ -118,7 +119,10 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 		require.NoError(t, f.SetCellValue(sheetName, "C2", "4A"))
 		require.NoError(t, f.SetCellValue(sheetName, "D2", time.Date(2017, time.May, 14, 0, 0, 0, 0, time.UTC)))
 
-		dateStyle, err := f.NewStyle(&excelize.Style{NumFmt: 14})
+		dateFormat, err := f.GetStyle(0)
+		require.NoError(t, err)
+		dateFormat.NumFmt = 14
+		dateStyle, err := f.NewStyle(dateFormat)
 		require.NoError(t, err)
 		require.NoError(t, f.SetCellStyle(sheetName, "D2", "D2", dateStyle))
 
@@ -134,7 +138,8 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 	})
 
 	t.Run("preserves formatted postal codes with leading zeros", func(t *testing.T) {
-		f := excelize.NewFile()
+		f, err := newExcelSheet("Sheet1")
+		require.NoError(t, err)
 		defer func() { _ = f.Close() }()
 
 		sheetName := f.GetSheetName(0)
@@ -151,7 +156,10 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 		require.NoError(t, f.SetCellValue(sheetName, "E2", 1067))
 
 		plzFormat := "00000"
-		plzStyle, err := f.NewStyle(&excelize.Style{CustomNumFmt: &plzFormat})
+		postalFormat, err := f.GetStyle(0)
+		require.NoError(t, err)
+		postalFormat.CustomNumFmt = &plzFormat
+		plzStyle, err := f.NewStyle(postalFormat)
 		require.NoError(t, err)
 		require.NoError(t, f.SetCellStyle(sheetName, "E2", "E2", plzStyle))
 
@@ -168,7 +176,8 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 	})
 
 	t.Run("keeps suspicious early Excel birthday serials invalid", func(t *testing.T) {
-		f := excelize.NewFile()
+		f, err := newExcelSheet("Sheet1")
+		require.NoError(t, err)
 		defer func() { _ = f.Close() }()
 
 		sheetName := f.GetSheetName(0)
@@ -182,7 +191,10 @@ func TestXLSXParser_ParseStudents(t *testing.T) {
 		require.NoError(t, f.SetCellValue(sheetName, "C2", "4A"))
 		require.NoError(t, f.SetCellValue(sheetName, "D2", 42))
 
-		dateStyle, err := f.NewStyle(&excelize.Style{NumFmt: 14})
+		dateFormat, err := f.GetStyle(0)
+		require.NoError(t, err)
+		dateFormat.NumFmt = 14
+		dateStyle, err := f.NewStyle(dateFormat)
 		require.NoError(t, err)
 		require.NoError(t, f.SetCellStyle(sheetName, "D2", "D2", dateStyle))
 
