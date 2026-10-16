@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -1193,11 +1194,11 @@ func newMaterializationForTest(
 	studentRepo schedule.InstanceStudentRepository,
 	exceptionRepo schedule.ActivityExceptionRepository,
 	timeframeRepo schedule.TimeframeRepository,
-	transactions TenantTransactions,
-	staffing StaffingAnnouncer,
+	transactions ports.TenantTransactions,
+	staffing ports.StaffingAnnouncer,
 	logger *slog.Logger,
 ) timetable.MaterializationCapability {
-	svc, err := NewMaterialization(MaterializationDependencies{
+	svc, err := NewMaterialization(ports.MaterializationDependencies{
 		GroupRepo:      groupRepo,
 		ScheduleRepo:   scheduleRepo,
 		EnrollmentRepo: enrollmentRepo,

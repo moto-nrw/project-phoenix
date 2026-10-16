@@ -10,6 +10,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The correction of a completed block's attendance (#2898) behind
@@ -28,53 +29,12 @@ import (
 // day meant at the moment it was closed; the correction changes the live row
 // and leaves the snapshot as evidence of the original state.
 
-// AttendanceCorrectionRecord is one field change of a correction before the
-// trail stores it.
-type AttendanceCorrectionRecord struct {
-	InstanceID        int64
-	StudentID         int64
-	ActorAccountID    *int64
-	ActorNameSnapshot *string
-	FieldName         string
-	OldValue          *string
-	NewValue          *string
-	Reason            string
-}
-
-// AttendanceCorrectionTrail is the Audit Platform's append-only correction
-// trail, bound at the composition root. Recording runs in the caller's
-// transaction, so a failing insert rolls the correction back with it.
-type AttendanceCorrectionTrail interface {
-	RecordAttendanceCorrections(ctx context.Context, records []AttendanceCorrectionRecord) error
-	ListAttendanceCorrections(ctx context.Context, instanceID, studentID int64) ([]timetable.AttendanceCorrectionEntry, error)
-}
-
-// CorrectionPeople resolves the person of the correcting account for the
-// trail's name snapshot.
-type CorrectionPeople interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*timetable.Person, error)
-}
-
-// AttendanceCorrectionDependencies wires the correction. Participants and
-// Instances are required. Without Trail every correction fails closed and
-// the trail reads empty. People snapshots the actor's name and Locks
-// serializes the write with the block's completion; both are optional in
-// read-only test facades.
-type AttendanceCorrectionDependencies struct {
-	Participants scheduleModel.InstanceStudentRepository
-	Instances    scheduleModel.ActivityInstanceRepository
-	Trail        AttendanceCorrectionTrail
-	People       CorrectionPeople
-	Locks        AttendanceLocks
-	Logger       *slog.Logger
-}
-
 type attendanceCorrections struct {
-	deps AttendanceCorrectionDependencies
+	deps ports.AttendanceCorrectionDependencies
 }
 
 // NewAttendanceCorrections composes the correction of completed blocks.
-func NewAttendanceCorrections(deps AttendanceCorrectionDependencies) (timetable.AttendanceCorrections, error) {
+func NewAttendanceCorrections(deps ports.AttendanceCorrectionDependencies) (timetable.AttendanceCorrections, error) {
 	if deps.Participants == nil || deps.Instances == nil {
 		return nil, errors.New("timetable attendance corrections: required repository is nil")
 	}
@@ -205,7 +165,7 @@ func (s *attendanceCorrections) writeCorrection(
 	ctx context.Context,
 	current *scheduleModel.InstanceStudent,
 	patch scheduleModel.AttendanceFieldPatch,
-	corrections []AttendanceCorrectionRecord,
+	corrections []ports.AttendanceCorrectionRecord,
 ) (timetable.CorrectedAttendance, error) {
 	if err := s.deps.Participants.UpdateAttendanceFields(ctx, current.ID, patch); err != nil {
 		return timetable.CorrectedAttendance{}, fmt.Errorf("update attendance: %w", err)
@@ -274,19 +234,19 @@ func (s *attendanceCorrections) buildAttendanceCorrections(
 	current *scheduleModel.InstanceStudent,
 	reason string,
 	actorAccountID int64,
-) []AttendanceCorrectionRecord {
+) []ports.AttendanceCorrectionRecord {
 	var actorID *int64
 	if actorAccountID > 0 {
 		actorID = &actorAccountID
 	}
 	actorName := s.resolveActorName(ctx, actorAccountID)
 
-	corrections := make([]AttendanceCorrectionRecord, 0, 3)
+	corrections := make([]ports.AttendanceCorrectionRecord, 0, 3)
 	add := func(field string, oldValue, newValue *string) {
 		if equalStringPtr(oldValue, newValue) {
 			return
 		}
-		corrections = append(corrections, AttendanceCorrectionRecord{
+		corrections = append(corrections, ports.AttendanceCorrectionRecord{
 			InstanceID:        instanceID,
 			StudentID:         studentID,
 			ActorAccountID:    actorID,

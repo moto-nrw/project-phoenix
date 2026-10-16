@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
@@ -891,7 +892,7 @@ type TimetableWiring struct {
 	Repositories arrivalTimetable.Repositories
 	// EducationGroupNames names School Structure's education groups for the
 	// Timetable owner rows (#3551).
-	EducationGroupNames arrivalTimetable.EducationGroupNames
+	EducationGroupNames timetablePorts.EducationGroupNames
 	// PlanningTracks is the planning-track administration the template
 	// writes and the plan export read.
 	PlanningTracks timetable.PlanningTrackAdministration
@@ -915,15 +916,15 @@ type TimetableWiring struct {
 	// Constructors over the values this graph composes.
 	AttendanceMirror       func(arrivalTimetable.OwnerRows, *slog.Logger) (studentpresence.AttendanceSyncer, error)
 	EndedSessionCompletion func(arrivalTimetable.OwnerRows, careplan.CareDayQuery) (timetable.EndedSessionCompletion, error)
-	DeviationPorts         func(TimetableDeviationTrail) (arrivalTimetable.DeviationEventReader, arrivalTimetable.DeviationProtocol)
+	DeviationPorts         func(TimetableDeviationTrail) (timetablePorts.DeviationEventReader, timetablePorts.DeviationProtocol)
 	ConflictDetection      func(TimetableConflictReaders) (timetable.ConflictDetectionCapability, error)
-	Lifecycle              func(TimetableLifecycleInputs) (*arrivalTimetable.InstanceLifecycleService, error)
-	StaffDeviations        func(TimetableDeviationInputs) (arrivalTimetable.StaffDeviationDependencies, error)
+	Lifecycle              func(TimetableLifecycleInputs) (timetablePorts.InstanceLifecycle, error)
+	StaffDeviations        func(TimetableDeviationInputs) (timetablePorts.StaffDeviationDependencies, error)
 	Cleanup                TimetableCleanupComposer
 	Operations             func(TimetableOperationInputs) (timetable.OperationCapability, error)
-	Materialization        func(TimetableMaterializationInputs) arrivalTimetable.MaterializationDependencies
+	Materialization        func(TimetableMaterializationInputs) timetablePorts.MaterializationDependencies
 	Data                   func(TimetableDataInputs) (timetable.TimetableDataCapability, error)
-	Templates              func(TimetableTemplateInputs) (arrivalTimetable.TemplateAdministrationDependencies, error)
+	Templates              func(TimetableTemplateInputs) (timetablePorts.TemplateAdministrationDependencies, error)
 	AttendanceCorrections  func(TimetableCorrectionInputs) (timetable.AttendanceCorrections, error)
 	Calendar               func(CalendarDependencies) calendarCompose.Application
 	AppointmentRenderer    func(defaultFrom email.Email) deliveryCompose.MailRenderer
@@ -965,17 +966,17 @@ type TimetableDeviationTrail interface {
 // ArrivalBaselines is optional (the exception-conflict read fails without
 // it); every other reader is required.
 type TimetableConflictReaders struct {
-	Instances         arrivalTimetable.ConflictInstances
-	InstanceStaff     arrivalTimetable.ConflictInstanceStaff
-	InstanceStudents  arrivalTimetable.ConflictInstanceStudents
-	Exceptions        arrivalTimetable.ConflictExceptions
-	Schedules         arrivalTimetable.ConflictSchedules
-	Staff             arrivalTimetable.ConflictStaffDirectory
-	CalendarPeriods   arrivalTimetable.ConflictCalendarPeriods
-	ArrivalExceptions arrivalTimetable.ConflictArrivalExceptions
-	Sessions          arrivalTimetable.ConflictSessions
-	Shifts            arrivalTimetable.ConflictShifts
-	Presence          arrivalTimetable.ConflictPresence
+	Instances         timetablePorts.ConflictInstances
+	InstanceStaff     timetablePorts.ConflictInstanceStaff
+	InstanceStudents  timetablePorts.ConflictInstanceStudents
+	Exceptions        timetablePorts.ConflictExceptions
+	Schedules         timetablePorts.ConflictSchedules
+	Staff             timetablePorts.ConflictStaffDirectory
+	CalendarPeriods   timetablePorts.ConflictCalendarPeriods
+	ArrivalExceptions timetablePorts.ConflictArrivalExceptions
+	Sessions          timetablePorts.ConflictSessions
+	Shifts            timetablePorts.ConflictShifts
+	Presence          timetablePorts.ConflictPresence
 	ArrivalBaselines  careplan.ArrivalBaselineReader
 	Logger            *slog.Logger
 }
@@ -988,14 +989,14 @@ type TimetableConflictReaders struct {
 // is filled from these inputs. Broadcaster and GuardianNotices are optional.
 type TimetableLifecycleInputs struct {
 	Rows                arrivalTimetable.OwnerRows
-	Planning            arrivalTimetable.InstanceLifecycleDependencies
-	Staff               arrivalTimetable.LifecycleStaff
+	Planning            timetablePorts.InstanceLifecycleDependencies
+	Staff               timetablePorts.LifecycleStaff
 	Sessions            studentpresence.SessionRecords
 	Supervisions        studentpresence.SupervisionRecords
-	Presence            arrivalTimetable.LifecyclePresence
-	SessionEnder        arrivalTimetable.SessionEnder
+	Presence            timetablePorts.LifecyclePresence
+	SessionEnder        timetablePorts.SessionEnder
 	CareDays            careplan.CareDayQuery
-	CareDayLocks        arrivalTimetable.CareDayLocks
+	CareDayLocks        timetablePorts.CareDayLocks
 	GuardianNotices     communication.CareCancellationPublisher
 	Settings            TimetableSettings
 	Materialization     timetable.MaterializationCapability
@@ -1015,9 +1016,9 @@ type TimetableLifecycleInputs struct {
 // adds its database handle to the dependencies they bind.
 type TimetableDeviationInputs struct {
 	Rows         arrivalTimetable.OwnerRows
-	Staff        arrivalTimetable.DeviationStaff
+	Staff        timetablePorts.DeviationStaff
 	Supervisions studentpresence.SupervisionRecords
-	Lifecycle    arrivalTimetable.DeviationLifecycle
+	Lifecycle    timetablePorts.DeviationLifecycle
 	Broadcaster  realtime.Broadcaster
 	Logger       *slog.Logger
 	Now          func() time.Time
@@ -1029,7 +1030,7 @@ type TimetableDeviationInputs struct {
 type TimetableCorrectionInputs struct {
 	Rows   arrivalTimetable.OwnerRows
 	Trail  attendanceCorrectionLedger
-	People arrivalTimetable.CorrectionPeople
+	People timetablePorts.CorrectionPeople
 	Logger *slog.Logger
 }
 
@@ -1090,14 +1091,14 @@ type TimetableOperationInputs struct {
 	PlanningTracks timetable.PlanningTrackQuery
 	Sessions       studentpresence.SessionRecords
 	Supervisions   studentpresence.SupervisionRecords
-	Visits         arrivalTimetable.OperationVisits
+	Visits         timetablePorts.OperationVisits
 	Presence       TimetableOperationPresence
-	People         arrivalTimetable.OperationPeople
+	People         timetablePorts.OperationPeople
 	Settings       TimetableSettings
 	CareDays       careplan.CareDayQuery
 	Arrivals       EffectiveArrivalTimes
 	Pickups        EffectivePickupTimes
-	Lifecycle      arrivalTimetable.OperationLifecycle
+	Lifecycle      timetablePorts.OperationLifecycle
 	Broadcaster    realtime.Broadcaster
 	Logger         *slog.Logger
 	Now            func() time.Time
@@ -1112,11 +1113,11 @@ type TimetableDataInputs struct {
 	Rows             arrivalTimetable.OwnerRows
 	ArrivalBaselines careplan.ArrivalBaselineReader
 	PickupBaselines  careplan.PickupBaselineReader
-	Visits           arrivalTimetable.OperationVisits
-	Groups           arrivalTimetable.DataGroups
+	Visits           timetablePorts.OperationVisits
+	Groups           timetablePorts.DataGroups
 	Sessions         studentpresence.SessionRecords
 	ConflictAcks     timetable.ConflictAckCapability
-	BlockMetadata    arrivalTimetable.BlockDisplayMetadata
+	BlockMetadata    timetablePorts.BlockDisplayMetadata
 	Transactional    bool
 	Logger           *slog.Logger
 }
@@ -1128,7 +1129,7 @@ type TimetableDataInputs struct {
 // database handle to the dependencies they bind.
 type TimetableMaterializationInputs struct {
 	Rows           arrivalTimetable.TemplateRows
-	CareBounds     arrivalTimetable.CareBoundReader
+	CareBounds     timetablePorts.CareBoundReader
 	NonWorkingDays timetable.NonWorkingDayCalendar
 	RecurrenceLock timetable.RecurrenceWriteLock
 	Broadcaster    realtime.Broadcaster
@@ -1142,9 +1143,9 @@ type TimetableMaterializationInputs struct {
 // dependencies they bind.
 type TimetableTemplateInputs struct {
 	Rows                 arrivalTimetable.TemplateRows
-	PlanningTracks       arrivalTimetable.PlanningTrackAssignments
+	PlanningTracks       timetablePorts.PlanningTrackAssignments
 	Materialization      timetable.MaterializationCapability
-	Deviations           arrivalTimetable.SeriesDeviations
+	Deviations           timetablePorts.SeriesDeviations
 	CareOfferings        careplan.CareOfferingGuards
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock

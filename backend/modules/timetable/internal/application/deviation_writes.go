@@ -8,6 +8,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -44,7 +45,7 @@ func (s *staffDeviations) applyAbsence(
 	touched timetable.TouchedActivities,
 ) error {
 	return s.applyAbsenceMark(ctx, row, instance, reason, actorAccountID, touched, absenceMarkOptions{
-		eventType: DeviationEventAbsence,
+		eventType: ports.DeviationEventAbsence,
 	})
 }
 
@@ -59,7 +60,7 @@ func (s *staffDeviations) MarkSickAbsence(ctx context.Context, in timetable.Sick
 	}
 	sickAbsenceID := in.SickAbsenceID
 	return s.applyAbsenceMark(ctx, row, instance, in.Reason, in.ActorAccountID, touched, absenceMarkOptions{
-		eventType:     DeviationEventSickReported,
+		eventType:     ports.DeviationEventSickReported,
 		sickAbsenceID: &sickAbsenceID,
 	})
 }
@@ -160,7 +161,7 @@ func (s *staffDeviations) applyPresence(
 	}
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
-		eventType:      DeviationEventReturnToPresence,
+		eventType:      ports.DeviationEventReturnToPresence,
 		subjectStaffID: &row.StaffID,
 		oldValue:       oldValue,
 		newValue:       map[string]any{"is_absent": false},
@@ -193,7 +194,7 @@ func (s *staffDeviations) ClearSickAbsence(ctx context.Context, in timetable.Sic
 	}
 	if err := s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
-		eventType:      DeviationEventSickCleared,
+		eventType:      ports.DeviationEventSickCleared,
 		subjectStaffID: &row.StaffID,
 		oldValue:       oldValue,
 		newValue:       map[string]any{"is_absent": false},
@@ -310,7 +311,7 @@ func (s *staffDeviations) removeSubstitute(
 	}
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       instance,
-		eventType:      DeviationEventSubstituteRemoved,
+		eventType:      ports.DeviationEventSubstituteRemoved,
 		subjectStaffID: &row.StaffID,
 		oldValue:       map[string]any{"is_substitute": true, "is_absent": row.IsAbsent},
 		newValue:       map[string]any{"removed": true},
@@ -331,7 +332,7 @@ func (s *staffDeviations) logSubstitutionEvent(
 ) error {
 	return s.logDeviationEvent(ctx, deviationEventInput{
 		instance:       op.Instance,
-		eventType:      DeviationEventSubstitution,
+		eventType:      ports.DeviationEventSubstitution,
 		subjectStaffID: &op.OrigRow.StaffID,
 		relatedStaffID: &subID,
 		oldValue:       map[string]any{"is_absent": false},

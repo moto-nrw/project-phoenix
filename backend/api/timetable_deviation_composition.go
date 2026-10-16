@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The Timetable owner's deviation writes, attendance corrections and
@@ -22,11 +23,11 @@ import (
 
 // TimetableStaffDeviationDependencies binds the deviation writes to the
 // realtime hub over the retained rows.
-func TimetableStaffDeviationDependencies(in TimetableDeviationInputs) (timetableCompose.StaffDeviationDependencies, error) {
+func TimetableStaffDeviationDependencies(in TimetableDeviationInputs) (timetablePorts.StaffDeviationDependencies, error) {
 	if in.Lifecycle == nil || in.Rows.Deviations == nil || in.Broadcaster == nil {
-		return timetableCompose.StaffDeviationDependencies{}, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
+		return timetablePorts.StaffDeviationDependencies{}, errors.New("timetable staff deviations: lifecycle, protocol and broadcaster are required")
 	}
-	return timetableCompose.StaffDeviationDependencies{
+	return timetablePorts.StaffDeviationDependencies{
 		Instances:       in.Rows.Instances,
 		InstanceStaff:   in.Rows.InstanceStaff,
 		Staff:           in.Staff,
@@ -42,7 +43,7 @@ func TimetableStaffDeviationDependencies(in TimetableDeviationInputs) (timetable
 // NewTimetableAttendanceCorrections composes the attendance correction with
 // the Audit Platform's correction trail.
 func NewTimetableAttendanceCorrections(in TimetableCorrectionInputs) (timetable.AttendanceCorrections, error) {
-	return timetableCompose.NewAttendanceCorrections(timetableCompose.AttendanceCorrectionDependencies{
+	return timetableCompose.NewAttendanceCorrections(timetablePorts.AttendanceCorrectionDependencies{
 		Participants: in.Rows.Participants,
 		Instances:    in.Rows.Instances,
 		Trail:        TimetableAttendanceCorrectionTrail(in.Trail),

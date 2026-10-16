@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -1735,14 +1736,14 @@ func TestInstance_UpdatePlanned_ReplacesAssignmentsAndFields(t *testing.T) {
 	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
 }
 
-// guardedLifecycleSettings satisfies compose.LifecycleSettings for the
+// guardedLifecycleSettings satisfies timetablePorts.LifecycleSettings for the
 // time-policy pass-through test below.
 type guardedLifecycleSettings struct {
 	leadMinutes       int
 	enforcePlannedEnd bool
 }
 
-var _ compose.LifecycleSettings = guardedLifecycleSettings{}
+var _ timetablePorts.LifecycleSettings = guardedLifecycleSettings{}
 
 func (s guardedLifecycleSettings) StartLeadMinutes(context.Context) (int, error) {
 	return s.leadMinutes, nil

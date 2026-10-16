@@ -71,10 +71,10 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 			Accounts:       IdentityAccountDirectory{Accounts: identity},
 		}),
 		MessagingRepositories: parentStore.MessagingRepositories{
-			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), owners.Now),
+			ParentAnnouncement:  parentStore.NewParentAnnouncementRepository(pool, ParentAnnouncementApplicants(owners.Enrollment), guardianLinkView.NewReader(), owners.Now),
 			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, guardianLinkView.NewReader(), identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
-				parentStore.NewStaffParentMessageReadRepository(pool, members, persons), groupNames),
+				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, persons), groupNames),
 			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, peopleCompose.NewMessageableStaff(pool,
 				parentStore.CurrentTenantStaffAccounts(members, persons), StaffMessageIdentity(identity))),
 		},

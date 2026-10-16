@@ -6,6 +6,7 @@ import (
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The adapters below serve the timetable's people ports from the People
@@ -105,7 +106,7 @@ type timetableLifecycleStudents struct {
 
 // NewTimetableLifecycleStudents binds the lifecycle's student port to the
 // People Directory child rows.
-func NewTimetableLifecycleStudents(rows timetableCompose.RosterStudents) timetableCompose.LifecycleStudents {
+func NewTimetableLifecycleStudents(rows timetableCompose.RosterStudents) timetablePorts.LifecycleStudents {
 	return timetableLifecycleStudents{rows: rows}
 }
 
@@ -129,7 +130,7 @@ type timetableOperationStudents struct {
 
 // NewTimetableOperationStudents binds the operational day's student port to
 // the People Directory child rows.
-func NewTimetableOperationStudents(rows timetableCompose.RosterStudents) timetableCompose.OperationStudents {
+func NewTimetableOperationStudents(rows timetableCompose.RosterStudents) timetablePorts.OperationStudents {
 	return timetableOperationStudents{rows: rows}
 }
 

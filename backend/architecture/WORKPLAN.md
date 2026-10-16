@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 228 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
+Stand 16.10.2026 · Ratchet 218 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 57 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-67.622 in `compose`
+67.586 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -14,14 +14,14 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 88 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 40 |
-| [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 17 |
+| [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 7 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 228 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 218 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -154,6 +154,35 @@ Aufruf wechseln; alle Assertions und Produktionshandler bleiben unverändert.
 Drei Regeln entfallen, ohne Nachfolger. Inbound-Owner 17 → 16, Regeln 915 → 912;
 270 Keys, #4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben gleich.
 Keine IoT-Zeichenkette, Route oder Response ändert sich.
+
+#4078: Data-Import-HTTP und die vier übernommenen IoT-Pakete liegen nach
+ADR 0020 unter `modules/dataimport/http` bzw. `modules/devicescan/http`.
+Alle 61 Go-Dateinamen, Owner, Produktions- und Testrollen bleiben gleich.
+Import- und Registry-Pfade folgen den Dateien; der Funktionslängen-Eintrag
+behält seinen Wert 66, historische Retirement-Keys bleiben unverändert.
+Der IoT-Deklarations-Lookup folgt zwei verschobenen Dateien; kanonische
+Golden-Identitäten, Code-Tabelle, Header und Assertions bleiben unverändert.
+Der PyrePortal-Quellscan liest dieselben zwei verschobenen Dateien zusätzlich
+über seine bestehende Quellliste; Code-Liste und Assertions bleiben gleich.
+Der bisher nur unter `api/` liegende 139-Zeilen-Feedback-Handler wird für die
+Modulgrenze in private Schritte unter 60 Zeilen geteilt, ohne neue Allowlist.
+Row-Lock, Graduierten-Prüfung, Zeitstempel und Antworten bleiben in gleicher
+Reihenfolge; ein Inlining-Audit reproduziert alle ursprünglichen Statements.
+Epoche 55 → 56; 16 Inbound-Owner, 902 Regeln, 218 Keys, #4078 6,
+Composition 1.657 und alle Budgets bleiben unverändert. Keine Route, Response,
+IoT-Zeichenkette oder Assertion ändert sich.
+
+#4078: `api/iot/sessions` gehört jetzt als HTTP-Adapter zu
+`process-device-scan`; `inbound-iot-sessions` entfällt. Der Adapter erhält
+Session End über seinen eigenen Callback, den Root an denselben Workflow
+bindet. Close-Zeitpunkt, unveränderter Fehler, Status und Rollback bleiben
+gleich. Drei bisher interne Handlerfälle laufen über diese Root-Bindung und
+den öffentlichen Router; ihre elf Assertions und die 25 Assertions der
+HTTP-Suite bleiben vollständig unverändert. Die vorhandene Root-Testkomposition
+liefert die identischen Workflow-Werte, ohne neue Testrolle oder Regel.
+Vier Regeln entfallen ohne Nachfolger. Inbound-Owner 16 → 15, Regeln
+902 → 898; #4078 6, #4079 15, Composition 1.657 und alle Budgets bleiben
+gleich. Keine Route, Response oder IoT-Zeichenkette ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
