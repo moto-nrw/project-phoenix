@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
@@ -88,7 +87,7 @@ func (stubTakeoverSettings) ResolveInt(_ context.Context, key string) (int, erro
 
 type discardingOutbox struct{}
 
-func (discardingOutbox) EnqueueOutbox(context.Context, platformModels.OutboxEnqueueRequest) error {
+func (discardingOutbox) EnqueueMail(context.Context, TestMail) error {
 	return nil
 }
 

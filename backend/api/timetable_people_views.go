@@ -121,6 +121,22 @@ func (s timetableLifecycleStudents) FindReadScopeByIDs(ctx context.Context, ids 
 	return mapRowsByID(timetableLifecycleStudent)(s.rows.FindReadScopeByIDs(ctx, ids))
 }
 
+// timetableOperationStudents serves the operational day's student port from
+// the roster's People Directory child rows.
+type timetableOperationStudents struct {
+	rows timetableCompose.RosterStudents
+}
+
+// NewTimetableOperationStudents binds the operational day's student port to
+// the People Directory child rows.
+func NewTimetableOperationStudents(rows timetableCompose.RosterStudents) timetableCompose.OperationStudents {
+	return timetableOperationStudents{rows: rows}
+}
+
+func (s timetableOperationStudents) FindByIDs(ctx context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
+	return mapRowsByID(timetableOperationStudent)(s.rows.FindByIDs(ctx, ids))
+}
+
 func timetableStaffMember(row *users.Staff) *timetable.StaffMember {
 	if row == nil {
 		return nil
@@ -140,6 +156,13 @@ func timetableLifecycleStudent(row *users.Student) *timetable.LifecycleStudent {
 		return nil
 	}
 	return &timetable.LifecycleStudent{ID: row.ID, GroupID: row.GroupID, Alumnus: row.IsAlumnus(), EnrolledUntil: row.EnrolledUntil}
+}
+
+func timetableOperationStudent(row *users.Student) *timetable.OperationStudent {
+	if row == nil {
+		return nil
+	}
+	return &timetable.OperationStudent{LifecycleStudent: *timetableLifecycleStudent(row), PersonID: row.PersonID, SchoolClass: row.SchoolClass}
 }
 
 // mapRow maps the row of a read; an error passes through.

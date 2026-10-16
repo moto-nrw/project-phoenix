@@ -1738,7 +1738,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the service graph composes it and the IoT service hands it
 	// back here (#2676).
-	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), svc.Settings).Router())
+	tenant.Mount("/display", displayHTTPAdapter.NewResource(svc.IoT.Fleet(), DisplayFeatureEnabled(svc.Settings)).Router())
 	// Dateframes belong to the School Calendar, timeframes and recurrence
 	// rules to the Timetable owner; timeframe changes stay guarded by the
 	// recurrence gate and the Care Plan catalog's care-offering check.

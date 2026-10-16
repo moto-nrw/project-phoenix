@@ -8,7 +8,6 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -131,7 +130,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 			currentByStudent:         map[int64]*studentpresence.Visit{},
 			currentByStudentSequence: map[int64][]*studentpresence.Visit{},
 		},
-		students:      &fakeOpsStudentRepo{byID: map[int64]*usersModels.Student{}},
+		students:      &fakeOpsStudentRepo{byID: map[int64]*timetable.OperationStudent{}},
 		groups:        &fakeOpsEducationGroups{names: map[int64]string{}},
 		rooms:         &fakeOpsRooms{names: map[int64]string{810: "Lernraum"}},
 		personService: &fakeOpsPersonService{people: map[int64]*timetable.Person{}, staffByPersonID: map[int64]*timetable.StaffMember{}, staffWithPerson: map[int64]*timetable.StaffMember{}},
@@ -534,11 +533,11 @@ func (r *fakeOpsVisitRepo) ListVisits(_ context.Context, filter studentpresence.
 }
 
 type fakeOpsStudentRepo struct {
-	byID map[int64]*usersModels.Student
+	byID map[int64]*timetable.OperationStudent
 }
 
-func (r *fakeOpsStudentRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*usersModels.Student, error) {
-	out := map[int64]*usersModels.Student{}
+func (r *fakeOpsStudentRepo) FindByIDs(_ context.Context, ids []int64) (map[int64]*timetable.OperationStudent, error) {
+	out := map[int64]*timetable.OperationStudent{}
 	for _, id := range ids {
 		if st := r.byID[id]; st != nil {
 			out[id] = st
