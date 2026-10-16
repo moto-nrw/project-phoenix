@@ -30,7 +30,7 @@ Die Root übersetzt Ereignisse in Communications öffentlichen, typisierten Elte
 bindet die gemeinsame Fail-open-Policy. Assertions, Empfänger-/Akteurtrennung, Referenzzeilen,
 After-Commit-Fan-out und Beziehungsschutz bleiben gleich. Der deklarationsbezogene Zugriff
 auf die Kompatibilitätsschicht bleibt vorerst bestehen. Zwei Keys fallen: Care und Compose
-nennen keinen konkreten Emitter mehr. Keys 249 → 247, #4073 42 → 40, Regeln 915 → 915,
+nennen keinen konkreten Emitter mehr. Keys 249 → 247, #4073 42 → 40, Regeln 912 → 912,
 Composition 1.657 unverändert, Portal-Compose 507 LOC unverändert. Keine neue Freigabe.
 
 #4078: Der Meal-Plan-HTTP-Adapter liegt bereits unter `modules/mealplan/http` und gehört jetzt
