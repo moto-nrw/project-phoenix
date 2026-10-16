@@ -42,14 +42,14 @@ test('complete snapshot restores all components and the saved deployment state',
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
 });
 
-test('demo deploy pins its frontend image and can restore its own snapshot', t => {
+test('demo deploy pins its backend and frontend images and can restore its own snapshot', t => {
   const f = fixture(t, 'demo');
   writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
     'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n');
   const result = f.run('deploy-remote.sh');
   assert.equal(result.status, 0, result.stdout + result.stderr);
   const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
-  assert.match(compose, /phoenix-server:bbbbbbb/);
+  assert.match(compose, /phoenix-server:demo-bbbbbbb/);
   assert.match(compose, /phoenix-frontend:demo-bbbbbbb/);
   const state = readFileSync(join(f.cwd, '.deploy-state'), 'utf8');
   const id = state.match(/BACKUP_ID=(.+)/)[1];
@@ -59,6 +59,19 @@ test('demo deploy pins its frontend image and can restore its own snapshot', t =
   assert.equal(rollback.status, 0, rollback.stdout + rollback.stderr);
   assert.equal(readFileSync(join(f.cwd, '.env'), 'utf8'), 'MODE=old\n');
 });
+
+for (const target of ['staging', 'production']) {
+  test(`${target} deploy keeps unprefixed SHA tags for backend and frontend`, t => {
+    const f = fixture(t, target);
+    writeFileSync(join(f.cwd, 'docker-compose.yml.new'),
+      `services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:${target}\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:${target}\n`);
+    const result = f.run('deploy-remote.sh');
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const compose = readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8');
+    assert.match(compose, /phoenix-server:bbbbbbb/);
+    assert.match(compose, /phoenix-frontend:bbbbbbb/);
+  });
+}
 
 const demoStack = 'services:\n  server:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n  frontend:\n    image: ghcr.io/moto-nrw/phoenix-frontend:demo\n' +
   '  demo-runtime:\n    image: ghcr.io/moto-nrw/phoenix-server:demo\n';
@@ -75,7 +88,7 @@ test('first demo deploy with the sidecar starts it although the old stack never 
   assert.match(f.calls(), sidecarStart);
   // Same immutable backend revision as the server.
   assert.match(readFileSync(join(f.cwd, 'docker-compose.yml'), 'utf8'),
-    /demo-runtime:\n    image: ghcr.io\/moto-nrw\/phoenix-server:bbbbbbb/);
+    /demo-runtime:\n    image: ghcr.io\/moto-nrw\/phoenix-server:demo-bbbbbbb/);
 });
 test('repeated demo deploy stops the sidecar before the snapshot and restarts it', t => {
   const f = fixture(t, 'demo');

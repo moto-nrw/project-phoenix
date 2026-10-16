@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -1069,7 +1067,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 		Scan(context.Background(), &auditedCount))
 	assert.Equal(t, "3", auditedCount, "audit record must count the deleted absences")
 
-	var tombstones []*auditModels.TimeTrackingDeletion
+	var tombstones []*testpkg.TimeTrackingDeletion
 	require.NoError(t, sc.db.NewSelect().
 		Model(&tombstones).
 		ModelTableExpr(`audit.time_tracking_deletions AS "time_tracking_deletion"`).
@@ -1079,7 +1077,7 @@ func TestOffboardStaff_RemovesPendingAndFutureAbsences(t *testing.T) {
 	require.Len(t, tombstones, 3, "every deleted absence must leave a tombstone")
 	for _, tombstone := range tombstones {
 		assert.Equal(t, actor.ID, tombstone.DeletedBy)
-		assert.Equal(t, auditModels.TimeTrackingDeletionSourceAbsence, tombstone.Source)
+		assert.Equal(t, testpkg.AuditTimeTrackingDeletionSourceAbsence, tombstone.Source)
 		assert.Equal(t, "Personal-Offboarding", tombstone.Note)
 		var payload workforce.StaffAbsence
 		require.NoError(t, json.Unmarshal(tombstone.Payload, &payload))
@@ -1182,15 +1180,14 @@ func TestOffboardStaff_ClearsWorkTimeModelAssignment(t *testing.T) {
 	sc := newOffboardingScenario(t)
 
 	staff := testpkg.CreateTestStaff(t, sc.db, "Modeled", "Staff")
-	model := &configModel.WorkTimeModel{
+	model, err := sc.workTime.CreateWorkTimeModel(sc.ctx, workforce.CreateWorkTimeModel{WorkTimeModelFields: workforce.WorkTimeModelFields{
 		Name:               fmt.Sprintf("offb-model-%d", time.Now().UnixNano()),
 		RotationLength:     1,
-		RotationAnchorDate: configModel.NewCalendarDate(2026, time.January, 5),
-	}
-	require.NoError(t, api.NewWorkTimeModelRepository(sc.workTime).Create(sc.ctx, model, []*configModel.WorkTimeModelEntry{
-		{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 300},
-	}))
-	_, err := sc.db.ExecContext(context.Background(),
+		RotationAnchorDate: "2026-01-05",
+		Entries:            []workforce.WorkTimeModelEntry{{WeekIndex: 0, DayOfWeek: 0, TargetMinutes: 300}},
+	}})
+	require.NoError(t, err)
+	_, err = sc.db.ExecContext(context.Background(),
 		`UPDATE users.staff_employment_profiles SET work_time_model_id = ? WHERE membership_id = ?`, model.ID, staff.ID)
 	require.NoError(t, err)
 

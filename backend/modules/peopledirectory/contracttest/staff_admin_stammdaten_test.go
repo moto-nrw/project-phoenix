@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -46,9 +45,9 @@ func stammdatenAdminDeps(db *bun.DB, repos *api.RepositoryTestFactory) api.Staff
 	}
 }
 
-func (s *stammdatenScenario) auditRows(t *testing.T, staffID int64) []*auditModels.StaffMasterDataChange {
+func (s *stammdatenScenario) auditRows(t *testing.T, staffID int64) []*testpkg.StaffMasterDataChange {
 	t.Helper()
-	var rows []*auditModels.StaffMasterDataChange
+	var rows []*testpkg.StaffMasterDataChange
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.staff_master_data_changes AS "staff_master_data_change"`).
@@ -59,9 +58,9 @@ func (s *stammdatenScenario) auditRows(t *testing.T, staffID int64) []*auditMode
 	return rows
 }
 
-func (s *stammdatenScenario) accessLogRows(t *testing.T, accountID int64) []*auditModels.DataAccessLog {
+func (s *stammdatenScenario) accessLogRows(t *testing.T, accountID int64) []*testpkg.DataAccessLog {
 	t.Helper()
-	var rows []*auditModels.DataAccessLog
+	var rows []*testpkg.DataAccessLog
 	err := s.db.NewSelect().
 		Model(&rows).
 		ModelTableExpr(`audit.data_access_log AS "data_access_log"`).
@@ -92,10 +91,10 @@ func TestStaffStammdaten_PersonSection(t *testing.T) {
 
 	rows := s.auditRows(t, staff.ID)
 	require.Len(t, rows, 3, "last_name, birthday and gender changed")
-	fields := map[string]*auditModels.StaffMasterDataChange{}
+	fields := map[string]*testpkg.StaffMasterDataChange{}
 	for _, row := range rows {
 		fields[row.FieldName] = row
-		assert.Equal(t, auditModels.StammdatenSectionPerson, row.Section)
+		assert.Equal(t, testpkg.AuditStammdatenSectionPerson, row.Section)
 		assert.Equal(t, actor.ID, row.ChangedBy)
 		assert.Equal(t, "Ersteinrichtung", row.Note)
 	}
@@ -294,7 +293,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 	rows := s.auditRows(t, staff.ID)
 	require.Len(t, rows, 3)
 	for _, row := range rows {
-		assert.Equal(t, auditModels.StammdatenSectionBankSteuer, row.Section)
+		assert.Equal(t, testpkg.AuditStammdatenSectionBankSteuer, row.Section)
 		assert.NotContains(t, row.NewValue, "DE89", "audit rows must not carry plaintext IBAN")
 		assert.NotContains(t, row.NewValue, "12345678911", "audit rows must not carry plaintext Steuer-ID")
 		assert.NotContains(t, row.NewValue, "65170839J003", "audit rows must not carry plaintext SV-Nummer")
@@ -311,7 +310,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 
 	logs := s.accessLogRows(t, account.ID)
 	require.Len(t, logs, 1)
-	assert.Equal(t, auditModels.ResourceTypeStaffFinancialView, logs[0].ResourceType)
+	assert.Equal(t, testpkg.AuditResourceTypeStaffFinancialView, logs[0].ResourceType)
 
 	// Reveal: full values, second access log row.
 	plain, err := s.svc.RevealStaffFinancial(s.ctx, staff.ID, account.ID, "admin")
@@ -325,7 +324,7 @@ func TestStaffStammdaten_FinancialMaskingAndAudit(t *testing.T) {
 
 	logs = s.accessLogRows(t, account.ID)
 	require.Len(t, logs, 2)
-	assert.Equal(t, auditModels.ResourceTypeStaffFinancialReveal, logs[1].ResourceType)
+	assert.Equal(t, testpkg.AuditResourceTypeStaffFinancialReveal, logs[1].ResourceType)
 
 	// No-op write leaves no additional audit rows.
 	err = s.svc.UpdateStaffFinancial(s.ctx, staff.ID, workforce.StammdatenFinancialInput{
