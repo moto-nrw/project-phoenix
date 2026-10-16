@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -113,11 +112,26 @@ func (rs *Resource) logStatusHistoryError(studentID int64, err error) {
 	)
 }
 
+// AbsenceReport is the recorded absence the student routes announce.
+type AbsenceReport struct {
+	TenantID       int64
+	StudentIDs     []int64
+	Status         string
+	Dates          []calendar.Date
+	FromParent     bool
+	ActorAccountID int64
+}
+
+// AbsenceNotifier announces a committed absence through the root-bound producer.
+type AbsenceNotifier interface {
+	NotifyAbsenceReported(context.Context, AbsenceReport) error
+}
+
 func (rs *Resource) notifyAbsenceReported(ctx context.Context, tenantID int64, studentIDs []int64, status string, dates []calendar.Date, fromParent bool, actorAccountID int64) error {
 	if rs.AbsenceNotifier == nil {
 		return nil
 	}
-	return rs.AbsenceNotifier.NotifyAbsenceReported(ctx, notificationsService.AbsenceReport{
+	return rs.AbsenceNotifier.NotifyAbsenceReported(ctx, AbsenceReport{
 		TenantID:       tenantID,
 		StudentIDs:     studentIDs,
 		Status:         status,

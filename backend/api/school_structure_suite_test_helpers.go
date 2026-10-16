@@ -63,7 +63,7 @@ func NewEducationSuiteService(repos *PeopleRepositorySuiteFactory, db transactio
 	service := education.NewService(repos.Group, repos.GroupTeacher, repos.ClassTeacher,
 		NewEducationRooms(rooms), NewEducationTeachers(repos.Teacher),
 		NewEducationStaff(repos.Staff), repos.Student, repos.GroupSubstitution,
-		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: broadcaster, Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
+		education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(broadcaster, nil), Audit: NewEducationClassAssignmentAudit(auditCompose.MustNewPersistence(auditCompose.PersistenceDependencies{DB: db.Pool()}).StaffMasterDataChange)})
 
 	return service
 }

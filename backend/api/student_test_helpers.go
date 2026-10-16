@@ -338,7 +338,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		ActiveGroups: repos.ActiveGroup, ActiveSupervisors: repos.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
 		Audit:                   NewEducationSubstitutionAudit(repos.SubstitutionChange),
-		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: realtimeHub,
+		Runtime:                 schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
 		Logger:   logger.With("service", "substitution"),
 		Schedule: scheduleSubstitution,
 		CanSeeAll: func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error) {

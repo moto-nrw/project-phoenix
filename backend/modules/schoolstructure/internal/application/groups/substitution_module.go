@@ -9,7 +9,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -73,7 +72,7 @@ type SubstitutionDependencies struct {
 	Actors                  ActorResolver
 	Audit                   SubstitutionAudit
 	Runtime                 Runtime
-	Broadcaster             realtimeevents.Publisher
+	Broadcaster             GroupPublisher
 	Logger                  *slog.Logger
 	Now                     func() time.Time
 	CanSeeAll               func(ctx context.Context, assignmentBound, admin, hasStaff bool) (bool, error)
@@ -332,7 +331,9 @@ func (s *substitutionModule) assignGroupHandover(ctx context.Context, caller Sub
 	if err != nil {
 		return nil, err
 	}
-	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_assign")
+	if s.deps.Broadcaster != nil {
+		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "substitution_assign")
+	}
 	return &result, nil
 }
 
@@ -432,7 +433,9 @@ func (s *substitutionModule) End(ctx context.Context, caller SubstitutionCaller,
 	if err != nil {
 		return err
 	}
-	realtimeevents.QueueGroupAccessChanged(ctx, s.deps.Broadcaster, s.deps.Logger, "substitution_end")
+	if s.deps.Broadcaster != nil {
+		s.deps.Broadcaster.QueueGroupAccessChanged(ctx, "substitution_end")
+	}
 	return nil
 }
 

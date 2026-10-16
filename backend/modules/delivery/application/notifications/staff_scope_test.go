@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -19,13 +18,13 @@ import (
 func settingsWithWindow(start, end string) *settingsDouble {
 	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
-			return key == configModel.KeyNotificationsDispatchEnabled, nil
+			return key == "notifications.dispatch_enabled", nil
 		},
 		ResolveStringForTenantFn: func(_ context.Context, _ int64, key string) (string, error) {
 			switch key {
-			case configModel.KeyNotificationsActiveWindowStart:
+			case "notifications.active_window_start":
 				return start, nil
-			case configModel.KeyNotificationsActiveWindowEnd:
+			case "notifications.active_window_end":
 				return end, nil
 			}
 			return "", nil
