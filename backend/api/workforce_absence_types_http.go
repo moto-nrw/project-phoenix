@@ -1,9 +1,4 @@
-// Package inbound composes the HTTP adapters that serve Workforce
-// capabilities on the absence-type and substitution routes (#2688). The
-// adapters themselves must not own the HTTP platform, so this package
-// supplies authentication, tenant transaction scoping, permission names,
-// caller resolution and the shared response envelope through their Runtime.
-package inbound
+package api
 
 import (
 	"context"
@@ -17,10 +12,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// NewAbsenceTypesResource wires /api/absence-types over the absence-type
+// newAbsenceTypesResource wires /api/absence-types over the absence-type
 // administration capability. resolveActor identifies the staff member behind
 // an allowance change.
-func NewAbsenceTypesResource(types workforce.AbsenceTypeAdministration, resolveActor func(context.Context) (int64, error)) *absencetypesHTTP.Resource {
+func newAbsenceTypesResource(types workforce.AbsenceTypeAdministration, resolveActor func(context.Context) (int64, error)) *absencetypesHTTP.Resource {
 	if types == nil || resolveActor == nil {
 		panic("absence-types HTTP composition: all dependencies are required")
 	}

@@ -47,9 +47,8 @@ import (
 // #3421 moved the guardian portal's enrollment transactions onto the tenant
 // runtime the request carries and removed both of its entries.
 var moduleHTTPORMAllowlist = map[string]int{
-	"modules/delivery/http/sse/api.go":              1,
-	"modules/delivery/http/sse/resource.go":         1,
-	"modules/workforce/inbound/timetracking/api.go": 1,
+	"modules/delivery/http/sse/api.go":      1,
+	"modules/delivery/http/sse/resource.go": 1,
 }
 
 // moduleHTTPORMImportPath is the ORM module path; imports of this path or of
