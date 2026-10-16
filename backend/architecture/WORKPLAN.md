@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 267 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
+Stand 16.10.2026 · Ratchet 264 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.661 in `compose`
 
@@ -16,12 +16,12 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 42 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 9 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 267 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 264 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -110,6 +110,17 @@ Keys 281 → 279, #4078 10 → 9, #2750 1 → 0. Composition bleibt gleich; das
 Compose-LOC-Budget sinkt um 131 und die verwaiste HTTP-ORM-Ausnahme entfällt.
 Der Retirement-Nachweis liegt in `data-import-http-owner-4078.json`.
 Die physische Verschiebung nach `modules/dataimport/http` folgt separat gemäß ADR 0020.
+
+#4078: Statistik-HTTP gehört zu `student-presence`; `inbound-statistics` entfällt.
+Die Root bindet dieselbe Berechtigungspaar-Prüfung, den Actor und den Export über
+verbraucherseitige HTTP-Ports. Das Dokument wird unverändert in den bestehenden
+Rendering-Vertrag übersetzt; keine zusätzliche Reichweite für andere HTTP-Pakete.
+Zwei Suiten laufen unverändert über die Root und bestehende Fixture-Zeilen statt
+über private Modelle; alle 144 Assertions bleiben erhalten. Sieben Regeln entfallen,
+kein Nachfolger: Die stehenden Regeln tragen Public/Common und den Root-Mount.
+Inbound-Owner 21 → 20, Regeln 925 → 918, Keys 273 → 270,
+#4078 9 → 6; Composition 1.664, Budgets und #4079 bleiben unverändert.
+Retirement-Nachweis: `statistics-http-owner-4078.json`.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
