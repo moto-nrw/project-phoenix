@@ -46,6 +46,8 @@
       "backend/modules/careplan/internal/adapters/postgres/parent_portal_reads_test.go",
       "backend/modules/careplan/integration/parent_portal_read_policy_test.go",
       "backend/api/parent_portal_read_ports.go",
+      "backend/api/parent_portal_read_test_helpers.go",
+      "backend/api/service_graph_compose_requests.go",
       "backend/api/parent_portal_read_ports_test.go",
       "backend/workflows/parentportal/care/child_read_values.go",
       "backend/workflows/parentportal/care/child.go",
