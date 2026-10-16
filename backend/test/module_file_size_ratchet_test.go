@@ -70,7 +70,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
 	"modules/timetable/compose/new.go":                                               1137,
 	"modules/timetable/timetable.go":                                                 1771,
-	"modules/workforce/inbound/timetracking/api.go":                                  863,
+	"modules/workforce/inbound/timetracking/api.go":                                  862,
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    845,
 	"modules/workforce/internal/adapters/postgres/worksession_store.go":              1147,
 	"modules/workforce/internal/application/timetracking/staff_absence_service.go":   2125,
