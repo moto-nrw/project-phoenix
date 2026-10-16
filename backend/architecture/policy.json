@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 60,
+  "policy_epoch": 61,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -646,7 +646,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/absence-types",
+      "path": "modules/workforce/http/absencetypes",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -863,7 +863,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/shift-types",
+      "path": "modules/workforce/http/shifttypes",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -877,7 +877,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/staff-shifts",
+      "path": "modules/workforce/http/staffshifts",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -891,7 +891,7 @@
       "external_test_role": "adapter-test"
     },
     {
-      "path": "api/substitutions",
+      "path": "modules/workforce/http/substitutions",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -912,7 +912,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "api/work-time-models",
+      "path": "modules/workforce/http/worktimemodels",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -2256,7 +2256,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "modules/workforce/inbound/timetracking",
+      "path": "modules/workforce/http/timetracking",
       "owner": "workforce",
       "role": "http",
       "internal_test_role": "adapter-test",
@@ -9373,16 +9373,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-sse.orm-sql",
-      "description": "SSE HTTP composition accepts Bun.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-sse.adapter-test.crypto",
       "description": "SSE adapter tests mint signed JWT fixtures.",
       "scopes": [
@@ -14779,6 +14769,11 @@
   ],
   "relocations": [
     {
+      "from": "api/absence-types",
+      "to": "modules/workforce/http/absencetypes",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
       "from": "api/iot/checkin",
       "to": "modules/devicescan/http/checkin",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
@@ -14809,6 +14804,26 @@
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
+      "from": "api/shift-types",
+      "to": "modules/workforce/http/shifttypes",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/staff-shifts",
+      "to": "modules/workforce/http/staffshifts",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/substitutions",
+      "to": "modules/workforce/http/substitutions",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
+      "from": "api/work-time-models",
+      "to": "modules/workforce/http/worktimemodels",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+    },
+    {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
@@ -14832,6 +14847,11 @@
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
       "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
+    },
+    {
+      "from": "modules/workforce/inbound/timetracking",
+      "to": "modules/workforce/http/timetracking",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
     },
     {
       "from": "services/education",

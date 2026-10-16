@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	worktimemodelsHTTP "github.com/moto-nrw/project-phoenix/api/work-time-models"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	worktimemodelsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/worktimemodels"
 )
 
 // newWorkTimeModelsResource wires the /api/work-time-models adapter over the Workforce

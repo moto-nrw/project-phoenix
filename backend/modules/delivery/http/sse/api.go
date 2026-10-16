@@ -7,7 +7,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -83,9 +82,13 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 // users.staff needs app.current_tenant_id to be set — the SSE router uses
 // sessiontoken.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
 func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
+	id, err := tenant.NewTenantID(tenantID)
+	if err != nil {
+		return nil, 0, err
+	}
 	var staffID int64
 	topics := &sseTopics{}
-	err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err = rs.runTenantTx(ctx, id, func(txCtx context.Context) error {
 		var resolveErr error
 		staffID, topics.activeGroupIDs, topics.eduTopics, topics.allTopics, resolveErr = rs.userCtx.ResolveSSETopics(txCtx)
 		return resolveErr

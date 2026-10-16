@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 201 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 60 ·
+Stand 16.10.2026 · Ratchet 201 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 57.283 in `compose`
 
@@ -30,7 +30,7 @@ Dieselben Konstruktoren dienen der Produktionskomposition und delegieren unverä
 bestehenden Flows. Test-Historien verwenden eigene Port-DTOs statt Enrollment-Typen;
 Deklarationshashes kommen über den bestehenden Root-Adapter zum Security Runtime und dieselben
 kanonischen Bytes. Testfälle, Assertions, Fixture-Werte und Zeitgrenzen bleiben gleich.
-Drei Keys fallen: 204 → 201, #4073 32 → 29. Regeln 878, Composition 1.657,
+Drei Keys fallen: 204 → 201, #4073 32 → 29. Regeln 877, Composition 1.657,
 Compose 57.283 LOC und alle Budgets bleiben unverändert. Keine neue Regel, Freigabe,
 Klassifizierung oder Checker-Ausnahme; auch keine Freigabe für eigene private Testziele.
 
@@ -255,6 +255,17 @@ um die letzten 13 LOC des leeren HTTP-Adapters auf 59.260; dessen Paketeintrag
 und Budget entfallen. Der Dateigrößen-Eintrag für Time Tracking sinkt von 862
 auf 804. Alle 356 bisherigen Assertions bleiben unverändert; die vollständigen
 Bindungs- und Handler-Deklarationen sind bis auf Paketnamen und Port exakt.
+
+#4078: Die sechs übernommenen Workforce-HTTP-Pakete liegen nach ADR 0020
+unter `modules/workforce/http/{absencetypes,worktimemodels,shifttypes,staffshifts,substitutions,timetracking}`.
+Alle 69 Go-Dateinamen, Owner und Produktions- sowie Testrollen bleiben identisch.
+Nur Importpfade, eingefrorene Pfadschlüssel der Größen-/Längen-/Komplexitätsregister
+und der aktuelle Evidence-Quellpfad folgen der Relocation. Epoche 60 → 61;
+Regeln, Legacy-Keys, Composition und Budgetwerte bleiben unverändert.
+Die bisher unter `api/` liegende 67-Zeilen-Übersichtsfunktion fällt erstmals
+unter die Modul-Längengrenze. Der unveränderte Personal-Mapper ist als benannter
+Schritt extrahiert; Wiedereinsetzen ergibt denselben vollständigen AST. Keine neue
+Allowlist-Zeile. Keine Route, Response, IoT-Zeichenkette oder Assertion ändert sich.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

@@ -8,8 +8,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	substitutionsHTTP "github.com/moto-nrw/project-phoenix/api/substitutions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
