@@ -10,7 +10,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -51,7 +51,7 @@ func (s messagingSettingsStub) ResolveBoolForTenant(_ context.Context, _ int64, 
 	if v, ok := s.boolValues[key]; ok {
 		return v, nil
 	}
-	if key == configModels.KeyParentSickReportsEnabled || key == configModels.KeyParentExcusedReportsEnabled {
+	if key == care.KeyParentSickReportsEnabled || key == care.KeyParentExcusedReportsEnabled {
 		return true, nil
 	}
 	return false, nil

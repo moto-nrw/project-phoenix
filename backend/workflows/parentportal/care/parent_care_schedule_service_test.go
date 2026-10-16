@@ -24,7 +24,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -47,11 +47,11 @@ func buildCareScheduleService(t *testing.T, notesEnabled bool) (*care.Service, *
 func careScheduleServiceOn(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, notesEnabled bool) *care.Service {
 	t.Helper()
 	return careScheduleServiceWithSettings(t, db, repos, map[string]bool{
-		configModels.KeyParentSickNoteEnabled:           true,
-		configModels.KeyParentNotesEnabled:              notesEnabled,
-		configModels.KeyParentCareArrivalRequestEnabled: true,
-		configModels.KeyParentCarePickupRequestEnabled:  true,
-		configModels.KeyParentCareModeRequestEnabled:    true,
+		care.KeyParentSickNoteEnabled:           true,
+		care.KeyParentNotesEnabled:              notesEnabled,
+		care.KeyParentCareArrivalRequestEnabled: true,
+		care.KeyParentCarePickupRequestEnabled:  true,
+		care.KeyParentCareModeRequestEnabled:    true,
 	})
 }
 
@@ -71,7 +71,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		Settings: parentSettingsStub{
 			boolValues: boolValues,
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				care.KeyGuardianParentInviteMode: care.ParentInviteModeDisabled,
 			},
 		},
 		ArrivalSchedules: sf.ArrivalSchedule,
@@ -164,9 +164,9 @@ func TestCreateCareScheduleRequest_RejectsArrivalWhenLegacySettingIsEnabled(t *t
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	svc := careScheduleServiceWithSettings(t, db, repos, map[string]bool{
-		configModels.KeyParentCareArrivalRequestEnabled: true,
-		configModels.KeyParentCarePickupRequestEnabled:  true,
-		configModels.KeyParentCareModeRequestEnabled:    true,
+		care.KeyParentCareArrivalRequestEnabled: true,
+		care.KeyParentCarePickupRequestEnabled:  true,
+		care.KeyParentCareModeRequestEnabled:    true,
 	})
 	view, err := svc.GetChildCareSchedule(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
 	require.NoError(t, err)

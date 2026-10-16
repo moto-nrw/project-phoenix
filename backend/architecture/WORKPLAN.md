@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 251 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
+Stand 16.10.2026 · Ratchet 245 · Composition 1.664 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 55 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.651 in `compose`
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 90 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 48 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 42 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 30 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 251 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 245 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -130,6 +130,14 @@ keine Route, Response, IoT-Zeichenkette oder Assertion ändert sich.
 Inbound-Owner 20 → 19, Regeln 918 → 918; 270 Keys, #4078 6, Composition 1.664,
 Epoche 55 und alle Budgets bleiben unverändert. Die physische Relocation folgt
 separat gemäß ADR 0020.
+
+#4078: IoT-Staffclock und die gemeinsamen IoT-HTTP-Fehler gehören zu
+`process-device-scan`; `inbound-iot-staffclock` und `inbound-iot-internal-shared`
+entfallen. Drei überflüssige Regeln werden gelöscht, ohne Nachfolger: Die
+stehenden Scan-Public- und IoT-Kompositionsregeln decken die reklassifizierten
+HTTP-Pakete. Pfade, Produktions-/Testrollen, Go-Code, Verträge und Assertions
+bleiben unverändert. Inbound-Owner 19 → 17, Regeln 918 → 915; 270 Keys,
+#4078 6, Composition 1.664, Epoche 55 und alle Budgets bleiben unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
