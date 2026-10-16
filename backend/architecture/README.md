@@ -4326,11 +4326,11 @@ become the Delivery Platform's `realtime.NewInstanceOverdueEvent` and
 `NewInstanceOverdueRefreshEvent`, which the root broadcasts tenant-wide;
 `realtimeevents.PublishInstanceOverdue` and `PublishInstanceOverdueRefresh`
 had no other caller and are deleted. Seven keys leave `legacy.jsonl`
-(514 -> 507): `services/scheduler -> modules/studentpresence`,
+(512 -> 505): `services/scheduler -> modules/studentpresence`,
 `-> modules/delivery/application/pwa` and
 `-> modules/delivery/application/realtimeevents` in production and internal
 test, and `-> modules/careplan/absencerecords` in production. The
-composition surface stays at 1,742. The evidence record is
+composition surface stays at 1,740. The evidence record is
 `scheduler-presence-delivery-ports-4067.json`.
 
 ## Changing the policy
