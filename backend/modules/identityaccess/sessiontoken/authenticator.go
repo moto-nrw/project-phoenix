@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/lestrrat-go/jwx/v3/jwt"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
 
 	"github.com/go-chi/jwtauth/v5"
 	"github.com/go-chi/render"
@@ -95,7 +95,7 @@ func Authenticator(next http.Handler) http.Handler {
 			return
 		}
 
-		if err := jwt.Validate(token); err != nil {
+		if err := tokenprimitives.Validate(token); err != nil {
 			slog.Warn("token validation failed", slog.String("error", err.Error()))
 			renderUnauthorized(w, r, ErrTokenExpired)
 			return
@@ -139,7 +139,7 @@ func MFAEnrollmentAuthenticator(next http.Handler) http.Handler {
 			renderUnauthorized(w, r, ErrTokenUnauthorized)
 			return
 		}
-		if err := jwt.Validate(token); err != nil {
+		if err := tokenprimitives.Validate(token); err != nil {
 			slog.Warn("enrollment token validation failed", slog.String("error", err.Error()))
 			renderUnauthorized(w, r, ErrTokenExpired)
 			return
@@ -184,7 +184,7 @@ func AuthenticateRefreshJWT(next http.Handler) http.Handler {
 			return
 		}
 
-		if jwt.Validate(token) != nil {
+		if tokenprimitives.Validate(token) != nil {
 			renderUnauthorized(w, r, ErrTokenExpired)
 			return
 		}
