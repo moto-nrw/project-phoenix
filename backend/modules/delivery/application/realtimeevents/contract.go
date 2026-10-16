@@ -25,5 +25,4 @@ const (
 	EventDashboardCountsChanged   = realtime.EventDashboardCountsChanged
 	EventStaffTimeTrackingChanged = realtime.EventStaffTimeTrackingChanged
 	EventGroupAccessChanged       = realtime.EventGroupAccessChanged
-	EventInstanceOverdue          = realtime.EventInstanceOverdue
 )

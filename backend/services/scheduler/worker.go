@@ -5,9 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	pwaSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
@@ -23,8 +20,8 @@ type WorkerDependencies struct {
 	UnitOfWorkObserver        func(entryPoint, kind, result string, duration time.Duration, retries int)
 	Tracer                    WorkerTracer
 	Settings                  SettingsResolver
-	Active                    studentpresence.SessionMaintenance
-	ActiveCleanup             studentpresence.PresenceCleanup
+	Active                    SessionMaintenance
+	ActiveCleanup             PresenceCleanup
 	AuthCleanup               AuthCleanup
 	InvitationCleanup         InvitationCleaner
 	EmailChangeCleanup        EmailChangeTokenCleaner
@@ -46,7 +43,7 @@ type WorkerDependencies struct {
 	CalendarFeedCleanup       CalendarFeedCleaner
 	TimeTrackingCleanup       TimeTrackingCleanupService
 	StudentChangeLogCleanup   StudentChangeLogCleanup
-	PWAUsageCleanup           pwaSvc.UsageService
+	PWAUsageCleanup           PWAUsageCleanup
 	StaffMessageCleanup       StaffMessageCleanup
 	BookingConsistency        BookingConsistencyAudit
 	EnrollmentRejectedCleanup RejectedEnrollmentCleaner
@@ -57,7 +54,7 @@ type WorkerDependencies struct {
 	InstanceStudentRepo       InstanceCheckoutCloser
 	TimetableBridge           TimetableBridgeCompleter
 	StudentStatusDayRepo      StudentStatusFlagArchiver
-	OverdueBroadcaster        realtimeevents.Publisher
+	OverdueBroadcaster        InstanceOverdueBroadcaster
 	StudentLifecycleRepo      StudentLifecycleRepository
 	StudentLifecycleAudit     StudentLifecycleAuditor
 	CareExitEffector          CareExitEffector
