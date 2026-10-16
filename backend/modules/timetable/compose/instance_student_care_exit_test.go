@@ -22,6 +22,7 @@ func TestModuleCareExitRemovesOnlyPlansAndRestoresSnapshots(t *testing.T) {
 	room := testpkg.CreateTestRoom(t, db, "Care exit snapshot room")
 	facts := &fixedSessions{}
 	module, err := New(Dependencies{
+		Provenance:          testpkg.EnrollmentProvenance{},
 		LockStaffAssignment: func(context.Context, int64) error { return nil },
 		DB:                  db,
 		Students:            StudentDirectoryFunc(func(context.Context) ([]TargetStudent, error) { return nil, nil }),

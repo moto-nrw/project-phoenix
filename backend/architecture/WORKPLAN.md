@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 306 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
+Stand 16.10.2026 · Ratchet 302 · Composition 1.720 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 51 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,8 +11,8 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 34 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 96 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 31 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 95 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 54 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 49 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 1 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 306 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 302 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -90,6 +90,8 @@ Der bestehende endliche Parent-HTTP-Epochenschutz folgt nur dem Owner-Namen;
 Selektoren, Scopes und Test-Assertions bleiben gleich. Zehn Regeln entfallen, acht
 gleich enge Nachfolger bleiben. Der Retirement-Nachweis liegt
 in `parent-portal-http-owner-4078.json`; Composition und Budgets bleiben unverändert.
+Nach dem Merge von #4147: Inbound-Owner 23 → 22, Regeln 936 → 934, Keys 303 → 302;
+#2750 2 → 1, #4078 10 → 10 und #4079 15 → 15, Policy-Epoche 51 unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

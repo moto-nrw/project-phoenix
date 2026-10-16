@@ -18,7 +18,7 @@ func TestNativePendingRequestRemainsVisibleWhenDiffFails(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	student := testpkg.CreateTestStudent(t, db, "Pending", "Visible", "1a")
 	parent := testpkg.CreateTestAccount(t, db, "parent")
-	owner := careplantest.NewCarePlan(t, db)
+	owner := careplantest.NewCarePlan(t, db, testpkg.StudentDirectory{})
 	b := &requestDiffBoundary{fail: errors.New("directory unavailable")}
 	diffs, err := compose.NewRequestDiffs(b, b, b, nil)
 	require.NoError(t, err)

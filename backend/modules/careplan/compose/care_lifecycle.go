@@ -62,13 +62,14 @@ type CareLifecycleDependencies struct {
 	Fingerprint func([]byte) string
 	Logger      *slog.Logger
 	// Today defaults to the Berlin calendar day.
-	Today func() calendar.Date
+	Today            func() calendar.Date
+	StudentDirectory StudentDirectory
 }
 
 // NewCareLifecycle composes the one care-lifecycle capability.
 func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, error) {
-	if deps.DB == nil {
-		return nil, errors.New("care lifecycle compose: database is required")
+	if deps.DB == nil || deps.StudentDirectory == nil {
+		return nil, errors.New("care lifecycle compose: database and student directory are required")
 	}
 	today := deps.Today
 	if today == nil {
@@ -76,7 +77,7 @@ func NewCareLifecycle(deps CareLifecycleDependencies) (careplan.CareLifecycle, e
 	}
 	return application.NewCareLifecycle(application.CareLifecycleDependencies{
 		Owners: deps.Owners, Records: deps.Records,
-		Directory:             postgres.New(carePlanDatabase(deps.DB)),
+		Directory:             postgres.NewDirectoryStore(postgres.New(carePlanDatabase(deps.DB)), deps.StudentDirectory),
 		Unit:                  tenant.NewTransactionRunner().RunInTx,
 		LockCareBookingWrites: deps.LockCareBookingWrites,
 		BookingsAuthoritative: deps.BookingsAuthoritative,
