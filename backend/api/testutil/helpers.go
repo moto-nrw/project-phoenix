@@ -60,10 +60,11 @@ func NewDeviceAuthenticators(
 	fallbackPIN string,
 ) *deviceauth.Authenticators {
 	return deviceauth.New(deviceauth.Dependencies{
-		Devices:     devices,
-		Schools:     schools,
-		Settings:    settings,
-		FallbackPIN: fallbackPIN,
+		Devices:      devices,
+		Schools:      schools,
+		SchoolErrors: devicetest.SchoolErrors(),
+		Settings:     settings,
+		FallbackPIN:  fallbackPIN,
 	})
 }
 
