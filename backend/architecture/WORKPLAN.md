@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 207 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
+Stand 16.10.2026 · Ratchet 206 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 59.273 in `compose`
 
@@ -16,12 +16,12 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 35 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 5 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 207 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 206 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -222,6 +222,22 @@ Nachweis in `workforce-configuration-http-owner-4078.json`.
 Das Compose-Budget sinkt von 67.428 auf 67.360 LOC, der HTTP-Adapter-Eintrag von
 81 auf 13. Der Dateigrößen-Eintrag für Time Tracking sinkt von 863 auf 862;
 der ORM-Ausnahmeeintrag entfällt. Keine Route, Response oder Assertion ändert sich.
+
+#4078: SSE gehört Delivery Platform/HTTP; `inbound-sse` entfällt. Root bindet
+die bisherigen JWT-/Portal-Router, skalare Identität und Admin-Prüfung,
+Token-Deadline und Tenant-Transaktion. Die HTTP-eigenen typisierten Event-,
+Client- und Hub-Ports verwenden weiterhin die nativen Eventwerte, Client-Zeiger
+und denselben 32er-Kanal; keine Relay-Goroutine und kein zusätzlicher Puffer.
+Die vorhandene Testkomposition liefert den echten Root-Runtime-Wert. Vier
+Auth-/Router-Fälle liegen in Root; sämtliche 81 Assertions bleiben identisch.
+Zwei ownerweite Provider-/Rendering-Regeln werden durch sechs engere Rollen-
+und Scope-Regeln ersetzt. Mit den sieben Inbound-Regeln entfallen neun Regeln;
+Regelzahl 888 → 885, Inbound-Owner 13 → 12, Keys 207 → 206, #4078 6 → 5.
+Keine neue Reichweite, kein Selektor, kein Root-Service-Graph-Feld. Composition
+bleibt 1.657. Die letzten beiden HTTP-ORM-Ausnahmen entfallen; die vorhandene
+Längengrenze des School-Stream-Handlers sinkt von 71 auf 66. Der Einzel-Key
+ist in `delivery-sse-http-owner-4078.json` belegt. Routen, Responses und Goldens
+bleiben unverändert; Communication bleibt der letzte `inbound-*`-Schnitt.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

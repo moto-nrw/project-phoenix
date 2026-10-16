@@ -1850,24 +1850,24 @@ func mountCalendarRoutes(root, tenant chi.Router, in routeInputs) {
 func mountDeliveryRoutes(root, tenant chi.Router, in routeInputs) {
 	svc := in.modules.services
 	files := filestoreAPI.NewResource(svc.FileStore, in.logger.With("handler", "filestore"))
-	sse := sseAPI.NewResource(svc.RealtimeHub, in.modules.userContext, in.db.Pool(), in.logger.With("handler", "sse"))
+	sse := sseAPI.NewResource(svc.RealtimeHub, in.modules.userContext, NewSSEHTTPRuntime(), in.logger.With("handler", "sse"))
 	sse.SetSchoolAccess(in.modules.identity)
 	tenant.Mount("/files", files.Router())
 	// Anhänge an Elternmitteilungen (#2890). Eigener Pfad statt einer
 	// Route unter /parent-announcements: die Bytes gehören der
 	// Dateiablage, die Mitteilung steuert nur den Empfängerkreis bei.
 	tenant.Mount("/announcement-attachments", files.AnnouncementAttachmentRouter())
-	tenant.Mount("/sse", sse.Router())
+	tenant.Mount("/sse", NewSSEHTTPRouter(sse))
 	// Parent-portal SSE stream: only whitelisted triggers (parent_message)
 	// for the tenants of the guardian's children.
-	root.Mount("/parent-sse", sse.ParentRouter())
+	root.Mount("/parent-sse", newParentSSERouter(sse))
 	// Anhänge, die Eltern zu einer Mitteilung herunterladen (#2890). Der
 	// Empfängerkreis der Mitteilung entscheidet; wer nicht dazugehört,
 	// bekommt 404.
 	root.Mount("/parent-news-attachments", files.ParentAnnouncementAttachmentRouter())
 	// School-portal SSE stream (#2208): account-addressed triggers only
 	// (Team-Chat).
-	root.Mount("/school-sse", sse.SchoolRouter())
+	root.Mount("/school-sse", newSchoolSSERouter(sse))
 }
 
 // mountPortalRoutes mounts the root-level session portals: tenant auth,

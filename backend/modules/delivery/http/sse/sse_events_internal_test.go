@@ -14,13 +14,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/jwtauth/v5"
-	jwxjwt "github.com/lestrrat-go/jwx/v3/jwt"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -29,7 +27,7 @@ import (
 type eventsTestContext struct {
 	db       *bun.DB
 	hub      *realtime.Hub
-	resource *Resource
+	resource *Resource[realtime.Event, *realtime.Client]
 }
 
 // withValidSSEToken mirrors the verified jwtauth token context that the direct
@@ -39,9 +37,7 @@ type eventsTestContext struct {
 func withValidSSEToken(t *testing.T, ctx context.Context) context.Context {
 	t.Helper()
 
-	token, err := jwxjwt.NewBuilder().
-		Expiration(time.Now().Add(time.Hour)).
-		Build()
+	token, _, err := testutil.TestTokenAuth(t).JwtAuth.Encode(map[string]any{"exp": time.Now().Add(time.Hour)})
 	require.NoError(t, err)
 	return jwtauth.NewContext(ctx, token, nil)
 }
@@ -49,20 +45,20 @@ func withValidSSEToken(t *testing.T, ctx context.Context) context.Context {
 // ComposeSubscriptionResolver composes the root's caller rows over the
 // package's test database. The root imports this package, so these internal
 // tests cannot import it; root_composition_test.go binds it.
-var ComposeSubscriptionResolver func(t *testing.T) (*bun.DB, SubscriptionResolver)
+var ComposeSubscriptionResolver func(t *testing.T) (*bun.DB, SubscriptionResolver, Runtime[realtime.Event, *realtime.Client])
 
 // setupEventsModule initializes the DB-backed SSE capability under test.
 func setupEventsModule(t *testing.T) *eventsTestContext {
 	t.Helper()
 
-	db, subscriptions := ComposeSubscriptionResolver(t)
+	db, subscriptions, runtime := ComposeSubscriptionResolver(t)
 
 	hub := realtime.NewHub(slog.Default())
 
 	resource := NewResource(
 		hub,
 		subscriptions,
-		db,
+		runtime,
 		slog.Default(),
 	)
 
@@ -151,7 +147,7 @@ func TestSSEEvents_AdminClaims(t *testing.T) {
 	defer cancel()
 
 	claims := testutil.AdminTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
+	claimsCtx := testutil.WithAuthenticatedContext(baseCtx, claims, nil)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
@@ -178,7 +174,7 @@ func TestSSEEvents_EmptyAuthClaims(t *testing.T) {
 	defer cancel()
 
 	claims := testutil.DefaultTestClaims()
-	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
+	claimsCtx := testutil.WithAuthenticatedContext(baseCtx, claims, nil)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
@@ -214,7 +210,7 @@ func TestSSEEvents_StaffReachesStreamingPath(t *testing.T) {
 
 	// Add claims to the timeout context
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
+	claimsCtx := testutil.WithAuthenticatedContext(baseCtx, claims, nil)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)
@@ -245,7 +241,7 @@ func TestSSEEvents_ResponseHeaders(t *testing.T) {
 	defer cancel()
 
 	claims := testutil.TeacherTestClaims(int(account.ID))
-	claimsCtx := context.WithValue(baseCtx, sessiontoken.CtxClaims, claims)
+	claimsCtx := testutil.WithAuthenticatedContext(baseCtx, claims, nil)
 	claimsCtx = withValidSSEToken(t, claimsCtx)
 
 	req := testutil.NewRequest("GET", "/events", nil)

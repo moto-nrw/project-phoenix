@@ -3,9 +3,7 @@ package sse
 import (
 	"context"
 	"log/slog"
-
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
+	"net/http"
 )
 
 // SubscriptionResolver resolves the caller's live-update topics through the
@@ -26,10 +24,10 @@ type SetupRejection interface {
 }
 
 // Resource defines the SSE resource with dependencies
-type Resource struct {
-	hub     *realtime.Hub
+type Resource[E Event, C Client[E]] struct {
+	hub     Hub[C]
 	userCtx SubscriptionResolver
-	db      *bun.DB
+	runtime Runtime[E, C]
 	logger  *slog.Logger
 	// schoolAccess re-checks an open school-portal stream (#2208). Wired via
 	// SetSchoolAccess; the school handler refuses to stream without it.
@@ -37,7 +35,7 @@ type Resource struct {
 }
 
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
-func (rs *Resource) getLogger() *slog.Logger {
+func (rs *Resource[E, C]) getLogger() *slog.Logger {
 	return loggerOrDefault(rs.logger)
 }
 
@@ -49,16 +47,25 @@ func loggerOrDefault(logger *slog.Logger) *slog.Logger {
 }
 
 // NewResource creates a new SSE resource
-func NewResource(
-	hub *realtime.Hub,
+func NewResource[E Event, C Client[E]](
+	hub Hub[C],
 	userCtx SubscriptionResolver,
-	db *bun.DB,
+	runtime Runtime[E, C],
 	logger *slog.Logger,
-) *Resource {
-	return &Resource{
+) *Resource[E, C] {
+	return &Resource[E, C]{
 		hub:     hub,
 		userCtx: userCtx,
-		db:      db,
+		runtime: runtime,
 		logger:  logger,
 	}
 }
+
+// StaffEvents returns the staff stream handler for Root's authenticated mount.
+func (rs *Resource[E, C]) StaffEvents() http.HandlerFunc { return rs.eventsHandler }
+
+// ParentEvents returns the guardian stream handler for Root's portal mount.
+func (rs *Resource[E, C]) ParentEvents() http.HandlerFunc { return rs.parentEventsHandler }
+
+// SchoolEvents returns the school stream handler for Root's portal mount.
+func (rs *Resource[E, C]) SchoolEvents() http.HandlerFunc { return rs.schoolEventsHandler }

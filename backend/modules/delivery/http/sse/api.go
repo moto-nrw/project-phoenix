@@ -5,35 +5,14 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
-
-	"github.com/go-chi/chi/v5"
-	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Router returns a configured router for SSE endpoints
-func (rs *Resource) Router() chi.Router {
-	r := chi.NewRouter()
-
-	// Create JWT auth instance for middleware
-
-	// SSE endpoint requires authentication
-	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(sessiontoken.TenantMiddleware(tenant.ClaimScope{}))
-		r.Get("/events", rs.eventsHandler)
-	})
-
-	return r
-}
 
 // eventsHandler handles Server-Sent Events connections
 // Orchestrates: connection setup → subscription resolution → event streaming
-func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel, ok := withSSETokenDeadline(r.Context())
+func (rs *Resource[E, C]) eventsHandler(w http.ResponseWriter, r *http.Request) {
+	ctx, cancel, ok := rs.runtime.TokenDeadline(r.Context())
 	if !ok {
 		writeSSEProblem(w, http.StatusUnauthorized, codeGeneralPermission, "Unauthorized")
 		return
@@ -49,12 +28,12 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 2: Extract tenant ID from JWT context (set by TenantMiddleware)
-	conn.tenantID = tenant.FromContext(ctx)
-	claims := sessiontoken.ClaimsFromCtx(ctx)
-	conn.isAdmin = claims.IsAdmin || authorize.HasAdminWildcard(sessiontoken.PermissionsFromCtx(ctx))
+	identity := rs.runtime.Identity(ctx)
+	conn.tenantID = identity.TenantID
+	conn.isAdmin = identity.IsAdmin
 	// The login account, needed to address this person individually. Already in
 	// the claims, so no extra lookup.
-	conn.accountID = int64(claims.ID)
+	conn.accountID = identity.AccountID
 
 	// Step 3: Resolve staff + subscription topics.
 	topics, staffID, err := rs.resolveSSESubscription(ctx, conn.tenantID)
@@ -82,10 +61,10 @@ func (rs *Resource) eventsHandler(w http.ResponseWriter, r *http.Request) {
 // tenant transaction. Resolution requires it because RLS on users.persons and
 // users.staff needs app.current_tenant_id to be set — the SSE router uses
 // sessiontoken.TenantMiddleware (context only), not the DB-level TenantTxMiddleware.
-func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
+func (rs *Resource[E, C]) resolveSSESubscription(ctx context.Context, tenantID int64) (*sseTopics, int64, error) {
 	var staffID int64
 	topics := &sseTopics{}
-	err := tenant.WithTenantTx(ctx, rs.db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
+	err := rs.runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 		var resolveErr error
 		staffID, topics.activeGroupIDs, topics.eduTopics, topics.allTopics, resolveErr = rs.userCtx.ResolveSSETopics(txCtx)
 		return resolveErr
@@ -98,7 +77,7 @@ func (rs *Resource) resolveSSESubscription(ctx context.Context, tenantID int64) 
 
 // writeSSESetupError maps a subscription-resolution error to the SSE HTTP
 // response: the carried status for an *SSESetupError (401/403), 500 otherwise.
-func (rs *Resource) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
+func (rs *Resource[E, C]) writeSSESetupError(w http.ResponseWriter, ctx context.Context, err error) {
 	var setupErr SetupRejection
 	if errors.As(err, &setupErr) {
 		slog.WarnContext(ctx, "SSE setup failed", slog.String("error", setupErr.SetupMessage()))
