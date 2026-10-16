@@ -13,8 +13,8 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	usersModel "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // The Dienstplan overview shares the shift-coverage interval math and the
@@ -60,7 +60,7 @@ func indexShifts(shifts []*StaffShift) map[staffDateKey][]*StaffShift {
 
 // sortOverviewStaff orders staff by last name, first name and id, the order
 // the Dienstplan overview presents them in.
-func sortOverviewStaff(staff []*usersModel.Staff) {
+func sortOverviewStaff(staff []*workforce.PlanStaff) {
 	sort.Slice(staff, func(i, j int) bool {
 		left := staffSortName(staff[i])
 		right := staffSortName(staff[j])
@@ -71,14 +71,14 @@ func sortOverviewStaff(staff []*usersModel.Staff) {
 	})
 }
 
-func staffSortID(staff *usersModel.Staff) int64 {
+func staffSortID(staff *workforce.PlanStaff) int64 {
 	if staff == nil {
 		return 0
 	}
 	return staff.ID
 }
 
-func staffSortName(staff *usersModel.Staff) string {
+func staffSortName(staff *workforce.PlanStaff) string {
 	if staff == nil || staff.Person == nil {
 		return ""
 	}
