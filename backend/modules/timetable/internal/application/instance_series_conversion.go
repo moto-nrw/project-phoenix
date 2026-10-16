@@ -7,36 +7,18 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// TemplateSeriesSeeding is the slice of the template writes the series
-// conversion seeds a series with.
-type TemplateSeriesSeeding interface {
-	CreateTemplate(ctx context.Context, cmd timetable.CreateTemplateCommand) (*timetable.CreateTemplateResult, error)
-	TemplateAssignmentsOn(ctx context.Context, templateID int64, date calendar.Date, calendarPeriodID int64) (timetable.TemplateAssignments, error)
-	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error
-}
-
-// InstanceSeriesConversionDependencies are the capabilities the conversion
-// coordinates; it adds transactionality and ordering, not persistence rules.
-type InstanceSeriesConversionDependencies struct {
-	Transactions   TenantTransactions
-	InstanceRepo   scheduleModel.ActivityInstanceRepository
-	Lifecycle      timetable.InstancePlanning
-	Templates      TemplateSeriesSeeding
-	RecurrenceLock timetable.RecurrenceWriteLock
-}
-
 type instanceSeriesConversion struct {
-	deps InstanceSeriesConversionDependencies
+	deps ports.InstanceSeriesConversionDependencies
 }
 
 // NewInstanceSeriesConversion composes the conversion of a one-off
 // occurrence into a series.
-func NewInstanceSeriesConversion(deps InstanceSeriesConversionDependencies) (timetable.InstanceSeriesConversion, error) {
+func NewInstanceSeriesConversion(deps ports.InstanceSeriesConversionDependencies) (timetable.InstanceSeriesConversion, error) {
 	if deps.Transactions == nil || deps.InstanceRepo == nil || deps.Lifecycle == nil || deps.Templates == nil || deps.RecurrenceLock == nil {
 		return nil, errors.New("timetable instance series conversion: required dependency is nil")
 	}
@@ -76,7 +58,7 @@ func (s *instanceSeriesConversion) ConvertInstanceToSeries(ctx context.Context, 
 func (s *instanceSeriesConversion) convertLocked(ctx context.Context, in timetable.ConvertInstanceToSeriesInput) (timetable.ConvertInstanceToSeriesResult, error) {
 	var none timetable.ConvertInstanceToSeriesResult
 	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
-		return none, &ScheduleError{Op: "convert instance to series: lock recurrence", Err: err}
+		return none, &ports.ScheduleError{Op: "convert instance to series: lock recurrence", Err: err}
 	}
 	instance, err := s.convertibleInstance(ctx, in.InstanceID)
 	if err != nil {
@@ -132,7 +114,7 @@ func (s *instanceSeriesConversion) convertibleInstance(ctx context.Context, inst
 		return nil, timetable.ErrInstanceNotFound
 	}
 	if err != nil {
-		return nil, &ScheduleError{Op: "convert instance to series: load instance", Err: err}
+		return nil, &ports.ScheduleError{Op: "convert instance to series: load instance", Err: err}
 	}
 	if instance.Status != scheduleModel.InstanceStatusPlanned {
 		return nil, fmt.Errorf("%w: cannot convert instance in status %q", timetable.ErrInvalidInstanceTransition, instance.Status)

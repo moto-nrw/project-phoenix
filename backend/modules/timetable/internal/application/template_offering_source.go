@@ -2,6 +2,8 @@ package application
 
 import (
 	"context"
+
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // validateOfferingSourceReference guards the offering-source references
@@ -26,7 +28,7 @@ func (s *TemplateService) validateOfferingSourceReference(
 		return nil
 	}
 	if err := s.deps.CareOfferings.ValidateOfferingSource(ctx, offeringIDs, storedOfferingIDs, calendarPeriodID); err != nil {
-		return &ScheduleError{Op: op, Err: err}
+		return &ports.ScheduleError{Op: op, Err: err}
 	}
 	return nil
 }

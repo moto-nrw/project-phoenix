@@ -6,14 +6,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type historySlots struct {
-	source *timetableCompose.AttendanceHistory
+	source timetablePorts.AttendanceHistory
 }
 
-func NewHistorySlots(records timetableCompose.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
+func NewHistorySlots(records timetablePorts.AttendanceHistoryRecords) presenceservice.HistorySlotReader {
 	if records == nil {
 		return nil
 	}

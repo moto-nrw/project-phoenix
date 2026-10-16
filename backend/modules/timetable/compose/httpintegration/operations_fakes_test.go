@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -121,7 +122,7 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 		activeGroups:    &fakeOpsSessions{lastActivity: map[int64]time.Time{}},
 		activityGroups:  &fakeOpsTemplates{byID: map[int64]*activitiesModels.Group{}, targetsByGroup: map[int64][]*activitiesModels.GroupTarget{}},
 		activeService:   &fakeOpsAttendance{},
-		arrivalService:  &fakeOpsArrivals{byStudent: map[int64]*compose.ExpectedArrival{}},
+		arrivalService:  &fakeOpsArrivals{byStudent: map[int64]*timetablePorts.ExpectedArrival{}},
 		pickupService:   &fakeOpsPickups{byStudent: map[int64]*time.Time{}},
 		careDayService:  &fakeOpsCareDays{byStudent: map[int64]timetable.CareDayStatus{}},
 		supervisors:     &fakeOpsSupervisions{byActiveGroup: map[int64][]*studentpresence.StaffedSupervision{}},
@@ -148,8 +149,8 @@ func newTimetableOpsDeps() *timetableOpsTestDeps {
 
 // dependencies wires every fake; the clock follows deps.now, else the wall
 // clock as in production.
-func (deps *timetableOpsTestDeps) dependencies() compose.OperationDependencies {
-	return compose.OperationDependencies{
+func (deps *timetableOpsTestDeps) dependencies() timetablePorts.OperationDependencies {
+	return timetablePorts.OperationDependencies{
 		Instances:            deps.instanceRepo,
 		InstanceStaff:        deps.staffRepo,
 		Participants:         deps.studentRepo,
@@ -452,21 +453,21 @@ func (s *fakeOpsAttendance) EndVisitAs(_ context.Context, _, _, visitID int64) e
 // fakeOpsArrivals answers every asked child: a configured arrival, else an
 // entry without a time, as Care Plan's bulk read does.
 type fakeOpsArrivals struct {
-	byStudent map[int64]*compose.ExpectedArrival
+	byStudent map[int64]*timetablePorts.ExpectedArrival
 	err       error
 }
 
-func (s *fakeOpsArrivals) EffectiveArrivals(_ context.Context, studentIDs []int64, _ calendar.Date) (map[int64]*compose.ExpectedArrival, error) {
+func (s *fakeOpsArrivals) EffectiveArrivals(_ context.Context, studentIDs []int64, _ calendar.Date) (map[int64]*timetablePorts.ExpectedArrival, error) {
 	if s.err != nil {
 		return nil, s.err
 	}
-	out := make(map[int64]*compose.ExpectedArrival, len(studentIDs))
+	out := make(map[int64]*timetablePorts.ExpectedArrival, len(studentIDs))
 	for _, studentID := range studentIDs {
 		if arrival := s.byStudent[studentID]; arrival != nil {
 			out[studentID] = arrival
 			continue
 		}
-		out[studentID] = &compose.ExpectedArrival{}
+		out[studentID] = &timetablePorts.ExpectedArrival{}
 	}
 	return out, nil
 }
@@ -677,11 +678,11 @@ func (s *fakeOpsSettings) ResolveString(_ context.Context, key string) (string, 
 	return s.mode, nil
 }
 
-func (s *fakeOpsSettings) ActionScopeKey(action compose.ScopedAction) (string, error) {
-	key, ok := map[compose.ScopedAction]string{
-		compose.ScopedAttendance:    attendanceEditScopeKey,
-		compose.ScopedBlockStart:    blockStartScopeKey,
-		compose.ScopedBlockComplete: blockCompleteScopeKey,
+func (s *fakeOpsSettings) ActionScopeKey(action timetablePorts.ScopedAction) (string, error) {
+	key, ok := map[timetablePorts.ScopedAction]string{
+		timetablePorts.ScopedAttendance:    attendanceEditScopeKey,
+		timetablePorts.ScopedBlockStart:    blockStartScopeKey,
+		timetablePorts.ScopedBlockComplete: blockCompleteScopeKey,
 	}[action]
 	if !ok {
 		return "", fmt.Errorf("unknown scoped action %d", action)

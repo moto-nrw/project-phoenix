@@ -10,6 +10,7 @@ import (
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -20,7 +21,7 @@ type InstanceAutoStartDependencies struct {
 	InstanceRepo      scheduleModel.ActivityInstanceRepository
 	InstanceStaffRepo scheduleModel.InstanceStaffRepository
 	Lifecycle         timetable.InstanceLifecycle
-	Rooms             LifecycleRooms
+	Rooms             ports.LifecycleRooms
 	Conflicts         timetable.StartConflictQuery
 	Logger            *slog.Logger
 }

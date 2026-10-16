@@ -7,6 +7,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -92,7 +93,7 @@ func rosterMismatchExpectedGroupIDs(group *rosterTemplateGroup) map[int64]struct
 	return expected
 }
 
-func appendArrivalWarnings(warnings map[int64][]timetable.OperationRosterWarning, arrivals map[int64]*ExpectedArrival, inst *scheduleModels.ActivityInstance) {
+func appendArrivalWarnings(warnings map[int64][]timetable.OperationRosterWarning, arrivals map[int64]*ports.ExpectedArrival, inst *scheduleModels.ActivityInstance) {
 	slotStart := inst.StartTime.Format("15:04")
 	slotStartClock := calendar.NormalizeWallClock(inst.StartTime)
 	for studentID, arrival := range arrivals {
@@ -126,7 +127,7 @@ func appendArrivalWarnings(warnings map[int64][]timetable.OperationRosterWarning
 // appendClassArrivalNotice explains a class-wide day exception (#2962): it
 // is information, not a warning. When the row already says "Kommt um HH:MM
 // Uhr" from the late-arrival warning, the line adds only the reason.
-func appendClassArrivalNotice(warnings map[int64][]timetable.OperationRosterWarning, studentID int64, notice *ClassArrivalNotice, arrivesLate bool, slotStart string) {
+func appendClassArrivalNotice(warnings map[int64][]timetable.OperationRosterWarning, studentID int64, notice *ports.ClassArrivalNotice, arrivesLate bool, slotStart string) {
 	if notice == nil {
 		return
 	}

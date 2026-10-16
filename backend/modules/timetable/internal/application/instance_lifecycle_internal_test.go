@@ -9,6 +9,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -34,7 +35,7 @@ func TestValidateStartTime(t *testing.T) {
 
 	require.NoError(t, (&InstanceLifecycleService{}).validateStartTime(context.Background(), inst, tooEarly))
 
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		EnforceTimePolicy: true,
 		Settings:          lifecycleSettingsStub{intVal: 15},
 	}}
@@ -75,7 +76,7 @@ func TestValidateCompleteTime(t *testing.T) {
 
 	require.NoError(t, (&InstanceLifecycleService{}).validateCompleteTime(context.Background(), inst, beforeEnd))
 
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		EnforceTimePolicy: true,
 		Settings:          lifecycleSettingsStub{boolVal: true},
 	}}
@@ -102,7 +103,7 @@ func TestValidateCompleteTimeHonorsCompleteLead(t *testing.T) {
 
 	inst := plannedLifecycleInstance()
 	leadBoundary := time.Date(2026, 8, 13, 14, 45, 0, 0, calendar.Berlin)
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		EnforceTimePolicy: true,
 		Settings:          lifecycleSettingsStub{boolVal: true, completeLead: 15},
 	}}
@@ -135,7 +136,7 @@ func TestWithCompletionConfirmationStoresClone(t *testing.T) {
 }
 
 type studentReadScopeStub struct {
-	LifecycleStudents
+	ports.LifecycleStudents
 	byID map[int64]*timetable.LifecycleStudent
 }
 
@@ -156,7 +157,7 @@ func TestBroadcastRestoredVisits_EmitsBulkCheckInAndDashboard(t *testing.T) {
 	eduGroupID := int64(70)
 	student := &timetable.LifecycleStudent{GroupID: &eduGroupID}
 	student.ID = 42
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		Broadcaster: broadcaster,
 		StudentRepo: studentReadScopeStub{byID: map[int64]*timetable.LifecycleStudent{42: student}},
 	}}
@@ -198,7 +199,7 @@ func TestBroadcastRestoredVisits_SkipsEmptyRestore(t *testing.T) {
 	t.Parallel()
 
 	broadcaster := &lifecycleEventRecorder{}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{Broadcaster: broadcaster}}
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{Broadcaster: broadcaster}}
 	svc.broadcastRestoredVisits(testpkg.Ctx(t), 99, nil)
 	assert.Empty(t, broadcaster.Calls())
 }
@@ -365,7 +366,7 @@ func TestInstanceDelete_ErrorBranches(t *testing.T) {
 			err := svc.DeleteCancelled(ctx, inst.ID)
 
 			require.Error(t, err)
-			var scheduleErr *ScheduleError
+			var scheduleErr *ports.ScheduleError
 			require.ErrorAs(t, err, &scheduleErr)
 			assert.Equal(t, tt.wantOp, scheduleErr.Op)
 		})
@@ -391,7 +392,7 @@ func TestInstanceDelete_RejectsProtectedStatuses(t *testing.T) {
 }
 
 func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *deleteUnitExceptionRepo) *InstanceLifecycleService {
-	return &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	return &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:  instanceRepo,
 		ExceptionRepo: exceptionRepo,
 		Logger:        slog.New(slog.DiscardHandler),

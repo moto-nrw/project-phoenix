@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -190,7 +191,7 @@ func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, 
 		SettingsService: templateGradeSettings(4, nil),
 		Now:             firstTemplateClock(clocks),
 	})
-	converter, err := timetableCompose.NewInstanceSeriesConversion(timetableCompose.InstanceSeriesConversionDependencies{
+	converter, err := timetableCompose.NewInstanceSeriesConversion(timetablePorts.InstanceSeriesConversionDependencies{
 		Transactions:   timetableCompose.NewTenantTransactions(db),
 		InstanceRepo:   repoFactory.ActivityInstance,
 		Lifecycle:      serviceFactory.Instance,

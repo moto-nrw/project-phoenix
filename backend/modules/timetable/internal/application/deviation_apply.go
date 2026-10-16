@@ -8,6 +8,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -135,7 +136,7 @@ func (s *staffDeviations) cancelDeviation(ctx context.Context, instanceID int64,
 	if locked.Date.Before(calendar.TodayDate()) {
 		return nil, timetable.DeviationBadRequest(msgInstanceInPast).WithCode(timetable.CodeInstanceInPast)
 	}
-	cancelled, err := s.deps.Lifecycle.CancelBlock(ctx, DeviationCancellation{
+	cancelled, err := s.deps.Lifecycle.CancelBlock(ctx, ports.DeviationCancellation{
 		InstanceID:     instanceID,
 		Reason:         trimDeviationReason(in.CancelReason),
 		ActorAccountID: in.ActorAccountID,
