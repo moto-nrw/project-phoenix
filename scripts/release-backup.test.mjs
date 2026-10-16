@@ -318,3 +318,26 @@ test('retention removes whole completed sets and preserves incomplete backups', 
   assert.equal(existsSync(join(base, 'release-20200103/roles.sql')), true);
   assert.equal(existsSync(join(base, 'release-incomplete')), true);
 });
+// Only a healthy, recorded release frees the disk: the prune must neither run
+// before the snapshot nor on any rollback path, and its failure is not a failed
+// release.
+test('successful deployment prunes unused images last', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh');
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.equal(f.calls().trim().split('\n').at(-1), 'image prune -af');
+});
+test('aborted and rolled back deployments keep every image', t => {
+  for (const [step, status] of [['preflight', 1], ['stop', 1], ['roles', 1], ['migrate', 10], ['health', 11]]) {
+    const f = fixture(t);
+    assert.equal(f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: step }).status, status, step);
+    assert.doesNotMatch(f.calls(), /prune/, step);
+  }
+});
+test('a failing prune does not fail the healthy release', t => {
+  const f = fixture(t);
+  const result = f.run('deploy-remote.sh', [], { RELEASE_TEST_FAIL: 'prune' });
+  assert.equal(result.status, 0, result.stdout + result.stderr);
+  assert.match(result.stderr, /WARNING: image prune failed/);
+  assert.match(readFileSync(join(f.cwd, '.deploy-state'), 'utf8'), /CURRENT_SHA=bbbbbbb/);
+});
