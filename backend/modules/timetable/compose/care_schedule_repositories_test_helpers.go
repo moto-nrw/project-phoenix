@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -8,8 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
-// CareScheduleRepositories are the retained schedule repositories served by
-// the Care Plan owner.
+// CareScheduleRepositories are the retained repositories served by Care Plan.
 type CareScheduleRepositories struct {
 	StudentArrivalSchedule    scheduleModels.StudentArrivalScheduleRepository
 	StudentArrivalException   scheduleModels.StudentArrivalExceptionRepository
@@ -20,8 +21,7 @@ type CareScheduleRepositories struct {
 	CareScheduleChangeRequest scheduleModels.CareScheduleChangeRequestRepository
 }
 
-// NewCareScheduleRepositories builds the retained schedule repositories over
-// the Care Plan records.
+// NewCareScheduleRepositories builds the retained repositories over Care Plan records.
 func NewCareScheduleRepositories(rows ports.CarePlanRows) CareScheduleRepositories {
 	return CareScheduleRepositories{
 		StudentArrivalSchedule:    application.NewCareArrivalScheduleRows(rows),
