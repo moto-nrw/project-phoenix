@@ -1,4 +1,4 @@
-package studentdirectoryview
+package postgres
 
 import (
 	"context"
@@ -9,22 +9,21 @@ import (
 	"github.com/uptrace/bun"
 )
 
-func (s *Projection) ListDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, OperationStats, error) {
+func (s *studentDirectoryReads) ListDepartureModes(ctx context.Context, ids []int64) (map[int64]map[string][]string, directoryStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
-		return nil, OperationStats{}, err
+		return nil, directoryStats{}, err
 	}
 	if tenantID <= 0 {
-		return nil, OperationStats{}, errors.New("people directory: departure modes require a tenant")
+		return nil, directoryStats{}, errors.New("people directory: departure modes require a tenant")
 	}
 	var rows []struct {
 		ID    int64               `bun:"id"`
 		Modes map[string][]string `bun:"allowed_departure_modes,type:jsonb"`
 	}
-	stats := OperationStats{Queries: 1}
+	stats := directoryStats{Queries: 1}
 	started := time.Now()
-	err = db.NewSelect().
-		TableExpr(studentSource).
+	err = s.rows.StudentRows(db, 0).
 		ColumnExpr(`"student".id, "student".allowed_departure_modes`).
 		Where(`"student".tenant_id = ?`, tenantID).
 		Where(`"student".id IN (?)`, bun.List(ids)).

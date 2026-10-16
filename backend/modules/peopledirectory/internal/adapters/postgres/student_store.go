@@ -5,8 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentdirectoryview"
-
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/uptrace/bun"
@@ -35,16 +33,16 @@ type studentRow struct {
 // runtime with the person store.
 type StudentStore struct {
 	database       Database
-	reads          *studentdirectoryview.Projection
+	reads          *studentDirectoryReads
 	classGate      func(context.Context, bool) error
 	classGateQuery func(context.Context) (*bun.SelectQuery, error)
 }
 
-func NewStudentStore(database Database, classGate func(context.Context, bool) error, classGateQuery func(context.Context) (*bun.SelectQuery, error)) *StudentStore {
+func NewStudentStore(database Database, students StudentDirectory, classGate func(context.Context, bool) error, classGateQuery func(context.Context) (*bun.SelectQuery, error)) *StudentStore {
 	if database == nil {
 		panic("people directory postgres: database runtime is required")
 	}
-	return &StudentStore{database: database, reads: studentdirectoryview.New(studentdirectoryview.Database(database)), classGate: classGate, classGateQuery: classGateQuery}
+	return &StudentStore{database: database, reads: newStudentDirectoryReads(database, students), classGate: classGate, classGateQuery: classGateQuery}
 }
 
 // Lock takes the student row FOR UPDATE. It is the first lock every care-day

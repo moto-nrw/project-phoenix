@@ -6,7 +6,6 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/guardianlinkview"
 )
 
 // MessageableGuardianRepository answers which guardians of a child may receive
@@ -16,6 +15,7 @@ import (
 // Communication receives the answer, not the join.
 type MessageableGuardianRepository struct {
 	runtime           Runtime
+	links             GuardianLinkRows
 	activeMemberships SchoolMembershipLookup
 }
 
@@ -25,8 +25,8 @@ type SchoolMembershipLookup func(context.Context, []int64, []int64) (map[int64][
 
 // NewMessageableGuardianRepository wires the recipient lookup with the
 // owner's bounded membership lookup.
-func NewMessageableGuardianRepository(runtime Runtime, activeMemberships SchoolMembershipLookup) *MessageableGuardianRepository {
-	return &MessageableGuardianRepository{runtime: requireRuntime(runtime), activeMemberships: activeMemberships}
+func NewMessageableGuardianRepository(runtime Runtime, links GuardianLinkRows, activeMemberships SchoolMembershipLookup) *MessageableGuardianRepository {
+	return &MessageableGuardianRepository{runtime: requireRuntime(runtime), links: requireGuardianLinkRows(links), activeMemberships: activeMemberships}
 }
 
 // ListGuardiansForStudent returns the child's account-holding guardians who may
@@ -56,7 +56,7 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 		users.MessageableGuardian
 		SchoolID int64 `bun:"school_id"`
 	}
-	query := guardianlinkview.Query(r.runtime.DB(ctx), 0).
+	query := r.links.GuardianLinkRows(r.runtime.DB(ctx), 0).
 		ColumnExpr("student_guardian.tenant_id AS school_id").
 		ColumnExpr("gp.account_id AS account_id").
 		ColumnExpr("btrim(COALESCE(gp.first_name,'') || ' ' || COALESCE(gp.last_name,'')) AS name").
