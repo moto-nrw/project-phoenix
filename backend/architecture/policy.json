@@ -211,10 +211,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-mealplan",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-messaging",
       "kind": "inbound"
     },
@@ -904,7 +900,7 @@
     },
     {
       "path": "modules/mealplan/http",
-      "owner": "inbound-mealplan",
+      "owner": "meal-plan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -8015,12 +8011,12 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-mealplan.to.meal-plan",
-      "description": "inbound-mealplan calls exactly one public capability.",
+      "id": "meal-plan.http.public",
+      "description": "The Meal Plan HTTP adapter calls its own public capability.",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-mealplan",
+      "source_owner": "meal-plan",
       "source_role": "http",
       "target_owner": "meal-plan",
       "target_role": "public"
@@ -8830,17 +8826,6 @@
       "source_role": "module-internal-test",
       "target_owner": "tenant-runtime",
       "target_role": "public"
-    },
-    {
-      "id": "root-composition.to.meal-plan-http",
-      "description": "The production root constructs the Meal Plan HTTP adapter.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-mealplan",
-      "target_role": "http"
     },
     {
       "id": "organization-tenancy.port-domain",

@@ -28,6 +28,13 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
+#4078: Der Meal-Plan-HTTP-Adapter liegt bereits unter `modules/mealplan/http` und gehört jetzt
+zu `meal-plan`; `inbound-mealplan` und seine zwei Regeln sind gelöscht. Eine gleich enge
+Eigen-HTTP-Regel ersetzt den Capability-Zugriff; die stehende Root-Reichweite ersetzt die andere.
+Inbound-Owner 34 → 33, Regeln 952 → 951, Keys und Budgets unverändert. Der eng begrenzte
+Checker-Übergang für bestehende Paketpfade entfällt mit seinen Tests im letzten
+#4078-PR (`tool`-Kind), sobald kein Inbound-Owner mehr bleibt.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
