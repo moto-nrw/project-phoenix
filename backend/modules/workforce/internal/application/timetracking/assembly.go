@@ -192,7 +192,8 @@ func (deps Dependencies) ledger(months WorkTimeMonthService, snapshots MonthSnap
 		WithAdjustmentDeletionAudit(deps.DeletionAudit),
 	}
 	if deps.Today != nil {
-		options = append(options, WithAdjustmentToday(deps.Today))
+		today := deps.Today
+		options = append(options, func(s *staffBalanceAdjustmentService) { s.todayFunc = today })
 	}
 	return NewStaffBalanceAdjustmentService(deps.Adjustments, months, deps.Settings, logger, options...)
 }
@@ -228,7 +229,8 @@ func (deps Dependencies) absenceOptions(types AbsenceTypeReader, snapshots Month
 		WithAbsenceMonthSnapshots(snapshots),
 	}
 	if deps.Today != nil {
-		options = append(options, WithAbsenceToday(deps.Today))
+		today := deps.Today
+		options = append(options, func(s *staffAbsenceService) { s.todayFunc = today })
 	}
 	if deps.AbsenceEmail != nil {
 		// Absence email notifications (#1419 4d).
