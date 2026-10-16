@@ -67,6 +67,8 @@ const (
 	KeyRequirePickupOfferingReview           = configModel.KeyRequirePickupOfferingReview
 	KeyRoomDetailVisibleDays                 = configModel.KeyRoomDetailVisibleDays
 	KeySessionEndTime                        = configModel.KeySessionEndTime
+	KeySlotListLongDayCutoff                 = configModel.KeySlotListLongDayCutoff
+	KeySlotListShortDayCutoff                = configModel.KeySlotListShortDayCutoff
 	KeyStaffMessagingEnabled                 = configModel.KeyStaffMessagingEnabled
 	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
 	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled

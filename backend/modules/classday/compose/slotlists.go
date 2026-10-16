@@ -1,10 +1,10 @@
 // Package compose wires the class-day read projection (#2701): it hands the
 // public owner queries of Timetable & Activities, Student Presence, People
 // Directory, School Structure, Facilities and Care Plan to the application and
-// binds the consumer-owned ports to the retained schedule services, the
-// settings service and the identity chain. The retained services are
-// compatibility bindings, not target dependencies; they leave with the
-// corresponding owner migrations.
+// binds the consumer-owned ports to the retained schedule services and the
+// settings service; the root binds the read access and the renderer. The
+// retained services are compatibility bindings, not target dependencies; they
+// leave with the corresponding owner migrations.
 package compose
 
 import (
@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -20,8 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -56,13 +53,6 @@ type SettingsReader interface {
 	LockSlotListCutoffPairShared(ctx context.Context) error
 }
 
-// StaffReader resolves the caller's staff member for the read-access
-// verdict. found is false, without an error, for a person who is no staff
-// member; an account without a person is an error.
-type StaffReader interface {
-	CurrentStaffIDOfPerson(ctx context.Context) (staffID int64, found bool, err error)
-}
-
 // SlotListDependencies wires the slot lists. The owner facades are the
 // tenant-safe reads; the retained services are compatibility bindings.
 type SlotListDependencies struct {
@@ -78,10 +68,10 @@ type SlotListDependencies struct {
 	ArrivalTimes    ArrivalTimeReader
 	PickupBaselines PickupBaselineReader
 	Settings        SettingsReader
-	// UserContext may be nil; the read-access verdict then rests on the
-	// admin permission alone.
-	UserContext StaffReader
-	ListExport  *listexport.RendererService
+	// Access decides whether the caller reads children by name; the root
+	// binds the admin permission and the caller's staff record.
+	Access     ports.ReadAccess
+	ListExport application.ListRenderer
 	// Now overrides the service clock. Leave nil in production (defaults to
 	// time.Now); tests inject a fixed instant for a deterministic weekday.
 	Now func() time.Time
@@ -120,7 +110,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 		PickupBaselines: baselines,
 		Rules:           Rules{},
 		Settings:        settings,
-		Access:          accessBinding{staff: deps.UserContext},
+		Access:          deps.Access,
 		ListExport:      deps.ListExport,
 		Now:             deps.Now,
 	})
@@ -213,25 +203,6 @@ func (b settingsBinding) PickupCutoffs(ctx context.Context) (string, string, err
 		return "", "", fmt.Errorf("resolve long-day pickup cutoff: %w", err)
 	}
 	return short, long, nil
-}
-
-type accessBinding struct{ staff StaffReader }
-
-// CanReadStudents grants administrators and accounts with a staff record.
-// Only the legitimate restrictive conditions (no staff profile) collapse to
-// "no"; operational failures propagate.
-func (b accessBinding) CanReadStudents(ctx context.Context) (bool, error) {
-	if authorize.HasPermission("admin:*", sessiontoken.PermissionsFromCtx(ctx)) {
-		return true, nil
-	}
-	if b.staff == nil {
-		return false, nil
-	}
-	_, found, err := b.staff.CurrentStaffIDOfPerson(ctx)
-	if err != nil {
-		return false, fmt.Errorf("resolve current staff: %w", err)
-	}
-	return found, nil
 }
 
 // Rules forwards the pure care-plan rules to their owners so every reader of

@@ -224,8 +224,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// day report is built in the projection instead of forwarded to the
 	// retained enrollment report.
 	//
-	// ADR 0061: application 6 + modules/classday/compose 15.
-	"modules/classday": 21,
+	// ADR 0061: application 6 + modules/classday/compose 14.
+	"modules/classday": 20,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
 	//
