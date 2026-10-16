@@ -1575,7 +1575,7 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 	if err != nil {
 		return nil, err
 	}
-	errorReports, err := iotAPI.NewErrorReportRelay(in.errorReportDSN)
+	errorReports, err := NewIoTErrorReportRelay(in.errorReportDSN)
 	if err != nil {
 		return nil, err
 	}
@@ -1596,7 +1596,8 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 		Logger:    logger.With("service", "device-scan"),
 	})
 	return iotAPI.NewResource(iotAPI.ServiceDependencies{
-		Administration:   devicefleetCompose.NewAdministration(svc.IoT.Fleet()),
+		Administration:   NewIoTAdministration(devicefleetCompose.NewAdministration(svc.IoT.Fleet())),
+		Runtime:          NewIoTHTTPRuntime(),
 		DeviceScan:       deviceScan,
 		OpenRooms:        deviceScan,
 		StaffClock:       newStaffClockService(svc.Users, NewPeopleIdentityAccess(in.db, observability.ObserveIdentityAccessOperation), svc.WorkSession.TimeClock),
@@ -1610,8 +1611,8 @@ func newIoTResource(in routeInputs, deviceAuth *deviceauth.Authenticators, prese
 			observability.ObserveFeedbackHTTPResponse("iot", status, code)
 		},
 		SchoolName:              devicescanCompose.NewSchoolName(schoolName(modules.organizations)),
-		ErrorReports:            errorReports,
-		SessionEnd:              BindIoTSessionEnd(sessionEnd),
+		ErrorReports:            NewIoTErrorReporter(errorReports),
+		SessionEnd:              bindIoTHostSessionEnd(BindIoTSessionEnd(sessionEnd)),
 		SessionLifecycle:        devicescanCompose.NewSessionLifecycle(svc.Active, devicescanCompose.NewSupervisionQuery(presence), svc.Users, svc.IoT, devicescanCompose.NewSessionMirror(modules.timetableRepositories.ActivityInstance, modules.timetableRepositories.InstanceStaff, svc.Activities, KioskMirrorPublisher(svc.RealtimeHub, logger), logger), logger),
 		Logger:                  logger.With("handler", "iot"),
 		DeviceAuthenticator:     deviceAuth.Device(),
@@ -1980,10 +1981,11 @@ func newParentResource(in routeInputs) *parentAPI.Resource {
 		Enrollment:            parentEnrollmentForms(enrollmentAPI.NewRequestService(svc.EnrollmentRequest)),
 		GuardianProfileLoader: newParentGuardianProfiles(in.modules.guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: in.modules.organizations},
-		Push:                  svc.PushSubscriptions,
-		Preferences:           svc.NotificationPreferences,
+		Push:                  bindParentPushSubscriptions(svc.PushSubscriptions),
+		Preferences:           bindParentPreferences(svc.NotificationPreferences),
 		PWAUsage:              svc.PWAUsage,
 		Reports:               newDeclarationReports(),
+		SupportedLocale:       bindParentLocale(svc.NotificationPreferences),
 	})
 }
 

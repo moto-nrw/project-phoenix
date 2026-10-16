@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -107,7 +106,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		return tx, tenant.FromContext(ctx), nil
 	}
 	observe := func(observation Observation) {
-		observation.Err = mapError(observation.Err)
+		observation.Err = application.MapError(observation.Err)
 		dependencies.Observe(observation)
 	}
 	service := application.New(postgres.New(database), transaction{}, observe)
@@ -125,7 +124,7 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships), dependencies.GuardianLinkRows), dependencies.GuardianLinkOwners, transaction{}, observe)
 	var auditLog ports.StudentFieldAuditLog
 	if dependencies.StudentFieldAudit != nil {
-		auditLog = studentFieldAuditLog{log: dependencies.StudentFieldAudit}
+		auditLog = application.NewStudentFieldAuditLog(dependencies.StudentFieldAudit)
 	}
 	studentAudit := application.NewStudentAudit(auditLog, observe)
 	var consentHistory ports.StudentConsentHistory
@@ -144,12 +143,12 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 		noteStore, postgres.New(database),
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
 		transaction{}, noteDeletionAudit, observe)
-	return peopledirectory.NewModule(engine{
-		service: service, students: students, guardians: guardians,
-		studentAudit: studentAudit, studentConsents: studentConsents,
-		studentPhotos: studentPhotos, studentNotes: studentNotes, observe: observe,
+	return peopledirectory.NewModule(application.NewEngine(application.EngineServices{
+		Service: service, Students: students, Guardians: guardians,
+		StudentAudit: studentAudit, StudentConsents: studentConsents,
+		StudentPhotos: studentPhotos, StudentNotes: studentNotes, Observe: observe,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
-	}), nil
+	})), nil
 }
 
 type transaction struct{}
@@ -189,172 +188,6 @@ func (transaction) RunSavepoint(ctx context.Context, callback func(context.Conte
 // what a platform-wide read must escape.
 func (transaction) RunAdminRead(ctx context.Context, callback func(context.Context) error) error {
 	return tenant.WithinAdmin(tenant.ContextWithoutTransaction(ctx), callback)
-}
-
-type engine struct {
-	*application.GuardianLifecycle
-	service         *application.Service
-	students        *application.StudentService
-	guardians       *application.GuardianService
-	studentAudit    *application.StudentAuditService
-	studentConsents *application.StudentConsentService
-	studentPhotos   *application.StudentPhotoService
-	studentNotes    *application.StudentNoteService
-	observe         func(Observation)
-}
-
-func (e engine) Create(ctx context.Context, input peopledirectory.CreatePerson) (peopledirectory.Person, error) {
-	value, err := e.service.Create(ctx, domain.CreatePerson{
-		FirstName: input.FirstName, LastName: input.LastName, Birthday: input.Birthday,
-		TagID: input.TagID, AccountID: input.AccountID,
-	})
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) Update(ctx context.Context, input peopledirectory.UpdatePerson) (peopledirectory.Person, error) {
-	value, err := e.service.Update(ctx, domain.UpdatePerson{
-		ID: input.ID, FirstName: input.FirstName, LastName: input.LastName, Birthday: input.Birthday,
-		TagID: input.TagID, AccountID: input.AccountID,
-	})
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) Delete(ctx context.Context, id int64) error {
-	return mapError(e.service.Delete(ctx, id))
-}
-
-func (e engine) FindByID(ctx context.Context, id int64, lock string) (peopledirectory.Person, error) {
-	value, err := e.service.FindByID(ctx, id, lock)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) FindByAccount(ctx context.Context, accountID int64) (peopledirectory.Person, error) {
-	value, err := e.service.FindByAccount(ctx, accountID)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) FindByTag(ctx context.Context, tagID string) (peopledirectory.Person, error) {
-	value, err := e.service.FindByTag(ctx, tagID)
-	return toPublic(value), mapError(err)
-}
-
-func (e engine) ListByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Person, error) {
-	values, err := e.service.ListByIDs(ctx, ids)
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) ListAcrossTenantsByIDs(ctx context.Context, ids []int64) ([]peopledirectory.Person, error) {
-	values, err := e.service.ListAcrossTenantsByIDs(ctx, ids)
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) ListByTenantIDs(ctx context.Context, tenantIDs []int64) ([]peopledirectory.Person, error) {
-	values, err := e.service.ListByTenantIDs(ctx, tenantIDs)
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) ListByAccounts(ctx context.Context, accountIDs []int64) ([]peopledirectory.Person, error) {
-	values, err := e.service.ListByAccounts(ctx, accountIDs)
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) Search(ctx context.Context, filter peopledirectory.PersonFilter) ([]peopledirectory.Person, error) {
-	values, err := e.service.Search(ctx, domain.Filter{
-		FirstNamePrefix: filter.FirstNamePrefix, LastNamePrefix: filter.LastNamePrefix,
-		FirstNameEquals: filter.FirstNameEquals, LastNameEquals: filter.LastNameEquals,
-		FullNameContains: filter.FullNameContains, TagID: filter.TagID, AccountIDs: filter.AccountIDs,
-		Page: filter.Page, PageSize: filter.PageSize,
-	})
-	return toPublicList(values), mapError(err)
-}
-
-func (e engine) CountByTenant(ctx context.Context) (map[int64]int, error) {
-	value, err := e.service.CountByTenant(ctx)
-	return value, mapError(err)
-}
-
-func (e engine) LinkAccount(ctx context.Context, personID, accountID int64) error {
-	return mapError(e.service.LinkAccount(ctx, personID, accountID))
-}
-
-func (e engine) UnlinkAccount(ctx context.Context, personID int64) error {
-	return mapError(e.service.UnlinkAccount(ctx, personID))
-}
-
-func (e engine) LinkTag(ctx context.Context, personID int64, tagID string) error {
-	return mapError(e.service.LinkTag(ctx, personID, tagID))
-}
-
-func (e engine) UnlinkTag(ctx context.Context, personID int64) error {
-	return mapError(e.service.UnlinkTag(ctx, personID))
-}
-
-func (e engine) ReleaseTags(ctx context.Context, personIDs []int64) ([]peopledirectory.ReleasedTag, error) {
-	values, err := e.service.ReleaseTags(ctx, personIDs)
-	result := make([]peopledirectory.ReleasedTag, 0, len(values))
-	for _, value := range values {
-		result = append(result, peopledirectory.ReleasedTag{PersonID: value.PersonID, TagID: value.TagID})
-	}
-	return result, mapError(err)
-}
-
-func (e engine) RestoreTag(ctx context.Context, personID int64, tagID string) (bool, error) {
-	restored, err := e.service.RestoreTag(ctx, personID, tagID)
-	return restored, mapError(err)
-}
-
-func toPublic(value domain.Person) peopledirectory.Person {
-	return peopledirectory.Person{
-		ID: value.ID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, TenantID: value.TenantID,
-		FirstName: value.FirstName, LastName: value.LastName, Birthday: value.Birthday,
-		TagID: value.TagID, AccountID: value.AccountID, DeletedAt: value.DeletedAt,
-	}
-}
-
-func toPublicList(values []domain.Person) []peopledirectory.Person {
-	result := make([]peopledirectory.Person, 0, len(values))
-	for _, value := range values {
-		result = append(result, toPublic(value))
-	}
-	return result
-}
-
-func mapError(err error) error {
-	switch {
-	case errors.Is(err, domain.ErrNotFound):
-		return peopledirectory.ErrPersonNotFound
-	case errors.Is(err, domain.ErrTagConflict):
-		return peopledirectory.ErrTagConflict
-	case errors.Is(err, domain.ErrAccountConflict):
-		return peopledirectory.ErrAccountConflict
-	case errors.Is(err, domain.ErrStudentNotFound):
-		return peopledirectory.ErrStudentNotFound
-	case errors.Is(err, domain.ErrStudentLockBusy):
-		return fmt.Errorf("%w: %w", peopledirectory.ErrStudentLockBusy, err)
-	case errors.Is(err, domain.ErrCompanionWouldLoseDeparture):
-		return peopledirectory.ErrCompanionWouldLoseDeparture
-	case errors.Is(err, domain.ErrCompanionLockBusy):
-		return peopledirectory.ErrCompanionLockBusy
-	case errors.Is(err, domain.ErrStudentInvalid):
-		// The reason is the message a handler renders, so it is kept.
-		return &peopledirectory.InvalidStudentError{Reason: err.Error()}
-	case errors.Is(err, domain.ErrFamilyProtectionUnchanged):
-		return peopledirectory.ErrFamilyProtectionUnchanged
-	case errors.Is(err, domain.ErrFamilyProtectionInvalid):
-		return peopledirectory.ErrFamilyProtectionInvalid
-	case errors.Is(err, domain.ErrStudentNoteNotFound):
-		return peopledirectory.ErrStudentNoteNotFound
-	case errors.Is(err, domain.ErrStudentNoteNotAuthor):
-		return peopledirectory.ErrStudentNoteNotAuthor
-	case errors.Is(err, domain.ErrStudentNoteImmutable):
-		return peopledirectory.ErrStudentNoteImmutable
-	case errors.Is(err, domain.ErrStudentNoteDeleteForbidden):
-		return peopledirectory.ErrStudentNoteDeleteForbidden
-	case errors.Is(err, domain.ErrStudentNoteInvalid):
-		return peopledirectory.ErrStudentNoteInvalid
-	default:
-		return err
-	}
 }
 
 // MustNewReads composes the People Directory unobserved and without its write
