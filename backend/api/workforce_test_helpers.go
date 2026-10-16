@@ -98,7 +98,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	// Workforce planning composition and the timetable test module, bound
 	// the way the service graph binds it (#3418).
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: repos.StaffAbsenceType, Staff: repos.Staff, CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
+		Workforce: repos.StaffAbsenceType, Staff: NewPlanStaffDirectory(repos.Staff), CalendarPeriods: repos.SchoolCalendar(), DeviationEvents: repos.DeviationEvent,
 		Instances: timetableCompose.NewTimetableInstanceReads(repos.ActivityInstance), InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms: repos.Room, ActivityGroups: timetableCompose.NewTimetableGroupReads(repos.ActivityGroup),
 		WorkSchedules: repos.StaffWorkSchedule, WorkModels: repos.WorkTimeModel, Holidays: nonWorkingDayService,

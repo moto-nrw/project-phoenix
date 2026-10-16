@@ -61,7 +61,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 
 	shiftPlanning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
 		Workforce:       capability,
-		Staff:           repos.Staff,
+		Staff:           api.NewPlanStaffDirectory(repos.Staff),
 		CalendarPeriods: repos.SchoolCalendar(),
 		DeviationEvents: repos.DeviationEvent,
 		Instances:       repos.InstanceReads(),
@@ -98,7 +98,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Deviations:        timetable.TimetableData.Deviations,
 		ActivityInstances: repos.InstanceReads(),
 		InstanceStaff:     repos.InstanceStaffReads(),
-		Staff:             repos.Staff,
+		Staff:             api.NewPlanStaffDirectory(repos.Staff),
 		Broadcaster:       broadcaster,
 		Logger:            logger,
 	})

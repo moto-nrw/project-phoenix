@@ -13,6 +13,7 @@ import (
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -119,7 +120,7 @@ func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) 
 				Date:      calendar.Date(row.Date),
 				StartTime: row.StartTime,
 				RoomID:    row.RoomID,
-				Status:    row.Status,
+				Planned:   row.Status == timetable.InstanceStatusPlanned,
 			})
 		}
 		return dayInstances, nil

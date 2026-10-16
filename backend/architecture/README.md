@@ -4379,6 +4379,22 @@ test, and `-> modules/careplan/absencerecords` in production. The
 composition surface stays at 1,740. The evidence record is
 `scheduler-presence-delivery-ports-4067.json`.
 
+Step 3, Timetable and Reminder Delivery. The Worker declares its own ports
+for the weekly materialization (`TimetableMaterializer`,
+`MaterializationRun`), the timetable retention sweep (`TimetableCleanup`,
+`TimetableCleanupRun`), the automatic start and end (`InstanceAutoStart`,
+`InstanceAutoEnd` and their runs) and the scheduled reminders
+(`AppointmentReminderCommand`, `ParentAnnouncementReminderCommand`,
+`ReminderCommands`, which name the methods the Worker calls). The root binds
+them in `api/scheduler_timetable_ports.go` and tags the Worker's
+materializations as the scheduler's; the overdue tick reads
+`DayInstance.Planned`, which the root derives from Timetable's status. Three
+keys leave `legacy.jsonl` (498 -> 495): `services/scheduler ->
+modules/timetable` in production and internal test and `->
+workflows/reminderdelivery` in production. `services/scheduler` carries no
+key any more, and #4072 has none left. The composition surface stays at
+1,740. The evidence record is `scheduler-timetable-reminder-ports-4067.json`.
+
 ## Changing the policy
 
 1. Add or move the exact package classification and data-object owner.

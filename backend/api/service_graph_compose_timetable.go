@@ -169,7 +169,7 @@ func composeActivities(b graphBuild) (graphBuild, error) {
 func composeShiftPlanning(b graphBuild) (graphBuild, error) {
 	repos := b.TimetableWiring.Repositories
 	planning, err := workforceCompose.NewShiftPlanning(workforceCompose.ShiftPlanningDependencies{
-		Workforce: b.WorkTime, Staff: b.People.Staff, CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
+		Workforce: b.WorkTime, Staff: NewPlanStaffDirectory(b.People.Staff), CalendarPeriods: b.Calendar, DeviationEvents: b.audits.DeviationEvent,
 		Instances:      arrivalTimetable.NewTimetableInstanceReads(repos.ActivityInstance),
 		InstanceStaff:  arrivalTimetable.NewTimetableInstanceStaffReads(repos.InstanceStaff),
 		Rooms:          facilitiesCompose.NewRoomRepository(b.Rooms),
