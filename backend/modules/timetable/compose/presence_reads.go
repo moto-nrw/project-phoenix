@@ -8,6 +8,8 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/presenceprojection"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -74,17 +76,9 @@ func (r PresenceReads) HasPlannedSlotsInRange(ctx context.Context, from, to stri
 	return presenceprojection.HasPlannedSlotsInRange(ctx, db, tenantID, calendar.Date(from), calendar.Date(to))
 }
 
-// LegacyInstanceFilter selects activity instances the way the retained
-// repositories ask for them; see presenceprojection.LegacyInstanceFilter.
-type LegacyInstanceFilter presenceprojection.LegacyInstanceFilter
-
-// LegacyParticipantFilter selects participants the way the retained
-// repositories ask for them; see presenceprojection.LegacyParticipantFilter.
-type LegacyParticipantFilter presenceprojection.LegacyParticipantFilter
-
 // ListLegacyInstances lists activity instances joined with their execution
 // in one statement.
-func (r PresenceReads) ListLegacyInstances(ctx context.Context, filter LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
+func (r PresenceReads) ListLegacyInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*scheduleModels.ActivityInstance, error) {
 	db, tenantID, err := r.database(ctx)
 	if err != nil {
 		return nil, err
@@ -95,7 +89,7 @@ func (r PresenceReads) ListLegacyInstances(ctx context.Context, filter LegacyIns
 
 // ListLegacyParticipants lists participants joined with their attendance in
 // one statement.
-func (r PresenceReads) ListLegacyParticipants(ctx context.Context, filter LegacyParticipantFilter) ([]*scheduleModels.InstanceStudent, error) {
+func (r PresenceReads) ListLegacyParticipants(ctx context.Context, filter ports.LegacyParticipantFilter) ([]*scheduleModels.InstanceStudent, error) {
 	db, tenantID, err := r.database(ctx)
 	if err != nil {
 		return nil, err
@@ -151,4 +145,13 @@ func mustPresenceReads(db *bun.DB) PresenceReads {
 		panic(err)
 	}
 	return reads
+}
+
+// retainedPresenceReads binds the retained adapters' presence reads to the
+// database; nil without one, which the adapters refuse.
+func retainedPresenceReads(db *bun.DB) application.PresenceReads {
+	if db == nil {
+		return nil
+	}
+	return mustPresenceReads(db)
 }

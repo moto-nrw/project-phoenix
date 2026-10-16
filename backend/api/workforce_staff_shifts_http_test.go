@@ -1,4 +1,4 @@
-package shiftplanning
+package api
 
 import (
 	"context"
@@ -121,7 +121,7 @@ type staffShiftsRoute struct {
 func setupStaffShiftsRoute(t *testing.T, planning workforce.StaffShiftPlanning) *staffShiftsRoute {
 	t.Helper()
 	testpkg.SetupTestDB(t)
-	resource := NewStaffShiftsResource(StaffShiftsDependencies{
+	resource := newStaffShiftsResource(staffShiftsDependencies{
 		Planning:       planning,
 		ResolveStaffID: func(context.Context) (int64, error) { return testActorStaffID, nil },
 		ActorAccountID: func(context.Context) *int64 { var account int64 = 7; return &account },

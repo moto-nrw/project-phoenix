@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 207 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
+Stand 16.10.2026 · Ratchet 204 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 60 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-59.273 in `compose`
+57.283 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 86 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 35 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 32 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
@@ -21,9 +21,18 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 207 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 204 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Angebotskatalog und Identität einer Angebotsänderung laufen über eigene Workflow-DTOs.
+Die Root übersetzt Enrollments öffentliche Reads. Die vorhandenen Owner-Codecs bleiben
+im Leseweg: Dekodierfehler, Not-found-Marker, Katalogreihenfolge und leere ID-Filter ändern
+sich nicht. Der Kalender hält nun die bereits bestehende Wochentagsübersetzung gemeinsam;
+der Workflow delegiert an diese Implementierung; der unbenutzte Modell-Einstieg entfällt.
+Drei `models/enrollment`-Keys fallen: 207 → 204, #4073 35 → 32. Regeln 878,
+Composition 1.657, Compose 57.283 LOC und alle Budgets bleiben unverändert.
+Keine neue Freigabe, Rolle, Klassifizierung, Paketverschiebung oder Regel.
 
 #4073: Kind-, Phasen- und Einschreibungsleseports geben Workflow-eigene DTOs zurück.
 Die Root übersetzt öffentliche Care-Plan-Projektionen; gespeicherte Berechtigungswerte
@@ -222,6 +231,21 @@ Nachweis in `workforce-configuration-http-owner-4078.json`.
 Das Compose-Budget sinkt von 67.428 auf 67.360 LOC, der HTTP-Adapter-Eintrag von
 81 auf 13. Der Dateigrößen-Eintrag für Time Tracking sinkt von 863 auf 862;
 der ORM-Ausnahmeeintrag entfällt. Keine Route, Response oder Assertion ändert sich.
+
+#4078: Die verbleibenden Workforce-HTTP-Adapter für Vertretungen, Schichtarten
+und Dienstpläne gehören Workforce/HTTP; ihre drei Inbound-Owner entfallen.
+Root bindet und mountet dieselben Ressourcen direkt. Die vorhandenen Suiten
+laufen dort ohne den veränderlichen `ComposeShiftTypes`-Hook. Der Kategorie-Lookup
+bleibt eine lokale Funktion des Test-Routers statt eines Mehr-Owner-Containers.
+Time Tracking erhält den unveränderten Dienstplan-Serializer als Root-gebundenen
+Konstruktor-Port; es importiert kein anderes HTTP-Paket mehr. Seine Resource-
+Deklarationen liegen in `resource.go`, ohne Handler- oder Callback-Änderung.
+Elf Regeln entfallen ohne Nachfolger. Inbound-Owner 13 → 10, Regeln 888 → 877,
+Legacy-Keys 207 und Composition 1.657 bleiben gleich. Das Compose-Budget sinkt
+um die letzten 13 LOC des leeren HTTP-Adapters auf 59.260; dessen Paketeintrag
+und Budget entfallen. Der Dateigrößen-Eintrag für Time Tracking sinkt von 862
+auf 804. Alle 356 bisherigen Assertions bleiben unverändert; die vollständigen
+Bindungs- und Handler-Deklarationen sind bis auf Paketnamen und Port exakt.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

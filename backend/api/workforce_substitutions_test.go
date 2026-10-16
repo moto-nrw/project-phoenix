@@ -1,4 +1,4 @@
-package inbound
+package api
 
 import (
 	"context"

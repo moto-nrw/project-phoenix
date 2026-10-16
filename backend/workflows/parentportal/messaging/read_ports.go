@@ -3,7 +3,6 @@ package messaging
 import (
 	"context"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -39,10 +38,17 @@ type ExcusedRequestReads interface {
 
 // OfferingChangeRequestReads reads one offering change request.
 type OfferingChangeRequestReads interface {
-	FindByID(ctx context.Context, id any) (*enrollmentModels.OfferingChangeRequest, error)
+	FindByID(ctx context.Context, id int64) (*OfferingChangeIdentity, error)
 }
 
 // FamilyProtectionReads reads the current family protection of children.
 type FamilyProtectionReads interface {
 	CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*usersModels.FamilyProtectionEvent, error)
+}
+
+// OfferingChangeIdentity is the child and submitting account of the request.
+// It is not an authorization result; the sharing flow checks access itself.
+type OfferingChangeIdentity struct {
+	StudentID   int64
+	SubmittedBy int64
 }
