@@ -7,14 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"time"
-
-	"github.com/go-chi/jwtauth/v5"
-
-	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
 // sseConnection holds all state for an active SSE connection
-type sseConnection struct {
+type sseConnection[E Event, C Client[E]] struct {
 	writer  http.ResponseWriter
 	flusher http.Flusher
 	staffID int64
@@ -24,7 +20,7 @@ type sseConnection struct {
 	accountID int64
 	tenantID  int64
 	isAdmin   bool
-	client    *realtime.Client
+	client    C
 	topics    *sseTopics
 	logger    *slog.Logger
 }
@@ -36,24 +32,8 @@ type sseTopics struct {
 	allTopics      []string
 }
 
-// withSSETokenDeadline ensures an accepted stream cannot outlive the access
-// token that authorized its subscriptions. The client reconnects through the
-// normal authentication path and receives current roles and permissions.
-func withSSETokenDeadline(ctx context.Context) (context.Context, context.CancelFunc, bool) {
-	token, _, err := jwtauth.FromContext(ctx)
-	if err != nil || token == nil {
-		return ctx, func() {}, false
-	}
-	expiresAt, ok := token.Expiration()
-	if !ok || !expiresAt.After(time.Now()) {
-		return ctx, func() {}, false
-	}
-	deadlineCtx, cancel := context.WithDeadline(ctx, expiresAt)
-	return deadlineCtx, cancel, true
-}
-
 // getLogger returns a nil-safe logger, falling back to slog.Default() if logger is nil
-func (conn *sseConnection) getLogger() *slog.Logger {
+func (conn *sseConnection[E, C]) getLogger() *slog.Logger {
 	return loggerOrDefault(conn.logger)
 }
 
@@ -69,7 +49,7 @@ type connectedEvent struct {
 
 // setupSSEConnection validates the connection and sets up SSE headers
 // Returns an error response code if setup fails (caller should return immediately)
-func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, int) {
+func (rs *Resource[E, C]) setupSSEConnection(w http.ResponseWriter) (*sseConnection[E, C], int) {
 	// Check if response writer supports flushing (required for SSE)
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -82,7 +62,7 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("X-Accel-Buffering", "no") // Disable nginx buffering
 
-	return &sseConnection{
+	return &sseConnection[E, C]{
 		writer:  w,
 		flusher: flusher,
 		logger:  rs.getLogger(),
@@ -90,7 +70,7 @@ func (rs *Resource) setupSSEConnection(w http.ResponseWriter) (*sseConnection, i
 }
 
 // sendConnectedEvent sends the initial "connected" event to the client
-func (conn *sseConnection) sendConnectedEvent(topics *sseTopics) error {
+func (conn *sseConnection[E, C]) sendConnectedEvent(topics *sseTopics) error {
 	event := connectedEvent{
 		Status:                   "ready",
 		SupervisedGroupCount:     len(topics.activeGroupIDs),
@@ -113,7 +93,7 @@ func (conn *sseConnection) sendConnectedEvent(topics *sseTopics) error {
 }
 
 // writeSSEMessage writes a formatted SSE message to the connection
-func (conn *sseConnection) writeSSEMessage(eventType string, data []byte) error {
+func (conn *sseConnection[E, C]) writeSSEMessage(eventType string, data []byte) error {
 	if _, err := fmt.Fprintf(conn.writer, "event: %s\n", eventType); err != nil {
 		return err
 	}
@@ -125,7 +105,7 @@ func (conn *sseConnection) writeSSEMessage(eventType string, data []byte) error 
 }
 
 // sendHeartbeat sends a heartbeat comment to keep the connection alive
-func (conn *sseConnection) sendHeartbeat() error {
+func (conn *sseConnection[E, C]) sendHeartbeat() error {
 	if _, err := fmt.Fprintf(conn.writer, ": heartbeat\n\n"); err != nil {
 		return err
 	}
@@ -134,20 +114,13 @@ func (conn *sseConnection) sendHeartbeat() error {
 }
 
 // createAndRegisterClient creates the SSE client and registers it with the hub
-func (rs *Resource) createAndRegisterClient(conn *sseConnection) {
-	conn.client = &realtime.Client{
-		Channel:          make(chan realtime.Event, 32), // Buffer up to 32 events (issue #848: headroom for bursts, e.g. admin-overview clients subscribed to every group)
-		UserID:           conn.staffID,
-		AccountID:        conn.accountID,
-		TenantID:         conn.tenantID,
-		IsAdmin:          conn.isAdmin,
-		SubscribedGroups: make(map[string]bool),
-	}
+func (rs *Resource[E, C]) createAndRegisterClient(conn *sseConnection[E, C]) {
+	conn.client = rs.runtime.NewClient(make(chan E, 32), conn.staffID, conn.accountID, conn.tenantID, conn.isAdmin, make(map[string]bool))
 	rs.hub.Register(conn.client, conn.tenantID, conn.topics.allTopics)
 }
 
 // runEventLoop runs the main SSE event streaming loop
-func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
+func (rs *Resource[E, C]) runEventLoop(ctx context.Context, conn *sseConnection[E, C]) {
 	defer rs.hub.Unregister(conn.client)
 
 	heartbeat := time.NewTicker(30 * time.Second)
@@ -158,7 +131,7 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 		case <-ctx.Done():
 			return
 
-		case event := <-conn.client.Channel:
+		case event := <-conn.client.SSEEvents():
 			if ctx.Err() != nil {
 				return
 			}
@@ -178,18 +151,18 @@ func (rs *Resource) runEventLoop(ctx context.Context, conn *sseConnection) {
 }
 
 // sendEvent marshals and sends a single SSE event
-func (conn *sseConnection) sendEvent(event realtime.Event) error {
+func (conn *sseConnection[E, C]) sendEvent(event E) error {
 	eventData, err := json.Marshal(event)
 	if err != nil {
 		conn.getLogger().Error("failed to marshal SSE event",
 			slog.String("error", err.Error()),
 			slog.Int64("staff_id", conn.staffID),
-			slog.String("event_type", string(event.Type)),
+			slog.String("event_type", event.SSEType()),
 		)
 		return nil // Don't disconnect on marshal error, just skip this event
 	}
 
-	return conn.writeSSEMessage(string(event.Type), eventData)
+	return conn.writeSSEMessage(event.SSEType(), eventData)
 }
 
 // Registered class codes (error-registry.json) of the stream's refusals.
