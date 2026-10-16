@@ -55,7 +55,7 @@ func newFakeLifecycle(t *testing.T, deps compose.InstanceLifecycleDependencies) 
 	}{}
 	deps.StartConflicts = noStartConflicts{}
 	deps.ContentHash = securityruntime.Fingerprint
-	deps.DB = testpkg.SetupTestDB(t)
+	deps.Database = compose.NewTenantDatabase(testpkg.SetupTestDB(t))
 	deps.Logger = slog.New(slog.DiscardHandler)
 	if deps.InstanceStaffRepo == nil {
 		deps.InstanceStaffRepo = fakeNoInstanceStaff{}
