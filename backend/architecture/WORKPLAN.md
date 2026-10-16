@@ -3,16 +3,16 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 200 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 16.10.2026 · Ratchet 197 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-57.283 in `compose`
+57.188 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 86 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 83 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 29 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
@@ -21,7 +21,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 200 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 197 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -285,6 +285,22 @@ Registrierungsschritt ist benannt und der öffentliche Handler liegt unter 60 Ze
 ist in `delivery-sse-http-owner-4078.json` belegt. Routen, Responses und Goldens
 bleiben unverändert; Communication bleibt der letzte `inbound-*`-Schnitt.
 
+
+#4078: Display-HTTP gehört Device Fleet; `inbound-display` entfällt. Root bindet
+unveränderte JWT-, Tenant-, Berechtigungs- und Fehler-Middleware und hostet die
+bisherigen Workflow-Tests als route-sized Komposition. Alle 156 Assertions
+bleiben identisch, der mutable Test-Kompositionshook entfällt. SQL-Not-found-
+und Transient-Klassifikation liegen im eigenen Postgres-Adapter; Root bindet
+sie über den HTTP-eigenen Port. Display-Token-Minting und -Hashing liegen als
+unveränderter Credential-Adapter hinter dem bestehenden Token-Port statt in
+Compose. Die ownerweite Krypto-Regel wird auf Produktion/Adapter eingeengt;
+die HTTP-ORM-Regel entfällt. Elf Regeln entfallen, eine engere folgt:
+875 → 865. Inbound 9 → 8, Keys 200 → 197 (#4004 86 → 83), Composition
+unverändert 1.657. Compose sinkt um 95 LOC: 57.283 → 57.188, Device Fleet
+712 → 701 und der leere HTTP-Compose-Eintrag (84) entfällt. Keine Selektoren,
+keine neue Reichweite, keine höheren Budgets oder Root-Service-Graph-Felder.
+Die drei #4004-Retirements sind in `display-http-owner-4078.json` belegt.
+Routen, Responses, IoT-Strings, Statuscodes und Goldens bleiben unverändert.
 
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 

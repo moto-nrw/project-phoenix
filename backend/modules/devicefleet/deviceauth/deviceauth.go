@@ -7,18 +7,14 @@ package deviceauth
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net"
 	"net/http"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/device"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Middleware is the shape every device route group mounts.
@@ -54,13 +50,21 @@ type Settings interface {
 // nothing.
 const devicePINSettingKey = "security.ogs_device_pin"
 
+// SchoolErrors classifies the school read without coupling HTTP to a SQL driver.
+// Root supplies the classifier from the Device Fleet composition.
+type SchoolErrors interface {
+	Missing(error) bool
+	Transient(error) bool
+}
+
 // Dependencies are the collaborators the device authenticators need.
 type Dependencies struct {
 	// Devices resolves API keys and records device activity. Required.
 	Devices Fleet
 	// Schools blocks devices of deleted schools. Optional: a nil directory
 	// skips the check, which only test graphs use.
-	Schools SchoolDirectory
+	Schools      SchoolDirectory
+	SchoolErrors SchoolErrors
 	// Settings resolves the tenant device PIN. Optional: without it only
 	// FallbackPIN authenticates.
 	Settings Settings
@@ -79,9 +83,12 @@ func New(deps Dependencies) *Authenticators {
 	if deps.Devices == nil {
 		panic("device authentication composition: the Device Fleet capability is required")
 	}
+	if deps.Schools != nil && deps.SchoolErrors == nil {
+		panic("device authentication composition: school error classifier is required")
+	}
 	var schools device.SchoolLookup
 	if deps.Schools != nil {
-		schools = schoolLookup{schools: deps.Schools}
+		schools = schoolLookup{schools: deps.Schools, errors: deps.SchoolErrors}
 	}
 	return &Authenticators{authenticator: device.NewAuthenticator(device.Dependencies{
 		Devices:     fleetDirectory{fleet: deps.Devices},
@@ -136,15 +143,18 @@ func (d fleetDirectory) RecordLastSeen(ctx context.Context, deviceID int64, seen
 // schoolLookup classifies the school read for the adapter. It runs before
 // the tenant transaction middleware, so the repository falls back to the raw
 // connection; platform.schools is not behind RLS.
-type schoolLookup struct{ schools SchoolDirectory }
+type schoolLookup struct {
+	schools SchoolDirectory
+	errors  SchoolErrors
+}
 
 func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool, error) {
 	school, err := l.schools.FindSchool(ctx, schoolID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if l.errors.Missing(err) {
 			return false, fmt.Errorf("%w: %w", device.ErrSchoolNotFound, err)
 		}
-		if isTransientDBErr(err) {
+		if l.errors.Transient(err) {
 			return false, fmt.Errorf("%w: %w", device.ErrSchoolLookupUnavailable, err)
 		}
 		return false, err
@@ -153,31 +163,6 @@ func (l schoolLookup) IsSchoolDeleted(ctx context.Context, schoolID int64) (bool
 		return false, device.ErrSchoolNotFound
 	}
 	return school.Deleted, nil
-}
-
-// isTransientDBErr returns true for errors that indicate a temporary
-// connectivity problem (net timeouts, connection resets, context
-// cancellation, PostgreSQL connection-class SQLSTATE 08xxx). Everything else
-// (bad queries, permission errors, serialization failures) returns false so
-// the adapter fails closed. Wrapped repository errors are unwrapped through
-// the standard error chain.
-func isTransientDBErr(err error) bool {
-	if err == nil {
-		return false
-	}
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
-		return true
-	}
-	var netErr net.Error
-	if errors.As(err, &netErr) {
-		return true
-	}
-	var pgErr pgdriver.Error
-	if errors.As(err, &pgErr) {
-		code := pgErr.Field('C')
-		return len(code) >= 2 && code[:2] == "08"
-	}
-	return false
 }
 
 // bindTenant makes the device's school the ambient tenant. Device routes do
