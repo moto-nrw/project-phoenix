@@ -60,21 +60,6 @@ func IsValidListKind(kind string) bool {
 	}
 }
 
-func ListKindLabel(kind string) string {
-	switch kind {
-	case ListKindEdgeHours:
-		return "Randstunden"
-	case ListKindLearningTime:
-		return "Lernzeit"
-	case ListKindActivity:
-		return "AG-Angebote"
-	case ListKindMensa:
-		return "Mensa"
-	default:
-		return ""
-	}
-}
-
 // Group represents an activity group
 type Group struct {
 	Model `bun:"schema:activities,table:groups"`

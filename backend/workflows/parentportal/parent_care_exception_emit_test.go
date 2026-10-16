@@ -6,12 +6,14 @@ import (
 	"testing"
 	"time"
 
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -43,8 +45,8 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: true,
-				configModels.KeyParentNotesEnabled:        true,
+				parentportal.KeyParentPickupChangeEnabled: true,
+				parentportal.KeyParentNotesEnabled:        true,
 			},
 		},
 		Broadcaster:       testpkg.NewRecordingBroadcaster(),
@@ -107,8 +109,8 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		CareExceptions: repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled: true,
-				configModels.KeyParentNotesEnabled:        true,
+				parentportal.KeyParentPickupChangeEnabled: true,
+				parentportal.KeyParentNotesEnabled:        true,
 			},
 		},
 		Broadcaster:       testpkg.NewRecordingBroadcaster(),

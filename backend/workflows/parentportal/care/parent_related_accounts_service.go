@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -269,14 +269,14 @@ func validateInviteEmail(email string) error {
 // tenant: ErrInviteDisabled when parents may not invite, otherwise whether the
 // invite waits for staff approval.
 func (s *Service) inviteRequiresStaffApproval(ctx context.Context, tenantID int64) (bool, error) {
-	mode, err := s.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyGuardianParentInviteMode)
+	mode, err := s.Settings.ResolveStringForTenant(ctx, tenantID, KeyGuardianParentInviteMode)
 	if err != nil {
 		return false, fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
-	if mode == configModels.ParentInviteModeDisabled {
+	if mode == ParentInviteModeDisabled {
 		return false, ErrInviteDisabled
 	}
-	return mode == configModels.ParentInviteModeStaffApproval, nil
+	return mode == ParentInviteModeStaffApproval, nil
 }
 
 // RemoveRelatedAccount removes another account's access to the parent's child.
@@ -292,14 +292,14 @@ func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 		return err
 	}
 
-	mode, err := s.Settings.ResolveStringForTenant(ctx, child.TenantID, configModels.KeyGuardianParentInviteMode)
+	mode, err := s.Settings.ResolveStringForTenant(ctx, child.TenantID, KeyGuardianParentInviteMode)
 	if err != nil {
 		return fmt.Errorf("parent: resolve invite mode: %w", err)
 	}
-	if mode == configModels.ParentInviteModeDisabled {
+	if mode == ParentInviteModeDisabled {
 		return ErrRemoveDisabled
 	}
-	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, configModels.KeyGuardianParentCanRemove)
+	canRemove, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, KeyGuardianParentCanRemove)
 	if err != nil {
 		return fmt.Errorf("parent: resolve remove setting: %w", err)
 	}

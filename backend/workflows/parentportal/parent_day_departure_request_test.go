@@ -6,7 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -39,11 +39,11 @@ func withDepartureModeRequests(enabled bool) func(*parentportalcompose.Dependenc
 	return func(cfg *parentportalcompose.Dependencies) {
 		cfg.Settings = parentSettingsStub{
 			boolValues: map[string]bool{
-				configModels.KeyParentPickupChangeEnabled:    true,
-				configModels.KeyParentCareModeRequestEnabled: enabled,
+				parentService.KeyParentPickupChangeEnabled:    true,
+				parentService.KeyParentCareModeRequestEnabled: enabled,
 			},
 			stringValues: map[string]string{
-				configModels.KeyGuardianParentInviteMode: configModels.ParentInviteModeDisabled,
+				parentService.KeyGuardianParentInviteMode: parentService.ParentInviteModeDisabled,
 			},
 		}
 	}

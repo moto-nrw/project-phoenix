@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strconv"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
@@ -39,7 +38,7 @@ func (s *Service) pickupChangePolicyInTx(ctx context.Context, tenantID int64) (p
 	if err := s.Settings.LockParentPickupChangePolicySharedForTenant(ctx, tenantID); err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: lock pickup-change policy: %w", err)
 	}
-	enabled, err := s.Settings.ResolveStringForTenantInTx(ctx, tenantID, configModels.KeyParentPickupChangeEnabled)
+	enabled, err := s.Settings.ResolveStringForTenantInTx(ctx, tenantID, KeyParentPickupChangeEnabled)
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
@@ -50,7 +49,7 @@ func (s *Service) pickupChangePolicyInTx(ctx context.Context, tenantID int64) (p
 	if !pickupChangesEnabled {
 		return pickupChangePolicy{}, nil
 	}
-	clock, err := s.Settings.ResolveStringForTenantInTx(ctx, tenantID, configModels.KeyParentPickupChangeCutoffTime)
+	clock, err := s.Settings.ResolveStringForTenantInTx(ctx, tenantID, KeyParentPickupChangeCutoffTime)
 	if err != nil {
 		return pickupChangePolicy{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
 	}

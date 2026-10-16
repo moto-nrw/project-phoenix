@@ -15,7 +15,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
+
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -234,7 +234,7 @@ func (s offeringChangeSettingsStub) ResolveBoolForTenant(
 	_ int64,
 	key string,
 ) (bool, error) {
-	if key == configModel.KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
+	if key == KeyEnrollmentCareOfferingsEnabled && s.careOfferingsEnabled != nil {
 		return *s.careOfferingsEnabled, s.err
 	}
 	return s.enabled, s.err
