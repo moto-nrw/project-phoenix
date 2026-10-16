@@ -3,7 +3,6 @@ package care
 import (
 	"context"
 
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -80,7 +79,7 @@ type StatusDayReads interface {
 
 // CareOfferingReads reads care offerings by ID.
 type CareOfferingReads interface {
-	ListByIDs(ctx context.Context, ids []int64) ([]*enrollmentModels.CareOffering, error)
+	ListByIDs(ctx context.Context, ids []int64) ([]*CareOffering, error)
 }
 
 // CarePeriod is one approved enrollment that created the child, together

@@ -1,8 +1,8 @@
 package care
 
 import (
-	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The child-flow results and values the guardian portal HTTP composition
@@ -29,5 +29,5 @@ var ErrGuardianProfileNotFound = usersModels.ErrGuardianProfileNotFound
 // CanonicalDayToISOWeekday translates a stored care-offering day ("mon")
 // into its ISO weekday number, the mapping the offering flow stores with.
 func CanonicalDayToISOWeekday(day string) (int, bool) {
-	return enrollmentModels.CanonicalDayToISOWeekday(day)
+	return calendar.CanonicalDayToISOWeekday(day)
 }

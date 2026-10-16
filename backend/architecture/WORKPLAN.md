@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 209 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
+Stand 16.10.2026 · Ratchet 206 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 59 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 67.252 in `compose`
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 88 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 35 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 32 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 6 |
@@ -21,9 +21,18 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 209 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 206 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Angebotskatalog und Identität einer Angebotsänderung laufen über eigene Workflow-DTOs.
+Die Root übersetzt Enrollments öffentliche Reads. Die vorhandenen Owner-Codecs bleiben
+im Leseweg: Dekodierfehler, Not-found-Marker, Katalogreihenfolge und leere ID-Filter ändern
+sich nicht. Der Kalender hält nun die bereits bestehende Wochentagsübersetzung gemeinsam;
+das Enrollment-Modell und der Workflow delegieren an dieselbe Implementierung.
+Drei `models/enrollment`-Keys fallen: 209 → 206, #4073 35 → 32. Regeln 893,
+Composition 1.657, Compose 67.252 LOC und alle Budgets bleiben unverändert.
+Keine neue Freigabe, Rolle, Klassifizierung, Paketverschiebung oder Regel.
 
 #4073: Kind-, Phasen- und Einschreibungsleseports geben Workflow-eigene DTOs zurück.
 Die Root übersetzt öffentliche Care-Plan-Projektionen; gespeicherte Berechtigungswerte
