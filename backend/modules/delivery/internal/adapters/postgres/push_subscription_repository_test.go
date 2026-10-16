@@ -131,7 +131,7 @@ func newSubscription(tb testing.TB, accountID int64, portal, endpoint string) *d
 		Auth:      "auth-key",
 		UserAgent: "test-agent",
 	}
-	sub.SetTenantID(testpkg.Tenant(tb))
+	sub.TenantID = testpkg.Tenant(tb)
 	return sub
 }
 
@@ -282,7 +282,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		sharedEndpoint := endpoint + "/shared-parent-device"
 		tenantOneSub := newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, sharedEndpoint)
 		tenantTwoSub := newSubscription(t, guardian.ID, deliveryModels.PushPortalParent, sharedEndpoint)
-		tenantTwoSub.SetTenantID(otherSchool.ID)
+		tenantTwoSub.TenantID = otherSchool.ID
 		require.NoError(t, repo.Upsert(ctx, tenantOneSub))
 		require.NoError(t, repo.Upsert(otherSchoolCtx, tenantTwoSub))
 
@@ -306,7 +306,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 
 		schoolHere := newSubscription(t, account.ID, deliveryModels.PushPortalSchool, sharedEndpoint)
 		schoolThere := newSubscription(t, account.ID, deliveryModels.PushPortalSchool, sharedEndpoint)
-		schoolThere.SetTenantID(otherSchool.ID)
+		schoolThere.TenantID = otherSchool.ID
 		staffHere := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, sharedEndpoint)
 		require.NoError(t, repo.Upsert(ctx, schoolHere))
 		require.NoError(t, repo.Upsert(otherSchoolCtx, schoolThere))
@@ -533,7 +533,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
 		there := newSubscription(t, account.ID, deliveryModels.PushPortalStaff, endpoint+"/unbound-there")
 		there.TokenFamilyID = ""
-		there.SetTenantID(otherSchool.ID)
+		there.TenantID = otherSchool.ID
 		require.NoError(t, repo.Upsert(ctx, here))
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.Upsert(adminCtx, there)
@@ -585,7 +585,7 @@ func TestPushSubscriptionRepository(t *testing.T) {
 		otherSchool := createPushTestSchool(t, db)
 		there := newSubscription(t, account.ID, deliveryModels.PushPortalParent, endpoint+"/parent-unbound-there")
 		there.TokenFamilyID = ""
-		there.SetTenantID(otherSchool.ID)
+		there.TenantID = otherSchool.ID
 		require.NoError(t, repo.Upsert(ctx, here))
 		require.NoError(t, testpkg.WithAdminTx(t, context.Background(), db, func(adminCtx context.Context, _ bun.Tx) error {
 			return repo.Upsert(adminCtx, there)

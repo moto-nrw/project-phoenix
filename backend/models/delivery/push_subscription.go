@@ -6,8 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
-
-	"github.com/moto-nrw/project-phoenix/models/base"
+	"time"
 )
 
 // Push subscription portal constants: through which portal the device
@@ -60,16 +59,21 @@ func ValidatePushEndpoint(endpoint string) error {
 // PushSubscription JSON. One account can hold many rows (multiple devices);
 // a guardian linked to several schools holds one row per school for the
 // same endpoint.
+//
+// The row lives in iot.push_subscriptions; the repository names the table on
+// every query.
 type PushSubscription struct {
-	base.Model `bun:"schema:iot,table:push_subscriptions"`
-	base.TenantModel
-	AccountID     int64  `bun:"account_id,notnull" json:"account_id"`
-	Portal        string `bun:"portal,notnull" json:"portal"`
-	Endpoint      string `bun:"endpoint,notnull" json:"endpoint"`
-	P256dh        string `bun:"p256dh,notnull" json:"-"`
-	Auth          string `bun:"auth,notnull" json:"-"`
-	UserAgent     string `bun:"user_agent,notnull,default:''" json:"user_agent"`
-	TokenFamilyID string `bun:"token_family_id,notnull,default:''" json:"-"`
+	ID            int64     `bun:"id,pk,autoincrement" json:"id"`
+	CreatedAt     time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt     time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
+	TenantID      int64     `bun:"tenant_id,notnull" json:"tenant_id"`
+	AccountID     int64     `bun:"account_id,notnull" json:"account_id"`
+	Portal        string    `bun:"portal,notnull" json:"portal"`
+	Endpoint      string    `bun:"endpoint,notnull" json:"endpoint"`
+	P256dh        string    `bun:"p256dh,notnull" json:"-"`
+	Auth          string    `bun:"auth,notnull" json:"-"`
+	UserAgent     string    `bun:"user_agent,notnull,default:''" json:"user_agent"`
+	TokenFamilyID string    `bun:"token_family_id,notnull,default:''" json:"-"`
 }
 
 // Validate ensures push subscription data is valid.
@@ -96,8 +100,6 @@ func (s *PushSubscription) Validate() error {
 // All reads/writes are tenant-scoped (RLS); callers outside tenant middleware
 // must wrap calls in tenant.WithTenantTx.
 type PushSubscriptionRepository interface {
-	base.CRUDRepository[*PushSubscription]
-
 	// Upsert inserts or refreshes a subscription keyed by (tenant_id, portal,
 	// endpoint).
 	Upsert(ctx context.Context, sub *PushSubscription) error
