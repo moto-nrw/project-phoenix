@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 )
@@ -27,32 +28,22 @@ func (p *OperatorProvisioning) deactivateOperator(ctx context.Context, change do
 	if change.OperatorID == change.ActorID {
 		return domain.Operator{}, domain.ErrOperatorSelfDeactivation
 	}
-	operator, err := p.changeOperatorStatus(ctx, change.OperatorID, func(txCtx context.Context, operator *domain.Operator) error {
+	return p.changeOperatorStatus(ctx, change, domain.OperatorAuditActionDeactivated, func(txCtx context.Context, operator *domain.Operator) error {
 		if operator.Active {
 			operator.Active = false
 		}
 		_, revokeErr := p.operators.RevokeOperatorSessions(txCtx, operator.ID)
 		return revokeErr
 	})
-	if err != nil {
-		return domain.Operator{}, err
-	}
-	p.recordStatusChange(ctx, change, domain.OperatorAuditActionDeactivated)
-	return operator, nil
 }
 
 // reactivateOperator lets a deactivated operator sign in again.
 func (p *OperatorProvisioning) reactivateOperator(ctx context.Context, change domain.OperatorStatusChange) (domain.Operator, error) {
-	operator, err := p.changeOperatorStatus(ctx, change.OperatorID, func(_ context.Context, operator *domain.Operator) error {
+	return p.changeOperatorStatus(ctx, change, domain.OperatorAuditActionReactivated, func(_ context.Context, operator *domain.Operator) error {
 		operator.Active = true
 		operator.DeactivatedAt = nil
 		return nil
 	})
-	if err != nil {
-		return domain.Operator{}, err
-	}
-	p.recordStatusChange(ctx, change, domain.OperatorAuditActionReactivated)
-	return operator, nil
 }
 
 // DeleteDeactivatedOperators removes the accounts deactivated before the
@@ -66,12 +57,12 @@ func (p *OperatorProvisioning) DeleteDeactivatedOperators(ctx context.Context) (
 	return deleted, err
 }
 
-// changeOperatorStatus locks the operator's row, applies change and stores
-// the result in one administrative transaction.
-func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, operatorID int64, change func(context.Context, *domain.Operator) error) (domain.Operator, error) {
+// changeOperatorStatus locks the operator's row, applies and records the
+// change, then stores the result in one administrative transaction.
+func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, status domain.OperatorStatusChange, action string, change func(context.Context, *domain.Operator) error) (domain.Operator, error) {
 	var result domain.Operator
 	err := p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		operator, err := p.operators.FindOperatorForUpdate(txCtx, operatorID)
+		operator, err := p.operators.FindOperatorForUpdate(txCtx, status.OperatorID)
 		if err != nil {
 			return err
 		}
@@ -80,6 +71,9 @@ func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, operato
 		}
 		if _, err := p.operators.UpdateOperator(txCtx, operator); err != nil {
 			return err
+		}
+		if err := p.recordStatusChange(txCtx, status, action); err != nil {
+			return fmt.Errorf("record operator status change: %w", err)
 		}
 		updated, err := p.operators.FindOperator(txCtx, operator.ID)
 		if err != nil {
@@ -91,10 +85,10 @@ func (p *OperatorProvisioning) changeOperatorStatus(ctx context.Context, operato
 	return result, err
 }
 
-func (p *OperatorProvisioning) recordStatusChange(ctx context.Context, change domain.OperatorStatusChange, action string) {
+func (p *OperatorProvisioning) recordStatusChange(ctx context.Context, change domain.OperatorStatusChange, action string) error {
 	operatorID := change.OperatorID
-	p.record(ctx, domain.OperatorAuditEntry{
+	return p.audit.RecordOperatorAction(ctx, domain.OperatorAuditEntry{
 		OperatorID: change.ActorID, Action: action,
 		ResourceType: domain.OperatorAuditResourceOperator, ResourceID: &operatorID, IPAddress: change.IPAddress,
-	}, "operator status change")
+	})
 }
