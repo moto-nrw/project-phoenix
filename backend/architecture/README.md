@@ -3869,6 +3869,12 @@ and the ID helpers are Timetable's own values in `internal/domain`; the
 unique-violation classification is reached through the owner's postgres
 adapter, which delegates to the transaction runtime.
 
+Epoch 52 adds `timetable-activities.application.school-calendar.public`: the
+staff notices (#2180) move from the Timetable composition into
+`internal/application`, their repository and row mapping into
+`internal/adapters/postgres`; the week pattern comes from School Calendar's
+public contract, as it did in the composition.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
