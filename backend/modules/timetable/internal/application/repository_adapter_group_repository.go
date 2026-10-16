@@ -8,6 +8,7 @@ import (
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // timetableActivityGroupRepository keeps the legacy repository contract while
@@ -19,7 +20,7 @@ type timetableActivityGroupRepository struct {
 	calendar  schoolcalendar.Query
 	// shiftTypes labels the template list with the Workforce-owned
 	// Schichtart names and colours through the public shift query (#3418).
-	shiftTypes func(context.Context) ([]ShiftType, error)
+	shiftTypes func(context.Context) ([]ports.ShiftType, error)
 }
 
 func (r timetableActivityGroupRepository) Create(ctx context.Context, group *activitiesModels.Group) error {

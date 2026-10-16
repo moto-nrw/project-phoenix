@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The adapters in this file serve the retained models/schedule Dienstplan
@@ -20,11 +21,11 @@ const shiftWallClockLayout = "15:04:05"
 // WorkforceShiftRows serves the concrete schedule.staff_shifts rows.
 type WorkforceShiftRows struct {
 	workforce WorkforceShiftRecords
-	errs      RetainedRecordErrors
+	errs      ports.RetainedRecordErrors
 }
 
 // NewWorkforceShiftRows binds the staff-shift rows to the Workforce records.
-func NewWorkforceShiftRows(records WorkforceShiftRecords, errs RetainedRecordErrors) *WorkforceShiftRows {
+func NewWorkforceShiftRows(records WorkforceShiftRecords, errs ports.RetainedRecordErrors) *WorkforceShiftRows {
 	return &WorkforceShiftRows{workforce: records, errs: errs}
 }
 
@@ -50,7 +51,7 @@ func (r *WorkforceShiftRows) FindByID(ctx context.Context, id any) (*scheduleMod
 	}
 	value, err := r.workforce.FindStaffShift(ctx, shiftID)
 	if err != nil {
-		return nil, shiftReadError(r.errs, "find by id", err, ErrWorkforceShiftNotFound)
+		return nil, shiftReadError(r.errs, "find by id", err, ports.ErrWorkforceShiftNotFound)
 	}
 	return shiftToRow(value), nil
 }
@@ -64,7 +65,7 @@ func (r *WorkforceShiftRows) Update(ctx context.Context, shift *scheduleModels.S
 	}
 	updated, err := r.workforce.UpdateStaffShift(ctx, shiftToCapability(shift))
 	if err != nil {
-		if errors.Is(err, ErrWorkforceShiftNotFound) {
+		if errors.Is(err, ports.ErrWorkforceShiftNotFound) {
 			return shiftRowsAffectedError(r.errs, "update StaffShift")
 		}
 		return shiftWriteError(r.errs, "update", err)
@@ -85,16 +86,16 @@ func (r *WorkforceShiftRows) Delete(ctx context.Context, id any) error {
 }
 
 func (r *WorkforceShiftRows) FindByDateRange(ctx context.Context, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	return r.list(ctx, "find staff shifts by date range", WorkforceShiftFilter{
+	return r.list(ctx, "find staff shifts by date range", ports.WorkforceShiftFilter{
 		From: start.String(), To: end.String(),
-		Order: shiftOrder(WorkforceShiftOrderDate, WorkforceShiftOrderStaffID, WorkforceShiftOrderStartTime),
+		Order: shiftOrder(ports.WorkforceShiftOrderDate, ports.WorkforceShiftOrderStaffID, ports.WorkforceShiftOrderStartTime),
 	})
 }
 
 func (r *WorkforceShiftRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error) {
-	return r.list(ctx, "find staff shifts by staff and date range", WorkforceShiftFilter{
+	return r.list(ctx, "find staff shifts by staff and date range", ports.WorkforceShiftFilter{
 		StaffID: staffID, From: start.String(), To: end.String(),
-		Order: shiftOrder(WorkforceShiftOrderDate, WorkforceShiftOrderStartTime),
+		Order: shiftOrder(ports.WorkforceShiftOrderDate, ports.WorkforceShiftOrderStartTime),
 	})
 }
 
@@ -106,9 +107,9 @@ func (r *WorkforceShiftRows) FindByStaffIDsAndDates(ctx context.Context, staffID
 	for _, date := range dates {
 		days = append(days, date.String())
 	}
-	return r.list(ctx, "find staff shifts by staff IDs and dates", WorkforceShiftFilter{
+	return r.list(ctx, "find staff shifts by staff IDs and dates", ports.WorkforceShiftFilter{
 		StaffIDs: staffIDs, Dates: days,
-		Order: shiftOrder(WorkforceShiftOrderDate, WorkforceShiftOrderStaffID, WorkforceShiftOrderStartTime),
+		Order: shiftOrder(ports.WorkforceShiftOrderDate, ports.WorkforceShiftOrderStaffID, ports.WorkforceShiftOrderStartTime),
 	})
 }
 
@@ -124,7 +125,7 @@ func (r *WorkforceShiftRows) FindUsedCalendarWeeks(ctx context.Context, start, e
 	return result, nil
 }
 
-func (r *WorkforceShiftRows) list(ctx context.Context, op string, filter WorkforceShiftFilter) ([]*scheduleModels.StaffShift, error) {
+func (r *WorkforceShiftRows) list(ctx context.Context, op string, filter ports.WorkforceShiftFilter) ([]*scheduleModels.StaffShift, error) {
 	values, err := r.workforce.ListStaffShifts(ctx, filter)
 	if err != nil {
 		return nil, shiftReadError(r.errs, op, err, nil)
@@ -137,10 +138,10 @@ func (r *WorkforceShiftRows) list(ctx context.Context, op string, filter Workfor
 	return result, nil
 }
 
-func shiftOrder(fields ...WorkforceShiftOrderField) []WorkforceShiftOrder {
-	order := make([]WorkforceShiftOrder, 0, len(fields))
+func shiftOrder(fields ...ports.WorkforceShiftOrderField) []ports.WorkforceShiftOrder {
+	order := make([]ports.WorkforceShiftOrder, 0, len(fields))
 	for _, field := range fields {
-		order = append(order, WorkforceShiftOrder{Field: field})
+		order = append(order, ports.WorkforceShiftOrder{Field: field})
 	}
 	return order
 }

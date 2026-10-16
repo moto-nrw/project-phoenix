@@ -1,4 +1,4 @@
-package application
+package compose
 
 import (
 	"errors"
@@ -48,11 +48,11 @@ var (
 	// in the UI (Abgänge vs "Beendete Betreuungen").
 	ErrStudentCareEnded = errors.New("student care has ended and cannot be enrolled")
 
-	// ErrStudentRepoMissing marks the internal "cannot check graduation status"
+	// errStudentRepoMissing marks the internal "cannot check graduation status"
 	// condition: the service was built without a student repository. An
 	// enrollment write must fail closed on it; a read-only decision that has a
 	// safe fallback may catch it instead (see lockEnrollmentStudents).
-	ErrStudentRepoMissing = errors.New("student repository not configured")
+	errStudentRepoMissing = errors.New("student repository not configured")
 
 	// ErrInvalidAttendanceStatus returned for an invalid attendance status
 	ErrInvalidAttendanceStatus = errors.New("invalid attendance status")
@@ -102,7 +102,7 @@ type ActivityError struct {
 	Err error  // Original error
 }
 
-func IsRepositoryNotFound(err error) bool {
+func isRepositoryNotFound(err error) bool {
 	var marker interface{ RepositoryNotFound() }
 	return errors.As(err, &marker)
 }

@@ -234,7 +234,7 @@ func (s *Service) GetGroup(ctx context.Context, id int64) (*activities.Group, er
 func (s *Service) findMutableActivityGroup(ctx context.Context, id int64) (*activities.Group, error) {
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		if IsRepositoryNotFound(err) {
+		if isRepositoryNotFound(err) {
 			return nil, ErrGroupNotFound
 		}
 		return nil, err
@@ -298,10 +298,10 @@ func (s *Service) DeleteGroup(ctx context.Context, id int64, requestingStaffID i
 	// are never treated as absence.
 	existingGroup, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
-		if IsRepositoryNotFound(err) && hasManagePermission {
+		if isRepositoryNotFound(err) && hasManagePermission {
 			return nil
 		}
-		if IsRepositoryNotFound(err) {
+		if isRepositoryNotFound(err) {
 			return &ActivityError{Op: "delete group", Err: ErrGroupNotFound}
 		}
 		return &ActivityError{Op: "delete group", Err: err}
@@ -456,7 +456,7 @@ func (s *Service) GetGroupWithDetails(ctx context.Context, id int64) (*activitie
 	group, err := s.groupRepo.FindByID(ctx, id)
 	if err != nil {
 		// Convert "no rows" (bare or DatabaseError-wrapped) to our own error
-		if IsRepositoryNotFound(err) {
+		if isRepositoryNotFound(err) {
 			return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: ErrGroupNotFound}
 		}
 		return nil, nil, nil, &ActivityError{Op: opGetGroup, Err: err}
@@ -508,7 +508,7 @@ func (s *Service) CanModifyActivity(ctx context.Context, groupID int64, staffID 
 	// check and the subsequent write.
 	group, err := s.groupRepo.FindByIDForUpdate(ctx, groupID)
 	if err != nil {
-		if IsRepositoryNotFound(err) {
+		if isRepositoryNotFound(err) {
 			return false, &ActivityError{Op: opCheckPermissions, Err: ErrGroupNotFound}
 		}
 		return false, &ActivityError{Op: opCheckPermissions, Err: err}

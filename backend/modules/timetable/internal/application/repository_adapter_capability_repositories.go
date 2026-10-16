@@ -5,6 +5,7 @@ import (
 	schedule "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // CapabilityRepositories are the retained activities and schedule
@@ -27,7 +28,7 @@ type CapabilityRepositories struct {
 // NewCapabilityRepositories builds the retained adapters over the Timetable
 // owner. The activity group and supervisor rows are enriched with the group,
 // staff and person names the RepositoryDirectories resolve.
-func NewCapabilityRepositories(capability timetable.Capability, calendar schoolcalendar.Query, directories RepositoryDirectories) CapabilityRepositories {
+func NewCapabilityRepositories(capability timetable.Capability, calendar schoolcalendar.Query, directories ports.RepositoryDirectories) CapabilityRepositories {
 	groupRows := timetableActivityGroupRepository{
 		timetable: capability, groups: directories.GroupNames, rooms: directories.RoomNames,
 		calendar: calendar, shiftTypes: directories.ShiftTypes,

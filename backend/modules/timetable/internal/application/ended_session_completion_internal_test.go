@@ -6,11 +6,13 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The fakes answer only what the completion asks; every call is recorded in
@@ -108,7 +110,7 @@ func endedInstance(id int64, date calendar.Date) *scheduleModels.ActivityInstanc
 	return instance
 }
 
-func newEndedSessionCompletion(t *testing.T, deps EndedSessionCompletionDependencies) timetable.EndedSessionCompletion {
+func newEndedSessionCompletion(t *testing.T, deps ports.EndedSessionCompletionDependencies) timetable.EndedSessionCompletion {
 	t.Helper()
 	completion, err := NewEndedSessionCompletion(deps)
 	require.NoError(t, err)
@@ -137,7 +139,7 @@ func TestEndedSessionCompletionFinalizesAttendanceFirst(t *testing.T) {
 		},
 		calls: &calls,
 	}
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, calendar.NewDate(2026, 4, 20))},
 			completed: 1,
@@ -185,7 +187,7 @@ func TestEndedSessionCompletionUndoesStatusDayAbsenceForUnbookedChild(t *testing
 		}},
 		calls: &calls,
 	}
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(instanceID, calendar.NewDate(2026, 4, 21))},
 			completed: 1,
@@ -224,7 +226,7 @@ func TestEndedSessionCompletionSparesPerInstanceAcrossDates(t *testing.T) {
 		calls: &calls,
 	}
 	first, second := calendar.NewDate(2026, 4, 22), calendar.NewDate(2026, 4, 23)
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(firstBlock, first), endedInstance(secondBlock, second)},
 			calls:     &calls,
@@ -262,7 +264,7 @@ func (f perDateCareDays) ResolveForRange(_ context.Context, studentIDs []int64, 
 func TestEndedSessionCompletionDoesNotCompleteWhenFinalizationFails(t *testing.T) {
 	t.Parallel()
 	calls := make([]string, 0, 2)
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances: &endedSessionInstancesStub{
 			instances: []*scheduleModels.ActivityInstance{endedInstance(7702, calendar.NewDate(2026, 4, 20))},
 			calls:     &calls,
@@ -285,7 +287,7 @@ func TestEndedSessionCompletionAllowsSystemCompleteBeforePlannedEnd(t *testing.T
 	instance := endedInstance(7710, calendar.NewDate(2026, 5, 4))
 	instance.StartTime = time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC)
 	instance.EndTime = time.Date(1, 1, 1, 18, 0, 0, 0, time.UTC)
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    &endedSessionInstancesStub{instances: []*scheduleModels.ActivityInstance{instance}, completed: 1, calls: &calls},
 		Participants: participants,
 	})
@@ -301,7 +303,7 @@ func TestEndedSessionCompletionAllowsSystemCompleteBeforePlannedEnd(t *testing.T
 func TestEndedSessionCompletionSkipsWithoutSessions(t *testing.T) {
 	t.Parallel()
 	calls := make([]string, 0)
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    &endedSessionInstancesStub{calls: &calls},
 		Participants: &endedSessionParticipantsStub{calls: &calls},
 	})
@@ -311,6 +313,6 @@ func TestEndedSessionCompletionSkipsWithoutSessions(t *testing.T) {
 	assert.Zero(t, completed)
 	assert.Empty(t, calls)
 
-	_, err = NewEndedSessionCompletion(EndedSessionCompletionDependencies{})
+	_, err = NewEndedSessionCompletion(ports.EndedSessionCompletionDependencies{})
 	require.EqualError(t, err, "ended session completion: instances and participants are required")
 }

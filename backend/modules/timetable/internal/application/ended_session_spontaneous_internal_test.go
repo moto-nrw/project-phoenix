@@ -4,10 +4,12 @@ import (
 	"context"
 	"testing"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Every session end (kiosk, timeout, nightly close) completes through this
@@ -24,7 +26,7 @@ func TestEndedSessionCompletionRecordsSpontaneousEnd(t *testing.T) {
 		completed: 2,
 		calls:     &calls,
 	}
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    instances,
 		Participants: &endedSessionParticipantsStub{calls: &calls},
 	})
@@ -47,7 +49,7 @@ func TestEndedSessionCompletionKeepsExistingSpontaneousEnd(t *testing.T) {
 		},
 		calls: &[]string{},
 	}
-	completion := newEndedSessionCompletion(t, EndedSessionCompletionDependencies{
+	completion := newEndedSessionCompletion(t, ports.EndedSessionCompletionDependencies{
 		Instances:    instances,
 		Participants: &endedSessionParticipantsStub{calls: &[]string{}},
 	})

@@ -8,6 +8,7 @@ import (
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,7 +18,7 @@ func NewTimetableCleanup(in TimetableRetentionInputs) (timetable.TimetableCleanu
 	if logger == nil {
 		logger = slog.Default()
 	}
-	deps := timetableCompose.TimetableCleanupDependencies{
+	deps := timetablePorts.TimetableCleanupDependencies{
 		Timetable: in.Owner,
 		Logger:    logger,
 		Clock:     in.Clock,
@@ -58,7 +59,7 @@ type timetableDeletionAudit struct {
 	deletions DataDeletionAppender
 }
 
-func (a timetableDeletionAudit) RecordTimetableRetention(ctx context.Context, record timetableCompose.StudentDeletionRecord) error {
+func (a timetableDeletionAudit) RecordTimetableRetention(ctx context.Context, record timetablePorts.StudentDeletionRecord) error {
 	deletion := auditModels.NewDataDeletion(
 		record.StudentID,
 		auditModels.DeletionTypeTimetableRetention,

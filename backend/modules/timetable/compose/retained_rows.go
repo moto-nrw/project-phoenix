@@ -1,140 +1,165 @@
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+import (
+	"context"
 
-// The retained repository adapters, the care plan and workforce rows, the
-// cleanup and the legacy repository vocabulary live in internal/application
-// (#4084). The roots, the retained services and the suites name them
-// through the declarations below.
-
-type (
-	ActivityError                      = application.ActivityError
-	ActivityInstanceDate               = application.ActivityInstanceDate
-	ActivityInstanceQueryOptions       = application.ActivityInstanceQueryOptions
-	CalendarAssignment                 = application.CalendarAssignment
-	CalendarAssignmentRows             = application.CalendarAssignmentRows
-	CalendarInstance                   = application.CalendarInstance
-	CalendarInstanceRows               = application.CalendarInstanceRows
-	CalendarPeriodReferences           = application.CalendarPeriodReferences
-	CalendarPeriodUsage                = application.CalendarPeriodUsage
-	CalendarPeriodUsageRepository      = application.CalendarPeriodUsageRepository
-	CalendarShift                      = application.CalendarShift
-	CalendarShiftRows                  = application.CalendarShiftRows
-	CalendarShiftType                  = application.CalendarShiftType
-	CalendarShiftTypeRows              = application.CalendarShiftTypeRows
-	CallerActivityGroups               = application.CallerActivityGroups
-	CareArrivalException               = application.CareArrivalException
-	CareArrivalExceptionRows           = application.CareArrivalExceptionRows
-	CareArrivalNote                    = application.CareArrivalNote
-	CareArrivalNoteRows                = application.CareArrivalNoteRows
-	CareArrivalSchedule                = application.CareArrivalSchedule
-	CareArrivalScheduleRows            = application.CareArrivalScheduleRows
-	CareDate                           = application.CareDate
-	CarePickupException                = application.CarePickupException
-	CarePickupExceptionRows            = application.CarePickupExceptionRows
-	CarePickupNote                     = application.CarePickupNote
-	CarePickupNoteRows                 = application.CarePickupNoteRows
-	CarePickupSchedule                 = application.CarePickupSchedule
-	CarePickupScheduleRows             = application.CarePickupScheduleRows
-	CarePlanRows                       = application.CarePlanRows
-	CareScheduleFilter                 = application.CareScheduleFilter
-	CareScheduleRepositories           = application.CareScheduleRepositories
-	CareScheduleRequest                = application.CareScheduleRequest
-	CareScheduleRequestDecision        = application.CareScheduleRequestDecision
-	CareScheduleRequestFilter          = application.CareScheduleRequestFilter
-	CareScheduleRequestRows            = application.CareScheduleRequestRows
-	EndedSessionCompletionDependencies = application.EndedSessionCompletionDependencies
-	PersonName                         = application.PersonName
-	PickupExceptionFilter              = application.PickupExceptionFilter
-	PickupExceptionProjection          = application.PickupExceptionProjection
-	RecurrenceRuleQueryOptions         = application.RecurrenceRuleQueryOptions
-	RepositoryDirectories              = application.RepositoryDirectories
-	RetentionSettings                  = application.RetentionSettings
-	ShiftType                          = application.ShiftType
-	StudentDeletionRecord              = application.StudentDeletionRecord
-	StudentStatusDayFilter             = application.StudentStatusDayFilter
-	StudentStatusDayProjection         = application.StudentStatusDayProjection
-	TimetableCleanupDependencies       = application.TimetableCleanupDependencies
-	WorkforceShift                     = application.WorkforceShift
-	WorkforceShiftFilter               = application.WorkforceShiftFilter
-	WorkforceShiftRows                 = application.WorkforceShiftRows
-	WorkforceShiftType                 = application.WorkforceShiftType
-	WorkforceShiftTypeRows             = application.WorkforceShiftTypeRows
+	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
+	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The retained sentinels keep their identity.
-var (
-	ErrStudentRepoMissing                = application.ErrStudentRepoMissing
-	ErrAlreadyEnrolled                   = application.ErrAlreadyEnrolled
-	ErrCareRequestRecordNotDecided       = application.ErrCareRequestRecordNotDecided
-	ErrCareRequestRecordNotFound         = application.ErrCareRequestRecordNotFound
-	ErrCareRequestRecordNotPending       = application.ErrCareRequestRecordNotPending
-	ErrCareScheduleRecordNotFound        = application.ErrCareScheduleRecordNotFound
-	ErrCategoryArchived                  = application.ErrCategoryArchived
-	ErrCategoryNameExists                = application.ErrCategoryNameExists
-	ErrCategoryNotFound                  = application.ErrCategoryNotFound
-	ErrEnrollmentNotFound                = application.ErrEnrollmentNotFound
-	ErrGroupClosed                       = application.ErrGroupClosed
-	ErrGroupFull                         = application.ErrGroupFull
-	ErrGroupNotFound                     = application.ErrGroupNotFound
-	ErrInvalidAttendanceStatus           = application.ErrInvalidAttendanceStatus
-	ErrNotEnrolled                       = application.ErrNotEnrolled
-	ErrNotOwner                          = application.ErrNotOwner
-	ErrOnlySupervisorRequiresReplacement = application.ErrOnlySupervisorRequiresReplacement
-	ErrScheduleNotFound                  = application.ErrScheduleNotFound
-	ErrStaffNotFound                     = application.ErrStaffNotFound
-	ErrStudentAlreadyEnrolled            = application.ErrStudentAlreadyEnrolled
-	ErrStudentCareEnded                  = application.ErrStudentCareEnded
-	ErrStudentIsAlumnus                  = application.ErrStudentIsAlumnus
-	ErrStudentNotFound                   = application.ErrStudentNotFound
-	ErrSupervisorNotFound                = application.ErrSupervisorNotFound
-	ErrSystemActivityProtected           = application.ErrSystemActivityProtected
-	ErrSystemCategoryNameReserved        = application.ErrSystemCategoryNameReserved
-	ErrSystemCategoryProtected           = application.ErrSystemCategoryProtected
-	ErrTimetableTemplateProtected        = application.ErrTimetableTemplateProtected
-	ErrWorkforceShiftInvalid             = application.ErrWorkforceShiftInvalid
-	ErrWorkforceShiftNotFound            = application.ErrWorkforceShiftNotFound
-)
+// The retained repository adapters, the Care Plan and Workforce rows, the
+// cleanup and the legacy repository vocabulary live in internal/application,
+// the types the roots name in the ports package (#4084). The roots and the
+// suites build them through the constructors below.
 
-// The constructors and helpers of the moved adapters.
-var (
-	IsRepositoryNotFound             = application.IsRepositoryNotFound
-	FindCalendarAssignments          = application.FindCalendarAssignments
-	FindCalendarInstances            = application.FindCalendarInstances
-	FindCalendarShifts               = application.FindCalendarShifts
-	ListCalendarShiftTypes           = application.ListCalendarShiftTypes
-	MarkRecordError                  = application.MarkRecordError
-	NewActivityCategorySeeder        = application.NewActivityCategorySeeder
-	NewCalendarPeriodUsageRepository = application.NewCalendarPeriodUsageRepository
-	NewCallerActivityGroups          = application.NewCallerActivityGroups
-	NewCareArrivalExceptionRows      = application.NewCareArrivalExceptionRows
-	NewCareArrivalNoteRows           = application.NewCareArrivalNoteRows
-	NewCareArrivalScheduleRows       = application.NewCareArrivalScheduleRows
-	NewCarePickupExceptionRows       = application.NewCarePickupExceptionRows
-	NewCarePickupNoteRows            = application.NewCarePickupNoteRows
-	NewCarePickupScheduleRows        = application.NewCarePickupScheduleRows
-	NewCareScheduleRepositories      = application.NewCareScheduleRepositories
-	NewCareScheduleRequestRows       = application.NewCareScheduleRequestRows
-	NewCategoryCount                 = application.NewCategoryCount
-	NewEndedSessionCompletion        = application.NewEndedSessionCompletion
-	NewEnrollmentArrivalSchedules    = application.NewEnrollmentArrivalSchedules
-	NewEnrollmentPickupSchedules     = application.NewEnrollmentPickupSchedules
-	NewPresenceSessionFacts          = application.NewPresenceSessionFacts
-	NewTimetableCleanup              = application.NewTimetableCleanup
-	NewTimetableGroupReads           = application.NewTimetableGroupReads
-	NewTimetableInstanceReads        = application.NewTimetableInstanceReads
-	NewTimetableInstanceStaffReads   = application.NewTimetableInstanceStaffReads
-	NewWorkforceShiftRows            = application.NewWorkforceShiftRows
-	NewWorkforceShiftTypeRows        = application.NewWorkforceShiftTypeRows
-	ParseActivityInstanceDate        = application.ParseActivityInstanceDate
-	ShiftTypeCategoryLinker          = application.ShiftTypeCategoryLinker
-	WrapDatabaseError                = application.WrapDatabaseError
-)
+// ActivityInstanceDate is the retained instance date of a calendar day.
+func ActivityInstanceDate(day calendar.Date) scheduleModels.Date {
+	return scheduleModels.Date(day)
+}
 
-// The workforce shift list orders and the cleanup audit sample cap.
-const (
-	CleanupAuditSampleCap        = application.CleanupAuditSampleCap
-	WorkforceShiftOrderDate      = application.WorkforceShiftOrderDate
-	WorkforceShiftOrderStaffID   = application.WorkforceShiftOrderStaffID
-	WorkforceShiftOrderStartTime = application.WorkforceShiftOrderStartTime
-)
+// ParseActivityInstanceDate parses a retained instance date.
+func ParseActivityInstanceDate(value string) (scheduleModels.Date, error) {
+	return application.ParseActivityInstanceDate(value)
+}
+
+// WrapDatabaseError wraps err as the retained repositories' database error.
+func WrapDatabaseError(operation string, err error) error {
+	return application.WrapDatabaseError(operation, err)
+}
+
+// FindCalendarAssignments reads a staff member's instance assignments.
+func FindCalendarAssignments(ctx context.Context, rows ports.CalendarAssignmentRows, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
+	return application.FindCalendarAssignments(ctx, rows, staffID, from, to)
+}
+
+// FindCalendarInstances reads activity instances by ID.
+func FindCalendarInstances(ctx context.Context, rows ports.CalendarInstanceRows, ids []int64) ([]ports.CalendarInstance, error) {
+	return application.FindCalendarInstances(ctx, rows, ids)
+}
+
+// FindCalendarShifts reads a staff member's shifts.
+func FindCalendarShifts(ctx context.Context, rows ports.CalendarShiftRows, staffID int64, from, to string) ([]ports.CalendarShift, error) {
+	return application.FindCalendarShifts(ctx, rows, staffID, from, to)
+}
+
+// ListCalendarShiftTypes reads the shift types.
+func ListCalendarShiftTypes(ctx context.Context, rows ports.CalendarShiftTypeRows) ([]ports.CalendarShiftType, error) {
+	return application.ListCalendarShiftTypes(ctx, rows)
+}
+
+// NewCalendarPeriodUsageRepository counts the rows that reference each
+// calendar period.
+func NewCalendarPeriodUsageRepository(enrollment application.EnrollmentPhaseQueries, countReferences func(context.Context) (map[int64]ports.CalendarPeriodReferences, error)) ports.CalendarPeriodUsageRepository {
+	return application.NewCalendarPeriodUsageRepository(enrollment, countReferences)
+}
+
+// NewActivityCategorySeeder binds the category seeder to the retained
+// category rows.
+func NewActivityCategorySeeder(categories activitiesModels.CategoryRepository) application.ActivityCategorySeeder {
+	return application.NewActivityCategorySeeder(categories)
+}
+
+// NewCallerActivityGroups reads the activity groups a caller supervises.
+func NewCallerActivityGroups(groups activitiesModels.GroupRepository) ports.CallerActivityGroups {
+	return application.NewCallerActivityGroups(groups)
+}
+
+// NewCareArrivalScheduleRows serves the arrival schedules from Care Plan.
+func NewCareArrivalScheduleRows(rows ports.CarePlanRows) ports.CareArrivalScheduleRows {
+	return application.NewCareArrivalScheduleRows(rows)
+}
+
+// NewCareArrivalExceptionRows serves the arrival exceptions from Care Plan.
+func NewCareArrivalExceptionRows(rows ports.CarePlanRows) ports.CareArrivalExceptionRows {
+	return application.NewCareArrivalExceptionRows(rows)
+}
+
+// NewCareArrivalNoteRows serves the arrival notes from Care Plan.
+func NewCareArrivalNoteRows(rows ports.CarePlanRows) ports.CareArrivalNoteRows {
+	return application.NewCareArrivalNoteRows(rows)
+}
+
+// NewCarePickupScheduleRows serves the pickup schedules from Care Plan.
+func NewCarePickupScheduleRows(rows ports.CarePlanRows) ports.CarePickupScheduleRows {
+	return application.NewCarePickupScheduleRows(rows)
+}
+
+// NewCarePickupExceptionRows serves the pickup exceptions from Care Plan.
+func NewCarePickupExceptionRows(rows ports.CarePlanRows) ports.CarePickupExceptionRows {
+	return application.NewCarePickupExceptionRows(rows)
+}
+
+// NewCarePickupNoteRows serves the pickup notes from Care Plan.
+func NewCarePickupNoteRows(rows ports.CarePlanRows) ports.CarePickupNoteRows {
+	return application.NewCarePickupNoteRows(rows)
+}
+
+// NewCareScheduleRequestRows serves the care schedule change requests from
+// Care Plan.
+func NewCareScheduleRequestRows(rows ports.CarePlanRows) ports.CareScheduleRequestRows {
+	return application.NewCareScheduleRequestRows(rows)
+}
+
+// NewCategoryCount counts the activity categories.
+func NewCategoryCount(records application.CategoryCountRecords) *application.CategoryCount {
+	return application.NewCategoryCount(records)
+}
+
+// NewEndedSessionCompletion completes the blocks of ended sessions.
+func NewEndedSessionCompletion(deps ports.EndedSessionCompletionDependencies) (timetable.EndedSessionCompletion, error) {
+	return application.NewEndedSessionCompletion(deps)
+}
+
+// NewEnrollmentArrivalSchedules binds Enrollment's weekly arrival port.
+func NewEnrollmentArrivalSchedules(repo scheduleModels.StudentArrivalScheduleRepository) application.EnrollmentArrivalSchedules {
+	return application.NewEnrollmentArrivalSchedules(repo)
+}
+
+// NewEnrollmentPickupSchedules binds Enrollment's weekly pickup port.
+func NewEnrollmentPickupSchedules(repo scheduleModels.StudentPickupScheduleRepository) application.EnrollmentPickupSchedules {
+	return application.NewEnrollmentPickupSchedules(repo)
+}
+
+// NewPresenceSessionFacts reads the Student Presence session facts.
+func NewPresenceSessionFacts(presence application.PresenceSessions) timetable.SessionFacts {
+	return application.NewPresenceSessionFacts(presence)
+}
+
+// NewTimetableCleanup builds the retention cleanup.
+func NewTimetableCleanup(deps ports.TimetableCleanupDependencies) (timetable.TimetableCleanup, error) {
+	return application.NewTimetableCleanup(deps)
+}
+
+// NewTimetableGroupReads reads the activity groups.
+func NewTimetableGroupReads(groups activitiesModels.GroupRepository) application.TimetableGroupReads {
+	return application.NewTimetableGroupReads(groups)
+}
+
+// NewTimetableInstanceReads reads the activity instances.
+func NewTimetableInstanceReads(instances scheduleModels.ActivityInstanceRepository) application.TimetableInstanceReads {
+	return application.NewTimetableInstanceReads(instances)
+}
+
+// NewTimetableInstanceStaffReads reads the instance staff.
+func NewTimetableInstanceStaffReads(staff scheduleModels.InstanceStaffRepository) application.TimetableInstanceStaffReads {
+	return application.NewTimetableInstanceStaffReads(staff)
+}
+
+// NewWorkforceShiftRows serves the staff shifts from Workforce.
+func NewWorkforceShiftRows(records application.WorkforceShiftRecords, errs ports.RetainedRecordErrors) ports.WorkforceShiftRows {
+	return application.NewWorkforceShiftRows(records, errs)
+}
+
+// NewWorkforceShiftTypeRows serves the shift types from Workforce.
+func NewWorkforceShiftTypeRows(records application.WorkforceShiftRecords, errs ports.RetainedRecordErrors) ports.WorkforceShiftTypeRows {
+	return application.NewWorkforceShiftTypeRows(records, errs)
+}
+
+// ShiftTypeCategoryLinker links a shift type to its activity categories.
+func ShiftTypeCategoryLinker(link func(context.Context, int64, []int64) error) func(context.Context, int64, []int64) error {
+	return application.ShiftTypeCategoryLinker(link)
+}

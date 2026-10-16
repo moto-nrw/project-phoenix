@@ -7,6 +7,7 @@ package compose
 // consumer-owned RepositoryDirectories.
 
 import (
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 
 	activities "github.com/moto-nrw/project-phoenix/models/activities"
@@ -27,7 +28,7 @@ type RepositoryDependencies struct {
 	PartialAbsences application.PartialAbsences
 	// Calendar lists the active calendar periods of the template capacity.
 	Calendar    schoolcalendar.Query
-	Directories application.RepositoryDirectories
+	Directories ports.RepositoryDirectories
 }
 
 // Repositories are the retained activities and schedule repositories of the

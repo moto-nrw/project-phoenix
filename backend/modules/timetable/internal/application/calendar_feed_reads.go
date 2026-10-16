@@ -2,87 +2,28 @@ package application
 
 import (
 	"context"
-	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The staff calendar feed reads the retained Timetable and Dienstplan rows
 // through the root, which maps the records below into the School Calendar
 // portal's vocabulary. A nil row listing stays nil.
 
-// CalendarAssignmentRows are a staff member's instance assignments.
-type CalendarAssignmentRows interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, from, to scheduleModels.Date) ([]*scheduleModels.InstanceStaff, error)
-}
-
-// CalendarInstanceRows are the activity instances by ID.
-type CalendarInstanceRows interface {
-	FindByIDs(ctx context.Context, ids []int64) ([]*scheduleModels.ActivityInstance, error)
-}
-
-// CalendarShiftRows are a staff member's planned shifts.
-type CalendarShiftRows interface {
-	FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end scheduleModels.Date) ([]*scheduleModels.StaffShift, error)
-}
-
-// CalendarShiftTypeRows are the Schichtarten the feed labels shifts with.
-type CalendarShiftTypeRows interface {
-	ListAll(ctx context.Context) ([]*scheduleModels.ShiftType, error)
-}
-
-// CalendarAssignment is one instance a staff member is assigned to.
-type CalendarAssignment struct {
-	InstanceID int64
-	RoomID     *int64
-	UpdatedAt  time.Time
-}
-
-// CalendarInstance is one activity instance of the feed.
-type CalendarInstance struct {
-	ID           int64
-	RoomID       int64
-	Title        string
-	Status       string
-	Description  *string
-	Date         string
-	StartTime    time.Time
-	EndTime      time.Time
-	UpdatedAt    time.Time
-	TemplateType string
-}
-
-// CalendarShift is one planned shift of the feed.
-type CalendarShift struct {
-	ID          int64
-	Date        string
-	StartTime   time.Time
-	EndTime     time.Time
-	UpdatedAt   time.Time
-	ShiftTypeID *int64
-	Cancelled   bool
-	Notes       string
-}
-
-// CalendarShiftType names one Schichtart.
-type CalendarShiftType struct {
-	ID   int64
-	Name string
-}
-
 // FindCalendarAssignments lists the staff member's assignments in the range.
-func FindCalendarAssignments(ctx context.Context, rows CalendarAssignmentRows, staffID int64, from, to string) ([]CalendarAssignment, error) {
+func FindCalendarAssignments(ctx context.Context, rows ports.CalendarAssignmentRows, staffID int64, from, to string) ([]ports.CalendarAssignment, error) {
 	values, err := rows.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
-	return calendarRecords(values, func(v *scheduleModels.InstanceStaff) CalendarAssignment {
-		return CalendarAssignment{InstanceID: v.InstanceID, RoomID: v.RoomID, UpdatedAt: v.UpdatedAt}
+	return calendarRecords(values, func(v *scheduleModels.InstanceStaff) ports.CalendarAssignment {
+		return ports.CalendarAssignment{InstanceID: v.InstanceID, RoomID: v.RoomID, UpdatedAt: v.UpdatedAt}
 	}), err
 }
 
 // FindCalendarInstances lists the instances by ID.
-func FindCalendarInstances(ctx context.Context, rows CalendarInstanceRows, ids []int64) ([]CalendarInstance, error) {
+func FindCalendarInstances(ctx context.Context, rows ports.CalendarInstanceRows, ids []int64) ([]ports.CalendarInstance, error) {
 	values, err := rows.FindByIDs(ctx, ids)
-	return calendarRecords(values, func(v *scheduleModels.ActivityInstance) CalendarInstance {
-		return CalendarInstance{
+	return calendarRecords(values, func(v *scheduleModels.ActivityInstance) ports.CalendarInstance {
+		return ports.CalendarInstance{
 			ID: v.ID, RoomID: v.RoomID, Title: v.Title, Status: v.Status, Description: v.Description, Date: string(v.Date),
 			StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt, TemplateType: v.TemplateType,
 		}
@@ -90,10 +31,10 @@ func FindCalendarInstances(ctx context.Context, rows CalendarInstanceRows, ids [
 }
 
 // FindCalendarShifts lists the staff member's planned shifts in the range.
-func FindCalendarShifts(ctx context.Context, rows CalendarShiftRows, staffID int64, from, to string) ([]CalendarShift, error) {
+func FindCalendarShifts(ctx context.Context, rows ports.CalendarShiftRows, staffID int64, from, to string) ([]ports.CalendarShift, error) {
 	values, err := rows.FindByStaffAndDateRange(ctx, staffID, scheduleModels.Date(from), scheduleModels.Date(to))
-	return calendarRecords(values, func(v *scheduleModels.StaffShift) CalendarShift {
-		return CalendarShift{
+	return calendarRecords(values, func(v *scheduleModels.StaffShift) ports.CalendarShift {
+		return ports.CalendarShift{
 			ID: v.ID, Date: string(v.Date), StartTime: v.StartTime, EndTime: v.EndTime, UpdatedAt: v.UpdatedAt,
 			ShiftTypeID: v.ShiftTypeID, Cancelled: v.Cancelled, Notes: v.Notes,
 		}
@@ -101,10 +42,10 @@ func FindCalendarShifts(ctx context.Context, rows CalendarShiftRows, staffID int
 }
 
 // ListCalendarShiftTypes names every Schichtart.
-func ListCalendarShiftTypes(ctx context.Context, rows CalendarShiftTypeRows) ([]CalendarShiftType, error) {
+func ListCalendarShiftTypes(ctx context.Context, rows ports.CalendarShiftTypeRows) ([]ports.CalendarShiftType, error) {
 	values, err := rows.ListAll(ctx)
-	return calendarRecords(values, func(v *scheduleModels.ShiftType) CalendarShiftType {
-		return CalendarShiftType{ID: v.ID, Name: v.Name}
+	return calendarRecords(values, func(v *scheduleModels.ShiftType) ports.CalendarShiftType {
+		return ports.CalendarShiftType{ID: v.ID, Name: v.Name}
 	}), err
 }
 

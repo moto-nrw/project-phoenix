@@ -7,16 +7,17 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // WorkforceShiftTypeRows serves the tenant-defined Schichtarten.
 type WorkforceShiftTypeRows struct {
 	workforce WorkforceShiftRecords
-	errs      RetainedRecordErrors
+	errs      ports.RetainedRecordErrors
 }
 
 // NewWorkforceShiftTypeRows binds the shift-type rows to the Workforce records.
-func NewWorkforceShiftTypeRows(records WorkforceShiftRecords, errs RetainedRecordErrors) *WorkforceShiftTypeRows {
+func NewWorkforceShiftTypeRows(records WorkforceShiftRecords, errs ports.RetainedRecordErrors) *WorkforceShiftTypeRows {
 	return &WorkforceShiftTypeRows{workforce: records, errs: errs}
 }
 
@@ -60,8 +61,8 @@ func (r *WorkforceShiftTypeRows) ListAll(ctx context.Context) ([]*scheduleModels
 
 // --- mapping ---
 
-func shiftToCapability(shift *scheduleModels.StaffShift) WorkforceShift {
-	value := WorkforceShift{
+func shiftToCapability(shift *scheduleModels.StaffShift) ports.WorkforceShift {
+	value := ports.WorkforceShift{
 		ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
 		StartTime: shiftWallClock(shift.StartTime), EndTime: shiftWallClock(shift.EndTime), BreakMinutes: shift.BreakMinutes,
 		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached,
@@ -75,13 +76,13 @@ func shiftToCapability(shift *scheduleModels.StaffShift) WorkforceShift {
 	return value
 }
 
-func shiftToRow(value WorkforceShift) *scheduleModels.StaffShift {
+func shiftToRow(value ports.WorkforceShift) *scheduleModels.StaffShift {
 	shift := &scheduleModels.StaffShift{}
 	applyShiftToRow(shift, value)
 	return shift
 }
 
-func applyShiftToRow(shift *scheduleModels.StaffShift, value WorkforceShift) {
+func applyShiftToRow(shift *scheduleModels.StaffShift, value ports.WorkforceShift) {
 	shift.ID = value.ID
 	shift.CreatedAt = value.CreatedAt
 	shift.UpdatedAt = value.UpdatedAt
@@ -108,20 +109,20 @@ func applyShiftToRow(shift *scheduleModels.StaffShift, value WorkforceShift) {
 	shift.UpdatedBy = value.UpdatedBy
 }
 
-func shiftTypeToCapability(shiftType *scheduleModels.ShiftType) WorkforceShiftType {
-	return WorkforceShiftType{
+func shiftTypeToCapability(shiftType *scheduleModels.ShiftType) ports.WorkforceShiftType {
+	return ports.WorkforceShiftType{
 		ID: shiftType.ID, TenantID: shiftType.TenantID, Name: shiftType.Name, Color: shiftType.Color,
 		Description: shiftType.Description, IsActive: shiftType.IsActive, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
 	}
 }
 
-func shiftTypeToRow(value WorkforceShiftType) *scheduleModels.ShiftType {
+func shiftTypeToRow(value ports.WorkforceShiftType) *scheduleModels.ShiftType {
 	shiftType := &scheduleModels.ShiftType{}
 	applyShiftTypeToRow(shiftType, value)
 	return shiftType
 }
 
-func applyShiftTypeToRow(shiftType *scheduleModels.ShiftType, value WorkforceShiftType) {
+func applyShiftTypeToRow(shiftType *scheduleModels.ShiftType, value ports.WorkforceShiftType) {
 	shiftType.ID = value.ID
 	shiftType.CreatedAt = value.CreatedAt
 	shiftType.UpdatedAt = value.UpdatedAt
@@ -173,7 +174,7 @@ func shiftRowID(id any) (int64, error) {
 // shiftReadError restores the repository read error: a missing row is the
 // not-found sentinel joined with the driver's no-rows value, every other
 // failure keeps its cause behind the operation.
-func shiftReadError(errs RetainedRecordErrors, op string, err error, notFound error) error {
+func shiftReadError(errs ports.RetainedRecordErrors, op string, err error, notFound error) error {
 	if notFound != nil && errors.Is(err, notFound) {
 		return errs.MissingRecordError(op)
 	}
@@ -184,14 +185,14 @@ func shiftReadError(errs RetainedRecordErrors, op string, err error, notFound er
 // with their bare wording, as the model's own Validate() did, while staying
 // classifiable; everything else is a database error whose chain still reaches
 // the driver error of a rejected duplicate.
-func shiftWriteError(errs RetainedRecordErrors, op string, err error) error {
-	if errors.Is(err, ErrWorkforceShiftInvalid) {
+func shiftWriteError(errs ports.RetainedRecordErrors, op string, err error) error {
+	if errors.Is(err, ports.ErrWorkforceShiftInvalid) {
 		return fmt.Errorf("%w", err)
 	}
 	return errs.WrapRecordError(op, err)
 }
 
 // shiftRowsAffectedError is the result of an update that matched no row.
-func shiftRowsAffectedError(errs RetainedRecordErrors, op string) error {
+func shiftRowsAffectedError(errs ports.RetainedRecordErrors, op string) error {
 	return errs.WrapRecordError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
 }

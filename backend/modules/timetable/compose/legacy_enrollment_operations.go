@@ -257,7 +257,7 @@ func (s *Service) lockEnrollmentStudents(
 	// Without a student repository the enrolled rows simply stay unlocked and
 	// the preservation decision falls back to the loaded relation (the behaviour
 	// before this pass existed). An ADD, however, still has to fail closed.
-	if errors.Is(err, ErrStudentRepoMissing) && len(added) == 0 {
+	if errors.Is(err, errStudentRepoMissing) && len(added) == 0 {
 		return nil, nil
 	}
 	return nil, err
@@ -285,14 +285,14 @@ func (s *Service) lockStudentStatuses(ctx context.Context, studentIDs []int64) (
 		// Wired in services.NewFactory; a nil repo means the caller built the
 		// service without the dependency this check needs. Failing is the only
 		// safe answer — silently skipping would reopen the gap above.
-		return nil, ErrStudentRepoMissing
+		return nil, errStudentRepoMissing
 	}
 
 	locked := make(map[int64]*users.Student, len(ordered))
 	for _, studentID := range ordered {
 		student, err := s.studentRepo.FindByIDForUpdate(ctx, studentID)
 		if err != nil {
-			if IsRepositoryNotFound(err) {
+			if isRepositoryNotFound(err) {
 				continue
 			}
 			return nil, err
@@ -335,11 +335,11 @@ func (s *Service) loadStudentForGate(ctx context.Context, studentID int64) (*use
 		return nil, nil
 	}
 	if s.studentRepo == nil {
-		return nil, ErrStudentRepoMissing
+		return nil, errStudentRepoMissing
 	}
 	student, err := s.studentRepo.FindByID(ctx, studentID)
 	if err != nil {
-		if IsRepositoryNotFound(err) {
+		if isRepositoryNotFound(err) {
 			return nil, nil
 		}
 		return nil, err

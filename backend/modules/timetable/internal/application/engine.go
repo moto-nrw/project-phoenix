@@ -8,7 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -17,18 +17,18 @@ import (
 // public sentinels.
 type Engine struct {
 	service    *Service
-	observe    ports.Observer
-	provenance ports.EnrollmentProvenanceStore
+	observe    internalports.Observer
+	provenance internalports.EnrollmentProvenanceStore
 }
 
 // NewEngine serves the capability over service; observe receives the
 // rejections, provenance writes the enrollment links.
-func NewEngine(service *Service, observe ports.Observer, provenance ports.EnrollmentProvenanceStore) Engine {
+func NewEngine(service *Service, observe internalports.Observer, provenance internalports.EnrollmentProvenanceStore) Engine {
 	return Engine{service: service, observe: observe, provenance: provenance}
 }
 
 func (e Engine) ObserveRejection(operation string, duration time.Duration, err error) {
-	e.observe(ports.Observation{Operation: operation, Duration: duration, Err: err})
+	e.observe(internalports.Observation{Operation: operation, Duration: duration, Err: err})
 }
 
 func (e Engine) FindCategory(ctx context.Context, id int64) (timetable.Category, error) {

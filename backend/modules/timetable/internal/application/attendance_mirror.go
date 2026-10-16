@@ -10,6 +10,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -27,17 +28,6 @@ import (
 // rolls back presence and timetable writes together. The Timetable owner is
 // the only runtime writer of these rows.
 
-// AttendanceMirrorDependencies wires the mirror; both repositories are
-// required, the logger falls back to slog.Default.
-type AttendanceMirrorDependencies struct {
-	Instances    scheduleModel.ActivityInstanceRepository
-	Participants scheduleModel.InstanceStudentRepository
-	Logger       *slog.Logger
-	// ReportPanic reports a recovered panic to error tracking; the
-	// composition binds Sentry.
-	ReportPanic func(ctx context.Context, recovered any)
-}
-
 type attendanceMirror struct {
 	instanceRepo        scheduleModel.ActivityInstanceRepository
 	instanceStudentRepo scheduleModel.InstanceStudentRepository
@@ -48,7 +38,7 @@ type attendanceMirror struct {
 var _ timetable.AttendanceMirror = (*attendanceMirror)(nil)
 
 // NewAttendanceMirror composes the Timetable owner's attendance mirror.
-func NewAttendanceMirror(deps AttendanceMirrorDependencies) (timetable.AttendanceMirror, error) {
+func NewAttendanceMirror(deps ports.AttendanceMirrorDependencies) (timetable.AttendanceMirror, error) {
 	if deps.Instances == nil || deps.Participants == nil || deps.ReportPanic == nil {
 		return nil, errors.New("timetable attendance mirror: required dependency is nil")
 	}

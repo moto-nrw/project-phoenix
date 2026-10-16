@@ -5,12 +5,12 @@ import (
 	"time"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // PickupExceptionLister lists a child's pickup exceptions (Care Plan).
 type PickupExceptionLister interface {
-	ListPickupExceptions(context.Context, application.PickupExceptionFilter) ([]application.PickupExceptionProjection, error)
+	ListPickupExceptions(context.Context, ports.PickupExceptionFilter) ([]ports.PickupExceptionProjection, error)
 }
 
 // PartialAbsencePreview lists the blocks of a child's day an earlier pickup
@@ -40,7 +40,7 @@ func (p PartialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, stu
 	if err != nil {
 		return nil, err
 	}
-	exceptions, err := p.exceptions.ListPickupExceptions(ctx, application.PickupExceptionFilter{StudentIDs: []int64{studentID}, Date: date})
+	exceptions, err := p.exceptions.ListPickupExceptions(ctx, ports.PickupExceptionFilter{StudentIDs: []int64{studentID}, Date: date})
 	if err != nil {
 		return nil, err
 	}

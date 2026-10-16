@@ -68,8 +68,8 @@ import (
 type WorkforceWiring struct {
 	// ShiftRows and ShiftTypeRows serve the retained Dienstplan rows of the
 	// Timetable composition from Workforce.
-	ShiftRows     *arrivalTimetable.WorkforceShiftRows
-	ShiftTypeRows *arrivalTimetable.WorkforceShiftTypeRows
+	ShiftRows     timetablePorts.WorkforceShiftRows
+	ShiftTypeRows timetablePorts.WorkforceShiftTypeRows
 	// StaffAdmin composes the personnel-record administration.
 	StaffAdmin func(WorkforceStaffAdminSources) (*workforceModule.StaffAdmin, error)
 	// TimeTracking composes the time-tracking side of Workforce.
@@ -172,10 +172,10 @@ type PeopleWiring struct {
 	StudentAudit peopleCompose.StudentAuditRecorder
 
 	// Care Plan's schedule rows in Timetable's retained vocabulary.
-	PickupSchedules   arrivalTimetable.CarePickupScheduleRows
-	ArrivalSchedules  arrivalTimetable.CareArrivalScheduleRows
-	PickupExceptions  arrivalTimetable.CarePickupExceptionRows
-	ArrivalExceptions arrivalTimetable.CareArrivalExceptionRows
+	PickupSchedules   timetablePorts.CarePickupScheduleRows
+	ArrivalSchedules  timetablePorts.CareArrivalScheduleRows
+	PickupExceptions  timetablePorts.CarePickupExceptionRows
+	ArrivalExceptions timetablePorts.CareArrivalExceptionRows
 
 	// Constructors over the values this graph composes.
 	SupervisionRecords       func(studentpresence.SupervisionRecords) studentpresence.SupervisionRecords
@@ -1221,11 +1221,11 @@ type CalendarFacts struct {
 	StudentGuardianRepo  calendarRelationshipRows
 	ChildRepo            ParentChildLinkSource
 	GroupRepo            EducationGroupRepository
-	InstanceStaffRepo    arrivalTimetable.CalendarAssignmentRows
-	ActivityInstanceRepo arrivalTimetable.CalendarInstanceRows
+	InstanceStaffRepo    timetablePorts.CalendarAssignmentRows
+	ActivityInstanceRepo timetablePorts.CalendarInstanceRows
 	RoomRepo             facilitiesCompose.RoomRows
-	StaffShiftRepo       arrivalTimetable.CalendarShiftRows
-	ShiftTypeRepo        arrivalTimetable.CalendarShiftTypeRows
+	StaffShiftRepo       timetablePorts.CalendarShiftRows
+	ShiftTypeRepo        timetablePorts.CalendarShiftTypeRows
 	SchoolRepo           organizationtenancy.Query
 	AccountRepo          identityaccess.ParentCalendarFeeds
 	StaffFeedRepo        identityaccess.StaffCalendarFeeds

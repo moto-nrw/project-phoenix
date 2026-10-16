@@ -8,6 +8,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // SchoolCalendarRepositories are the retained calendar period, closing day
@@ -20,7 +21,7 @@ type SchoolCalendarRepositories struct {
 
 // NewSchoolCalendarRepositories builds the retained calendar repositories
 // over the School Calendar owner; usage answers the period reference counts.
-func NewSchoolCalendarRepositories(calendar schoolcalendar.Capability, usage *application.CalendarPeriodUsageRepository) SchoolCalendarRepositories {
+func NewSchoolCalendarRepositories(calendar schoolcalendar.Capability, usage ports.CalendarPeriodUsageRepository) SchoolCalendarRepositories {
 	return SchoolCalendarRepositories{
 		CalendarPeriod: NewCalendarPeriodRepository(calendar, usage),
 		ClosingDay:     NewClosingDayRepository(calendar),

@@ -9,16 +9,13 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// AttendanceMirrorDependencies wire the attendance mirror; the composition
-// binds its panic report to Sentry.
-type AttendanceMirrorDependencies = application.AttendanceMirrorDependencies
-
 // NewAttendanceMirror composes the Timetable owner's attendance mirror and
 // reports its recovered panics to Sentry.
-func NewAttendanceMirror(deps AttendanceMirrorDependencies) (timetable.AttendanceMirror, error) {
+func NewAttendanceMirror(deps ports.AttendanceMirrorDependencies) (timetable.AttendanceMirror, error) {
 	deps.ReportPanic = reportMirrorPanic
 	return application.NewAttendanceMirror(deps)
 }

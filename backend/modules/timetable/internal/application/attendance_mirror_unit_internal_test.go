@@ -24,10 +24,12 @@ import (
 	"testing"
 	"time"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // -----------------------------------------------------------------------------
@@ -341,7 +343,7 @@ func newSilentLogger() (*slog.Logger, *bytes.Buffer) {
 // newUnitSyncer builds the Timetable owner's attendance mirror over the fakes.
 func newUnitSyncer(instRepo *fakeInstanceRepo, isRepo *fakeInstanceStudentRepo) timetable.AttendanceMirror {
 	logger, _ := newSilentLogger()
-	syncer, err := NewAttendanceMirror(AttendanceMirrorDependencies{Instances: instRepo, Participants: isRepo, Logger: logger, ReportPanic: ignoreMirrorPanic})
+	syncer, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{Instances: instRepo, Participants: isRepo, Logger: logger, ReportPanic: ignoreMirrorPanic})
 	if err != nil {
 		panic(err)
 	}
@@ -1064,7 +1066,7 @@ func TestAttendanceSync_NilLoggerUsesDefault(t *testing.T) {
 
 	// When a nil logger is passed, the service must fall back to slog.Default()
 	// and still execute end-to-end without panicking.
-	svc, err := NewAttendanceMirror(AttendanceMirrorDependencies{
+	svc, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{
 		Instances:    &fakeInstanceRepo{instance: nil},
 		Participants: &fakeInstanceStudentRepo{},
 		ReportPanic:  ignoreMirrorPanic,

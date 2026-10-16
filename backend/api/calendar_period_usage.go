@@ -3,13 +3,13 @@ package api
 import (
 	"context"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // periodUsageSource is the planning owners' one-statement usage read.
 type periodUsageSource interface {
-	Usage(context.Context) (map[int64]timetableCompose.CalendarPeriodUsage, error)
+	Usage(context.Context) (map[int64]timetablePorts.CalendarPeriodUsage, error)
 }
 
 // calendarPeriodUsage serves the timetable surface's period usage counts

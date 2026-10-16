@@ -7,11 +7,13 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 type mirrorSentryTransport chan *sentry.Event
@@ -45,7 +47,7 @@ func TestAttendanceMirrorReportsRecoveredPanic(t *testing.T) {
 	require.NoError(t, err)
 	ctx := sentry.SetHubOnContext(context.Background(), sentry.NewHub(client, sentry.NewScope()))
 	ctx = tenant.WithTenantID(ctx, 44)
-	mirror, err := NewAttendanceMirror(AttendanceMirrorDependencies{
+	mirror, err := NewAttendanceMirror(ports.AttendanceMirrorDependencies{
 		Instances:    panickingInstanceRepo{},
 		Participants: panickingParticipantRepo{},
 		Logger:       slog.New(slog.DiscardHandler),

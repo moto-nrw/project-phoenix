@@ -66,8 +66,8 @@ func (r OwnerRows) DataTemplates() (ports.DataTemplates, error) {
 
 // EndedSessionInstances is the session listing of the ended-session
 // completion.
-func (r OwnerRows) EndedSessionInstances() (application.EndedSessionInstances, error) {
-	instances, ok := r.Instances.(application.EndedSessionInstances)
+func (r OwnerRows) EndedSessionInstances() (ports.EndedSessionInstances, error) {
+	instances, ok := r.Instances.(ports.EndedSessionInstances)
 	if !ok {
 		return nil, fmt.Errorf("ended session completion: %T cannot list instances by session", r.Instances)
 	}

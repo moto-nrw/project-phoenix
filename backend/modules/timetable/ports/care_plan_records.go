@@ -1,4 +1,4 @@
-package application
+package ports
 
 import (
 	"context"
@@ -13,6 +13,18 @@ import (
 // CarePlanRecords seam below, in this composition's own vocabulary, because
 // the Timetable owner may not name Care Plan. The composition root binds the
 // capability behind it.
+
+// MarkRecordError marks err with one of this composition's record answers
+// (ErrCareScheduleRecordNotFound, ...). The message stays err's own, and
+// errors.Is still finds every error in err's chain.
+func MarkRecordError(mark, err error) error {
+	return markedRecordError{mark: mark, err: err}
+}
+
+type markedRecordError struct{ mark, err error }
+
+func (e markedRecordError) Error() string   { return e.err.Error() }
+func (e markedRecordError) Unwrap() []error { return []error{e.err, e.mark} }
 
 // CareDate is a calendar day as YYYY-MM-DD.
 type CareDate string
@@ -250,14 +262,12 @@ type CarePlanRows struct {
 	Today   func() CareDate
 }
 
-// MarkRecordError marks err with one of this composition's record answers
-// (ErrCareScheduleRecordNotFound, ...). The message stays err's own, and
-// errors.Is still finds every error in err's chain.
-func MarkRecordError(mark, err error) error {
-	return markedRecordError{mark: mark, err: err}
+// ScheduleError keeps the retained repository error shape: a missing
+// schedule row classifies as not found, everything else is wrapped with its
+// operation.
+func (c CarePlanRows) ScheduleError(op string, err error) error {
+	if errors.Is(err, ErrCareScheduleRecordNotFound) {
+		return c.Errors.MissingRecordError(op)
+	}
+	return c.Errors.WrapRecordError(op, err)
 }
-
-type markedRecordError struct{ mark, err error }
-
-func (e markedRecordError) Error() string   { return e.err.Error() }
-func (e markedRecordError) Unwrap() []error { return []error{e.err, e.mark} }

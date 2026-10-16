@@ -7,12 +7,13 @@ import (
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 type timetableStudentEnrollmentRepository struct {
 	timetable timetable.Capability
 	alumni    func(context.Context, []int64) (map[int64]bool, error)
-	names     func(context.Context, []int64) (map[int64]PersonName, error)
+	names     func(context.Context, []int64) (map[int64]ports.PersonName, error)
 }
 
 func (r timetableStudentEnrollmentRepository) Create(ctx context.Context, enrollment *activitiesModels.StudentEnrollment) error {

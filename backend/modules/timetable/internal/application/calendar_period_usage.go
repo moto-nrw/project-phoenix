@@ -5,18 +5,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
-
-// CalendarPeriodReferences mirrors the Timetable owner's per-period reference
-// counts. The composition root adapts the owner's type; this package must not
-// import the Timetable public package (architecture policy).
-type CalendarPeriodReferences struct {
-	ActivityGroups     int
-	Schedules          int
-	StudentEnrollments int
-	Supervisors        int
-	ActivityInstances  int
-}
 
 // CalendarPeriodUsageRepository counts how many planning objects reference a
 // calendar period. The periods themselves belong to the School Calendar
@@ -26,7 +16,7 @@ type CalendarPeriodReferences struct {
 // without references is simply absent from the result.
 type CalendarPeriodUsageRepository struct {
 	enrollment      EnrollmentPhaseQueries
-	countReferences func(context.Context) (map[int64]CalendarPeriodReferences, error)
+	countReferences func(context.Context) (map[int64]ports.CalendarPeriodReferences, error)
 }
 
 type EnrollmentPhaseQueries interface {
@@ -34,7 +24,7 @@ type EnrollmentPhaseQueries interface {
 }
 
 // NewCalendarPeriodUsageRepository creates a new CalendarPeriodUsageRepository.
-func NewCalendarPeriodUsageRepository(enrollment EnrollmentPhaseQueries, countReferences func(context.Context) (map[int64]CalendarPeriodReferences, error)) *CalendarPeriodUsageRepository {
+func NewCalendarPeriodUsageRepository(enrollment EnrollmentPhaseQueries, countReferences func(context.Context) (map[int64]ports.CalendarPeriodReferences, error)) *CalendarPeriodUsageRepository {
 	if enrollment == nil {
 		panic("calendar period usage: enrollment queries are required")
 	}
@@ -60,20 +50,8 @@ func (r *CalendarPeriodUsageRepository) UsageCounts(ctx context.Context) (map[in
 	return result, nil
 }
 
-// CalendarPeriodUsage counts, per calendar period, the rows that reference it
-// through nullable calendar_period_id FKs: Enrollment's phases and the five
-// Timetable planning tables.
-type CalendarPeriodUsage struct {
-	EnrollmentPhases   int
-	ActivityGroups     int
-	Schedules          int
-	StudentEnrollments int
-	Supervisors        int
-	ActivityInstances  int
-}
-
 // Usage is UsageCounts in the composition's own shape.
-func (r *CalendarPeriodUsageRepository) Usage(ctx context.Context) (map[int64]CalendarPeriodUsage, error) {
+func (r *CalendarPeriodUsageRepository) Usage(ctx context.Context) (map[int64]ports.CalendarPeriodUsage, error) {
 	phaseCounts, err := r.enrollment.PhaseCountsByCalendarPeriod(ctx)
 	if err != nil {
 		return nil, &domain.StoreError{Op: "usage counts", Err: err}
@@ -83,9 +61,9 @@ func (r *CalendarPeriodUsageRepository) Usage(ctx context.Context) (map[int64]Ca
 		return nil, &domain.StoreError{Op: "usage counts", Err: err}
 	}
 
-	usage := make(map[int64]CalendarPeriodUsage, len(phaseCounts)+len(references))
+	usage := make(map[int64]ports.CalendarPeriodUsage, len(phaseCounts)+len(references))
 	for id, count := range phaseCounts {
-		usage[id] = CalendarPeriodUsage{EnrollmentPhases: count}
+		usage[id] = ports.CalendarPeriodUsage{EnrollmentPhases: count}
 	}
 	for id, refs := range references {
 		entry := usage[id]
