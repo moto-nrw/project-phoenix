@@ -44,13 +44,12 @@ func dateframeListingFromOptions(options *domain.ListOptions) (DateframeListing,
 		}
 		for _, condition := range options.Filter.Conditions() {
 			value, ok := condition.Value.(string)
-			if condition.Field != "name" || !ok {
+			switch {
+			case condition.Field != "name" || !ok:
 				return listing, fmt.Errorf("unsupported dateframe filter %q %s", condition.Field, condition.Operator)
-			}
-			switch condition.Operator {
-			case domain.ListOpEqual:
+			case condition.Operator == domain.ListOpEqual:
 				listing.Name = value
-			case domain.ListOpILike:
+			case condition.Operator == domain.ListOpILike:
 				listing.NamePattern = value
 			default:
 				return listing, fmt.Errorf("unsupported dateframe filter %q %s", condition.Field, condition.Operator)

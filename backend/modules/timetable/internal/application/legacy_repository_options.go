@@ -384,15 +384,15 @@ func InstanceStudentListOptions(options *InstanceStudentQueryOptions) (InstanceS
 }
 
 func applyInstanceStudentCondition(result *InstanceStudentListFilter, condition domain.ListCondition) error {
-	if condition.Operator == domain.ListOpEqual {
-		if condition.Field == "status" {
-			value, ok := condition.Value.(string)
-			if !ok {
-				return errors.New("instance student status filter is unsupported")
-			}
-			result.Status = &value
-			return nil
+	if condition.Operator == domain.ListOpEqual && condition.Field == "status" {
+		value, ok := condition.Value.(string)
+		if !ok {
+			return errors.New("instance student status filter is unsupported")
 		}
+		result.Status = &value
+		return nil
+	}
+	if condition.Operator == domain.ListOpEqual {
 		id, ok := condition.Value.(int64)
 		if !ok {
 			return errors.New("instance student filter is unsupported")

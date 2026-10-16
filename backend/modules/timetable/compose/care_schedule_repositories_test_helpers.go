@@ -43,3 +43,8 @@ func (r CareScheduleRepositories) EnrollmentPickupSchedules() application.Enroll
 func (r CareScheduleRepositories) EnrollmentArrivalSchedules() application.EnrollmentArrivalSchedules {
 	return application.NewEnrollmentArrivalSchedules(r.StudentArrivalSchedule)
 }
+
+// NewCareArrivalNoteRows serves the arrival notes from Care Plan.
+func NewCareArrivalNoteRows(rows ports.CarePlanRows) ports.CareArrivalNoteRows {
+	return application.NewCareArrivalNoteRows(rows)
+}

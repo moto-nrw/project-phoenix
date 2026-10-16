@@ -78,11 +78,6 @@ func NewCareArrivalExceptionRows(rows ports.CarePlanRows) ports.CareArrivalExcep
 	return application.NewCareArrivalExceptionRows(rows)
 }
 
-// NewCareArrivalNoteRows serves the arrival notes from Care Plan.
-func NewCareArrivalNoteRows(rows ports.CarePlanRows) ports.CareArrivalNoteRows {
-	return application.NewCareArrivalNoteRows(rows)
-}
-
 // NewCarePickupScheduleRows serves the pickup schedules from Care Plan.
 func NewCarePickupScheduleRows(rows ports.CarePlanRows) ports.CarePickupScheduleRows {
 	return application.NewCarePickupScheduleRows(rows)
