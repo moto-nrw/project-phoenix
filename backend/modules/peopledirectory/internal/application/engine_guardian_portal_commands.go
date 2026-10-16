@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -9,16 +9,16 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
-func (e engine) CreateGuardianContact(ctx context.Context, record peopledirectory.GuardianContactRecord) (int64, error) {
+func (e Engine) CreateGuardianContact(ctx context.Context, record peopledirectory.GuardianContactRecord) (int64, error) {
 	id, err := e.guardians.CreateContact(ctx, toDomainGuardianContact(record))
 	return id, mapGuardianPortalError(err)
 }
 
-func (e engine) UpdateGuardianContact(ctx context.Context, guardianID int64, record peopledirectory.GuardianContactRecord) error {
+func (e Engine) UpdateGuardianContact(ctx context.Context, guardianID int64, record peopledirectory.GuardianContactRecord) error {
 	return mapGuardianPortalError(e.guardians.UpdateContact(ctx, guardianID, toDomainGuardianContact(record)))
 }
 
-func (e engine) ReplaceGuardianPhones(ctx context.Context, guardianID int64, phones []peopledirectory.GuardianPhoneRecord) error {
+func (e Engine) ReplaceGuardianPhones(ctx context.Context, guardianID int64, phones []peopledirectory.GuardianPhoneRecord) error {
 	records := make([]domain.GuardianPhoneRecord, 0, len(phones))
 	for _, phone := range phones {
 		records = append(records, domain.GuardianPhoneRecord(phone))
@@ -26,35 +26,35 @@ func (e engine) ReplaceGuardianPhones(ctx context.Context, guardianID int64, pho
 	return mapGuardianPortalError(e.guardians.ReplacePhones(ctx, guardianID, records))
 }
 
-func (e engine) AddGuardianPhoneRecord(ctx context.Context, guardianID int64, phone peopledirectory.GuardianPhoneRecord) (int64, error) {
+func (e Engine) AddGuardianPhoneRecord(ctx context.Context, guardianID int64, phone peopledirectory.GuardianPhoneRecord) (int64, error) {
 	id, err := e.guardians.AddPhone(ctx, guardianID, domain.GuardianPhoneRecord(phone))
 	return id, mapGuardianPortalError(err)
 }
 
-func (e engine) SetGuardianPhoneNumber(ctx context.Context, phoneID int64, number string) error {
+func (e Engine) SetGuardianPhoneNumber(ctx context.Context, phoneID int64, number string) error {
 	return mapGuardianPortalError(e.guardians.SetPhoneNumber(ctx, phoneID, number))
 }
 
-func (e engine) DeleteGuardianPhoneRecord(ctx context.Context, phoneID int64) error {
+func (e Engine) DeleteGuardianPhoneRecord(ctx context.Context, phoneID int64) error {
 	return mapGuardianPortalError(e.guardians.DeletePhone(ctx, phoneID))
 }
 
-func (e engine) LinkGuardianContact(ctx context.Context, link peopledirectory.GuardianContactLink) (int64, bool, error) {
+func (e Engine) LinkGuardianContact(ctx context.Context, link peopledirectory.GuardianContactLink) (int64, bool, error) {
 	linkID, err := e.guardians.LinkContact(ctx, domain.GuardianLinkRecord(link))
 	return linkID, linkID > 0, mapGuardianPortalError(err)
 }
 
-func (e engine) PatchGuardianLinkPickup(ctx context.Context, patch peopledirectory.GuardianLinkPickupPatch) (int64, error) {
+func (e Engine) PatchGuardianLinkPickup(ctx context.Context, patch peopledirectory.GuardianLinkPickupPatch) (int64, error) {
 	affected, err := e.guardians.PatchLinkPickup(ctx, domain.GuardianLinkPickupPatch(patch))
 	return affected, mapGuardianPortalError(err)
 }
 
-func (e engine) SetGuardianPortalLocale(ctx context.Context, accountID int64, locale string) (int64, error) {
+func (e Engine) SetGuardianPortalLocale(ctx context.Context, accountID int64, locale string) (int64, error) {
 	updated, err := e.guardians.SetPortalLocale(ctx, accountID, locale)
 	return updated, mapGuardianPortalError(err)
 }
 
-func (e engine) SetStudentPhotoConsent(ctx context.Context, state peopledirectory.StudentPhotoState) error {
+func (e Engine) SetStudentPhotoConsent(ctx context.Context, state peopledirectory.StudentPhotoState) error {
 	return mapGuardianPortalError(e.studentPhotos.SetPortalConsent(ctx, domain.StudentPhoto{
 		StudentID: state.StudentID, PhotoPath: state.PhotoPath,
 		PhotoConsentGivenAt: state.PhotoConsentGivenAt, PhotoConsentGivenBy: state.PhotoConsentGivenBy,
@@ -85,6 +85,6 @@ func mapGuardianPortalError(err error) error {
 	case errors.Is(err, domain.ErrGuardianPhoneNotFound):
 		return peopledirectory.ErrGuardianPhoneNotFound
 	default:
-		return mapError(err)
+		return MapError(err)
 	}
 }

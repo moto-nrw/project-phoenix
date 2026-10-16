@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
@@ -22,7 +21,7 @@ type pushSubscriptionRequest struct {
 // getPushPublicKey returns the VAPID public key the browser subscribes with.
 func (rs *Resource) getPushPublicKey(w http.ResponseWriter, r *http.Request) {
 	key, err := rs.PushService.PublicKey()
-	if errors.Is(err, notificationsService.ErrWebPushNotConfigured) {
+	if errors.Is(err, ErrWebPushNotConfigured) {
 		common.RenderError(w, r, common.ErrorNotFound(err))
 		return
 	}
@@ -49,7 +48,7 @@ func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err := rs.PushService.SubscribeParent(r.Context(), int64(claims.ID), notificationsService.PushSubscriptionInput{
+	err := rs.PushService.SubscribeParent(r.Context(), int64(claims.ID), PushSubscriptionInput{
 		Endpoint:      req.Endpoint,
 		P256dh:        req.Keys.P256dh,
 		Auth:          req.Keys.Auth,
@@ -57,10 +56,10 @@ func (rs *Resource) subscribePush(w http.ResponseWriter, r *http.Request) {
 		TokenFamilyID: claims.FamilyID,
 	})
 	switch {
-	case errors.Is(err, notificationsService.ErrWebPushNotConfigured):
+	case errors.Is(err, ErrWebPushNotConfigured):
 		common.RenderError(w, r, common.ErrorConflict(err))
 		return
-	case errors.Is(err, notificationsService.ErrInvalidPushSubscription):
+	case errors.Is(err, ErrInvalidPushSubscription):
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	case err != nil:

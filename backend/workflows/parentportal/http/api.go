@@ -23,8 +23,6 @@ import (
 	"github.com/go-chi/render"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	pwaService "github.com/moto-nrw/project-phoenix/modules/delivery/application/pwa"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -44,11 +42,13 @@ type Resource struct {
 	EnrollmentForms       EnrollmentForms
 	GuardianProfileLoader GuardianProfileLoader
 	SchoolService         SchoolDirectory
-	PushService           notificationsService.PushSubscriptionService
-	PreferenceService     notificationsService.PreferenceService
-	PWAUsageService       pwaService.UsageService
+	PushService           PushSubscriptions
+	PreferenceService     NotificationPreferences
+	PWAUsageService       PWAUsage
 	// Reports renders the Erklärung proof PDF (#3430).
 	Reports ReportRenderer
+	// SupportedLocale is bound to the shared language catalog by the root.
+	SupportedLocale func(string) bool
 }
 
 // ResourceConfig lists the parent-portal collaborators. The composition root
@@ -66,13 +66,15 @@ type ResourceConfig struct {
 	GuardianProfileLoader GuardianProfileLoader
 	Schools               SchoolDirectory
 	// Push is the Web Push subscription service (#2003).
-	Push notificationsService.PushSubscriptionService
+	Push PushSubscriptions
 	// Preferences is the notification consent service.
-	Preferences notificationsService.PreferenceService
+	Preferences NotificationPreferences
 	// PWAUsage is the PWA standalone-usage service (#2189).
-	PWAUsage pwaService.UsageService
+	PWAUsage PWAUsage
 	// Reports renders the Erklärung proof PDF (#3430).
 	Reports ReportRenderer
+	// SupportedLocale is bound to the shared language catalog by the root.
+	SupportedLocale func(string) bool
 }
 
 // NewResource builds the parent-portal resource.
@@ -98,6 +100,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 		PreferenceService:     cfg.Preferences,
 		PWAUsageService:       cfg.PWAUsage,
 		Reports:               cfg.Reports,
+		SupportedLocale:       cfg.SupportedLocale,
 	}
 }
 
