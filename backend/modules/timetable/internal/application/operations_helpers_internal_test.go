@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -109,7 +109,7 @@ func TestTimetableOperationsDependencyAndErrorBranches(t *testing.T) {
 
 	assert.Equal(t, "timetable attendance validation failed", (&timetable.AttendanceValidationError{}).Error())
 
-	_, err := NewOperations(OperationDependencies{})
+	_, err := NewOperations(OperationDependencies{}, sessionlessCaller{})
 	require.Error(t, err, "a composition without its required ports must not build")
 
 	deps := newTimetableOpsDeps()
