@@ -1,12 +1,11 @@
-// Package compose binds the plan export capability's consumer-owned ports to
-// reads in the owners' public vocabulary (#2706) and only translates their
-// records: Workforce for the staff week and the Schichtarten, Timetable &
-// Activities for the blocks, their staff, head counts, Angebote and
-// Planungsspuren, Facilities for the room names. The root supplies those
-// reads (the Timetable block, staff, Angebot and head-count reads still run on
-// its retained repositories, as for the Workforce Dienstplan), plus the staff
-// names, closing days and holidays it already binds for other consumers.
-package compose
+package api
+
+// The root binds the plan export capability's consumer-owned ports to reads
+// in the owners' public vocabulary (#2706) and only translates their records:
+// Workforce for the staff week and the Schichtarten, Timetable & Activities
+// for the blocks, their staff, head counts, Angebote and Planungsspuren,
+// Facilities for the room names. Document Rendering names none of these
+// owners (#4072): the translation is cross-owner glue and lives here.
 
 import (
 	"context"
@@ -21,80 +20,85 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// InstanceReader is the Timetable read of the blocks of a window,
+// planExportInstanceReader is the Timetable read of the blocks of a window,
 // cancelled ones and the state of their sessions included.
-type InstanceReader interface {
+type planExportInstanceReader interface {
 	FindByTenantAndDateRange(ctx context.Context, from, to calendar.Date) ([]*timetable.ScheduledInstance, error)
 }
 
-// InstanceStaffReader is the Timetable read of the staff planned
+// planExportInstanceStaffReader is the Timetable read of the staff planned
 // on blocks.
-type InstanceStaffReader interface {
+type planExportInstanceStaffReader interface {
 	FindByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*timetable.InstanceStaff, error)
 }
 
-// ActivityGroupReader is the Timetable read of the Angebote blocks were
+// planExportActivityGroupReader is the Timetable read of the Angebote blocks were
 // materialized from.
-type ActivityGroupReader interface {
+type planExportActivityGroupReader interface {
 	FindByIDs(ctx context.Context, ids []int64) ([]*timetable.Group, error)
 }
 
-// ShiftTypeReader is the Workforce read of the Schichtarten.
-type ShiftTypeReader interface {
+// planExportOverviewReader is the Workforce read of the staff week.
+type planExportOverviewReader interface {
+	Overview(ctx context.Context, from, to string) (workforce.StaffScheduleOverview, error)
+}
+
+// planExportShiftTypeReader is the Workforce read of the Schichtarten.
+type planExportShiftTypeReader interface {
 	ListShiftTypes(ctx context.Context) ([]workforce.ShiftType, error)
 }
 
-// RoomReader is the Facilities read of the printed rooms.
-type RoomReader interface {
+// planExportRoomReader is the Facilities read of the printed rooms.
+type planExportRoomReader interface {
 	ListRoomsByID(ctx context.Context, ids []int64) ([]facilities.Room, error)
 }
 
-// PlanningTrackReader is the Timetable read of the Planungsspuren.
-type PlanningTrackReader interface {
+// planExportPlanningTrackReader is the Timetable read of the Planungsspuren.
+type planExportPlanningTrackReader interface {
 	ListPlanningTracks(ctx context.Context, filter timetable.PlanningTrackFilter) ([]timetable.PlanningTrack, error)
 }
 
-// Sources are the owner reads the root binds to the plan export. Every
+// planExportSources are the owner reads the root binds to the plan export. Every
 // source is required; the root binds all of them.
-type Sources struct {
-	Overview       workforce.StaffScheduleOverviewQuery
-	ShiftTypes     ShiftTypeReader
-	Instances      InstanceReader
-	InstanceStaff  InstanceStaffReader
+type planExportSources struct {
+	Overview       planExportOverviewReader
+	ShiftTypes     planExportShiftTypeReader
+	Instances      planExportInstanceReader
+	InstanceStaff  planExportInstanceStaffReader
 	Students       planexport.InstanceStudentCountReader
-	Rooms          RoomReader
+	Rooms          planExportRoomReader
 	Staff          planexport.StaffNameReader
-	ActivityGroups ActivityGroupReader
-	PlanningTracks PlanningTrackReader
+	ActivityGroups planExportActivityGroupReader
+	PlanningTracks planExportPlanningTrackReader
 	ClosingDays    planexport.ClosingDayReader
 	Holidays       planexport.HolidayReader
 	Renderer       planexport.Renderer
 	Logger         *slog.Logger
 }
 
-// New binds the owner reads to the plan export ports and returns
+// newPlanExport binds the owner reads to the plan export ports and returns
 // the public capability.
-func New(sources Sources) planexport.Service {
+func newPlanExport(sources planExportSources) planexport.Service {
 	return planexport.NewService(planexport.Dependencies{
-		Overview:       overviewBinding{source: sources.Overview},
-		ShiftTypes:     shiftTypeBinding{source: sources.ShiftTypes},
-		Instances:      instanceBinding{source: sources.Instances},
-		InstanceStaff:  instanceStaffBinding{source: sources.InstanceStaff},
+		Overview:       planExportOverview{source: sources.Overview},
+		ShiftTypes:     planExportShiftTypes{source: sources.ShiftTypes},
+		Instances:      planExportInstances{source: sources.Instances},
+		InstanceStaff:  planExportInstanceStaff{source: sources.InstanceStaff},
 		Students:       sources.Students,
-		Rooms:          roomBinding{source: sources.Rooms},
+		Rooms:          planExportRooms{source: sources.Rooms},
 		Staff:          sources.Staff,
-		ActivityGroups: activityGroupBinding{source: sources.ActivityGroups},
-		PlanningTracks: planningTrackBinding{source: sources.PlanningTracks},
+		ActivityGroups: planExportActivityGroups{source: sources.ActivityGroups},
+		PlanningTracks: planExportPlanningTracks{source: sources.PlanningTracks},
 		ClosingDays:    sources.ClosingDays,
 		Holidays:       sources.Holidays,
 		Renderer:       sources.Renderer,
 	}, sources.Logger)
 }
 
-// parseRange resolves the port's day strings. The capability only ever
+// planExportRange resolves the port's day strings. The capability only ever
 // hands over days it validated itself, so a failure here is a programming
 // error and is reported rather than widened to a zero date.
-func parseRange(from, to planexport.Date) (calendar.Date, calendar.Date, error) {
+func planExportRange(from, to planexport.Date) (calendar.Date, calendar.Date, error) {
 	start, err := calendar.ParseDate(string(from))
 	if err != nil {
 		return "", "", fmt.Errorf("plan export range start: %w", err)
@@ -106,12 +110,12 @@ func parseRange(from, to planexport.Date) (calendar.Date, calendar.Date, error) 
 	return start, end, nil
 }
 
-type overviewBinding struct {
-	source workforce.StaffScheduleOverviewQuery
+type planExportOverview struct {
+	source planExportOverviewReader
 }
 
-func (a overviewBinding) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
-	start, end, err := parseRange(from, to)
+func (a planExportOverview) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
+	start, end, err := planExportRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -135,8 +139,8 @@ func (a overviewBinding) StaffScheduleOverview(ctx context.Context, from, to pla
 			ID:            shift.ID,
 			StaffID:       shift.StaffID,
 			Date:          planexport.Date(shift.Date),
-			StartTime:     wallClock(shift.StartTime),
-			EndTime:       wallClock(shift.EndTime),
+			StartTime:     planExportWallClock(shift.StartTime),
+			EndTime:       planExportWallClock(shift.EndTime),
 			ShiftTypeID:   shift.ShiftTypeID,
 			OriginShiftID: shift.OriginShiftID,
 			Cancelled:     shift.Cancelled,
@@ -147,13 +151,13 @@ func (a overviewBinding) StaffScheduleOverview(ctx context.Context, from, to pla
 	for _, assignment := range overview.Assignments {
 		intervals := make([]planexport.Interval, 0, len(assignment.UncoveredIntervals))
 		for _, gap := range assignment.UncoveredIntervals {
-			intervals = append(intervals, planexport.Interval{StartTime: wallClock(gap.StartTime), EndTime: wallClock(gap.EndTime)})
+			intervals = append(intervals, planexport.Interval{StartTime: planExportWallClock(gap.StartTime), EndTime: planExportWallClock(gap.EndTime)})
 		}
 		out.Assignments = append(out.Assignments, planexport.Assignment{
 			StaffID:            assignment.StaffID,
 			Date:               planexport.Date(assignment.Date),
-			StartTime:          wallClock(assignment.StartTime),
-			EndTime:            wallClock(assignment.EndTime),
+			StartTime:          planExportWallClock(assignment.StartTime),
+			EndTime:            planExportWallClock(assignment.EndTime),
 			ActivityTitle:      assignment.ActivityTitle,
 			ActivityGroupID:    assignment.ActivityGroupID,
 			RoomName:           assignment.RoomName,
@@ -165,18 +169,18 @@ func (a overviewBinding) StaffScheduleOverview(ctx context.Context, from, to pla
 	return out, nil
 }
 
-// wallClock restores the normalized wall clock from the public
+// planExportWallClock restores the normalized wall clock from the public
 // Workforce ClockLayout string.
-func wallClock(value string) time.Time {
+func planExportWallClock(value string) time.Time {
 	parsed, _ := time.Parse(workforce.ClockLayout, value)
 	return calendar.NormalizeWallClock(parsed)
 }
 
-type shiftTypeBinding struct {
-	source ShiftTypeReader
+type planExportShiftTypes struct {
+	source planExportShiftTypeReader
 }
 
-func (a shiftTypeBinding) ListShiftTypes(ctx context.Context) ([]*planexport.ShiftType, error) {
+func (a planExportShiftTypes) ListShiftTypes(ctx context.Context) ([]*planexport.ShiftType, error) {
 	types, err := a.source.ListShiftTypes(ctx)
 	if err != nil {
 		return nil, err
@@ -188,12 +192,12 @@ func (a shiftTypeBinding) ListShiftTypes(ctx context.Context) ([]*planexport.Shi
 	return out, nil
 }
 
-type instanceBinding struct {
-	source InstanceReader
+type planExportInstances struct {
+	source planExportInstanceReader
 }
 
-func (a instanceBinding) InstancesInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.Instance, error) {
-	start, end, err := parseRange(from, to)
+func (a planExportInstances) InstancesInRange(ctx context.Context, from, to planexport.Date) ([]*planexport.Instance, error) {
+	start, end, err := planExportRange(from, to)
 	if err != nil {
 		return nil, err
 	}
@@ -224,11 +228,11 @@ func (a instanceBinding) InstancesInRange(ctx context.Context, from, to planexpo
 	return out, nil
 }
 
-type instanceStaffBinding struct {
-	source InstanceStaffReader
+type planExportInstanceStaff struct {
+	source planExportInstanceStaffReader
 }
 
-func (a instanceStaffBinding) InstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*planexport.InstanceStaff, error) {
+func (a planExportInstanceStaff) InstanceStaffByInstanceIDs(ctx context.Context, instanceIDs []int64) ([]*planexport.InstanceStaff, error) {
 	rows, err := a.source.FindByInstanceIDs(ctx, instanceIDs)
 	if err != nil {
 		return nil, err
@@ -249,11 +253,11 @@ func (a instanceStaffBinding) InstanceStaffByInstanceIDs(ctx context.Context, in
 	return out, nil
 }
 
-type roomBinding struct {
-	source RoomReader
+type planExportRooms struct {
+	source planExportRoomReader
 }
 
-func (a roomBinding) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport.Room, error) {
+func (a planExportRooms) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport.Room, error) {
 	rooms, err := a.source.ListRoomsByID(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -265,11 +269,11 @@ func (a roomBinding) RoomsByIDs(ctx context.Context, ids []int64) ([]*planexport
 	return out, nil
 }
 
-type activityGroupBinding struct {
-	source ActivityGroupReader
+type planExportActivityGroups struct {
+	source planExportActivityGroupReader
 }
 
-func (a activityGroupBinding) ActivityGroupsByIDs(ctx context.Context, ids []int64) ([]*planexport.ActivityGroup, error) {
+func (a planExportActivityGroups) ActivityGroupsByIDs(ctx context.Context, ids []int64) ([]*planexport.ActivityGroup, error) {
 	groups, err := a.source.FindByIDs(ctx, ids)
 	if err != nil {
 		return nil, err
@@ -284,11 +288,11 @@ func (a activityGroupBinding) ActivityGroupsByIDs(ctx context.Context, ids []int
 	return out, nil
 }
 
-type planningTrackBinding struct {
-	source PlanningTrackReader
+type planExportPlanningTracks struct {
+	source planExportPlanningTrackReader
 }
 
-func (a planningTrackBinding) ListPlanningTracks(ctx context.Context) ([]*planexport.PlanningTrack, error) {
+func (a planExportPlanningTracks) ListPlanningTracks(ctx context.Context) ([]*planexport.PlanningTrack, error) {
 	tracks, err := a.source.ListPlanningTracks(ctx, timetable.PlanningTrackFilter{Ordered: true})
 	if err != nil {
 		return nil, err

@@ -7,9 +7,8 @@ import (
 	"fmt"
 	"slices"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	auditModel "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
@@ -40,9 +39,16 @@ type CareOfferingDirectory interface {
 	ListCareOfferings(context.Context) ([]CareOfferingProjection, error)
 }
 
+// approvedBookingOfferingLinkColumns is the jsonb_to_recordset column list
+// that matches the JSON encoding of auditlog.ApprovedBookingOfferingLink.
+const approvedBookingOfferingLinkColumns = `id bigint, tenant_id bigint, request_child_id bigint, care_offering_id bigint,
+ selected_days jsonb, valid_from date, valid_until date`
+
+// EnrollmentQueries supplies the approved bookings and their offering links
+// in the audit's own vocabulary; the root binds it to Enrollment (#4072).
 type EnrollmentQueries interface {
-	ApprovedBookings(context.Context) ([]enrollment.ApprovedBooking, error)
-	ApprovedBookingOfferingLinks(context.Context) ([]enrollment.CareOfferingLink, error)
+	ApprovedBookings(context.Context) ([]auditlog.ApprovedBooking, error)
+	ApprovedBookingOfferingLinks(context.Context) ([]auditlog.ApprovedBookingOfferingLink, error)
 }
 
 func NewBookingConsistencyRepository(runtime Runtime, enrollment EnrollmentQueries) auditModel.BookingConsistencyRepository {
@@ -126,7 +132,7 @@ WITH params AS (
   service_start_date date, service_end_date date, care_offering_selection_mode text
  )
 ), offering_links AS (
- SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(`+enrollment.CareOfferingLinkRecordColumns+`)
+ SELECT * FROM jsonb_to_recordset(?::jsonb) AS link(`+approvedBookingOfferingLinkColumns+`)
 ), audit_dates AS (
 	SELECT (params.audit_date + day_offset.day)::date AS date
 	FROM params
@@ -287,7 +293,7 @@ func (r *bookingConsistencyRepository) careOfferingProjection(ctx context.Contex
 // approvedAlumniStudentIDs names the graduates among the tenant's approved
 // request children. The ids come from the Enrollment projection; the
 // lifecycle status comes from the People Directory.
-func (r *bookingConsistencyRepository) approvedAlumniStudentIDs(ctx context.Context, bookings []enrollment.ApprovedBooking) ([]int64, error) {
+func (r *bookingConsistencyRepository) approvedAlumniStudentIDs(ctx context.Context, bookings []auditlog.ApprovedBooking) ([]int64, error) {
 	if r.students == nil {
 		return nil, errStudentDirectoryRequired
 	}

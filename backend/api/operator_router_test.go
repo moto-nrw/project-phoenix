@@ -106,22 +106,46 @@ func TestRouter(t *testing.T) {
 	})
 
 	t.Run("settings routes are mounted when SchoolSettings is provided", func(t *testing.T) {
-		schoolSettings := settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{Settings: stubSchoolSettings{}})
+		schoolSettings := &operatorSchoolSettings{
+			values: settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
+				Settings:   stubSchoolSettings{},
+				OperatorID: func(context.Context) int64 { return 0 },
+			}),
+			bookingAuthorityImpact: http.NotFoundHandler(),
+		}
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
 			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{})
 		require.NotNil(t, router)
 
 		// Walk the route tree and assert the settings subroute exists under /schools.
 		found := false
+		bookingAuthority := false
 		err := chiWalk(router, func(pattern string) {
 			if pattern == "/schools/{id}/settings/schema" ||
 				pattern == "/schools/{id}/settings/values/{key}" ||
 				pattern == "/schools/{id}/settings/values/{key}/reveal" {
 				found = true
 			}
+			if pattern == "/schools/{id}/settings/booking-authority-impact" {
+				bookingAuthority = true
+			}
 		})
 		require.NoError(t, err)
 		assert.True(t, found, "expected /schools/{id}/settings/* routes to be mounted when SchoolSettings is provided")
+		assert.True(t, bookingAuthority, "expected Care Plan's booking authority review below the school settings")
+	})
+
+	t.Run("school settings require Care Plan's booking authority review", func(t *testing.T) {
+		schoolSettings := &operatorSchoolSettings{
+			values: settingsoperator.NewSettingsResource(settingsoperator.SettingsConfig{
+				Settings:   stubSchoolSettings{},
+				OperatorID: func(context.Context) int64 { return 0 },
+			}),
+		}
+		assert.Panics(t, func() {
+			operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
+				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{})
+		})
 	})
 
 	t.Run("settings routes are NOT mounted when SchoolSettings is nil", func(t *testing.T) {

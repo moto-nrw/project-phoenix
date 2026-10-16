@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	configSvc "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -17,7 +16,7 @@ import (
 )
 
 // OperatorDependencies are what the operator's school settings need from
-// the root. Notify, OpenAttendance and CareLifecycle are optional.
+// the root. Notify and OpenAttendance are optional.
 type OperatorDependencies struct {
 	Settings configSvc.SettingsService
 	// DB opens the school's tenant transaction.
@@ -27,8 +26,6 @@ type OperatorDependencies struct {
 	Notify configSvc.SettingsChangedNotifier
 	// OpenAttendance feeds the presence-mode switch guard. Nil disables it.
 	OpenAttendance configSvc.OpenAttendanceChecker
-	// CareLifecycle previews the booking authority impact.
-	CareLifecycle careplan.BookingAuthority
 	// OnValueSet runs a write's side effects inside the tenant transaction;
 	// the closure it returns runs only after a successful commit.
 	OnValueSet configSvc.OperatorValueSetHook
@@ -53,17 +50,15 @@ func NewOperatorSchoolSettings(deps OperatorDependencies) settings.OperatorSchoo
 			deps.OpenAttendance,
 			logger,
 		),
-		careLifecycle: deps.CareLifecycle,
-		onValueSet:    deps.OnValueSet,
+		onValueSet: deps.OnValueSet,
 	}
 }
 
 type operatorSchoolSettings struct {
-	settings      configSvc.SettingsService
-	runtime       operatorSettingsRuntime
-	writes        configSvc.OperatorSettingsService
-	careLifecycle careplan.BookingAuthority
-	onValueSet    configSvc.OperatorValueSetHook
+	settings   configSvc.SettingsService
+	runtime    operatorSettingsRuntime
+	writes     configSvc.OperatorSettingsService
+	onValueSet configSvc.OperatorValueSetHook
 }
 
 func (s *operatorSchoolSettings) CheckOperatorWritable(key string) error {
@@ -100,22 +95,6 @@ func (s *operatorSchoolSettings) SetValue(ctx context.Context, schoolID int64, k
 
 func (s *operatorSchoolSettings) ResetValue(ctx context.Context, schoolID int64, key string, changedBy int64) error {
 	return s.writes.ResetValue(ctx, schoolID, key, changedBy, s.onValueSet)
-}
-
-// BookingAuthorityImpact is a preview only: the write path evaluates the
-// impact again under the booking-write lock, so a stale preview cannot
-// bypass the guard.
-func (s *operatorSchoolSettings) BookingAuthorityImpact(ctx context.Context, schoolID int64) (*careplan.BookingAuthorityImpact, error) {
-	if s.careLifecycle == nil {
-		return nil, settings.ErrBookingAuthorityImpactUnavailable
-	}
-	var impact *careplan.BookingAuthorityImpact
-	err := s.runtime.WithinTenant(ctx, schoolID, func(ctx context.Context) error {
-		var impactErr error
-		impact, impactErr = s.careLifecycle.PreviewBookingAuthorityImpact(ctx, timezone.TodayDate())
-		return impactErr
-	})
-	return impact, err
 }
 
 type operatorSettingsRuntime struct{ db *bun.DB }

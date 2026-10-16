@@ -73,6 +73,14 @@ func operatorIdentityResponses() identityOperatorAPI.Responses {
 	return identityOperatorAPI.OperatorResponses(provisioningOperatorAPI.ProvisioningErrorRenderer)
 }
 
+// operatorSchoolSettings are the per-school settings routes: Settings
+// Platform's values and Care Plan's review before a school switches to
+// booking-led care (#4072). Both are required.
+type operatorSchoolSettings struct {
+	values                 *settingsOperatorAPI.SettingsResource
+	bookingAuthorityImpact http.Handler
+}
+
 // operatorRouter builds the operator routes. billing (#2791) and
 // schoolSettings (#2736) are optional: without them their routes are not
 // mounted. unregisteredTagScans is the optional Device Fleet review of
@@ -83,7 +91,7 @@ func operatorRouter(
 	identity operatorIdentity,
 	provisioning provisioningOperatorAPI.ProvisioningConfig,
 	billing *provisioningOperatorAPI.BillingResource,
-	schoolSettings *settingsOperatorAPI.SettingsResource,
+	schoolSettings *operatorSchoolSettings,
 	announcements communicationModule.Capability,
 	unregisteredTagScans http.Handler,
 	limiters authRateLimiters,
@@ -93,6 +101,9 @@ func operatorRouter(
 	// missing configuration.
 	if !identity.sessions.Configured() {
 		panic("operator api: the operator session chains are required to mount the operator routes")
+	}
+	if schoolSettings != nil && (schoolSettings.values == nil || schoolSettings.bookingAuthorityImpact == nil) {
+		panic("operator api: the school settings routes need Settings Platform's values and Care Plan's booking authority review")
 	}
 	identityRoutes := identity.routes()
 	provisioningRoutes := provisioningOperatorAPI.NewProvisioningResource(provisioning)
@@ -276,7 +287,7 @@ func mountOperatorSchoolRoutes(
 	r chi.Router,
 	provisioning *provisioningOperatorAPI.ProvisioningResource,
 	mfaAdmin *identityOperatorAPI.SchoolAccountMFAResource,
-	schoolSettings *settingsOperatorAPI.SettingsResource,
+	schoolSettings *operatorSchoolSettings,
 ) {
 	r.Route("/schools", func(r chi.Router) {
 		r.Get("/", provisioning.ListSchools)
@@ -305,12 +316,13 @@ func mountOperatorSchoolRoutes(
 		r.Get("/{id}/persons", provisioning.ListSchoolPersons)
 		r.Get("/{id}/pwa-usage", provisioning.GetSchoolPWAUsage)
 		if schoolSettings != nil {
+			values := schoolSettings.values
 			r.Route("/{id}/settings", func(r chi.Router) {
-				r.Get("/schema", schoolSettings.GetSchoolSettingsSchema)
-				r.Get("/booking-authority-impact", schoolSettings.GetBookingAuthorityImpact)
-				r.Get("/values/{key}/reveal", schoolSettings.RevealSchoolSettingValue)
-				r.Put("/values/{key}", schoolSettings.SetSchoolSettingValue)
-				r.Delete("/values/{key}", schoolSettings.ResetSchoolSettingValue)
+				r.Get("/schema", values.GetSchoolSettingsSchema)
+				r.Method(http.MethodGet, "/booking-authority-impact", schoolSettings.bookingAuthorityImpact)
+				r.Get("/values/{key}/reveal", values.RevealSchoolSettingValue)
+				r.Put("/values/{key}", values.SetSchoolSettingValue)
+				r.Delete("/values/{key}", values.ResetSchoolSettingValue)
 			})
 		}
 	})

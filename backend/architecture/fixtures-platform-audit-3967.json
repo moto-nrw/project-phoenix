@@ -42,7 +42,7 @@
       "backend/test/fixtures_platform.go",
       "backend/test/helpers.go",
       "backend/test/booking_consistency_audit_fixture.go",
-      "backend/database/repositories/audit/integration/booking_consistency_test.go"
+      "backend/api/booking_consistency_audit_test.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength, and the architecture check reports no new violation and no stale baseline entry.",

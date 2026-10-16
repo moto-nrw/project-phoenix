@@ -5,12 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/stretchr/testify/require"
 )
 
 // TestStaffScheduleOverview_LeavesExternalCaregiversOut pins #3823: an

@@ -10,14 +10,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 type seriesTestEnv struct {

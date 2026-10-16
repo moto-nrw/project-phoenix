@@ -8,9 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
@@ -18,6 +15,8 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
 	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // planSyncEnv composes the workflow against the real owners in a real

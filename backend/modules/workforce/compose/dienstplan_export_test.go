@@ -6,9 +6,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/require"
-	"github.com/uptrace/bun"
-
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -18,6 +15,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/services/listexport"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // The Dienstplan export over the Workforce staff schedule overview (#2706).
@@ -44,8 +43,8 @@ func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workfor
 }
 
 // dienstplanExport renders the Dienstplan over the overview. The overview
-// binding mirrors the root's (modules/planexport/compose, whose unit tests
-// pin every field); this role may not import that package.
+// binding mirrors the root's (api/plan_export.go, whose unit tests pin every
+// field); this role may not import the root.
 func dienstplanExport(overview workforce.StaffScheduleOverviewQuery, renderer planexport.Renderer) planexport.Service {
 	return planexport.NewService(planexport.Dependencies{Overview: overviewRecords{query: overview}, Renderer: renderer}, nil)
 }

@@ -7,14 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // unificationDayCalendar is the School Calendar with the statutory holidays

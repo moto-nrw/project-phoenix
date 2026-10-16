@@ -832,3 +832,15 @@ func (fakeRowNotFoundError) Error() string { return "record not found" }
 
 // RepositoryNotFound marks the repository not-found sentinel.
 func (fakeRowNotFoundError) RepositoryNotFound() {}
+
+// TestAbsenceStatusesAreDeliveryStatuses pins the status-day values this
+// route hands to Delivery's absence notification against the statuses
+// Delivery announces. Delivery declares them itself and names no Care Plan
+// package (#4072); a rename on either side would silently stop the
+// notification.
+func TestAbsenceStatusesAreDeliveryStatuses(t *testing.T) {
+	t.Parallel()
+
+	assert.Equal(t, absencerecords.StudentStatusDaySick, notificationsService.AbsenceStatusSick)
+	assert.Equal(t, absencerecords.StudentStatusDayExcused, notificationsService.AbsenceStatusExcused)
+}

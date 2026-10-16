@@ -7,8 +7,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	userModel "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
 // StaffRecipientRequest describes a child-related staff notification. The
@@ -36,12 +34,30 @@ type StaffRecipientResolver interface {
 
 type staffRecipientResolver struct {
 	preferences  PreferenceService
-	students     studentReadScopes
+	students     StudentGroups
 	groups       GroupSupervisors
-	staff        staffAccounts
+	staff        staffAccountReader
 	accounts     authAccountReader
 	settings     settingsBoolReader
-	workSessions dutyReader
+	workSessions OnDutyStaff
+}
+
+// StudentGroups names the education group of each child that has one; a
+// child without a group is missing from the result. The root binds it to
+// People Directory (#4072).
+type StudentGroups interface {
+	StudentGroupIDs(ctx context.Context, studentIDs []int64) (map[int64]int64, error)
+}
+
+// OnDutyStaff names the staff members on duty today. Which work status
+// counts as on duty is Workforce's rule; the root binds it (#4072).
+type OnDutyStaff interface {
+	OnDutyStaffIDs(ctx context.Context) ([]int64, error)
+}
+
+// staffAccountReader maps staff members to their accounts.
+type staffAccountReader interface {
+	ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
 }
 
 // GroupSupervisors answers who supervises the given education groups on a
@@ -57,16 +73,6 @@ type StaffGroupPair struct {
 	GroupID int64
 }
 
-// studentReadScopes is the slice of the student repository this resolver needs.
-type studentReadScopes interface {
-	FindReadScopeByIDs(ctx context.Context, ids []int64) (map[int64]*userModel.Student, error)
-}
-
-// staffAccounts is the slice of the staff repository this resolver needs.
-type staffAccounts interface {
-	ListAccountIDsByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]int64, error)
-}
-
 // authAccountReader is the slice of the account repository this resolver needs.
 type authAccountReader interface {
 	ListEffectiveAdminAccountIDs(ctx context.Context) ([]int64, error)
@@ -76,20 +82,16 @@ type settingsBoolReader interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 }
 
-type dutyReader interface {
-	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
-}
-
 // NewStaffRecipientResolver builds the shared responsibility resolver used by
 // personal staff notifications about children.
 func NewStaffRecipientResolver(
 	preferences PreferenceService,
-	students studentReadScopes,
+	students StudentGroups,
 	groups GroupSupervisors,
-	staff staffAccounts,
+	staff staffAccountReader,
 	accounts authAccountReader,
 	settings settingsBoolReader,
-	workSessions dutyReader,
+	workSessions OnDutyStaff,
 ) StaffRecipientResolver {
 	return &staffRecipientResolver{
 		preferences:  preferences,
@@ -208,15 +210,9 @@ func (r *staffRecipientResolver) filterOnDutyAccounts(ctx context.Context, accou
 }
 
 func (r *staffRecipientResolver) onDutyAccountIDs(ctx context.Context) (map[int64]struct{}, error) {
-	presence, err := r.workSessions.GetTodayPresenceMap(ctx)
+	onDutyStaffIDs, err := r.workSessions.OnDutyStaffIDs(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("load staff presence: %w", err)
-	}
-	onDutyStaffIDs := make([]int64, 0, len(presence))
-	for staffID, status := range presence {
-		if status == workforce.WorkSessionStatusPresent || status == workforce.WorkSessionStatusHomeOffice {
-			onDutyStaffIDs = append(onDutyStaffIDs, staffID)
-		}
 	}
 	if len(onDutyStaffIDs) == 0 {
 		return map[int64]struct{}{}, nil
@@ -238,24 +234,24 @@ func (r *staffRecipientResolver) onDutyAccountIDs(ctx context.Context) (map[int6
 // group; flattening this relation would leak the total submission size across
 // group boundaries.
 func (r *staffRecipientResolver) studentIDsByGroup(ctx context.Context, studentIDs []int64) (map[int64][]int64, []int64, error) {
-	students, err := r.students.FindReadScopeByIDs(ctx, studentIDs)
+	groupOf, err := r.students.StudentGroupIDs(ctx, studentIDs)
 	if err != nil {
 		return nil, nil, fmt.Errorf("load reported students: %w", err)
 	}
 	studentsByGroup := make(map[int64][]int64)
-	seen := make(map[int64]struct{}, len(students))
-	groupIDs := make([]int64, 0, len(students))
+	seen := make(map[int64]struct{}, len(groupOf))
+	groupIDs := make([]int64, 0, len(groupOf))
 	for _, studentID := range studentIDs {
-		student := students[studentID]
-		if student == nil || student.GroupID == nil {
+		groupID, ok := groupOf[studentID]
+		if !ok {
 			continue
 		}
-		studentsByGroup[*student.GroupID] = append(studentsByGroup[*student.GroupID], studentID)
-		if _, dup := seen[*student.GroupID]; dup {
+		studentsByGroup[groupID] = append(studentsByGroup[groupID], studentID)
+		if _, dup := seen[groupID]; dup {
 			continue
 		}
-		seen[*student.GroupID] = struct{}{}
-		groupIDs = append(groupIDs, *student.GroupID)
+		seen[groupID] = struct{}{}
+		groupIDs = append(groupIDs, groupID)
 	}
 	return studentsByGroup, groupIDs, nil
 }

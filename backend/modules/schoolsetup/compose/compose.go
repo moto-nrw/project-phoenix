@@ -31,7 +31,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 	if deps.Settings == nil {
 		return nil, errors.New("school setup compose: settings are required")
 	}
-	store := configRepo.NewSchoolSetupRepository(ambientRuntime{})
+	store := configRepo.NewSchoolSetupRepository[schoolsetup.State](ambientRuntime{})
 	projection := schoolsetupview.New(ambientTx)
 	return application.New(store, progress{projection: projection}, settings{deps.Settings}, time.Now)
 }
@@ -40,7 +40,7 @@ func New(deps Dependencies) (schoolsetup.Service, error) {
 // person's own progress and the same progress projection, which says whether
 // the school has a group or a child yet.
 func NewStaffOnboarding() (schoolsetup.StaffOnboardingService, error) {
-	store := configRepo.NewStaffOnboardingRepository(ambientRuntime{})
+	store := configRepo.NewStaffOnboardingRepository[schoolsetup.StaffState](ambientRuntime{})
 	projection := schoolsetupview.New(ambientTx)
 	return application.NewStaffOnboarding(store, progress{projection: projection}, time.Now)
 }
