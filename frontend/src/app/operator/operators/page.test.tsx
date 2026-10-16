@@ -58,16 +58,18 @@ vi.mock("~/components/ui/modal", () => ({
     onClose,
     onConfirm,
     children,
+    isConfirmLoading = false,
   }: {
     isOpen: boolean;
     onClose: () => void;
     onConfirm: () => void;
     children: React.ReactNode;
+    isConfirmLoading?: boolean;
   }) =>
     isOpen ? (
       <div data-testid="confirmation-modal">
         {children}
-        <button type="button" onClick={onConfirm}>
+        <button type="button" onClick={onConfirm} disabled={isConfirmLoading}>
           Confirm
         </button>
         <button type="button" onClick={onClose}>
@@ -436,6 +438,31 @@ describe("OperatorOperatorsPage", () => {
       await screen.findByText("Colleague User wurde deaktiviert."),
     ).toBeInTheDocument();
     expect(mockMutate).toHaveBeenCalled();
+  });
+
+  it("disables the deactivation confirmation while the request runs", async () => {
+    setupSWR(sampleData);
+    let complete!: () => void;
+    mockDeactivateOperator.mockImplementation(
+      () =>
+        new Promise<void>((resolve) => {
+          complete = resolve;
+        }),
+    );
+    render(<OperatorOperatorsPage />);
+
+    openActions("Colleague User");
+    fireEvent.click(screen.getByRole("menuitem", { name: "Deaktivieren" }));
+    fireEvent.click(screen.getByText("Confirm"));
+
+    await waitFor(() =>
+      expect(mockDeactivateOperator).toHaveBeenCalledWith("4"),
+    );
+    expect(screen.getByText("Confirm")).toBeDisabled();
+    fireEvent.click(screen.getByText("Confirm"));
+    expect(mockDeactivateOperator).toHaveBeenCalledOnce();
+
+    complete();
   });
 
   it("keeps a failed deactivation inside the confirmation", async () => {

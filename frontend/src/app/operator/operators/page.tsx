@@ -529,6 +529,8 @@ function OperatorsList({
         title="Konto deaktivieren"
         confirmText="Deaktivieren"
         confirmVariant="danger"
+        isConfirmLoading={actionLoading === deactivateTarget?.id}
+        isConfirmDisabled={actionLoading === deactivateTarget?.id}
       >
         <p>
           Möchtest du das Konto von{" "}
