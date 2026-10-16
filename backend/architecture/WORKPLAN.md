@@ -45,6 +45,12 @@ trägt den Mount. Inbound-Owner 33 → 32, Regeln 951 → 950; Keys und Budgets 
 ersetzen vier Capability-/Berechtigungsregeln; die stehende Root-Regel ersetzt beide
 Mount-Regeln. Inbound-Owner 32 → 30, Regeln 950 → 946; Keys und Budgets unverändert.
 
+#4078: `modules/facilities/http/rooms` gehört zu `facilities`; `inbound-rooms` entfällt.
+Die gleich enge Eigen-HTTP-Regel ersetzt die eine bisherige Capability-Regel. Der Import
+von `facilities/compose/httpadapter` bleibt als exakter #4004-Key bestehen: Die stehende
+Policy erlaubt der Komposition keine HTTP-Rolle. Inbound-Owner 30 → 29, Regeln 946 → 946;
+Keys und Budgets unverändert.
+
 ## Konsolidierung · [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069)
 
 Entscheidungen vom 15.10.2026 nach dem Architektur-Audit: Nur das Ziel ist eine Regel (ADR 0057), der
