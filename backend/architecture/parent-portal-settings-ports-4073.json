@@ -25,14 +25,14 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/services/config",
     "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal|github.com/moto-nrw/project-phoenix/services/config"
   ],
-  "atomic_cutover": "SettingsService, SettingsSnapshot and BatchSettingsService are consumer-owned. Root BindParentSettings adapts the optional owner batch method, preserves its context, tenant, requested keys, errors and nil snapshots, and delegates the same transaction lock/fresh reads. RequestReasonPolicy.RequiresReason moves the unchanged policy function and its full staff/guardian/unknown-value test table from Settings into the workflow. Six services/config keys fall: 303 -> 297, #4073 54 -> 48; rules 936 -> 936, composition 1720 -> 1720, portal compose budget 508 -> 507 and total 89859 -> 89858. No new grants or package moves. The workflow no longer imports services/config in any scope; the old production helper and its test file are moved, not left reachable only from tests.",
+  "atomic_cutover": "SettingsService, SettingsSnapshot and BatchSettingsService are consumer-owned. Root BindParentSettings adapts the optional owner batch method, preserves its context, tenant, requested keys, errors and nil snapshots, and delegates the same transaction lock/fresh reads. RequestReasonPolicy.RequiresReason moves the unchanged policy function and its full staff/guardian/unknown-value test table from Settings into the workflow. Six services/config keys fall: 302 -> 296, #4073 54 -> 48; rules 934 -> 934, composition 1720 -> 1720, portal compose budget 508 -> 507 and total 89859 -> 89858. No new grants or package moves. The workflow no longer imports services/config in any scope; the old production helper and its test file are moved, not left reachable only from tests.",
   "tests": [
-    "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref 25a42e0bd9fd7e3aad4b02ed28fc90b58560e75f.",
+    "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref be8d4c1b42ded3ae7c25ce370226fd4f8bcfc923.",
     "Pinned Go targeted workflow feature/reason/pickup tests and TestParentSettingsBindingPreservesBatchResults passed; complete non-fast scripts/test-changed.sh origin/development passed 66 packages on the integrated base, including portal/care and API/router golden. Existing assertions and fixture timeouts are unchanged.",
     "The moved reason-policy table retains every assertion for staff and guardian sides, including empty and unknown values. scripts/check-deadcode.sh passes production, test and architecture-command modes after moving the old Settings helper."
   ],
   "runtime_evidence": {
-    "source": "Local test verification of the settings-port and parent-request-policy cut, integrated with development 25a42e0bd9fd7e3aad4b02ed28fc90b58560e75f; no production sample or latency benchmark.",
+    "source": "Local test verification of the settings-port and parent-request-policy cut, integrated with development be8d4c1b42ded3ae7c25ce370226fd4f8bcfc923; no production sample or latency benchmark.",
     "sources": [
       "backend/api/parent_portal_settings_ports.go",
       "backend/api/parent_portal_settings_ports_test.go",
