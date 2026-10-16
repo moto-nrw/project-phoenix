@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -6,7 +8,6 @@ import (
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 )
 
-// TeacherGroupRecords supplies the existing assignment query at composition.
 type TeacherGroupRecords interface {
 	GetTeacherGroups(context.Context, int64) ([]*education.Group, error)
 }
