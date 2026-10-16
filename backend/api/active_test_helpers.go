@@ -22,6 +22,7 @@ import (
 	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
@@ -46,7 +47,7 @@ type ActiveTestModule struct {
 	ArrivalSchedule     careplan.ArrivalScheduleService
 	TimetableOperations timetable.OperationCapability
 	CareDay             careplan.CareDayQuery
-	Instance            *arrivalTimetable.InstanceLifecycleService
+	Instance            timetablePorts.InstanceLifecycle
 	// Deviations are the Timetable owner's deviation writes over the same
 	// repositories (#3424 slice S3).
 	Deviations           timetable.StaffDeviations

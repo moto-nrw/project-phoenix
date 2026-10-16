@@ -22,6 +22,7 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -108,7 +109,7 @@ type CareOfferingCatalogSources struct {
 // booking materialization is composed over.
 type BookingMaterializationSources struct {
 	Catalog                  careplan.CareOfferingCatalogCapability
-	Rosters                  *arrivalTimetable.RosterReconciler
+	Rosters                  timetablePorts.RosterReconciler
 	Enrollment               *enrollmentOwner.BookingProjection
 	Approved                 *enrollmentCompose.ApprovedOfferingProjection
 	Settings                 settingsCompose.SettingsService

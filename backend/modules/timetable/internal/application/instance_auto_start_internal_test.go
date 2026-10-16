@@ -11,6 +11,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -259,7 +260,7 @@ func (r *autoStartInstanceRepo) FindByTenantAndDate(context.Context, scheduleMod
 // autoStartRoomRepo names the rooms of the batch; a room without a
 // configured name is a "Lernraum".
 type autoStartRoomRepo struct {
-	LifecycleRooms
+	ports.LifecycleRooms
 	rooms map[int64]string
 	err   error
 }

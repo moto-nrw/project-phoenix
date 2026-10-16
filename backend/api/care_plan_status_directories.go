@@ -8,6 +8,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 type statusStudentDirectory struct {
@@ -56,10 +57,10 @@ func statusStudents(values []peopledirectory.Student) []carePlanCompose.StatusSt
 }
 
 type statusSlotDirectory struct {
-	slots timetableCompose.InstanceStatusSlots
+	slots timetablePorts.InstanceStatusSlots
 }
 
-func CarePlanStatusSlots(repository timetableCompose.StatusSlotRows) carePlanCompose.StatusSlotDirectory {
+func CarePlanStatusSlots(repository timetablePorts.StatusSlotRows) carePlanCompose.StatusSlotDirectory {
 	if repository == nil {
 		return nil
 	}

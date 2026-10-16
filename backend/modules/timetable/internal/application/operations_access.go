@@ -7,6 +7,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -92,7 +93,7 @@ func (s *operations) overviewPastReaches(inst *scheduleModels.ActivityInstance) 
 // school scope setting (#3180, #3622). all_staff adds every verified staff
 // member to requireCanOperate's people for that one action; starting adds
 // no supervisor.
-func (s *operations) requireScopedAction(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, action ScopedAction) (int64, error) {
+func (s *operations) requireScopedAction(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, action ports.ScopedAction) (int64, error) {
 	schoolWide, err := s.schoolWideScope(ctx, accountID, isAdmin, action)
 	if err != nil {
 		return 0, err
@@ -116,8 +117,8 @@ func (s *operations) requireScopedAction(ctx context.Context, accountID int64, i
 // scopeAdmits names the blocks a school-wide scope reaches: attendance and
 // ends reach running sessions, a start today's planned blocks that have not
 // expired into the read-only past overview.
-func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.ActivityInstance) bool {
-	if action == ScopedBlockStart {
+func (s *operations) scopeAdmits(action ports.ScopedAction, inst *scheduleModels.ActivityInstance) bool {
+	if action == ports.ScopedBlockStart {
 		now := s.now().In(calendar.Berlin)
 		return inst.Status == scheduleModels.InstanceStatusPlanned &&
 			calendar.Date(inst.Date) == calendar.DateFromTime(now) &&
@@ -130,7 +131,7 @@ func (s *operations) scopeAdmits(action ScopedAction, inst *scheduleModels.Activ
 // setting: its all_staff value counts only with the all_staff overview, so
 // nobody acts on a block they cannot see. Portals keep their assignment
 // boundary and admins their own rights.
-func (s *operations) schoolWideScope(ctx context.Context, accountID int64, isAdmin bool, action ScopedAction) (bool, error) {
+func (s *operations) schoolWideScope(ctx context.Context, accountID int64, isAdmin bool, action ports.ScopedAction) (bool, error) {
 	if s.isAssignmentBoundPortal(ctx) || s.hasAdministrativeActionAccess(ctx, isAdmin) || !s.isOGSActorToken(ctx, accountID) {
 		return false, nil
 	}

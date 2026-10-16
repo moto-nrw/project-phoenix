@@ -10,6 +10,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -28,7 +29,7 @@ func (s *operations) CheckInStudents(ctx context.Context, accountID int64, isAdm
 }
 
 func (s *operations) checkInStudents(ctx context.Context, accountID int64, isAdmin bool, instanceID int64, studentIDs []int64) (*timetable.OperationRoster, error) {
-	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedAttendance)
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +214,7 @@ func (s *operations) CheckOutStudent(ctx context.Context, accountID int64, isAdm
 }
 
 func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdmin bool, instanceID, studentID int64) (*timetable.OperationRoster, error) {
-	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ScopedAttendance)
+	staffID, err := s.requireScopedAction(ctx, accountID, isAdmin, instanceID, ports.ScopedAttendance)
 	if err != nil {
 		return nil, err
 	}

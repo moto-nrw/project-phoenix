@@ -9,6 +9,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 
 	"github.com/uptrace/bun"
 )
@@ -188,7 +189,7 @@ var RootCompositions struct {
 	OfferingSources func(t *testing.T, db *bun.DB) (timetableModule.OfferingSourceSupport, error)
 	// StaffAccountPeople is the operations' person port for an acting account
 	// that is this person and staff member.
-	StaffAccountPeople func(personID, staffID int64) timetableCompose.OperationPeople
+	StaffAccountPeople func(personID, staffID int64) timetablePorts.OperationPeople
 	// ErrCareOfferingInvalid is what Care Plan's care-offering checks return
 	// for an offering a template change would invalidate.
 	ErrCareOfferingInvalid error

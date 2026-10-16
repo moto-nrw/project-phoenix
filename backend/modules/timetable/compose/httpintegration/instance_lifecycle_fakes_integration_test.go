@@ -13,6 +13,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -30,7 +31,7 @@ import (
 
 // newFakeLifecycle composes the lifecycle over the given doubles; every
 // collaborator the transition under test does not reach is an unused stub.
-func newFakeLifecycle(t *testing.T, deps compose.InstanceLifecycleDependencies) *compose.InstanceLifecycleService {
+func newFakeLifecycle(t *testing.T, deps timetablePorts.InstanceLifecycleDependencies) timetablePorts.InstanceLifecycle {
 	t.Helper()
 	deps.IdempotencyRepo = struct {
 		scheduleModels.InstanceIdempotencyRepository
@@ -41,11 +42,13 @@ func newFakeLifecycle(t *testing.T, deps compose.InstanceLifecycleDependencies) 
 	deps.CalendarPeriodRepo = struct {
 		scheduleModels.CalendarPeriodRepository
 	}{}
-	deps.StaffRepo = struct{ compose.LifecycleStaff }{}
-	deps.ActiveService = struct{ compose.SessionEnder }{}
-	deps.CareDays = struct{ compose.CareDays }{}
-	deps.CareDayLocks = struct{ compose.CareDayLocks }{}
-	deps.Protocol = struct{ compose.DeviationProtocol }{}
+	deps.StaffRepo = struct{ timetablePorts.LifecycleStaff }{}
+	deps.ActiveService = struct{ timetablePorts.SessionEnder }{}
+	deps.CareDays = struct{ timetablePorts.CareDays }{}
+	deps.CareDayLocks = struct{ timetablePorts.CareDayLocks }{}
+	deps.Protocol = struct {
+		timetablePorts.DeviationProtocol
+	}{}
 	deps.Materialization = struct {
 		timetable.MaterializationCapability
 	}{}
@@ -97,7 +100,7 @@ func (fakeNoInstanceStaff) FindByInstanceID(context.Context, int64) ([]*schedule
 
 // fakeLockableRoom is an existing room of unlimited capacity.
 type fakeLockableRoom struct {
-	compose.LifecycleRooms
+	timetablePorts.LifecycleRooms
 }
 
 func (fakeLockableRoom) LockRoom(context.Context, int64) (*int, bool, error) {
@@ -191,7 +194,7 @@ func (r *absorbSupervisorRepo) FindByActiveGroupID(_ context.Context, groupID in
 }
 
 type absorbVisitRepo struct {
-	compose.LifecyclePresence
+	timetablePorts.LifecyclePresence
 	visits    []studentpresence.Visit
 	transfers [][2]int64
 	endedIDs  []int64
@@ -310,7 +313,7 @@ func TestInstanceStart_DoesNotAbsorbGroupMovedAfterCandidateLookup(t *testing.T)
 		lockedGroups: map[int64]*studentpresence.LiveGroup{candidate.ID: &locked},
 	}
 	visitRepo := &absorbVisitRepo{}
-	svc := newFakeLifecycle(t, compose.InstanceLifecycleDependencies{
+	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
 		InstanceRepo:     &absorbInstanceRepo{planned: absorbPlannedInstance(9, 42)},
 		InstanceStudents: &absorbInstanceStudentRepo{},
 		ActiveGroupRepo:  groupRepo,
@@ -385,7 +388,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 	systemActivity := &activitiesModels.Group{IsSystem: true}
 	systemActivity.ID = systemActivityID
 
-	svc := newFakeLifecycle(t, compose.InstanceLifecycleDependencies{
+	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStudents:  instanceStudents,
 		ActiveGroupRepo:   groupRepo,
@@ -424,7 +427,7 @@ func TestInstanceStart_AbsorbsUnsupervisedOpenGroups(t *testing.T) {
 // --- reopen: lock the snapshot's children before the room --------------------
 
 type reopenVisitStub struct {
-	compose.LifecyclePresence
+	timetablePorts.LifecyclePresence
 	byGroup map[int64][]studentpresence.Visit
 	current map[int64]studentpresence.Visit
 	findErr error
@@ -447,7 +450,7 @@ func (r *reopenVisitStub) ListVisits(_ context.Context, filter studentpresence.V
 }
 
 type reopenStudentLockStub struct {
-	compose.LifecycleStudents
+	timetablePorts.LifecycleStudents
 	locked []int64
 }
 
@@ -529,7 +532,7 @@ func TestLockReopenSnapshotStudents_LocksSortedUniqueStudents(t *testing.T) {
 	visitDup.ID = 22
 	students := &reopenStudentLockStub{}
 	broadcaster := testpkg.NewRecordingBroadcaster()
-	deps := compose.InstanceLifecycleDependencies{
+	deps := timetablePorts.InstanceLifecycleDependencies{
 		InstanceRepo: reopenCompletedInstance(t, []int64{22, 20, 21}),
 		Presence: &reopenVisitStub{byGroup: map[int64][]studentpresence.Visit{
 			90: {visitA, visitB, visitDup},
@@ -562,7 +565,7 @@ func TestLockReopenSnapshotStudents_RejectsActiveVisit(t *testing.T) {
 	visit.ID = 20
 	current := studentpresence.Visit{StudentID: 52}
 	current.ID = 99
-	svc := newFakeLifecycle(t, compose.InstanceLifecycleDependencies{
+	svc := newFakeLifecycle(t, timetablePorts.InstanceLifecycleDependencies{
 		InstanceRepo: reopenCompletedInstance(t, []int64{20}),
 		Presence: &reopenVisitStub{
 			byGroup: map[int64][]studentpresence.Visit{90: {visit}},

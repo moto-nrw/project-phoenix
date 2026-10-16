@@ -9,6 +9,7 @@ import (
 
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -92,20 +93,20 @@ func (s *TemplateService) CreateTemplate(ctx context.Context, in CreateTemplateI
 
 func (s *TemplateService) validateTemplateCreateRequest(ctx context.Context, in CreateTemplateInput) (int64, error) {
 	if err := validateTemplateCreateInput(in, s.deps.SchoolClasses); err != nil {
-		return 0, &ScheduleError{Op: createTemplateOp, Err: err}
+		return 0, &ports.ScheduleError{Op: createTemplateOp, Err: err}
 	}
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
-		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("no tenant in context")}
+		return 0, &ports.ScheduleError{Op: createTemplateOp, Err: errors.New("no tenant in context")}
 	}
 	if s.deps.Transactions == nil {
-		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("database is not configured")}
+		return 0, &ports.ScheduleError{Op: createTemplateOp, Err: errors.New("database is not configured")}
 	}
 	if s.deps.ActivityGroupRepo == nil || s.deps.ActivityScheduleRepo == nil ||
 		s.deps.StudentEnrollmentRepo == nil || s.deps.ActivitySupervisorRepo == nil ||
 		s.deps.TimeframeRepo == nil || s.deps.EducationGroups == nil ||
 		s.deps.ActivityCategoryRepo == nil {
-		return 0, &ScheduleError{Op: createTemplateOp, Err: errors.New("template repositories are not configured")}
+		return 0, &ports.ScheduleError{Op: createTemplateOp, Err: errors.New("template repositories are not configured")}
 	}
 	if err := s.ValidateTemplateEducationGroup(ctx, in.EducationGroupID); err != nil {
 		return 0, err
@@ -113,7 +114,7 @@ func (s *TemplateService) validateTemplateCreateRequest(ctx context.Context, in 
 	return tenantID, nil
 }
 
-func validateTemplateCreateInput(in CreateTemplateInput, rules SchoolClassRules) error {
+func validateTemplateCreateInput(in CreateTemplateInput, rules ports.SchoolClassRules) error {
 	if in.Name == "" {
 		return errors.New("name is required")
 	}
@@ -181,7 +182,7 @@ func validateOfferingSourceInput(
 	targetGroupType string,
 	studentIDs []int64,
 	weekdayAssignments []timetable.WeekdayRosterAssignment,
-	rules SchoolClassRules,
+	rules ports.SchoolClassRules,
 ) error {
 	if len(sourceOfferingIDs) == 0 {
 		return validateFilterWithoutSource(gradeLevels, schoolClasses)
@@ -233,7 +234,7 @@ func validateSourceOfferingIDs(sourceOfferingIDs []int64) error {
 	return nil
 }
 
-func validateSourceGradeLevels(gradeLevels []int, rules SchoolClassRules) error {
+func validateSourceGradeLevels(gradeLevels []int, rules ports.SchoolClassRules) error {
 	seenGrades := make(map[int]bool, len(gradeLevels))
 	for _, level := range gradeLevels {
 		if level < rules.MinGradeLevel || level > rules.MaxGradeLevel {
@@ -289,7 +290,7 @@ func (s *TemplateService) createTemplateLocked(
 	}
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
 	if err != nil {
-		return &ScheduleError{Op: "create template: resolve timeframe", Err: err}
+		return &ports.ScheduleError{Op: "create template: resolve timeframe", Err: err}
 	}
 	group, err := s.createTemplateGroup(ctx, in, targets, tenantID)
 	if err != nil {
@@ -373,15 +374,15 @@ func (s *TemplateService) createTemplateGroup(
 	}
 	group.SetTenantID(tenantID)
 	if err := s.deps.ActivityGroupRepo.Create(ctx, group); err != nil {
-		return nil, &ScheduleError{Op: "create template: create group", Err: err}
+		return nil, &ports.ScheduleError{Op: "create template: create group", Err: err}
 	}
 	targetRepo, ok := s.deps.ActivityGroupRepo.(activitiesModel.GroupTargetRepository)
 	if !ok && len(targets) > 0 {
-		return nil, &ScheduleError{Op: "create template: replace targets", Err: errors.New("target repository is not configured")}
+		return nil, &ports.ScheduleError{Op: "create template: replace targets", Err: errors.New("target repository is not configured")}
 	}
 	if ok {
 		if err := targetRepo.ReplaceTargets(ctx, group.ID, targets); err != nil {
-			return nil, &ScheduleError{Op: "create template: replace targets", Err: err}
+			return nil, &ports.ScheduleError{Op: "create template: replace targets", Err: err}
 		}
 	}
 	return group, nil
@@ -406,7 +407,7 @@ func (s *TemplateService) createTemplateSchedules(
 		}
 		sched.SetTenantID(tenantID)
 		if err := s.deps.ActivityScheduleRepo.Create(ctx, sched); err != nil {
-			return nil, &ScheduleError{Op: "create template: create schedule", Err: err}
+			return nil, &ports.ScheduleError{Op: "create template: create schedule", Err: err}
 		}
 		scheduleIDs = append(scheduleIDs, sched.ID)
 	}
@@ -420,7 +421,7 @@ func (s *TemplateService) seedTemplateOfferingRoster(ctx context.Context, templa
 		return nil
 	}
 	if s.deps.ResyncOfferingRoster == nil {
-		return &ScheduleError{Op: createTemplateOp, Err: errors.New("offering roster resync is not configured")}
+		return &ports.ScheduleError{Op: createTemplateOp, Err: errors.New("offering roster resync is not configured")}
 	}
 	if err := s.deps.ResyncOfferingRoster(ctx, timetable.OfferingRosterResyncInput{
 		TemplateID:       templateID,
@@ -430,7 +431,7 @@ func (s *TemplateService) seedTemplateOfferingRoster(ctx context.Context, templa
 		CalendarPeriodID: in.CalendarPeriodID,
 		EffectiveFrom:    in.RosterValidFrom,
 	}); err != nil {
-		return &ScheduleError{Op: "create template: seed offering roster", Err: err}
+		return &ports.ScheduleError{Op: "create template: seed offering roster", Err: err}
 	}
 	return nil
 }
@@ -540,11 +541,11 @@ func (s *TemplateService) createTemplateRoster(
 ) error {
 	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
 	if err != nil {
-		return &ScheduleError{Op: "create template: resolve roster", Err: err}
+		return &ports.ScheduleError{Op: "create template: resolve roster", Err: err}
 	}
 
 	if err := s.deps.StudentEnrollmentRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
-		return &ScheduleError{Op: "create template: close enrollments", Err: err}
+		return &ports.ScheduleError{Op: "create template: close enrollments", Err: err}
 	}
 	for _, row := range roster.Students {
 		enrollment := &activitiesModel.StudentEnrollment{
@@ -556,12 +557,12 @@ func (s *TemplateService) createTemplateRoster(
 		}
 		enrollment.SetTenantID(tenantID)
 		if err := s.deps.StudentEnrollmentRepo.Create(ctx, enrollment); err != nil {
-			return &ScheduleError{Op: "create template: create enrollment", Err: err}
+			return &ports.ScheduleError{Op: "create template: create enrollment", Err: err}
 		}
 	}
 
 	if err := s.deps.ActivitySupervisorRepo.CloseOpenByGroupAndPeriod(ctx, groupID, in.CalendarPeriodID, activitiesModel.Date(in.RosterValidFrom)); err != nil {
-		return &ScheduleError{Op: "create template: close supervisors", Err: err}
+		return &ports.ScheduleError{Op: "create template: close supervisors", Err: err}
 	}
 	for _, row := range roster.Staff {
 		supervisor := &activitiesModel.SupervisorPlanned{
@@ -574,7 +575,7 @@ func (s *TemplateService) createTemplateRoster(
 		}
 		supervisor.SetTenantID(tenantID)
 		if err := s.deps.ActivitySupervisorRepo.Create(ctx, supervisor); err != nil {
-			return &ScheduleError{Op: "create template: create supervisor", Err: err}
+			return &ports.ScheduleError{Op: "create template: create supervisor", Err: err}
 		}
 	}
 	return nil

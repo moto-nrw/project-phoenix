@@ -10,7 +10,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -374,7 +374,7 @@ func TestTimetableOperationsRosterFlagsArrivalAndClassMismatch(t *testing.T) {
 	deps.groups.names[expectedGroupID] = "Klasse 2a"
 	deps.groups.names[actualGroupID] = "Klasse 3b"
 	lateArrival := time.Date(2000, time.January, 1, 14, 30, 0, 0, time.UTC)
-	deps.arrivalService.byStudent[studentID] = &compose.ExpectedArrival{ArrivalTime: &lateArrival}
+	deps.arrivalService.byStudent[studentID] = &timetablePorts.ExpectedArrival{ArrivalTime: &lateArrival}
 
 	roster, err := deps.service.Roster(context.Background(), 651, false, instanceID)
 
@@ -460,7 +460,7 @@ func TestTimetableOperationsRosterWarningsBranches(t *testing.T) {
 		}
 		deps.students.byID[studentID] = &timetable.OperationStudent{PersonID: 463, SchoolClass: "3c"}
 		deps.personService.people[463] = &timetable.Person{FirstName: "Kai", LastName: "Kurz"}
-		deps.arrivalService.byStudent[studentID] = &compose.ExpectedArrival{IsException: true}
+		deps.arrivalService.byStudent[studentID] = &timetablePorts.ExpectedArrival{IsException: true}
 
 		roster, err := deps.service.Roster(context.Background(), 652, false, instanceID)
 
