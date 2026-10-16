@@ -67,21 +67,21 @@ const demoVisitorErasureUpSQL = `
 			ADD COLUMN IF NOT EXISTS visitor_parent_account_ids BIGINT[] NOT NULL DEFAULT '{}',
 			ADD COLUMN IF NOT EXISTS visitor_school_ids BIGINT[] NOT NULL DEFAULT '{}';
 
-		-- Before this migration ReplaceAbandoned retained only the replacement
-		-- school in the state row. Its predecessor has an exact, seed-owned
-		-- marker: retireAbandonedSchool renamed its subdomain to
-		-- x<school id>-<order slug> (truncated to the PostgreSQL limit).
-		-- Recover only that marker in the current school's organization; never
-		-- infer a school from a visitor name or from every hidden demo school.
+		-- Before this migration Fail cleared tenant_id from final failed orders.
+		-- Their final school still has the order slug, while every predecessor
+		-- has the exact, seed-owned x<school id>-<order slug> marker from
+		-- retireAbandonedSchool (both forms may be truncated to 63 characters).
+		-- Recover only those exact markers, never a visitor name or every hidden
+		-- school of an organization.
 		UPDATE platform.demo_school_states AS state
 		SET visitor_school_ids = array_remove(
 			state.visitor_school_ids || ARRAY[state.tenant_id] || COALESCE((
-				SELECT array_agg(abandoned.id ORDER BY abandoned.id)
-				FROM platform.schools AS current_school
-				JOIN platform.schools AS abandoned ON abandoned.organization_id = current_school.organization_id
-				WHERE current_school.id = state.tenant_id
-					AND abandoned.deleted_at IS NOT NULL
-					AND abandoned.subdomain = left('x' || abandoned.id::TEXT || '-' || state.name, 63)
+				SELECT array_agg(school.id ORDER BY school.id)
+				FROM platform.schools AS school
+				WHERE school.deleted_at IS NOT NULL
+					AND (school.id = state.tenant_id
+						OR school.subdomain = state.name
+						OR school.subdomain = left('x' || school.id::TEXT || '-' || state.name, 63))
 			), '{}'::BIGINT[]), NULL)
 		WHERE cardinality(state.visitor_school_ids) = 0;
 
@@ -133,14 +133,14 @@ const demoVisitorErasureUpSQL = `
 				END IF;
 				-- Keep the runtime path in addition to the migration backfill. It
 				-- covers a row restored from a pre-migration backup before it is
-				-- erased, using the same exact replacement marker.
-				SELECT COALESCE(array_agg(abandoned.id ORDER BY abandoned.id), '{}'::BIGINT[])
+				-- erased, including a final failed school's original subdomain.
+				SELECT COALESCE(array_agg(school.id ORDER BY school.id), '{}'::BIGINT[])
 				INTO legacy_school_ids
-				FROM platform.schools AS current_school
-				JOIN platform.schools AS abandoned ON abandoned.organization_id = current_school.organization_id
-				WHERE current_school.id = visitor.tenant_id
-					AND abandoned.deleted_at IS NOT NULL
-					AND abandoned.subdomain = left('x' || abandoned.id::TEXT || '-' || visitor.name, 63);
+				FROM platform.schools AS school
+				WHERE school.deleted_at IS NOT NULL
+					AND (school.id = visitor.tenant_id
+						OR school.subdomain = visitor.name
+						OR school.subdomain = left('x' || school.id::TEXT || '-' || visitor.name, 63));
 				visitor.visitor_school_ids := array_remove(visitor.visitor_school_ids || legacy_school_ids, NULL);
 				SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
 				FROM platform.schools AS school

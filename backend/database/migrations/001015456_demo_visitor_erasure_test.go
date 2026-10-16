@@ -35,6 +35,36 @@ func TestDemoVisitorErasureBackfillsAbandonedReplacementSchools(t *testing.T) {
 	assert.True(t, recovered, "the pre-migration abandoned school is retained for visitor erasure")
 }
 
+func TestDemoVisitorErasureBackfillsTheSchoolsOfALegacyFailedOrder(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	currentID, _ := testpkg.CreateTestTenant(t, db)
+	const slug = "ogs-legacy-failed-abc123"
+
+	_, err := db.NewRaw(`UPDATE platform.schools SET slug = ?, subdomain = ?, deleted_at = NOW() WHERE id = ?`, slug, slug, currentID).Exec(ctx)
+	require.NoError(t, err)
+	var abandonedID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.schools (organization_id, name, slug, subdomain, deleted_at)
+		SELECT organization_id, 'Aufgegebene Demo', 'aufgegeben', 'aufgegeben', NOW()
+		FROM platform.schools WHERE id = ? RETURNING id`, currentID).Scan(ctx, &abandonedID))
+	retiredSubdomain := fmt.Sprintf("x%d-%s", abandonedID, slug)
+	_, err = db.NewRaw(`UPDATE platform.schools SET slug = ?, subdomain = ? WHERE id = ?`, retiredSubdomain, retiredSubdomain, abandonedID).Exec(ctx)
+	require.NoError(t, err)
+	// Before 1.15.456, Fail cleared tenant_id and the visitor identifiers.
+	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, seed_state, status, attempts)
+		VALUES (?, '{}'::jsonb, 'failed', 3)`, slug).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, demoVisitorErasureUp(ctx, db))
+	for _, schoolID := range []int64{currentID, abandonedID} {
+		var recovered bool
+		require.NoError(t, db.NewRaw(`SELECT ? = ANY(visitor_school_ids) FROM platform.demo_school_states WHERE name = ?`,
+			schoolID, slug).Scan(ctx, &recovered))
+		assert.True(t, recovered, "the legacy failed order keeps school %d for visitor erasure", schoolID)
+	}
+}
+
 // Only the demo process erases demo visitors (#4048). The function writes
 // tables of other owners as their owner, so no serving role may call it,
 // and the demo role reaches it without any write grant on those tables.

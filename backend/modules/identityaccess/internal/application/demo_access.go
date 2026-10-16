@@ -348,17 +348,25 @@ func (d *DemoAccess) valid(ctx context.Context, token string) (domain.DemoAccess
 }
 
 // validAndLock makes an access's school stable for a mutating flow. The
-// initial read finds the key; the second read makes an expiry that won the
-// race report the real token state instead of operating on stale school data.
+// initial read finds the key; each later read verifies that the locked school
+// still owns the access and makes an expiry race report the real token state.
 func (d *DemoAccess) validAndLock(ctx context.Context, token string) (domain.DemoAccess, error) {
-	access, err := d.valid(ctx, token)
-	if err != nil {
-		return domain.DemoAccess{}, err
+	for {
+		locked, err := d.valid(ctx, token)
+		if err != nil {
+			return domain.DemoAccess{}, err
+		}
+		if err := d.store.LockDemoSchool(ctx, locked.SchoolSlug); err != nil {
+			return domain.DemoAccess{}, err
+		}
+		access, err := d.valid(ctx, token)
+		if err != nil {
+			return domain.DemoAccess{}, err
+		}
+		if access.SchoolSlug == locked.SchoolSlug {
+			return access, nil
+		}
 	}
-	if err := d.store.LockDemoSchool(ctx, access.SchoolSlug); err != nil {
-		return domain.DemoAccess{}, err
-	}
-	return d.valid(ctx, token)
 }
 
 // knownSchool keeps the address and school locks together. If an expiry or a
@@ -369,14 +377,20 @@ func (d *DemoAccess) knownSchool(ctx context.Context, email string) (domain.Demo
 	if err != nil || !found {
 		return known, found, false, err
 	}
-	if known.CoolingDown(d.now()) {
-		return known, found, true, nil
+	for !known.CoolingDown(d.now()) {
+		lockedSlug := known.SchoolSlug
+		if err := d.store.LockDemoSchool(ctx, lockedSlug); err != nil {
+			return domain.DemoAccess{}, false, false, err
+		}
+		known, found, err = d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
+		if err != nil || !found {
+			return known, found, false, err
+		}
+		if known.SchoolSlug == lockedSlug {
+			return known, true, false, nil
+		}
 	}
-	if err := d.store.LockDemoSchool(ctx, known.SchoolSlug); err != nil {
-		return domain.DemoAccess{}, false, false, err
-	}
-	known, found, err = d.store.FindActiveDemoAccessByEmail(ctx, email, d.now())
-	return known, found, found && known.CoolingDown(d.now()), err
+	return known, true, true, nil
 }
 
 // demoTenantLock is the mint guard of the tenant switch: an account a demo

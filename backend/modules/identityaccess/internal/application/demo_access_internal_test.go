@@ -87,3 +87,53 @@ func TestDemoAccessRedeemLocksTheSchoolBeforeItUsesTheAccess(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []string{"find", "lock ogs-nord-k3m9xp", "find", "entry", "used", "record"}, calls)
 }
+
+type movingDemoAccessStore struct {
+	ports.DemoAccessStore
+	accesses []domain.DemoAccess
+	locks    []string
+	reads    int
+}
+
+func (s *movingDemoAccessStore) FindDemoAccessByTokenHash(context.Context, string) (domain.DemoAccess, bool, error) {
+	access := s.accesses[s.reads]
+	s.reads++
+	return access, true, nil
+}
+
+func (s *movingDemoAccessStore) LockDemoSchool(_ context.Context, slug string) error {
+	s.locks = append(s.locks, slug)
+	return nil
+}
+
+func (s *movingDemoAccessStore) FindActiveDemoAccessByEmail(context.Context, string, time.Time) (domain.DemoAccess, bool, error) {
+	access := s.accesses[s.reads]
+	s.reads++
+	return access, true, nil
+}
+
+func TestDemoAccessLocksTheReplacementSchoolAfterAConcurrentReset(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 10, 16, 9, 0, 0, 0, time.UTC)
+	store := &movingDemoAccessStore{accesses: []domain.DemoAccess{
+		{ExpiresAt: now.Add(time.Hour), SchoolSlug: "ogs-nord-k3m9xp"},
+		{ExpiresAt: now.Add(time.Hour), SchoolSlug: "ogs-sued-b8n2lt"},
+		{ExpiresAt: now.Add(time.Hour), SchoolSlug: "ogs-sued-b8n2lt"},
+		{ExpiresAt: now.Add(time.Hour), SchoolSlug: "ogs-sued-b8n2lt"},
+	}}
+	flow := &DemoAccess{store: store, tokens: demoRedemptionTokens{}, now: func() time.Time { return now }}
+
+	access, err := flow.validAndLock(t.Context(), "token")
+	require.NoError(t, err)
+	assert.Equal(t, "ogs-sued-b8n2lt", access.SchoolSlug)
+	assert.Equal(t, []string{"ogs-nord-k3m9xp", "ogs-sued-b8n2lt"}, store.locks)
+
+	store.reads = 0
+	store.locks = nil
+	access, found, coolingDown, err := flow.knownSchool(t.Context(), "besuch@example.org")
+	require.NoError(t, err)
+	assert.True(t, found)
+	assert.False(t, coolingDown)
+	assert.Equal(t, "ogs-sued-b8n2lt", access.SchoolSlug)
+	assert.Equal(t, []string{"ogs-nord-k3m9xp", "ogs-sued-b8n2lt"}, store.locks)
+}
