@@ -8,10 +8,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	calModels "github.com/moto-nrw/project-phoenix/models/calendar"
 	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -155,16 +153,17 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 		"without the scope the renderer has nothing to re-check")
 	require.Contains(t, reminder.Payload, "student_ids")
 
-	row := &emailoutbox.Intent{TenantID: parentChain.TenantID, Kind: reminder.Kind, Payload: reminder.Payload}
-	render := api.NewCalendarAppointmentRenderer(api.CalendarEmailDependencies{
-		DefaultFrom: email.NewEmail("moto", "no-reply@example.com"),
-		Runtime:     calendarCompose.NewTenantRuntime(db),
-		Guardians:   calendarTestRepositories(t, db).StudentGuardian,
-	})
+	renderer := api.CalendarEmailDependencies{
+		Runtime:   calendarCompose.NewTenantRuntime(db),
+		Guardians: calendarTestRepositories(t, db).StudentGuardian,
+	}
+	render := func() (bool, error) {
+		return api.RenderCalendarMailForTest(testpkg.WithPackageTenantRuntime(context.Background()), renderer, parentChain.TenantID, reminder.Kind, reminder.Payload)
+	}
 
-	msg, err := render(testpkg.WithPackageTenantRuntime(context.Background()), row)
+	rendered, err := render()
 	require.NoError(t, err, "the guardian still has access to the child")
-	require.NotNil(t, msg)
+	require.True(t, rendered)
 
 	_, err = db.ExecContext(context.Background(), `
 		UPDATE auth.guardian_student_access AS a SET permissions = '{}'::jsonb
@@ -173,7 +172,7 @@ func TestCalendarServiceIntegration_QueuedAppointmentMailStopsAtRevokedChildAcce
 	`, parentChain.TenantID, parentChain.StudentID, parentChain.GuardianProfileID)
 	require.NoError(t, err)
 
-	_, err = render(testpkg.WithPackageTenantRuntime(context.Background()), row)
-	require.ErrorIs(t, err, emailoutbox.ErrRenderCancelled,
+	_, err = render()
+	require.ErrorIs(t, err, api.CalendarRenderCancelled(),
 		"a revoked guardian must not be mailed, and retrying cannot change that")
 }

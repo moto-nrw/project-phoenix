@@ -491,11 +491,11 @@ func (b *graphBuild) calendarDependencies() CalendarDependencies {
 		},
 		Appointments: b.Appointments, UserContext: b.userContext.Caller(),
 		Runtime: calendarCompose.NewTenantRuntime(b.DB.Pool()), CalendarRenderer: calendarCompose.NewCalendarRenderer(b.Calendar),
-		Outbox: b.late.emailOutbox, PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery),
+		Outbox: newCalendarOutbox(b.late.emailOutbox), PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery),
 		Settings: b.settingsService, CalDAVSettings: b.settingsService,
 		StaffFeedTombstoneRepo: schoolCalendarCompose.NewFeedHistory(b.DB.Pool()),
 		ParentsURL:             b.parentsURL, FrontendURL: b.frontendURL, CalDAVURL: b.publicAPIURL,
-		Notifier: b.graph.Notifications, ReminderNotifier: b.graph.Notifications,
+		Notifier: newCalendarNotifier(b.graph.Notifications), ReminderNotifier: newCalendarReminderNotifier(b.graph.Notifications),
 		Preferences: b.graph.NotificationPreferences, Logger: b.Logger.With("service", "calendar"),
 	}
 }

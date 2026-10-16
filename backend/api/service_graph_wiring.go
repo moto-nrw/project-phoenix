@@ -1185,11 +1185,11 @@ type CalendarDependencies struct {
 	// accompanies the appointment e-mails (#1671). Both optional and both
 	// required together: without consent there is nobody to address, so a nil
 	// Preferences disables the push rather than broadcasting past consent.
-	Notifier deliveryCompose.NotificationService
+	Notifier CalendarNotifier
 	// ReminderNotifier waits for Web Push acceptance so the scheduler can retry
 	// a transient failure without permanently claiming the reminder delivery.
-	ReminderNotifier deliveryCompose.SynchronousNotificationService
-	Preferences      deliveryCompose.NotificationPreferenceService
+	ReminderNotifier CalendarReminderNotifier
+	Preferences      CalendarPreferences
 
 	// Logger is nil-safe (see service.logger()); notification dispatch is
 	// fire-and-forget and reports its failures here instead of to the caller.
@@ -1197,7 +1197,7 @@ type CalendarDependencies struct {
 }
 
 type CalendarOutbox interface {
-	Enqueue(context.Context, deliveryCompose.MailEnqueueRequest) (*deliveryCompose.MailEnqueued, error)
+	Enqueue(context.Context, calendarCompose.EnqueueRequest) (*calendarCompose.EmailOutbox, error)
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
 }
 type CalendarPushOutbox interface {
