@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 480 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 47 ·
+Stand 16.10.2026 · Ratchet 498 · Composition 1.740 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 48 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 90.627 in `compose`
 
@@ -11,7 +11,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 
 | Carrier | Keys |
 |---|---:|
-| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 102 |
+| [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 105 |
 | [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone` | 87 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 97 |
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 61 |
@@ -20,11 +20,12 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach, Projektion, Workflow | 3 |
 | [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) `delivery-cutover.*` | 10 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 12 |
+| [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 7 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 3 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
 | [#4096](https://github.com/moto-nrw/project-phoenix/issues/4096) Dev-Tools des Kommando-Roots | 2 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 480 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 498 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -37,9 +38,12 @@ hat die Übergangsregeln in Keys umgewandelt (Policy-Epoche 46 → 47): 405 Rege
 aufgenommen, Ratchet 6 → 520, Regeln 1.351 → 976. Der Anstieg ist gewollt; er zeigt die Schuld, die die
 Regeln versteckt haben. Die Validierung lehnt seitdem ab: Regeln in fremde private Rollen und fremde
 `models/*` (ADR 0057 a, b), Plattform → Fach, Projektion, Workflow (c), Übergangsmarker und `issue` (d)
-und Owner-Kompositionen in fremde `compose`- oder `http`-Rollen (ADR 0059 Punkt 6). Noch nicht
-durchgesetzt und bei #3417: Richtungen und Zyklen nach ADR 0058, etwa Plattform → `inbound`
-(`settings-platform.http.inbound-common`). #3990: Repository-Vokabular aus `models/users` verschieben,
+und Owner-Kompositionen in fremde `compose`- oder `http`-Rollen (ADR 0059 Punkt 6). Seit #3417
+(Policy-Epoche 48) lehnt sie auch einen Zielgraphen mit zyklischer Komponente ab (ADR 0058 Punkt 1):
+14 zyklusschließende Regeln sind gelöscht, ihre 18 Importe Keys unter #4079 (15) und #4076 (3),
+Ratchet 480 → 498, einmalig und nur für diese Umwandlung freigegeben. Die Schichtung steht im Nachtrag
+zu ADR 0058. `inbound`-Owner liegen außerhalb des Zielgraphen; `settings-platform.http.inbound-common`
+schließt keinen Zyklus und bleibt Regel. #3990: Repository-Vokabular aus `models/users` verschieben,
 ohne auf den Ersatz von `database/repositories/users` zu warten. #4071 misst, wohin Code gewandert ist:
 Composition zählt jedes Root-Struct mehrerer Owner (139 → 1.732, Messgröße für #4080), Passthrough die
 `compose`-Pakete (2.394), dazu `legacy_*.go`, LOC je `compose`-Paket (Messgröße für #4084) und die
@@ -55,7 +59,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 ## Entscheidungen
 
 - [x] [#3387](https://github.com/moto-nrw/project-phoenix/issues/3387) Legacy-Guardian-Felder auf den Schüler-Endpunkten — blockt #2760
-- [ ] [#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) Zyklen — entschieden in ADR 0058, die ADR 0032 ersetzt: Zielgraph ohne zyklische Komponente, CI-hart; offen: Richtung je verbleibendem Paar, zyklusschließende Regeln als Keys, Guard; [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) ist erledigt
+- [x] [#3417](https://github.com/moto-nrw/project-phoenix/issues/3417) Zyklen — ADR 0058 mit Nachtrag zur Schichtung: People Directory unten, Care Plan darüber, Enrollment über Care Plan, Workforce über Student Presence; 14 zyklusschließende Regeln als 18 Keys (#4079, #4076), Policy-Epoche 47 → 48 lehnt jeden Zyklus im Zielgraphen ab (`internal/architecture/acyclic_target.go`), Ratchet 480 → 498
 - [x] [#3414](https://github.com/moto-nrw/project-phoenix/issues/3414) Projection-Owner `operator-dashboard-view` bleibt (ADR 0033)
 - [x] [#2747](https://github.com/moto-nrw/project-phoenix/issues/2747) Wo Code liegt, der mehrere Owner über eine Datenbank zusammensetzt: ADR 0053. Owner-Kompositionen bauen nur ihren eigenen Owner, die typisierten Roots (`.`, `api`, `cmd`) setzen Owner zusammen (stehende Reichweite, [#4001](https://github.com/moto-nrw/project-phoenix/issues/4001)); Entscheidungen und Schreibvorgänge über Owner hinweg gehören in Owner oder Workflows; die Datenbank kommt als ein Wert der Transaction Runtime ([#4002](https://github.com/moto-nrw/project-phoenix/issues/4002)); Tests bauen die Roots
 - [x] [#3487](https://github.com/moto-nrw/project-phoenix/issues/3487) `legacy/jwt` zieht jetzt nach `modules/identityaccess/sessiontoken` um (ADR 0054); die Substanz von ADR 0031 bleibt, nur der Zeitpunkt ändert sich

@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 47,
+  "policy_epoch": 48,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5373,17 +5373,6 @@
       "target_role": "contract"
     },
     {
-      "id": "people-directory.http.care-plan-public",
-      "description": "The student routes drive the Care Plan owner through its public capability: schedules, care days, companions, care exits and documents (#3351, ADR 0030, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "care-plan",
-      "target_role": "public"
-    },
-    {
       "id": "timetable-activities.http.care-plan-public",
       "description": "The timetable routes read the care days of the Care Plan owner through its public contract (#3351, #2732).",
       "scopes": [
@@ -5996,17 +5985,6 @@
       "target_role": "contract"
     },
     {
-      "id": "care-plan.application.native-enrollment-selection",
-      "description": "Offering review consumes Enrollment's native selection calculation without retained service models (#3179).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "application",
-      "target_owner": "enrollment",
-      "target_role": "contract"
-    },
-    {
       "id": "enrollment.application.native-selection-contract",
       "description": "Share the native selection calculation with the retained adjustment entry point (#3179).",
       "scopes": [
@@ -6092,17 +6070,6 @@
       "source_role": "application",
       "target_owner": "people-directory",
       "target_role": "contract"
-    },
-    {
-      "id": "people-directory.http.student-presence-public",
-      "description": "Student history, exports and day logs consume the Student Presence owner attendance DTOs (#2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "public"
     },
     {
       "id": "people-directory.adapter-test.student-presence-compose",
@@ -6212,28 +6179,6 @@
       "source_owner": "people-directory",
       "source_role": "e2e-test",
       "target_owner": "workforce",
-      "target_role": "public"
-    },
-    {
-      "id": "care-plan.postgres.enrollment-query",
-      "description": "Parent application lists consume Enrollment-owned request and phase projections.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "care-plan",
-      "source_role": "postgres",
-      "target_owner": "enrollment",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.http.enrollment-public",
-      "description": "Student enrollment responses serialize the Enrollment owner's public form values (#2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "enrollment",
       "target_role": "public"
     },
     {
@@ -6652,17 +6597,6 @@
       "source_role": "adapter-test",
       "target_owner": "facilities",
       "target_role": "compose"
-    },
-    {
-      "id": "student-presence.http.to.open-room-move",
-      "description": "The staff move-to-room endpoint calls exactly the open-room move facade (#3066).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "http",
-      "target_owner": "open-room-move",
-      "target_role": "public"
     },
     {
       "id": "test-support.test-support.workforce-public",
@@ -7843,17 +7777,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.http.group-live-view",
-      "description": "The student routes read the live-group projection through its one public capability (#2702, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "group-live-view",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-classlistentries.to.school-membership",
       "description": "inbound-classlistentries calls exactly one public capability.",
       "scopes": [
@@ -8347,17 +8270,6 @@
       "source_role": "contract",
       "target_owner": "document-rendering",
       "target_role": "application"
-    },
-    {
-      "id": "people-directory.http.care-plan-contract",
-      "description": "The staff request queue and decision routes consume the Care Plan request contracts (#3093, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "care-plan",
-      "target_role": "contract"
     },
     {
       "id": "group-live-view.to.care-plan-contract",
@@ -11692,17 +11604,6 @@
       "target_role": "compose"
     },
     {
-      "id": "timetable-activities.http.class-day-view",
-      "description": "The timetable list endpoints read the class-day projection (#1565, #2701, #2732).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "timetable-activities",
-      "source_role": "http",
-      "target_owner": "class-day-view",
-      "target_role": "public"
-    },
-    {
       "id": "root-composition.to.class-day-http",
       "description": "The production root constructs the class-day HTTP adapter (#2701).",
       "scopes": [
@@ -11788,17 +11689,6 @@
       "source_owner": "process-device-scan",
       "source_role": "compose",
       "target_class": "orm-sql"
-    },
-    {
-      "id": "student-presence.http.calendar-view",
-      "description": "The presence HTTP surface reads the supervision projection through its one public capability (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "http",
-      "target_owner": "calendar-view",
-      "target_role": "public"
     },
     {
       "id": "calendar-view.adapter-test.identity-access-adapter",
@@ -12620,28 +12510,6 @@
       "target_role": "public"
     },
     {
-      "id": "people-directory.http.request-review-view",
-      "description": "The student routes serve the aggregated parent-request list and the pending-count badge through the request-review projection's one public capability (#2705, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "request-review-view",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.http.request-review-compose",
-      "description": "Render decision and detail responses through the native request-review boundary (#3179, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "request-review-view",
-      "target_role": "compose"
-    },
-    {
       "id": "request-review-view.compose.enrollment.public",
       "description": "Bind native approved booking facts for care schedule reviews (#3179).",
       "scopes": [
@@ -12967,17 +12835,6 @@
       "source_owner": "student-deletion",
       "source_role": "compose",
       "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.http.student-deletion-public",
-      "description": "The student routes run the permanent deletion, the graduate purge and the withdrawal deletion through the owner workflow (#2710, #2731).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "http",
-      "target_owner": "student-deletion",
       "target_role": "public"
     },
     {
@@ -13777,17 +13634,6 @@
       "source_role": "application",
       "target_owner": "care-plan",
       "target_role": "contract"
-    },
-    {
-      "id": "student-presence.application.workforce-public",
-      "description": "The presence application names the Workforce work-session stamp sources (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "student-presence",
-      "source_role": "application",
-      "target_owner": "workforce",
-      "target_role": "public"
     },
     {
       "id": "student-presence.application.tenant-runtime-public",
