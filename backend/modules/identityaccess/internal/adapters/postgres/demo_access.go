@@ -112,7 +112,11 @@ func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAc
 	if err != nil {
 		return fmt.Errorf("identity access postgres: record demo access use: %w", err)
 	}
-	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("identity access postgres: count recorded demo access use: %w", err)
+	}
+	if rows != 1 {
 		return domain.ErrDemoAccessExpired
 	}
 	return nil

@@ -26,6 +26,8 @@ func init() {
 // every hour, right after the expiry of #3470 has deleted the demo accesses
 // 14 days after their last use. The companion function hides schools and
 // erases visitors under the same per-school lock as access creation and use.
+// It also takes the "demo school seed:" lease held by the complete seed run,
+// so a failed or deferred seed cannot write visitor data after erasure.
 //
 // An order is out of use when it is closed (ready with a hidden school, or
 // failed) and no demo access names it any more: a visitor whose order failed
@@ -75,6 +77,7 @@ const demoVisitorErasureUpSQL = `
 		DECLARE
 			hidden_schools BIGINT[];
 			visitor RECORD;
+			target_name TEXT;
 			erased INTEGER := 0;
 		BEGIN
 			FOR visitor IN
@@ -85,10 +88,22 @@ const demoVisitorErasureUpSQL = `
 				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
 				WHERE (state.status = 'failed' OR (state.status = 'ready' AND school.deleted_at IS NOT NULL))
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
-				FOR UPDATE OF state
+				ORDER BY state.name
 			LOOP
-				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || visitor.name, 0));
-				IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = visitor.name) THEN
+				target_name := visitor.name;
+				PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
+				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
+				SELECT state.name, state.tenant_id,
+					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
+					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids
+				INTO visitor
+				FROM platform.demo_school_states AS state
+				LEFT JOIN platform.schools AS school ON school.id = state.tenant_id
+				WHERE state.name = target_name
+					AND (state.status = 'failed' OR (state.status = 'ready' AND school.deleted_at IS NOT NULL))
+					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
+				FOR UPDATE OF state;
+				IF NOT FOUND THEN
 					CONTINUE;
 				END IF;
 				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
@@ -114,12 +129,27 @@ const demoVisitorErasureUpSQL = `
 					DELETE FROM users.parent_announcement_declaration_submissions
 					WHERE tenant_id = ANY (hidden_schools)
 						AND account_id = ANY (visitor.visitor_parent_account_ids);
+					WITH visitor_outbox AS (
+						SELECT outbox.id
+						FROM platform.email_outbox AS outbox
+						WHERE outbox.tenant_id = ANY (hidden_schools)
+							AND (
+								EXISTS (
+									SELECT 1 FROM platform.email_delivery AS delivery
+									WHERE delivery.outbox_id = outbox.id
+										AND delivery.account_id = ANY (visitor.visitor_parent_account_ids))
+								OR LOWER(outbox.recipient->>'address') IN (
+									SELECT LOWER(account.email) FROM auth.accounts AS account
+									WHERE account.id = ANY (visitor.visitor_parent_account_ids))
+							)
+					), deleted_deliveries AS (
+						DELETE FROM platform.email_delivery AS delivery
+						WHERE delivery.tenant_id = ANY (hidden_schools)
+							AND (delivery.account_id = ANY (visitor.visitor_parent_account_ids)
+								OR delivery.outbox_id IN (SELECT id FROM visitor_outbox))
+					)
 					DELETE FROM platform.email_outbox AS outbox
-					WHERE outbox.tenant_id = ANY (hidden_schools)
-						AND EXISTS (
-							SELECT 1 FROM platform.email_delivery AS delivery
-							WHERE delivery.outbox_id = outbox.id
-								AND delivery.account_id = ANY (visitor.visitor_parent_account_ids));
+					WHERE outbox.id IN (SELECT id FROM visitor_outbox);
 				END IF;
 				DELETE FROM platform.demo_school_states WHERE name = visitor.name;
 				erased := erased + 1;
@@ -140,21 +170,23 @@ const demoVisitorErasureUpSQL = `
 			hidden_count INTEGER := 0;
 			changed INTEGER;
 		BEGIN
-			FOREACH target_name IN ARRAY COALESCE(names, '{}'::TEXT[])
+			FOR target_name IN
+				SELECT name FROM unnest(COALESCE(names, '{}'::TEXT[])) AS target(name) ORDER BY name
 			LOOP
+				PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
 				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
 				IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
 					CONTINUE;
 				END IF;
 				UPDATE platform.schools AS school SET deleted_at = NOW()
 					FROM platform.demo_school_states AS state
-					WHERE state.name = target_name AND state.status = 'ready'
+					WHERE state.name = target_name
+						AND (state.status = 'ready' OR (state.status = 'preparing' AND state.claimed_at IS NULL))
 						AND school.id = state.tenant_id AND school.deleted_at IS NULL;
 				GET DIAGNOSTICS changed = ROW_COUNT;
 				hidden_count := hidden_count + changed;
 				UPDATE platform.demo_school_states AS state SET status = 'failed'
 					WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
-						AND state.tenant_id IS NULL
 						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
 			END LOOP;
 			hidden := hidden_count;

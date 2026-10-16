@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -118,6 +119,44 @@ func TestRetiringDemoSchoolWithAnActiveAccessLeavesItOpen(t *testing.T) {
 	assert.Zero(t, erased)
 	assert.False(t, schoolHidden(t, db, schoolID))
 	assert.NotNil(t, demoSchoolProgress(t, db, slug))
+}
+
+func TestRetiringDemoSchoolWaitsForItsSeedLease(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
+	type retirement struct {
+		hidden, erased int
+		err            error
+	}
+	started := make(chan struct{})
+	finished := make(chan retirement, 1)
+
+	require.NoError(t, schools.WithDemoLease(t.Context(), "demo school seed:"+slug, func(context.Context) error {
+		go func() {
+			close(started)
+			hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+			finished <- retirement{hidden: hidden, erased: erased, err: err}
+		}()
+		<-started
+		select {
+		case result := <-finished:
+			return fmt.Errorf("erasure finished despite the seed lease: %+v", result)
+		case <-time.After(100 * time.Millisecond):
+		}
+		assert.False(t, schoolHidden(t, db, schoolID))
+		return nil
+	}))
+
+	result := <-finished
+	require.NoError(t, result.err)
+	assert.Equal(t, 1, result.hidden)
+	assert.Equal(t, 1, result.erased)
 }
 
 // The serving backend hides the visitor's school when the visitor starts over

@@ -205,6 +205,10 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, unrelatedID), "a different visitor with the same name")
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, openID), "a school still open")
 	assert.Equal(t, everyTrace(1), visitorTraces(t, db, foreignID), "a hidden school outside the Demo-Träger")
+	var deliveries int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_delivery
+		WHERE tenant_id IN (?, ?, ?)`, retiredID, abandonedID, failedID).Scan(ctx, &deliveries))
+	assert.Zero(t, deliveries, "delivery records must not retain the visitor after their outbox is erased")
 
 	// The people stay, under a placeholder; the mails go.
 	var placeholders int
@@ -220,4 +224,37 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	_, erased, err = queue.RetireDemoSchools(ctx, nil)
 	require.NoError(t, err)
 	assert.Zero(t, erased, "a second run finds nothing")
+}
+
+func TestDemoSchoolQueueErasesVisitorOutboxWithoutDelivery(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	var email string
+	require.NoError(t, db.NewRaw(`SELECT email FROM auth.accounts WHERE id = ?`, accounts.parent).Scan(t.Context(), &email))
+	var orphanedOutboxID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, kind, recipient, payload, status)
+		VALUES (?, 'parent_message', jsonb_build_object('address', ?),
+			jsonb_build_object('first_name', ?, 'last_name', ?), 'sent') RETURNING id`,
+		schoolID, email, visitorFirst, visitorLast).Scan(t.Context(), &orphanedOutboxID))
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(t.Context())
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{}`),
+		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
+
+	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+	require.NoError(t, err)
+	assert.Equal(t, 1, erased)
+	var remaining int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE id = ?`, orphanedOutboxID).Scan(t.Context(), &remaining))
+	assert.Zero(t, remaining, "an outbox without a delivery must still be erased by its recipient account")
 }

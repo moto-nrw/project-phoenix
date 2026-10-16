@@ -26,7 +26,7 @@ func TestDemoVisitorErasureIsTheDemoRolesAlone(t *testing.T) {
 		}
 	}
 	for _, table := range []string{"users.persons", "users.guardian_profiles", "enrollment.requests", "audit.guardian_changes",
-		"users.parent_messages", "users.parent_announcement_declaration_submissions", "platform.email_outbox"} {
+		"users.parent_messages", "users.parent_announcement_declaration_submissions", "platform.email_delivery", "platform.email_outbox"} {
 		var canWrite bool
 		require.NoError(t, db.NewRaw(`SELECT has_table_privilege('phoenix_demo', ?, 'UPDATE') OR has_table_privilege('phoenix_demo', ?, 'DELETE')`,
 			table, table).Scan(ctx, &canWrite))
