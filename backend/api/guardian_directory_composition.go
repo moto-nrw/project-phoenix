@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 )
 
 // The guardian HTTP adapter's runtime (#2663): the identity, invitation and
@@ -301,7 +300,7 @@ func guardianPaymentExport(renderer *lists.RendererService) func(rows []peopledi
 func ClassifyGuardianInvitationFailure(err error) GuardianFailureKind {
 	var validation *identityaccess.GuardianInvitationValidationError
 	switch {
-	case errors.Is(err, userModels.ErrGuardianAccountConflict):
+	case errors.Is(err, peopledirectory.ErrGuardianAccountConflict):
 		return GuardianFailureConflict
 	case errors.As(err, &validation),
 		errors.Is(err, identityaccess.ErrGuardianInvitationNotFound),
