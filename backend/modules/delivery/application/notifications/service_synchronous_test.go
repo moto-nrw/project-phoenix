@@ -6,12 +6,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // syncChannel is a channel that also reports acceptance synchronously — the
@@ -32,16 +30,16 @@ func (c *syncChannel) DeliverSynchronously(_ context.Context, event notification
 func windowSettings(enabled bool, start, end string) *settingsDouble {
 	return &settingsDouble{
 		ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
-			if key == configModel.KeyNotificationsDispatchEnabled {
+			if key == "notifications.dispatch_enabled" {
 				return enabled, nil
 			}
 			return false, nil
 		},
 		ResolveStringForTenantFn: func(_ context.Context, _ int64, key string) (string, error) {
 			switch key {
-			case configModel.KeyNotificationsActiveWindowStart:
+			case "notifications.active_window_start":
 				return start, nil
-			case configModel.KeyNotificationsActiveWindowEnd:
+			case "notifications.active_window_end":
 				return end, nil
 			}
 			return "", nil
@@ -223,7 +221,7 @@ func TestNotifySynchronouslyHonorsTenantGates(t *testing.T) {
 		windowErr := errors.New("window unavailable")
 		svc := notifications.NewService(&settingsDouble{
 			ResolveBoolForTenantFn: func(_ context.Context, _ int64, key string) (bool, error) {
-				return key == configModel.KeyNotificationsDispatchEnabled, nil
+				return key == "notifications.dispatch_enabled", nil
 			},
 			ResolveStringForTenantFn: func(context.Context, int64, string) (string, error) {
 				return "", windowErr

@@ -8,7 +8,6 @@ import (
 	"errors"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/assert"
@@ -177,7 +176,7 @@ func TestGetForAccountMarksSchoolGatedTypesUnavailable(t *testing.T) {
 
 	settings := &settingsDouble{
 		ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-			return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
+			return key != "reminders.pickup_upcoming_enabled", nil
 		},
 	}
 	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)
@@ -329,7 +328,7 @@ func TestFilterOptedIn(t *testing.T) {
 	t.Run("a type the school switched off reaches nobody", func(t *testing.T) {
 		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-				return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
+				return key != "reminders.pickup_upcoming_enabled", nil
 			},
 		}
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
@@ -345,7 +344,7 @@ func TestFilterOptedIn(t *testing.T) {
 	t.Run("a disabled parent-messaging gate reaches nobody", func(t *testing.T) {
 		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-				return key != configModel.KeyParentNotesEnabled, nil
+				return key != "operations.parent_notes_enabled", nil
 			},
 		}
 		repo := &fakePreferenceRepo{optedIn: map[string][]int64{
@@ -421,12 +420,12 @@ func TestFilterOptedInByTypeBatchesGatesAndPreferences(t *testing.T) {
 		ResolveBoolsFn: func(_ context.Context, keys []string) (map[string]bool, error) {
 			gateCalls++
 			assert.ElementsMatch(t, []string{
-				configModel.KeyRemindersPickupUpcomingEnabled,
-				configModel.KeyRemindersActivityStartEnabled,
+				"reminders.pickup_upcoming_enabled",
+				"reminders.activity_start_enabled",
 			}, keys)
 			return map[string]bool{
-				configModel.KeyRemindersPickupUpcomingEnabled: true,
-				configModel.KeyRemindersActivityStartEnabled:  false,
+				"reminders.pickup_upcoming_enabled": true,
+				"reminders.activity_start_enabled":  false,
 			}, nil
 		},
 	}
@@ -491,7 +490,7 @@ func TestFilterNotOptedOut(t *testing.T) {
 	t.Run("a type the school switched off reaches nobody", func(t *testing.T) {
 		settings := &settingsDouble{
 			ResolveBoolFn: func(_ context.Context, key string) (bool, error) {
-				return key != configModel.KeyRemindersPickupUpcomingEnabled, nil
+				return key != "reminders.pickup_upcoming_enabled", nil
 			},
 		}
 		svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, settings, nil, nil, securityruntime.HasPermission)

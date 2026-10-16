@@ -194,7 +194,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/grouplive/compose":                       16,
 	"modules/identityaccess/compose":                  7339,
 	"modules/mealplan/compose":                        274,
-	"modules/organizationtenancy/compose":             746,
+	"modules/organizationtenancy/compose":             744,
 	"modules/organizationtenancy/compose/vocabulary":  48,
 	"modules/peopledirectory/compose":                 8962,
 	"modules/peopledirectory/compose/vocabulary":      133,

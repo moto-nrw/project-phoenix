@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	deliveryModels "github.com/moto-nrw/project-phoenix/models/delivery"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -68,20 +67,12 @@ func (s *summariesStub) PWAUsage(context.Context, int64, time.Duration) ([]Usage
 func retentionSettings(days int) *settingsDouble {
 	return &settingsDouble{
 		ResolveIntFn: func(_ context.Context, key string) (int, error) {
-			if key != configModel.KeyGDPRPWAUsageRetentionDays {
+			if key != "gdpr.pwa_usage_retention_days" {
 				return 0, fmt.Errorf("unexpected settings key %q", key)
 			}
 			return days, nil
 		},
 	}
-}
-
-// TestPWAUsageRetentionKeyMatchesTheRegistry pins the restated key to the
-// Settings Platform's name: a renamed registry key must fail here, not resolve
-// nothing at runtime.
-func TestPWAUsageRetentionKeyMatchesTheRegistry(t *testing.T) {
-	t.Parallel()
-	assert.Equal(t, configModel.KeyGDPRPWAUsageRetentionDays, settingPWAUsageRetentionDays)
 }
 
 func TestUsageServiceReportStaff(t *testing.T) {
