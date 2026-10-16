@@ -6,7 +6,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -142,7 +141,7 @@ func TestGroupSupervisorRepository_FindByID(t *testing.T) {
 	t.Run("returns error for non-existent supervisor", func(t *testing.T) {
 		_, err := repo.FindByID(ctx, int64(999999))
 		require.Error(t, err)
-		require.ErrorIs(t, err, modelBase.ErrNotFound)
+		requireRepositoryNotFound(t, err)
 	})
 }
 
@@ -176,7 +175,7 @@ func TestGroupSupervisorRepository_Update(t *testing.T) {
 
 		require.NoError(t, repo.Delete(ctx, supervisor.ID))
 		err = repo.Update(ctx, supervisor)
-		require.ErrorIs(t, err, modelBase.ErrNotFound)
+		requireRepositoryNotFound(t, err)
 	})
 }
 
@@ -1159,4 +1158,13 @@ func TestGroupSupervisorRepository_FindStaleOpen(t *testing.T) {
 	assert.Equal(t, staleID, stale[0].ID)
 	assert.Equal(t, staff.ID, stale[0].StaffID)
 	assert.Nil(t, stale[0].EndDate)
+}
+
+// requireRepositoryNotFound matches the store's not-found sentinel by its
+// RepositoryNotFound marker, the shape every repository not-found result
+// carries.
+func requireRepositoryNotFound(t *testing.T, err error) {
+	t.Helper()
+	var notFound interface{ RepositoryNotFound() }
+	require.ErrorAs(t, err, &notFound)
 }
