@@ -2515,6 +2515,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schedulerruntime/ports",
+      "owner": "scheduler-runtime",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schedulerruntime/jobruntime",
       "owner": "scheduler-runtime",
       "role": "postgres",
@@ -14446,6 +14453,16 @@
       "target_role": "contract"
     },
     {
+      "id": "root-composition.reach.platform.port",
+      "description": "ADR 0053 point 2: the typed roots import the port role of every platform owner.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "root-composition",
+      "target_owner_kind": "platform",
+      "target_role": "port"
+    },
+    {
       "id": "root-composition.reach.platform.http",
       "description": "ADR 0053 point 2: the typed roots import the http role of every platform owner.",
       "scopes": [
@@ -14777,6 +14794,17 @@
       "same_owner": true
     },
     {
+      "id": "owner-compose.platform.port",
+      "description": "ADR 0053 point 3: the composition of a platform owner imports its own port role.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner_kind": "platform",
+      "source_role": "compose",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
       "id": "owner-compose.platform.domain",
       "description": "ADR 0053 point 3: the composition of a platform owner imports its own domain role.",
       "scopes": [
@@ -15037,6 +15065,17 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
+      "target_role": "port",
+      "same_owner": true
+    },
+    {
+      "id": "own-test.platform.port",
+      "description": "ADR 0053 point 7.1: the tests of a platform owner import its own port role.",
+      "scopes": [
+        "internal_test",
+        "external_test"
+      ],
+      "source_owner_kind": "platform",
       "target_role": "port",
       "same_owner": true
     },
