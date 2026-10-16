@@ -12,6 +12,7 @@ import (
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
 )
 
 const legacyActivityInstanceDateColumn = "date"
@@ -58,10 +59,10 @@ func (r timetableActivityInstanceRepository) Create(ctx context.Context, value *
 	}
 	created, err := r.timetable.CreateActivityInstance(ctx, publicActivityInstanceInput(value))
 	if err != nil {
-		return WrapDatabaseError("create", err)
+		return application.WrapDatabaseError("create", err)
 	}
 	if err := r.createSession(ctx, created.ID, value); err != nil {
-		return WrapDatabaseError("create", err)
+		return application.WrapDatabaseError("create", err)
 	}
 	return r.reload(ctx, value, created.ID, "create")
 }
@@ -105,10 +106,10 @@ func (r timetableActivityInstanceRepository) createSession(ctx context.Context, 
 func (r timetableActivityInstanceRepository) reload(ctx context.Context, value *scheduleModels.ActivityInstance, id int64, operation string) error {
 	rows, err := r.reads.ListLegacyInstances(ctx, LegacyInstanceFilter{IDs: []int64{id}})
 	if err != nil {
-		return WrapDatabaseError(operation, err)
+		return application.WrapDatabaseError(operation, err)
 	}
 	if len(rows) == 0 {
-		return WrapNotFoundDatabaseError(operation)
+		return application.WrapNotFoundDatabaseError(operation)
 	}
 	*value = *rows[0]
 	return nil
@@ -136,7 +137,7 @@ func (r timetableActivityInstanceRepository) createUnlessPresent(ctx context.Con
 	}
 	created, inserted, err := create(ctx, publicActivityInstanceInput(value))
 	if err != nil {
-		return false, WrapDatabaseError(operation, err)
+		return false, application.WrapDatabaseError(operation, err)
 	}
 	if inserted {
 		return true, r.reload(ctx, value, created.ID, operation)
@@ -145,19 +146,19 @@ func (r timetableActivityInstanceRepository) createUnlessPresent(ctx context.Con
 }
 
 func (r timetableActivityInstanceRepository) FindByID(ctx context.Context, id any) (*scheduleModels.ActivityInstance, error) {
-	instanceID, ok := legacyGroupID(id)
+	instanceID, ok := application.LegacyGroupID(id)
 	if !ok {
-		return nil, WrapDatabaseError("find by id", fmt.Errorf("invalid activity instance id %T", id))
+		return nil, application.WrapDatabaseError("find by id", fmt.Errorf("invalid activity instance id %T", id))
 	}
 	if instanceID <= 0 {
-		return nil, WrapNotFoundDatabaseError("find by id")
+		return nil, application.WrapNotFoundDatabaseError("find by id")
 	}
 	rows, err := r.reads.ListLegacyInstances(ctx, LegacyInstanceFilter{IDs: []int64{instanceID}})
 	if err != nil {
-		return nil, WrapDatabaseError("find by id", err)
+		return nil, application.WrapDatabaseError("find by id", err)
 	}
 	if len(rows) == 0 {
-		return nil, WrapNotFoundDatabaseError("find by id")
+		return nil, application.WrapNotFoundDatabaseError("find by id")
 	}
 	return rows[0], nil
 }
@@ -177,20 +178,20 @@ func (r timetableActivityInstanceRepository) Update(ctx context.Context, value *
 }
 
 func (r timetableActivityInstanceRepository) Delete(ctx context.Context, id any) error {
-	instanceID, ok := legacyGroupID(id)
+	instanceID, ok := application.LegacyGroupID(id)
 	if !ok {
-		return WrapDatabaseError("delete", fmt.Errorf("invalid activity instance id %T", id))
+		return application.WrapDatabaseError("delete", fmt.Errorf("invalid activity instance id %T", id))
 	}
 	if err := r.timetable.DeleteActivityInstance(ctx, instanceID); err != nil {
-		return WrapDatabaseError("delete", err)
+		return application.WrapDatabaseError("delete", err)
 	}
 	return nil
 }
 
-func (r timetableActivityInstanceRepository) List(ctx context.Context, options *ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error) {
-	filter, err := ActivityInstanceListOptions(options)
+func (r timetableActivityInstanceRepository) List(ctx context.Context, options *application.ActivityInstanceQueryOptions) ([]*scheduleModels.ActivityInstance, error) {
+	filter, err := application.ActivityInstanceListOptions(options)
 	if err != nil {
-		return nil, WrapDatabaseError("list with options", err)
+		return nil, application.WrapDatabaseError("list with options", err)
 	}
 	return r.list(ctx, LegacyInstanceFilter{
 		IDs: filter.IDs, Date: filter.Date, Dates: filter.Dates, ActivityGroupIDs: filter.ActivityGroupIDs,
@@ -199,12 +200,12 @@ func (r timetableActivityInstanceRepository) List(ctx context.Context, options *
 	}, "list with options")
 }
 
-func (r timetableActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByTenantAndDate(ctx context.Context, date application.ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
 	text := date.String()
 	return r.list(ctx, LegacyInstanceFilter{Date: &text, OrderByDateAndTime: true}, "find by tenant and date")
 }
 
-func (r timetableActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx context.Context, from application.ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
 	text := from.String()
 	return r.list(ctx, LegacyInstanceFilter{
 		FromDate: &text, MaterializedPlanned: true, OrderByDateAndTime: true,
@@ -214,12 +215,12 @@ func (r timetableActivityInstanceRepository) FindPlannedTemplateBackedFrom(ctx c
 func (r timetableActivityInstanceRepository) MaxID(ctx context.Context) (int64, error) {
 	value, err := r.timetable.MaxActivityInstanceID(ctx)
 	if err != nil {
-		return 0, WrapDatabaseError("get max activity instance id", err)
+		return 0, application.WrapDatabaseError("get max activity instance id", err)
 	}
 	return value, nil
 }
 
-func (r timetableActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByTenantAndDateRange(ctx context.Context, from, to application.ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, LegacyInstanceFilter{
 		FromDate: &fromText, ToDate: &toText, OrderByDateAndTime: true,
@@ -233,14 +234,14 @@ func (r timetableActivityInstanceRepository) FindByIDs(ctx context.Context, ids 
 	return r.list(ctx, LegacyInstanceFilter{IDs: ids, OrderByDateAndTime: true}, "find by ids")
 }
 
-func (r timetableActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByActivityGroupAndDate(ctx context.Context, groupID int64, date application.ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
 	text := date.String()
 	return r.list(ctx, LegacyInstanceFilter{
 		ActivityGroupID: &groupID, Date: &text, OrderByDateAndTime: true,
 	}, "find by activity group and date")
 }
 
-func (r timetableActivityInstanceRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
+func (r timetableActivityInstanceRepository) FindByActivityGroupAndDateRange(ctx context.Context, groupID int64, from, to application.ActivityInstanceDate) ([]*scheduleModels.ActivityInstance, error) {
 	fromText, toText := from.String(), to.String()
 	return r.list(ctx, LegacyInstanceFilter{
 		ActivityGroupID: &groupID, FromDate: &fromText, ToDate: &toText, OrderByDateAndTime: true,
@@ -258,9 +259,9 @@ func (r timetableActivityInstanceRepository) FindByActiveGroupID(ctx context.Con
 func (r timetableActivityInstanceRepository) MarkCompleted(ctx context.Context, instanceID int64, completedAt time.Time) error {
 	if err := r.presence.RecordActivitySessionCompleted(ctx, instanceID, completedAt); err != nil {
 		if errors.Is(err, studentpresence.ErrActivitySessionNotFound) {
-			return WrapNotFoundDatabaseError("mark completed")
+			return application.WrapNotFoundDatabaseError("mark completed")
 		}
-		return WrapDatabaseError("mark completed", err)
+		return application.WrapDatabaseError("mark completed", err)
 	}
 	return nil
 }
@@ -268,15 +269,15 @@ func (r timetableActivityInstanceRepository) MarkCompleted(ctx context.Context, 
 func (r timetableActivityInstanceRepository) CompleteActiveByActiveGroupIDs(ctx context.Context, activeGroupIDs []int64, completedAt time.Time) (int64, error) {
 	rows, err := r.presence.CompleteActivitySessionsByGroups(ctx, activeGroupIDs, completedAt)
 	if err != nil {
-		return 0, WrapDatabaseError("complete active instances by active group ids", err)
+		return 0, application.WrapDatabaseError("complete active instances by active group ids", err)
 	}
 	return rows, nil
 }
 
-func (r timetableActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from ActivityInstanceDate, to *ActivityInstanceDate, groupID *int64, preserveDeviations bool) (int64, error) {
+func (r timetableActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow(ctx context.Context, from application.ActivityInstanceDate, to *application.ActivityInstanceDate, groupID *int64, preserveDeviations bool) (int64, error) {
 	rows, err := r.timetable.DeletePlannedActivityInstances(ctx, from.String(), publicOptionalInstanceDate(to), groupID, preserveDeviations)
 	if err != nil {
-		return 0, WrapDatabaseError("delete planned non-spontaneous in window", err)
+		return 0, application.WrapDatabaseError("delete planned non-spontaneous in window", err)
 	}
 	return rows, nil
 }
@@ -284,15 +285,15 @@ func (r timetableActivityInstanceRepository) DeletePlannedNonSpontaneousInWindow
 func (r timetableActivityInstanceRepository) DeletePlannedMaterializedWeekendInstances(ctx context.Context, groupID int64, weekdays []int) (int64, error) {
 	rows, err := r.timetable.DeleteRemovedWeekendActivityInstances(ctx, groupID, weekdays)
 	if err != nil {
-		return 0, WrapDatabaseError("delete removed legacy weekend instances", err)
+		return 0, application.WrapDatabaseError("delete removed legacy weekend instances", err)
 	}
 	return rows, nil
 }
 
-func (r timetableActivityInstanceRepository) PropagateListKindToFutureInstances(ctx context.Context, groupID int64, previousKind, newKind *string, after ActivityInstanceDate) (int64, error) {
+func (r timetableActivityInstanceRepository) PropagateListKindToFutureInstances(ctx context.Context, groupID int64, previousKind, newKind *string, after application.ActivityInstanceDate) (int64, error) {
 	rows, err := r.timetable.PropagateActivityInstanceListKind(ctx, groupID, previousKind, newKind, after.String())
 	if err != nil {
-		return 0, WrapDatabaseError("propagate list kind to future instances", err)
+		return 0, application.WrapDatabaseError("propagate list kind to future instances", err)
 	}
 	return rows, nil
 }
@@ -314,7 +315,7 @@ func (r timetableActivityInstanceRepository) UpdateColumns(ctx context.Context, 
 	}
 	if !slices.Contains(columns, "status") {
 		if slices.ContainsFunc(columns, func(column string) bool { return slices.Contains(activityExecutionColumns, column) }) {
-			return 0, WrapDatabaseError("update columns", errors.New("execution columns are written through a status transition"))
+			return 0, application.WrapDatabaseError("update columns", errors.New("execution columns are written through a status transition"))
 		}
 		return r.patch(ctx, value, columns)
 	}
@@ -325,7 +326,7 @@ func (r timetableActivityInstanceRepository) UpdateColumns(ctx context.Context, 
 		return r.complete(ctx, value)
 	case scheduleModels.InstanceStatusCancelled:
 		if err := r.presence.DiscardActivitySession(ctx, value.ID); err != nil {
-			return 0, WrapDatabaseError("update columns", err)
+			return 0, application.WrapDatabaseError("update columns", err)
 		}
 		return r.patch(ctx, value, planningColumns(columns))
 	default:
@@ -339,26 +340,26 @@ func (r timetableActivityInstanceRepository) patch(ctx context.Context, value *s
 	}
 	rows, err := r.timetable.PatchActivityInstance(ctx, value.ID, publicActivityInstanceInput(value), columns)
 	if err != nil {
-		return 0, WrapDatabaseError("update columns", err)
+		return 0, application.WrapDatabaseError("update columns", err)
 	}
 	return rows, nil
 }
 
 func (r timetableActivityInstanceRepository) start(ctx context.Context, value *scheduleModels.ActivityInstance) (int64, error) {
 	if value.ActiveGroupID == nil || value.StartedAt == nil {
-		return 0, WrapDatabaseError("update columns", errors.New("starting an instance requires active_group_id and started_at"))
+		return 0, application.WrapDatabaseError("update columns", errors.New("starting an instance requires active_group_id and started_at"))
 	}
 	if _, err := r.presence.StartActivitySession(ctx, studentpresence.ActivitySessionStart{
 		InstanceID: value.ID, ActiveGroupID: *value.ActiveGroupID, StartedBy: value.StartedBy, StartedAt: *value.StartedAt,
 	}); err != nil {
-		return 0, WrapDatabaseError("update columns", err)
+		return 0, application.WrapDatabaseError("update columns", err)
 	}
 	return 1, nil
 }
 
 func (r timetableActivityInstanceRepository) complete(ctx context.Context, value *scheduleModels.ActivityInstance) (int64, error) {
 	if value.CompletedAt == nil {
-		return 0, WrapDatabaseError("update columns", errors.New("completing an instance requires completed_at"))
+		return 0, application.WrapDatabaseError("update columns", errors.New("completing an instance requires completed_at"))
 	}
 	if _, err := r.presence.CompleteActivitySession(ctx, studentpresence.ActivitySessionCompletion{
 		InstanceID: value.ID, CompletedAt: *value.CompletedAt, CompletedBy: value.CompletedBy,
@@ -367,7 +368,7 @@ func (r timetableActivityInstanceRepository) complete(ctx context.Context, value
 		if errors.Is(err, studentpresence.ErrActivitySessionNotFound) {
 			return 0, nil
 		}
-		return 0, WrapDatabaseError("update columns", err)
+		return 0, application.WrapDatabaseError("update columns", err)
 	}
 	return 1, nil
 }
@@ -383,43 +384,43 @@ func planningColumns(columns []string) []string {
 	return result
 }
 
-func (r timetableActivityInstanceRepository) CountWithOptions(ctx context.Context, options *ActivityInstanceQueryOptions) (int, error) {
-	before, err := ActivityInstanceBefore(options)
+func (r timetableActivityInstanceRepository) CountWithOptions(ctx context.Context, options *application.ActivityInstanceQueryOptions) (int, error) {
+	before, err := application.ActivityInstanceBefore(options)
 	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
+		return 0, application.WrapDatabaseError("count with options", err)
 	}
 	count, err := r.timetable.CountActivityInstances(ctx, before)
 	if err != nil {
-		return 0, WrapDatabaseError("count with options", err)
+		return 0, application.WrapDatabaseError("count with options", err)
 	}
 	return count, nil
 }
 
-func (r timetableActivityInstanceRepository) OldestBefore(ctx context.Context, column string, cutoff *ActivityInstanceDate) (*ActivityInstanceDate, error) {
+func (r timetableActivityInstanceRepository) OldestBefore(ctx context.Context, column string, cutoff *application.ActivityInstanceDate) (*application.ActivityInstanceDate, error) {
 	if column != legacyActivityInstanceDateColumn {
-		return nil, WrapDatabaseError("oldest before", fmt.Errorf("unsupported activity instance date column %q", column))
+		return nil, application.WrapDatabaseError("oldest before", fmt.Errorf("unsupported activity instance date column %q", column))
 	}
 	value, err := r.timetable.OldestActivityInstanceBefore(ctx, publicOptionalInstanceDate(cutoff))
 	if err != nil {
-		return nil, WrapDatabaseError("oldest before", err)
+		return nil, application.WrapDatabaseError("oldest before", err)
 	}
 	if value == nil {
 		return nil, nil
 	}
-	result, err := ParseActivityInstanceDate(*value)
+	result, err := application.ParseActivityInstanceDate(*value)
 	if err != nil {
-		return nil, WrapDatabaseError("oldest before", err)
+		return nil, application.WrapDatabaseError("oldest before", err)
 	}
 	return &result, nil
 }
 
-func (r timetableActivityInstanceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff ActivityInstanceDate) (int64, error) {
+func (r timetableActivityInstanceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff application.ActivityInstanceDate) (int64, error) {
 	if column != legacyActivityInstanceDateColumn {
-		return 0, WrapDatabaseError("delete older than", fmt.Errorf("unsupported activity instance date column %q", column))
+		return 0, application.WrapDatabaseError("delete older than", fmt.Errorf("unsupported activity instance date column %q", column))
 	}
 	rows, err := r.timetable.DeleteActivityInstancesBefore(ctx, cutoff.String())
 	if err != nil {
-		return 0, WrapDatabaseError("delete older than", err)
+		return 0, application.WrapDatabaseError("delete older than", err)
 	}
 	return rows, nil
 }
@@ -427,7 +428,7 @@ func (r timetableActivityInstanceRepository) DeleteOlderThan(ctx context.Context
 func (r timetableActivityInstanceRepository) list(ctx context.Context, filter LegacyInstanceFilter, operation string) ([]*scheduleModels.ActivityInstance, error) {
 	rows, err := r.reads.ListLegacyInstances(ctx, filter)
 	if err != nil {
-		return nil, WrapDatabaseError(operation, err)
+		return nil, application.WrapDatabaseError(operation, err)
 	}
 	return rows, nil
 }
@@ -442,8 +443,8 @@ func publicActivityInstanceInput(value *scheduleModels.ActivityInstance) timetab
 	}
 	return timetable.ActivityInstanceInput{
 		Date: value.Date.String(), ActivityGroupID: value.ActivityGroupID, CalendarPeriodID: value.CalendarPeriodID,
-		Title: value.Title, Description: value.Description, StartTime: publicClock(value.StartTime),
-		EndTime: publicClock(value.EndTime), RoomID: value.RoomID, RequiredStaff: value.RequiredStaff,
+		Title: value.Title, Description: value.Description, StartTime: application.PublicClock(value.StartTime),
+		EndTime: application.PublicClock(value.EndTime), RoomID: value.RoomID, RequiredStaff: value.RequiredStaff,
 		Status: status, ListKind: value.ListKind,
 		IsSpontaneous: value.IsSpontaneous, UnderstaffedAck: value.UnderstaffedAck,
 		UnderstaffedNote: value.UnderstaffedNote, CancelReason: value.CancelReason, Notes: value.Notes,
@@ -452,7 +453,7 @@ func publicActivityInstanceInput(value *scheduleModels.ActivityInstance) timetab
 	}
 }
 
-func publicOptionalInstanceDate(value *ActivityInstanceDate) *string {
+func publicOptionalInstanceDate(value *application.ActivityInstanceDate) *string {
 	if value == nil {
 		return nil
 	}
@@ -462,7 +463,7 @@ func publicOptionalInstanceDate(value *ActivityInstanceDate) *string {
 
 func legacyActivityInstanceError(operation string, err error) error {
 	if errors.Is(err, timetable.ErrActivityInstanceNotFound) {
-		return WrapNotFoundDatabaseError(operation)
+		return application.WrapNotFoundDatabaseError(operation)
 	}
-	return WrapDatabaseError(operation, err)
+	return application.WrapDatabaseError(operation, err)
 }

@@ -17,6 +17,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -70,8 +71,8 @@ func NewUnobservedTimetable(db transactionruntime.Database, students peopledirec
 // timetableDirectories binds the Timetable adapters' directory ports to the
 // owners' public capabilities. An absent capability leaves its port unset,
 // so the adapter reports it instead of reading a foreign table.
-func timetableDirectories(deps TimetableDependencies) timetableCompose.RepositoryDirectories {
-	var directories timetableCompose.RepositoryDirectories
+func timetableDirectories(deps TimetableDependencies) timetablePorts.RepositoryDirectories {
+	var directories timetablePorts.RepositoryDirectories
 	if deps.Groups != nil {
 		directories.GroupNames = func(ctx context.Context, ids []int64) (map[int64]string, error) {
 			return schoolStructureCompose.GroupNamesByID(ctx, deps.Groups, ids)
@@ -107,15 +108,15 @@ func timetableRoomDirectory(rooms facilities.Query) func(context.Context, []int6
 	}
 }
 
-func timetableShiftTypes(shifts workforce.ShiftQuery) func(context.Context) ([]timetableCompose.ShiftType, error) {
-	return func(ctx context.Context) ([]timetableCompose.ShiftType, error) {
+func timetableShiftTypes(shifts workforce.ShiftQuery) func(context.Context) ([]timetablePorts.ShiftType, error) {
+	return func(ctx context.Context) ([]timetablePorts.ShiftType, error) {
 		values, err := shifts.ListShiftTypes(ctx)
 		if err != nil {
 			return nil, err
 		}
-		result := make([]timetableCompose.ShiftType, 0, len(values))
+		result := make([]timetablePorts.ShiftType, 0, len(values))
 		for _, shift := range values {
-			result = append(result, timetableCompose.ShiftType{ID: shift.ID, Name: shift.Name, Color: shift.Color})
+			result = append(result, timetablePorts.ShiftType{ID: shift.ID, Name: shift.Name, Color: shift.Color})
 		}
 		return result, nil
 	}
@@ -135,15 +136,15 @@ func timetableStaffPersons(membership schoolMembershipCompose.StaffLookup) func(
 	}
 }
 
-func timetablePersonNames(persons peopledirectory.Query) func(context.Context, []int64) (map[int64]timetableCompose.PersonName, error) {
-	return func(ctx context.Context, ids []int64) (map[int64]timetableCompose.PersonName, error) {
+func timetablePersonNames(persons peopledirectory.Query) func(context.Context, []int64) (map[int64]timetablePorts.PersonName, error) {
+	return func(ctx context.Context, ids []int64) (map[int64]timetablePorts.PersonName, error) {
 		values, err := peopleCompose.PersonsByID(ctx, persons, ids)
 		if err != nil {
 			return nil, err
 		}
-		result := make(map[int64]timetableCompose.PersonName, len(values))
+		result := make(map[int64]timetablePorts.PersonName, len(values))
 		for id, person := range values {
-			result[id] = timetableCompose.PersonName{FirstName: person.FirstName, LastName: person.LastName}
+			result[id] = timetablePorts.PersonName{FirstName: person.FirstName, LastName: person.LastName}
 		}
 		return result, nil
 	}
@@ -151,7 +152,7 @@ func timetablePersonNames(persons peopledirectory.Query) func(context.Context, [
 
 func timetableStudentFacts(students peopledirectory.StudentQuery) (
 	func(context.Context, []int64) (map[int64]bool, error),
-	func(context.Context, []int64) (map[int64]timetableCompose.PersonName, error),
+	func(context.Context, []int64) (map[int64]timetablePorts.PersonName, error),
 ) {
 	alumni := func(ctx context.Context, ids []int64) (map[int64]bool, error) {
 		values, err := students.ListStudentsByID(ctx, ids)
@@ -164,14 +165,14 @@ func timetableStudentFacts(students peopledirectory.StudentQuery) (
 		}
 		return result, nil
 	}
-	names := func(ctx context.Context, ids []int64) (map[int64]timetableCompose.PersonName, error) {
+	names := func(ctx context.Context, ids []int64) (map[int64]timetablePorts.PersonName, error) {
 		values, err := students.ListStudentNamesByID(ctx, ids)
 		if err != nil {
 			return nil, err
 		}
-		result := make(map[int64]timetableCompose.PersonName, len(values))
+		result := make(map[int64]timetablePorts.PersonName, len(values))
 		for _, name := range values {
-			result[name.StudentID] = timetableCompose.PersonName{FirstName: name.FirstName, LastName: name.LastName}
+			result[name.StudentID] = timetablePorts.PersonName{FirstName: name.FirstName, LastName: name.LastName}
 		}
 		return result, nil
 	}
