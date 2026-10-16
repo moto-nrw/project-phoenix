@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TimetableOwnerRows are the retained rows the Timetable owner's reads run
@@ -136,6 +138,13 @@ func NewTimetableTestRepositoriesWithMembers(db transactionruntime.Database, mem
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
 	return NewEnrollmentBookingProjection(newEnrollmentBookings(r.enrollment))
+}
+
+// DeviationEventsBetween lists the Änderungsprotokoll entries with an
+// occurrence in [from, to], for suites that read them back without naming the
+// Audit Platform's date.
+func (r TimetableTestRepositories) DeviationEventsBetween(ctx context.Context, from, to timezone.Date) ([]*auditModels.DeviationEvent, error) {
+	return r.DeviationEvent.ListByRange(ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
 }
 
 // SchoolCalendar returns the calendar owner the period, closing-day and

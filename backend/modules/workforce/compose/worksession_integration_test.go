@@ -21,6 +21,22 @@ import (
 // repository tests covered, and prove tenant isolation and rollback through
 // the public capability.
 
+// buildWorkforce composes the module over the test tenant runtime. The staff
+// assignment closures stand in for the School Membership capability, which
+// this package cannot compose without an import cycle through the test
+// support package.
+func buildWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
+	t.Helper()
+	runtime := testpkg.ConfigRuntime(db)
+	capability, err := New(Dependencies{LockStaffAssignment: runtime.LockStaffAssignment,
+		DB:           db,
+		LiveStaffIDs: runtime.LiveStaffIDs,
+		Observe:      func(Observation) {},
+	})
+	require.NoError(t, err)
+	return capability
+}
+
 // buildWorkforceAt composes the module over a pinned clock so the live window
 // and "today" are deterministic.
 func buildWorkforceAt(t *testing.T, db *bun.DB, now time.Time) workforce.Capability {

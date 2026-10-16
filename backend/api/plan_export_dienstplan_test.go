@@ -1,22 +1,40 @@
-package compose_test
+package api
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/timetabletest"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/services/listexport"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
+
+// buildDienstplanWorkforce composes the Workforce capability over the test
+// tenant runtime, the way the Workforce suites do.
+func buildDienstplanWorkforce(t *testing.T, db *bun.DB) workforce.Capability {
+	t.Helper()
+	tenantRuntime := testpkg.ConfigRuntime(db)
+	capability, err := workforceCompose.New(workforceCompose.Dependencies{LockStaffAssignment: tenantRuntime.LockStaffAssignment,
+		DB:           db,
+		LiveStaffIDs: tenantRuntime.LiveStaffIDs,
+		Observe:      func(workforceCompose.Observation) {},
+	})
+	require.NoError(t, err)
+	return capability
+}
 
 // The Dienstplan export over the Workforce staff schedule overview (#2706).
 // The overview runs on the real Workforce capability for the shifts, the
@@ -29,10 +47,10 @@ var dienstplanMonday = calendar.NewDate(2026, time.July, 27)
 
 // dienstplanOverview builds the overview the root binds to the plan export,
 // with the staff roster read over the given tenant transaction.
-func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workforce.Capability, rooms compose.RoomReader) workforce.StaffScheduleOverviewQuery {
+func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workforce.Capability, rooms workforceCompose.RoomReader) workforce.StaffScheduleOverviewQuery {
 	t.Helper()
 	instances := dienstplanInstances{rows: timetabletest.NewLegacyRows(t, db)}
-	return compose.NewStaffScheduleOverview(compose.StaffScheduleOverviewDependencies{
+	return workforceCompose.NewStaffScheduleOverview(workforceCompose.StaffScheduleOverviewDependencies{
 		Shifts:        capability,
 		Instances:     instances,
 		InstanceStaff: dienstplanInstanceStaff{timetable: timetabletest.New(t, db)},
@@ -41,11 +59,11 @@ func dienstplanOverview(t *testing.T, db *bun.DB, tx bun.IDB, capability workfor
 	})
 }
 
-// dienstplanExport renders the Dienstplan over the overview. The overview
-// binding mirrors the root's (api/plan_export.go, whose unit tests pin every
-// field); this role may not import the root.
+// dienstplanExport renders the Dienstplan over the overview alone. The
+// overview binding mirrors the root's (plan_export.go, whose unit tests pin
+// every field) without the reads only the Betreuungsplan needs.
 func dienstplanExport(overview workforce.StaffScheduleOverviewQuery, renderer planexport.Renderer) planexport.Service {
-	return planexport.NewService(planexport.Dependencies{Overview: overviewRecords{query: overview}, Renderer: renderer}, nil)
+	return planexport.NewService(planexport.Dependencies{Overview: dienstplanOverviewRecords{query: overview}, Renderer: renderer}, nil)
 }
 
 // TestDienstplanExportStaysInsideTheTenant proves the Dienstplan side of the
@@ -79,21 +97,21 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 	}
 	require.Len(t, fixtures, 2)
 
-	capability := buildPlanningWorkforce(t, db)
-	rooms := planningDependencies(t, fixtures[0].ctx, db, capability, fixtures[0].staff.ID).Rooms
+	capability := buildDienstplanWorkforce(t, db)
+	rooms := NewTimetableRoomNames(NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Rooms)
 	params, err := planexport.ParseParams(dienstplanMonday.String(), dienstplanMonday.AddDays(4).String(), string(planexport.TemplateByPerson), "", "")
 	require.NoError(t, err)
 	for _, fixture := range fixtures {
 		t.Run("dienstplan-"+fixture.title, func(t *testing.T) {
-			renderer := &dienstplanRenderer{}
+			renderer := &planExportCaptureRenderer{}
 			require.NoError(t, testpkg.WithTenantTx(t, fixture.ctx, db, fixture.tenantID, func(txCtx context.Context, tx bun.Tx) error {
 				_, err := dienstplanExport(dienstplanOverview(t, db, tx, capability, rooms), renderer).ExportDienstplan(txCtx, params)
 				return err
 			}))
 			require.Len(t, renderer.doc.Rows, 1, "exactly the tenant's own staff member is printed")
 			row := renderer.doc.Rows[0]
-			require.Equal(t, fixture.staff.Person.LastName+", "+fixture.staff.Person.FirstName, listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanRowLabel]))
-			cell := listexport.StripStyleMarkers(row.Values[listexport.ColumnPlanMonday])
+			require.Equal(t, fixture.staff.Person.LastName+", "+fixture.staff.Person.FirstName, lists.SanitizeUserText(row.Values[lists.ColumnPlanRowLabel]))
+			cell := lists.SanitizeUserText(row.Values[lists.ColumnPlanMonday])
 			require.Contains(t, cell, "08:00–16:00", "the tenant's own shift is printed")
 			require.Contains(t, cell, fixture.title, "the tenant's own block is printed under the shift")
 			for _, other := range fixtures {
@@ -108,13 +126,13 @@ func TestDienstplanExportStaysInsideTheTenant(t *testing.T) {
 	}
 }
 
-// overviewRecords translates the public staff week into the plan export's
+// dienstplanOverviewRecords translates the public staff week into the plan export's
 // records, field for field as the root's binding does.
-type overviewRecords struct {
+type dienstplanOverviewRecords struct {
 	query workforce.StaffScheduleOverviewQuery
 }
 
-func (o overviewRecords) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
+func (o dienstplanOverviewRecords) StaffScheduleOverview(ctx context.Context, from, to planexport.Date) (*planexport.StaffScheduleOverview, error) {
 	overview, err := o.query.Overview(ctx, string(from), string(to))
 	if err != nil {
 		return nil, err
@@ -126,7 +144,7 @@ func (o overviewRecords) StaffScheduleOverview(ctx context.Context, from, to pla
 	for _, shift := range overview.Shifts {
 		out.Shifts = append(out.Shifts, &planexport.Shift{
 			ID: shift.ID, StaffID: shift.StaffID, Date: planexport.Date(shift.Date),
-			StartTime: overviewClock(shift.StartTime), EndTime: overviewClock(shift.EndTime),
+			StartTime: dienstplanClock(shift.StartTime), EndTime: dienstplanClock(shift.EndTime),
 			ShiftTypeID: shift.ShiftTypeID, OriginShiftID: shift.OriginShiftID, Cancelled: shift.Cancelled,
 			ChangeReason: shift.ChangeReason, Notes: shift.Notes,
 		})
@@ -134,30 +152,21 @@ func (o overviewRecords) StaffScheduleOverview(ctx context.Context, from, to pla
 	for _, assignment := range overview.Assignments {
 		record := planexport.Assignment{
 			StaffID: assignment.StaffID, Date: planexport.Date(assignment.Date),
-			StartTime: overviewClock(assignment.StartTime), EndTime: overviewClock(assignment.EndTime),
+			StartTime: dienstplanClock(assignment.StartTime), EndTime: dienstplanClock(assignment.EndTime),
 			ActivityTitle: assignment.ActivityTitle, ActivityGroupID: assignment.ActivityGroupID, RoomName: assignment.RoomName,
 			IsSubstitute: assignment.IsSubstitute, IsAbsent: assignment.IsAbsent,
 		}
 		for _, gap := range assignment.UncoveredIntervals {
-			record.UncoveredIntervals = append(record.UncoveredIntervals, planexport.Interval{StartTime: overviewClock(gap.StartTime), EndTime: overviewClock(gap.EndTime)})
+			record.UncoveredIntervals = append(record.UncoveredIntervals, planexport.Interval{StartTime: dienstplanClock(gap.StartTime), EndTime: dienstplanClock(gap.EndTime)})
 		}
 		out.Assignments = append(out.Assignments, record)
 	}
 	return out, nil
 }
 
-func overviewClock(value string) time.Time {
+func dienstplanClock(value string) time.Time {
 	parsed, _ := time.Parse(workforce.ClockLayout, value)
 	return calendar.NormalizeWallClock(parsed)
-}
-
-type dienstplanRenderer struct {
-	doc listexport.Document
-}
-
-func (c *dienstplanRenderer) Render(doc listexport.Document, _ listexport.Format, filenameBase string) (listexport.File, error) {
-	c.doc = doc
-	return listexport.File{Data: []byte("rendered"), ContentType: "application/pdf", Filename: filenameBase + ".pdf"}, nil
 }
 
 // txStaffRoster serves the overview's staff roster from the tenant
@@ -279,4 +288,118 @@ func (s dienstplanInstanceStaff) list(ctx context.Context, filter timetable.Inst
 		out = append(out, &rows[index])
 	}
 	return out, nil
+}
+
+// Measures the Dienstplan export over the Workforce staff schedule overview,
+// independently of HTTP. The shifts come from the real Workforce capability,
+// the blocks and their staff from the Timetable owner's reads, the rooms from
+// the root's room read and the staff roster from the tenant transaction
+// (txStaffRoster).
+func TestDienstplanRuntimeEvidence(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := testpkg.Ctx(t)
+	room := testpkg.CreateTestRoom(t, db, "Runtime-room")
+	staffIDs := make([]int64, 0, 4)
+	first := testpkg.CreateTestStaff(t, db, "Runtime", "Staff0")
+	staffIDs = append(staffIDs, first.ID)
+	for i := 1; i < 4; i++ {
+		staffIDs = append(staffIDs, testpkg.CreateTestStaff(t, db, "Runtime", fmt.Sprintf("Staff%d", i)).ID)
+	}
+	capability := buildDienstplanWorkforce(t, db)
+	rooms := NewTimetableRoomNames(NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)).Rooms)
+	export := func(txCtx context.Context, tx bun.Tx, renderer planexport.Renderer, params planexport.Params) (lists.File, error) {
+		return dienstplanExport(dienstplanOverview(t, db, tx, capability, rooms), renderer).ExportDienstplan(txCtx, params)
+	}
+	var postgres string
+	require.NoError(t, db.NewRaw("SHOW server_version").Scan(ctx, &postgres))
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	deadlocks := func() int64 {
+		var n int64
+		require.NoError(t, db.NewRaw("SELECT deadlocks FROM pg_stat_database WHERE datname = current_database()").Scan(ctx, &n))
+		return n
+	}
+	seededWeeks := 0
+	for _, scenario := range []struct {
+		name  string
+		weeks int
+		pdf   bool
+	}{{"empty-week", 0, false}, {"week", 1, false}, {"weeks-4", 4, false}, {"pdf-4", 4, true}} {
+		t.Run(scenario.name, func(t *testing.T) {
+			for seededWeeks < scenario.weeks {
+				// Every staff member works every weekday and supervises one
+				// block per day: 20 shifts and 20 blocks per printed week.
+				for weekday := range 5 {
+					date := dienstplanMonday.AddDays(7*seededWeeks + weekday)
+					for i, staffID := range staffIDs {
+						testpkg.CreateTestStaffShift(t, db, staffID, date, testpkg.StaffShiftOpts{})
+						instance := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
+							Title:     fmt.Sprintf("Block %d", i),
+							StartHHMM: fmt.Sprintf("%02d:00", 12+i), EndHHMM: fmt.Sprintf("%02d:00", 13+i),
+						})
+						testpkg.CreateTestInstanceStaff(t, db, instance.ID, staffID, testpkg.InstanceStaffOpts{})
+					}
+				}
+				seededWeeks++
+			}
+			weeks := max(scenario.weeks, 1)
+			params, err := planexport.ParseParams(dienstplanMonday.String(), dienstplanMonday.AddDays(7*weeks-3).String(), string(planexport.TemplateByPerson), "", "")
+			require.NoError(t, err)
+			beforeDeadlocks := deadlocks()
+			stopLocks := testpkg.SampleCheckpointLocks(func(sampleCtx context.Context) (int, error) {
+				var n int
+				err := db.NewRaw("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'").Scan(sampleCtx, &n)
+				return n, err
+			})
+			var samples []testpkg.RuntimeCheckpointSample
+			var durations []float64
+			expectedRows := -1
+			for i := range 35 {
+				counter.Reset()
+				before := db.Stats()
+				start := time.Now()
+				var file lists.File
+				err := testpkg.WithTenantTx(t, counter.Context(ctx), db, testpkg.Tenant(t), func(txCtx context.Context, tx bun.Tx) error {
+					var err error
+					if scenario.pdf {
+						file, err = export(txCtx, tx, lists.NewRendererService(), params)
+						return err
+					}
+					file, err = export(txCtx, tx, planExportDocumentProbe{}, params)
+					return err
+				})
+				elapsed := float64(time.Since(start)) / float64(time.Millisecond)
+				after := db.Stats()
+				require.NoError(t, err)
+				if scenario.pdf {
+					require.True(t, strings.HasPrefix(string(file.Data), "%PDF-"))
+				} else {
+					var rows int
+					require.NoError(t, json.Unmarshal(file.Data, &rows))
+					if expectedRows < 0 {
+						expectedRows = rows
+						if scenario.weeks == 0 {
+							require.Equal(t, 1, rows, "an empty week prints its explicit empty row")
+						} else {
+							require.GreaterOrEqual(t, rows, len(staffIDs)*scenario.weeks, "every staff member prints in every week")
+						}
+					}
+					require.Equal(t, expectedRows, rows, "the row count is stable across samples")
+				}
+				require.Zero(t, counter.WriteRows(), "the plan export must not persist anything")
+				if i >= 5 {
+					affected, statements := counter.Rows()
+					zero := counter.WriteRows()
+					samples = append(samples, testpkg.RuntimeCheckpointSample{DurationMS: elapsed, Queries: counter.Total(), RowsAffected: affected, StatementsWithRows: statements, WriteRowsAffected: &zero, PoolWaitCount: after.WaitCount - before.WaitCount, PoolWaitMS: float64(after.WaitDuration-before.WaitDuration) / float64(time.Millisecond)})
+					durations = append(durations, elapsed)
+				}
+			}
+			locks := stopLocks()
+			require.Empty(t, locks.Error)
+			slices.Sort(durations)
+			report, err := json.Marshal(map[string]any{"scenario": scenario.name, "weeks": scenario.weeks, "shifts": 20 * scenario.weeks, "blocks": 20 * scenario.weeks, "samples": samples, "p50_ms": durations[14], "p95_ms": durations[28], "max_ms": durations[29], "go": runtime.Version(), "postgres": postgres, "warmup": 5, "concurrency": 1, "unexpected_errors": 0, "lock_samples": locks, "deadlocks": deadlocks() - beforeDeadlocks, "cache": "no projection cache; staff roster read over the tenant transaction"})
+			require.NoError(t, err)
+			t.Logf("dienstplan-runtime: %s", report)
+		})
+	}
 }

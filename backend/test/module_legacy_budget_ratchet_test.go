@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 3017
+const moduleLegacyBudgetTotal = 2732
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 90336
+const moduleComposeBudgetTotal = 89901
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -197,7 +197,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/organizationtenancy/compose":             746,
 	"modules/organizationtenancy/compose/vocabulary":  48,
 	"modules/peopledirectory/compose":                 8962,
-	"modules/peopledirectory/compose/vocabulary":      136,
+	"modules/peopledirectory/compose/vocabulary":      133,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,
 	"modules/schedulerruntime/compose":                85,
@@ -216,7 +216,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableprojection/compose":             11,
 	"modules/transactionruntime/compose":              173,
-	"modules/workforce/compose":                       7453,
+	"modules/workforce/compose":                       7021,
 	"modules/workforce/compose/httpadapter":           81,
 	"modules/workforce/compose/repositoryadapter":     274,
 	"workflows/gradetransition/compose":               180,
@@ -251,8 +251,9 @@ var moduleLegacyBudgets = map[string]int{
 	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556
 	// moved the group substitution relations to the legacy root's binding,
 	// #3413 the time-tracking services and the work-session shim out, #3996
-	// the staff absence adapters.
-	"modules/workforce/legacy": 730,
+	// the staff absence adapters, #4076 the test-only personnel record
+	// adapters.
+	"modules/workforce/legacy": 445,
 	// No ticket today.
 }
 

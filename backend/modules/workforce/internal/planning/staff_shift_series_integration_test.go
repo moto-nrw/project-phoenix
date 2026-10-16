@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	workforceRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/workforce/compose/repositoryadapter"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -51,7 +50,7 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
 	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
-		planning.WithStaffShiftDeviationEvents(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent),
+		planning.WithStaffShiftDeviationEvents(workforceCompose.NewShiftMoveAudit(api.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DeviationEvent)),
 	)
 	series := planning.NewStaffShiftSeriesService(
 		seriesRows, exceptionRows, shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), planning.SchoolCalendarPeriods(dependencies.Calendar),
@@ -508,6 +507,20 @@ func TestStaffShiftSeries_MoveConsumesOriginalDateBeforeRematerialization(t *tes
 	assert.Equal(t, original.ID, movedRows[0].ID)
 	assert.True(t, movedRows[0].Detached)
 
+	// The move wrote its shift-anchored Änderungsprotokoll entry (#1884).
+	var protocol []struct {
+		EventType      string `bun:"event_type"`
+		OccurrenceDate string `bun:"occurrence_date"`
+		SubjectStaffID int64  `bun:"subject_staff_id"`
+	}
+	require.NoError(t, env.db.NewSelect().TableExpr("audit.deviation_events").
+		ColumnExpr("event_type, occurrence_date::text AS occurrence_date, subject_staff_id").
+		Where("staff_shift_id = ?", original.ID).Scan(env.scope.Context(), &protocol))
+	require.Len(t, protocol, 1, "one protocol entry per changing move")
+	assert.Equal(t, "shift_moved", protocol[0].EventType)
+	assert.Equal(t, movedDate.String(), protocol[0].OccurrenceDate)
+	assert.Equal(t, original.StaffID, protocol[0].SubjectStaffID)
+
 	// Splitting re-plans the successor segment. The exception written for the
 	// vacated Monday must prevent that original occurrence from coming back.
 	env.inTx(t, func(ctx context.Context) error {
@@ -809,8 +822,8 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms: api.NewRoomRepository(countedDependencies.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
-		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(countedDependencies.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(countedDependencies.Workforce),
+		Rooms: api.NewTimetableRoomNames(countedDependencies.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
+		WorkSchedules: countedDependencies.Workforce, WorkModels: countedDependencies.Workforce,
 	})
 
 	weekFrom := today.AddDays(1)

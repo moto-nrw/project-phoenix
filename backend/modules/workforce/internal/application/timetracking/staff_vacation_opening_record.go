@@ -5,7 +5,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -31,8 +30,8 @@ const (
 // yields a negative value (extra credit brought over from the old system).
 // EnteredRemainingDays documents what the admin actually typed.
 type StaffVacationOpening struct {
-	base.Model `bun:"schema:active,table:staff_vacation_openings"`
-	base.TenantModel
+	Model `bun:"schema:active,table:staff_vacation_openings"`
+	TenantModel
 	StaffID              int64         `bun:"staff_id,notnull" json:"staff_id"`
 	Year                 int           `bun:"year,notnull" json:"year"`
 	EffectiveDate        calendar.Date `bun:"effective_date,notnull,type:date" json:"effective_date"`

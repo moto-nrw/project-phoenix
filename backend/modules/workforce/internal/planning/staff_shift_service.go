@@ -7,9 +7,6 @@ import (
 	"log/slog"
 	"slices"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -76,11 +73,10 @@ func WithStaffShiftSeriesExceptions(repo staffShiftSeriesExceptionRows) StaffShi
 	return func(s *staffShiftService) { s.exceptionRepo = repo }
 }
 
-// WithStaffShiftDeviationEvents wires the Änderungsprotokoll repository
-// (#1884); when set, MoveShift appends a shift_moved audit event inside the
-// same tenant tx.
-func WithStaffShiftDeviationEvents(repo auditModels.DeviationEventRepository) StaffShiftOption {
-	return func(s *staffShiftService) { s.deviationEventRepo = repo }
+// WithStaffShiftDeviationEvents wires the Änderungsprotokoll (#1884); when
+// set, MoveShift appends a shift_moved entry inside the same tenant tx.
+func WithStaffShiftDeviationEvents(audit ShiftMoveAudit) StaffShiftOption {
+	return func(s *staffShiftService) { s.shiftMoveAudit = audit }
 }
 
 // WithStaffShiftBroadcaster injects the tenant-wide SSE broadcaster used to
@@ -115,11 +111,11 @@ type staffShiftService struct {
 	staffRepo     staffDirectory
 	shiftTypes    ShiftTypeService
 	exceptionRepo staffShiftSeriesExceptionRows
-	// deviationEventRepo appends shift_moved Änderungsprotokoll rows (#1884).
+	// shiftMoveAudit appends shift_moved Änderungsprotokoll rows (#1884).
 	// Optional so unit tests without audit stay unchanged; production wiring
-	// (services/factory.go) always sets it, making the event write fail-closed
-	// there (an audit failure rolls the move back).
-	deviationEventRepo auditModels.DeviationEventRepository
+	// always sets it, making the event write fail-closed there (an audit
+	// failure rolls the move back).
+	shiftMoveAudit ShiftMoveAudit
 	// lockStaffShifts serializes the writes of one staff member. Nil skips the
 	// lock, which is what unit tests without a database exercise.
 	lockStaffShifts func(ctx context.Context, staffID int64) error
@@ -150,7 +146,7 @@ func NewStaffShiftService(repo staffShiftRows, staffRepo staffDirectory, shiftTy
 }
 
 func (s *staffShiftService) broadcastTimeTrackingChanged(ctx context.Context) {
-	realtimeevents.QueueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
+	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
 // lockShiftWrites takes the per-staff write lock before the overlap
@@ -320,7 +316,7 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *StaffShift)
 func (s *staffShiftService) loadOriginShift(ctx context.Context, originID int64) (*StaffShift, error) {
 	origin, err := s.repo.FindByID(ctx, originID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, fmt.Errorf("%w: origin shift not found", ErrShiftInvalid)
 		}
 		return nil, fmt.Errorf("find origin shift: %w", err)
@@ -427,7 +423,7 @@ func (s *staffShiftService) createShift(ctx context.Context, shift *StaffShift, 
 	}
 	staff, err := s.staffRepo.FindByID(ctx, shift.StaffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, fmt.Errorf("%w: staff member not found", ErrShiftInvalid)
 		}
 		return nil, fmt.Errorf("find staff member for shift: %w", err)
@@ -501,7 +497,7 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	}
 	existing, err := s.repo.FindByID(ctx, shift.ID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
 		}
 		return nil, fmt.Errorf("find staff shift: %w", err)
@@ -589,7 +585,7 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *S
 	// concurrent whole-row updates while this request waited.
 	lockedExisting, err := s.repo.FindByID(ctx, shift.ID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
 		}
 		return nil, fmt.Errorf("reload staff shift after lock: %w", err)
@@ -650,7 +646,7 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	}
 	existing, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return ErrShiftNotFound
 		}
 		return fmt.Errorf("find staff shift: %w", err)
@@ -670,7 +666,7 @@ func (s *staffShiftService) DeleteShift(ctx context.Context, id int64) error {
 	// schedule without holding that owner's lock.
 	lockedExisting, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return ErrShiftNotFound
 		}
 		return fmt.Errorf("reload staff shift before delete: %w", err)

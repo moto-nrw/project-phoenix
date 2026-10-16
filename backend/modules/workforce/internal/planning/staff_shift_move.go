@@ -2,15 +2,34 @@ package planning
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
+
+// ShiftMovedEvent is the shift_moved Änderungsprotokoll entry (#1884) of one
+// changing move. It anchors on the shift row, because a shift is not an
+// activity slot; OccurrenceDate and StartTime snapshot the NEW slot, OldValue
+// and NewValue the audit-relevant slot before and after the move.
+type ShiftMovedEvent struct {
+	OccurrenceDate calendar.Date
+	StartTime      time.Time
+	StaffShiftID   int64
+	SubjectStaffID int64
+	// RelatedStaffID is the new owner of a cross-person move, nil otherwise.
+	RelatedStaffID *int64
+	ActorAccountID *int64
+	OldValue       json.RawMessage
+	NewValue       json.RawMessage
+}
+
+// ShiftMoveAudit appends a shift_moved entry inside the caller's tenant
+// transaction; the composition binds it to the audit deviation events.
+type ShiftMoveAudit func(ctx context.Context, event ShiftMovedEvent) error
 
 // MoveShiftInput is the complete desired slot for one concrete shift. The
 // source owner is an optimistic-concurrency guard: a retry after a successful
@@ -77,7 +96,7 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 
 	staff, err := s.staffRepo.FindByID(ctx, input.TargetStaffID)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, fmt.Errorf("%w: target staff member not found", ErrShiftInvalid)
 		}
 		return nil, fmt.Errorf("find target staff member for shift move: %w", err)
@@ -160,21 +179,19 @@ func (s *staffShiftService) MoveShift(ctx context.Context, input MoveShiftInput)
 }
 
 // logShiftMovedEvent appends the shift_moved Änderungsprotokoll row (#1884)
-// inside the caller's tenant tx. The event anchors via StaffShiftID (a shift
-// is not an activity slot); occurrence_date/start_time snapshot the NEW slot.
-// Fail closed when the repo is wired: an audit failure aborts the move. The
-// repo is optional only for unit tests constructed without audit wiring —
-// production (services/factory.go) always sets it.
+// inside the caller's tenant tx (ShiftMovedEvent). Fail closed when the
+// audit is wired: an audit failure aborts the move. The audit is optional
+// only for unit tests constructed without audit wiring — production always
+// sets it.
 func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, moved *StaffShift, actorAccountID *int64) error {
-	if s.deviationEventRepo == nil {
+	if s.shiftMoveAudit == nil {
 		return nil
 	}
-	event := &auditModels.DeviationEvent{
-		OccurrenceDate: auditModels.Date(moved.Date),
+	event := ShiftMovedEvent{
+		OccurrenceDate: moved.Date,
 		StartTime:      calendar.NormalizeWallClock(moved.StartTime),
-		StaffShiftID:   &moved.ID,
-		SubjectStaffID: &existing.StaffID,
-		EventType:      auditModels.DeviationEventShiftMoved,
+		StaffShiftID:   moved.ID,
+		SubjectStaffID: existing.StaffID,
 		ActorAccountID: normalizeActor(actorAccountID),
 	}
 	if moved.StaffID != existing.StaffID {
@@ -187,7 +204,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 	if event.NewValue, err = marshalDeviationValue(shiftMoveSlot(moved)); err != nil {
 		return fmt.Errorf("log shift move: marshal new value: %w", err)
 	}
-	if err := s.deviationEventRepo.Create(ctx, event); err != nil {
+	if err := s.shiftMoveAudit(ctx, event); err != nil {
 		return fmt.Errorf("log shift move event: %w", err)
 	}
 	return nil
@@ -225,7 +242,7 @@ func seriesOccurrenceDate(shift *StaffShift) calendar.Date {
 func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*StaffShift, error) {
 	shift, err := s.repo.FindByID(ctx, id)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if isRecordNotFound(err) {
 			return nil, ErrShiftNotFound
 		}
 		return nil, fmt.Errorf("find staff shift for move: %w", err)

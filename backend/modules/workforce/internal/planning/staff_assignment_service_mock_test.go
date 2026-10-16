@@ -12,7 +12,6 @@ import (
 	"testing"
 	"time"
 
-	facilitiesModels "github.com/moto-nrw/project-phoenix/models/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -44,12 +43,11 @@ func (r *asInstanceRepo) FindByIDs(context.Context, []int64) ([]*timetable.Sched
 }
 
 type asRoomRepo struct {
-	facilitiesModels.RoomRepository
-	rooms []*facilitiesModels.Room
+	rooms map[int64]string
 	err   error
 }
 
-func (r *asRoomRepo) FindByIDs(context.Context, []int64) ([]*facilitiesModels.Room, error) {
+func (r *asRoomRepo) RoomNamesByID(context.Context, []int64) (map[int64]string, error) {
 	return r.rooms, r.err
 }
 
@@ -168,7 +166,7 @@ func TestAssignmentService_PropagatesGroupError(t *testing.T) {
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{instanceStaffRow(1, 7)}},
 		&asInstanceRepo{instances: []*timetable.ScheduledInstance{inst}},
-		&asRoomRepo{rooms: []*facilitiesModels.Room{{ID: 100, Name: "Raum A"}}},
+		&asRoomRepo{rooms: map[int64]string{100: "Raum A"}},
 		&asGroupRepo{err: errors.New("group read failed")},
 	)
 	date := calendar.NewDate(2026, time.March, 10)
@@ -224,9 +222,9 @@ func TestAssignmentService_EnrichesAndSorts(t *testing.T) {
 	svc := assignmentServiceFixture(
 		&asInstanceStaffRepo{rows: []*timetable.InstanceStaff{rowA, rowB, rowC, rowMissing}},
 		&asInstanceRepo{instances: []*timetable.ScheduledInstance{instA, instB, instC}},
-		&asRoomRepo{rooms: []*facilitiesModels.Room{
-			{ID: 100, Name: "Raum A"},
-			{ID: 200, Name: "Raum B"},
+		&asRoomRepo{rooms: map[int64]string{
+			100: "Raum A",
+			200: "Raum B",
 		}},
 		&asGroupRepo{groups: []*timetable.Group{
 			{Name: "Lernzeit"}, // ID set below

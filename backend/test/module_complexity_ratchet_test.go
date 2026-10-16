@@ -266,8 +266,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	// Moved in by #3996 from modules/workforce/legacy/absence_repositories.go;
 	// the scores crossed the boundary unchanged.
-	"modules/workforce/compose/absence_rows.go:applyStaffAbsenceCondition":                                                                      28,
-	"modules/workforce/compose/absence_rows.go:staffAbsenceFilterFromOptions":                                                                   20,
 	"modules/workforce/inbound/timetracking/staff_admin_document_cleanup.go:(*StaffAdminResource).CleanupOrphanedStaffDocumentFiles":            19,
 	"modules/workforce/internal/adapters/postgres/shift_store.go:applyStaffShiftFilter":                                                         25,
 	"modules/workforce/internal/adapters/postgres/substitution_store.go:(*Store).ListGroupSubstitutions":                                        19,
@@ -279,14 +277,13 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/domain/absence_allowance.go:BuildAllowanceLedger":                                                               23,
 	"modules/workforce/internal/domain/shift.go:ValidateStaffShiftSeries":                                                                       20,
 	"modules/workforce/internal/domain/staffrecord.go:(StaffMasterData).Validate":                                                               16,
-	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).resolveWeeklyTargets":                       52,
+	"modules/workforce/internal/planning/staff_schedule_overview.go:(*staffScheduleOverviewService).resolveWeeklyTargets":                       44,
 	"modules/workforce/internal/planning/staff_shift_move.go:(*staffShiftService).MoveShift":                                                    42,
 	"modules/workforce/internal/planning/staff_shift_series_service.go:(*staffShiftSeriesService).SplitSeries":                                  34,
 	"modules/workforce/internal/planning/staff_shift_cancellation.go:(*staffShiftService).ApplyCancellation":                                    49,
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).DeleteShift":                                               16,
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).updateShiftWithOptions":                                    45,
 	"modules/workforce/legacy/substitution_repository.go:(*groupSubstitutionRepository).List":                                                   18,
-	"modules/workforce/legacy/substitution_repository.go:applyGroupSubstitutionCondition":                                                       25,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:EvaluateWorkSessionsLaborTime":                                    16,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:netMinutesByDate":                                                 29,
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).RebookAbsences":                      21,
@@ -312,10 +309,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go:(*workTimeMonthService).GetDailyProjection":                 17,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go:(*workTimeMonthService).getOpeningBalanceOnDate":            20,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go:walkCreditedAbsenceDays":                                    19,
-	"modules/workforce/compose/worksession_rows.go:(staffBalanceAdjustmentRepository).List":                                                     56,
-	"modules/workforce/compose/worksession_rows.go:(workSessionBreakRepository).List":                                                           27,
-	"modules/workforce/compose/worksession_rows.go:vacationFilterFromOptions":                                                                   31,
-	"modules/workforce/compose/worksession_rows.go:workSessionFilterFromOptions":                                                                41,
 
 	"workflows/gradetransition/apply.go:(*Workflow).executeApply":                           20,
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":    35,

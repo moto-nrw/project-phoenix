@@ -5,7 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -33,8 +32,8 @@ var ValidBalanceAdjustmentTypes = []string{
 // granted what and why. MinutesDelta is signed — reductions (payout,
 // comp-time grant, a reset of a positive balance) are negative.
 type StaffBalanceAdjustment struct {
-	base.Model `bun:"schema:active,table:staff_balance_adjustments"`
-	base.TenantModel
+	Model `bun:"schema:active,table:staff_balance_adjustments"`
+	TenantModel
 	StaffID       int64         `bun:"staff_id,notnull" json:"staff_id"`
 	Type          string        `bun:"type,notnull" json:"type"`
 	MinutesDelta  int           `bun:"minutes_delta,notnull" json:"minutes_delta"`

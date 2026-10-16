@@ -24,8 +24,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -147,19 +146,46 @@ func (e *sickCascadeEnv) reloadShift(t *testing.T, id int64) workforce.StaffShif
 	return shift
 }
 
-func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *scheduleModels.InstanceStaff {
+func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *timetable.InstanceStaff {
 	t.Helper()
-	row, err := e.repos.InstanceStaff.FindByID(e.ctx, id)
+	row, err := e.repos.InstanceStaffReads().FindByID(e.ctx, id)
 	require.NoError(t, err)
 	return row
 }
 
-func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to calendar.Date, eventType string) []*auditModels.DeviationEvent {
+// The Änderungsprotokoll event types the cascade writes.
+const (
+	eventSickReported      = "sick_reported"
+	eventSickCleared       = "sick_cleared"
+	eventUnderstaffedUnack = "understaffed_unack"
+)
+
+// deviationEvent is the part of a stored Änderungsprotokoll entry the cascade
+// suites assert on.
+type deviationEvent struct {
+	EventType      string
+	InstanceID     *int64
+	SubjectStaffID *int64
+	NewValue       json.RawMessage
+}
+
+// deviationEvents reads the Änderungsprotokoll entries with an occurrence in
+// [from, to].
+func (e *sickCascadeEnv) deviationEvents(t *testing.T, from, to calendar.Date) []deviationEvent {
 	t.Helper()
-	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
+	events, err := e.repos.DeviationEventsBetween(e.ctx, from, to)
 	require.NoError(t, err)
-	var filtered []*auditModels.DeviationEvent
+	out := make([]deviationEvent, 0, len(events))
 	for _, ev := range events {
+		out = append(out, deviationEvent{EventType: ev.EventType, InstanceID: ev.InstanceID, SubjectStaffID: ev.SubjectStaffID, NewValue: ev.NewValue})
+	}
+	return out
+}
+
+func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to calendar.Date, eventType string) []deviationEvent {
+	t.Helper()
+	var filtered []deviationEvent
+	for _, ev := range e.deviationEvents(t, from, to) {
 		if ev.EventType == eventType && ev.SubjectStaffID != nil && *ev.SubjectStaffID == e.subject.ID {
 			filtered = append(filtered, ev)
 		}
@@ -206,10 +232,10 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 
 	// Blocks: plannable tomorrow (mark), completed tomorrow (skip), past
 	// planned (skip), plannable but already absent (skip, no event).
-	_, plannableRow := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
-	_, completedRow := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusCompleted, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
-	_, pastRow := e.createBlock(t, yesterday, scheduleModels.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
-	_, absentRow := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusPlanned, "11:00", e.subject.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
+	_, plannableRow := e.createBlock(t, tomorrow, timetable.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, completedRow := e.createBlock(t, tomorrow, timetable.InstanceStatusCompleted, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, pastRow := e.createBlock(t, yesterday, timetable.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, absentRow := e.createBlock(t, tomorrow, timetable.InstanceStatusPlanned, "11:00", e.subject.ID, testpkg.InstanceStaffOpts{IsAbsent: true})
 
 	absenceID := int64(0)
 	e.inTx(t, func(ctx context.Context) error {
@@ -270,7 +296,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 
 	// Exactly one sick_reported event (the plannable block); the skipped rows
 	// log nothing.
-	events := e.eventsByType(t, yesterday, tomorrow, auditModels.DeviationEventSickReported)
+	events := e.eventsByType(t, yesterday, tomorrow, eventSickReported)
 	require.Len(t, events, 1)
 	var newValue map[string]any
 	require.NoError(t, json.Unmarshal(events[0].NewValue, &newValue))
@@ -292,7 +318,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 		require.Equal(t, absenceID, resp.ID, "same-range sick report must merge into the primary absence")
 		return nil
 	})
-	events = e.eventsByType(t, yesterday, tomorrow, auditModels.DeviationEventSickReported)
+	events = e.eventsByType(t, yesterday, tomorrow, eventSickReported)
 	assert.Len(t, events, 1, "idempotent re-run must not duplicate events")
 }
 
@@ -473,9 +499,9 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 	shiftOne := e.createShift(t, e.subject.ID, dayOne, "08:00", "09:00", nil)
 	shiftTwo := e.createShift(t, e.subject.ID, dayTwo, "08:00", "09:00", nil)
 	shiftThree := e.createShift(t, e.subject.ID, dayThree, "08:00", "09:00", nil)
-	_, rowOne := e.createBlock(t, dayOne, scheduleModels.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
-	_, rowTwo := e.createBlock(t, dayTwo, scheduleModels.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
-	_, rowThree := e.createBlock(t, dayThree, scheduleModels.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, rowOne := e.createBlock(t, dayOne, timetable.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, rowTwo := e.createBlock(t, dayTwo, timetable.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, rowThree := e.createBlock(t, dayThree, timetable.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
@@ -516,8 +542,8 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 	assert.Equal(t, unchangedRow.SickAbsenceID, e.reloadRow(t, rowTwo.ID).SickAbsenceID)
 	assert.True(t, e.reloadRow(t, rowThree.ID).IsAbsent)
 
-	e.eventsByType(t, dayOne, dayThree, auditModels.DeviationEventSickReported)
-	e.eventsByType(t, dayOne, dayThree, auditModels.DeviationEventSickCleared)
+	e.eventsByType(t, dayOne, dayThree, eventSickReported)
+	e.eventsByType(t, dayOne, dayThree, eventSickCleared)
 }
 
 func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *testing.T) {
@@ -737,8 +763,8 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 
 	plain := e.createShift(t, e.subject.ID, tomorrow, "08:00", "12:00", nil)
 	replaced := e.createShift(t, e.subject.ID, tomorrow, "13:00", "15:00", nil)
-	clearableInstance, clearableRow := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
-	substitutedInstance, substitutedRow := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	clearableInstance, clearableRow := e.createBlock(t, tomorrow, timetable.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	substitutedInstance, substitutedRow := e.createBlock(t, tomorrow, timetable.InstanceStatusPlanned, "10:00", e.subject.ID, testpkg.InstanceStaffOpts{})
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
@@ -799,11 +825,9 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, storedClearable.UnderstaffedAck)
 	assert.Nil(t, storedClearable.UnderstaffedNote)
-	allEvents, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(tomorrow), auditModels.Date(tomorrow), nil, nil)
-	require.NoError(t, err)
-	var unackEvents []*auditModels.DeviationEvent
-	for _, event := range allEvents {
-		if event.EventType == auditModels.DeviationEventUnderstaffedUnack &&
+	var unackEvents []deviationEvent
+	for _, event := range e.deviationEvents(t, tomorrow, tomorrow) {
+		if event.EventType == eventUnderstaffedUnack &&
 			event.InstanceID != nil && *event.InstanceID == clearableInstance.ID {
 			unackEvents = append(unackEvents, event)
 		}
@@ -817,9 +841,9 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	assert.Nil(t, row.SickAbsenceID)
 	assert.False(t, e.reloadRow(t, subRow.ID).IsAbsent)
 
-	cleared := e.eventsByType(t, tomorrow, tomorrow, auditModels.DeviationEventSickCleared)
+	cleared := e.eventsByType(t, tomorrow, tomorrow, eventSickCleared)
 	require.Len(t, cleared, 1, "exactly the restored block logs sick_cleared")
-	reported := e.eventsByType(t, tomorrow, tomorrow, auditModels.DeviationEventSickReported)
+	reported := e.eventsByType(t, tomorrow, tomorrow, eventSickReported)
 	assert.Len(t, reported, 2, "both blocks were marked by the create cascade")
 }
 
@@ -868,7 +892,7 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 	tomorrow := calendar.TodayDate().AddDays(1)
 
 	shift := e.createShift(t, e.subject.ID, tomorrow, "08:00", "12:00", nil)
-	_, row := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
+	_, row := e.createBlock(t, tomorrow, timetable.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})
 
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
@@ -883,7 +907,7 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 		absenceID = resp.ID
 		return nil
 	})
-	e.eventsByType(t, tomorrow, tomorrow, auditModels.DeviationEventSickReported) // registers event cleanup
+	e.eventsByType(t, tomorrow, tomorrow, eventSickReported) // registers event cleanup
 
 	newOwner := absenceID + 1000
 	e.inTx(t, func(ctx context.Context) error {

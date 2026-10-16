@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -42,4 +43,25 @@ func broadcastStaffingChanged(ctx context.Context, broadcaster realtime.Broadcas
 func isPlannableInstance(instance *timetable.ScheduledInstance) bool {
 	return instance.Status == timetable.InstanceStatusPlanned ||
 		instance.Status == timetable.InstanceStatusActive
+}
+
+// errRecordNotFound is the workflow's result for a block an assignment row
+// names but the timetable no longer returns. It carries the repository
+// not-found marker, so callers that classify a missing row by that marker
+// (isRecordNotFound, the HTTP layer's not-found check) treat it exactly like
+// the retained repositories' sentinel.
+var errRecordNotFound error = recordNotFoundError{}
+
+type recordNotFoundError struct{}
+
+func (recordNotFoundError) Error() string { return "repository: not found" }
+
+// RepositoryNotFound marks the not-found result by shape.
+func (recordNotFoundError) RepositoryNotFound() {}
+
+// isRecordNotFound reports whether err carries the repository not-found
+// marker anywhere in its chain.
+func isRecordNotFound(err error) bool {
+	var marker interface{ RepositoryNotFound() }
+	return errors.As(err, &marker)
 }

@@ -5,7 +5,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -37,8 +36,8 @@ var ValidAbsenceStatuses = []string{
 
 // StaffAbsence represents a staff absence record (sick, vacation, etc.)
 type StaffAbsence struct {
-	base.Model `bun:"schema:active,table:staff_absences"`
-	base.TenantModel
+	Model `bun:"schema:active,table:staff_absences"`
+	TenantModel
 	StaffID     int64  `bun:"staff_id,notnull" json:"staff_id"`
 	AbsenceType string `bun:"absence_type,notnull" json:"absence_type"`
 	// AbsenceTypeID optionally names this absence with a school-defined

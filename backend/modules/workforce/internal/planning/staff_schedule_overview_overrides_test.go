@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -56,15 +55,15 @@ func TestWeeklyTargets_OverrideReplacesTheModelDayOfAnOutdatedSchedule(t *testin
 
 	monday := calendar.NewDate(2026, time.October, 19)
 	modelID := int64(22)
-	expired := workforceDate(calendar.NewDate(2026, time.January, 5))
+	expired := calendar.NewDate(2026, time.January, 5)
 	service := &staffScheduleOverviewService{deps: StaffScheduleOverviewDependencies{
-		WorkModels: &fakeOverviewWorkModelReader{models: []*configModel.WorkTimeModel{{
+		WorkModels: &fakeOverviewWorkModelReader{models: []workforce.WorkTimeModel{{
 			ID:                 modelID,
 			RotationLength:     1,
-			RotationAnchorDate: workforceDate(monday),
-			Entries: []*configModel.WorkTimeModelEntry{
-				{WeekIndex: 0, DayOfWeek: configModel.DayMonday, TargetMinutes: 400},
-				{WeekIndex: 0, DayOfWeek: configModel.DayTuesday, TargetMinutes: 400},
+			RotationAnchorDate: monday.String(),
+			Entries: []workforce.WorkTimeModelEntry{
+				{WeekIndex: 0, DayOfWeek: dayMonday, TargetMinutes: 400},
+				{WeekIndex: 0, DayOfWeek: dayTuesday, TargetMinutes: 400},
 			},
 		}}},
 		TargetOverrides: &fakeTargetOverrideDaysReader{days: workforce.TargetOverrideDays{
@@ -77,10 +76,10 @@ func TestWeeklyTargets_OverrideReplacesTheModelDayOfAnOutdatedSchedule(t *testin
 	targets, err := service.weeklyTargets(
 		context.Background(),
 		[]*workforce.PlanStaff{member},
-		[]*configModel.StaffWorkSchedule{{
+		[]*workforce.ScheduleRow{{
 			StaffID: 11, WeekIndex: 0, RotationLength: 1,
-			DayOfWeek: configModel.DayMonday, TargetMinutes: 120,
-			ValidFrom: workforceDate(calendar.NewDate(2025, time.September, 1)), ValidUntil: &expired,
+			DayOfWeek: dayMonday, TargetMinutes: 120,
+			ValidFrom: calendar.NewDate(2025, time.September, 1), ValidUntil: &expired,
 		}},
 		[]calendar.Date{monday},
 	)
