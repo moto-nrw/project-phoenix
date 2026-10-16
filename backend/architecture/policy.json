@@ -143,10 +143,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-activities",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-announcement",
       "kind": "inbound"
     },
@@ -155,15 +151,7 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-database",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-display",
-      "kind": "inbound"
-    },
-    {
-      "id": "inbound-filestore",
       "kind": "inbound"
     },
     {
@@ -3326,7 +3314,7 @@
     },
     {
       "path": "modules/filestorage/http/files",
-      "owner": "inbound-filestore",
+      "owner": "file-storage",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -12488,69 +12476,58 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-filestore.to.file-storage",
+      "id": "file-storage.http.to.file-storage",
       "description": "inbound-filestore calls exactly one public capability (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "file-storage",
       "target_role": "public"
     },
     {
-      "id": "inbound-filestore.http-common",
+      "id": "file-storage.http.http-common",
       "description": "File handlers reuse common HTTP rendering, the tenant and parent route groups, the permission gates and the multipart document validation (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "inbound-common",
       "target_role": "http"
     },
     {
-      "id": "inbound-filestore.security-contract",
+      "id": "file-storage.http.security-contract",
       "description": "File handlers name the files:manage and admin permissions (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "security-runtime",
       "target_role": "contract"
     },
     {
-      "id": "inbound-filestore.identity-adapter",
+      "id": "file-storage.http.identity-adapter",
       "description": "File handlers read the acting account and its permissions from the JWT claims (#2707).",
       "scopes": [
         "production"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "http",
       "target_owner": "identity-access",
       "target_role": "http"
     },
     {
-      "id": "inbound-filestore.adapter-test.inbound-common",
+      "id": "file-storage.http.adapter-test.inbound-common",
       "description": "File route tests decode the string ids and resolve the uploads directory through the common HTTP helpers (#2707).",
       "scopes": [
         "external_test"
       ],
-      "source_owner": "inbound-filestore",
+      "source_owner": "file-storage",
       "source_role": "adapter-test",
       "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "root-composition.to.inbound-filestore-http",
-      "description": "The production root constructs the file storage HTTP adapter (#2707).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-filestore",
       "target_role": "http"
     },
     {
