@@ -22,9 +22,3 @@ func TrimPtrToNil(p *string) *string {
 	}
 	return TrimToNil(*p)
 }
-
-// ContainsFold reports whether s contains substr, ignoring case (ToLower on
-// both sides — the search/filter semantics of the staff and student lists).
-func ContainsFold(s, substr string) bool {
-	return strings.Contains(strings.ToLower(s), strings.ToLower(substr))
-}

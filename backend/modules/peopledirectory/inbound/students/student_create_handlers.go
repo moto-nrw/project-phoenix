@@ -12,7 +12,6 @@ import (
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -56,13 +55,13 @@ func createStudentFromRequest(req *StudentRequest, personID int64) *Student {
 		student.GroupID = req.GroupID
 	}
 	if req.AddressStreet != "" {
-		student.AddressStreet = strutil.TrimToNil(req.AddressStreet)
+		student.AddressStreet = trimToNil(req.AddressStreet)
 	}
 	if req.AddressCity != "" {
-		student.AddressCity = strutil.TrimToNil(req.AddressCity)
+		student.AddressCity = trimToNil(req.AddressCity)
 	}
 	if req.AddressPostalCode != "" {
-		student.AddressPostalCode = strutil.TrimToNil(req.AddressPostalCode)
+		student.AddressPostalCode = trimToNil(req.AddressPostalCode)
 	}
 	if req.ExtraInfo != nil {
 		student.ExtraInfo = req.ExtraInfo
