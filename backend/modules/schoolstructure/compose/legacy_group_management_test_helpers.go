@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -140,7 +142,6 @@ func NewService(groupRepo GroupRecords, groupTeachers GroupTeacherStore, classTe
 }
 
 type Service interface {
-	// Group operations
 	GetGroup(ctx context.Context, id int64) (*domain.Group, error)
 	GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
 	CreateGroup(ctx context.Context, group *domain.Group) error
@@ -153,17 +154,14 @@ type Service interface {
 	// one query — use instead of per-group FindGroupWithRoom loops.
 	GetGroupsWithRoomsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error)
 
-	// Group-Teacher operations
 	RemoveTeacherFromGroup(ctx context.Context, groupID, teacherID int64) error
 	UpdateGroupTeachers(ctx context.Context, groupID int64, teacherIDs []int64) error
 	GetGroupTeachers(ctx context.Context, groupID int64) ([]*Teacher, error)
 	GetTeachersForGroups(ctx context.Context, groupIDs []int64) (map[int64][]*Teacher, error)
 	GetTeacherGroups(ctx context.Context, teacherID int64) ([]*domain.Group, error)
 
-	// Class-Teacher operations (#1772): staff-to-school-class assignments
-	// that scope the Lehrkraft day view. Classes are free-text strings
-	// matched via schoolclass.Normalize; there is no class entity. changedBy
-	// is the authenticated account ID for the audit trail.
+	// Staff-to-class assignments scope the Lehrkraft day view (#1772); free-text
+	// classes use schoolclass.Normalize. changedBy is the authenticated audit account.
 	GetStaffSchoolClasses(ctx context.Context, staffID int64) ([]string, error)
 	SetStaffSchoolClasses(ctx context.Context, staffID int64, classes []string, changedBy int64) error
 }

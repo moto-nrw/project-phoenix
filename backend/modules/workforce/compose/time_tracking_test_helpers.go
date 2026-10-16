@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package compose
 
 import (
@@ -5,6 +7,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 	"github.com/uptrace/bun"
+)
+
+type (
+	StaffAbsenceTypeAllowanceRepository       = workforcePostgres.StaffAbsenceTypeAllowanceRepository
+	StaffAbsenceTypeAllowanceChangeRepository = workforcePostgres.StaffAbsenceTypeAllowanceChangeRepository
 )
 
 // TimeTrackingTestRows are the time-tracking row contracts over a Workforce

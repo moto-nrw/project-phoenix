@@ -424,6 +424,10 @@ func (s *fakeStore) InsertOperator(_ context.Context, operator domain.Operator) 
 func (s *fakeStore) DeleteOperator(context.Context, int64) (domain.OperationStats, error) {
 	panic("not used")
 }
+func (s *fakeStore) DeleteDeactivatedOperators(context.Context) (int, domain.OperationStats, error) {
+	s.record("DeleteDeactivatedOperators")
+	return 0, stats(), nil
+}
 
 // IncrementOperatorMFAAttempts models the single UPDATE: the counter grows
 // and, exactly when this increment reaches the threshold, the cooldown

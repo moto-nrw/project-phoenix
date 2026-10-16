@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package domain
 
 // The builders below serve only the tests that pin how the retained

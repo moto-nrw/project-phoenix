@@ -150,10 +150,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-iot",
-      "kind": "inbound"
-    },
-    {
       "id": "inbound-messaging",
       "kind": "inbound"
     },
@@ -747,7 +743,7 @@
     },
     {
       "path": "api/iot",
-      "owner": "inbound-iot",
+      "owner": "process-device-scan",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -761,8 +757,8 @@
     },
     {
       "path": "api/iot/compose",
-      "owner": "inbound-iot",
-      "role": "compose",
+      "owner": "process-device-scan",
+      "role": "http",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -1916,6 +1912,13 @@
     },
     {
       "path": "modules/peopledirectory/internal/ports",
+      "owner": "people-directory",
+      "role": "port",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/peopledirectory/ports",
       "owner": "people-directory",
       "role": "port",
       "internal_test_role": "module-internal-test",
@@ -3388,6 +3391,13 @@
       "path": "modules/schoolstructure/contract",
       "owner": "school-structure",
       "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/delivery/devices",
+      "owner": "delivery-platform",
+      "role": "public",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },
@@ -6491,18 +6501,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound.adapter-test.workflow.public",
-      "description": "Adapter tests may use public workflows (inbound sources; a platform reaches no workflow owner, ADR 0057).",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
-      "source_role": "adapter-test",
-      "target_owner_kind": "workflow",
-      "target_role": "public"
-    },
-    {
       "id": "workflow.adapter-test.workflow.public",
       "description": "Adapter tests may use public workflows (workflow sources; a platform reaches no workflow owner, ADR 0057).",
       "scopes": [
@@ -7575,17 +7573,6 @@
         "production"
       ],
       "source_owner": "process-device-scan",
-      "source_role": "http",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.to.process-device-scan",
-      "description": "inbound-iot calls exactly one public capability.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
       "source_role": "http",
       "target_owner": "process-device-scan",
       "target_role": "public"
@@ -11173,158 +11160,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-iot.compose.inbound-common.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.device-scan-http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.device-fleet.http",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-iot.compose.device-fleet.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.process-device-scan.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.tenant-runtime.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.observability.public",
-      "description": "IoT composition binds native capabilities, HTTP adapters, authentication, transactions, and observation (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_owner": "observability",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose.http-router",
-      "description": "IoT composition binds the HTTP router and ambient database runtime (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_class": "http-router"
-    },
-    {
-      "id": "root-composition.iot-compose",
-      "description": "The API root mounts the IoT composition over native capabilities (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-iot",
-      "target_role": "compose"
-    },
-    {
-      "id": "inbound-iot.compose-test.device-fleet",
-      "description": "IoT composition tests supply native owner capabilities (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "device-fleet",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose-test.process-device-scan",
-      "description": "IoT composition tests supply native owner capabilities (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "process-device-scan",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose-test.feedback",
-      "description": "IoT composition tests supply native owner capabilities (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "feedback",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-iot.compose-test.device-scan-compose",
-      "description": "The kiosk composition regression test verifies persisted timetable mirror tenant and wall-clock mapping through the native session lifecycle (#2739).",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "module-internal-test",
-      "target_owner": "process-device-scan",
-      "target_role": "compose"
-    },
-    {
-      "id": "inbound-iot.compose.logger-default",
-      "description": "IoT composition uses cmp.Or for the shared logger default; cmp is classified with the test dependency class (#2739).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-iot",
-      "source_role": "compose",
-      "target_class": "test"
-    },
-    {
       "id": "document-rendering.decision-test.application",
       "description": "Plan export rendering tests inspect the rendered Document Rendering document field by field (#2706).",
       "scopes": [
@@ -13992,17 +13827,6 @@
       "same_owner": true
     },
     {
-      "id": "owner-compose.inbound.http",
-      "description": "ADR 0053 point 3: the composition of an inbound owner imports its own http role.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner_kind": "inbound",
-      "source_role": "compose",
-      "target_role": "http",
-      "same_owner": true
-    },
-    {
       "id": "own-test.domain.adapter",
       "description": "ADR 0053 point 7.1: the tests of a domain owner import its own adapter role.",
       "scopes": [
@@ -14043,17 +13867,6 @@
         "external_test"
       ],
       "source_owner_kind": "domain",
-      "target_role": "compose",
-      "same_owner": true
-    },
-    {
-      "id": "own-test.inbound.compose",
-      "description": "ADR 0053 point 7.1: the tests of an inbound owner import its own compose role.",
-      "scopes": [
-        "internal_test",
-        "external_test"
-      ],
-      "source_owner_kind": "inbound",
       "target_role": "compose",
       "same_owner": true
     },

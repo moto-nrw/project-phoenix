@@ -114,20 +114,6 @@ type GuardianAccess interface {
 	GuardianAccessCommand
 }
 
-// Operator is the platform login identity of a moto operator.
-type Operator struct {
-	ID             int64
-	Email          string
-	DisplayName    string
-	PasswordHash   string
-	Active         bool
-	LastLogin      *time.Time
-	MFAAttempts    int
-	MFALockedUntil *time.Time
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
-}
-
 // OperatorMFAAttempts is the counter snapshot after one failed MFA
 // verification: the new attempt count and the lockout, if it was applied.
 type OperatorMFAAttempts struct {
@@ -369,6 +355,7 @@ type Engine interface {
 	AccountProvisioning
 	AccountAdministration
 	OperatorProvisioning
+	OperatorStatus
 }
 
 // InvitedPersonQuery retains the person identities of unused invitations in
