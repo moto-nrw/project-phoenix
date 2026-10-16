@@ -5,7 +5,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/timezone"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 )
 
@@ -53,6 +52,6 @@ type StudentStatusDayRepository interface {
 // paginated absence overview.
 type StudentStatusDayOverviewRepository interface {
 	StudentStatusDayRepository
-	ListOverviewWithOptions(ctx context.Context, options *modelBase.QueryOptions, orderedStudentIDs []int64) ([]*absencerecords.StudentStatusDay, error)
-	CountWithOptions(ctx context.Context, options *modelBase.QueryOptions) (int, error)
+	ListOverview(ctx context.Context, query StatusDayOverviewQuery, orderedStudentIDs []int64) ([]*absencerecords.StudentStatusDay, error)
+	CountOverview(ctx context.Context, query StatusDayOverviewQuery) (int, error)
 }

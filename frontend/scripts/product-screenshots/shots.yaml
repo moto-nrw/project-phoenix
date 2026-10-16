@@ -56,7 +56,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
   # Hilfe betreuungszeiten-eintragen, kind-angaben-aendern
   - id: betreuungszeiten-pflegen
@@ -65,7 +65,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: '[role="tab"][data-tab-value="betreuungszeiten"]'
   # Hilfe abwesenheiten; PostHog: 253 Abwesenheitsmeldungen
@@ -75,7 +75,7 @@ shots:
     rolle: admin
     pfad: /students/search
     vorbereitung:
-      - klicken: 'role=button[name="Finn Hartmann - Details öffnen"]'
+      - klicken: 'role=button[name="Finn Busch - Details öffnen"]'
       - warten_auf: 'role=tab[name="Stammdaten"]'
       - klicken: 'main button:has-text("Krank melden")'
       - warten_auf: '[role="dialog"]'

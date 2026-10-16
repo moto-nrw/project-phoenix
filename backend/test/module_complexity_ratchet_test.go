@@ -287,7 +287,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/workforce/internal/planning/staff_shift_service.go:(*staffShiftService).updateShiftWithOptions":                                    45,
 	"modules/workforce/legacy/substitution_repository.go:(*groupSubstitutionRepository).List":                                                   18,
 	"modules/workforce/legacy/substitution_repository.go:applyGroupSubstitutionCondition":                                                       25,
-	"modules/workforce/legacy/substitution_repository.go:groupSubstitutionFilterFromOptions":                                                    16,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:EvaluateWorkSessionsLaborTime":                                    16,
 	"modules/workforce/internal/application/timetracking/labor_time_policy.go:netMinutesByDate":                                                 29,
 	"modules/workforce/internal/application/timetracking/staff_absence_rebooking.go:(*staffAbsenceService).RebookAbsences":                      21,

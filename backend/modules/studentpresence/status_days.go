@@ -212,6 +212,27 @@ type StatusDayOverview struct {
 	HasMore bool
 }
 
+// StatusDayOverviewQuery selects one page of the absence overview: the status
+// days dated From through To of the listed children, each inside its own
+// window, that are still active or were archived at the end of their day. An
+// empty Children list matches nothing; an empty Status matches every status.
+type StatusDayOverviewQuery struct {
+	From     timezone.Date
+	To       timezone.Date
+	Children []StatusDayWindow
+	Status   string
+	Page     int
+	PageSize int
+}
+
+// StatusDayWindow bounds the overview rows of one child; a nil bound leaves
+// that side open.
+type StatusDayWindow struct {
+	StudentID int64
+	From      *timezone.Date
+	Until     *timezone.Date
+}
+
 // DatabaseHandle marks a live database behind the tenant unit of work. The
 // retained services only test it for presence: a nil handle is the shape unit
 // tests build, where every repository is a double and nothing needs a

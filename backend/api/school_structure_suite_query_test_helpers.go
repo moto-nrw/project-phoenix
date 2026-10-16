@@ -1,11 +1,10 @@
 package api
 
-import usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+import "github.com/moto-nrw/project-phoenix/modules/workforce"
 
-// The query shapes the retained School Structure substitution suites list
-// with. The suites may import neither the retained models nor the shared
-// fixtures' former People Directory vocabulary (#3966).
-var (
-	NewSchoolStructureSuiteQueryOptions = usersModels.NewQueryOptions
-	NewSchoolStructureSuiteQueryFilter  = usersModels.NewQueryFilter
-)
+// SchoolStructureSuiteSubstitutionPage is the first page of size group
+// substitutions. The retained School Structure substitution suites may not
+// import Workforce (#3966).
+func SchoolStructureSuiteSubstitutionPage(size int) workforce.GroupSubstitutionFilter {
+	return workforce.GroupSubstitutionFilter{Limit: size}
+}
