@@ -9,7 +9,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
@@ -59,7 +59,7 @@ func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 		return nil, err
 	}
 
-	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, configModels.KeyParentMasterDataRequestEnabled)
+	enabled, err := s.Settings.ResolveBoolForTenant(ctx, child.TenantID, KeyParentMasterDataRequestEnabled)
 	if err != nil {
 		return nil, fmt.Errorf("parent: resolve master-data request setting: %w", err)
 	}
