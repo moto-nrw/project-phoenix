@@ -2,7 +2,6 @@ package application
 
 import (
 	"context"
-	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
@@ -12,25 +11,23 @@ import (
 // fixed window (#4046).
 type CleanupRetention struct {
 	store ports.CleanupRetentionStore
-	now   func() time.Time
 }
 
 func NewCleanupRetention(store ports.CleanupRetentionStore) *CleanupRetention {
 	if store == nil {
 		panic("workforce application: cleanup retention requires its store")
 	}
-	return &CleanupRetention{store: store, now: time.Now}
+	return &CleanupRetention{store: store}
 }
 
 // DeleteFinished removes the staff document file cleanups and offboarding
 // jobs that finished before the window.
 func (r *CleanupRetention) DeleteFinished(ctx context.Context) (int, error) {
-	before := r.now().Add(-domain.CleanupRetentionWindow)
-	files, err := r.store.DeleteFinishedStaffDocumentFileCleanups(ctx, before)
+	files, err := r.store.DeleteFinishedStaffDocumentFileCleanups(ctx, domain.CleanupRetentionWindow)
 	if err != nil {
 		return 0, err
 	}
-	offboardings, err := r.store.DeleteCompletedOffboardingCleanups(ctx, before)
+	offboardings, err := r.store.DeleteCompletedOffboardingCleanups(ctx, domain.CleanupRetentionWindow)
 	if err != nil {
 		return 0, err
 	}
