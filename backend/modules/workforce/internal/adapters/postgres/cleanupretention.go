@@ -10,25 +10,25 @@ import (
 // of 1.15.449: the direct DELETE on the intents stays revoked from the
 // tenant role, and the function deletes only finished intents of the
 // transaction's school.
-func (s *Store) DeleteFinishedStaffDocumentFileCleanups(ctx context.Context, before time.Time) (int, error) {
+func (s *Store) DeleteFinishedStaffDocumentFileCleanups(ctx context.Context, window time.Duration) (int, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, err
 	}
 	var deleted int64
-	if err := db.NewRaw(`SELECT users.delete_finished_staff_document_file_cleanups(?, ?)`, tenantID, before).Scan(ctx, &deleted); err != nil {
+	if err := db.NewRaw(`SELECT users.delete_finished_staff_document_file_cleanups(?, statement_timestamp() - (? * INTERVAL '1 second'))`, tenantID, window.Seconds()).Scan(ctx, &deleted); err != nil {
 		return 0, fmt.Errorf("workforce postgres: delete finished staff document file cleanups: %w", err)
 	}
 	return int(deleted), nil
 }
 
-func (s *Store) DeleteCompletedOffboardingCleanups(ctx context.Context, before time.Time) (int, error) {
+func (s *Store) DeleteCompletedOffboardingCleanups(ctx context.Context, window time.Duration) (int, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return 0, err
 	}
 	result, err := db.NewRaw(`DELETE FROM users.staff_offboarding_cleanup
-		WHERE tenant_id = ? AND completed_at IS NOT NULL AND completed_at < ?`, tenantID, before).Exec(ctx)
+		WHERE tenant_id = ? AND completed_at IS NOT NULL AND completed_at < statement_timestamp() - (? * INTERVAL '1 second')`, tenantID, window.Seconds()).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("workforce postgres: delete completed offboarding cleanups: %w", err)
 	}
