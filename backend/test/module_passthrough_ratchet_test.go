@@ -177,7 +177,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry.
-const modulePassthroughOwnerBudgetTotal = 3092
+const modulePassthroughOwnerBudgetTotal = 3091
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -224,8 +224,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// day report is built in the projection instead of forwarded to the
 	// retained enrollment report.
 	//
-	// ADR 0061: application 6 + modules/classday/compose 15.
-	"modules/classday": 21,
+	// ADR 0061: application 6 + modules/classday/compose 14.
+	"modules/classday": 20,
 	// Announcement and feed writes, each one store call behind the shared
 	// mutateExisting/run helpers.
 	//
