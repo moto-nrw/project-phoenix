@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"slices"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
@@ -57,7 +55,7 @@ func (r *EnrollablePhaseRepository) enrolledSubmitPersonIDs(students map[int64]D
 
 // NewEnrollablePhaseRepository wires a fresh repository.
 type PhaseQueries interface {
-	OpenPhaseCandidates(context.Context) ([]*enrollment.Phase, error)
+	OpenPhaseCandidates(context.Context) ([]*careplan.ParentEnrollmentPhase, error)
 }
 
 func NewEnrollablePhaseRepository(phases PhaseQueries, memberships ActiveSchoolMemberships) parentModels.EnrollablePhaseRepository {
@@ -185,7 +183,7 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 	if err != nil {
 		return nil, fmt.Errorf("parent: list enrollable phases: %w", err)
 	}
-	slices.SortStableFunc(rows, func(a, b *enrollment.Phase) int {
+	slices.SortStableFunc(rows, func(a, b *careplan.ParentEnrollmentPhase) int {
 		_, aLinked := activeTenants[a.TenantID]
 		_, bLinked := activeTenants[b.TenantID]
 		if aLinked && !bLinked {
@@ -225,10 +223,10 @@ func (r *EnrollablePhaseRepository) ListEnrollable(ctx context.Context, accountI
 			SchoolID:              rr.TenantID,
 			PhaseID:               rr.ID,
 			PhaseName:             rr.Name,
-			PhaseNameTranslations: rr.PublicNameTranslations(),
+			PhaseNameTranslations: rr.NameTranslations,
 			PhaseKind:             rr.Kind,
-			ServiceStartDate:      careplan.Date(rr.ServiceStartDate),
-			ServiceEndDate:        careplan.Date(rr.ServiceEndDate),
+			ServiceStartDate:      rr.ServiceStartDate,
+			ServiceEndDate:        rr.ServiceEndDate,
 			EnrollmentOpenAt:      rr.EnrollmentOpenAt,
 			EnrollmentCloseAt:     rr.EnrollmentCloseAt,
 			AlreadyLinked:         alreadyLinked,

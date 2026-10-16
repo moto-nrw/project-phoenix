@@ -1327,6 +1327,16 @@ approved only for this conversion:
 
 `cycles --graph target` reports 0 components (58 nodes, 219 edges).
 
+#4076 cuts the three #3417 keys of the layering in code: Student Presence
+names the stamp channel of its automatic check-in in its own vocabulary
+(`studentpresence.StampSource`), the root maps it onto Workforce; the care
+offering selection rules moved from `modules/enrollment/selection` to
+`modules/careplan/selection` (`care-plan`/`public`), because Care Plan owns
+the care offerings and Enrollment sits above it; the guardian portal's
+enrollment views reach the Care Plan parent repositories as
+`careplan.ParentEnrollmentPhase` and `ParentEnrollmentRequest`, which the root
+binds to Enrollment.
+
 #4072 removed 25 of the 34 platform keys (519 → 494) without a rule. Each
 platform declares what it needs in its own vocabulary and the root binds the
 owner:

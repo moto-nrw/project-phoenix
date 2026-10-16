@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/selection"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 

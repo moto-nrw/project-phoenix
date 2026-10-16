@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-
 	parentModels "github.com/moto-nrw/project-phoenix/models/parent"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
@@ -114,8 +112,8 @@ func (r *EnrollmentRequestRepository) ListByAccount(ctx context.Context, account
 			WithdrawnAt:              rr.WithdrawnAt,
 			PhaseID:                  rr.PhaseID,
 			PhaseName:                rr.PhaseName,
-			ServiceStartDate:         careplan.Date(rr.ServiceStartDate),
-			ServiceEndDate:           careplan.Date(rr.ServiceEndDate),
+			ServiceStartDate:         rr.ServiceStartDate,
+			ServiceEndDate:           rr.ServiceEndDate,
 			ShowStatusReasonToParent: rr.ShowStatusReasonToParent,
 			Children:                 childrenByRequest[rr.RequestID],
 		})
@@ -134,6 +132,6 @@ func (r *EnrollmentRequestRepository) BackfillGuardianAccountID(ctx context.Cont
 
 // EnrollmentCommands is Parent's port for reading and attaching pre-account submissions.
 type EnrollmentCommands interface {
-	AccountRequests(context.Context, int64, string) ([]enrollment.AccountRequest, error)
+	AccountRequests(context.Context, int64, string) ([]careplan.ParentEnrollmentRequest, error)
 	BackfillGuardianAccountID(context.Context, int64, string) (int, error)
 }
