@@ -1,4 +1,4 @@
-package shiftplanning
+package api
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,23 +22,31 @@ import (
 // asserted against the real runtime, the real services and the database.
 
 type shiftTypeRoute struct {
-	db     *bun.DB
-	router chi.Router
-	token  string
-	ctx    context.Context
-	module workforcetest.ShiftTypes
+	db                *bun.DB
+	router            chi.Router
+	token             string
+	ctx               context.Context
+	categoryShiftType func(context.Context, int64) (*int64, error)
 }
 
 func setupShiftTypeRoute(t *testing.T) *shiftTypeRoute {
 	t.Helper()
-	db, module := workforcetest.ComposeShiftTypes(t)
-	resource := NewShiftTypesResource(module.Administration)
+	db := testpkg.SetupTestDB(t)
+	module, err := NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	resource := newShiftTypesResource(module.ShiftTypes)
 
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.Tenant(t)
 	claims.Permissions = []string{permissions.TimeTrackingManage}
 	claims.IsAdmin = false
-	return &shiftTypeRoute{db: db, router: resource.Router(), token: testutil.MintTestJWT(t, claims), ctx: testpkg.Ctx(t), module: module}
+	return &shiftTypeRoute{db: db, router: resource.Router(), token: testutil.MintTestJWT(t, claims), ctx: testpkg.Ctx(t), categoryShiftType: func(ctx context.Context, categoryID int64) (*int64, error) {
+		category, err := module.Repositories.Rows.ActivityCategory.FindByID(ctx, categoryID)
+		if err != nil {
+			return nil, err
+		}
+		return category.ShiftTypeID, nil
+	}}
 }
 
 func (s *shiftTypeRoute) do(t *testing.T, method, path string, body any) *http.Response {
@@ -50,7 +57,7 @@ func (s *shiftTypeRoute) do(t *testing.T, method, path string, body any) *http.R
 
 func (s *shiftTypeRoute) shiftTypeIDOf(t *testing.T, categoryID int64) *int64 {
 	t.Helper()
-	shiftTypeID, err := s.module.CategoryShiftType(s.ctx, categoryID)
+	shiftTypeID, err := s.categoryShiftType(s.ctx, categoryID)
 	require.NoError(t, err)
 	return shiftTypeID
 }

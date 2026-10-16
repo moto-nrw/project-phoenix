@@ -5,6 +5,8 @@ import (
 	"log/slog"
 	"strings"
 
+	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/api/staff-shifts"
+
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -83,6 +85,7 @@ func newTimeTrackingResource(graph *serviceGraph, calendar schoolcalendar.Calend
 		Staff:            capabilities.Staff,
 		WorkTimeMonth:    capabilities.WorkTimeMonth,
 		StaffShifts:      graph.StaffShifts,
+		ShiftResponses:   timeTrackingShiftResponses,
 		Assignments:      graph.StaffAssignments,
 		Calendar:         PlanningCalendarCapability(calendar),
 		AccountStartDate: timeTrackingAccountStartDate(graph.Settings),
@@ -125,4 +128,8 @@ func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules wo
 		Identity:           timeTrackingIdentity,
 		Logger:             logger,
 	})
+}
+
+func timeTrackingShiftResponses(shifts []workforceModule.PlannedShift) any {
+	return staffShiftsHTTP.ToShiftResponses(shifts)
 }

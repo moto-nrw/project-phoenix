@@ -103,3 +103,7 @@ func optionalDateString(value *calendar.Date) *string {
 // TenantTransaction runs a write in the request tenant's unit of work.
 // The composition root binds the transaction runtime; HTTP receives no database.
 type TenantTransaction func(context.Context, int64, func(context.Context) error) error
+
+// ShiftResponses renders the shared shift wire values through a Root-bound adapter.
+// The time-tracking adapter does not import a peer HTTP package.
+type ShiftResponses func([]workforce.PlannedShift) any
