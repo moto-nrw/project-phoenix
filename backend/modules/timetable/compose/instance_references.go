@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -33,7 +32,7 @@ func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Contex
 	// A duty occurrence (#3822) may lack a room and never carries children;
 	// every other block needs a room.
 	isDuty := groupType == timetable.GroupTypeDuty
-	if isDuty && len(sliceutil.UniquePositive(refs.studentIDs)) > 0 {
+	if isDuty && len(domain.UniquePositiveIDs(refs.studentIDs)) > 0 {
 		return "", fmt.Errorf("%w: a duty has no children", timetable.ErrInvalidInstanceReference)
 	}
 	if err := s.validateRoomReference(ctx, refs.roomID, isDuty); err != nil {
@@ -48,7 +47,7 @@ func (s *InstanceLifecycleService) validateInstanceReferences(ctx context.Contex
 // invalidReference reports a lookup failure as such, and a missing row
 // (nil or not found) as an invalid reference.
 func invalidReference(field string, err error) error {
-	if err != nil && !modelBase.IsNoRows(err) {
+	if err != nil && !domain.IsRecordNotFound(err) {
 		return fmt.Errorf("validate %s: %w", field, err)
 	}
 	return fmt.Errorf("%w: invalid %s", timetable.ErrInvalidInstanceReference, field)
@@ -91,7 +90,7 @@ func (s *InstanceLifecycleService) validateStaffReferences(ctx context.Context, 
 }
 
 func (s *InstanceLifecycleService) validatePlannableStaffReferences(ctx context.Context, staffIDs []int64, allowExternalCaregivers bool) error {
-	uniqueStaffIDs := sliceutil.UniquePositive(staffIDs)
+	uniqueStaffIDs := domain.UniquePositiveIDs(staffIDs)
 	guestStaffIDs, err := s.findGuestStaffReferences(ctx, uniqueStaffIDs)
 	if err != nil {
 		return err
@@ -164,7 +163,7 @@ func (s *InstanceLifecycleService) validateCreatedByStaffReference(ctx context.C
 // The caller holds the grade-transition gate, so the status cannot flip.
 // Past rosters are frozen history and stay editable.
 func (s *InstanceLifecycleService) validateStudentReferences(ctx context.Context, date calendar.Date, studentIDs []int64) error {
-	uniqueStudentIDs := sliceutil.UniquePositive(studentIDs)
+	uniqueStudentIDs := domain.UniquePositiveIDs(studentIDs)
 	if len(uniqueStudentIDs) == 0 {
 		return nil
 	}

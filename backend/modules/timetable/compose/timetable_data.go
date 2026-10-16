@@ -9,9 +9,9 @@ import (
 	"time"
 
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -155,7 +155,7 @@ func NewTimetableData(deps TimetableDataDependencies) (timetable.TimetableDataCa
 func (d *timetableData) FindScheduledInstance(ctx context.Context, id int64) (timetable.ScheduledInstance, error) {
 	row, err := d.deps.Instances.FindByID(ctx, id)
 	if err != nil {
-		if modelBase.IsNoRows(err) {
+		if domain.IsRecordNotFound(err) {
 			return timetable.ScheduledInstance{}, fmt.Errorf("%w: %w", timetable.ErrActivityInstanceNotFound, err)
 		}
 		return timetable.ScheduledInstance{}, err
@@ -303,7 +303,7 @@ func (d *timetableData) ListCareDayCandidates(ctx context.Context, instanceIDs [
 
 func (d *timetableData) FindBlockParticipant(ctx context.Context, instanceID, studentID int64) (*timetable.ScheduledParticipant, error) {
 	row, err := d.deps.Participants.FindByInstanceAndStudent(ctx, instanceID, studentID)
-	if modelBase.IsNoRows(err) {
+	if domain.IsRecordNotFound(err) {
 		return nil, nil
 	}
 	if err != nil || row == nil {

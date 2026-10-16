@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 func (r CarePickupScheduleRows) Create(ctx context.Context, row *scheduleModels.StudentPickupSchedule) error {
@@ -42,7 +42,7 @@ func (r CarePickupScheduleRows) Update(ctx context.Context, row *scheduleModels.
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupSchedule(ctx, pickupScheduleToPublic(row)))
 }
-func (r CarePickupScheduleRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
+func (r CarePickupScheduleRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupSchedule, error) {
 	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupSchedules, pickupScheduleToLegacy)
 }
 func (r CarePickupScheduleRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupSchedule, error) {
@@ -122,7 +122,7 @@ func (r CarePickupExceptionRows) Update(ctx context.Context, row *scheduleModels
 	}
 	return r.rows.scheduleError("update", r.rows.Records.UpdatePickupException(ctx, pickupExceptionToPublic(row)))
 }
-func (r CarePickupExceptionRows) List(ctx context.Context, options *modelBase.QueryOptions) ([]*scheduleModels.StudentPickupException, error) {
+func (r CarePickupExceptionRows) List(ctx context.Context, options *domain.ListOptions) ([]*scheduleModels.StudentPickupException, error) {
 	return listWithOptions(ctx, r.rows, options, r.rows.Records.ListPickupExceptions, pickupExceptionToLegacy)
 }
 func (r CarePickupExceptionRows) FindByStudentID(ctx context.Context, id int64) ([]*scheduleModels.StudentPickupException, error) {

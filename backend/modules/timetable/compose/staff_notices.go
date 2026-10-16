@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
@@ -37,7 +37,7 @@ func (r staffNoticeRepository) Create(ctx context.Context, notice *schedule.Staf
 	}
 	row := staffNoticeRow(notice)
 	if err := r.store.CreateStaffNotice(ctx, row); err != nil {
-		return &modelBase.DatabaseError{Op: "create", Err: err}
+		return &domain.StoreError{Op: "create", Err: err}
 	}
 	*notice = *staffNoticeModel(row)
 	return nil
@@ -54,11 +54,11 @@ func (r staffNoticeRepository) Update(ctx context.Context, notice *schedule.Staf
 	row := staffNoticeRow(notice)
 	affected, err := r.store.UpdateStaffNotice(ctx, row)
 	if err != nil {
-		return &modelBase.DatabaseError{Op: "update", Err: err}
+		return &domain.StoreError{Op: "update", Err: err}
 	}
 	*notice = *staffNoticeModel(row)
 	if affected != 1 {
-		return &modelBase.DatabaseError{
+		return &domain.StoreError{
 			Op:  "update StaffNotice",
 			Err: fmt.Errorf("expected %d rows affected, got %d", 1, affected),
 		}
@@ -72,7 +72,7 @@ func (r staffNoticeRepository) Update(ctx context.Context, notice *schedule.Staf
 func (r staffNoticeRepository) FindByID(ctx context.Context, id int64) (*schedule.StaffNotice, error) {
 	row, found, err := r.store.FindStaffNotice(ctx, id)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "find by id", Err: err}
+		return nil, &domain.StoreError{Op: "find by id", Err: err}
 	}
 	if !found {
 		return nil, nil
@@ -83,7 +83,7 @@ func (r staffNoticeRepository) FindByID(ctx context.Context, id int64) (*schedul
 // Delete entfernt den Hinweis; die Kenntnisnahmen fallen per CASCADE mit.
 func (r staffNoticeRepository) Delete(ctx context.Context, id int64) error {
 	if err := r.store.DeleteStaffNotice(ctx, id); err != nil {
-		return &modelBase.DatabaseError{Op: "delete", Err: err}
+		return &domain.StoreError{Op: "delete", Err: err}
 	}
 	return nil
 }
@@ -92,7 +92,7 @@ func (r staffNoticeRepository) Delete(ctx context.Context, id int64) error {
 func (r staffNoticeRepository) List(ctx context.Context, includeInactive bool) ([]*schedule.StaffNotice, error) {
 	rows, err := r.store.ListStaffNotices(ctx, includeInactive)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff notices", Err: translateNotFound(err)}
+		return nil, &domain.StoreError{Op: "list staff notices", Err: translateNotFound(err)}
 	}
 	return staffNoticeModels(rows), nil
 }
@@ -113,7 +113,7 @@ func (r staffNoticeRepository) ListValidOn(ctx context.Context, date calendar.Da
 	// 'info' vor 'important', der wichtige Hinweis stünde also unten.
 	rows, err := r.store.ListStaffNoticesValidOn(ctx, schedule.Date(date.String()), reader, schedule.StaffNoticeAudienceAll, schedule.StaffNoticePriorityImportant)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff notices valid on date", Err: translateNotFound(err)}
+		return nil, &domain.StoreError{Op: "list staff notices valid on date", Err: translateNotFound(err)}
 	}
 	return staffNoticeModels(rows), nil
 }
@@ -127,7 +127,7 @@ func (r staffNoticeRepository) Acknowledge(ctx context.Context, noticeID, accoun
 		AcknowledgedAt: time.Now(),
 	}
 	if err := r.store.AcknowledgeStaffNotice(ctx, ack); err != nil {
-		return &modelBase.DatabaseError{Op: "acknowledge staff notice", Err: translateNotFound(err)}
+		return &domain.StoreError{Op: "acknowledge staff notice", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -141,7 +141,7 @@ func (r staffNoticeRepository) AcknowledgedAtFor(ctx context.Context, accountID 
 	}
 	rows, err := r.store.ListOwnStaffNoticeAcks(ctx, accountID, noticeIDs)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "load own staff notice acknowledgements", Err: translateNotFound(err)}
+		return nil, &domain.StoreError{Op: "load own staff notice acknowledgements", Err: translateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.NoticeID] = row.AcknowledgedAt
@@ -164,7 +164,7 @@ func (r staffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeIDs
 	}
 	rows, err := r.store.CountStaffNoticeAcks(ctx, noticeIDs)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "count staff notice acknowledgements", Err: translateNotFound(err)}
+		return nil, &domain.StoreError{Op: "count staff notice acknowledgements", Err: translateNotFound(err)}
 	}
 	for _, row := range rows {
 		result[row.NoticeID] = row.Count
@@ -182,7 +182,7 @@ func (r staffNoticeRepository) AcknowledgedCounts(ctx context.Context, noticeIDs
 func (r staffNoticeRepository) Acknowledgements(ctx context.Context, noticeID int64) ([]*schedule.StaffNoticeAck, error) {
 	rows, err := r.store.ListStaffNoticeAcks(ctx, noticeID)
 	if err != nil {
-		return nil, &modelBase.DatabaseError{Op: "list staff notice acknowledgements", Err: translateNotFound(err)}
+		return nil, &domain.StoreError{Op: "list staff notice acknowledgements", Err: translateNotFound(err)}
 	}
 	acks := make([]*schedule.StaffNoticeAck, 0, len(rows))
 	for _, row := range rows {

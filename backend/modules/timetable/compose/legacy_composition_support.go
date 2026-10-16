@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 )
 
 // CalendarPeriodOverlapListing serves the date-typed overlap finders of the
@@ -36,14 +36,14 @@ type UnfilteredListing[T any] struct {
 	Source func(context.Context) ([]T, error)
 }
 
-func (l UnfilteredListing[T]) List(ctx context.Context, options *modelBase.QueryOptions) ([]T, error) {
+func (l UnfilteredListing[T]) List(ctx context.Context, options *domain.ListOptions) ([]T, error) {
 	if options != nil && (options.Pagination != nil || options.Sorting != nil || filterHasConditions(options.Filter)) {
-		return nil, &modelBase.DatabaseError{Op: "list", Err: errors.New("unsupported query options: the owner serves the unfiltered listing only")}
+		return nil, &domain.StoreError{Op: "list", Err: errors.New("unsupported query options: the owner serves the unfiltered listing only")}
 	}
 	return l.Source(ctx)
 }
 
-func filterHasConditions(filter *modelBase.Filter) bool {
+func filterHasConditions(filter *domain.ListFilter) bool {
 	return filter != nil && (len(filter.Conditions()) > 0 || len(filter.OrFilters()) > 0 || len(filter.AndFilters()) > 0)
 }
 
