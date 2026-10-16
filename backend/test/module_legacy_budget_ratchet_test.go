@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 1226
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3797
+const moduleLegacyFileBudgetTotal = 3795
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -143,7 +143,7 @@ var moduleLegacyFileBudgets = map[string]int{
 	"modules/presenceprojection/legacy_rows.go":                                         353,
 	"modules/schoolstructure/compose/legacy_group_catalog.go":                           71,
 	"modules/schoolstructure/compose/legacy_group_contract.go":                          67,
-	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go":           169,
+	"modules/schoolstructure/compose/legacy_group_management_test_helpers.go":           167,
 	"modules/schoolstructure/compose/legacy_repository_runtime.go":                      53,
 	"modules/timetable/compose/legacy_activity_service.go":                              537,
 	"modules/timetable/compose/legacy_category_operations.go":                           138,
