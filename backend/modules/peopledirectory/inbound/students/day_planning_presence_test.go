@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -31,7 +31,7 @@ func TestListStudents_UnplannedPresenceEndsAtCheckout(t *testing.T) {
 	sickPresent := testpkg.CreateTestStudent(t, tc.db, "SickPresent", "Student", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "Presence", "Supervisor")
 	device := testpkg.CreateTestDevice(t, tc.db, "presence-2379-device")
-	today := timezone.DateFromTime(fixedNow)
+	today := calendar.DateFromTime(fixedNow)
 
 	for _, student := range []int64{absent.ID, present.ID, checkedOut.ID} {
 		testpkg.CreateTestArrivalException(t, tc.db, student, today, staff.ID, "", "Kommt heute nicht")
@@ -85,7 +85,7 @@ func TestListStudents_ExpectedChildReadsSchoolBeforeFirstCheckIn(t *testing.T) {
 	present := testpkg.CreateTestStudent(t, tc.db, "Present", "Student", schoolClass)
 	staff := testpkg.CreateTestStaff(t, tc.db, "School", "Supervisor")
 	device := testpkg.CreateTestDevice(t, tc.db, "school-3260-device")
-	today := timezone.DateFromTime(fixedNow)
+	today := calendar.DateFromTime(fixedNow)
 
 	for _, student := range []int64{waiting.ID, checkedOut.ID, sick.ID, notComing.ID, present.ID} {
 		testpkg.CreateTestPickupSchedule(t, tc.db, student, 5, staff.ID, "15:30") // Friday

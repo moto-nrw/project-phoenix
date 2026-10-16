@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // errPickupBaselineMissing reports a composition without the pickup
@@ -20,7 +20,7 @@ var errPickupBaselineMissing = errors.New("load pickup schedules: baseline proje
 // slot, every block of the tenant (for the walk-ins), the child's visits in
 // running or ended sessions, the regular arrival and pickup through Care
 // Plan's baselines and the dated exceptions.
-func (d *timetableData) StudentWeek(ctx context.Context, studentID int64, from, to timezone.Date) (*timetable.StudentWeek, error) {
+func (d *timetableData) StudentWeek(ctx context.Context, studentID int64, from, to calendar.Date) (*timetable.StudentWeek, error) {
 	week := &timetable.StudentWeek{
 		EnrolledByDate:      map[string][]timetable.StudentWeekEntry{},
 		InstancesByDate:     map[string][]timetable.ScheduledInstance{},
@@ -40,13 +40,13 @@ func (d *timetableData) StudentWeek(ctx context.Context, studentID int64, from, 
 	return week, nil
 }
 
-func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to timezone.Date) error {
+func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
 	enrolled, err := d.deps.Participants.FindInstancesWithAttendanceByStudentAndDateRange(ctx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return fmt.Errorf("load enrolled instances: %w", err)
 	}
 	for _, row := range enrolled {
-		key := timezone.Date(row.Instance.Date).String()
+		key := calendar.Date(row.Instance.Date).String()
 		week.EnrolledByDate[key] = append(week.EnrolledByDate[key], timetable.StudentWeekEntry{
 			Instance: ScheduledInstanceOf(row.Instance), Attendance: ScheduledParticipantOf(row.Attendance),
 		})
@@ -60,7 +60,7 @@ func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetab
 	activeGroupIDs := make([]int64, 0, len(instances))
 	seen := make(map[int64]bool, len(instances))
 	for _, inst := range instances {
-		key := timezone.Date(inst.Date).String()
+		key := calendar.Date(inst.Date).String()
 		week.InstancesByDate[key] = append(week.InstancesByDate[key], ScheduledInstanceOf(inst))
 		if inst.ActiveGroupID == nil || seen[*inst.ActiveGroupID] ||
 			(inst.Status != scheduleModels.InstanceStatusActive && inst.Status != scheduleModels.InstanceStatusCompleted) {
@@ -88,7 +88,7 @@ func (d *timetableData) loadStudentWeekBlocks(ctx context.Context, week *timetab
 // window: with enrollment.bookings_authoritative on, a weekday stops being a
 // care day the moment the booking ends, so the plan is keyed by date, not by
 // weekday (#2414, ADR 0005).
-func (d *timetableData) loadStudentWeekBaselines(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to timezone.Date) error {
+func (d *timetableData) loadStudentWeekBaselines(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
 	if d.deps.ArrivalBaselines == nil {
 		return errArrivalBaselineMissing
 	}
@@ -118,13 +118,13 @@ func (d *timetableData) loadStudentWeekBaselines(ctx context.Context, week *time
 
 // loadStudentWeekExceptions reads the window's dated arrival and pickup
 // exceptions, never the unbounded history.
-func (d *timetableData) loadStudentWeekExceptions(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to timezone.Date) error {
+func (d *timetableData) loadStudentWeekExceptions(ctx context.Context, week *timetable.StudentWeek, studentID int64, from, to calendar.Date) error {
 	arrivals, err := d.deps.ArrivalExceptions.FindByStudentIDAndDateRange(ctx, studentID, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return fmt.Errorf("load arrival exceptions: %w", err)
 	}
 	for _, exception := range arrivals {
-		key := timezone.Date(exception.ExceptionDate).String()
+		key := calendar.Date(exception.ExceptionDate).String()
 		times := week.ArrivalByDate[key]
 		times.Exception = &timetable.StudentDayException{Time: exception.ExpectedArrival, Reason: exception.Reason}
 		week.ArrivalByDate[key] = times
@@ -134,7 +134,7 @@ func (d *timetableData) loadStudentWeekExceptions(ctx context.Context, week *tim
 		return fmt.Errorf("load pickup exceptions: %w", err)
 	}
 	for _, exception := range pickups {
-		key := timezone.Date(exception.ExceptionDate).String()
+		key := calendar.Date(exception.ExceptionDate).String()
 		times := week.PickupByDate[key]
 		times.Exception = &timetable.StudentDayException{Time: exception.PickupTime, Reason: exception.Reason}
 		week.PickupByDate[key] = times

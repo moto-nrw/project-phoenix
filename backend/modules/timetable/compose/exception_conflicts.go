@@ -8,7 +8,6 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -24,7 +23,7 @@ var errArrivalBaselineMissing = errors.New("load arrival schedules: baseline pro
 // DetectExceptionConflicts computes the cancelled_instance_with_scheduled_arrivals
 // and modified_instance_time_mismatch conflicts in the inclusive [from, to]
 // window and returns them unsorted (the caller sorts before responding).
-func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, to timezone.Date) ([]timetable.ExceptionConflict, error) {
+func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, to calendar.Date) ([]timetable.ExceptionConflict, error) {
 	exceptions, err := d.deps.Exceptions.FindByDateRange(ctx, scheduleModels.Date(from), scheduleModels.Date(to))
 	if err != nil {
 		return nil, err
@@ -64,7 +63,7 @@ func (d *conflictDetection) DetectExceptionConflicts(ctx context.Context, from, 
 
 type groupDateKey struct {
 	GroupID int64
-	Date    timezone.Date
+	Date    calendar.Date
 }
 
 type exceptionInstancePair struct {
@@ -72,8 +71,8 @@ type exceptionInstancePair struct {
 	exception *scheduleModels.ActivityException
 }
 
-func (p exceptionInstancePair) date() timezone.Date {
-	return timezone.Date(p.exception.ExceptionDate)
+func (p exceptionInstancePair) date() calendar.Date {
+	return calendar.Date(p.exception.ExceptionDate)
 }
 
 // buildAffectedPairs joins exceptions to their materialized blocks. An
@@ -87,7 +86,7 @@ func (d *conflictDetection) buildAffectedPairs(
 	instancesByKey := indexInstancesByGroupDate(instances)
 	affected := make([]exceptionInstancePair, 0, len(exceptions))
 	for _, exception := range exceptions {
-		key := groupDateKey{GroupID: exception.ActivityGroupID, Date: timezone.Date(exception.ExceptionDate)}
+		key := groupDateKey{GroupID: exception.ActivityGroupID, Date: calendar.Date(exception.ExceptionDate)}
 		matching := instancesByKey[key]
 		if len(matching) == 0 {
 			d.logger.Debug("exception without matching instance, skipping",
@@ -110,7 +109,7 @@ func indexInstancesByGroupDate(instances []*scheduleModels.ActivityInstance) map
 		if instance.ActivityGroupID == nil {
 			continue // spontaneous — no template, so never tied to an exception
 		}
-		key := groupDateKey{GroupID: *instance.ActivityGroupID, Date: timezone.Date(instance.Date)}
+		key := groupDateKey{GroupID: *instance.ActivityGroupID, Date: calendar.Date(instance.Date)}
 		out[key] = append(out[key], instance)
 	}
 	return out
@@ -134,8 +133,8 @@ func uniqueAffectedInstanceIDs(affected []exceptionInstancePair) []int64 {
 func datesToStudents(
 	affected []exceptionInstancePair,
 	expectedByInstance map[int64][]*scheduleModels.InstanceStudent,
-) map[timezone.Date]map[int64]struct{} {
-	out := make(map[timezone.Date]map[int64]struct{})
+) map[calendar.Date]map[int64]struct{} {
+	out := make(map[calendar.Date]map[int64]struct{})
 	for _, pair := range affected {
 		students, ok := expectedByInstance[pair.instance.ID]
 		if !ok {
@@ -156,20 +155,20 @@ type arrivalPreload struct {
 	// byException[date][studentID] — a non-nil row means an arrival exception
 	// exists for the student on that date (ExpectedArrival may still be nil
 	// inside the row, which flags an explicit absence).
-	byException map[timezone.Date]map[int64]*scheduleModels.StudentArrivalException
+	byException map[calendar.Date]map[int64]*scheduleModels.StudentArrivalException
 	// bySchedule[date][studentID] — the recurring arrival time applicable on
 	// that date. Keyed by date rather than weekday because whether a weekday
 	// is a care day at all can change within the window once the approved
 	// bookings decide it (#2414, ADR 0005).
-	bySchedule map[timezone.Date]map[int64]time.Time
+	bySchedule map[calendar.Date]map[int64]time.Time
 	// weekendFollowsFriday gives a weekend Friday's weekly arrival (#3921).
 	weekendFollowsFriday bool
 }
 
-func (d *conflictDetection) loadArrivalPreload(ctx context.Context, dates map[timezone.Date]map[int64]struct{}) (*arrivalPreload, error) {
+func (d *conflictDetection) loadArrivalPreload(ctx context.Context, dates map[calendar.Date]map[int64]struct{}) (*arrivalPreload, error) {
 	pre := &arrivalPreload{
-		byException: map[timezone.Date]map[int64]*scheduleModels.StudentArrivalException{},
-		bySchedule:  map[timezone.Date]map[int64]time.Time{},
+		byException: map[calendar.Date]map[int64]*scheduleModels.StudentArrivalException{},
+		bySchedule:  map[calendar.Date]map[int64]time.Time{},
 	}
 	for date := range dates {
 		if isWeekend(date) {
@@ -192,7 +191,7 @@ func (d *conflictDetection) loadArrivalPreload(ctx context.Context, dates map[ti
 
 // loadArrivalExceptions issues one query per unique date. The range is capped
 // at MaxTimetableReadRangeDays upstream, so this is bounded.
-func (d *conflictDetection) loadArrivalExceptions(ctx context.Context, pre *arrivalPreload, dates map[timezone.Date]map[int64]struct{}) error {
+func (d *conflictDetection) loadArrivalExceptions(ctx context.Context, pre *arrivalPreload, dates map[calendar.Date]map[int64]struct{}) error {
 	for date, students := range dates {
 		rows, err := d.deps.ArrivalExceptions.FindByStudentIDsAndDate(ctx, slices.Collect(maps.Keys(students)), scheduleModels.Date(date))
 		if err != nil {
@@ -210,8 +209,8 @@ func (d *conflictDetection) loadArrivalExceptions(ctx context.Context, pre *arri
 // withoutException keeps the weekday students without an arrival exception
 // on the date: exceptions win, and only Monday to Friday carries a weekly
 // arrival.
-func (pre *arrivalPreload) withoutException(dates map[timezone.Date]map[int64]struct{}) map[timezone.Date]map[int64]struct{} {
-	needed := make(map[timezone.Date]map[int64]struct{})
+func (pre *arrivalPreload) withoutException(dates map[calendar.Date]map[int64]struct{}) map[calendar.Date]map[int64]struct{} {
+	needed := make(map[calendar.Date]map[int64]struct{})
 	for date, students := range dates {
 		if weekday := planWeekday(date, pre.weekendFollowsFriday); weekday < scheduleModels.WeekdayMonday || weekday > scheduleModels.WeekdayFriday {
 			continue
@@ -234,7 +233,7 @@ func (pre *arrivalPreload) withoutException(dates map[timezone.Date]map[int64]st
 // supplies the time, and with enrollment.bookings_authoritative on the
 // approved bookings supply the care days — so a stale row on an unbooked
 // weekday no longer produces a warning about a child that is not coming.
-func (d *conflictDetection) fillArrivalSchedules(ctx context.Context, pre *arrivalPreload, needed map[timezone.Date]map[int64]struct{}) error {
+func (d *conflictDetection) fillArrivalSchedules(ctx context.Context, pre *arrivalPreload, needed map[calendar.Date]map[int64]struct{}) error {
 	if len(needed) == 0 {
 		return nil
 	}
@@ -260,9 +259,9 @@ func (d *conflictDetection) fillArrivalSchedules(ctx context.Context, pre *arriv
 
 // neededArrivalWindow returns the students and the smallest inclusive window
 // covering every needed date.
-func neededArrivalWindow(needed map[timezone.Date]map[int64]struct{}) ([]int64, timezone.Date, timezone.Date) {
+func neededArrivalWindow(needed map[calendar.Date]map[int64]struct{}) ([]int64, calendar.Date, calendar.Date) {
 	studentIDs := make(map[int64]struct{})
-	var from, to timezone.Date
+	var from, to calendar.Date
 	for date, students := range needed {
 		if from.IsZero() || date.Before(from) {
 			from = date
@@ -281,7 +280,7 @@ func neededArrivalWindow(needed map[timezone.Date]map[int64]struct{}) ([]int64, 
 // the shared exception-over-schedule precedence (timetable.ResolveSlotSource).
 // The time is zero when unknown — the source distinguishes "none" (no rule)
 // from an exception without expected arrival (explicit absence).
-func (pre *arrivalPreload) resolveArrival(studentID int64, date timezone.Date) (time.Time, string) {
+func (pre *arrivalPreload) resolveArrival(studentID int64, date calendar.Date) (time.Time, string) {
 	exception, hasException := pre.byException[date][studentID]
 	hasException = hasException && exception != nil
 	scheduled, hasSchedule := pre.bySchedule[date][studentID]
@@ -339,7 +338,7 @@ func (d *conflictDetection) loadTemplatePreload(ctx context.Context, affected []
 // resolveOriginalStart picks the unambiguous template start time for the
 // (group, weekday) pair. With more than one schedule that weekday the warning
 // is still emitted, but original_start_time stays empty.
-func (pre *templatePreload) resolveOriginalStart(groupID int64, date timezone.Date, weekendFollowsFriday bool, logger *slog.Logger) (string, bool) {
+func (pre *templatePreload) resolveOriginalStart(groupID int64, date calendar.Date, weekendFollowsFriday bool, logger *slog.Logger) (string, bool) {
 	// An exception on a weekend replaces Friday's scheduled occurrence only
 	// when that tenant enabled Friday's plan there (#3921).
 	weekday := planWeekday(date, weekendFollowsFriday)
@@ -447,10 +446,10 @@ func (d *conflictDetection) modifiedMismatch(
 	// The exception start and the arrival are both TIME values that scan with
 	// different date anchors; normalizing both pins the comparison to
 	// HH:MM:SS.
-	modifiedStart := timezone.NormalizeWallClock(*pair.exception.StartTime)
+	modifiedStart := calendar.NormalizeWallClock(*pair.exception.StartTime)
 	// Only emit when the arrival is strictly after the new start — arriving
 	// exactly at the start is not a conflict.
-	if !timezone.NormalizeWallClock(arrival).After(modifiedStart) {
+	if !calendar.NormalizeWallClock(arrival).After(modifiedStart) {
 		return timetable.ExceptionConflict{}, false
 	}
 	base.Kind = timetable.ConflictKindModifiedMismatch

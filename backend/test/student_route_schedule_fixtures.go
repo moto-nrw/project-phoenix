@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -91,7 +91,7 @@ func InsertStudentArrivalExceptionRow(tb testing.TB, db *bun.DB, spec StudentArr
 	tb.Helper()
 	row := &StudentArrivalException{
 		StudentID:         spec.StudentID,
-		ExceptionDate:     timezone.Date(spec.ExceptionDate.String()),
+		ExceptionDate:     calendar.Date(spec.ExceptionDate.String()),
 		ExpectedArrival:   spec.ExpectedArrival,
 		Reason:            spec.Reason,
 		Source:            spec.Source,
@@ -122,7 +122,7 @@ func InsertStudentPickupExceptionRow(tb testing.TB, db *bun.DB, spec StudentPick
 	tb.Helper()
 	row := &StudentPickupException{
 		StudentID:         spec.StudentID,
-		ExceptionDate:     timezone.Date(spec.ExceptionDate.String()),
+		ExceptionDate:     calendar.Date(spec.ExceptionDate.String()),
 		PickupTime:        spec.PickupTime,
 		Reason:            spec.Reason,
 		Source:            spec.Source,
@@ -148,7 +148,7 @@ func InsertStudentArrivalNoteRow(tb testing.TB, db *bun.DB, spec StudentDatedNot
 	tb.Helper()
 	row := &StudentArrivalNote{
 		StudentID: spec.StudentID,
-		NoteDate:  timezone.Date(spec.NoteDate.String()),
+		NoteDate:  calendar.Date(spec.NoteDate.String()),
 		Content:   spec.Content,
 		CreatedBy: spec.CreatedBy,
 	}
@@ -162,7 +162,7 @@ func InsertStudentPickupNoteRow(tb testing.TB, db *bun.DB, spec StudentDatedNote
 	tb.Helper()
 	row := &StudentPickupNote{
 		StudentID: spec.StudentID,
-		NoteDate:  timezone.Date(spec.NoteDate.String()),
+		NoteDate:  calendar.Date(spec.NoteDate.String()),
 		Content:   spec.Content,
 		CreatedBy: spec.CreatedBy,
 	}

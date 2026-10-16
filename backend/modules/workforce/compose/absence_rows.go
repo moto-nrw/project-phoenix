@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The row adapters in this file serve the time-tracking staff absence and
@@ -110,7 +110,7 @@ func (r staffAbsenceRepository) CountWithOptions(ctx context.Context, options *m
 	return count, nil
 }
 
-func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string, cutoff *timezone.Date) (*timezone.Date, error) {
+func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string, cutoff *calendar.Date) (*calendar.Date, error) {
 	before := ""
 	if cutoff != nil {
 		before = cutoff.String()
@@ -122,14 +122,14 @@ func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string,
 	if oldest == "" {
 		return nil, nil
 	}
-	date, err := timezone.ParseDate(oldest)
+	date, err := calendar.ParseDate(oldest)
 	if err != nil {
 		return nil, err
 	}
 	return &date, nil
 }
 
-func (r staffAbsenceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff timezone.Date) (int64, error) {
+func (r staffAbsenceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteStaffAbsencesOlderThan(ctx, column, cutoff.String())
 	if err != nil {
 		return 0, absenceWriteError("delete older than", err)
@@ -141,14 +141,14 @@ func (r staffAbsenceRepository) LockStaffAbsenceWrites(ctx context.Context, staf
 	return r.workforce.LockStaffAbsenceWrites(ctx, staffID)
 }
 
-func (r staffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsence, error) {
 	return r.list(ctx, "get absences by staff and date range", workforce.StaffAbsenceFilter{
 		StaffID: staffID, OverlapFrom: from.String(), OverlapTo: to.String(),
 		Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}},
 	})
 }
 
-func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*StaffAbsence, error) {
 	result := make(map[int64][]*StaffAbsence, len(staffIDs))
 	if len(staffIDs) == 0 {
 		return result, nil
@@ -166,7 +166,7 @@ func (r staffAbsenceRepository) GetByStaffIDsAndDateRange(ctx context.Context, s
 	return result, nil
 }
 
-func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error) {
+func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*StaffAbsence, error) {
 	absences, err := r.list(ctx, "get absence by staff and date", workforce.StaffAbsenceFilter{
 		StaffID: staffID, OverlapFrom: date.String(), OverlapTo: date.String(),
 		Statuses: []string{workforce.AbsenceStatusReported, workforce.AbsenceStatusApproved}, Limit: 1,
@@ -177,7 +177,7 @@ func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID i
 	return absences[0], nil
 }
 
-func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error) {
+func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date calendar.Date) (map[int64]string, error) {
 	result, err := r.workforce.StaffAbsenceMapForDate(ctx, date.String())
 	if err != nil {
 		return nil, rowReadError("get effective absences for date", err, nil)
@@ -185,7 +185,7 @@ func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date t
 	return result, nil
 }
 
-func (r staffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, date timezone.Date) (map[int64]int64, error) {
+func (r staffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, date calendar.Date) (map[int64]int64, error) {
 	result, err := r.workforce.StaffAbsenceTypeIDMapForDate(ctx, date.String())
 	if err != nil {
 		return nil, rowReadError("get effective absences for date", err, nil)
@@ -403,8 +403,8 @@ func applyAbsenceToLegacy(entity *StaffAbsence, value workforce.StaffAbsence) {
 	entity.StaffID = value.StaffID
 	entity.AbsenceType = value.AbsenceType
 	entity.AbsenceTypeID = value.AbsenceTypeID
-	entity.DateStart = timezone.Date(value.DateStart)
-	entity.DateEnd = timezone.Date(value.DateEnd)
+	entity.DateStart = calendar.Date(value.DateStart)
+	entity.DateEnd = calendar.Date(value.DateEnd)
 	entity.HalfDay = value.HalfDay
 	entity.StartHalfDay = value.StartHalfDay
 	entity.EndHalfDay = value.EndHalfDay

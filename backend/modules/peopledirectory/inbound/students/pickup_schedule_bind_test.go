@@ -9,9 +9,8 @@ import (
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 
 	"github.com/go-chi/render"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -482,7 +481,7 @@ func createTestScheduleModel(studentID int64, weekday int, pickupTime string, no
 }
 
 func createTestExceptionModel(studentID int64, date, pickupTime, reason string) *careplan.PickupException {
-	parsedDate, _ := timezone.ParseDate(date)
+	parsedDate, _ := calendar.ParseDate(date)
 	parsedTime, _ := parseTimeOnly(pickupTime)
 	return &careplan.PickupException{
 		StudentID:     studentID,
@@ -494,7 +493,7 @@ func createTestExceptionModel(studentID int64, date, pickupTime, reason string) 
 }
 
 func createTestExceptionModelAbsent(studentID int64, date, reason string) *careplan.PickupException {
-	parsedDate, _ := timezone.ParseDate(date)
+	parsedDate, _ := calendar.ParseDate(date)
 	return &careplan.PickupException{
 		StudentID:     studentID,
 		ExceptionDate: careplan.Date(parsedDate),
@@ -767,7 +766,7 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 		reason := "Test"
 		exc := &careplan.PickupException{
 			StudentID:     studentID,
-			ExceptionDate: careplan.Date(timezone.NewDate(2026, 2, 15)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2026, 2, 15)),
 			PickupTime:    &pickupTime,
 			Reason:        &reason,
 			CreatedBy:     createdBy,
@@ -999,7 +998,7 @@ func TestPickupScheduleDateRange(t *testing.T) {
 func TestBuildPickupDataResponse_PreservesExplicitEmptyDate(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 8, 18)
+	date := calendar.NewDate(2026, 8, 18)
 	response := buildPickupDataResponse(&careplan.StudentPickupData{
 		EffectiveSchedules: []careplan.DatedPickupSchedule{{Date: date}},
 	})
@@ -1092,7 +1091,7 @@ func TestMapExceptionToResponse_NilPickupTime(t *testing.T) {
 		reason := "Student is absent"
 		exc := &careplan.PickupException{
 			StudentID:     studentID,
-			ExceptionDate: careplan.Date(timezone.NewDate(2026, 2, 15)),
+			ExceptionDate: careplan.Date(calendar.NewDate(2026, 2, 15)),
 			PickupTime:    nil, // Explicitly nil
 			Reason:        &reason,
 			CreatedBy:     createdBy,

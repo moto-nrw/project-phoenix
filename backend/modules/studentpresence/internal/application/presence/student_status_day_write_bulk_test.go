@@ -6,10 +6,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +25,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	student := testpkg.CreateTestStudent(t, db, "StatusConflict", "Student", "SCS1")
 
 	ctx := testpkg.Ctx(t)
-	conflictDate := timezone.NewDate(2026, 8, 24).AddDays(40)
+	conflictDate := calendar.NewDate(2026, 8, 24).AddDays(40)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  student.ID,
@@ -41,7 +40,7 @@ func TestCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		AfterCommit:    func(int64) {},
-	}, student.ID, absencerecords.StudentStatusDayExcused, "Termin", []timezone.Date{conflictDate, freshDate})
+	}, student.ID, absencerecords.StudentStatusDayExcused, "Termin", []calendar.Date{conflictDate, freshDate})
 
 	var conflictErr *activeService.StudentStatusDayConflictError
 	require.ErrorAs(t, err, &conflictErr)
@@ -72,7 +71,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 	clear := testpkg.CreateTestStudent(t, db, "BulkStatusClear", "Student", "BSC2")
 
 	ctx := testpkg.Ctx(t)
-	conflictDate := timezone.NewDate(2026, 8, 24).AddDays(50)
+	conflictDate := calendar.NewDate(2026, 8, 24).AddDays(50)
 	freshDate := conflictDate.AddDays(1)
 	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
 		StudentID:  withConflict.ID,
@@ -87,7 +86,7 @@ func TestBulkCreateForDates_RejectsConflictWithoutPartialWrites(t *testing.T) {
 		TenantID:       testpkg.Tenant(t),
 		StudentService: studentService,
 		AfterCommit:    func(int64) {},
-	}, []int64{withConflict.ID, clear.ID}, absencerecords.StudentStatusDayClassTrip, "Klassenfahrt", []timezone.Date{conflictDate, freshDate})
+	}, []int64{withConflict.ID, clear.ID}, absencerecords.StudentStatusDayClassTrip, "Klassenfahrt", []calendar.Date{conflictDate, freshDate})
 
 	var conflictErr *activeService.StudentStatusDayConflictError
 	require.ErrorAs(t, err, &conflictErr)
@@ -147,7 +146,7 @@ func TestBulkCreateForDates_RejectsUnauthorizedWithoutPartialWrites(t *testing.T
 		})
 
 	ctx := testpkg.Ctx(t)
-	dates := []timezone.Date{timezone.NewDate(2026, 5, 12)}
+	dates := []calendar.Date{calendar.NewDate(2026, 5, 12)}
 	err := service.BulkCreateForDates(ctx, activeService.StatusDayWriteContext{
 		DB:             db,
 		TenantID:       testpkg.Tenant(t),

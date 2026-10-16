@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -41,10 +41,10 @@ func (s *InstanceLifecycleService) MoveStaffBetweenBlocks(ctx context.Context, t
 	if err != nil {
 		return nil, err
 	}
-	if target.Date.Before(timezone.TodayDate()) {
+	if target.Date.Before(calendar.TodayDate()) {
 		return nil, timetable.DeviationBadRequest("block date is in the past").WithCode(timetable.CodeInstanceInPast)
 	}
-	targetDate := timezone.Date(target.Date)
+	targetDate := calendar.Date(target.Date)
 	// Serialize with every other day-wide staffing mutation, then re-read
 	// both blocks under the lock (a concurrent edit may have moved either).
 	if err := s.acquireSubstituteDayLock(ctx, targetDate); err != nil {
@@ -77,12 +77,12 @@ type staffMovePlan struct {
 
 // planStaffMove re-reads both blocks under the day lock and runs every 4xx
 // precondition without writing a row.
-func (s *InstanceLifecycleService) planStaffMove(ctx context.Context, targetID int64, lockedDate timezone.Date, in timetable.MoveStaffInput) (*staffMovePlan, error) {
+func (s *InstanceLifecycleService) planStaffMove(ctx context.Context, targetID int64, lockedDate calendar.Date, in timetable.MoveStaffInput) (*staffMovePlan, error) {
 	target, err := s.loadDeviationInstance(ctx, targetID)
 	if err != nil {
 		return nil, err
 	}
-	if timezone.Date(target.Date) != lockedDate || !isPlannableInstance(target) {
+	if calendar.Date(target.Date) != lockedDate || !isPlannableInstance(target) {
 		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, "block was changed concurrently; reopen it and try again")
 	}
 	source, err := s.loadMoveSource(ctx, target, in.SourceInstanceID)
@@ -167,7 +167,7 @@ func (s *InstanceLifecycleService) planPoolAssign(ctx context.Context, plan *sta
 		plan.action = timetable.MoveStaffActionAlreadyApplied
 		return plan, nil
 	}
-	if err := s.rejectDayWideAbsence(ctx, plan.staffID, timezone.Date(plan.target.Date)); err != nil {
+	if err := s.rejectDayWideAbsence(ctx, plan.staffID, calendar.Date(plan.target.Date)); err != nil {
 		return nil, err
 	}
 	plan.action = timetable.MoveStaffActionAssigned
@@ -195,7 +195,7 @@ func (s *InstanceLifecycleService) planRelocation(ctx context.Context, plan *sta
 		return nil, timetable.DeviationBadRequest(msgStaffAbsentOnSource).WithCode(timetable.CodeStaffAbsentOnSource).OnField("staff_id")
 	}
 	// An absent row on ANY same-day block blocks the move (#1840).
-	if err := s.rejectDayWideAbsence(ctx, plan.staffID, timezone.Date(plan.target.Date)); err != nil {
+	if err := s.rejectDayWideAbsence(ctx, plan.staffID, calendar.Date(plan.target.Date)); err != nil {
 		return nil, err
 	}
 	plan.sourceRow = onSource
@@ -205,7 +205,7 @@ func (s *InstanceLifecycleService) planRelocation(ctx context.Context, plan *sta
 
 // rejectDayWideAbsence returns the staff_absent_on_date conflict when any
 // same-day row marks the person absent.
-func (s *InstanceLifecycleService) rejectDayWideAbsence(ctx context.Context, staffID int64, date timezone.Date) error {
+func (s *InstanceLifecycleService) rejectDayWideAbsence(ctx context.Context, staffID int64, date calendar.Date) error {
 	dayRows, err := s.deps.InstanceStaffRepo.FindByStaffAndDate(ctx, staffID, scheduleModel.Date(date))
 	if err != nil {
 		return timetable.DeviationInternal("load same-day staff assignments failed", err)
@@ -307,7 +307,7 @@ func (s *InstanceLifecycleService) superviseTarget(ctx context.Context, plan *st
 		StaffID:   plan.staffID,
 		GroupID:   activeGroupID,
 		Role:      "supervisor",
-		StartDate: timezone.DateFromTime(time.Now()).String(),
+		StartDate: calendar.DateFromTime(time.Now()).String(),
 	}
 	newSup.TenantID = tenant.FromContext(ctx)
 	if err := s.deps.SupervisorRepo.CreateSupervision(ctx, newSup); err != nil {
@@ -338,8 +338,8 @@ func staffMoveSlot(inst *scheduleModel.ActivityInstance, prefix string) map[stri
 	return map[string]any{
 		prefix + "_instance_id": inst.ID,
 		prefix + "_title":       inst.Title,
-		prefix + "_start_time":  timezone.NormalizeWallClock(inst.StartTime).Format("15:04"),
-		prefix + "_end_time":    timezone.NormalizeWallClock(inst.EndTime).Format("15:04"),
+		prefix + "_start_time":  calendar.NormalizeWallClock(inst.StartTime).Format("15:04"),
+		prefix + "_end_time":    calendar.NormalizeWallClock(inst.EndTime).Format("15:04"),
 	}
 }
 
@@ -349,7 +349,7 @@ func staffMoveSlot(inst *scheduleModel.ActivityInstance, prefix string) map[stri
 func (s *InstanceLifecycleService) collectStaffMoveWarnings(ctx context.Context, plan *staffMovePlan) ([]timetable.SubstituteTimeConflict, error) {
 	warnings, err := s.deps.SubstituteConflicts.DetectSubstituteConflicts(ctx, timetable.SubstituteConflictProbe{
 		StaffID:   plan.staffID,
-		Date:      timezone.Date(plan.target.Date),
+		Date:      calendar.Date(plan.target.Date),
 		Targets:   []timetable.SubstituteConflictInstance{toConflictInstance(plan.target)},
 		TargetIDs: []int64{plan.target.ID},
 	})

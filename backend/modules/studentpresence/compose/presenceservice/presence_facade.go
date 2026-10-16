@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // LockExceptionDay serializes status-day writes against Care Plan's
@@ -97,7 +97,7 @@ func (p *presenceFacade) GetRoomsByIDs(ctx context.Context, ids []int64) ([]*stu
 
 // HasOpenAttendanceOn reports whether any attendance row on the given
 // calendar date is still open (check_out_time IS NULL).
-func (p *presenceFacade) HasOpenAttendanceOn(ctx context.Context, date timezone.Date) (bool, error) {
+func (p *presenceFacade) HasOpenAttendanceOn(ctx context.Context, date calendar.Date) (bool, error) {
 	return p.attendance.HasAttendance(ctx, studentpresence.AttendanceFilter{FromDate: date.String(), UntilDate: date.String(), OpenOnly: true})
 }
 
@@ -248,7 +248,7 @@ func groupSupervision(row *ports.GroupSupervisor) studentpresence.GroupSupervisi
 }
 
 func supervisorRow(row studentpresence.GroupSupervision) (*ports.GroupSupervisor, error) {
-	start, err := timezone.ParseDate(row.StartDate)
+	start, err := calendar.ParseDate(row.StartDate)
 	if err != nil {
 		return nil, &studentpresence.OperationError{Op: "ParseSupervisionDate", Err: studentpresence.ErrInvalidData}
 	}
@@ -259,7 +259,7 @@ func supervisorRow(row studentpresence.GroupSupervision) (*ports.GroupSupervisor
 	supervisor.ID, supervisor.CreatedAt, supervisor.UpdatedAt = row.ID, row.CreatedAt, row.UpdatedAt
 	supervisor.SetTenantID(row.TenantID)
 	if row.EndDate != nil {
-		end, err := timezone.ParseDate(*row.EndDate)
+		end, err := calendar.ParseDate(*row.EndDate)
 		if err != nil {
 			return nil, &studentpresence.OperationError{Op: "ParseSupervisionDate", Err: studentpresence.ErrInvalidData}
 		}

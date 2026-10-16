@@ -6,18 +6,16 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // testExportDate is the fixed "today" row building is evaluated against, so
 // age cells stay deterministic instead of drifting with the wall clock.
-var testExportDate = timezone.NewDate(2026, time.July, 15)
+var testExportDate = calendar.NewDate(2026, time.July, 15)
 
 func TestExportRequestToListParamsPreservesRoomFilter(t *testing.T) {
 	t.Parallel()

@@ -4,9 +4,8 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,7 +25,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("creates staff absence with valid data", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		tomorrow := today.AddDays(1)
 		absence := &api.StaffAbsenceRow{
 			StaffID:     staff.ID,
@@ -45,7 +44,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("creates absence with vacation type", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		nextWeek := today.AddDays(7)
 		absence := &api.StaffAbsenceRow{
 			StaffID:     staff.ID,
@@ -65,7 +64,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("creates half-day absence", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absence := &api.StaffAbsenceRow{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeTraining,
@@ -91,7 +90,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("create with invalid absence type should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absence := &api.StaffAbsenceRow{
 			StaffID:     staff.ID,
 			AbsenceType: "invalid_type",
@@ -106,7 +105,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("create with invalid status should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absence := &api.StaffAbsenceRow{
 			StaffID:     staff.ID,
 			AbsenceType: workforce.AbsenceTypeSick,
@@ -123,7 +122,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("create with missing staff ID should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absence := &api.StaffAbsenceRow{
 			StaffID:     0, // Invalid
 			AbsenceType: workforce.AbsenceTypeSick,
@@ -140,7 +139,7 @@ func TestStaffAbsenceRepository_Create(t *testing.T) {
 
 	t.Run("create with date_start after date_end should fail", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		yesterday := today.AddDays(-1)
 		absence := &api.StaffAbsenceRow{
 			StaffID:     staff.ID,
@@ -170,7 +169,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 	t.Run("finds absence for specific date", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		tomorrow := today.AddDays(1)
 
 		absence := &api.StaffAbsenceRow{
@@ -192,7 +191,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 	t.Run("returns nil when no absence for date", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		futureDate := timezone.TodayDate().AddDays(365)
+		futureDate := calendar.TodayDate().AddDays(365)
 		found, err := repo.GetByStaffAndDate(ctx, staff.ID, futureDate)
 		require.NoError(t, err)
 		assert.Nil(t, found)
@@ -200,7 +199,7 @@ func TestStaffAbsenceRepository_GetByStaffAndDate(t *testing.T) {
 
 	t.Run("ignores requested and canceled absences", func(t *testing.T) {
 		staff := testpkg.CreateTestStaff(t, db, "Test", "Staff")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		for _, status := range []string{
 			workforce.AbsenceStatusRequested,
 			workforce.AbsenceStatusCanceled,

@@ -3,8 +3,8 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,7 +21,7 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 	t.Run("returns absence map for today", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
 		staff2 := testpkg.CreateTestStaff(t, db, "Staff", "Two")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		absence1 := workforce.StaffAbsence{
 			StaffID:     staff1.ID,
@@ -54,7 +54,7 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 
 	t.Run("prioritizes sick over vacation", func(t *testing.T) {
 		staff3 := testpkg.CreateTestStaff(t, db, "Staff", "Three")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 
 		// Create two overlapping absences for same staff
 		absence1 := workforce.StaffAbsence{
@@ -88,7 +88,7 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 
 	t.Run("uses the requested date", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "One")
-		requestedDate := timezone.TodayDate().AddDays(30)
+		requestedDate := calendar.TodayDate().AddDays(30)
 		absence := workforce.StaffAbsence{
 			StaffID:     staff1.ID,
 			AbsenceType: workforce.AbsenceTypeTraining,
@@ -108,7 +108,7 @@ func TestStaffAbsenceMapContract(t *testing.T) {
 
 	t.Run("uses the same ID tie-breaker for type and label maps", func(t *testing.T) {
 		staff1 := testpkg.CreateTestStaff(t, db, "Staff", "Tie Breaker")
-		today := timezone.TodayDate()
+		today := calendar.TodayDate()
 		absenceType, err := repo.CreateStaffAbsenceType(ctx, workforce.StaffAbsenceTypeFields{
 			Name:     "Regenerationstag",
 			BaseType: workforce.AbsenceTypeOther,

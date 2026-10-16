@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // RecurrenceRuleQueryOptions keeps the legacy repository method signature
@@ -103,7 +103,7 @@ type InstanceStudentListFilter struct {
 }
 
 func InstanceStudentWallClock(at time.Time) string {
-	return at.In(timezone.Berlin).Format("15:04:05")
+	return at.In(calendar.Berlin).Format("15:04:05")
 }
 
 func WrapDatabaseError(operation string, err error) error {
@@ -260,7 +260,7 @@ func ActivityExceptionBefore(options *ActivityExceptionQueryOptions) (*string, e
 		return nil, errors.New("activity exception count filter is unsupported")
 	}
 	condition := options.Filter.Conditions()[0]
-	value, ok := condition.Value.(timezone.Date)
+	value, ok := condition.Value.(calendar.Date)
 	if condition.Field != "exception_date" || condition.Operator != modelBase.OpLessThan || !ok {
 		return nil, errors.New("activity exception count filter is unsupported")
 	}
@@ -326,7 +326,7 @@ func applyActivityInstanceEqual(result *ActivityInstanceListFilter, field string
 	case "active_group_id":
 		return assignActivityInstanceID(&result.ActiveGroupIDs, value)
 	case "date":
-		date, ok := value.(timezone.Date)
+		date, ok := value.(calendar.Date)
 		if ok {
 			text := date.String()
 			result.Date = &text
@@ -377,7 +377,7 @@ func applyActivityInstanceIn(result *ActivityInstanceListFilter, field string, v
 		return appendActivityInstanceIDs(&result.ActiveGroupIDs, values)
 	case "date":
 		for _, value := range values {
-			date, dateOK := value.(timezone.Date)
+			date, dateOK := value.(calendar.Date)
 			if !dateOK {
 				return errors.New("activity instance date filter is unsupported")
 			}
@@ -407,7 +407,7 @@ func ActivityInstanceBefore(options *ActivityInstanceQueryOptions) (*string, err
 		return nil, errors.New("activity instance count filter is unsupported")
 	}
 	condition := options.Filter.Conditions()[0]
-	value, ok := condition.Value.(timezone.Date)
+	value, ok := condition.Value.(calendar.Date)
 	if condition.Field != "date" || condition.Operator != modelBase.OpLessThan || !ok {
 		return nil, errors.New("activity instance count filter is unsupported")
 	}
@@ -527,5 +527,5 @@ func translateNotFound(err error) error {
 // InstanceStudentDay is the Berlin calendar day of an instant as the legacy
 // adapters compare it with a planned participant's date.
 func InstanceStudentDay(at time.Time) string {
-	return timezone.DateFromTime(at).String()
+	return calendar.DateFromTime(at).String()
 }

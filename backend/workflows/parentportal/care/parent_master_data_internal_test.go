@@ -7,14 +7,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 	t.Parallel()
 
-	birthday := timezone.NewDate(2018, 3, 4)
+	birthday := calendar.NewDate(2018, 3, 4)
 	person := &usersModels.Person{FirstName: "Felix", LastName: "Schneider", Birthday: &birthday}
 	student := &usersModels.Student{
 		AllowedDepartureModes: usersModels.AllowedDepartureModes{

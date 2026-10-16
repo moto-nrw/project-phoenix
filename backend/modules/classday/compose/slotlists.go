@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModel "github.com/moto-nrw/project-phoenix/models/users"
@@ -23,27 +22,28 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/services/listexport"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // CareDayResolver is the retained schedule service's care-day derivation.
 type CareDayResolver interface {
-	ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]careplan.CareDayStatus, error)
+	ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]careplan.CareDayStatus, error)
 }
 
 // PickupTimeReader is the retained pickup schedule service's bulk read.
 type PickupTimeReader interface {
-	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectivePickupTime, error)
+	GetBulkEffectivePickupTimesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectivePickupTime, error)
 }
 
 // ArrivalTimeReader is the retained arrival schedule service's bulk read.
 type ArrivalTimeReader interface {
-	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
+	GetBulkEffectiveArrivalTimesForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*careplan.EffectiveArrivalTime, error)
 }
 
 // PickupBaselineReader is the retained date-aware recurring pickup projection
 // (no exceptions applied).
 type PickupBaselineReader interface {
-	Project(ctx context.Context, studentIDs []int64, from, to timezone.Date) (*careplan.PickupBaselineProjection, error)
+	Project(ctx context.Context, studentIDs []int64, from, to calendar.Date) (*careplan.PickupBaselineProjection, error)
 }
 
 // SettingsReader is the slice of the settings service the lists read.
@@ -128,7 +128,7 @@ func NewSlotLists(deps SlotListDependencies) classday.SlotLists {
 
 type careDayBinding struct{ resolver CareDayResolver }
 
-func (b careDayBinding) ResolveForDate(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]ports.CareDay, error) {
+func (b careDayBinding) ResolveForDate(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]ports.CareDay, error) {
 	verdicts, err := b.resolver.ResolveForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
@@ -145,7 +145,7 @@ type effectiveTimeBinding struct {
 	arrivals ArrivalTimeReader
 }
 
-func (b effectiveTimeBinding) PickupTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*time.Time, error) {
+func (b effectiveTimeBinding) PickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error) {
 	effective, err := b.pickups.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
@@ -159,7 +159,7 @@ func (b effectiveTimeBinding) PickupTimes(ctx context.Context, studentIDs []int6
 	return out, nil
 }
 
-func (b effectiveTimeBinding) ArrivalTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]*time.Time, error) {
+func (b effectiveTimeBinding) ArrivalTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]*time.Time, error) {
 	effective, err := b.arrivals.GetBulkEffectiveArrivalTimesForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
@@ -175,7 +175,7 @@ func (b effectiveTimeBinding) ArrivalTimes(ctx context.Context, studentIDs []int
 
 type pickupBaselineBinding struct{ baselines PickupBaselineReader }
 
-func (b pickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentIDs []int64, date timezone.Date) (map[int64]string, error) {
+func (b pickupBaselineBinding) RegularPickupTimes(ctx context.Context, studentIDs []int64, date calendar.Date) (map[int64]string, error) {
 	projection, err := b.baselines.Project(ctx, studentIDs, date, date)
 	if err != nil {
 		return nil, err
@@ -243,7 +243,7 @@ func (Rules) RowCareDay(instanceCompleted bool, row ports.RosterFacts, planVerdi
 	return ports.CareDay(careplan.AttendanceRowCareDay(instanceCompleted, model, careplan.CareDayStatus(planVerdict)))
 }
 
-func (Rules) EnrolledOn(student ports.StudentFacts, date, today timezone.Date) bool {
+func (Rules) EnrolledOn(student ports.StudentFacts, date, today calendar.Date) bool {
 	return userModel.EnrolledOn(&userModel.Student{
 		Status: userModel.StudentStatus(student.Status), EnrolledFrom: student.EnrolledFrom, EnrolledUntil: student.EnrolledUntil,
 	}, date, today)

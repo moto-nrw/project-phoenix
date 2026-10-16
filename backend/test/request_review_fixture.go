@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -41,7 +41,7 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
 	result.Rows["schedule.care_schedule_change_requests"] = id
 	require.NoError(t, db.NewRaw(`INSERT INTO active.excused_absence_requests
  (tenant_id,student_id,submitted_by,dates,note,absence_status,status)
- VALUES (?,?,?,?::jsonb,'Arzttermin','excused','pending') RETURNING id`, tenantID, student.ID, account.ID, fmt.Sprintf(`["%s"]`, timezone.TodayDate().AddDays(3))).Scan(ctx, &id))
+ VALUES (?,?,?,?::jsonb,'Arzttermin','excused','pending') RETURNING id`, tenantID, student.ID, account.ID, fmt.Sprintf(`["%s"]`, calendar.TodayDate().AddDays(3))).Scan(ctx, &id))
 	result.Rows["active.excused_absence_requests"] = id
 	phase := CreateTestEnrollmentPhase(t, db)
 	care := CreateTestCareOffering(t, db, phase.ID, "Ganztag "+side)
@@ -62,7 +62,7 @@ func CreateTestRequestReviewSchool(t *testing.T, db *bun.DB, side string) Reques
 	}
 	require.NoError(t, db.NewRaw(`INSERT INTO enrollment.offering_change_requests
  (tenant_id,student_id,request_child_id,submitted_by,payload,effective_from,status)
- VALUES (?,?,?,?,?::jsonb,?::date,'pending') RETURNING id`, tenantID, student.ID, childID, account.ID, fmt.Sprintf(`{"offerings":[{"offering_id":%d}]}`, care.ID), timezone.TodayDate().AddDays(30).String()).Scan(ctx, &id))
+ VALUES (?,?,?,?,?::jsonb,?::date,'pending') RETURNING id`, tenantID, student.ID, childID, account.ID, fmt.Sprintf(`{"offerings":[{"offering_id":%d}]}`, care.ID), calendar.TodayDate().AddDays(30).String()).Scan(ctx, &id))
 	result.Rows["enrollment.offering_change_requests"] = id
 	result.Context = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(account.ID)})
 	result.Context = context.WithValue(result.Context, sessiontoken.CtxPermissions, []string{"admin:*", "users:read", "users:update", "users:absence"})

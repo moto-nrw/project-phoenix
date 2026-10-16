@@ -5,9 +5,9 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // conflictFingerprintLength is the length of the persisted fingerprint: the
@@ -71,10 +71,10 @@ func windowConflictCandidates(blocks []timetable.WindowConflictBlock) []timetabl
 // windowOverlap returns the intersection of the two blocks' wall-clock
 // windows. Half-open: touching edges do not overlap.
 func windowOverlap(a, b timetable.WindowConflictBlock) (time.Time, time.Time, bool) {
-	aStart := timezone.NormalizeWallClock(a.StartTime)
-	aEnd := timezone.NormalizeWallClock(a.EndTime)
-	bStart := timezone.NormalizeWallClock(b.StartTime)
-	bEnd := timezone.NormalizeWallClock(b.EndTime)
+	aStart := calendar.NormalizeWallClock(a.StartTime)
+	aEnd := calendar.NormalizeWallClock(a.EndTime)
+	bStart := calendar.NormalizeWallClock(b.StartTime)
+	bEnd := calendar.NormalizeWallClock(b.EndTime)
 	if !aStart.Before(bEnd) || !bStart.Before(aEnd) {
 		return time.Time{}, time.Time{}, false
 	}
@@ -191,7 +191,7 @@ func appendMirroredWarnings(
 func (d *conflictDetection) conflictFingerprint(
 	kind string,
 	resourceID int64,
-	date timezone.Date,
+	date calendar.Date,
 	instanceA, instanceB int64,
 	overlapStart, overlapEnd time.Time,
 	roomA, roomB int64,

@@ -8,12 +8,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // DashboardDependencies are the legacy readers the dashboard aggregate needs.
@@ -76,7 +76,7 @@ func (s dashboardSources) ListActivityTemplates(ctx context.Context) ([]compose.
 }
 
 func (s dashboardSources) ListPlannedActivities(ctx context.Context, today time.Time) ([]compose.PlannedActivity, error) {
-	date := timezone.DateFromTime(today)
+	date := calendar.DateFromTime(today)
 	instances, err := s.deps.Instances.FindByTenantAndDate(ctx, scheduleModels.Date(date))
 	if err != nil {
 		return nil, err
@@ -90,14 +90,14 @@ func (s dashboardSources) ListPlannedActivities(ctx context.Context, today time.
 			ID: instance.ID, Title: instance.Title, RoomID: instance.RoomID,
 			ActivityGroupID: instance.ActivityGroupID, ActiveGroupID: instance.ActiveGroupID,
 			Planned:        instance.Status == scheduleModels.InstanceStatusPlanned,
-			StartWallClock: timezone.NormalizeWallClock(instance.StartTime),
+			StartWallClock: calendar.NormalizeWallClock(instance.StartTime),
 		})
 	}
 	return planned, nil
 }
 
 func (s dashboardSources) ListPickupTimes(ctx context.Context, studentIDs []int64, today time.Time) ([]compose.PickupTime, error) {
-	times, err := s.deps.PickupSchedule.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, timezone.DateFromTime(today))
+	times, err := s.deps.PickupSchedule.GetBulkEffectivePickupTimesForDate(ctx, studentIDs, calendar.DateFromTime(today))
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func (s dashboardSources) ListPickupTimes(ctx context.Context, studentIDs []int6
 	for studentID, effective := range times {
 		entry := compose.PickupTime{StudentID: studentID}
 		if effective != nil && effective.PickupTime != nil {
-			normalized := timezone.NormalizeWallClock(*effective.PickupTime)
+			normalized := calendar.NormalizeWallClock(*effective.PickupTime)
 			entry.PickupWallTime = &normalized
 		}
 		result = append(result, entry)

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +17,7 @@ import (
 func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	future := today.AddDays(1)
 	tests := []struct {
 		name  string
@@ -38,7 +38,7 @@ func TestParseAttendanceExportOptions_RejectsFutureDates(t *testing.T) {
 func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	req := httptest.NewRequest("GET", "/attendance-history/export?from="+today.String()+"&to="+today.String(), nil)
 	options, err := parseAttendanceExportOptions(req, 30, today)
 	require.NoError(t, err)
@@ -49,14 +49,14 @@ func TestParseAttendanceExportOptions_AcceptsToday(t *testing.T) {
 func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
-	morningCheckIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
-	unassignedCheckIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
+	date := calendar.NewDate(2026, 7, 15)
+	morningCheckIn := time.Date(2026, 7, 15, 7, 0, 0, 0, calendar.Berlin)
+	unassignedCheckIn := time.Date(2026, 7, 15, 9, 0, 0, 0, calendar.Berlin)
 	sick := timetable.SlotSubstatusSick
 	rows := attendanceExportRows([]*studentpresence.HistorySlot{
 		{
 			Instance: &studentpresence.HistorySlotInstance{
-				Date: timezone.Date(date), Title: "Morgenbetreuung",
+				Date: calendar.Date(date), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},
@@ -66,7 +66,7 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 		},
 		{
 			Instance: &studentpresence.HistorySlotInstance{
-				Date: timezone.Date(date), Title: "Nachmittagsbetreuung",
+				Date: calendar.Date(date), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -96,14 +96,14 @@ func TestAttendanceExportRows_KeepSlotsAndExplicitUnassignedSession(t *testing.T
 func TestAttendanceExportRows_SameSlotReentryIsCoveredByWindow(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
-	firstCheckIn := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
-	reentryCheckIn := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
+	date := calendar.NewDate(2026, 7, 15)
+	firstCheckIn := time.Date(2026, 7, 15, 8, 0, 0, 0, calendar.Berlin)
+	reentryCheckIn := time.Date(2026, 7, 15, 10, 0, 0, 0, calendar.Berlin)
 
 	rows := attendanceExportRows([]*studentpresence.HistorySlot{
 		{
 			Instance: &studentpresence.HistorySlotInstance{
-				Date: timezone.Date(date), Title: "Ganztagsbetreuung",
+				Date: calendar.Date(date), Title: "Ganztagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -167,9 +167,9 @@ func TestAttendanceSessionExportColumns_OmitsPlanColumns(t *testing.T) {
 func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
-	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
-	checkOut := time.Date(2026, 7, 15, 16, 0, 0, 0, timezone.Berlin)
+	date := calendar.NewDate(2026, 7, 15)
+	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, calendar.Berlin)
+	checkOut := time.Date(2026, 7, 15, 16, 0, 0, 0, calendar.Berlin)
 
 	rows := attendanceExportRows(nil, []*studentpresence.Attendance{
 		{Date: date.String(), CheckInTime: checkIn, CheckOutTime: &checkOut},
@@ -183,15 +183,15 @@ func TestAttendanceExportRows_KeepsSessionsWithoutAnyPlan(t *testing.T) {
 func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	t.Parallel()
 
-	day1 := timezone.NewDate(2026, 7, 14)
-	day2 := timezone.NewDate(2026, 7, 15)
-	day1Unassigned := time.Date(2026, 7, 14, 9, 30, 0, 0, timezone.Berlin)
-	day2CheckIn := time.Date(2026, 7, 15, 12, 5, 0, 0, timezone.Berlin)
+	day1 := calendar.NewDate(2026, 7, 14)
+	day2 := calendar.NewDate(2026, 7, 15)
+	day1Unassigned := time.Date(2026, 7, 14, 9, 30, 0, 0, calendar.Berlin)
+	day2CheckIn := time.Date(2026, 7, 15, 12, 5, 0, 0, calendar.Berlin)
 
 	rows := attendanceExportRows([]*studentpresence.HistorySlot{
 		{
 			Instance: &studentpresence.HistorySlotInstance{
-				Date: timezone.Date(day2), Title: "Nachmittagsbetreuung",
+				Date: calendar.Date(day2), Title: "Nachmittagsbetreuung",
 				StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 			},
@@ -201,7 +201,7 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 		},
 		{
 			Instance: &studentpresence.HistorySlotInstance{
-				Date: timezone.Date(day1), Title: "Morgenbetreuung",
+				Date: calendar.Date(day1), Title: "Morgenbetreuung",
 				StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 				EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 			},

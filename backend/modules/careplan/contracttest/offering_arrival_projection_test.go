@@ -6,14 +6,13 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -67,7 +66,7 @@ func bookingModePickupService(env *decisionTestEnv, authoritative bool) careplan
 	return result
 }
 
-func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID int64, date timezone.Date) {
+func assertLegacyPickupRestored(t *testing.T, env *decisionTestEnv, studentID int64, date calendar.Date) {
 	t.Helper()
 	restored, err := bookingModePickupService(env, false).GetEffectivePickupTimeForDate(testpkg.Ctx(t), studentID, date)
 	require.NoError(t, err)

@@ -20,8 +20,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -41,7 +41,7 @@ type PendingApplicants interface {
 type Projection struct {
 	database   Database
 	applicants PendingApplicants
-	today      func() timezone.Date
+	today      func() calendar.Date
 }
 
 // New builds the projection over the ambient transaction runtime. The
@@ -54,7 +54,7 @@ func New(database Database, applicants PendingApplicants, clocks ...func() time.
 	if applicants == nil {
 		panic("communication parent audience: pending applicants are required")
 	}
-	return &Projection{database: database, applicants: applicants, today: timezone.CalendarDateClock(clocks...)}
+	return &Projection{database: database, applicants: applicants, today: calendar.CalendarDateClock(clocks...)}
 }
 
 func (p *Projection) day() string { return p.today().String() }

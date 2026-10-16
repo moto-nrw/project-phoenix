@@ -24,12 +24,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -110,7 +109,7 @@ func clock(hhmm string) string { return hhmm + ":00" }
 
 // createShift plans one staff shift through the row capability (fixture path,
 // no planning-service validation).
-func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.Date, start, end string, mutate func(*workforce.StaffShift)) workforce.StaffShift {
+func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date calendar.Date, start, end string, mutate func(*workforce.StaffShift)) workforce.StaffShift {
 	t.Helper()
 	shift := workforce.StaffShift{
 		StaffID:   staffID,
@@ -130,7 +129,7 @@ func (e *sickCascadeEnv) createShift(t *testing.T, staffID int64, date timezone.
 // createBlock inserts an instance + one staff row for the subject and
 // registers cleanup. startHHMM must be unique per (template, date) — the
 // template-instance unique index spans (activity_group_id, date, start_time).
-func (e *sickCascadeEnv) createBlock(t *testing.T, date timezone.Date, status, startHHMM string, staffID int64, staffOpts testpkg.InstanceStaffOpts) (*testpkg.ActivityInstance, *testpkg.InstanceStaff) {
+func (e *sickCascadeEnv) createBlock(t *testing.T, date calendar.Date, status, startHHMM string, staffID int64, staffOpts testpkg.InstanceStaffOpts) (*testpkg.ActivityInstance, *testpkg.InstanceStaff) {
 	t.Helper()
 	instance := testpkg.CreateTestActivityInstance(t, e.db, date, e.roomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID: &e.tmplID,
@@ -155,7 +154,7 @@ func (e *sickCascadeEnv) reloadRow(t *testing.T, id int64) *scheduleModels.Insta
 	return row
 }
 
-func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, eventType string) []*auditModels.DeviationEvent {
+func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to calendar.Date, eventType string) []*auditModels.DeviationEvent {
 	t.Helper()
 	events, err := e.repos.DeviationEvent.ListByRange(e.ctx, auditModels.Date(from), auditModels.Date(to), nil, nil)
 	require.NoError(t, err)
@@ -172,7 +171,7 @@ func (e *sickCascadeEnv) eventsByType(t *testing.T, from, to timezone.Date, even
 }
 
 // sickCascadeInput builds the public cascade input for a full-day range.
-func sickCascadeInput(subjectStaffID, actorStaffID, absenceID int64, start, end timezone.Date) workforce.SickCascadeInput {
+func sickCascadeInput(subjectStaffID, actorStaffID, absenceID int64, start, end calendar.Date) workforce.SickCascadeInput {
 	return workforce.SickCascadeInput{
 		SubjectStaffID: subjectStaffID,
 		ActorStaffID:   actorStaffID,
@@ -186,7 +185,7 @@ func TestSickCascade_MarkSickForRange(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 	yesterday := today.AddDays(-1)
 
@@ -301,8 +300,8 @@ func TestSickCascade_PastShiftsRemainHistoricalDuringMarkAndReconcile(t *testing
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	yesterday := timezone.NewDate(2026, 8, 24).AddDays(-1)
-	tomorrow := timezone.NewDate(2026, 8, 24).AddDays(1)
+	yesterday := calendar.NewDate(2026, 8, 24).AddDays(-1)
+	tomorrow := calendar.NewDate(2026, 8, 24).AddDays(1)
 	past := e.createShift(t, e.subject.ID, yesterday, "08:00", "12:00", nil)
 
 	e.inTx(t, func(ctx context.Context) error {
@@ -341,7 +340,7 @@ func TestSickCascade_ShiftOnlyChangesBroadcastTenantInvalidation(t *testing.T) {
 
 	broadcaster := testpkg.NewRecordingBroadcaster()
 	e := buildSickCascadeEnvWith(t, broadcaster)
-	dayOne := timezone.NewDate(2026, 8, 24).AddDays(1)
+	dayOne := calendar.NewDate(2026, 8, 24).AddDays(1)
 	dayTwo := dayOne.AddDays(1)
 	e.createShift(t, e.subject.ID, dayOne, "08:00", "09:00", nil)
 	e.createShift(t, e.subject.ID, dayTwo, "08:00", "09:00", nil)
@@ -372,7 +371,7 @@ func TestSickCascade_ConcurrentOverlappingReportsSerializeBeforeOverlapRead(t *t
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	day := timezone.NewDate(2026, 8, 24).AddDays(1)
+	day := calendar.NewDate(2026, 8, 24).AddDays(1)
 
 	lockHeld := make(chan struct{})
 	releaseLock := make(chan struct{})
@@ -426,7 +425,7 @@ func TestSickCascade_HalfDayRules(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 	dayAfter := today.AddDays(2)
 
@@ -467,7 +466,7 @@ func TestSickCascade_ReconcileSickRangeAppliesOnlyDateDelta(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	dayOne := timezone.NewDate(2026, 8, 24).AddDays(1)
+	dayOne := calendar.NewDate(2026, 8, 24).AddDays(1)
 	dayTwo := dayOne.AddDays(1)
 	dayThree := dayTwo.AddDays(1)
 
@@ -525,7 +524,7 @@ func TestSickCascade_UpdateRangeRollsBackWhenRemovedShiftCannotReactivate(t *tes
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	oldDay := timezone.NewDate(2026, 8, 24).AddDays(1)
+	oldDay := calendar.NewDate(2026, 8, 24).AddDays(1)
 	newDay := oldDay.AddDays(1)
 	original := e.createShift(t, e.subject.ID, oldDay, "08:00", "10:00", nil)
 	absenceID := e.createSickAbsence(t, oldDay, oldDay)
@@ -559,7 +558,7 @@ func TestSickCascade_MarkWaitsForConcurrentShiftWrite(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	day := timezone.TodayDate().AddDays(1)
+	day := calendar.TodayDate().AddDays(1)
 	absenceID := e.createSickAbsence(t, day, day)
 	input := sickCascadeInput(e.subject.ID, e.admin.ID, absenceID, day, day)
 
@@ -612,7 +611,7 @@ func TestSickCascade_ClearWaitsForConcurrentReplacement(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	day := timezone.TodayDate().AddDays(1)
+	day := calendar.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
 	absenceID := e.createSickAbsence(t, day, day)
 	input := sickCascadeInput(e.subject.ID, e.admin.ID, absenceID, day, day)
@@ -667,7 +666,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	day := timezone.TodayDate().AddDays(1)
+	day := calendar.TodayDate().AddDays(1)
 	origin := e.createShift(t, e.subject.ID, day, "08:00", "10:00", nil)
 	absenceID := e.createSickAbsence(t, day, day)
 	cover := e.createShift(t, e.sub.ID, day, "08:00", "10:00", func(shift *workforce.StaffShift) {
@@ -712,7 +711,7 @@ func TestSickCascade_ClearLocksCommittedReplacementStaffBeforeReversal(t *testin
 	require.NoError(t, err, "replacement must survive the reversal")
 }
 
-func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end timezone.Date) int64 {
+func (e *sickCascadeEnv) createSickAbsence(t *testing.T, start, end calendar.Date) int64 {
 	t.Helper()
 	var absenceID int64
 	e.inTx(t, func(ctx context.Context) error {
@@ -733,7 +732,7 @@ func TestSickCascade_ClearSickForRange(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	tomorrow := today.AddDays(1)
 
 	plain := e.createShift(t, e.subject.ID, tomorrow, "08:00", "12:00", nil)
@@ -828,7 +827,7 @@ func TestSickCascade_DeleteDoesNotReactivateManuallyRetainedCancellation(t *test
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	day := timezone.TodayDate().AddDays(1)
+	day := calendar.TodayDate().AddDays(1)
 	shift := e.createShift(t, e.subject.ID, day, "08:00", "12:00", nil)
 	absenceID := e.createSickAbsence(t, day, day)
 
@@ -866,7 +865,7 @@ func TestSickCascade_ReassignSickStamps(t *testing.T) {
 	t.Parallel()
 
 	e := buildSickCascadeEnv(t)
-	tomorrow := timezone.TodayDate().AddDays(1)
+	tomorrow := calendar.TodayDate().AddDays(1)
 
 	shift := e.createShift(t, e.subject.ID, tomorrow, "08:00", "12:00", nil)
 	_, row := e.createBlock(t, tomorrow, scheduleModels.InstanceStatusPlanned, "09:00", e.subject.ID, testpkg.InstanceStaffOpts{})

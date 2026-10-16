@@ -4,10 +4,10 @@
 package presenceservice
 
 import (
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -83,7 +83,7 @@ func presenceEngineOf(value studentpresence.Presence) (presence.Service, bool) {
 // NewPresenceCleanup builds the data-retention cleanup. settings supplies the
 // visit retention window for children without an accepted consent; the
 // optional clock fixes the calendar day stale records are compared against.
-func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, settings VisitRetentionSettings, today ...func() timezone.Date) studentpresence.PresenceCleanup {
+func NewPresenceCleanup(presenceRetention PresenceRetention, supervisors ports.GroupSupervisorRepository, deletions DeletionAudit, settings VisitRetentionSettings, today ...func() calendar.Date) studentpresence.PresenceCleanup {
 	return presence.NewCleanupService(presenceRetention, supervisors, deletions, settings, today...)
 }
 

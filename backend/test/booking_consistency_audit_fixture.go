@@ -7,15 +7,14 @@ import (
 	"time"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
 
-var bookingAuditMonday = timezone.NewDate(2026, time.January, 5)
+var bookingAuditMonday = calendar.NewDate(2026, time.January, 5)
 
 // The VerifyBookingConsistencyAudit* scenarios arrange their rows here and
 // assert the report of the repository the Audit integration suite composes
@@ -117,7 +116,7 @@ func VerifyBookingConsistencyAuditIgnoresRuntimeFilteredPlanningRows(t *testing.
 // VerifyBookingConsistencyAuditRequiresDateAndTenant pins the refusals of an
 // audit without a tenant context or date.
 func VerifyBookingConsistencyAuditRequiresDateAndTenant(t *testing.T, runAudit BookingConsistencyAudit) {
-	_, err := runAudit(context.Background(), timezone.TodayDate().String())
+	_, err := runAudit(context.Background(), calendar.TodayDate().String())
 	require.ErrorContains(t, err, "requires a tenant context")
 
 	_, err = runAudit(Ctx(t), "")
@@ -143,7 +142,7 @@ func VerifyBookingConsistencyAuditUsesEffectiveDatesAndExceptions(t *testing.T, 
 	}
 	insertAuditOfferingSelection(t, db, ctx, tenant.FromContext(ctx), arrivalLink)
 	arrivalException := &StudentArrivalException{
-		StudentID: withArrivalException.ID, ExceptionDate: timezone.Date(auditDate), CreatedBy: staff.ID,
+		StudentID: withArrivalException.ID, ExceptionDate: calendar.Date(auditDate), CreatedBy: staff.ID,
 	}
 	insertTenantBookingAuditModel(t, db, ctx, arrivalException, &arrivalException.TenantID)
 
@@ -182,7 +181,7 @@ func VerifyBookingConsistencyAuditAcceptsContinuousSplitOfferingLinks(t *testing
 	updateBookingAuditModel(t, db, ctx, offering, "days_of_week_mode", "pickup_times")
 
 	splitDate := auditDate.AddDays(15)
-	phaseEndExclusive := timezone.Date(child.phase.ServiceEndDate).AddDays(1)
+	phaseEndExclusive := calendar.Date(child.phase.ServiceEndDate).AddDays(1)
 	firstLink := &auditOfferingSelection{
 		RequestChildID: child.child.ID, CareOfferingID: offering.ID,
 		SelectedDays: []string{"mon"}, ValidFrom: &auditDate, ValidUntil: &splitDate,
@@ -213,7 +212,7 @@ func createApprovedBookingAuditChild(
 	t *testing.T,
 	ctx context.Context,
 	db *bun.DB,
-	auditDate timezone.Date,
+	auditDate calendar.Date,
 	studentID int64,
 	selectionMode string,
 ) approvedBookingAuditChild {

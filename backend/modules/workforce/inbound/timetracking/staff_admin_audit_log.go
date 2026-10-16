@@ -6,10 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 var auditLogErrorRules = []common.ErrorRule{
@@ -66,7 +65,7 @@ func parseOptionalDate(raw string) (string, error) {
 	if raw == "" {
 		return "", nil
 	}
-	date, err := timezone.ParseDate(raw)
+	date, err := calendar.ParseDate(raw)
 	if err != nil {
 		return "", err
 	}

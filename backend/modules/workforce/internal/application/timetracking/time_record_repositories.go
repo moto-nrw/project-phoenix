@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // WorkSessionRepository defines operations for managing staff work sessions
@@ -26,10 +26,10 @@ type WorkSessionRepository interface {
 	// GetOpenByStaffAndDate returns the not-checked-out session of a staff
 	// member on an explicit calendar day, for callers that must not re-derive
 	// "today" while the request is running.
-	GetOpenByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
+	GetOpenByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*WorkSession, error)
 
 	// GetOpenByStaffAndDateForUpdate is GetOpenByStaffAndDate with a row lock.
-	GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date timezone.Date) (*WorkSession, error)
+	GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date calendar.Date) (*WorkSession, error)
 
 	// LockOpenByIDForUpdate returns and locks an open session row by ID.
 	LockOpenByIDForUpdate(ctx context.Context, id int64) (*WorkSession, error)
@@ -45,15 +45,15 @@ type WorkSessionRepository interface {
 	ListOverlappingByStaffIDs(ctx context.Context, staffIDs []int64, from time.Time, to *time.Time) (map[int64][]*WorkSession, error)
 
 	// GetHistoryByStaffID returns work sessions for a staff member in a date range
-	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to timezone.Date) ([]*WorkSession, error)
+	GetHistoryByStaffID(ctx context.Context, staffID int64, from, to calendar.Date) ([]*WorkSession, error)
 
 	// GetHistoryByStaffIDs is GetHistoryByStaffID batched over many staff
 	// members, keyed by staff ID. Its contract follows the stored session date,
 	// matching history and export date ranges.
-	GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*WorkSession, error)
+	GetHistoryByStaffIDs(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*WorkSession, error)
 
 	// GetOpenSessions returns all sessions without check-out before a given date
-	GetOpenSessions(ctx context.Context, beforeDate timezone.Date) ([]*WorkSession, error)
+	GetOpenSessions(ctx context.Context, beforeDate calendar.Date) ([]*WorkSession, error)
 
 	// GetTodayPresenceMap returns a map of staff IDs to their work status for today
 	GetTodayPresenceMap(ctx context.Context) (map[int64]string, error)
@@ -68,8 +68,8 @@ type WorkSessionRepository interface {
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the time-tracking retention cleanup.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
-	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
-	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *calendar.Date) (*calendar.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff calendar.Date) (int64, error)
 }
 
 // StaffAbsenceRepository defines operations for managing staff absences
@@ -83,24 +83,24 @@ type StaffAbsenceRepository interface {
 	LockStaffAbsenceWrites(ctx context.Context, staffID int64) error
 
 	// GetByStaffAndDateRange returns absences for a staff member overlapping the given date range
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffAbsence, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffAbsence, error)
 
 	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
 	// staff members, keyed by staff ID (same overlap semantics).
-	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffAbsence, error)
+	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*StaffAbsence, error)
 
 	// GetByStaffAndDate returns an absence for a staff member on a specific date, or nil
-	GetByStaffAndDate(ctx context.Context, staffID int64, date timezone.Date) (*StaffAbsence, error)
+	GetByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*StaffAbsence, error)
 
 	// GetAbsenceMapForDate returns a map of staff IDs to their absence type for the given date.
 	// Priority order when multiple absences exist:
 	// sick > training > vacation > comp_time > other.
-	GetAbsenceMapForDate(ctx context.Context, date timezone.Date) (map[int64]string, error)
+	GetAbsenceMapForDate(ctx context.Context, date calendar.Date) (map[int64]string, error)
 
 	// GetAbsenceTypeIDMapForDate returns staff ID -> school-defined
 	// Abwesenheitsart ID for the same winning absence GetAbsenceMapForDate
 	// picks (#2403). Only staff whose winner carries one appear.
-	GetAbsenceTypeIDMapForDate(ctx context.Context, date timezone.Date) (map[int64]int64, error)
+	GetAbsenceTypeIDMapForDate(ctx context.Context, date calendar.Date) (map[int64]int64, error)
 
 	// ListByStatuses returns all absences whose status is in the given set,
 	// ordered by requested_at (used for the /staff inbox: requested + question)
@@ -114,8 +114,8 @@ type StaffAbsenceRepository interface {
 	// Generic query helpers promoted from the embedded base repository.
 	// Used by the time-tracking retention cleanup.
 	CountWithOptions(ctx context.Context, options *base.QueryOptions) (int, error)
-	OldestBefore(ctx context.Context, dateColumn string, cutoff *timezone.Date) (*timezone.Date, error)
-	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff timezone.Date) (int64, error)
+	OldestBefore(ctx context.Context, dateColumn string, cutoff *calendar.Date) (*calendar.Date, error)
+	DeleteOlderThan(ctx context.Context, dateColumn string, cutoff calendar.Date) (int64, error)
 }
 
 type StaffAbsenceAuditRepository interface {
@@ -134,11 +134,11 @@ type StaffBalanceAdjustmentRepository interface {
 
 	// GetByStaffAndDateRange returns adjustments whose effective_date lies in
 	// [from, to], ordered by effective_date.
-	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to timezone.Date) ([]*StaffBalanceAdjustment, error)
+	GetByStaffAndDateRange(ctx context.Context, staffID int64, from, to calendar.Date) ([]*StaffBalanceAdjustment, error)
 
 	// GetByStaffIDsAndDateRange is GetByStaffAndDateRange batched over many
 	// staff members, keyed by staff ID.
-	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to timezone.Date) (map[int64][]*StaffBalanceAdjustment, error)
+	GetByStaffIDsAndDateRange(ctx context.Context, staffIDs []int64, from, to calendar.Date) (map[int64][]*StaffBalanceAdjustment, error)
 }
 
 // StaffVacationQuotaRepository defines operations for managing per-staff yearly entitlement

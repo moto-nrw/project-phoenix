@@ -9,10 +9,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -311,7 +311,7 @@ func (rs *Resource) noteChild(ctx context.Context, student *Student) (securityru
 		return child, nil
 	}
 	groupsByStudent, err := rs.ActiveEnrollments.ActiveEnrollmentGroups(
-		ctx, []int64{student.ID}, timezone.TodayDate())
+		ctx, []int64{student.ID}, calendar.TodayDate())
 	if err != nil {
 		return securityruntime.StudentNoteChild{}, err
 	}
@@ -345,11 +345,11 @@ func decodeStudentNoteBody(w http.ResponseWriter, r *http.Request) (studentNoteR
 func parseNoteSubject(body studentNoteRequestBody) (peopleModule.StudentNoteSubject, error) {
 	subject := peopleModule.StudentNoteSubject{}
 	if body.SubjectDate != nil && *body.SubjectDate != "" {
-		date, err := timezone.ParseDate(*body.SubjectDate)
+		date, err := calendar.ParseDate(*body.SubjectDate)
 		if err != nil {
 			return subject, errors.New("subject_date must be a YYYY-MM-DD date")
 		}
-		if date.After(timezone.TodayDate()) {
+		if date.After(calendar.TodayDate()) {
 			return subject, errors.New("subject_date must not be in the future")
 		}
 		subject.Date = &date

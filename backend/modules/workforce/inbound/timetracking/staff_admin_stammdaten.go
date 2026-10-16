@@ -10,7 +10,7 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Staff Stammdaten (#1423). Section-scoped sub-resources under
@@ -27,7 +27,7 @@ import (
 type StammdatenPersonPayload struct {
 	FirstName string         `json:"first_name"`
 	LastName  string         `json:"last_name"`
-	Birthday  *timezone.Date `json:"birthday"`
+	Birthday  *calendar.Date `json:"birthday"`
 	Gender    *string        `json:"gender"`
 }
 
@@ -44,9 +44,9 @@ type StammdatenKontaktPayload struct {
 
 // StammdatenArbeitsvertragPayload is the contract section on the wire.
 type StammdatenArbeitsvertragPayload struct {
-	EntryDate        *timezone.Date `json:"entry_date"`
-	ContractEndDate  *timezone.Date `json:"contract_end_date"`
-	ProbationEndDate *timezone.Date `json:"probation_end_date"`
+	EntryDate        *calendar.Date `json:"entry_date"`
+	ContractEndDate  *calendar.Date `json:"contract_end_date"`
+	ProbationEndDate *calendar.Date `json:"probation_end_date"`
 	WeeklyHours      *float64       `json:"weekly_hours"`
 	EmploymentType   *string        `json:"employment_type"`
 }
@@ -55,8 +55,8 @@ type StammdatenArbeitsvertragPayload struct {
 type StammdatenQualificationPayload struct {
 	ID         *int64         `json:"id,omitempty"`
 	Name       string         `json:"name"`
-	AcquiredOn *timezone.Date `json:"acquired_on"`
-	ExpiresOn  *timezone.Date `json:"expires_on"`
+	AcquiredOn *calendar.Date `json:"acquired_on"`
+	ExpiresOn  *calendar.Date `json:"expires_on"`
 }
 
 // StammdatenResponse is the aggregate GET for the non-sensitive sections.

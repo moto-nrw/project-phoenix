@@ -22,8 +22,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -33,6 +31,7 @@ import (
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -151,7 +150,7 @@ func (f *careFixture) staffCtx(accountID int64) context.Context {
 	return ctx
 }
 
-func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date timezone.Date, pickupTime time.Time) {
+func (f *careFixture) seedGuardianPickupAutoExcusal(t *testing.T, date calendar.Date, pickupTime time.Time) {
 	t.Helper()
 	ctx := f.staffCtx(f.staffAccount)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, f.db, f.chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -211,7 +210,7 @@ type offeringProjectedPickupService struct {
 func (s offeringProjectedPickupService) GetStudentPickupSchedules(context.Context, int64) ([]*careplan.PickupSchedule, error) {
 	return []*careplan.PickupSchedule{{
 		StudentID: s.studentID, Weekday: s.weekday,
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC)),
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 14, 30, 0, 0, time.UTC)),
 		Source:     scheduleModels.PickupScheduleSourceCareOffering,
 	}}, nil
 }
@@ -342,7 +341,7 @@ func TestDecide_ApproveMergesPreservingOtherDaysAndModes(t *testing.T) {
 		&careplan.ArrivalSchedule{
 			StudentID:       f.chain.StudentID,
 			Weekday:         3,
-			ExpectedArrival: timezone.NormalizeWallClock(time.Date(1, 1, 1, 7, 30, 0, 0, time.UTC)),
+			ExpectedArrival: calendar.NormalizeWallClock(time.Date(1, 1, 1, 7, 30, 0, 0, time.UTC)),
 			CreatedBy:       f.staffID,
 		}))
 
@@ -495,14 +494,14 @@ func seedCareDay(t *testing.T, f *careFixture, ctx context.Context, weekday int)
 		&careplan.ArrivalSchedule{
 			StudentID:       f.chain.StudentID,
 			Weekday:         weekday,
-			ExpectedArrival: timezone.NormalizeWallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
+			ExpectedArrival: calendar.NormalizeWallClock(time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC)),
 			CreatedBy:       f.staffID,
 		}))
 	require.NoError(t, f.sf.PickupSchedule.UpsertStudentPickupSchedule(ctx,
 		&careplan.PickupSchedule{
 			StudentID:  f.chain.StudentID,
 			Weekday:    weekday,
-			PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
+			PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 15, 30, 0, 0, time.UTC)),
 			CreatedBy:  f.staffID,
 		}))
 }

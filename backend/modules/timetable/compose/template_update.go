@@ -7,11 +7,11 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModel "github.com/moto-nrw/project-phoenix/models/activities"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -34,7 +34,7 @@ type TemplateUpdateInput struct {
 	TimeframeID      int64
 	WeekPattern      int
 	CalendarPeriodID *int64
-	RosterValidFrom  timezone.Date
+	RosterValidFrom  calendar.Date
 	StudentIDs       []int64
 	StaffIDs         []int64
 	PrimaryStaffID   *int64
@@ -51,7 +51,7 @@ type TemplateUpdateInput struct {
 	// segment's valid_from). It does NOT change the living segment's own
 	// roster anchor (RosterValidFrom stays authoritative there). Nil = the
 	// update touches only this segment, exactly as before.
-	SeriesRosterFrom *timezone.Date
+	SeriesRosterFrom *calendar.Date
 	// SeriesRosterScopeStudentIDs / SeriesRosterScopeStaffIDs name the people
 	// whose membership this edit actually changed. Only they are reconciled on
 	// the predecessor segments; everyone else keeps their predecessor rows.
@@ -78,7 +78,7 @@ type TemplateUpdateInput struct {
 	// stay clear of every capped predecessor segment are accepted; equal to
 	// the stored start is an idempotent no-op. Nil keeps the stored envelope
 	// untouched, exactly as before.
-	StartDate *timezone.Date
+	StartDate *calendar.Date
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster
@@ -141,8 +141,8 @@ func (s *TemplateService) validateTemplateUpdateRequest(ctx context.Context, in 
 // segment envelope, the previous schedules and the series values the later
 // steps compare against.
 type templateUpdateState struct {
-	validFrom                 *timezone.Date
-	validUntil                *timezone.Date
+	validFrom                 *calendar.Date
+	validUntil                *calendar.Date
 	previousSchedules         []*activitiesModel.Schedule
 	previousListKind          *string
 	previousSourceOfferingIDs []int64
@@ -340,7 +340,7 @@ func (s *TemplateService) resyncUpdatedTemplateOfferingRoster(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	previousSourceOfferingIDs []int64,
-	scheduleValidFrom *timezone.Date,
+	scheduleValidFrom *calendar.Date,
 ) error {
 	if len(in.Fields.SourceCareOfferingIDs) == 0 && len(previousSourceOfferingIDs) == 0 {
 		return nil
@@ -368,7 +368,7 @@ func (s *TemplateService) resyncUpdatedTemplateOfferingRoster(
 // EffectiveFrom and caps earlier ones AT it, so a past boundary would rewrite
 // roster history that was already effective. Today is the earliest honest
 // edit boundary; a future schedule start stays as-is (#2147 review).
-func offeringResyncBoundary(rosterValidFrom timezone.Date, scheduleValidFrom *timezone.Date, today timezone.Date) timezone.Date {
+func offeringResyncBoundary(rosterValidFrom calendar.Date, scheduleValidFrom *calendar.Date, today calendar.Date) calendar.Date {
 	effectiveFrom := rosterValidFrom
 	if scheduleValidFrom != nil {
 		effectiveFrom = *scheduleValidFrom
@@ -402,7 +402,7 @@ func (s *TemplateService) reconcileManualRosterInstances(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	previousSourceOfferingIDs []int64,
-	scheduleValidFrom *timezone.Date,
+	scheduleValidFrom *calendar.Date,
 	retiredStudentIDs []int64,
 ) error {
 	if len(in.Fields.SourceCareOfferingIDs) == 0 && len(previousSourceOfferingIDs) == 0 {
@@ -540,8 +540,8 @@ func (s *TemplateService) deleteRemovedLegacyWeekendInstances(ctx context.Contex
 func (s *TemplateService) resolvePulledForwardStart(
 	ctx context.Context,
 	in TemplateUpdateInput,
-	storedFrom *timezone.Date,
-) (*timezone.Date, error) {
+	storedFrom *calendar.Date,
+) (*calendar.Date, error) {
 	if in.StartDate == nil {
 		return storedFrom, nil
 	}
@@ -576,7 +576,7 @@ func (s *TemplateService) resolvePulledForwardStart(
 
 // predecessorOverlapsPulledStart reports whether a capped predecessor
 // segment's window reaches past the pulled-forward start.
-func predecessorOverlapsPulledStart(seg *templateSeriesSegment, templateID int64, storedFrom, newStart timezone.Date) bool {
+func predecessorOverlapsPulledStart(seg *templateSeriesSegment, templateID int64, storedFrom, newStart calendar.Date) bool {
 	if seg.Group == nil || seg.Group.ID == templateID || seg.ValidUntil == nil {
 		return false
 	}
@@ -598,7 +598,7 @@ func predecessorOverlapsPulledStart(seg *templateSeriesSegment, templateID int64
 func (s *TemplateService) loadEditableTemplateEnvelope(
 	ctx context.Context,
 	templateID int64,
-) (*timezone.Date, *timezone.Date, error) {
+) (*calendar.Date, *calendar.Date, error) {
 	existing, err := s.deps.ActivityScheduleRepo.FindByGroupID(ctx, templateID)
 	if err != nil {
 		return nil, nil, &ScheduleError{Op: "update template: load schedules", Err: err}
@@ -660,7 +660,7 @@ func (s *TemplateService) replaceTemplateSchedules(
 	ctx context.Context,
 	in TemplateUpdateInput,
 	tenantID int64,
-	validFrom, validUntil *timezone.Date,
+	validFrom, validUntil *calendar.Date,
 ) error {
 	if err := s.deps.ActivityScheduleRepo.DeleteByGroupID(ctx, in.TemplateID); err != nil {
 		return &ScheduleError{Op: "update template: delete schedules", Err: err}

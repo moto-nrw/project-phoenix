@@ -3,11 +3,11 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func (e engine) LockStaffSupervision(ctx context.Context, staffID int64, value string) ([]int64, error) {
-	date, err := timezone.ParseDate(value)
+	date, err := calendar.ParseDate(value)
 	if err != nil {
 		return nil, err
 	}

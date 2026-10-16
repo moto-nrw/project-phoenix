@@ -7,9 +7,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -24,7 +24,7 @@ func TestPickupScheduleService_GetBulkEffectivePickupDaysForDate(t *testing.T) {
 	staffID := createPickupServiceTestStaffID(t, db)
 
 	// January 11, 2024 is a Thursday.
-	testDate := timezone.NewDate(2024, 1, 11)
+	testDate := calendar.NewDate(2024, 1, 11)
 	usual := testpkg.CreateTestStudent(t, db, "Pickup", "Usual", "1a")
 	changed := testpkg.CreateTestStudent(t, db, "Pickup", "Changed", "1a")
 	for _, studentID := range []int64{usual.ID, changed.ID} {

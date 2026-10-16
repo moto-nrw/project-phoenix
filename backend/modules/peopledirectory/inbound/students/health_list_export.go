@@ -9,10 +9,10 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The Gesundheitsliste (#3323) is the child list of stored health notes. It
@@ -92,7 +92,7 @@ func (rs *Resource) writeHealthListAudit(r *http.Request, req studentExportReque
 	if actorRole == "" {
 		actorRole = "unknown"
 	}
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	entry := &studentpresence.DataAccessEvent{
 		ActorAccountID: int64(claims.ID),
 		ActorRole:      actorRole,
@@ -118,7 +118,7 @@ func (rs *Resource) writeHealthListAudit(r *http.Request, req studentExportReque
 // exportDocumentFilterLabels lists the filters printed on the document. The
 // Gesundheitsliste names its default scope as well, because a missing child
 // on it only means "no note stored" when the page says so.
-func exportDocumentFilterLabels(req studentExportRequest, planningDate timezone.Date, isToday bool) []string {
+func exportDocumentFilterLabels(req studentExportRequest, planningDate calendar.Date, isToday bool) []string {
 	labels := exportFilterLabelsForDate(req.Filters, planningDate, isToday)
 	if req.Preset == lists.PresetHealthList && !req.Filters.IncludeWithoutHealthInfo {
 		labels = append(labels, healthListOnlyWithNoteLabel)

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrExcusedRequestNotPending means a pending-row transition lost a race or the
@@ -49,7 +49,7 @@ type ExcusedAbsenceRequest struct {
 	TenantID       int64           `json:"tenant_id"`
 	StudentID      int64           `json:"student_id"`
 	SubmittedBy    int64           `json:"submitted_by"`
-	Dates          []timezone.Date `json:"dates"`
+	Dates          []calendar.Date `json:"dates"`
 	Note           string          `json:"note"`
 	AbsenceStatus  string          `json:"absence_status"`
 	Status         string          `json:"status"`

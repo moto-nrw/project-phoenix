@@ -10,12 +10,11 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -77,7 +76,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	checkOut := checkIn.Add(8 * time.Hour)
 	session := &timetracking.WorkSession{
 		StaffID:     staffA.ID,
-		Date:        timezone.NewDate(2025, time.August, 4),
+		Date:        calendar.NewDate(2025, time.August, 4),
 		Status:      workforce.WorkSessionStatusPresent,
 		Source:      workforce.WorkSessionSourceApp,
 		CheckInTime: checkIn, CheckOutTime: &checkOut,
@@ -105,8 +104,8 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 	absence := &timetracking.StaffAbsence{
 		StaffID:     staffA.ID,
 		AbsenceType: workforce.AbsenceTypeSick,
-		DateStart:   timezone.NewDate(2025, time.August, 6),
-		DateEnd:     timezone.NewDate(2025, time.August, 7),
+		DateStart:   calendar.NewDate(2025, time.August, 6),
+		DateEnd:     calendar.NewDate(2025, time.August, 7),
 		Status:      workforce.AbsenceStatusReported,
 		CreatedBy:   admin.ID,
 	}
@@ -129,7 +128,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 			StaffID:       staffID,
 			Type:          workforce.BalanceAdjustmentTypePayout,
 			MinutesDelta:  -60,
-			EffectiveDate: timezone.NewDate(2025, time.August, day),
+			EffectiveDate: calendar.NewDate(2025, time.August, day),
 			Note:          "Auszahlung",
 			DecidedBy:     admin.ID,
 			DecidedAt:     time.Date(2025, time.August, day, 12, 0, 0, 0, time.UTC),
@@ -286,8 +285,8 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("date range", func(t *testing.T) {
-		from := timezone.NewDate(2025, time.September, 1)
-		to := timezone.NewDate(2025, time.September, 1)
+		from := calendar.NewDate(2025, time.September, 1)
+		to := calendar.NewDate(2025, time.September, 1)
 		page, err := f.svc.ListAuditLog(f.ctx, timetracking.AuditLogListRequest{From: &from, To: &to})
 		require.NoError(t, err)
 		bySource := eventsBySource(page.Events)
@@ -296,8 +295,8 @@ func TestTimeTrackingAuditLog_Filters(t *testing.T) {
 	})
 
 	t.Run("to date includes the final fractional second", func(t *testing.T) {
-		day := timezone.NewDate(2025, time.September, 3)
-		finalFraction := time.Date(2025, time.September, 3, 23, 59, 59, 500_000_000, timezone.Berlin)
+		day := calendar.NewDate(2025, time.September, 3)
+		finalFraction := time.Date(2025, time.September, 3, 23, 59, 59, 500_000_000, calendar.Berlin)
 		nextMidnight := day.AddDays(1).BerlinMidnight()
 		for sourceID, occurredAt := range map[int64]time.Time{
 			9001: finalFraction,

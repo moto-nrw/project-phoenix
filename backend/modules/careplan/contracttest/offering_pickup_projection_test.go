@@ -12,12 +12,12 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -57,7 +57,7 @@ func projectedPickupReader(env *decisionTestEnv) careplan.PickupScheduleService 
 	return result
 }
 
-func nextWeekday(from timezone.Date, weekday time.Weekday) timezone.Date {
+func nextWeekday(from calendar.Date, weekday time.Weekday) calendar.Date {
 	date := from
 	for date.Weekday() != weekday {
 		date = date.AddDays(1)
@@ -70,7 +70,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	offering := createPickupTimeOffering(t, env, "gehzeit-future-end",
@@ -79,7 +79,7 @@ func TestOfferingPickupProjection_FutureBookingEndIsNotVisibleOnEffectiveDate(t 
 		t, env, offering.ID, "gehzeit-future-end@example.com", "Ende", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
+	effectiveFrom := nextWeekday(calendar.NewDate(2026, 8, 24).AddDays(1), time.Monday)
 	err := api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(effectiveFrom), nil)
 	require.NoError(t, err)
 
@@ -121,7 +121,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2026, 8, 24).AddDays(-30))
+	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2026, 8, 24).AddDays(-30))
 	ctx := testpkg.Ctx(t)
 
 	oldOffering := createPickupTimeOffering(t, env, "gehzeit-switch-old",
@@ -132,7 +132,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 		t, env, oldOffering.ID, "gehzeit-switch@example.com", "Wechsel", 2,
 	)
 
-	effectiveFrom := nextWeekday(timezone.NewDate(2026, 8, 24).AddDays(1), time.Monday)
+	effectiveFrom := nextWeekday(calendar.NewDate(2026, 8, 24).AddDays(1), time.Monday)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
@@ -173,7 +173,7 @@ func TestOfferingPickupProjection_FutureReplacementStartsExactlyOnEffectiveDate(
 	author := testpkg.CreateTestStaff(t, env.db, "Gehzeit", "Zukunft")
 	require.NoError(t, reader.UpsertBulkStudentPickupSchedulesForDate(ctx, studentID, effectiveFrom, []*careplan.PickupSchedule{{
 		StudentID: studentID, Weekday: scheduleModels.WeekdayMonday,
-		PickupTime: timezone.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
+		PickupTime: calendar.NormalizeWallClock(time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC)), CreatedBy: author.ID,
 	}}))
 	stored, err := env.repos.StudentPickupSchedule.FindByStudentID(ctx, studentID)
 	require.NoError(t, err)
@@ -343,7 +343,7 @@ func holdOfferingSourceGate(t *testing.T, env *decisionTestEnv) (chan struct{}, 
 	return release, done
 }
 
-func startPickupReset(t *testing.T, env *decisionTestEnv, resetter careplan.OfferingPickupTimes, studentID int64, date timezone.Date) chan error {
+func startPickupReset(t *testing.T, env *decisionTestEnv, resetter careplan.OfferingPickupTimes, studentID int64, date calendar.Date) chan error {
 	t.Helper()
 	done := make(chan error, 1)
 	go func() {

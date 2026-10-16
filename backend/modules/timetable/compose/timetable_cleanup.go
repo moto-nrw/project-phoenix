@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -62,7 +62,7 @@ type StudentDeletionRecord struct {
 	StudentID         int64
 	RecordsDeleted    int
 	RetentionDays     int
-	CutoffDate        timezone.Date
+	CutoffDate        calendar.Date
 	InstanceIDsSample []int64
 }
 
@@ -75,7 +75,7 @@ type DeletionAudit interface {
 // occurrence date lies before the cutoff, in lockstep with the instances
 // they annotate (#1886).
 type DeviationEventRetention interface {
-	DeleteDeviationEventsBefore(ctx context.Context, cutoff timezone.Date) (int64, error)
+	DeleteDeviationEventsBefore(ctx context.Context, cutoff calendar.Date) (int64, error)
 }
 
 // TimetableCleanupDependencies wires the retention. Timetable and Audit are
@@ -93,7 +93,7 @@ type TimetableCleanupDependencies struct {
 type timetableCleanup struct {
 	deps   TimetableCleanupDependencies
 	logger *slog.Logger
-	today  func() timezone.Date
+	today  func() calendar.Date
 }
 
 // NewTimetableCleanup composes the Timetable owner's retention cleanup.
@@ -105,7 +105,7 @@ func NewTimetableCleanup(deps TimetableCleanupDependencies) (timetable.Timetable
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &timetableCleanup{deps: deps, logger: logger, today: timezone.CalendarDateClock(deps.Clock)}, nil
+	return &timetableCleanup{deps: deps, logger: logger, today: calendar.CalendarDateClock(deps.Clock)}, nil
 }
 
 // cleanupImpact is the per-child count of planned slots a run removes, with
@@ -157,7 +157,7 @@ func (s *timetableCleanup) CleanupExpiredTimetableData(ctx context.Context) (*ti
 // deleteExpired removes the instances (CASCADE takes their staff and
 // participant rows), the exceptions and, keyed on the same occurrence date,
 // the Änderungsprotokoll rows of those slots.
-func (s *timetableCleanup) deleteExpired(ctx context.Context, cutoff timezone.Date) (*timetable.TimetableCleanupResult, error) {
+func (s *timetableCleanup) deleteExpired(ctx context.Context, cutoff calendar.Date) (*timetable.TimetableCleanupResult, error) {
 	instancesDeleted, err := s.deps.Timetable.DeleteActivityInstancesBefore(ctx, cutoff.String())
 	if err != nil {
 		return nil, fmt.Errorf("delete activity_instances: %w", err)
@@ -246,7 +246,7 @@ func (s *timetableCleanup) GetStats(ctx context.Context) (*timetable.TimetableCl
 
 // oldestRows reads the oldest instance and exception date, optionally only
 // among the rows before the cutoff.
-func (s *timetableCleanup) oldestRows(ctx context.Context, before *string) (*timezone.Date, *timezone.Date, error) {
+func (s *timetableCleanup) oldestRows(ctx context.Context, before *string) (*calendar.Date, *calendar.Date, error) {
 	oldestInstance, err := s.deps.Timetable.OldestActivityInstanceBefore(ctx, before)
 	if err != nil {
 		return nil, nil, fmt.Errorf("oldest activity_instance: %w", err)
@@ -266,11 +266,11 @@ func (s *timetableCleanup) oldestRows(ctx context.Context, before *string) (*tim
 	return instance, exception, nil
 }
 
-func optionalCleanupDate(value *string) (*timezone.Date, error) {
+func optionalCleanupDate(value *string) (*calendar.Date, error) {
 	if value == nil {
 		return nil, nil
 	}
-	date, err := timezone.ParseDate(*value)
+	date, err := calendar.ParseDate(*value)
 	if err != nil {
 		return nil, err
 	}
@@ -291,7 +291,7 @@ func (s *timetableCleanup) resolveRetentionDays(ctx context.Context) int {
 
 // collectStudentImpact counts, per child, the planned slots the run removes
 // through the instance CASCADE, with a bounded sample of instance ids.
-func (s *timetableCleanup) collectStudentImpact(ctx context.Context, cutoff timezone.Date) (cleanupImpact, error) {
+func (s *timetableCleanup) collectStudentImpact(ctx context.Context, cutoff calendar.Date) (cleanupImpact, error) {
 	refs, err := s.deps.Timetable.ListStudentInstanceRefsBefore(ctx, cutoff.String())
 	if err != nil {
 		return cleanupImpact{}, err
@@ -312,7 +312,7 @@ func (s *timetableCleanup) writeStudentAuditRows(
 	ctx context.Context,
 	tenantID int64,
 	retentionDays int,
-	cutoff timezone.Date,
+	cutoff calendar.Date,
 	impact cleanupImpact,
 ) error {
 	if s.deps.Audit == nil {

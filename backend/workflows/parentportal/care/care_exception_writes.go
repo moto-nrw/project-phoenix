@@ -10,12 +10,12 @@ import (
 	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -25,7 +25,7 @@ import (
 // from the current state): a non-nil time sets that leg, a nil time clears the
 // guardian row for that leg. So emptying the pickup field and saving removes the
 // pickup override while keeping the arrival one, instead of silently retaining
-func (s *Service) SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason string) (*CareException, error) {
+func (s *Service) SubmitCareExceptionWithReason(ctx context.Context, accountID, studentID int64, date calendar.Date, pickupTime *time.Time, reason string) (*CareException, error) {
 	trimmedReason := strings.TrimSpace(reason)
 	if pickupTime == nil {
 		return nil, ErrNoCareException
@@ -48,7 +48,7 @@ func (s *Service) SubmitCareExceptionWithReason(ctx context.Context, accountID, 
 	return s.submitCareException(ctx, accountID, studentID, date, pickupTime, &trimmedReason)
 }
 
-func (s *Service) submitCareException(ctx context.Context, accountID, studentID int64, date timezone.Date, pickupTime *time.Time, reason *string) (*CareException, error) {
+func (s *Service) submitCareException(ctx context.Context, accountID, studentID int64, date calendar.Date, pickupTime *time.Time, reason *string) (*CareException, error) {
 	if pickupTime == nil {
 		return nil, ErrNoCareException
 	}
@@ -108,11 +108,11 @@ func (s *Service) submitCareException(ctx context.Context, accountID, studentID 
 // checkCareExceptionDate refuses a past day and one beyond two calendar
 // months, mirroring the parent-portal list window (parseSickDayRange) so a
 // created entry can never fall outside the range the UI shows.
-func checkCareExceptionDate(date, today timezone.Date) error {
+func checkCareExceptionDate(date, today calendar.Date) error {
 	if date.Before(today) {
 		return ErrPastCareDate
 	}
-	maxDate := timezone.NewDate(today.Year(), today.Month()+2, today.Day())
+	maxDate := calendar.NewDate(today.Year(), today.Month()+2, today.Day())
 	if date.After(maxDate) {
 		return ErrCareDateTooFar
 	}
@@ -123,8 +123,8 @@ func checkCareExceptionDate(date, today timezone.Date) error {
 type careExceptionChange struct {
 	accountID  int64
 	studentID  int64
-	date       timezone.Date
-	today      timezone.Date
+	date       calendar.Date
+	today      calendar.Date
 	pickupTime *time.Time
 	reason     *string
 }
@@ -172,7 +172,7 @@ func (s *Service) writeCareException(ctx context.Context, tenantID int64, change
 
 // lockCareDay locks the child's row, re-checks the care interval under that
 // lock, and takes the care-day lock every day-exception writer shares.
-func (s *Service) lockCareDay(ctx context.Context, studentID int64, date timezone.Date) error {
+func (s *Service) lockCareDay(ctx context.Context, studentID int64, date calendar.Date) error {
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
 		return err
@@ -213,7 +213,7 @@ func (s *Service) guardCareExceptionDay(ctx context.Context, tenantID int64, cha
 	return nil
 }
 
-func (s *Service) childAlreadyLeftToday(ctx context.Context, studentID int64, date, today timezone.Date) (bool, error) {
+func (s *Service) childAlreadyLeftToday(ctx context.Context, studentID int64, date, today calendar.Date) (bool, error) {
 	if date != today || s.Attendance == nil {
 		return false, nil
 	}
@@ -230,7 +230,7 @@ func (s *Service) childAlreadyLeftToday(ctx context.Context, studentID int64, da
 // pickup change for that day (TestSubmitCareExceptionWithReasonPreservesExistingArrival).
 // An AUTO-derived partial absence is the school's own bookkeeping, not a
 // decision, so only a manual one counts (#2360).
-func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, date timezone.Date) (bool, error) {
+func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, date calendar.Date) (bool, error) {
 	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err != nil {
 		return false, err
@@ -243,7 +243,7 @@ func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, 
 // nothing guardian-owned
 // is a no-op (and skips the broadcast). Not gated by the feature toggle for the
 // same reason as ListCareExceptions: clearing one's own override stays available.
-func (s *Service) DeleteCareException(ctx context.Context, accountID, studentID int64, date timezone.Date) error {
+func (s *Service) DeleteCareException(ctx context.Context, accountID, studentID int64, date calendar.Date) error {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
 	if err != nil {
 		return err
@@ -335,7 +335,7 @@ func (s *Service) broadcastStudentUpdated(tenantID, studentID int64) {
 // careExceptionRef resolves the pill's backreference to the exception row the
 // submission wrote (pickup preferred, else arrival). Best-effort: a lookup
 // failure just leaves the pill without a ref.
-func (s *Service) careExceptionRef(ctx context.Context, studentID int64, date timezone.Date) (string, *int64) {
+func (s *Service) careExceptionRef(ctx context.Context, studentID int64, date calendar.Date) (string, *int64) {
 	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
 	if err == nil && pickup != nil {
 		id := pickup.ID

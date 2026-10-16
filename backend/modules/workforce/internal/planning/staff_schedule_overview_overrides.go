@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // TargetOverrideDaysReader answers the days a Sonderarbeitszeit (#3259) sets
@@ -17,7 +17,7 @@ type TargetOverrideDaysReader interface {
 
 // baseDayTarget prices one day of one staff member without a
 // Sonderarbeitszeit.
-type baseDayTarget func(member *workforce.PlanStaff, day timezone.Date) int
+type baseDayTarget func(member *workforce.PlanStaff, day calendar.Date) int
 
 // weeklyTargets resolves the contractual weekly targets and then corrects
 // them by the Sonderarbeitszeiten of the summarized weeks.
@@ -25,7 +25,7 @@ func (s *staffScheduleOverviewService) weeklyTargets(
 	ctx context.Context,
 	staff []*workforce.PlanStaff,
 	schedules []*configModel.StaffWorkSchedule,
-	weekStarts []timezone.Date,
+	weekStarts []calendar.Date,
 ) (map[staffDateKey]int, error) {
 	targets, err := s.resolveWeeklyTargets(ctx, staff, schedules, weekStarts)
 	if err != nil {
@@ -44,7 +44,7 @@ func (s *staffScheduleOverviewService) applyTargetOverrides(
 	ctx context.Context,
 	staff []*workforce.PlanStaff,
 	schedules []*configModel.StaffWorkSchedule,
-	weekStarts []timezone.Date,
+	weekStarts []calendar.Date,
 	targets map[staffDateKey]int,
 ) error {
 	if s.deps.TargetOverrides == nil || len(weekStarts) == 0 || len(staff) == 0 {
@@ -75,7 +75,7 @@ func (s *staffScheduleOverviewService) applyTargetOverrides(
 // nor the model covers it — so a Sonderarbeitszeit inside that week must not
 // create one: the overview would otherwise show the override minutes as if
 // they were the whole week's Soll.
-func addOverrideDeltas(member *workforce.PlanStaff, days map[string]int, weekStarts []timezone.Date, base baseDayTarget, targets map[staffDateKey]int) {
+func addOverrideDeltas(member *workforce.PlanStaff, days map[string]int, weekStarts []calendar.Date, base baseDayTarget, targets map[staffDateKey]int) {
 	for _, weekStart := range weekStarts {
 		key := staffDateKey{StaffID: member.ID, Date: weekStart}
 		if _, resolved := targets[key]; !resolved {
@@ -112,7 +112,7 @@ func (s *staffScheduleOverviewService) baseDayTargets(
 	ctx context.Context,
 	staff []*workforce.PlanStaff,
 	schedules []*configModel.StaffWorkSchedule,
-	weekStarts []timezone.Date,
+	weekStarts []calendar.Date,
 ) (baseDayTarget, error) {
 	holidaySet, err := s.holidayDatesForWeeks(ctx, weekStarts)
 	if err != nil {
@@ -129,7 +129,7 @@ func (s *staffScheduleOverviewService) baseDayTargets(
 	if err != nil {
 		return nil, err
 	}
-	return func(member *workforce.PlanStaff, day timezone.Date) int {
+	return func(member *workforce.PlanStaff, day calendar.Date) int {
 		if holidaySet[day] {
 			return 0
 		}
@@ -149,7 +149,7 @@ func (s *staffScheduleOverviewService) baseDayTargets(
 func scheduleDrivenStaff(
 	staff []*workforce.PlanStaff,
 	entriesByStaff map[int64][]*configModel.StaffWorkSchedule,
-	weekStarts []timezone.Date,
+	weekStarts []calendar.Date,
 ) map[int64]bool {
 	scheduled := make(map[int64]bool, len(staff))
 	for _, member := range staff {
@@ -166,7 +166,7 @@ func scheduleDrivenStaff(
 	return scheduled
 }
 
-func modelDayTarget(member *workforce.PlanStaff, modelsByID map[int64]*configModel.WorkTimeModel, day timezone.Date) int {
+func modelDayTarget(member *workforce.PlanStaff, modelsByID map[int64]*configModel.WorkTimeModel, day calendar.Date) int {
 	if member.WorkTimeModelID == nil || modelsByID[*member.WorkTimeModelID] == nil {
 		return 0
 	}

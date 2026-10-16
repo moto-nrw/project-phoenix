@@ -4,26 +4,25 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ParseDateRangeQuery extracts and validates the from/to query parameters of a
 // schedule-targets request. Exported for reuse by the staff-scoped admin
 // endpoint.
-func ParseDateRangeQuery(r *http.Request) (timezone.Date, timezone.Date, error) {
-	from, err := timezone.ParseDate(r.URL.Query().Get("from"))
+func ParseDateRangeQuery(r *http.Request) (calendar.Date, calendar.Date, error) {
+	from, err := calendar.ParseDate(r.URL.Query().Get("from"))
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), errors.New("from query parameter must be YYYY-MM-DD")
+		return calendar.Date(""), calendar.Date(""), errors.New("from query parameter must be YYYY-MM-DD")
 	}
-	to, err := timezone.ParseDate(r.URL.Query().Get("to"))
+	to, err := calendar.ParseDate(r.URL.Query().Get("to"))
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), errors.New("to query parameter must be YYYY-MM-DD")
+		return calendar.Date(""), calendar.Date(""), errors.New("to query parameter must be YYYY-MM-DD")
 	}
 	if to.Before(from) {
-		return timezone.Date(""), timezone.Date(""), errors.New("to must be on or after from")
+		return calendar.Date(""), calendar.Date(""), errors.New("to must be on or after from")
 	}
 	return from, to, nil
 }

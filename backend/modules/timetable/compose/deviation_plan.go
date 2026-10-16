@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Phase A of a deviations save: lock the day, read every referenced row
@@ -56,7 +56,7 @@ func (staff deviationStaffByInstance) add(instanceID, staffID int64) {
 // a row yet.
 type deviationPlan struct {
 	instance     *scheduleModel.ActivityInstance
-	date         timezone.Date
+	date         calendar.Date
 	absencePlan  []deviationAbsenceOp
 	presencePlan []deviationPresenceOp
 	subPlan      []deviationSubOp
@@ -87,7 +87,7 @@ func (s *staffDeviations) loadDeviationReadSet(
 	ctx context.Context,
 	instanceID int64,
 	in timetable.ApplyDeviationsInput,
-	date timezone.Date,
+	date calendar.Date,
 ) (*deviationReadSet, error) {
 	staffIDs := deviationInputStaffIDs(in)
 	staff, err := s.deps.Staff.FindByIDs(ctx, staffIDs)
@@ -195,7 +195,7 @@ func deviationInputInstanceIDs(instanceID int64, in timetable.ApplyDeviationsInp
 // substitution writes, and reconciles the selected block's acknowledgement — all
 // without writing a row.
 func (s *staffDeviations) planDeviations(ctx context.Context, instanceID int64, instance *scheduleModel.ActivityInstance, in timetable.ApplyDeviationsInput) (*deviationPlan, error) {
-	date := timezone.Date(instance.Date)
+	date := calendar.Date(instance.Date)
 	locked, err := s.lockDeviationDay(ctx, instanceID, date)
 	if err != nil {
 		return nil, err
@@ -236,7 +236,7 @@ func (s *staffDeviations) planDeviations(ctx context.Context, instanceID int64, 
 // whole day — then re-reads the block: PUT /instances/{id} may have MOVED it
 // to another day between the initial read and this lock. A move (or a
 // concurrent cancel/complete) aborts the save (#1840).
-func (s *staffDeviations) lockDeviationDay(ctx context.Context, instanceID int64, date timezone.Date) (*scheduleModel.ActivityInstance, error) {
+func (s *staffDeviations) lockDeviationDay(ctx context.Context, instanceID int64, date calendar.Date) (*scheduleModel.ActivityInstance, error) {
 	if err := s.acquireSubstituteDayLock(ctx, date); err != nil {
 		return nil, timetable.DeviationInternal("lock day failed", err)
 	}
@@ -244,7 +244,7 @@ func (s *staffDeviations) lockDeviationDay(ctx context.Context, instanceID int64
 	if err != nil {
 		return nil, err
 	}
-	if timezone.Date(locked.Date) != date || !isPlannableInstance(locked) {
+	if calendar.Date(locked.Date) != date || !isPlannableInstance(locked) {
 		return nil, timetable.DeviationConflict(timetable.CodeInstanceMoved, msgInstanceMoved)
 	}
 	return locked, nil
@@ -252,7 +252,7 @@ func (s *staffDeviations) lockDeviationDay(ctx context.Context, instanceID int64
 
 // classifyDeviations stages the absence, presence, removal and substitution
 // writes and projects the resulting staff state per appointment.
-func classifyDeviations(in timetable.ApplyDeviationsInput, date timezone.Date, readSet *deviationReadSet) (*deviationPlan, deviationProjection, error) {
+func classifyDeviations(in timetable.ApplyDeviationsInput, date calendar.Date, readSet *deviationReadSet) (*deviationPlan, deviationProjection, error) {
 	absencePlan, err := planAbsences(in.Absences, date, readSet)
 	if err != nil {
 		return nil, deviationProjection{}, err

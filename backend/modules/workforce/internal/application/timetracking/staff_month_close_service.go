@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Sentinel errors for handler mapping (#1417).
@@ -107,7 +107,7 @@ func (s *staffMonthCloseService) broadcastTimeTrackingChanged(ctx context.Contex
 	queueStaffTimeTrackingChanged(ctx, s.broadcaster, s.getLogger())
 }
 
-func calendarMonthHasEnded(key monthKey, today timezone.Date) bool {
+func calendarMonthHasEnded(key monthKey, today calendar.Date) bool {
 	return key.lastDay().Before(today)
 }
 
@@ -133,7 +133,7 @@ func (s *staffMonthCloseService) validateCloseRequest(ctx context.Context, year,
 		return monthKey{}, "", fmt.Errorf("%w: a reason is required", ErrMonthCloseInvalid)
 	}
 	key := monthKey{Year: year, Month: month}
-	if !calendarMonthHasEnded(key, timezone.TodayDate()) {
+	if !calendarMonthHasEnded(key, calendar.TodayDate()) {
 		return monthKey{}, "", fmt.Errorf(
 			"%w: %04d-%02d is not over yet",
 			ErrMonthNotClosable, year, month,

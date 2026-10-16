@@ -6,9 +6,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
@@ -17,7 +17,7 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 	authorID := int64(41)
 	reason := "Vertraulicher Grund"
 	rows := []careplan.PickupException{{
-		ExceptionDate:     careplan.Date(timezone.TodayDate()),
+		ExceptionDate:     careplan.Date(calendar.TodayDate()),
 		Reason:            &reason,
 		Source:            scheduleModels.ExceptionSourceGuardian,
 		CreatedByGuardian: &authorID,

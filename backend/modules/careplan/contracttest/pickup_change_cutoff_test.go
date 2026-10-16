@@ -4,28 +4,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 // #3163: the fixture's today is 24 August 2026, a Monday.
-var cutoffFixtureToday = timezone.NewDate(2026, 8, 24)
+var cutoffFixtureToday = calendar.NewDate(2026, 8, 24)
 
 func cutoffAt(t *testing.T, hour, minute int) careplan.SameDayCutoff {
 	t.Helper()
 	cutoff, err := careplan.NewSameDayCutoff("11:00",
-		time.Date(2026, 8, 24, hour, minute, 0, 0, timezone.Berlin))
+		time.Date(2026, 8, 24, hour, minute, 0, 0, calendar.Berlin))
 	require.NoError(t, err)
 	return cutoff
 }
 
 func createPickupChangeWithCutoff(
-	t *testing.T, f *careFixture, date timezone.Date, cutoff careplan.SameDayCutoff,
+	t *testing.T, f *careFixture, date calendar.Date, cutoff careplan.SameDayCutoff,
 ) (*carerequests.Request, error) {
 	t.Helper()
 	return f.svc.CreatePickupChange(f.staffCtx(f.staffAccount), carerequests.PickupChangeCreateInput{
@@ -78,7 +77,7 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 	t.Run("ohne Frist spät am Tag", func(t *testing.T) {
 		t.Parallel()
 		f := newPickupChangeFixture(t)
-		none, err := careplan.NewSameDayCutoff("", time.Date(2026, 8, 24, 23, 0, 0, 0, timezone.Berlin))
+		none, err := careplan.NewSameDayCutoff("", time.Date(2026, 8, 24, 23, 0, 0, 0, calendar.Berlin))
 		require.NoError(t, err)
 		_, err = createPickupChangeWithCutoff(t, f, cutoffFixtureToday, none)
 		require.NoError(t, err)
@@ -91,7 +90,7 @@ func TestCreatePickupChangeHonoursSameDayCutoff(t *testing.T) {
 func TestEditPickupChangeHonoursSameDayCutoff(t *testing.T) {
 	t.Parallel()
 
-	edit := func(t *testing.T, f *careFixture, req *carerequests.Request, date timezone.Date, cutoff careplan.SameDayCutoff) error {
+	edit := func(t *testing.T, f *careFixture, req *carerequests.Request, date calendar.Date, cutoff careplan.SameDayCutoff) error {
 		t.Helper()
 		_, err := f.svc.EditRequest(f.staffCtx(f.staffAccount), carerequests.EditInput{
 			RequestID:         req.ID,

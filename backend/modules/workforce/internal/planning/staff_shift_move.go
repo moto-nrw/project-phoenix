@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // MoveShiftInput is the complete desired slot for one concrete shift. The
@@ -20,7 +20,7 @@ type MoveShiftInput struct {
 	ShiftID       int64
 	SourceStaffID int64
 	TargetStaffID int64
-	Date          timezone.Date
+	Date          calendar.Date
 	StartTime     time.Time
 	EndTime       time.Time
 	BreakMinutes  int
@@ -171,7 +171,7 @@ func (s *staffShiftService) logShiftMovedEvent(ctx context.Context, existing, mo
 	}
 	event := &auditModels.DeviationEvent{
 		OccurrenceDate: auditModels.Date(moved.Date),
-		StartTime:      timezone.NormalizeWallClock(moved.StartTime),
+		StartTime:      calendar.NormalizeWallClock(moved.StartTime),
 		StaffShiftID:   &moved.ID,
 		SubjectStaffID: &existing.StaffID,
 		EventType:      auditModels.DeviationEventShiftMoved,
@@ -198,16 +198,16 @@ func shiftMoveSlot(shift *StaffShift) map[string]any {
 	return map[string]any{
 		"staff_id":   shift.StaffID,
 		"date":       shift.Date.String(),
-		"start_time": timezone.NormalizeWallClock(shift.StartTime).Format("15:04"),
-		"end_time":   timezone.NormalizeWallClock(shift.EndTime).Format("15:04"),
+		"start_time": calendar.NormalizeWallClock(shift.StartTime).Format("15:04"),
+		"end_time":   calendar.NormalizeWallClock(shift.EndTime).Format("15:04"),
 	}
 }
 
 func staffShiftMoveChanged(existing, moved *StaffShift) bool {
 	return existing.StaffID != moved.StaffID ||
 		existing.Date != moved.Date ||
-		!timezone.SameClockTime(existing.StartTime, moved.StartTime) ||
-		!timezone.SameClockTime(existing.EndTime, moved.EndTime) ||
+		!calendar.SameClockTime(existing.StartTime, moved.StartTime) ||
+		!calendar.SameClockTime(existing.EndTime, moved.EndTime) ||
 		existing.BreakMinutes != moved.BreakMinutes ||
 		!sameShiftTypeID(existing.ShiftTypeID, moved.ShiftTypeID)
 }
@@ -215,7 +215,7 @@ func staffShiftMoveChanged(existing, moved *StaffShift) bool {
 // seriesOccurrenceDate returns the immutable recurrence slot for a materialized
 // row. The Date fallback keeps mock-built and pre-migration in-memory rows safe;
 // migration 1.15.202 backfills every persisted series row.
-func seriesOccurrenceDate(shift *StaffShift) timezone.Date {
+func seriesOccurrenceDate(shift *StaffShift) calendar.Date {
 	if shift.SeriesOccurrenceDate != nil {
 		return *shift.SeriesOccurrenceDate
 	}
@@ -239,8 +239,8 @@ func (s *staffShiftService) findShiftForMove(ctx context.Context, id int64) (*St
 func moveAlreadyApplied(shift *StaffShift, input MoveShiftInput) bool {
 	return shift.StaffID == input.TargetStaffID &&
 		shift.Date == input.Date &&
-		timezone.SameClockTime(shift.StartTime, input.StartTime) &&
-		timezone.SameClockTime(shift.EndTime, input.EndTime) &&
+		calendar.SameClockTime(shift.StartTime, input.StartTime) &&
+		calendar.SameClockTime(shift.EndTime, input.EndTime) &&
 		shift.BreakMinutes == input.BreakMinutes &&
 		sameShiftTypeID(shift.ShiftTypeID, input.ShiftTypeID) &&
 		shift.SeriesID == nil
@@ -250,8 +250,8 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	if moved.OriginShiftID != nil {
 		return s.validateOriginLink(ctx, moved)
 	}
-	windowChanged := !timezone.SameClockTime(moved.StartTime, existing.StartTime) ||
-		!timezone.SameClockTime(moved.EndTime, existing.EndTime)
+	windowChanged := !calendar.SameClockTime(moved.StartTime, existing.StartTime) ||
+		!calendar.SameClockTime(moved.EndTime, existing.EndTime)
 	if moved.StaffID == existing.StaffID && moved.Date == existing.Date && !windowChanged {
 		return nil
 	}
@@ -265,7 +265,7 @@ func (s *staffShiftService) validateMovedOrigin(ctx context.Context, existing, m
 	return nil
 }
 
-func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *StaffShift, date timezone.Date) error {
+func (s *staffShiftService) recordSeriesException(ctx context.Context, shift *StaffShift, date calendar.Date) error {
 	exception := &StaffShiftSeriesException{
 		SeriesID:  *shift.SeriesID,
 		Date:      date,

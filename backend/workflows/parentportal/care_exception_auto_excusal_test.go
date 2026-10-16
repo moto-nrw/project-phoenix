@@ -16,9 +16,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
@@ -56,8 +56,8 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 
 // nextMonday returns the first Monday at least seven days out, safely inside
 // the parent submit window (today .. +2 months).
-func nextMonday() timezone.Date {
-	date := timezone.TodayDate().AddDays(7)
+func nextMonday() calendar.Date {
+	date := calendar.TodayDate().AddDays(7)
 	for date.Weekday() != time.Monday {
 		date = date.AddDays(1)
 	}
@@ -179,7 +179,7 @@ type partialAbsenceReads interface {
 // the way the retained services do (#2762).
 type partialAbsencePreview struct{ reads partialAbsenceReads }
 
-func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date timezone.Date, clock time.Time) ([]carerequests.Block, error) {
+func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date calendar.Date, clock time.Time) ([]carerequests.Block, error) {
 	rows, err := p.reads.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
 	if err != nil {
 		return nil, err

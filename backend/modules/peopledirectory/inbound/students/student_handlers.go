@@ -7,11 +7,11 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // parseAndGetStudent parses the student ID from the URL and fetches the student
@@ -158,7 +158,7 @@ func (rs *Resource) enrichStudentDetailForToday(ctx context.Context, response *S
 	// whoever decides that request — under open care that person supervises no
 	// group and sees every child restricted (#2232).
 	single := []StudentResponse{response.StudentResponse}
-	if _, err := rs.enrichWithDayPlanning(ctx, single, timezone.DateFromTime(now), true, attendances); err != nil {
+	if _, err := rs.enrichWithDayPlanning(ctx, single, calendar.DateFromTime(now), true, attendances); err != nil {
 		return err
 	}
 	if err := rs.enrichWithCareExitFlag(ctx, single); err != nil {

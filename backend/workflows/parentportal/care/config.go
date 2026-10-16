@@ -5,13 +5,13 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -145,20 +145,20 @@ func New(cfg Config) *Service {
 		cfg.Logger = slog.Default()
 	}
 	if cfg.Now == nil {
-		cfg.Now = timezone.Now
+		cfg.Now = calendar.Now
 	}
 	return &Service{Config: cfg}
 }
 
 func (s *Service) now() time.Time {
 	if s.Now == nil {
-		return timezone.Now()
+		return calendar.Now()
 	}
 	return s.Now()
 }
 
-func (s *Service) todayDate() timezone.Date {
-	return timezone.DateFromTime(s.now())
+func (s *Service) todayDate() calendar.Date {
+	return calendar.DateFromTime(s.now())
 }
 
 // InTenant runs fn in the tenant unit of work of the child's school. Nested

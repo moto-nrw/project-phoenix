@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // The adapters in this file keep the retained models/users personnel record
@@ -206,18 +206,18 @@ func staffRecordWriteError(op string, err error) error {
 	return &modelBase.DatabaseError{Op: op, Err: err}
 }
 
-func optionalDateString(value *timezone.Date) string {
+func optionalDateString(value *calendar.Date) string {
 	if value == nil {
 		return ""
 	}
 	return value.String()
 }
 
-func optionalDate(value string) *timezone.Date {
+func optionalDate(value string) *calendar.Date {
 	if value == "" {
 		return nil
 	}
-	date := timezone.Date(value)
+	date := calendar.Date(value)
 	return &date
 }
 

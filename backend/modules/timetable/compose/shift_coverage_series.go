@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/internal/sliceutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Series projection of the shift-coverage probe: which staff will ReplanWeek
@@ -19,10 +19,10 @@ import (
 func (d *conflictDetection) resolveSeriesEffectiveCoverageDays(
 	ctx context.Context,
 	probe timetable.ShiftCoverageProbe,
-	dates []timezone.Date,
+	dates []calendar.Date,
 	staffIDs []int64,
-	coverageDays map[timezone.Date]effectiveShiftCoverageDay,
-) (map[timezone.Date]effectiveShiftCoverageDay, []int64, error) {
+	coverageDays map[calendar.Date]effectiveShiftCoverageDay,
+) (map[calendar.Date]effectiveShiftCoverageDay, []int64, error) {
 	activityGroupID := *probe.ReplanActivityGroupID
 	from, to := scheduleModels.Date(dates[0]), scheduleModels.Date(dates[len(dates)-1])
 	instances, err := d.deps.Instances.FindByActivityGroupAndDateRange(ctx, activityGroupID, from, to)
@@ -84,7 +84,7 @@ type seriesCoverageProjection struct {
 	exception           *scheduleModels.ActivityException
 	instances           []*scheduleModels.ActivityInstance
 	activityGroupID     int64
-	date                timezone.Date
+	date                calendar.Date
 	deviationCandidates []*scheduleModels.ActivityInstance
 	rowsByInstance      map[int64][]*scheduleModels.InstanceStaff
 	staffIDs            []int64
@@ -95,7 +95,7 @@ func projectSeriesCoverageDay(projection seriesCoverageProjection) (effectiveShi
 	if !day.active {
 		return day, nil
 	}
-	if !timezone.NormalizeWallClock(day.end).After(timezone.NormalizeWallClock(day.start)) {
+	if !calendar.NormalizeWallClock(day.end).After(calendar.NormalizeWallClock(day.start)) {
 		return day, invalidShiftCoverageProbe("effective exception end time must be after start time")
 	}
 	if survivingInstanceBlocksSeriesCandidate(projection.instances, projection.activityGroupID, projection.date, day.start) {
@@ -115,10 +115,10 @@ func applySeriesCoverageException(day effectiveShiftCoverageDay, exception *sche
 		return inactiveCoverageDay(day)
 	}
 	if exception.StartTime != nil {
-		day.start = timezone.NormalizeWallClock(*exception.StartTime)
+		day.start = calendar.NormalizeWallClock(*exception.StartTime)
 	}
 	if exception.EndTime != nil {
-		day.end = timezone.NormalizeWallClock(*exception.EndTime)
+		day.end = calendar.NormalizeWallClock(*exception.EndTime)
 	}
 	return day
 }
@@ -135,17 +135,17 @@ func inactiveCoverageDay(day effectiveShiftCoverageDay) effectiveShiftCoverageDa
 // keeps the operation to one query.
 func preservedDeviationCandidates(
 	instances []*scheduleModels.ActivityInstance,
-	dates []timezone.Date,
+	dates []calendar.Date,
 	activityGroupID int64,
-) (map[timezone.Date][]*scheduleModels.ActivityInstance, []int64) {
+) (map[calendar.Date][]*scheduleModels.ActivityInstance, []int64) {
 	requested := dateSet(dates)
-	candidates := make(map[timezone.Date][]*scheduleModels.ActivityInstance)
+	candidates := make(map[calendar.Date][]*scheduleModels.ActivityInstance)
 	instanceIDs := make([]int64, 0)
 	for _, instance := range instances {
 		if !replannedSeriesOccurrence(instance, activityGroupID) {
 			continue
 		}
-		date := timezone.Date(instance.Date)
+		date := calendar.Date(instance.Date)
 		if _, selected := requested[date]; !selected {
 			continue
 		}
@@ -164,16 +164,16 @@ func replannedSeriesOccurrence(instance *scheduleModels.ActivityInstance, activi
 
 func effectiveSeriesExceptions(
 	exceptions []*scheduleModels.ActivityException,
-	dates []timezone.Date,
+	dates []calendar.Date,
 	activityGroupID int64,
-) map[timezone.Date]*scheduleModels.ActivityException {
+) map[calendar.Date]*scheduleModels.ActivityException {
 	requested := dateSet(dates)
-	byDate := make(map[timezone.Date]*scheduleModels.ActivityException)
+	byDate := make(map[calendar.Date]*scheduleModels.ActivityException)
 	for _, exception := range exceptions {
 		if exception == nil || exception.ActivityGroupID != activityGroupID {
 			continue
 		}
-		date := timezone.Date(exception.ExceptionDate)
+		date := calendar.Date(exception.ExceptionDate)
 		if _, selected := requested[date]; selected {
 			byDate[date] = exception
 		}
@@ -181,8 +181,8 @@ func effectiveSeriesExceptions(
 	return byDate
 }
 
-func dateSet(dates []timezone.Date) map[timezone.Date]struct{} {
-	set := make(map[timezone.Date]struct{}, len(dates))
+func dateSet(dates []calendar.Date) map[calendar.Date]struct{} {
+	set := make(map[calendar.Date]struct{}, len(dates))
 	for _, date := range dates {
 		set[date] = struct{}{}
 	}
@@ -198,16 +198,16 @@ func dateSet(dates []timezone.Date) map[timezone.Date]struct{} {
 func survivingInstanceBlocksSeriesCandidate(
 	instances []*scheduleModels.ActivityInstance,
 	activityGroupID int64,
-	date timezone.Date,
+	date calendar.Date,
 	effectiveStart time.Time,
 ) bool {
-	effectiveStart = timezone.NormalizeWallClock(effectiveStart)
+	effectiveStart = calendar.NormalizeWallClock(effectiveStart)
 	for _, instance := range instances {
-		if instance == nil || instance.ActivityGroupID == nil || *instance.ActivityGroupID != activityGroupID || timezone.Date(instance.Date) != date {
+		if instance == nil || instance.ActivityGroupID == nil || *instance.ActivityGroupID != activityGroupID || calendar.Date(instance.Date) != date {
 			continue
 		}
 		deletedByReplan := instance.Status == scheduleModels.InstanceStatusPlanned && !instance.IsSpontaneous
-		if !deletedByReplan && timezone.NormalizeWallClock(instance.StartTime).Equal(effectiveStart) {
+		if !deletedByReplan && calendar.NormalizeWallClock(instance.StartTime).Equal(effectiveStart) {
 			return true
 		}
 	}
@@ -224,9 +224,9 @@ func selectPreservedDeviationSource(instances []*scheduleModels.ActivityInstance
 	if len(instances) == 1 {
 		return instances[0]
 	}
-	proposedStart = timezone.NormalizeWallClock(proposedStart)
+	proposedStart = calendar.NormalizeWallClock(proposedStart)
 	for _, instance := range instances {
-		if timezone.NormalizeWallClock(instance.StartTime).Equal(proposedStart) {
+		if calendar.NormalizeWallClock(instance.StartTime).Equal(proposedStart) {
 			return instance
 		}
 	}

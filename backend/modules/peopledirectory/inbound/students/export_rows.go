@@ -11,12 +11,11 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -55,14 +54,14 @@ func sortExportResponses(students []StudentResponse, sortMode string) {
 // the birth year, so a birthday list reads as a calendar instead of an age
 // ranking. Children without a birthday sort last.
 func birthdaySortKey(birthday string) string {
-	date, err := timezone.ParseDate(birthday)
+	date, err := calendar.ParseDate(birthday)
 	if err != nil {
 		return "99-99"
 	}
 	return fmt.Sprintf("%02d-%02d", int(date.Month()), date.Day())
 }
 
-func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate timezone.Date) (map[int64]weeklySchedule, error) {
+func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, planningDate calendar.Date) (map[int64]weeklySchedule, error) {
 	result := make(map[int64]weeklySchedule, len(studentIDs))
 	if len(studentIDs) == 0 {
 		return result, nil
@@ -101,7 +100,7 @@ func (rs *Resource) loadWeeklySchedules(r *http.Request, studentIDs []int64, pla
 	return result, nil
 }
 
-func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []int64, onDate timezone.Date, columns []lists.Column) (map[int64]string, error) {
+func (rs *Resource) loadActiveEnrollmentSummaries(r *http.Request, studentIDs []int64, onDate calendar.Date, columns []lists.Column) (map[int64]string, error) {
 	if !columnsContain(columns, lists.ColumnEnrollmentSummary) {
 		return map[int64]string{}, nil
 	}
@@ -166,7 +165,7 @@ func groupExportResponsesByClass(students []StudentResponse) {
 // responseRowSources renders every student response into its future document
 // row plus the sort keys the class-list-entry merge (#2382) needs. The order
 // of `students` (whatever sort mode produced it) is preserved.
-func responseRowSources(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) []exportRowSource {
+func responseRowSources(students []StudentResponse, weekly map[int64]weeklySchedule, enrollmentSummaries map[int64]string, onDate calendar.Date, isToday bool) []exportRowSource {
 	sources := make([]exportRowSource, 0, len(students))
 	for _, student := range students {
 		sources = append(sources, exportRowSource{
@@ -182,7 +181,7 @@ func responseRowSources(students []StudentResponse, weekly map[int64]weeklySched
 // birthdayExportCell renders the birth date German-style ("02.09.2018").
 // Children without a stored birthday render empty rather than a fake date.
 func birthdayExportCell(birthday string) string {
-	date, err := timezone.ParseDate(birthday)
+	date, err := calendar.ParseDate(birthday)
 	if err != nil {
 		return ""
 	}
@@ -191,8 +190,8 @@ func birthdayExportCell(birthday string) string {
 
 // ageExportCell renders the age in completed years as of onDate. A birthday
 // later this year has not happened yet, so that year is not counted.
-func ageExportCell(birthday string, onDate timezone.Date) string {
-	date, err := timezone.ParseDate(birthday)
+func ageExportCell(birthday string, onDate calendar.Date) string {
+	date, err := calendar.ParseDate(birthday)
 	if err != nil {
 		return ""
 	}
@@ -212,7 +211,7 @@ func ageExportCell(birthday string, onDate timezone.Date) string {
 // ColumnHealthInfo (see the renderer's column catalog behind lists.ResolveColumns); the one child list that
 // prints it, the Gesundheitsliste, fills the cell afterwards together with its
 // audit record (finalizeExportSources), so no other preset can reach it.
-func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate timezone.Date, isToday bool) lists.Row {
+func buildExportRow(student StudentResponse, plan weeklySchedule, enrollmentSummaries map[int64]string, onDate calendar.Date, isToday bool) lists.Row {
 	return lists.Row{Values: map[lists.ColumnID]string{
 		lists.ColumnName:              strings.TrimSpace(student.FirstName + " " + student.LastName),
 		lists.ColumnSchoolClass:       student.SchoolClass,
@@ -460,7 +459,7 @@ func exportTitle(req studentExportRequest) string {
 	}
 }
 
-func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
+func exportFilterLabelsForDate(filters studentExportFilters, planningDate calendar.Date, isToday bool) []string {
 	labels := exportIdentityFilterLabels(filters, planningDate, isToday)
 	return append(labels, exportAttributeFilterLabels(filters, isToday)...)
 }
@@ -468,7 +467,7 @@ func exportFilterLabelsForDate(filters studentExportFilters, planningDate timezo
 // exportIdentityFilterLabels names the "who / which" filters for the printed
 // header: the planning date, free-text search, group, school year, class, and
 // the momentary status snapshot.
-func exportIdentityFilterLabels(filters studentExportFilters, planningDate timezone.Date, isToday bool) []string {
+func exportIdentityFilterLabels(filters studentExportFilters, planningDate calendar.Date, isToday bool) []string {
 	labels := []string{}
 	if !isToday {
 		labels = append(labels, "Datum: "+planningDate.Format("02.01.2006"))
@@ -652,5 +651,5 @@ func timeValue(value *string) string {
 }
 
 func formatWallClock(value time.Time) string {
-	return timezone.NormalizeWallClock(value).Format("15:04")
+	return calendar.NormalizeWallClock(value).Format("15:04")
 }

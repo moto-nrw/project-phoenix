@@ -9,7 +9,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -27,22 +26,22 @@ func TestDailyDepartureModes(t *testing.T) {
 
 	assert.Equal(t,
 		[]dep.DepartureMode{dep.DeparturePickup},
-		dailyDepartureForDate(student, timezone.NewDate(2026, time.June, 1)).Modes,
+		dailyDepartureForDate(student, calendar.NewDate(2026, time.June, 1)).Modes,
 	)
 	assert.Equal(t,
 		[]dep.DepartureMode{dep.DepartureAlone, dep.DepartureBus},
-		dailyDepartureForDate(student, timezone.NewDate(2026, time.June, 5)).Modes,
+		dailyDepartureForDate(student, calendar.NewDate(2026, time.June, 5)).Modes,
 	)
 	assert.Equal(t,
 		[]dep.DepartureMode{dep.DepartureAlone},
-		dailyDepartureForDate(student, timezone.NewDate(2026, time.June, 2)).Modes,
+		dailyDepartureForDate(student, calendar.NewDate(2026, time.June, 2)).Modes,
 	)
 }
 
 func TestDailyDepartureModesRedactionAndMissingRule(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.June, 1)
+	monday := calendar.NewDate(2026, time.June, 1)
 	configured := StudentResponse{
 		AllowedDepartureModes: dep.AllowedDepartureModes{
 			dep.PickupDayMonday: {dep.DeparturePickup},
@@ -56,13 +55,13 @@ func TestDailyDepartureModesRedactionAndMissingRule(t *testing.T) {
 	assert.Nil(t, dailyDepartureForDate(StudentResponse{
 		DepartureRuleConfigured: true,
 		HasFullAccess:           true,
-	}, timezone.NewDate(2026, time.June, 6)).Modes)
+	}, calendar.NewDate(2026, time.June, 6)).Modes)
 }
 
 func TestDailyDepartureModesSupportsLegacyRules(t *testing.T) {
 	t.Parallel()
 
-	monday := timezone.NewDate(2026, time.June, 1)
+	monday := calendar.NewDate(2026, time.June, 1)
 	tests := []struct {
 		status string
 		mode   dep.DepartureMode
@@ -101,7 +100,7 @@ func TestDailyDeparturePreservesUnknownLegacyRuleAsNonSelf(t *testing.T) {
 		PickupStatus:            "Taxi mit Begleitperson",
 		DepartureRuleConfigured: true,
 		HasFullAccess:           true,
-	}, timezone.NewDate(2026, time.June, 1))
+	}, calendar.NewDate(2026, time.June, 1))
 
 	assert.Empty(t, departure.Modes)
 	assert.Equal(t, "Taxi mit Begleitperson", departure.LegacyLabel)
@@ -139,7 +138,7 @@ func TestDailyDepartureMatchesFilterSupportsMultipleModes(t *testing.T) {
 func TestDeparturePlanDateFollowsFriday(t *testing.T) {
 	t.Parallel()
 
-	friday := timezone.NewDate(2026, time.June, 5)
+	friday := calendar.NewDate(2026, time.June, 5)
 	calls := 0
 	following := func(follows bool) context.Context {
 		return calendar.WithWeekendPlan(context.Background(), func(context.Context) (bool, error) {
@@ -147,7 +146,7 @@ func TestDeparturePlanDateFollowsFriday(t *testing.T) {
 			return follows, nil
 		})
 	}
-	for _, day := range []timezone.Date{friday.AddDays(1), friday.AddDays(2)} {
+	for _, day := range []calendar.Date{friday.AddDays(1), friday.AddDays(2)} {
 		got, err := departurePlanDate(following(true), day)
 		assert.NoError(t, err)
 		assert.Equal(t, friday, got)

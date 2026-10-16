@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,7 +101,7 @@ func TestBuildAttendanceHistoryDays_EmptyRows(t *testing.T) {
 func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.Today()
+	date := calendar.Today()
 	roomCutoff := date.AddDate(0, 0, -6)
 	checkIn := date.Add(8 * time.Hour)
 	checkOut := checkIn.Add(5*time.Hour + 30*time.Minute)
@@ -109,7 +109,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 	row := &studentpresence.Attendance{
 		TenantID:     testpkg.Tenant(t),
 		StudentID:    10,
-		Date:         timezone.DateFromTime(date).String(),
+		Date:         calendar.DateFromTime(date).String(),
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  42,
@@ -123,7 +123,7 @@ func TestBuildAttendanceHistoryDays_WithinRoomCap_IncludesVisits(t *testing.T) {
 		ExitTime:  &exit,
 		RoomID:    &roomID, RoomName: "Gruppenraum A",
 	}
-	key := timezone.DateOf(date).Format("2006-01-02")
+	key := calendar.DateOf(date).Format("2006-01-02")
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
@@ -148,7 +148,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	t.Parallel()
 
 	// Attendance date exactly equals roomCutoff → should still include room detail.
-	today := timezone.Today()
+	today := calendar.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 	checkIn := roomCutoff.Add(8 * time.Hour)
 	checkOut := roomCutoff.Add(15 * time.Hour)
@@ -156,7 +156,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 	row := &studentpresence.Attendance{
 		TenantID:     testpkg.Tenant(t),
 		StudentID:    10,
-		Date:         timezone.DateFromTime(roomCutoff).String(),
+		Date:         calendar.DateFromTime(roomCutoff).String(),
 		CheckInTime:  checkIn,
 		CheckOutTime: &checkOut,
 		CheckedInBy:  42,
@@ -170,7 +170,7 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 		ExitTime:  &exit,
 		RoomID:    &roomID, RoomName: "Boundary Room",
 	}
-	key := timezone.DateOf(roomCutoff).Format("2006-01-02")
+	key := calendar.DateOf(roomCutoff).Format("2006-01-02")
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
@@ -185,14 +185,14 @@ func TestBuildAttendanceHistoryDays_ExactlyOnRoomCutoff_IncludesVisits(t *testin
 func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.Today()
+	today := calendar.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 	checkIn := today.Add(8 * time.Hour)
 
 	row := &studentpresence.Attendance{
 		TenantID:    testpkg.Tenant(t),
 		StudentID:   10,
-		Date:        timezone.DateFromTime(today).String(),
+		Date:        calendar.DateFromTime(today).String(),
 		CheckInTime: checkIn,
 		CheckedInBy: 42,
 		DeviceID:    7,
@@ -203,7 +203,7 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 		ExitTime:  &exit,
 		RoomID:    nil, // No group info
 	}
-	key := timezone.DateOf(today).Format("2006-01-02")
+	key := calendar.DateOf(today).Format("2006-01-02")
 	days := buildAttendanceHistoryDays(
 		[]*studentpresence.Attendance{row},
 		nil,
@@ -219,13 +219,13 @@ func TestBuildAttendanceHistoryDays_VisitWithNilActiveGroup(t *testing.T) {
 func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.Today()
+	today := calendar.Today()
 	yesterday := today.AddDate(0, 0, -1)
 	roomCutoff := today.AddDate(0, 0, -6)
 
 	rows := []*studentpresence.Attendance{
-		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
-		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(yesterday).String(), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: calendar.DateFromTime(today).String(), CheckInTime: today.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: calendar.DateFromTime(yesterday).String(), CheckInTime: yesterday.Add(8 * time.Hour), CheckedInBy: 42, DeviceID: 7},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 	assert.Len(t, days, 2, "should return one day entry per unique date")
@@ -234,7 +234,7 @@ func TestBuildAttendanceHistoryDays_MultipleDays(t *testing.T) {
 func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.Today()
+	today := calendar.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 	reportedAt := today.Add(7 * time.Hour)
 	clearedAt := today.Add(16 * time.Hour)
@@ -243,7 +243,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 		{
 			TenantID:   testpkg.Tenant(t),
 			StudentID:  10,
-			Date:       timezone.DateFromTime(today),
+			Date:       calendar.DateFromTime(today),
 			Status:     absencerecords.StudentStatusDaySick,
 			ReportedAt: reportedAt,
 			ClearedAt:  &clearedAt,
@@ -254,7 +254,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 	days := buildAttendanceHistoryDays(nil, statusRows, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 
 	require.Len(t, days, 1)
-	assert.Equal(t, timezone.DateFromTime(today).String(), days[0].Date)
+	assert.Equal(t, calendar.DateFromTime(today).String(), days[0].Date)
 	assert.Nil(t, days[0].Attendance)
 	require.Len(t, days[0].StatusEntries, 1)
 	assert.Equal(t, "Krank", days[0].StatusEntries[0].Label)
@@ -266,7 +266,7 @@ func TestBuildAttendanceHistoryDays_StatusOnlyDay(t *testing.T) {
 func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.Today()
+	today := calendar.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 
 	// Two attendance rows on the same day: morning session + afternoon re-check-in.
@@ -276,8 +276,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 	afternoonOut := today.Add(16 * time.Hour)
 
 	rows := []*studentpresence.Attendance{
-		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: calendar.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: calendar.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckOutTime: &afternoonOut, CheckedInBy: 43, DeviceID: 8},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 
@@ -295,7 +295,7 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_Consolidated(t *testing.
 func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testing.T) {
 	t.Parallel()
 
-	today := timezone.Today()
+	today := calendar.Today()
 	roomCutoff := today.AddDate(0, 0, -6)
 
 	morningIn := today.Add(8 * time.Hour)
@@ -304,8 +304,8 @@ func TestBuildAttendanceHistoryDays_MultipleRowsSameDay_OneOpenSession(t *testin
 	// Second session still open (no check-out).
 
 	rows := []*studentpresence.Attendance{
-		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
-		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: timezone.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: calendar.DateFromTime(today).String(), CheckInTime: morningIn, CheckOutTime: &morningOut, CheckedInBy: 42, DeviceID: 7},
+		{TenantID: testpkg.Tenant(t), StudentID: 10, Date: calendar.DateFromTime(today).String(), CheckInTime: afternoonIn, CheckedInBy: 43, DeviceID: 8},
 	}
 	days := buildAttendanceHistoryDays(rows, nil, map[string][]*studentpresence.VisitHistoryEntry{}, roomCutoff)
 
@@ -318,7 +318,7 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	t.Parallel()
 
 	// Attendance from 10 days ago, room cutoff at 7 days ago → no room detail.
-	today := timezone.Today()
+	today := calendar.Today()
 	oldDate := today.AddDate(0, 0, -10)
 	roomCutoff := today.AddDate(0, 0, -6)
 	checkIn := oldDate.Add(8 * time.Hour)
@@ -326,7 +326,7 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 	row := &studentpresence.Attendance{
 		TenantID:    testpkg.Tenant(t),
 		StudentID:   10,
-		Date:        timezone.DateFromTime(oldDate).String(),
+		Date:        calendar.DateFromTime(oldDate).String(),
 		CheckInTime: checkIn,
 		CheckedInBy: 42,
 		DeviceID:    7,
@@ -346,15 +346,15 @@ func TestBuildAttendanceHistoryDays_OutsideRoomCap_HidesVisits(t *testing.T) {
 func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
+	date := calendar.NewDate(2026, 7, 15)
 	morning := &studentpresence.HistorySlotInstance{
-		Date: timezone.Date(date), Title: "Morgenbetreuung",
+		Date: calendar.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
 	morning.ID = 101
 	afternoon := &studentpresence.HistorySlotInstance{
-		Date: timezone.Date(date), Title: "Nachmittagsbetreuung",
+		Date: calendar.Date(date), Title: "Nachmittagsbetreuung",
 		StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
 	}
@@ -380,9 +380,9 @@ func TestAttachSlotAttendance_KeepsOpposingStatusesOnSameDay(t *testing.T) {
 func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 10)
+	date := calendar.NewDate(2026, 7, 10)
 	instance := &studentpresence.HistorySlotInstance{
-		Date: timezone.Date(date), Title: "Morgenbetreuung",
+		Date: calendar.Date(date), Title: "Morgenbetreuung",
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 	}
@@ -399,7 +399,7 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 	})
 
 	t.Run("within window attaches visits for the date", func(t *testing.T) {
-		entry := time.Date(2026, 7, 10, 9, 0, 0, 0, timezone.Berlin)
+		entry := time.Date(2026, 7, 10, 9, 0, 0, 0, calendar.Berlin)
 		visits := map[string][]*studentpresence.VisitHistoryEntry{
 			date.String(): {{EntryTime: entry}},
 		}
@@ -418,9 +418,9 @@ func TestAttachSlotAttendance_SlotOnlyDayRespectsRoomRetention(t *testing.T) {
 func TestAttachUnassignedAttendance_WindowMatchAndNeutralLeftover(t *testing.T) {
 	t.Parallel()
 
-	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
-	reentry := time.Date(2026, 7, 15, 10, 0, 0, 0, timezone.Berlin)
-	outside := time.Date(2026, 7, 15, 17, 30, 0, 0, timezone.Berlin)
+	first := time.Date(2026, 7, 15, 8, 0, 0, 0, calendar.Berlin)
+	reentry := time.Date(2026, 7, 15, 10, 0, 0, 0, calendar.Berlin)
+	outside := time.Date(2026, 7, 15, 17, 30, 0, 0, calendar.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{{
 		Date: "2026-07-15",
@@ -454,7 +454,7 @@ func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T
 	t.Parallel()
 
 	sick := timetable.SlotSubstatusSick
-	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
+	checkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, calendar.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{{
 		Date: "2026-07-15",
@@ -476,7 +476,7 @@ func TestAttachUnassignedAttendance_AbsentSlotDoesNotAbsorbSessions(t *testing.T
 func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T) {
 	t.Parallel()
 
-	checkIn := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
+	checkIn := time.Date(2026, 7, 15, 7, 0, 0, 0, calendar.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{{
 		Date: "2026-07-15",
@@ -507,8 +507,8 @@ func TestAttachUnassignedAttendance_SortsMergedSlotsByDisplayedTime(t *testing.T
 func TestAttachUnassignedAttendance_NoSlotExpectationStaysNeutral(t *testing.T) {
 	t.Parallel()
 
-	first := time.Date(2026, 7, 15, 8, 0, 0, 0, timezone.Berlin)
-	second := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
+	first := time.Date(2026, 7, 15, 8, 0, 0, 0, calendar.Berlin)
+	second := time.Date(2026, 7, 14, 9, 0, 0, 0, calendar.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{
 		{
@@ -541,8 +541,8 @@ func TestAttachUnassignedAttendance_NoSlotExpectationStaysNeutral(t *testing.T) 
 func TestAttachUnassignedAttendance_ExpectationKeepsUnassignedRowOnSlotFreeDay(t *testing.T) {
 	t.Parallel()
 
-	planned := time.Date(2026, 7, 15, 7, 0, 0, 0, timezone.Berlin)
-	walkIn := time.Date(2026, 7, 14, 9, 0, 0, 0, timezone.Berlin)
+	planned := time.Date(2026, 7, 15, 7, 0, 0, 0, calendar.Berlin)
+	walkIn := time.Date(2026, 7, 14, 9, 0, 0, 0, calendar.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{
 		{
@@ -579,8 +579,8 @@ func TestAttachUnassignedAttendance_ExpectationKeepsUnassignedRowOnSlotFreeDay(t
 func TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly(t *testing.T) {
 	t.Parallel()
 
-	walkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, timezone.Berlin)
-	later := time.Date(2026, 7, 15, 17, 0, 0, 0, timezone.Berlin)
+	walkIn := time.Date(2026, 7, 15, 9, 0, 0, 0, calendar.Berlin)
+	later := time.Date(2026, 7, 15, 17, 0, 0, 0, calendar.Berlin)
 
 	days := attachUnassignedAttendance([]attendanceHistoryDay{{
 		Date: "2026-07-15",
@@ -613,22 +613,22 @@ func TestAttachUnassignedAttendance_WalkInWithoutExpectationKeepsItsSlotOnly(t *
 func TestHasPlannedSlotRow(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
+	date := calendar.NewDate(2026, 7, 15)
 	assert.False(t, hasPlannedSlotRow(nil))
 	assert.False(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{
 		nil,
-		{Instance: &studentpresence.HistorySlotInstance{Date: timezone.Date(date)}, Attendance: nil},
+		{Instance: &studentpresence.HistorySlotInstance{Date: calendar.Date(date)}, Attendance: nil},
 	}))
 	assert.False(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{{
-		Instance:   &studentpresence.HistorySlotInstance{Date: timezone.Date(date), Title: "Spontan-AG"},
+		Instance:   &studentpresence.HistorySlotInstance{Date: calendar.Date(date), Title: "Spontan-AG"},
 		Attendance: &studentpresence.HistorySlotAttendance{Status: studentpresence.SessionAttendancePresent, IsUnplanned: true},
 	}}), "walk-in rows must not count as care-plan evidence")
 	assert.False(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{{
-		Instance:   &studentpresence.HistorySlotInstance{Date: timezone.Date(date), Title: "Ausgefallene AG", Status: timetable.InstanceStatusCancelled},
+		Instance:   &studentpresence.HistorySlotInstance{Date: calendar.Date(date), Title: "Ausgefallene AG", Status: timetable.InstanceStatusCancelled},
 		Attendance: &studentpresence.HistorySlotAttendance{Status: studentpresence.SessionAttendanceExpected},
 	}}), "cancelled instances must not count as care-plan evidence")
 	assert.True(t, hasPlannedSlotRow([]*studentpresence.HistorySlot{{
-		Instance:   &studentpresence.HistorySlotInstance{Date: timezone.Date(date), Title: "Morgenbetreuung"},
+		Instance:   &studentpresence.HistorySlotInstance{Date: calendar.Date(date), Title: "Morgenbetreuung"},
 		Attendance: &studentpresence.HistorySlotAttendance{Status: studentpresence.SessionAttendancePresent},
 	}}))
 }
@@ -636,9 +636,9 @@ func TestHasPlannedSlotRow(t *testing.T) {
 func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
+	date := calendar.NewDate(2026, 7, 15)
 	instance := &studentpresence.HistorySlotInstance{
-		Date:      timezone.Date(date),
+		Date:      calendar.Date(date),
 		StartTime: time.Date(1, 1, 1, 7, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 8, 0, 0, 0, time.UTC),
 		Status:    timetable.InstanceStatusCompleted,
@@ -659,9 +659,9 @@ func TestAttachSlotAttendance_SerializesInt64InstanceIDAsDecimalString(t *testin
 func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
+	date := calendar.NewDate(2026, 7, 15)
 	instance := &studentpresence.HistorySlotInstance{
-		Date: timezone.Date(date), Status: timetable.InstanceStatusActive,
+		Date: calendar.Date(date), Status: timetable.InstanceStatusActive,
 	}
 	instance.ID = 203
 
@@ -682,9 +682,9 @@ func TestAttachSlotAttendance_CarriesInstanceLifecycleStatus(t *testing.T) {
 func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
+	date := calendar.NewDate(2026, 7, 15)
 	instance := &studentpresence.HistorySlotInstance{
-		Date: timezone.Date(date), Title: "Fußball-AG",
+		Date: calendar.Date(date), Title: "Fußball-AG",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}
@@ -711,9 +711,9 @@ func TestAttachSlotAttendance_CarriesTheAttendanceNote(t *testing.T) {
 func TestAttachSlotAttendance_OmitsMissingNote(t *testing.T) {
 	t.Parallel()
 
-	date := timezone.NewDate(2026, 7, 15)
+	date := calendar.NewDate(2026, 7, 15)
 	instance := &studentpresence.HistorySlotInstance{
-		Date: timezone.Date(date), Title: "Betreuung",
+		Date: calendar.Date(date), Title: "Betreuung",
 		StartTime: time.Date(1, 1, 1, 14, 0, 0, 0, time.UTC),
 		EndTime:   time.Date(1, 1, 1, 15, 0, 0, 0, time.UTC),
 	}

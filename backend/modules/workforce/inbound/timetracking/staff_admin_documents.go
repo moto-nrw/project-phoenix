@@ -15,7 +15,7 @@ import (
 
 	"github.com/gofrs/uuid"
 	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -72,8 +72,8 @@ type StaffDocumentResponse struct {
 	SizeBytes   int64          `json:"size_bytes"`
 	ContentType string         `json:"content_type"`
 	UploadedAt  time.Time      `json:"uploaded_at"`
-	RetainUntil *timezone.Date `json:"retain_until,omitempty"`
-	ReviewDue   *timezone.Date `json:"review_due,omitempty"`
+	RetainUntil *calendar.Date `json:"retain_until,omitempty"`
+	ReviewDue   *calendar.Date `json:"review_due,omitempty"`
 }
 
 // StaffDocumentListResponse is the list GET: documents the caller may see

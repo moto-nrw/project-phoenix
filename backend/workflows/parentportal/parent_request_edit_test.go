@@ -12,10 +12,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -55,17 +55,17 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	svc, _, events, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.NewDate(2026, 8, 24).AddDays(5)
+	day := calendar.NewDate(2026, 8, 24).AddDays(5)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	original := res.PendingRequest
 	version := careplan.ParentRequestVersion(original.UpdatedAt)
 
 	corrected := day.AddDays(1)
 	edited, err := svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, original.ID,
-		[]timezone.Date{corrected}, "Doch einen Tag später", version)
+		[]calendar.Date{corrected}, "Doch einen Tag später", version)
 	require.NoError(t, err)
 	assert.Equal(t, original.ID, edited.ID, "an edit keeps the request id, so the share survives")
 	require.Len(t, edited.Dates, 1)
@@ -90,19 +90,19 @@ func TestEditExcusedRequestRefusesStaleVersion(t *testing.T) {
 	svc, _, _, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(6)
+	day := calendar.TodayDate().AddDays(6)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 	stale := careplan.ParentRequestVersion(res.PendingRequest.UpdatedAt)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day.AddDays(1)}, "Erste Korrektur", stale)
+		[]calendar.Date{day.AddDays(1)}, "Erste Korrektur", stale)
 	require.NoError(t, err)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day.AddDays(2)}, "Zweite Korrektur", stale)
+		[]calendar.Date{day.AddDays(2)}, "Zweite Korrektur", stale)
 	require.ErrorIs(t, err, careplan.ErrParentRequestStale)
 }
 
@@ -114,14 +114,14 @@ func TestEditExcusedRequestRevalidatesPayload(t *testing.T) {
 	svc, _, _, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(7)
+	day := calendar.TodayDate().AddDays(7)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day}, "   ", "")
+		[]calendar.Date{day}, "   ", "")
 	require.Error(t, err, "an edit may not produce a request the create path would refuse")
 }
 
@@ -134,10 +134,10 @@ func TestEditDecidedExcusedRequestIsRefused(t *testing.T) {
 	svc, requests, _, db := buildLedgerServices(t)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(10)
+	day := calendar.TodayDate().AddDays(10)
 
 	res, err := svc.SubmitSickNote(ctx, chain.AccountID, chain.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	require.NoError(t, testpkg.WithTenantTx(t, adminCtx(), db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -148,7 +148,7 @@ func TestEditDecidedExcusedRequestIsRefused(t *testing.T) {
 	}))
 
 	_, err = svc.EditExcusedRequest(ctx, chain.AccountID, chain.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day.AddDays(1)}, "Zu spät", "")
+		[]calendar.Date{day.AddDays(1)}, "Zu spät", "")
 	require.ErrorIs(t, err, parentService.ErrExcusedRequestNotPending)
 }
 
@@ -161,14 +161,14 @@ func TestEditExcusedRequestOfAnotherFamilyIsNotFound(t *testing.T) {
 	mine := testpkg.CreateTestParentGuardianChain(t, db)
 	theirs := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(8)
+	day := calendar.TodayDate().AddDays(8)
 
 	res, err := svc.SubmitSickNote(ctx, theirs.AccountID, theirs.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	_, err = svc.EditExcusedRequest(ctx, mine.AccountID, mine.StudentID, res.PendingRequest.ID,
-		[]timezone.Date{day}, "Fremd", "")
+		[]calendar.Date{day}, "Fremd", "")
 	require.ErrorIs(t, err, parentService.ErrExcusedRequestNotFound)
 }
 
@@ -243,10 +243,10 @@ func TestListRequestEventsIsSubmitterOnly(t *testing.T) {
 	mine := testpkg.CreateTestParentGuardianChain(t, db)
 	theirs := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
-	day := timezone.TodayDate().AddDays(9)
+	day := calendar.TodayDate().AddDays(9)
 
 	res, err := svc.SubmitSickNote(ctx, mine.AccountID, mine.StudentID,
-		[]timezone.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
+		[]calendar.Date{day}, "Familienfeier", absencerecords.StudentStatusDayExcused, nil)
 	require.NoError(t, err)
 
 	history, err := svc.ListRequestEvents(ctx, mine.AccountID, mine.StudentID,

@@ -8,9 +8,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -19,7 +19,7 @@ import (
 // Vertretungsplan overrides. Everything else survives. A non-nil
 // activityGroupID narrows the delete to one template; the insert-only
 // materialization still covers the whole window.
-func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to timezone.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
+func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to calendar.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
 	if to.Before(from) {
 		return nil, &ScheduleError{Op: "replan week: validate window", Err: errors.New("to_date must not be before from_date")}
 	}
@@ -41,7 +41,7 @@ func (s *InstanceLifecycleService) ReplanWeek(ctx context.Context, from, to time
 	return s.replanWeekLocked(ctx, tenantID, from, to, activityGroupID, actorAccountID)
 }
 
-func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantID int64, from, to timezone.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
+func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantID int64, from, to calendar.Date, activityGroupID, actorAccountID *int64) (*timetable.ReplanWeekResult, error) {
 	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		return nil, &ScheduleError{Op: "replan week: lock recurrence", Err: err}
 	}
@@ -94,7 +94,7 @@ func (s *InstanceLifecycleService) replanWeekLocked(ctx context.Context, tenantI
 // per-occurrence Personalbedarf pin (#1839) of one planned template-backed
 // occurrence, keyed by the materializer's slot (group, date, start time).
 type deviationSnapshot struct {
-	date             timezone.Date
+	date             calendar.Date
 	activityGroupID  int64
 	startTime        string // "15:04:05", for multi-slot disambiguation
 	understaffedAck  bool
@@ -124,14 +124,14 @@ type snapshotSubstitute struct {
 // groupDay keys occurrences by their (activity group, date).
 type groupDay struct {
 	activityGroupID int64
-	date            timezone.Date
+	date            calendar.Date
 }
 
 // snapshotDeviations records every reappliable override on the planned
 // template-backed occurrences a re-plan is about to delete. occurrences
 // counts ALL of them per (group, date), overridden or not: that original
 // cardinality is what tells a moved sole occurrence from a multi-slot day.
-func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from, to timezone.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
+func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from, to calendar.Date, activityGroupID *int64) ([]deviationSnapshot, map[groupDay]int, error) {
 	instances, err := s.deps.InstanceRepo.FindByTenantAndDateRange(ctx, scheduleModel.Date(from), scheduleModel.Date(to))
 	if err != nil {
 		return nil, nil, err
@@ -148,7 +148,7 @@ func (s *InstanceLifecycleService) snapshotDeviations(ctx context.Context, from,
 		if !replannableOccurrence(inst, activityGroupID, follows) {
 			continue
 		}
-		occurrences[groupDay{*inst.ActivityGroupID, timezone.Date(inst.Date)}]++
+		occurrences[groupDay{*inst.ActivityGroupID, calendar.Date(inst.Date)}]++
 		eligible = append(eligible, inst)
 	}
 	staffRows, err := s.deps.InstanceStaffRepo.FindByInstanceIDs(ctx, instanceRowIDs(eligible))
@@ -178,7 +178,7 @@ func replannableOccurrence(inst *scheduleModel.ActivityInstance, activityGroupID
 
 func snapshotOccurrence(inst *scheduleModel.ActivityInstance, staffRows []*scheduleModel.InstanceStaff) deviationSnapshot {
 	snap := deviationSnapshot{
-		date:             timezone.Date(inst.Date),
+		date:             calendar.Date(inst.Date),
 		activityGroupID:  *inst.ActivityGroupID,
 		startTime:        formatTimeOfDay(inst.StartTime),
 		understaffedAck:  inst.UnderstaffedAck,

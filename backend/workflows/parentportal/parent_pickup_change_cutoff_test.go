@@ -11,10 +11,10 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -23,10 +23,10 @@ import (
 
 // #3163 fixtures: the service clock stands on 24 August 2026 (a Monday) at a
 // chosen Berlin wall-clock time, and the request service shares that day.
-var cutoffToday = timezone.NewDate(2026, 8, 24)
+var cutoffToday = calendar.NewDate(2026, 8, 24)
 
 func berlinClock(hour, minute int) func() time.Time {
-	return func() time.Time { return time.Date(2026, 8, 24, hour, minute, 0, 0, timezone.Berlin) }
+	return func() time.Time { return time.Date(2026, 8, 24, hour, minute, 0, 0, calendar.Berlin) }
 }
 
 func cutoffStub(enabled bool, clock string) parentSettingsStub {
@@ -50,7 +50,7 @@ type cutoffServiceDeps struct {
 func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 	t.Helper()
 	var base parentportalcompose.Dependencies
-	pinToday := api.WithCareRequestToday(func() timezone.Date { return cutoffToday })
+	pinToday := api.WithCareRequestToday(func() calendar.Date { return cutoffToday })
 	_, db, repos := buildPickupChangeServiceWithRequestOptions(t, []api.CareRequestOption{pinToday}, func(cfg *parentportalcompose.Dependencies) {
 		base = *cfg
 	})
@@ -69,12 +69,12 @@ func (d cutoffServiceDeps) service(t *testing.T, settings configService.Settings
 }
 
 func cutoffPickupTime() time.Time {
-	return timezone.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
+	return calendar.NormalizeWallClock(time.Date(2026, 1, 1, 14, 30, 0, 0, time.UTC))
 }
 
 // seedGuardianPickupException stores an already effective guardian pickup
 // exception, the state DELETE .../care-exception removes.
-func seedGuardianPickupException(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date timezone.Date) {
+func seedGuardianPickupException(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date calendar.Date) {
 	t.Helper()
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	guardianID := chain.AccountID
@@ -89,7 +89,7 @@ func seedGuardianPickupException(t *testing.T, d cutoffServiceDeps, chain testpk
 	require.NoError(t, d.repos.StudentPickupException.Create(ctx, exception))
 }
 
-func guardianPickupExists(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date timezone.Date) bool {
+func guardianPickupExists(t *testing.T, d cutoffServiceDeps, chain testpkg.ParentChain, date calendar.Date) bool {
 	t.Helper()
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	row, err := d.repos.StudentPickupException.FindByStudentIDAndDate(ctx, chain.StudentID, scheduleModels.Date(date))
@@ -109,7 +109,7 @@ func TestSubmitPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 	for _, tc := range []struct {
 		name    string
 		now     func() time.Time
-		date    timezone.Date
+		date    calendar.Date
 		clock   string
 		enabled bool
 		wantErr error
@@ -261,7 +261,7 @@ func TestDeleteCareExceptionHonoursSameDayCutoff(t *testing.T) {
 	for _, tc := range []struct {
 		name        string
 		now         func() time.Time
-		date        timezone.Date
+		date        calendar.Date
 		settings    parentSettingsStub
 		wantRefused bool
 	}{

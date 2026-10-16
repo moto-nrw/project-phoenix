@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -17,7 +17,7 @@ func TestFlowG_TemplateClockTimesStayTimezoneFree(t *testing.T) {
 
 	s := setupTimetableScenarioModule(t)
 
-	target := nextWeekday(timezone.TodayDate(), 1, 7) // Monday, at least 7 days out.
+	target := nextWeekday(calendar.TodayDate(), 1, 7) // Monday, at least 7 days out.
 	period := s.createActivePeriod(fmt.Sprintf("E2E-Flow-G-%d", time.Now().UnixNano()), target)
 
 	room := testpkg.CreateTestRoom(t, s.db, "FlowG-Room")

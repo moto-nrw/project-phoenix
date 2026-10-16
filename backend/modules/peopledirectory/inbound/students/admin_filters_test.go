@@ -6,15 +6,14 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestApplyAdministrativeFilters(t *testing.T) {
 	t.Parallel()
 
-	planningDate := timezone.NewDate(2026, time.June, 1)
+	planningDate := calendar.NewDate(2026, time.June, 1)
 	consentYes := true
 	consentNo := false
 	students := []StudentResponse{

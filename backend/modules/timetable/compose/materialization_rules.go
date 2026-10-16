@@ -7,7 +7,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/models/activities"
 	"github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
@@ -34,13 +33,13 @@ type materialParams struct {
 // string formatting makes the key timezone-independent by construction.
 type existingKey struct {
 	ActivityGroupID int64
-	Date            timezone.Date
+	Date            calendar.Date
 	StartTime       string // "15:04:05"
 }
 
 type exceptionKey struct {
 	ActivityGroupID int64
-	Date            timezone.Date
+	Date            calendar.Date
 }
 
 // candidateSkip names why a (template, schedule, date) candidate produces no
@@ -72,7 +71,7 @@ const (
 func candidateSlot(
 	tmpl *activities.Group,
 	sch *activities.Schedule,
-	date timezone.Date,
+	date calendar.Date,
 	periods []*schedule.CalendarPeriod,
 	days timetable.NonWorkingDays,
 	exc *schedule.ActivityException,
@@ -150,20 +149,20 @@ func countSkippedCandidate(result *timetable.MaterializationResult, skip candida
 // weekPatternApplies asks the School Calendar's A/B-week engine whether a
 // planning row with weekPattern occurs on date inside period. A nil period
 // means no alternation is configured.
-func weekPatternApplies(weekPattern int, date timezone.Date, period *schedule.CalendarPeriod) bool {
+func weekPatternApplies(weekPattern int, date calendar.Date, period *schedule.CalendarPeriod) bool {
 	if period == nil {
 		return true
 	}
 	return schoolcalendar.WeekPatternApplies(weekPattern, date.String(), schoolcalendar.WeekCycleOf(period.WeekCycleLength, period.WeekCycleAnchor))
 }
 
-func isWeekend(date timezone.Date) bool {
+func isWeekend(date calendar.Date) bool {
 	return date.Weekday() == time.Saturday || date.Weekday() == time.Sunday
 }
 
 // planWeekday is the ISO weekday whose schedules apply on date: Friday for a
 // weekend that follows Friday's plan (#3921), else the date's own weekday.
-func planWeekday(date timezone.Date, weekendFollowsFriday bool) int {
+func planWeekday(date calendar.Date, weekendFollowsFriday bool) int {
 	weekday := isoWeekday(date)
 	if weekendFollowsFriday && weekday > 5 {
 		return 5
@@ -173,7 +172,7 @@ func planWeekday(date timezone.Date, weekendFollowsFriday bool) int {
 
 // weekendFollowsFridayIn resolves the weekend plan setting (#3921) only when
 // [from, to] holds a weekend, so a weekday-only read never touches settings.
-func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, error) {
+func weekendFollowsFridayIn(ctx context.Context, from, to calendar.Date) (bool, error) {
 	for date := from; !date.After(to); date = date.AddDays(1) {
 		if isWeekend(date) {
 			follows, err := calendar.WeekendFollowsFriday(ctx)
@@ -190,7 +189,7 @@ func weekendFollowsFridayIn(ctx context.Context, from, to timezone.Date) (bool, 
 // uses by default. If baseDate is a Monday we intentionally skip to the
 // following Monday — planning always targets the next block, never the
 // current partial one. weeksAhead is clamped to [1, 8].
-func resolveWindow(baseDate timezone.Date, weeksAhead int) (from, to timezone.Date) {
+func resolveWindow(baseDate calendar.Date, weeksAhead int) (from, to calendar.Date) {
 	if weeksAhead < 1 {
 		weeksAhead = 1
 	}
@@ -232,7 +231,7 @@ func enrollmentStudentIsAlumnus(e *activities.StudentEnrollment) bool {
 //   - calendar_period_id IS NULL OR calendar_period_id == periodID
 //   - weekday IS NULL OR weekday == the date's effective plan weekday (#2129)
 //   - selected_weekdays IS NULL/empty OR contains that effective weekday
-func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, periodID int64, planWeekday int) bool {
+func isEnrollmentValidOn(e *activities.StudentEnrollment, date calendar.Date, periodID int64, planWeekday int) bool {
 	if e == nil {
 		return false
 	}
@@ -263,7 +262,7 @@ func isEnrollmentValidOn(e *activities.StudentEnrollment, date timezone.Date, pe
 // valid_until is EXCLUSIVE — the schedule no longer produces instances ON or
 // AFTER that date (same convention as enrollment valid_until). A nil
 // valid_until means open-ended.
-func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
+func scheduleEndedOn(sch *activities.Schedule, date calendar.Date) bool {
 	return sch != nil && sch.ValidUntil != nil && !sch.ValidUntil.After(date)
 }
 
@@ -274,12 +273,12 @@ func scheduleEndedOn(sch *activities.Schedule, date timezone.Date) bool {
 // successor schedules so materializing a window that begins before the
 // effective date does not emit phantom successor instances next to the old
 // template's rows.
-func scheduleNotStartedOn(sch *activities.Schedule, date timezone.Date) bool {
+func scheduleNotStartedOn(sch *activities.Schedule, date calendar.Date) bool {
 	return sch != nil && sch.ValidFrom != nil && sch.ValidFrom.After(date)
 }
 
 // isSupervisorValidOn mirrors isEnrollmentValidOn for activities.supervisors.
-func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, periodID int64, planWeekday int) bool {
+func isSupervisorValidOn(sp *activities.SupervisorPlanned, date calendar.Date, periodID int64, planWeekday int) bool {
 	if sp == nil {
 		return false
 	}
@@ -307,7 +306,7 @@ func isSupervisorValidOn(sp *activities.SupervisorPlanned, date timezone.Date, p
 // the occurrence period and date are known.
 func effectivePrimarySupervisor(
 	supervisors []*activities.SupervisorPlanned,
-	date timezone.Date,
+	date calendar.Date,
 	periodID int64,
 	planWeekday int,
 ) (int64, bool) {
@@ -390,7 +389,7 @@ func applyException(base materialParams, exc *schedule.ActivityException) (mater
 func selectPeriod(
 	tmpl *activities.Group,
 	sch *activities.Schedule,
-	date timezone.Date,
+	date calendar.Date,
 	periods []*schedule.CalendarPeriod,
 	logger *slog.Logger,
 ) *schedule.CalendarPeriod {
@@ -418,7 +417,7 @@ func selectPeriod(
 
 // pinnedPeriodOn returns the pinned period when it is active and contains the
 // date. A pin to a period outside the active set is treated as no match.
-func pinnedPeriodOn(periods []*schedule.CalendarPeriod, pinned int64, date timezone.Date) *schedule.CalendarPeriod {
+func pinnedPeriodOn(periods []*schedule.CalendarPeriod, pinned int64, date calendar.Date) *schedule.CalendarPeriod {
 	for _, p := range periods {
 		if p.ID == pinned {
 			if p.ContainsDay(schedule.Date(date)) {
@@ -432,7 +431,7 @@ func pinnedPeriodOn(periods []*schedule.CalendarPeriod, pinned int64, date timez
 
 // periodsContaining returns the active periods containing the date, sorted
 // ascending by ID.
-func periodsContaining(periods []*schedule.CalendarPeriod, date timezone.Date) []*schedule.CalendarPeriod {
+func periodsContaining(periods []*schedule.CalendarPeriod, date calendar.Date) []*schedule.CalendarPeriod {
 	var matches []*schedule.CalendarPeriod
 	for _, p := range periods {
 		if p.ContainsDay(schedule.Date(date)) {
@@ -468,7 +467,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 		}
 		k := existingKey{
 			ActivityGroupID: *inst.ActivityGroupID,
-			Date:            timezone.Date(inst.Date),
+			Date:            calendar.Date(inst.Date),
 			StartTime:       formatTimeOfDay(inst.StartTime),
 		}
 		idx[k] = struct{}{}
@@ -479,7 +478,7 @@ func buildExistingIndex(existing []*schedule.ActivityInstance) map[existingKey]s
 func buildExceptionIndex(exceptions []*schedule.ActivityException) map[exceptionKey]*schedule.ActivityException {
 	idx := make(map[exceptionKey]*schedule.ActivityException, len(exceptions))
 	for _, e := range exceptions {
-		idx[exceptionKey{e.ActivityGroupID, timezone.Date(e.ExceptionDate)}] = e
+		idx[exceptionKey{e.ActivityGroupID, calendar.Date(e.ExceptionDate)}] = e
 	}
 	return idx
 }
@@ -494,5 +493,5 @@ func formatTimeOfDay(t time.Time) string {
 // the local call sites read unchanged. See timezone.NormalizeWallClock for the
 // full rationale on why TIMESTAMPTZ → TIME round-trips need this.
 func extractTimeOfDay(t time.Time) time.Time {
-	return timezone.NormalizeWallClock(t)
+	return calendar.NormalizeWallClock(t)
 }

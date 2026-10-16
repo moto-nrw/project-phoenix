@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 func supervisionToPublic(row ports.GroupSupervision) studentpresence.GroupSupervision {
@@ -23,7 +23,7 @@ func supervisionToPublic(row ports.GroupSupervision) studentpresence.GroupSuperv
 }
 
 func supervisionToRecord(row studentpresence.GroupSupervision) (ports.GroupSupervision, error) {
-	start, err := timezone.ParseDate(row.StartDate)
+	start, err := calendar.ParseDate(row.StartDate)
 	if err != nil {
 		return ports.GroupSupervision{}, err
 	}
@@ -32,7 +32,7 @@ func supervisionToRecord(row studentpresence.GroupSupervision) (ports.GroupSuper
 		Role: row.Role, StartDate: start, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 	if row.EndDate != nil {
-		date, err := timezone.ParseDate(*row.EndDate)
+		date, err := calendar.ParseDate(*row.EndDate)
 		if err != nil {
 			return ports.GroupSupervision{}, err
 		}
@@ -73,7 +73,7 @@ func (e engine) RemoveSupervision(ctx context.Context, id int64) error {
 }
 
 func (e engine) SetSupervisionEnd(ctx context.Context, id int64, endDate string, at time.Time) (int64, error) {
-	date, err := timezone.ParseDate(endDate)
+	date, err := calendar.ParseDate(endDate)
 	if err != nil {
 		return 0, err
 	}
@@ -81,7 +81,7 @@ func (e engine) SetSupervisionEnd(ctx context.Context, id int64, endDate string,
 }
 
 func (e engine) EndOpenGroupSupervisions(ctx context.Context, groupID, staffID int64, eligibleOn string) (int, error) {
-	date, err := timezone.ParseDate(eligibleOn)
+	date, err := calendar.ParseDate(eligibleOn)
 	if err != nil {
 		return 0, err
 	}

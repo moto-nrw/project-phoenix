@@ -10,8 +10,8 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -24,7 +24,7 @@ import (
 // setBirthday stamps a birth date on a fixture person. The fixtures create
 // people without one, which is the realistic default: a school that has not
 // maintained every date must still get a working list.
-func setBirthday(t *testing.T, db *bun.DB, personID int64, date timezone.Date) {
+func setBirthday(t *testing.T, db *bun.DB, personID int64, date calendar.Date) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()
@@ -49,12 +49,12 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	staying := testpkg.CreateTestStudent(t, db, "Geburtstag", "Bleibt", "1a")
 	lastDay := testpkg.CreateTestStudent(t, db, "Geburtstag", "LetzterTag", "1a")
 	departed := testpkg.CreateTestStudent(t, db, "Geburtstag", "Weg", "1a")
 	for _, student := range []int64{staying.PersonID, lastDay.PersonID, departed.PersonID} {
-		setBirthday(t, db, student, timezone.NewDate(2018, today.Month(), today.Day()))
+		setBirthday(t, db, student, calendar.NewDate(2018, today.Month(), today.Day()))
 	}
 	setEnrolledUntil(t, db, lastDay.ID, today)
 	setEnrolledUntil(t, db, departed.ID, today.AddDays(-1))
@@ -74,7 +74,7 @@ func TestStudentBirthdaysExcludeEndedCare(t *testing.T) {
 }
 
 // setEnrolledUntil stamps the enrollment interval's inclusive upper bound.
-func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until timezone.Date) {
+func setEnrolledUntil(t *testing.T, db *bun.DB, studentID int64, until calendar.Date) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 5*time.Second)
 	defer cancel()

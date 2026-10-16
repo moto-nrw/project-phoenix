@@ -7,10 +7,10 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -42,7 +42,7 @@ type StaffNoticeDependencies struct {
 	Periods     StaffNoticePeriodLookup
 	Names       func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	Logger      *slog.Logger
-	CurrentDate func() timezone.Date
+	CurrentDate func() calendar.Date
 }
 
 type staffNoticeService struct {
@@ -50,7 +50,7 @@ type staffNoticeService struct {
 	periods     StaffNoticePeriodLookup
 	names       func(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 	logger      *slog.Logger
-	currentDate func() timezone.Date
+	currentDate func() calendar.Date
 }
 
 // NewStaffNotices verdrahtet den Dienst auf dem eigenen Repository des Owners.
@@ -67,7 +67,7 @@ func newStaffNotices(repo scheduleModels.StaffNoticeRepository, deps StaffNotice
 	}
 	currentDate := deps.CurrentDate
 	if currentDate == nil {
-		currentDate = timezone.TodayDate
+		currentDate = calendar.TodayDate
 	}
 	return &staffNoticeService{repo: repo, periods: deps.Periods, names: deps.Names, logger: logger, currentDate: currentDate}
 }
@@ -102,7 +102,7 @@ func (s *staffNoticeService) ListStaffNotices(ctx context.Context, accountID int
 }
 
 func (s *staffNoticeService) StaffNoticesOn(ctx context.Context, accountID int64, date string, reader string) ([]timetable.StaffNoticeView, error) {
-	day, err := timezone.ParseDate(date)
+	day, err := calendar.ParseDate(date)
 	if err != nil {
 		return nil, fmt.Errorf("%w: date must be a date (YYYY-MM-DD)", timetable.ErrStaffNoticeInvalid)
 	}
@@ -138,7 +138,7 @@ func (s *staffNoticeService) StaffNoticesOn(ctx context.Context, accountID int64
 func (s *staffNoticeService) filterByWeekPattern(
 	ctx context.Context,
 	notices []*scheduleModels.StaffNotice,
-	date timezone.Date,
+	date calendar.Date,
 ) ([]*scheduleModels.StaffNotice, error) {
 	needsPeriod := false
 	for _, notice := range notices {
@@ -168,7 +168,7 @@ func (s *staffNoticeService) filterByWeekPattern(
 // periodFor sucht das aktive Schuljahr, das den Tag enthält und einen
 // Wochenzyklus führt; nur das Schuljahr trägt Woche A/B, Ferien und Halbjahre
 // dürfen sich überschneiden. Ohne Treffer nil: der Hinweis gilt dann jede Woche.
-func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) (*scheduleModels.CalendarPeriod, error) {
+func (s *staffNoticeService) periodFor(ctx context.Context, date calendar.Date) (*scheduleModels.CalendarPeriod, error) {
 	periods, err := s.periods.FindActiveByTenantID(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("staffnotice: load calendar periods: %w", err)
@@ -180,7 +180,7 @@ func (s *staffNoticeService) periodFor(ctx context.Context, date timezone.Date) 
 		if period.WeekCycleLength <= 1 || period.WeekCycleAnchor == nil {
 			continue
 		}
-		if date.Before(timezone.Date(period.StartDate)) || date.After(timezone.Date(period.EndDate)) {
+		if date.Before(calendar.Date(period.StartDate)) || date.After(calendar.Date(period.EndDate)) {
 			continue
 		}
 		return period, nil
@@ -417,11 +417,11 @@ func (s *staffNoticeService) apply(notice *scheduleModels.StaffNotice, in timeta
 // parseNoticeDate liest einen Kalendertag der öffentlichen Schreibform. Leer
 // ist kein Fehler, sondern "nicht gesetzt" — welches der beiden Daten das sein
 // darf, entscheidet apply.
-func parseNoticeDate(value string) (timezone.Date, error) {
+func parseNoticeDate(value string) (calendar.Date, error) {
 	if value == "" {
 		return "", nil
 	}
-	return timezone.ParseDate(value)
+	return calendar.ParseDate(value)
 }
 
 // staffNoticeContract bildet die beibehaltene Zeile auf die öffentliche Form

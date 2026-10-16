@@ -13,13 +13,13 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	activitiesModels "github.com/moto-nrw/project-phoenix/models/activities"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -95,7 +95,7 @@ func submitAndApproveOfferingChild(
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        firstName,
 			LastName:         "Quelle",
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 			OfferingIDs:      []int64{offeringID},
 		}},
@@ -134,8 +134,8 @@ func loadTemplateEnrollments(t *testing.T, env *decisionTestEnv, templateID int6
 func offeringSourcePeriod(t *testing.T, env *decisionTestEnv) *scheduleModels.CalendarPeriod {
 	t.Helper()
 	return createCareOfferingTestPeriod(t, env.db, "offering-source",
-		timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(-31),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
+		calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31),
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 }
 
 // timetableRosterResyncer hands the Timetable owner's resync input to Care
@@ -364,7 +364,7 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 
 	// The child only holds the offering from a future switch date onward.
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ReplaceRequestChildOfferings(ctx, childID, nil))
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
@@ -389,7 +389,7 @@ func TestResyncTemplateOfferingRoster_SeedsFutureDatedLinkFromItsStart(t *testin
 	assert.Equal(t, activitiesModels.Date(switchDate), rows[0].ValidFrom,
 		"a future-dated offering link must not plan the child before the switch date")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
 }
 
 func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
@@ -405,7 +405,7 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 
 	// The child leaves the offering mid-phase: the link is closed at the
 	// switch date and nothing follows it.
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
 	template := createSourcedTemplate(t, env, "EndetFrueherTermin", offering.ID, []int{2}, period)
@@ -422,7 +422,7 @@ func TestResyncTemplateOfferingRoster_CapsRowAtLinkEnd(t *testing.T) {
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
 	assert.Equal(t, activitiesModels.Date(switchDate), *rows[0].ValidUntil,
 		"a link ending mid-phase must not plan the child for the rest of the phase")
@@ -605,8 +605,8 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 	offering := createSourceOffering(t, env, "LueckeQuelle", nil)
 	studentID, childID := submitAndApproveOfferingChild(t, env, offering.ID, "gap-link@example.com", "Gap", 2)
 
-	leaveDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
-	rejoinDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(90)
+	leaveDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
+	rejoinDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(90)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(leaveDate), nil))
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
@@ -629,13 +629,13 @@ func TestResyncTemplateOfferingRoster_GapBetweenLinksStaysUnplanned(t *testing.T
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 2, "two disjoint links yield two rows — one merged row would plan the gap")
 	assert.Equal(t, studentID, rows[0].StudentID)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
 	assert.Equal(t, activitiesModels.Date(leaveDate), *rows[0].ValidUntil)
 	assert.Equal(t, studentID, rows[1].StudentID)
 	assert.Equal(t, activitiesModels.Date(rejoinDate), rows[1].ValidFrom)
 	require.NotNil(t, rows[1].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[1].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[1].ValidUntil)
 }
 
 // An existing row must SHRINK when the child's offering window contracted
@@ -665,10 +665,10 @@ func TestResyncTemplateOfferingRoster_ShrinksRetainedRowToLinkEnd(t *testing.T) 
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
 	require.NotNil(t, rows[0].ValidUntil)
-	require.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
+	require.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
 
 	// The child leaves the offering mid-phase AFTER the row was seeded.
-	capDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
+	capDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(capDate), nil))
 
 	require.NoError(t, resyncer.ResyncTemplateOfferingRoster(ctx, input))
@@ -706,11 +706,11 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 	}))
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
-	require.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
+	require.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
 
 	// The child switches to offering B mid-phase; the template is retargeted
 	// from A to B in the same breath.
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(45)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
@@ -731,7 +731,7 @@ func TestResyncTemplateOfferingRoster_SourceSwitchRespectsNewLinkStart(t *testin
 	assert.Equal(t, activitiesModels.Date(switchDate), rows[0].ValidFrom,
 		"the row must not start before the child holds the NEW offering")
 	require.NotNil(t, rows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
 }
 
 // A grade transition rewrites school classes; the tenant-wide resync must
@@ -761,7 +761,7 @@ func TestResyncOfferingSourcedTemplates_FollowsClassChange(t *testing.T) {
 	require.NoError(t, err)
 
 	resyncAll, ok := env.bookings.(interface {
-		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error
 	})
 	require.True(t, ok, "decision service must implement the tenant-wide offering resync")
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, offeringResyncToday))
@@ -855,7 +855,7 @@ func TestDecide_ExistingStudentClassChangeResyncsSourcedTemplates(t *testing.T) 
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Runa-Neu",
 			LastName:         "Erneuerung",
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 		}},
 	})
@@ -1045,8 +1045,8 @@ func TestOfferingDetach_KeepsRemainingSourcesWhenSiblingDrifted(t *testing.T) {
 	// Drift: re-pin the template to a period the phase window lies outside of,
 	// so validating the remaining source fails with ErrOfferingSourceInvalid.
 	shortPeriod := createCareOfferingTestPeriod(t, env.db, "drift-short",
-		timezone.NewDate(2030, 1, 1),
-		timezone.NewDate(2030, 1, 31))
+		calendar.NewDate(2030, 1, 1),
+		calendar.NewDate(2030, 1, 31))
 	template.CalendarPeriodID = &shortPeriod.ID
 	require.NoError(t, testTimetableRepositories(env.db).ActivityGroup.Update(ctx, template))
 
@@ -1099,7 +1099,7 @@ func TestResync_UnionAcrossOfferings_PlansSharedChildOnce(t *testing.T) {
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Uma",
 			LastName:         "Union",
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
 		}},
@@ -1229,7 +1229,7 @@ func TestOfferingDetach_DriftedSiblingCapsExclusiveCoverage(t *testing.T) {
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Bea",
 			LastName:         "Breit",
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 			OfferingIDs:      []int64{offeringA.ID, offeringB.ID},
 		}},
@@ -1288,11 +1288,11 @@ func TestDecide_MultiSourceFanOutSeedsFromPhaseStart(t *testing.T) {
 
 	// The phase started a week ago; the period is built around it so the
 	// template pin stays valid regardless of the real date.
-	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(-7)
+	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(-7)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
 	period := createCareOfferingTestPeriod(t, env.db, "running-phase-fanout",
 		phaseStart.AddDays(-5),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
 
 	offeringA := createSourceOffering(t, env, "LaufendQuelleA", nil)
 	offeringB := createSourceOffering(t, env, "LaufendQuelleB", nil)
@@ -1320,11 +1320,11 @@ func TestUpdateChildOfferings_UndatedCorrectionKeepsPhaseStartOnMultiSource(t *t
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
 
-	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(-7)
+	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(-7)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
 	period := createCareOfferingTestPeriod(t, env.db, "running-phase-correction",
 		phaseStart.AddDays(-5),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
 
 	offeringA := createSourceOffering(t, env, "KorrekturQuelleA", nil)
 	offeringB := createSourceOffering(t, env, "KorrekturQuelleB", nil)
@@ -1396,7 +1396,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2099, 9, 1))
+	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2099, 9, 1))
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "PhasenLoeschQuelle", nil)
@@ -1412,7 +1412,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	))
 	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 1)
 
-	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(calendar.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1430,7 +1430,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 		Offerings:              phaseOfferings{carePlan: repoFactory.CarePlan()},
 		LockTemplateRecurrence: func(context.Context) error { return nil },
 		SourcedTemplates:       func() enrollmentTest.SourcedTemplateResyncer { return sourcedResyncer },
-		Today:                  func() timezone.Date { return offeringResyncToday },
+		Today:                  func() calendar.Date { return offeringResyncToday },
 	})
 
 	require.NoError(t, phaseSvc.DeletePhase(ctx, env.sourcePhase.ID))
@@ -1454,7 +1454,7 @@ func createBoundedTemplateSchedule(
 	groupID int64,
 	weekday int,
 	periodID *int64,
-	validFrom, validUntil *timezone.Date,
+	validFrom, validUntil *calendar.Date,
 ) {
 	t.Helper()
 	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, testpkg.Tenant(t), "CareTemplate")
@@ -1480,7 +1480,7 @@ func createSourcedTemplateSegment(
 	offeringID int64,
 	gradeLevels []int,
 	period *scheduleModels.CalendarPeriod,
-	validFrom, validUntil *timezone.Date,
+	validFrom, validUntil *calendar.Date,
 ) *activitiesModels.Group {
 	t.Helper()
 	group := createCareOfferingTemplateGroup(t, env.db, name)
@@ -1505,7 +1505,7 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "SplitQuelle", nil)
-	splitDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
+	splitDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	predecessor := createSourcedTemplateSegment(t, env, "SplitVorher", offering.ID, []int{2}, period, nil, &splitDate)
 	successor := createSourcedTemplateSegment(t, env, "SplitNachher", offering.ID, []int{2}, period, &splitDate, nil)
 
@@ -1514,7 +1514,7 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 	predecessorRows := loadTemplateEnrollments(t, env, predecessor.ID)
 	require.Len(t, predecessorRows, 1)
 	assert.Equal(t, studentID, predecessorRows[0].StudentID)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceStartDate)), predecessorRows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceStartDate)), predecessorRows[0].ValidFrom)
 	require.NotNil(t, predecessorRows[0].ValidUntil)
 	assert.Equal(t, activitiesModels.Date(splitDate), *predecessorRows[0].ValidUntil,
 		"the capped predecessor must not be planned past its segment end")
@@ -1525,7 +1525,7 @@ func TestDecide_FanOutBoundsRowsToSegmentEnvelope(t *testing.T) {
 	assert.Equal(t, activitiesModels.Date(splitDate), successorRows[0].ValidFrom,
 		"the successor must not be planned before its segment start")
 	require.NotNil(t, successorRows[0].ValidUntil)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *successorRows[0].ValidUntil)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *successorRows[0].ValidUntil)
 }
 
 // The tenant-wide resync (grade transitions) also visits capped split
@@ -1542,7 +1542,7 @@ func TestResyncTemplateOfferingRoster_BoundsWindowsToScheduleEnvelope(t *testing
 	offering := createSourceOffering(t, env, "SegmentQuelle", nil)
 	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "segment-bound@example.com", "Seg", 2)
 
-	splitDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
+	splitDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	template := createSourcedTemplateSegment(t, env, "SegmentTermin", offering.ID, []int{2}, period, nil, &splitDate)
 	input := timetable.OfferingRosterResyncInput{
 		TemplateID:       template.ID,
@@ -1579,7 +1579,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
-	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2099, 9, 1))
+	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2099, 9, 1))
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "InstanzQuelle", nil)
@@ -1600,7 +1600,7 @@ func TestResyncTemplateOfferingRoster_ReconcilesMaterializedInstances(t *testing
 	// Stand in for the materializer: one planned occurrence on the first
 	// in-phase Monday, already carrying the grade-1 child, plus a second one
 	// where a human decided the child's slot by hand.
-	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(calendar.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1671,7 +1671,7 @@ func TestResyncTemplateOfferingRoster_PreservesManualOccurrenceRemoval(t *testin
 
 	// One materialized occurrence the child is deliberately NOT on: staff
 	// removed the child's row by hand after materialization.
-	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(calendar.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1712,8 +1712,8 @@ func loadSourcedInstanceStudents(t *testing.T, env *decisionTestEnv, instanceID 
 // firstFutureMondayOnOrAfter returns the first Monday on or after date that
 // has not yet passed in the real calendar. Its callers create planned
 // occurrences, which the reconciler deliberately does not alter in the past.
-func firstFutureMondayOnOrAfter(date timezone.Date) timezone.Date {
-	if today := timezone.TodayDate(); date.Before(today) {
+func firstFutureMondayOnOrAfter(date calendar.Date) calendar.Date {
+	if today := calendar.TodayDate(); date.Before(today) {
 		date = today
 	}
 	for date.Weekday() != time.Monday {
@@ -1762,7 +1762,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Fenja",
 			LastName:         "Fenster",
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 			OfferingIDs:      []int64{offering.ID},
 		}},
@@ -1772,7 +1772,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 	childID := submitted.Children[0].ID
 
 	// The child leaves the offering mid-phase BEFORE the request is decided.
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(ctx, childID, enrollmentTest.Date(switchDate), nil))
 
 	outcome, err := env.decision.Decide(ctx, enrollmentTest.DecideInput{
@@ -1792,7 +1792,7 @@ func TestDecide_FanOutCapsRowAtLinkEnd(t *testing.T) {
 
 	rows := loadTemplateEnrollments(t, env, template.ID)
 	require.Len(t, rows, 1)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
 	assert.Equal(t, activitiesModels.Date(switchDate), *rows[0].ValidUntil,
 		"the approval fan-out must not plan the child past the offering link's end")
@@ -1806,14 +1806,14 @@ func TestDecide_ApprovalReconcilesMaterializedOccurrences(t *testing.T) {
 
 	env, cleanup := setupDecisionTest(t)
 	defer cleanup()
-	setSourcePhaseServiceStartDate(t, env, timezone.NewDate(2099, 9, 1))
+	setSourcePhaseServiceStartDate(t, env, calendar.NewDate(2099, 9, 1))
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "InstanzGenehmigung", nil)
 	template := createSourcedTemplate(t, env, "InstanzGenehmigungTermin", offering.ID, nil, period)
 
 	// The occurrence exists BEFORE any child is approved.
-	occurrenceDate := firstFutureMondayOnOrAfter(timezone.Date(env.sourcePhase.ServiceStartDate))
+	occurrenceDate := firstFutureMondayOnOrAfter(calendar.Date(env.sourcePhase.ServiceStartDate))
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
 		ActivityGroupID:  &template.ID,
@@ -1849,7 +1849,7 @@ func TestUpdateChildOfferings_DatedSwitchReconcilesMaterializedOccurrences(t *te
 	child, err := readOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
 	require.NoError(t, err)
 
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	occurrenceDate := firstFutureMondayOnOrAfter(switchDate)
 	require.NotNil(t, template.PlannedRoomID)
 	planned := testpkg.CreateTestActivityInstance(t, env.db, occurrenceDate, *template.PlannedRoomID, testpkg.ActivityInstanceOpts{
@@ -1893,7 +1893,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 
 	period := offeringSourcePeriod(t, env)
 	offering := createSourceOffering(t, env, "SegmentBehaltQuelle", nil)
-	splitDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(90)
+	splitDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(90)
 	template := createSourcedTemplateSegment(t, env, "SegmentBehaltTermin", offering.ID, []int{2}, period, nil, &splitDate)
 
 	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "segment-behalt@example.com", "Seba", 2)
@@ -1907,7 +1907,7 @@ func TestUpdateChildOfferings_DatedKeepRespectsSegmentEnd(t *testing.T) {
 
 	// The switch keeps the same offering with unchanged days, so the existing
 	// row is retained rather than capped and re-seeded.
-	switchDate := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
+	switchDate := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(30)
 	_, err = env.decision.UpdateChildOfferings(ctx, enrollmentTest.UpdateChildOfferingsInput{
 		RequestID:      child.RequestID,
 		ChildID:        childID,
@@ -1965,7 +1965,7 @@ func TestResyncTemplateOfferingRoster_LegacyChildGainsNonOverlappingSourceDays(t
 		Children: []enrollmentTest.SubmitChild{{
 			FirstName:        "Mila",
 			LastName:         "Misch",
-			DateOfBirth:      timezone.NewDate(2018, 4, 15),
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
 			TargetGradeLevel: &grade,
 			OfferingIDs:      []int64{legacyOffering.ID, sourceOffering.ID},
 		}},
@@ -2044,7 +2044,7 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 
 	// The child joins the legacy offering mid-phase and keeps the source
 	// offering; before that date only the source plans the child.
-	legacyStart := timezone.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
+	legacyStart := calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(60)
 	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).ScheduleRequestChildOfferings(
 		ctx,
 		childID,
@@ -2069,7 +2069,7 @@ func TestResyncTemplateOfferingRoster_FutureLegacyLinkDoesNotSuppressEarlierSour
 	require.Len(t, rows, 1, "the source plans the child until the legacy link begins")
 	assert.Equal(t, studentID, rows[0].StudentID)
 	assert.Equal(t, []int{1}, rows[0].SelectedWeekdays)
-	assert.Equal(t, activitiesModels.Date(timezone.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
+	assert.Equal(t, activitiesModels.Date(calendar.Date(env.sourcePhase.ServiceStartDate)), rows[0].ValidFrom)
 	require.NotNil(t, rows[0].ValidUntil)
 	assert.Equal(t, activitiesModels.Date(legacyStart), *rows[0].ValidUntil,
 		"the source row stops where the legacy feed takes over — and is not suppressed before it")
@@ -2107,7 +2107,7 @@ func TestCareOfferingUpdate_ResyncsSourcedTemplates(t *testing.T) {
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
 	svc := enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
-		api.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
+		api.WithCareOfferingToday(func() calendar.Date { return offeringResyncToday }),
 		api.WithCareOfferingRosterResync(sourcedResyncer),
 		api.WithCareOfferingPickupResync(&pickupResyncer{}),
 	))
@@ -2141,13 +2141,13 @@ func TestResyncSourcedTemplates_InvalidSourceSkipVsReject(t *testing.T) {
 	// The phase's service window (2026-09-01 .. 2027-07-31) reaches past this
 	// period's end, so the template's source fails the period-fit validation.
 	shortPeriod := createCareOfferingTestPeriod(t, env.db, "drift-short",
-		timezone.NewDate(2026, 8, 1),
-		timezone.NewDate(2026, 12, 31))
+		calendar.NewDate(2026, 8, 1),
+		calendar.NewDate(2026, 12, 31))
 	offering := createSourceOffering(t, env, "DriftQuelle", nil)
 	createSourcedTemplate(t, env, "DriftTermin", offering.ID, nil, shortPeriod)
 
 	resyncAll, ok := env.bookings.(interface {
-		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom timezone.Date) error
+		ResyncOfferingSourcedTemplates(ctx context.Context, effectiveFrom calendar.Date) error
 	})
 	require.True(t, ok, "decision service must implement the tenant-wide resync")
 	require.NoError(t, resyncAll.ResyncOfferingSourcedTemplates(ctx, offeringResyncToday),
@@ -2180,8 +2180,8 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	latePhase := &enrollmentTest.Phase{
 		Name:             uniqueSchemaName("late-phase-" + t.Name()),
 		Kind:             enrollmentModels.PhaseKindSchoolYear,
-		ServiceStartDate: enrollmentTest.Date(timezone.NewDate(2027, 9, 1)),
-		ServiceEndDate:   enrollmentTest.Date(timezone.NewDate(2028, 7, 31)),
+		ServiceStartDate: enrollmentTest.Date(calendar.NewDate(2027, 9, 1)),
+		ServiceEndDate:   enrollmentTest.Date(calendar.NewDate(2028, 7, 31)),
 		IsActive:         true,
 		CareOverflowMode: enrollmentModels.PhaseCareOverflowWaitlist,
 	}
@@ -2197,7 +2197,7 @@ func TestCareOfferingUpdate_RejectsEditThatInvalidatesSourcedTemplate(t *testing
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)
 	require.True(t, ok, "decision service must implement the offering-update resync")
 	svc := enrollmentTest.NewCareOfferingRows(testCareOfferingCatalog(t, env.db,
-		api.WithCareOfferingToday(func() timezone.Date { return offeringResyncToday }),
+		api.WithCareOfferingToday(func() calendar.Date { return offeringResyncToday }),
 		api.WithCareOfferingRosterResync(sourcedResyncer),
 		api.WithCareOfferingPickupResync(&pickupResyncer{}),
 	))
@@ -2222,11 +2222,11 @@ func TestListOfferingSourceOptions_CountsScopedToSelectedPeriod(t *testing.T) {
 
 	// Move the phase into the future so a period starting after today can
 	// still contain it, keeping the test independent of the real date.
-	phaseStart := timezone.NewDate(2026, 8, 24).AddDays(60)
+	phaseStart := calendar.NewDate(2026, 8, 24).AddDays(60)
 	setSourcePhaseServiceStartDate(t, env, phaseStart)
 	futurePeriod := createCareOfferingTestPeriod(t, env.db, "offering-source-future",
 		phaseStart.AddDays(-5),
-		timezone.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
+		calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(30))
 
 	offering := createSourceOffering(t, env, "ZaehlerPeriode", nil)
 	_, childID := submitAndApproveOfferingChild(t, env, offering.ID, "count-period@example.com", "Paula", 2)
@@ -2321,7 +2321,7 @@ func TestExplainEmptyOfferingRoster_UsesServiceStartAndStaysNeutralAfterward(t *
 	t.Parallel()
 
 	sourceID := time.Now().UnixNano()
-	serviceStart := timezone.NewDate(2026, 8, 13)
+	serviceStart := calendar.NewDate(2026, 8, 13)
 	options := []careplan.OfferingSourceOption{{
 		ID:                sourceID,
 		PhaseName:         "Schuljahr 2026/27",
@@ -2329,7 +2329,7 @@ func TestExplainEmptyOfferingRoster_UsesServiceStartAndStaysNeutralAfterward(t *
 	}}
 
 	early := careplan.ExplainEmptyOfferingRoster(
-		options, []int64{sourceID}, timezone.NewDate(2026, 8, 10),
+		options, []int64{sourceID}, calendar.NewDate(2026, 8, 10),
 	)
 	require.NotNil(t, early)
 	assert.Equal(t, careplan.EmptyOfferingRosterBeforeServiceStart, early.Kind)

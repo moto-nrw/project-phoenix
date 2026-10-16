@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -146,7 +146,7 @@ func TestPickupExportMissingTimesAndDayExceptions(t *testing.T) {
 		{"none excludes absence exception", map[string]string{"pickup_time": "none"}, [][]string{{"Missing Child"}}},
 		{"none OR effective exception time", map[string]string{"pickup_time": "none,14:30"}, [][]string{{"Missing Child"}, {"Changed Child", "14:30"}}},
 		{"regular time is overridden", map[string]string{"pickup_time": "13:00,16:00"}, nil},
-		{"selected day uses its own plan", map[string]string{"pickup_time": "14:30,16:00", "date": timezone.NewDate(2026, 8, 25).String()}, [][]string{{"Changed Child", "16:00"}}},
+		{"selected day uses its own plan", map[string]string{"pickup_time": "14:30,16:00", "date": calendar.NewDate(2026, 8, 25).String()}, [][]string{{"Changed Child", "16:00"}}},
 	} {
 		t.Run(scenario.name, func(t *testing.T) {
 			require.ElementsMatch(t, scenario.want, pickupExportRows(t, tc, claims, scenario.filters))

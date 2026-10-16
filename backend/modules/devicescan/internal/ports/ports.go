@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Device is the authenticated kiosk of a request.
@@ -51,7 +51,7 @@ type Student struct {
 	GroupID       *int64
 	SchoolClass   string
 	Alumnus       bool
-	EnrolledUntil *timezone.Date
+	EnrolledUntil *calendar.Date
 }
 
 // StaffMember is the staff record of a person.
@@ -202,7 +202,7 @@ type Sessions interface {
 // AttendanceState is today's attendance row of a student.
 type AttendanceState struct {
 	Status       string
-	Date         timezone.Date
+	Date         calendar.Date
 	CheckInTime  *time.Time
 	CheckOutTime *time.Time
 	CheckedInBy  string
@@ -281,7 +281,7 @@ type Pickup struct {
 // Pickups reads the effective pickup plan.
 type Pickups interface {
 	// Effective is nil, nil when no plan applies on day.
-	Effective(ctx context.Context, studentID int64, day timezone.Date) (*Pickup, error)
+	Effective(ctx context.Context, studentID int64, day calendar.Date) (*Pickup, error)
 }
 
 // CapacityKind names a capacity-detail disclosure setting.
@@ -317,5 +317,5 @@ type UnitOfWork interface {
 // calendar day of an instant.
 type Clock interface {
 	Now() time.Time
-	Day(time.Time) timezone.Date
+	Day(time.Time) calendar.Date
 }

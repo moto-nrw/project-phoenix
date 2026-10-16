@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -74,11 +74,11 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, endedChild.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, inactiveLegacyChild.ID, groupA.ID)
 
-	today := timezone.NewDate(2026, 8, 24)
+	today := calendar.NewDate(2026, 8, 24)
 	sickDay := testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, today.AddDays(2), absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(1), absencerecords.StudentStatusDayClassTrip)
 	// Out of the default two-month window: must not be listed.
-	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, timezone.NewDate(today.Year(), today.Month()+3, 1), absencerecords.StudentStatusDayExcused)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, sickChild.ID, calendar.NewDate(today.Year(), today.Month()+3, 1), absencerecords.StudentStatusDayExcused)
 	clearedDay := testpkg.CreateTestStudentStatusDay(t, tc.db, tripChild.ID, today.AddDays(3), absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today.AddDays(1), absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, inactiveLegacyChild.ID, today.AddDays(1), absencerecords.StudentStatusDayExcused)
@@ -136,7 +136,7 @@ func TestGetStudentStatusDaysOverview_AdminSeesEntries(t *testing.T) {
 			Exec(context.Background())
 	})
 	assert.True(t, today.BerlinMidnight().Equal(auditEntry.RangeStart))
-	assert.True(t, timezone.NewDate(today.Year(), today.Month()+2, today.Day()).EndOfDay().Equal(auditEntry.RangeEnd))
+	assert.True(t, calendar.NewDate(today.Year(), today.Month()+2, today.Day()).EndOfDay().Equal(auditEntry.RangeEnd))
 	groupIDs, ok := auditEntry.Metadata["group_ids"].([]interface{})
 	require.True(t, ok)
 	assert.Contains(t, groupIDs, float64(groupA.ID))
@@ -184,7 +184,7 @@ func TestGetStudentStatusDaysOverview_GroupFilter(t *testing.T) {
 	testpkg.AssignStudentToGroup(t, tc.db, inGroup.ID, groupA.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, outGroup.ID, groupB.ID)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	testpkg.CreateTestStudentStatusDay(t, tc.db, inGroup.ID, today.AddDays(1), absencerecords.StudentStatusDayExcused)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, outGroup.ID, today.AddDays(1), absencerecords.StudentStatusDaySick)
 
@@ -203,7 +203,7 @@ func TestGetStudentStatusDaysOverview_PastFromRejected(t *testing.T) {
 
 	tc := setupStudentsRoute(t)
 
-	yesterday := timezone.TodayDate().AddDays(-1)
+	yesterday := calendar.TodayDate().AddDays(-1)
 	req := testutil.NewRequest("GET", "/status-days?from="+yesterday.String(), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
@@ -215,7 +215,7 @@ func TestGetStudentStatusDaysOverview_RangeCapRejected(t *testing.T) {
 
 	tc := setupStudentsRoute(t)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	req := testutil.NewRequest("GET", fmt.Sprintf("/status-days?from=%s&to=%s", today.String(), today.AddDays(400).String()), nil)
 	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
 	assert.Equal(t, http.StatusBadRequest, rr.Code, "Body: %s", rr.Body.String())
@@ -248,7 +248,7 @@ func TestGetStudentStatusDaysOverview_PaginatesEligibleEntriesByName(t *testing.
 	testpkg.AssignStudentToGroup(t, tc.db, zChild.ID, group.ID)
 	testpkg.AssignStudentToGroup(t, tc.db, aChild.ID, group.ID)
 
-	today := timezone.TodayDate()
+	today := calendar.TodayDate()
 	testpkg.CreateTestStudentStatusDay(t, tc.db, endedChild.ID, today, absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, zChild.ID, today, absencerecords.StudentStatusDaySick)
 	testpkg.CreateTestStudentStatusDay(t, tc.db, aChild.ID, today, absencerecords.StudentStatusDayExcused)
@@ -363,7 +363,7 @@ func TestGetStudentStatusDaysOverview_StaffSeesAllGroups(t *testing.T) {
 	child := testpkg.CreateTestStudent(t, tc.db, "Frida", "Fremd", "3c")
 	testpkg.AssignStudentToGroup(t, tc.db, child.ID, foreignGroup.ID)
 
-	testpkg.CreateTestStudentStatusDay(t, tc.db, child.ID, timezone.TodayDate().AddDays(1), absencerecords.StudentStatusDaySick)
+	testpkg.CreateTestStudentStatusDay(t, tc.db, child.ID, calendar.TodayDate().AddDays(1), absencerecords.StudentStatusDaySick)
 
 	req := testutil.NewRequest("GET", "/status-days", nil)
 	rr := authExec(t, tc, req, testutil.TeacherTestClaims(int(account.ID)), []string{"users:read"})

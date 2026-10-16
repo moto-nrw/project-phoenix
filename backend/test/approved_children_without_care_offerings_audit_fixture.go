@@ -8,8 +8,7 @@ import (
 	"time"
 
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -73,7 +72,7 @@ func seedApprovedWithoutOfferingScenario(
 		RequestChildID: booked.ID, CareOfferingID: offering.ID,
 	}
 	insertAuditOfferingSelection(t, db, ctx, phase.TenantID, bookedLink)
-	afterPhase, afterPhaseUntil := timezone.Date(phase.ServiceEndDate).AddDays(1), timezone.Date(phase.ServiceEndDate).AddDays(31)
+	afterPhase, afterPhaseUntil := calendar.Date(phase.ServiceEndDate).AddDays(1), calendar.Date(phase.ServiceEndDate).AddDays(31)
 	outOfPeriodLink := &auditOfferingSelection{
 		RequestChildID: outOfPeriod.ID, CareOfferingID: offering.ID,
 		ValidFrom: &afterPhase, ValidUntil: &afterPhaseUntil,

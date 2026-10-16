@@ -3,9 +3,9 @@ package presenceservice
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // NewStudentHistory composes owner attendance reads with visit history,
@@ -31,11 +31,11 @@ type studentHistory struct {
 	slots     HistorySlotReader
 }
 
-func (h studentHistory) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate timezone.Date) ([]*studentpresence.HistorySlot, error) {
+func (h studentHistory) GetSlotAttendanceByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*studentpresence.HistorySlot, error) {
 	return h.slots.Slots(ctx, studentID, startDate, endDate)
 }
 
-func (h studentHistory) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate timezone.Date) (bool, error) {
+func (h studentHistory) HasPlannedSlotsInRange(ctx context.Context, startDate, endDate calendar.Date) (bool, error) {
 	return h.slots.HasPlannedSlots(ctx, startDate, endDate)
 }
 
@@ -66,10 +66,10 @@ func dataAccessEvent(entry *studentpresence.DataAccessEvent) *DataAccessEvent {
 // planned care.
 type noHistorySlots struct{}
 
-func (noHistorySlots) Slots(context.Context, int64, timezone.Date, timezone.Date) ([]*studentpresence.HistorySlot, error) {
+func (noHistorySlots) Slots(context.Context, int64, calendar.Date, calendar.Date) ([]*studentpresence.HistorySlot, error) {
 	return []*studentpresence.HistorySlot{}, nil
 }
 
-func (noHistorySlots) HasPlannedSlots(context.Context, timezone.Date, timezone.Date) (bool, error) {
+func (noHistorySlots) HasPlannedSlots(context.Context, calendar.Date, calendar.Date) (bool, error) {
 	return false, nil
 }

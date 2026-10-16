@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -16,10 +16,10 @@ import (
 // resync's roster effects are covered by the enrollment-side service tests;
 // here only the handler contract matters: WHEN the hook fires.
 type recordingOfferingResyncer struct {
-	calls []timezone.Date
+	calls []calendar.Date
 }
 
-func (r *recordingOfferingResyncer) ResyncOfferingSourcedTemplates(_ context.Context, effectiveFrom timezone.Date) error {
+func (r *recordingOfferingResyncer) ResyncOfferingSourcedTemplates(_ context.Context, effectiveFrom calendar.Date) error {
 	r.calls = append(r.calls, effectiveFrom)
 	return nil
 }
@@ -46,7 +46,7 @@ func TestUpdateStudent_ClassChangeResyncsOfferingSourcedTemplates(t *testing.T) 
 	putStudent(t, tc, student.ID, map[string]any{"school_class": "3a"})
 	require.Len(t, rec.calls, 1,
 		"a class change must resync the offering-sourced templates in the same request")
-	assert.Equal(t, timezone.NewDate(2026, 8, 24), rec.calls[0],
+	assert.Equal(t, calendar.NewDate(2026, 8, 24), rec.calls[0],
 		"history stays untouched: the resync boundary is today, like a grade transition")
 
 	putStudent(t, tc, student.ID, map[string]any{"school_class": "3a"})

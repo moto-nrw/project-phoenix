@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/timezone"
 	modelBase "github.com/moto-nrw/project-phoenix/models/base"
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -70,7 +70,7 @@ func (s *instanceAutoEnd) completeIfDue(ctx context.Context, instance *scheduleM
 		result.SkippedSpontaneous++
 		return nil
 	}
-	deadline := timetable.LifecycleBoundary(timezone.Date(instance.Date), instance.EndTime).Add(grace)
+	deadline := timetable.LifecycleBoundary(calendar.Date(instance.Date), instance.EndTime).Add(grace)
 	if now.Before(deadline) {
 		result.SkippedBeforeDeadline++
 		return nil
