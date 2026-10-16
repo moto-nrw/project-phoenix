@@ -173,7 +173,7 @@ func seedMarketingParentRequests(ctx context.Context, rt *Runtime, data manualPr
 		{parent: "sarah-yilmaz", child: "elif-yilmaz", kind: "care-exception", body: map[string]any{
 			"date": day, "pickup_time": "14:30", "reason": "Elif hat einen Termin beim Kinderarzt.",
 		}},
-		{parent: "julia-wagner", child: "mia-wagner", kind: "sick-note", body: map[string]any{
+		{parent: "julia-brandt", child: "mia-brandt", kind: "sick-note", body: map[string]any{
 			"dates": []string{day}, "status": "excused", "reason": "Mia fährt mit zum Familienfest nach Hamburg.",
 		}},
 	}
@@ -402,7 +402,7 @@ func seedMarketingParentMessages(ctx context.Context, rt *Runtime, data manualPr
 		answer              bool
 	}{
 		{parent: "sarah-yilmaz", child: "emir-yilmaz", body: marketingParentMessage, answer: true},
-		{parent: "thomas-becker", child: "lina-becker", body: marketingParentQuestion},
+		{parent: "thomas-beck", child: "lina-beck", body: marketingParentQuestion},
 	}
 	for _, message := range messages {
 		parent, ok := byKey[message.parent]
