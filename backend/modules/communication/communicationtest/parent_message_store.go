@@ -1,3 +1,6 @@
+// Package communicationtest names the Communication stores the behavior tests
+// of the request domains drive over the test database. It is test support:
+// production code never imports it.
 package communicationtest
 
 import parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"

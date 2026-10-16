@@ -135,7 +135,7 @@ func newDailyCheckoutService(t *testing.T, db *testpkg.DB) (active.Service, *tes
 			RFIDCards: repos.RFIDCard, AccountExists: api.AccountExists(repos.Profile),
 		})),
 		DB:          db,
-		Broadcaster: broadcaster,
+		Broadcaster: api.NewPresenceEvents(broadcaster, nil),
 		Logger:      slog.Default(),
 	})
 

@@ -121,7 +121,7 @@ func testStatusCheckinRollback(t *testing.T, mode, stage, kind string) {
 		StaffRepo:          api.NewAttendanceStaffDirectory(repos.Staff),
 		EducationGroupRepo: api.NewAttendanceEducationGroups(repos.Group, repos.Student), GroupRepo: groupFault, DeviceRepo: deviceFault,
 		RoomRepo: api.NewAttendanceRooms(repos.Room), ActivityGroupRepo: api.NewSessionActivities(repos.GroupReads()),
-		DB: db, Broadcaster: broadcaster,
+		DB: db, Broadcaster: api.NewPresenceEvents(broadcaster, nil),
 	})
 	activeService.ConfigureForTest(svc, activeService.WithTenantRuntime(testpkg.TenantRuntime(t, db)))
 	var settingsErr error

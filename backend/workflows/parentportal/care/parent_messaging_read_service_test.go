@@ -61,7 +61,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier care.Staf
 		MessageThreadRepo:     repos.ParentMessageThread,
 		MessageRepo:           communicationtest.NewParentMessageRepository(db),
 		MessageReadRepo:       repos.ParentMessageRead,
-		Conversations:         communicationtest.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
+		Conversations:         api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		Logger:                slog.Default(),
 	})
@@ -98,7 +98,7 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, 
 	m.SetTenantID(chain.TenantID)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, communicationtest.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
+	require.NoError(t, api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
 	return thread.ID, staffAccount.ID
 }
 

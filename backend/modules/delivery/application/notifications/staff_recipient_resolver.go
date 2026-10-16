@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -188,7 +187,7 @@ func (r *staffRecipientResolver) filterOnDutyAccounts(ctx context.Context, accou
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
-	onDutyOnly, err := r.settings.ResolveBool(ctx, configModel.KeyNotificationsOnDutyOnly)
+	onDutyOnly, err := r.settings.ResolveBool(ctx, settingOnDutyOnly)
 	if err != nil {
 		return nil, fmt.Errorf("resolve on-duty notification setting: %w", err)
 	}

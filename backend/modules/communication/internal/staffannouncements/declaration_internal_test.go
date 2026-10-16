@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
@@ -183,6 +184,18 @@ func (r *declarationRepo) DeclarationSigners(context.Context, int64, []int64) ([
 
 type digestStub struct{ *stubPurger }
 
+// securityFingerprints binds the declaration fingerprints to the Security
+// Runtime, as the root does.
+type securityFingerprints struct{}
+
+func (securityFingerprints) Content(content []byte) string {
+	return securityruntime.Fingerprint(content)
+}
+
+func (securityFingerprints) Reader(r io.Reader) (string, int64, error) {
+	return securityruntime.ReaderFingerprint(r)
+}
+
 func (digestStub) AttachmentDigests(context.Context, int64, func(io.Reader) (string, int64, error)) ([]AttachmentDigest, error) {
 	return []AttachmentDigest{{AttachmentID: 7, Filename: "Erlaubnis.pdf", SizeBytes: 3, SHA256: "ab"}}, nil
 }
@@ -198,7 +211,7 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}}).(*service)
 	svc.SetAttachmentPurger(digestStub{&stubPurger{}})
 
 	_, err := svc.Publish(ctx, announcement.ID)
@@ -206,7 +219,7 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 	require.Len(t, repo.versions, 1)
 	first := repo.versions[0]
 	assert.Equal(t, 1, first.VersionNo)
-	assert.Equal(t, DeclarationContentHash(first), first.ContentHash)
+	assert.Equal(t, securityruntime.Fingerprint(first.CanonicalContent()), first.ContentHash)
 	require.Len(t, first.Attachments, 1)
 
 	// Unchanged republication keeps the version.
@@ -224,7 +237,7 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 		Method: usersModels.DeclarationMethodSimpleElectronic, ContentHash: first.ContentHash,
 		SubmittedAt: time.Date(2026, 9, 27, 8, 0, 0, 0, time.UTC),
 	}
-	sub.RecordHash = DeclarationRecordHash(sub)
+	sub.RecordHash = securityruntime.Fingerprint(sub.CanonicalRecord())
 	repo.submissions = []*usersModels.DeclarationSubmission{sub}
 
 	status, err := svc.ParentDeclarationStatus(ctx, announcement.ID)

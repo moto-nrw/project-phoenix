@@ -1,4 +1,4 @@
-package presence_test
+package api
 
 import (
 	"context"
@@ -6,9 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/models/audit"
-	active "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/stretchr/testify/require"
 )
 
@@ -25,7 +24,7 @@ func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	for _, staff := range []bool{false, true} {
-		entry := &active.DeletionEvent{
+		entry := &presenceservice.DeletionEvent{
 			TenantID: 7, RecordsDeleted: 3, DeletionType: "visit_retention",
 			DeletionReason: "retention", DeletedBy: "system",
 			DeletedAt: time.Date(2026, 9, 13, 12, 0, 0, 0, time.UTC),
@@ -39,7 +38,7 @@ func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
 		}
 		writeErr := errors.New("audit unavailable")
 		calls := 0
-		writer := api.NewDeletionAudit(deletionEventWriter{write: func(gotCtx context.Context, got *audit.DataDeletion) error {
+		writer := NewDeletionAudit(deletionEventWriter{write: func(gotCtx context.Context, got *audit.DataDeletion) error {
 			calls++
 			require.Equal(t, ctx, gotCtx)
 			require.Equal(t, entry.TenantID, got.TenantID)
@@ -56,5 +55,5 @@ func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
 		require.ErrorIs(t, writer.Create(ctx, entry), writeErr)
 		require.Equal(t, 1, calls)
 	}
-	require.Nil(t, api.NewDeletionAudit(nil))
+	require.Nil(t, NewDeletionAudit(nil))
 }

@@ -108,7 +108,7 @@ func composePresence(b graphBuild) (graphBuild, error) {
 		ActivityCatRepo:    arrivalTimetable.NewCategoryCount(repos.ActivityCategory),
 		EducationGroupRepo: b.Presence.AttendanceEducationGroups, DeviceRepo: b.Presence.SessionDevices(b.settingsService),
 		StaffNames: b.Presence.AttendanceStaffNames(b.graph.Users), DB: b.DB.Pool(),
-		Broadcaster: b.graph.RealtimeHub, Tracker: b.ProductEvents,
+		Broadcaster: NewPresenceEvents(b.graph.RealtimeHub, logger), Tracker: b.ProductEvents,
 		WorkSessionService: presenceAutoCheckIn{checkIn: b.graph.WorkSession.AutoCheckIn}, AttendanceSyncer: attendanceSync,
 		TimetableBridgeCompleter: b.graph.TimetableBridge, Logger: logger, Now: b.now,
 	},
