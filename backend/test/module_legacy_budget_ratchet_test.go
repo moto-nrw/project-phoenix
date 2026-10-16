@@ -211,7 +211,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
 	"modules/supervisiondashboard/compose":            27,
-	"modules/timetable/compose":                       36302,
+	"modules/timetable/compose":                       36300,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableblockdisplay/compose":           9,
 	"modules/timetableprojection/compose":             11,

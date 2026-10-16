@@ -21,7 +21,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/models/activities"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	activitiesSvc "github.com/moto-nrw/project-phoenix/services/activities"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -685,7 +684,7 @@ func TestGetAvailableActivities_GraduatedStudentNotFound(t *testing.T) {
 
 	_, err := ctx.db.NewUpdate().
 		TableExpr(`users.student_school_memberships`).
-		Set("status = ?", string(usersModels.StudentStatusAlumnus)).
+		Set("status = ?", string(testpkg.StudentStatusAlumnus)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", student.ID).
 		Exec(t.Context())
 	require.NoError(t, err)
