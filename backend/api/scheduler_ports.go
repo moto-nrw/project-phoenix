@@ -12,10 +12,11 @@ import (
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -28,7 +29,7 @@ import (
 // verifySchedulerSettingKeys refuses a Worker whose scheduler reads a key
 // the Settings Platform registry does not define, or preloads a secret.
 func verifySchedulerSettingKeys() error {
-	return verifyPreloadSettingKeys(scheduler.SettingKeys())
+	return verifyPreloadSettingKeys(schedulerRuntimeCompose.SettingKeys())
 }
 
 func verifyPreloadSettingKeys(keys []string) error {
@@ -41,7 +42,7 @@ func verifyPreloadSettingKeys(keys []string) error {
 // schedulerSettings binds the Settings Platform service and its cross-tenant
 // batch read, so one query per minute preloads the polling settings of every
 // school.
-func schedulerSettings(graph *serveGraph) (scheduler.SettingsResolver, error) {
+func schedulerSettings(graph *serveGraph) (schedulerPorts.SettingsResolver, error) {
 	snapshots, err := settingsCompose.NewTenantSnapshots(graph.services.Settings)
 	if err != nil {
 		return nil, fmt.Errorf("worker settings snapshots: %w", err)
@@ -50,23 +51,23 @@ func schedulerSettings(graph *serveGraph) (scheduler.SettingsResolver, error) {
 }
 
 type schedulerSettingsPort struct {
-	scheduler.SettingsResolver
+	schedulerPorts.SettingsResolver
 	snapshots settingsCompose.TenantSnapshots
 }
 
-func (p schedulerSettingsPort) ResolveSettingsSnapshots(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]scheduler.SettingsSnapshot, error) {
+func (p schedulerSettingsPort) ResolveSettingsSnapshots(ctx context.Context, tenantIDs []int64, keys []string) (map[int64]schedulerPorts.SettingsSnapshot, error) {
 	resolved, err := p.snapshots(ctx, tenantIDs, keys)
 	if err != nil {
 		return nil, err
 	}
-	snapshots := make(map[int64]scheduler.SettingsSnapshot, len(resolved))
+	snapshots := make(map[int64]schedulerPorts.SettingsSnapshot, len(resolved))
 	for tenantID, snapshot := range resolved {
 		snapshots[tenantID] = snapshot
 	}
 	return snapshots, nil
 }
 
-func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapshot scheduler.SettingsSnapshot) (context.Context, error) {
+func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapshot schedulerPorts.SettingsSnapshot) (context.Context, error) {
 	bound, ok := snapshot.(settingsCompose.TenantSnapshot)
 	if !ok {
 		return ctx, fmt.Errorf("settings snapshot has type %T", snapshot)
@@ -77,17 +78,17 @@ func (p schedulerSettingsPort) BindSettingsSnapshot(ctx context.Context, snapsho
 // schedulerBookingConsistency binds the booking drift audit, which the root
 // builds over the graph's People Directory and Care Plan (ADR 0049). A
 // construction failure fails the Worker's composition.
-func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (scheduler.BookingConsistencyAudit, error) {
+func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (schedulerPorts.BookingConsistencyAudit, error) {
 	bookings, err := NewBookingConsistencyAudit(graph.db, graph.services.PeopleDirectory, reads.carePlan)
 	if err != nil {
 		return nil, fmt.Errorf("compose worker booking consistency audit: %w", err)
 	}
-	return func(ctx context.Context, day calendar.Date) (*scheduler.BookingConsistencyReport, error) {
+	return func(ctx context.Context, day calendar.Date) (*schedulerPorts.BookingConsistencyReport, error) {
 		report, err := callOnDay(bookings, ctx, day)
 		if err != nil || report == nil {
 			return nil, err
 		}
-		return &scheduler.BookingConsistencyReport{
+		return &schedulerPorts.BookingConsistencyReport{
 			TenantID:                        report.TenantID,
 			AuditDate:                       calendar.Date(report.AuditDate),
 			PickupProjectionMissingDays:     report.PickupProjectionMissingDays,
@@ -100,22 +101,22 @@ func schedulerBookingConsistency(graph *serveGraph, reads workerReads) (schedule
 
 // schedulerDayInstances binds the overdue tick to the day's activity
 // instances with their composed status.
-func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) scheduler.DayInstanceReader {
+func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) schedulerPorts.DayInstanceReader {
 	instances := timetableRepositories.ActivityInstance
 	if instances == nil {
 		return nil
 	}
-	return func(ctx context.Context, day calendar.Date) ([]scheduler.DayInstance, error) {
+	return func(ctx context.Context, day calendar.Date) ([]schedulerPorts.DayInstance, error) {
 		rows, err := instances.FindByTenantAndDate(ctx, timetableCompose.ActivityInstanceDate(day))
 		if err != nil {
 			return nil, err
 		}
-		dayInstances := make([]scheduler.DayInstance, 0, len(rows))
+		dayInstances := make([]schedulerPorts.DayInstance, 0, len(rows))
 		for _, row := range rows {
 			if row == nil {
 				continue
 			}
-			dayInstances = append(dayInstances, scheduler.DayInstance{
+			dayInstances = append(dayInstances, schedulerPorts.DayInstance{
 				ID:        row.ID,
 				Date:      calendar.Date(row.Date),
 				StartTime: row.StartTime,
@@ -131,7 +132,7 @@ func schedulerDayInstances(timetableRepositories timetableCompose.Repositories) 
 // reads. They are built over the owner modules where the graph is composed
 // and handed to the Worker, not kept on the graph (#2743).
 type workerReads struct {
-	existingRooms scheduler.ExistingRoomReader
+	existingRooms schedulerPorts.ExistingRoomReader
 	timetable     timetableCompose.Repositories
 	workSessions  interface {
 		GetTodayPresenceMap(context.Context) (map[int64]string, error)
@@ -146,7 +147,7 @@ type workerReads struct {
 	// carePlan is the Care Plan owner the booking drift audit reads, and
 	// studentStatusDays archives the status flags over it.
 	carePlan          carePlanModule.Query
-	studentStatusDays scheduler.StudentStatusFlagArchiver
+	studentStatusDays schedulerPorts.StudentStatusFlagArchiver
 	// statusDayRetention deletes the expired status days in the nightly
 	// cleanup (#3958).
 	statusDayRetention carePlanModule.StudentStatusDayRetention
@@ -191,7 +192,7 @@ func carePlanQuery(module *carePlanModule.Module) carePlanModule.Query {
 }
 
 // schedulerExistingRooms binds the overdue tick's room check.
-func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.ExistingRoomReader {
+func schedulerExistingRooms(capability facilitiesModule.Capability) schedulerPorts.ExistingRoomReader {
 	rooms := facilitiesCompose.NewRoomRepository(capability)
 	return func(ctx context.Context, roomIDs []int64) ([]int64, error) {
 		found, err := rooms.FindByIDs(ctx, roomIDs)
@@ -210,7 +211,7 @@ func schedulerExistingRooms(capability facilitiesModule.Capability) scheduler.Ex
 
 // schedulerStudentLifecycle binds the activate-students tick to the
 // retained student repository.
-func schedulerStudentLifecycle(reads workerReads) scheduler.StudentLifecycleRepository {
+func schedulerStudentLifecycle(reads workerReads) schedulerPorts.StudentLifecycleRepository {
 	students := reads.students
 	if students.PendingDueForActivation == nil {
 		return nil
@@ -241,7 +242,7 @@ func (p studentLifecyclePort) TransitionStatus(ctx context.Context, studentID in
 
 // schedulerStudentAudit binds the history entry of an automated status
 // transition.
-func schedulerStudentAudit(graph *serveGraph) scheduler.StudentLifecycleAuditor {
+func schedulerStudentAudit(graph *serveGraph) schedulerPorts.StudentLifecycleAuditor {
 	audit := graph.services.StudentAudit
 	if audit == nil {
 		return nil
@@ -258,17 +259,17 @@ func (p studentAuditPort) RecordSystemStatusChange(ctx context.Context, studentI
 }
 
 // schedulerStudentChangeLogCleanup binds the change-history retention sweep.
-func schedulerStudentChangeLogCleanup(graph *serveGraph) scheduler.StudentChangeLogCleanup {
+func schedulerStudentChangeLogCleanup(graph *serveGraph) schedulerPorts.StudentChangeLogCleanup {
 	service := graph.services.StudentChangeLogCleanup
 	if service == nil {
 		return nil
 	}
-	return func(ctx context.Context) (scheduler.StudentChangeLogCleanupResult, error) {
+	return func(ctx context.Context) (schedulerPorts.StudentChangeLogCleanupResult, error) {
 		result, err := service.CleanupExpiredChangeLog(ctx)
 		if err != nil || result == nil {
-			return scheduler.StudentChangeLogCleanupResult{}, err
+			return schedulerPorts.StudentChangeLogCleanupResult{}, err
 		}
-		return scheduler.StudentChangeLogCleanupResult{
+		return schedulerPorts.StudentChangeLogCleanupResult{
 			EditsDeleted:     result.EditsDeleted,
 			StudentsAffected: result.StudentsAffected,
 			RetentionDays:    result.RetentionDays,

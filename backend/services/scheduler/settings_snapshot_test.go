@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -72,19 +74,19 @@ type batchSettings struct {
 
 type boundSnapshotKey struct{}
 
-func (b *batchSettings) ResolveSettingsSnapshots(_ context.Context, tenantIDs []int64, keys []string) (map[int64]SettingsSnapshot, error) {
+func (b *batchSettings) ResolveSettingsSnapshots(_ context.Context, tenantIDs []int64, keys []string) (map[int64]ports.SettingsSnapshot, error) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 	b.calls = append(b.calls, append([]int64(nil), tenantIDs...))
 	b.keys = append(b.keys, append([]string(nil), keys...))
-	snapshots := make(map[int64]SettingsSnapshot, len(tenantIDs))
+	snapshots := make(map[int64]ports.SettingsSnapshot, len(tenantIDs))
 	for _, tenantID := range tenantIDs {
 		snapshots[tenantID] = tenantID
 	}
 	return snapshots, nil
 }
 
-func (b *batchSettings) BindSettingsSnapshot(ctx context.Context, snapshot SettingsSnapshot) (context.Context, error) {
+func (b *batchSettings) BindSettingsSnapshot(ctx context.Context, snapshot ports.SettingsSnapshot) (context.Context, error) {
 	if _, ok := snapshot.(string); !ok {
 		return ctx, errors.New("snapshot was not resolved by this source")
 	}
@@ -118,7 +120,7 @@ func TestLoadMinuteSnapshotResolvesEverySchoolInOneBatch(t *testing.T) {
 	require.Len(t, settings.calls, 1, "one batch read for all active schools")
 	assert.Equal(t, snapshot.tenantIDs, settings.calls[0])
 	assert.Equal(t, schedulerPollingSettingKeys, settings.keys[0])
-	assert.Equal(t, SettingsSnapshot(tenantA), snapshot.settings[tenantA])
+	assert.Equal(t, ports.SettingsSnapshot(tenantA), snapshot.settings[tenantA])
 }
 
 func TestForEachTenantSettingsBindsEachSchoolsSnapshot(t *testing.T) {
@@ -132,7 +134,7 @@ func TestForEachTenantSettingsBindsEachSchoolsSnapshot(t *testing.T) {
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
 			return &schedulerMinuteSnapshot{
 				tenantIDs: []int64{31, 32},
-				settings:  map[int64]SettingsSnapshot{31: "snapshot-31", 32: "snapshot-32"},
+				settings:  map[int64]ports.SettingsSnapshot{31: "snapshot-31", 32: "snapshot-32"},
 			}, nil
 		}})
 
@@ -156,7 +158,7 @@ func TestForEachTenantSettingsFailsASchoolWhoseSnapshotCannotBeBound(t *testing.
 		minuteSnapshotLoader: func(context.Context) (*schedulerMinuteSnapshot, error) {
 			return &schedulerMinuteSnapshot{
 				tenantIDs: []int64{33, 34},
-				settings:  map[int64]SettingsSnapshot{33: "snapshot-33", 34: 34},
+				settings:  map[int64]ports.SettingsSnapshot{33: "snapshot-33", 34: 34},
 			}, nil
 		}})
 

@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/services/scheduler"
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +47,7 @@ func TestWorkerLeaseStoreBindsTheDatabaseLeaseToTheSchedulerPort(t *testing.T) {
 	err = testpkg.WithinTenantContext(t, ctx, authDB, testpkg.Tenant(t), func(txCtx context.Context) error {
 		return store.Assert(txCtx, first, fenceMargin)
 	})
-	require.ErrorIs(t, err, scheduler.ErrLeaseNotHeld, "a stale term cannot commit")
+	require.ErrorIs(t, err, ports.ErrLeaseNotHeld, "a stale term cannot commit")
 	require.NoError(t, testpkg.WithinTenantContext(t, ctx, authDB, testpkg.Tenant(t), func(txCtx context.Context) error {
 		return store.Assert(txCtx, second, fenceMargin)
 	}))
