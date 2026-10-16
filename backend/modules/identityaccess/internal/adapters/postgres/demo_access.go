@@ -104,13 +104,16 @@ func (s *Store) RecordDemoAccessUse(ctx context.Context, id, accountID, parentAc
 	if err != nil {
 		return err
 	}
-	_, err = db.NewRaw(`UPDATE auth.demo_accesses
+	result, err := db.NewRaw(`UPDATE auth.demo_accesses
 		SET use_count = use_count + 1, last_used_at = ?, expires_at = ?, account_id = ?,
 			parent_account_id = COALESCE(NULLIF(?, 0::BIGINT), parent_account_id)
-		WHERE id = ?`,
-		usedAt, expiresAt, accountID, parentAccountID, id).Exec(ctx)
+		WHERE id = ? AND expires_at > ?`,
+		usedAt, expiresAt, accountID, parentAccountID, id, usedAt).Exec(ctx)
 	if err != nil {
 		return fmt.Errorf("identity access postgres: record demo access use: %w", err)
+	}
+	if rows, err := result.RowsAffected(); err != nil || rows != 1 {
+		return domain.ErrDemoAccessExpired
 	}
 	return nil
 }

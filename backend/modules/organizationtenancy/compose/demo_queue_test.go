@@ -259,7 +259,7 @@ func TestDemoSchoolQueueRetiresReplacementReservedBeforeStateWrite(t *testing.T)
 	assert.Equal(t, 2, second.Attempts)
 	// Bootstrap created the replacement, but a later core step failed before
 	// the complete seed state could be written.
-	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, replacementSchoolID))
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, replacementSchoolID, 0, 0))
 	failed, err := queue.FailDemoSchoolOrder(ctx, slug, 2)
 	require.NoError(t, err)
 	assert.True(t, failed)
@@ -279,7 +279,7 @@ func TestDemoSchoolQueueCompletesReservedState(t *testing.T) {
 	slug := orderDemoSchool(t, db, "OGS Nord")
 	_, err = queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
-	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, schoolID))
+	require.NoError(t, schools.ReserveDemoSchool(ctx, slug, schoolID, 0, 0))
 	want := organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{"profile":"vollbetrieb"}`)}
 	require.NoError(t, schools.UpdateDemoSchool(ctx, slug, want))
 	got, err := schools.LoadDemoSchool(ctx, slug)

@@ -261,14 +261,22 @@ func provisionDemoSchool(ctx context.Context, schools *DemoRuntime, adapter seed
 	}
 	slug := options.TenantSlug
 	options.OnlyProfile, options.StaffPassword, options.StandingDemo = seedapi.DefaultProfileKey, staffPassword, true
+	var schoolID int64
 	stateSaved := false
 	if options.DeferHistory {
-		options.SaveBootstrap = func(ctx context.Context, schoolID int64) error {
-			if err := schools.ReserveDemoSchool(ctx, slug, schoolID); err != nil {
+		options.SaveBootstrap = func(ctx context.Context, bootstrapSchoolID int64) error {
+			if err := schools.ReserveDemoSchool(ctx, slug, bootstrapSchoolID, 0, 0); err != nil {
 				return err
 			}
+			schoolID = bootstrapSchoolID
 			stateSaved = true
 			return nil
+		}
+		options.SaveVisitor = func(ctx context.Context, visitorAccountID, visitorParentAccountID int64) error {
+			if schoolID == 0 {
+				return fmt.Errorf("demo visitor was created before its school")
+			}
+			return schools.ReserveDemoSchool(ctx, slug, schoolID, visitorAccountID, visitorParentAccountID)
 		}
 	}
 	options.SaveState = func(ctx context.Context, state *seedapi.SeedState) error {

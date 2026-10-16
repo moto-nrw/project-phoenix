@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // DemoStateStore is only composed in the isolated demo CLI with its privileged
@@ -40,10 +41,15 @@ func (s *DemoStateStore) Load(ctx context.Context, name string) (*DemoState, err
 // Reserve records the school as soon as bootstrap created it. The full seed
 // state follows later; retaining this identity lets a final failed seed hide
 // a replacement that did not reach its state write.
-func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID int64) error {
+func (s *DemoStateStore) Reserve(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {
 	result, err := s.db.NewRaw(`UPDATE platform.demo_school_states
-		SET tenant_id = ?
-		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`, schoolID, name).Exec(ctx)
+		SET tenant_id = ?,
+			visitor_account_id = COALESCE(NULLIF(?, 0), visitor_account_id),
+			visitor_parent_account_id = COALESCE(NULLIF(?, 0), visitor_parent_account_id),
+			visitor_account_ids = array_remove(visitor_account_ids || ARRAY[NULLIF(?, 0)], NULL),
+			visitor_parent_account_ids = array_remove(visitor_parent_account_ids || ARRAY[NULLIF(?, 0)], NULL)
+		WHERE name = ? AND status = 'preparing' AND seed_state IS NULL`,
+		schoolID, visitorAccountID, visitorParentAccountID, visitorAccountID, visitorParentAccountID, name).Exec(ctx)
 	if err != nil {
 		return errors.New("could not reserve demo school state")
 	}
@@ -284,50 +290,14 @@ func (s *DemoStateStore) ActiveNames(ctx context.Context, since time.Time) ([]st
 // hour with the schools whose last demo access expired, or with none. It
 // returns how many schools it hid and how many orders it erased.
 func (s *DemoStateStore) RetireMany(ctx context.Context, names []string) (hidden, erased int, err error) {
-	if hidden, err = s.hide(ctx, names); err != nil {
-		return 0, 0, err
+	var result struct {
+		Hidden int `bun:"hidden"`
+		Erased int `bun:"erased"`
 	}
-	if erased, err = s.eraseClosedVisitors(ctx); err != nil {
-		return hidden, 0, err
+	if err := s.db.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools(?::text[])`, pgdialect.Array(names)).Scan(ctx, &result); err != nil {
+		return 0, 0, fmt.Errorf("retire demo schools: %w", err)
 	}
-	return hidden, erased, nil
-}
-
-// hide hides the schools of the named orders. Schools hidden before count
-// nothing. An order that still waits for its seed is closed as failed, so it
-// holds no place either; an order being seeded right now is left alone and
-// finishes as a ready school nobody enters.
-func (s *DemoStateStore) hide(ctx context.Context, names []string) (int, error) {
-	if len(names) == 0 {
-		return 0, nil
-	}
-	result, err := s.db.NewRaw(`UPDATE platform.schools SET deleted_at = NOW()
-		WHERE deleted_at IS NULL AND id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name IN (?) AND status = 'ready')`,
-		bun.List(names)).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("retire demo schools: %w", err)
-	}
-	hidden, err := result.RowsAffected()
-	if err != nil {
-		return 0, fmt.Errorf("retire demo schools: %w", err)
-	}
-	_, err = s.db.NewRaw(`UPDATE platform.demo_school_states SET status = 'failed'
-		WHERE name IN (?) AND status = 'preparing' AND claimed_at IS NULL AND tenant_id IS NULL`, bun.List(names)).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("close waiting demo school orders: %w", err)
-	}
-	return int(hidden), nil
-}
-
-// eraseClosedVisitors erases the visitors of the orders out of use (#4048)
-// and returns how many orders it deleted. The database function names the
-// rule and the places the visitor's name is replaced.
-func (s *DemoStateStore) eraseClosedVisitors(ctx context.Context) (int, error) {
-	var erased int
-	if err := s.db.NewRaw(`SELECT platform.erase_closed_demo_visitors()`).Scan(ctx, &erased); err != nil {
-		return 0, fmt.Errorf("erase demo visitors: %w", err)
-	}
-	return erased, nil
+	return result.Hidden, result.Erased, nil
 }
 
 // DemoOrderStore is the serving backend's side of the queue. Its role may
@@ -384,6 +354,9 @@ func (s *DemoOrderStore) Progress(ctx context.Context, name string) (*DemoProgre
 	db, err := s.database(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || ?, 0))`, name).Exec(ctx); err != nil {
+		return nil, fmt.Errorf("lock demo school progress: %w", err)
 	}
 	var progress DemoProgress
 	err = db.NewRaw(`SELECT status, COALESCE(tenant_id, 0) AS tenant_id, COALESCE(visitor_account_id, 0) AS visitor_account_id,

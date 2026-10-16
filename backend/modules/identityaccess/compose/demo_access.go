@@ -88,7 +88,7 @@ func (p demoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firs
 func (p demoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
 	entry, err := p.schools.DemoSchoolEntry(ctx, slug)
 	return domain.DemoSchoolEntry{
-		Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
+		Exists: entry.Exists, Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
 	}, err
 }
 

@@ -24,7 +24,8 @@ func init() {
 // demoVisitorErasureUpSQL erases the visitor of the public demo once its
 // demo school is out of use (#4048). The demo process calls the function
 // every hour, right after the expiry of #3470 has deleted the demo accesses
-// 14 days after their last use and hidden the schools left without one.
+// 14 days after their last use. The companion function hides schools and
+// erases visitors under the same per-school lock as access creation and use.
 //
 // An order is out of use when it is closed (ready with a hidden school, or
 // failed) and no demo access names it any more: a visitor whose order failed
@@ -86,6 +87,10 @@ const demoVisitorErasureUpSQL = `
 					AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name)
 				FOR UPDATE OF state
 			LOOP
+				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || visitor.name, 0));
+				IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = visitor.name) THEN
+					CONTINUE;
+				END IF;
 				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
 					SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
 					FROM platform.schools AS school
@@ -123,8 +128,45 @@ const demoVisitorErasureUpSQL = `
 		END;
 		$$;
 
+		CREATE OR REPLACE FUNCTION platform.retire_expired_demo_schools(names TEXT[])
+		RETURNS TABLE(hidden INTEGER, erased INTEGER)
+		LANGUAGE plpgsql
+		VOLATILE
+		SECURITY DEFINER
+		SET search_path = pg_catalog
+		AS $$
+		DECLARE
+			target_name TEXT;
+			hidden_count INTEGER := 0;
+			changed INTEGER;
+		BEGIN
+			FOREACH target_name IN ARRAY COALESCE(names, '{}'::TEXT[])
+			LOOP
+				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
+				IF EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = target_name) THEN
+					CONTINUE;
+				END IF;
+				UPDATE platform.schools AS school SET deleted_at = NOW()
+					FROM platform.demo_school_states AS state
+					WHERE state.name = target_name AND state.status = 'ready'
+						AND school.id = state.tenant_id AND school.deleted_at IS NULL;
+				GET DIAGNOSTICS changed = ROW_COUNT;
+				hidden_count := hidden_count + changed;
+				UPDATE platform.demo_school_states AS state SET status = 'failed'
+					WHERE state.name = target_name AND state.status = 'preparing' AND state.claimed_at IS NULL
+						AND state.tenant_id IS NULL
+						AND NOT EXISTS (SELECT 1 FROM auth.demo_accesses AS access WHERE access.school_slug = state.name);
+			END LOOP;
+			hidden := hidden_count;
+			erased := platform.erase_closed_demo_visitors();
+			RETURN NEXT;
+		END;
+		$$;
+
 		REVOKE ALL ON FUNCTION platform.erase_closed_demo_visitors() FROM PUBLIC;
 		GRANT EXECUTE ON FUNCTION platform.erase_closed_demo_visitors() TO phoenix_demo;
+		REVOKE ALL ON FUNCTION platform.retire_expired_demo_schools(TEXT[]) FROM PUBLIC;
+		GRANT EXECUTE ON FUNCTION platform.retire_expired_demo_schools(TEXT[]) TO phoenix_demo;
 `
 
 func demoVisitorErasureUp(ctx context.Context, db *bun.DB) error {
@@ -135,7 +177,8 @@ func demoVisitorErasureUp(ctx context.Context, db *bun.DB) error {
 }
 
 func demoVisitorErasureDown(ctx context.Context, db *bun.DB) error {
-	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS platform.erase_closed_demo_visitors();
+	if _, err := db.ExecContext(ctx, `DROP FUNCTION IF EXISTS platform.retire_expired_demo_schools(TEXT[]);
+		DROP FUNCTION IF EXISTS platform.erase_closed_demo_visitors();
 		ALTER TABLE platform.demo_school_states
 			DROP COLUMN IF EXISTS visitor_account_ids,
 			DROP COLUMN IF EXISTS visitor_parent_account_ids;`); err != nil {

@@ -16,12 +16,14 @@ func TestDemoVisitorErasureIsTheDemoRolesAlone(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	ctx := t.Context()
 
-	for role, allowed := range map[string]bool{
-		"phoenix_demo": true, "phoenix_admin": false, "phoenix_tenant": false, "phoenix_auth": false,
-	} {
-		var canCall bool
-		require.NoError(t, db.NewRaw(`SELECT has_function_privilege(?, 'platform.erase_closed_demo_visitors()', 'EXECUTE')`, role).Scan(ctx, &canCall))
-		assert.Equal(t, allowed, canCall, role)
+	for _, function := range []string{"platform.erase_closed_demo_visitors()", "platform.retire_expired_demo_schools(text[])"} {
+		for role, allowed := range map[string]bool{
+			"phoenix_demo": true, "phoenix_admin": false, "phoenix_tenant": false, "phoenix_auth": false,
+		} {
+			var canCall bool
+			require.NoError(t, db.NewRaw(`SELECT has_function_privilege(?, ?, 'EXECUTE')`, role, function).Scan(ctx, &canCall))
+			assert.Equal(t, allowed, canCall, function+" / "+role)
+		}
 	}
 	for _, table := range []string{"users.persons", "users.guardian_profiles", "enrollment.requests", "audit.guardian_changes",
 		"users.parent_messages", "users.parent_announcement_declaration_submissions", "platform.email_outbox"} {
@@ -39,4 +41,6 @@ func TestDemoVisitorErasureIsTheDemoRolesAlone(t *testing.T) {
 	require.NoError(t, err)
 	var erased int
 	require.NoError(t, tx.NewRaw(`SELECT platform.erase_closed_demo_visitors()`).Scan(ctx, &erased))
+	var retired struct{ Hidden, Erased int }
+	require.NoError(t, tx.NewRaw(`SELECT hidden, erased FROM platform.retire_expired_demo_schools('{}'::text[])`).Scan(ctx, &retired))
 }

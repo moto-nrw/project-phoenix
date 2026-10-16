@@ -165,7 +165,7 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	failed := orderDemoSchool(t, db, "OGS Ost")
 	_, err = queue.ClaimDemoSchoolOrder(ctx)
 	require.NoError(t, err)
-	require.NoError(t, schools.ReserveDemoSchool(ctx, failed, failedID))
+	require.NoError(t, schools.ReserveDemoSchool(ctx, failed, failedID, 0, 0))
 	require.NoError(t, schools.UpdateDemoSchool(ctx, failed, organizationtenancy.DemoSchoolState{
 		SchoolID: failedID, SeedJSON: []byte(`{}`),
 		VisitorAccountID: accounts[failedID].caregiver, VisitorParentAccountID: accounts[failedID].parent,

@@ -27,7 +27,7 @@ type DemoVisit struct {
 // demoSchoolStore is the part of the owner's demo-state capability whose
 // signatures carry no owner type.
 type demoSchoolStore interface {
-	ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error
+	ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error
 	WithDemoLease(ctx context.Context, name string, run func(context.Context) error) error
 }
 
@@ -194,8 +194,8 @@ func (d *DemoRuntime) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 
 // ReserveDemoSchool remembers a newly bootstrapped school before its full
 // seed contract is available for persistence.
-func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
-	return d.schools.ReserveDemoSchool(ctx, name, schoolID)
+func (d *DemoRuntime) ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {
+	return d.schools.ReserveDemoSchool(ctx, name, schoolID, visitorAccountID, visitorParentAccountID)
 }
 
 func (d *DemoRuntime) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolRecord) error {

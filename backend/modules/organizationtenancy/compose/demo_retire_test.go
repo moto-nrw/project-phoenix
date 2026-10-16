@@ -99,6 +99,27 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	require.ErrorIs(t, order("OGS Hafen"), organizationtenancy.ErrDemoCapacityReached)
 }
 
+func TestRetiringDemoSchoolWithAnActiveAccessLeavesItOpen(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
+	_, err = db.NewRaw(`INSERT INTO auth.demo_accesses (email, school_name, token_hash, expires_at, school_slug, first_name, last_name)
+		VALUES ('besuch@example.test', 'OGS Nord', 'active-access', NOW() + INTERVAL '1 day', ?, 'Zyxwolda', 'Quorbelt')`, slug).Exec(t.Context())
+	require.NoError(t, err)
+
+	hidden, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
+	require.NoError(t, err)
+	assert.Zero(t, hidden)
+	assert.Zero(t, erased)
+	assert.False(t, schoolHidden(t, db, schoolID))
+	assert.NotNil(t, demoSchoolProgress(t, db, slug))
+}
+
 // The serving backend hides the visitor's school when the visitor starts over
 // (#3470), inside its administrative transaction and with its restricted role.
 func TestDemoSchoolOrdersRetireOneSchoolForARestart(t *testing.T) {

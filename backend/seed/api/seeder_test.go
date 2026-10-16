@@ -753,11 +753,18 @@ func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
 	defer srv.Close()
 	var saved []*SeedState
 	var bootstrappedSchoolID int64
+	var savedVisitors [][2]int64
 	s := NewSeeder(newSeedTestAdapter(srv.URL), newSeedTestRandom(), false, SeedOptions{
-		OnlyProfile:  DefaultProfileKey,
-		DeferHistory: true,
+		OnlyProfile:      DefaultProfileKey,
+		DeferHistory:     true,
+		VisitorFirstName: "Zyxwolda",
+		VisitorLastName:  "Quorbelt",
 		SaveBootstrap: func(_ context.Context, schoolID int64) error {
 			bootstrappedSchoolID = schoolID
+			return nil
+		},
+		SaveVisitor: func(_ context.Context, accountID, parentAccountID int64) error {
+			savedVisitors = append(savedVisitors, [2]int64{accountID, parentAccountID})
 			return nil
 		},
 		SaveState: func(_ context.Context, state *SeedState) error {
@@ -773,6 +780,11 @@ func TestSeeder_Seed_DeferredStateSinkIncludesEnrollment(t *testing.T) {
 	assert.Equal(t, profile.School.ID, bootstrappedSchoolID)
 	assert.True(t, saved[0].DeferredSeedPending)
 	assert.Empty(t, profile.Entities.Enrollment.Requests, "core state opens the school before requests exist")
+	require.Len(t, savedVisitors, 2, "both visitor accounts are persisted before deferred history can fail")
+	assert.Positive(t, savedVisitors[0][0])
+	assert.Zero(t, savedVisitors[0][1])
+	assert.Equal(t, savedVisitors[0][0], savedVisitors[1][0])
+	assert.Positive(t, savedVisitors[1][1])
 
 	require.NotNil(t, result.Deferred)
 	require.NoError(t, result.Deferred(context.Background()))

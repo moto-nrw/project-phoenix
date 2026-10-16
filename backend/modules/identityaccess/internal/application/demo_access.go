@@ -130,7 +130,7 @@ func (d *DemoAccess) schoolFor(ctx context.Context, access, known domain.DemoAcc
 		if err != nil {
 			return "", err
 		}
-		if entry.Status != domain.DemoSchoolFailed {
+		if entry.Exists && entry.Status != domain.DemoSchoolFailed {
 			return known.SchoolSlug, nil
 		}
 	}

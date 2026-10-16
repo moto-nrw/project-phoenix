@@ -24,7 +24,7 @@ type DemoSchoolState struct {
 
 type DemoStateEngine interface {
 	LoadDemoSchool(context.Context, string) (*DemoSchoolState, error)
-	ReserveDemoSchool(context.Context, string, int64) error
+	ReserveDemoSchool(context.Context, string, int64, int64, int64) error
 	RememberDemoSchool(context.Context, string, DemoSchoolState) error
 	UpdateDemoSchool(context.Context, string, DemoSchoolState) error
 	WithDemoLease(context.Context, string, func(context.Context) error) error
@@ -50,11 +50,11 @@ func (d *DemoSchools) LoadDemoSchool(ctx context.Context, name string) (*DemoSch
 
 // ReserveDemoSchool retains a newly bootstrapped school before its complete
 // seed state exists, so a later failed attempt can retire that school.
-func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID int64) error {
+func (d *DemoSchools) ReserveDemoSchool(ctx context.Context, name string, schoolID, visitorAccountID, visitorParentAccountID int64) error {
 	if name == "" || schoolID <= 0 {
 		return fmt.Errorf("demo school name and school ID are required")
 	}
-	return d.engine.ReserveDemoSchool(ctx, name, schoolID)
+	return d.engine.ReserveDemoSchool(ctx, name, schoolID, visitorAccountID, visitorParentAccountID)
 }
 
 func (d *DemoSchools) RememberDemoSchool(ctx context.Context, name string, state DemoSchoolState) error {
