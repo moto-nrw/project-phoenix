@@ -11,13 +11,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
 type failingStudentOwner struct {
-	peopleCompose.StudentOwners
+	peoplePorts.StudentOwners
 	stage   string
 	failure error
 }
