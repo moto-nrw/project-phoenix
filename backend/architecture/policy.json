@@ -1,6 +1,6 @@
 {
   "schema_version": 3,
-  "policy_epoch": 51,
+  "policy_epoch": 52,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -1016,7 +1016,7 @@
       "external_test_role": "module-behavior-test"
     },
     {
-      "path": "auth/rotation",
+      "path": "modules/identityaccess/internal/application/rotation",
       "owner": "identity-access",
       "role": "application",
       "internal_test_role": "module-internal-test",
@@ -15469,6 +15469,11 @@
     }
   ],
   "relocations": [
+    {
+      "from": "auth/rotation",
+      "to": "modules/identityaccess/internal/application/rotation",
+      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+    },
     {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
