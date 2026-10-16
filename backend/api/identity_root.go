@@ -80,6 +80,7 @@ func (r identityRoot) compose(m IdentityMaterial) (IdentityComposition, *CallerR
 	identityChain := LifecycleRepositories{
 		Persons: m.PersonRows, Staff: m.StaffRows, Teachers: m.TeacherRows, Students: m.StudentRows,
 		GuardianProfiles: m.GuardianProfiles, StudentGuardians: m.StudentGuardians,
+		People: m.Persons, Membership: m.Membership,
 	}
 	operators, err := NewOperatorDependencies(OperatorAuthenticationWiring{
 		Repos:         OperatorRepositoriesOf(identityChain, m.OperatorAuditLog),

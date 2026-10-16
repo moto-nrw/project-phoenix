@@ -336,7 +336,8 @@ func sortedRuleIDs(rules []*Rule) []string {
 }
 
 func (p *Policy) matchesSource(rule Rule, source Package) bool {
-	return p.matchesOwner(rule.SourceOwner, rule.SourceOwnerKind, source.Owner) &&
+	return (rule.SourcePackage == "" || rule.SourcePackage == source.Path) &&
+		p.matchesOwner(rule.SourceOwner, rule.SourceOwnerKind, source.Owner) &&
 		(rule.SourceRole == "" || rule.SourceRole == source.Role)
 }
 
@@ -344,7 +345,8 @@ func (p *Policy) matchesTarget(rule Rule, source, target Package) bool {
 	if rule.SameOwner && (source.Owner != target.Owner || !p.sameOwnerSelectsID(target.Owner)) {
 		return false
 	}
-	return p.matchesOwner(rule.TargetOwner, rule.TargetOwnerKind, target.Owner) && rule.TargetRole == target.Role
+	return (rule.TargetPackage == "" || rule.TargetPackage == target.Path) &&
+		p.matchesOwner(rule.TargetOwner, rule.TargetOwnerKind, target.Owner) && rule.TargetRole == target.Role
 }
 
 func (p *Policy) matchesOwner(wantOwner, wantKind, actualOwner string) bool {

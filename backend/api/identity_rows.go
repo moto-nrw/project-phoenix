@@ -26,18 +26,14 @@ type personRows interface {
 	FindByTagID(ctx context.Context, tagID string) (*userModels.Person, error)
 	FindByAccountID(ctx context.Context, accountID int64) (*userModels.Person, error)
 	FindByAccountIDs(ctx context.Context, accountIDs []int64) (map[int64]*userModels.Person, error)
-	LinkToAccount(ctx context.Context, personID int64, accountID int64) error
-	LinkToRFIDCard(ctx context.Context, personID int64, tagID string) error
 }
 
 type staffRows interface {
-	Create(ctx context.Context, staff *userModels.Staff) error
 	FindByID(ctx context.Context, id any) (*userModels.Staff, error)
 	FindByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
 }
 
 type teacherRows interface {
-	Create(ctx context.Context, teacher *userModels.Teacher) error
 	FindByID(ctx context.Context, id any) (*userModels.Teacher, error)
 	FindByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
 }
@@ -49,7 +45,6 @@ type studentRows interface {
 }
 
 type guardianProfileRows interface {
-	Create(ctx context.Context, profile *userModels.GuardianProfile) error
 	Delete(ctx context.Context, id int64) error
 	FindByID(ctx context.Context, id int64) (*userModels.GuardianProfile, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
