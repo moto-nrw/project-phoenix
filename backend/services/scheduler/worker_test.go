@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,9 +28,9 @@ type fakeFeedbackCleaner struct{ err error }
 
 func (f *fakeFeedbackCleaner) DeleteExpired(context.Context) (int, error) { return 0, f.err }
 
-func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
+func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 	t.Helper()
-	return WorkerDependencies{
+	return ports.WorkerDependencies{
 		Logger:                    slog.Default(),
 		SchoolRepo:                dbTenantDirectory{},
 		TenantRuntime:             unitTenantRuntime(),
@@ -37,10 +39,10 @@ func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 		InvitationCleanup:         &fakeInvitationCleaner{},
 		EmailChangeCleanup:        &fakeEmailChangeCleaner{},
 		OperatorInvitationCleanup: &fakeOperatorInvitationCleaner{},
-		OperatorRetention:         OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
+		OperatorRetention:         ports.OperatorRetention{Ledger: fakeOperatorRetention{}, Accounts: fakeOperatorRetention{}},
 		FeedbackCleaner:           &fakeFeedbackCleaner{},
 		CleanupRuns:               newFakeCleanupRuns(),
-		Lease: WorkerLease{
+		Lease: ports.WorkerLease{
 			Store: newMemoryLeaseStore(), Name: "worker", Holder: "test-worker",
 			TTL: 30 * time.Second, RenewEvery: 10 * time.Second, RetryEvery: 5 * time.Second, FenceMargin: 5 * time.Second,
 		},
@@ -50,7 +52,7 @@ func minimalWorkerDependencies(t *testing.T) WorkerDependencies {
 func TestNewWorkerRejectsMissingRuntimeDependencies(t *testing.T) {
 	t.Parallel()
 
-	_, err := NewWorker(WorkerDependencies{})
+	_, err := NewWorker(ports.WorkerDependencies{})
 
 	require.ErrorContains(t, err, "logger")
 }
@@ -68,12 +70,12 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		remove func(*WorkerDependencies)
+		remove func(*ports.WorkerDependencies)
 	}{
-		{name: "auth cleanup", remove: func(deps *WorkerDependencies) { deps.AuthCleanup = nil }},
-		{name: "invitation cleanup", remove: func(deps *WorkerDependencies) { deps.InvitationCleanup = nil }},
-		{name: "email change cleanup", remove: func(deps *WorkerDependencies) { deps.EmailChangeCleanup = nil }},
-		{name: "operator invitation cleanup", remove: func(deps *WorkerDependencies) { deps.OperatorInvitationCleanup = nil }},
+		{name: "auth cleanup", remove: func(deps *ports.WorkerDependencies) { deps.AuthCleanup = nil }},
+		{name: "invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.InvitationCleanup = nil }},
+		{name: "email change cleanup", remove: func(deps *ports.WorkerDependencies) { deps.EmailChangeCleanup = nil }},
+		{name: "operator invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.OperatorInvitationCleanup = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

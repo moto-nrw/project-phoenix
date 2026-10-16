@@ -15,7 +15,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	notificationsSvc "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -197,7 +196,7 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 	}
 	rows := statusDaysFromCarePlan(days)
 	if notifyAbsence && s.AbsenceNotifier != nil {
-		if err := s.AbsenceNotifier.NotifyAbsenceReported(ctx, notificationsSvc.AbsenceReport{
+		if err := s.AbsenceNotifier.NotifyAbsenceReported(ctx, AbsenceReport{
 			TenantID: tenantID, StudentIDs: []int64{report.studentID}, Status: report.status, Dates: report.dates,
 			FromParent: true, ActorAccountID: report.accountID,
 		}); err != nil {

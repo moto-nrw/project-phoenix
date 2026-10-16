@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,7 +29,7 @@ func TestTokenCleanupDeletesTheOperatorLedgerBeforeTheAccounts(t *testing.T) {
 	var calls []string
 	deps := minimalWorkerDependencies(t)
 	recorder := recordingOperatorRetention{calls: &calls}
-	deps.OperatorRetention = OperatorRetention{Ledger: recorder, Accounts: recorder}
+	deps.OperatorRetention = ports.OperatorRetention{Ledger: recorder, Accounts: recorder}
 
 	scheduler := newScheduler(deps)
 	for _, job := range scheduler.cleanupJobs {

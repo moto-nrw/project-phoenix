@@ -6,6 +6,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+
 	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/jobruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/require"
@@ -14,7 +16,7 @@ import (
 
 // mustTenantRuntime binds a composed tenant runtime through the Worker's
 // production adapter.
-func mustTenantRuntime(runtime jobruntime.Runtime, err error) TenantRuntime {
+func mustTenantRuntime(runtime jobruntime.Runtime, err error) ports.TenantRuntime {
 	if err != nil {
 		panic(err)
 	}
@@ -22,18 +24,18 @@ func mustTenantRuntime(runtime jobruntime.Runtime, err error) TenantRuntime {
 }
 
 // unitTenantRuntime is the database-less runtime of the test support.
-func unitTenantRuntime() TenantRuntime {
+func unitTenantRuntime() ports.TenantRuntime {
 	return mustTenantRuntime(jobruntime.New(testpkg.PassthroughTenantRuntime()))
 }
 
 // scriptedTenantRuntime is the database-less runtime with a scripted tenant
 // transaction and retry decision.
-func scriptedTenantRuntime(withinTenant func(context.Context, int64, func(context.Context, any) error) error, retryable func(error) bool) TenantRuntime {
+func scriptedTenantRuntime(withinTenant func(context.Context, int64, func(context.Context, any) error) error, retryable func(error) bool) ports.TenantRuntime {
 	return mustTenantRuntime(jobruntime.New(testpkg.ScriptedTenantRuntime(withinTenant, retryable)))
 }
 
 // dbTenantRuntime is the production tenant runtime against the test database.
-func dbTenantRuntime(t *testing.T, db *bun.DB) TenantRuntime {
+func dbTenantRuntime(t *testing.T, db *bun.DB) ports.TenantRuntime {
 	t.Helper()
 	return mustTenantRuntime(jobruntime.New(testpkg.TenantRuntime(t, db)))
 }
@@ -77,15 +79,15 @@ func TestStopCancelsRunningTaskContexts(t *testing.T) {
 }
 
 func newUnitScheduler(
-	activeService SessionMaintenance,
-	cleanupService PresenceCleanup,
-	authService AuthCleanup,
-	invitationService InvitationCleaner,
-	emailChangeCleaner EmailChangeTokenCleaner,
-	operatorInvitationCleaner OperatorInvitationCleaner,
+	activeService ports.SessionMaintenance,
+	cleanupService ports.PresenceCleanup,
+	authService ports.AuthCleanup,
+	invitationService ports.InvitationCleaner,
+	emailChangeCleaner ports.EmailChangeTokenCleaner,
+	operatorInvitationCleaner ports.OperatorInvitationCleaner,
 	logger *slog.Logger,
 ) *Scheduler {
-	scheduler := newScheduler(WorkerDependencies{
+	scheduler := newScheduler(ports.WorkerDependencies{
 		Logger:                    logger,
 		TenantRuntime:             unitTenantRuntime(),
 		Active:                    activeService,
@@ -97,7 +99,7 @@ func newUnitScheduler(
 		FeedbackCleaner:           &fakeFeedbackCleaner{},
 	})
 	jobs := scheduler.jobDefinitions()
-	required := make([]JobID, 0, len(jobs))
+	required := make([]ports.JobID, 0, len(jobs))
 	for _, job := range jobs {
 		required = append(required, job.ID())
 	}

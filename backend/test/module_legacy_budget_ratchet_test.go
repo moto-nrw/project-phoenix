@@ -156,8 +156,8 @@ var moduleLegacyFileBudgets = map[string]int{
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
-// like every entry; raised by ADR 0061.
-const moduleComposeBudgetTotal = 89915
+// like every entry; raised by ADR 0062.
+const moduleComposeBudgetTotal = 89910
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -176,7 +176,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/dataimport/compose":                    299,
 	"modules/dataimport/compose/retained":           34,
 	"modules/dataimport/inbound/compose":            131,
-	"modules/delivery/compose":                      818,
+	"modules/delivery/compose":                      816,
 	"modules/delivery/compose/email":                36,
 	"modules/delivery/compose/realtime":             30,
 	"modules/devicefleet/compose":                   712,
@@ -192,7 +192,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/feedback/compose":                      219,
 	"modules/filestorage/compose":                   642,
 	"modules/grouplive/compose":                     16,
-	// Raised by ADR 0061: the operator status lifecycle (#4047).
+	// Raised by ADR 0062: the operator status lifecycle (#4047).
 	"modules/identityaccess/compose":                  7356,
 	"modules/mealplan/compose":                        274,
 	"modules/organizationtenancy/compose":             744,
@@ -201,7 +201,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/peopledirectory/compose/vocabulary":      133,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,
-	"modules/schedulerruntime/compose":                85,
+	"modules/schedulerruntime/compose":                83,
 	"modules/schoolcalendar/compose":                  572,
 	"modules/schoolcalendar/portal/compose":           160,
 	"modules/schoolmembership/compose":                869,
@@ -222,7 +222,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/workforce/compose/repositoryadapter":     274,
 	"workflows/gradetransition/compose":               180,
 	"workflows/openroommove/compose":                  81,
-	"workflows/parentportal/compose":                  509,
+	"workflows/parentportal/compose":                  508,
 	"workflows/reminderdelivery/compose":              71,
 	"workflows/sessionend/compose":                    221,
 	"workflows/shiftplansync/compose":                 225,
