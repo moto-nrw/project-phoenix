@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -249,7 +249,7 @@ func (s *operations) checkOutStudent(ctx context.Context, accountID int64, isAdm
 // excludes. An OGS supervisor may pull a walk-in off the tenant directory; a
 // Lehrkraft's whole reach is the block she was planned into.
 func (s *operations) requireRosterStudent(ctx context.Context, inst *scheduleModels.ActivityInstance, instanceID, studentID int64) error {
-	if !isAssignmentBoundPortal(ctx) {
+	if !s.isAssignmentBoundPortal(ctx) {
 		return nil
 	}
 	onRoster, err := s.blockHoldsStudent(ctx, inst, instanceID, studentID)
