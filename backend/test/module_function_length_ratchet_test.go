@@ -84,7 +84,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// Moved in by PR #3408 (#3350) from services/users and
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
-	"modules/classday/internal/application/slotlists.go:(*service).ListOptions":                                                                 296,
 	"modules/classday/internal/application/slotlists.go:(*service).RenderList":                                                                  71,
 	"modules/classday/internal/application/slotlists.go:(*service).buildList":                                                                   127,
 	"modules/classday/internal/application/slotlists.go:(*service).classifyPlannedRow":                                                          128,
