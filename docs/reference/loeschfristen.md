@@ -63,7 +63,7 @@ Die Uhrzeit des nächtlichen Laufs (`gdpr.data_cleanup_time`) stellt die Schule 
 
 ## Offene Lücken ohne Ticket
 
-Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 16.10.2026: 10 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
+Der Wächtertest führt außerdem Tabellen mit Personenbezug, für die es weder einen Löschweg noch ein Ticket der Spec gibt (Klasse `open gap`, Stand 16.10.2026: 9 Tabellen). Sie brauchen eine Entscheidung, bevor der AVV sie zusagen kann:
 
 - **Konten und Stammdaten ohne Löschweg:** Konten (`auth.accounts`, alte Eltern-Konten), Sorgeberechtigte ohne Kind (`users.guardian_profiles`).
 - **Inhalte der Schule:** Dateiablage, Elternmitteilungen, Team-Hinweise, vergangene Termine, Klassenlisten, Jahrgangswechsel.

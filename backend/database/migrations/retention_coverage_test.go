@@ -57,7 +57,7 @@ var openSpecTickets = []string{"#3957", "#3962", "#3963"}
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
 	specGapTables = 5
-	openGapTables = 10
+	openGapTables = 9
 )
 
 // tableRetentions classifies every table of the schema.
