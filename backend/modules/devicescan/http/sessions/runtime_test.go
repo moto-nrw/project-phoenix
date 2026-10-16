@@ -6,9 +6,9 @@ import (
 
 	"github.com/go-chi/render"
 
-	sessionsAPI "github.com/moto-nrw/project-phoenix/api/iot/sessions"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
