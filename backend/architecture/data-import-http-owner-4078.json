@@ -1,0 +1,101 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "#4070",
+    "#4071"
+  ],
+  "owner_and_capability": "Data Import owns its existing HTTP adapter as data-import/http. Root api binds middleware, request identity, tenant UnitOfWork and owner capabilities; no module owns root HTTP infrastructure.",
+  "affected_packages": [
+    "api",
+    "modules/dataimport/inbound",
+    "modules/dataimport/inbound/compose",
+    "modules/dataimport/fileformat"
+  ],
+  "affected_tables": [
+    "None: schema, queries and tenant transaction boundaries are unchanged."
+  ],
+  "exact_ratchet_keys": [
+    "external_test|imports.forbidden|github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose|github.com/moto-nrw/project-phoenix/modules/dataimport/fileformat",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/api|github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
+  ],
+  "atomic_cutover": "Delete inbound-import and the old composition package; move its runtime wiring and five unchanged HTTP test suites to Root api. The existing decoder comes from dataimport/compose. Bind tenant.WithinCurrentTenant instead of the compatibility WithTenantTx callback that ignored its typed transaction and database input. The request UnitOfWork remains the transaction owner. Keep workbook fixture construction within the fileformat adapter, removing its cross-package rendering test grant without changing assertions. Delete thirteen rules and add one same-or-narrower HTTP public successor. Deleted IDs: inbound-import.e2e-test.people-directory.public, inbound-import.e2e-test.inbound-import.http, root-composition.compose.import-compose, inbound-import.compose.orm-sql, inbound-import.compose.http-router, inbound-import.compose.data-import.public, inbound-import.compose.school-membership.public, inbound-import.compose.people-directory.public, inbound-import.compose.tenant-runtime.public, inbound-import.compose.identity-access.adapter, inbound-import.compose.inbound-common.http, inbound-import.to.data-import, data-import.adapter-test.file-rendering. Successor IDs: data-import.http.public. Remove the stale HTTP ORM exception and shrink the composition LOC budget by 131 for the deleted runtime package. The route fixture exposes only the router and three staff HTTP handlers used by the suite rather than the full HTTP Resource implementation.",
+  "tests": [
+    "scripts/backend-architecture.sh check",
+    "scripts/backend-architecture.sh validate-ticket --all --base-ref <immutable development SHA>",
+    "scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development without --fast",
+    "Parent HTTP suite and TestFullProductionRouterGolden with unchanged assertions."
+  ],
+  "runtime_evidence": {
+    "source": "Existing HTTP runtime binding and HTTP test suites rehosted in Root api, with parser fixture construction kept in its owning adapter.",
+    "sources": [
+      "backend/api/data_import_http_runtime.go",
+      "backend/api/data_import_http_child_quota_test.go",
+      "backend/api/data_import_http_import_test.go",
+      "backend/api/data_import_http_batch_error_test.go",
+      "backend/api/data_import_http_upload_error_codes_test.go",
+      "backend/tenant/runtime.go"
+    ],
+    "workload": "Fresh existing import/template/preview/quota/batch/upload and production-router tests, plus the complete fileformat suite. Tests run against local isolated PostgreSQL test tenants.",
+    "thresholds": "All original assertions unchanged; no new import reach or keys, no higher budgets, identical public routes, status codes, registered error codes and committed batch progress.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "This cutover changes runtime composition location and typed transaction plumbing only; tenant UnitOfWork, SQL, schema, locking, pool settings, jobs and algorithms are unchanged. No performance claim or data migration is made."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "All 451 original assert/require calls across eight affected test files are preserved (AST comparison). The final full test-changed run without --fast passed all 67 affected packages, including api in 35.300s and test in 42.967s. Earlier full runs exposed stale ORM/LOC ratchet entries and a fixture carrier exposing the Resource implementation; those were fixed without relaxing tests or budgets. The narrow fixture explicitly includes the three staff handlers the unchanged tests directly exercise."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "Existing no-auth, missing/invalid upload, registered upload-error-code, child-quota refusal and batch failure/progress scenarios passed with unchanged assertions in the rehosted Root suites."
+    },
+    "smoke": {
+      "state": "measured",
+      "result": "The full api suite passed in 35.300s, including import CSV/XLSX template, preview, student/staff/class-list import cases and TestFullProductionRouterGolden with unchanged assertions. The complete fileformat suite passed both targeted and full changed-package runs. No native app server was needed."
+    }
+  },
+  "rollback_and_cleanup": "Revert the slice to restore inbound-import, its composition package and thirteen rules; remove the successor and restore the two exact keys. No schema or production data cleanup. Physical HTTP relocation follows separately under ADR0020 with owner and roles unchanged.",
+  "exit_criterion": "inbound-import and inbound-parent are absent, #2750 has zero keys, two exact keys are covered by this retirement evidence, no import reach or budgets grow, and required checks pass. #4078 stays open for other inbound owners."
+}
