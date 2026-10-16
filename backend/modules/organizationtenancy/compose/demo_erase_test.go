@@ -278,6 +278,40 @@ func TestDemoSchoolQueueErasesVisitorOutboxWithoutDelivery(t *testing.T) {
 	assert.Zero(t, remaining, "an outbox without a delivery must still be erased by its recipient account")
 }
 
+func TestDemoSchoolQueueRecoversVisitorAccountsAfterTheirStateWriteFails(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	queue, err := NewDemoSchoolQueue(db)
+	require.NoError(t, err)
+	schools, err := NewDemoSchools(db)
+	require.NoError(t, err)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	ctx := t.Context()
+
+	slug := orderDemoSchool(t, db, "OGS Nord")
+	_, err = queue.ClaimDemoSchoolOrder(ctx)
+	require.NoError(t, err)
+	// Simulate a seed where both SaveVisitor callbacks reached an account
+	// creation but their state writes failed. The scoped seed addresses are
+	// durable enough to recover exactly those two accounts at erasure time.
+	_, err = db.NewRaw(`UPDATE auth.accounts SET email = CASE id
+		WHEN ? THEN 'julia.klein@demo-' || regexp_replace(?, '^.*-', '') || '.moto-ogs.de'
+		WHEN ? THEN 'sabine.schneider@demo-' || regexp_replace(?, '^.*-', '') || '.moto-ogs.de'
+		END WHERE id IN (?, ?)`,
+		accounts.caregiver, slug, accounts.parent, slug, accounts.caregiver, accounts.parent).Exec(ctx)
+	require.NoError(t, err)
+	require.NoError(t, schools.RememberDemoSchool(ctx, slug, organizationtenancy.DemoSchoolState{
+		SchoolID: schoolID, SeedJSON: []byte(`{}`),
+	}))
+	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
+
+	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
+	require.NoError(t, err)
+	assert.Equal(t, 1, erased)
+	assert.Equal(t, everyTrace(0), visitorTraces(t, db, schoolID))
+}
+
 func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)

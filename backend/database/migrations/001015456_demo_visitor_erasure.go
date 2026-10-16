@@ -67,6 +67,24 @@ const demoVisitorErasureUpSQL = `
 			ADD COLUMN IF NOT EXISTS visitor_parent_account_ids BIGINT[] NOT NULL DEFAULT '{}',
 			ADD COLUMN IF NOT EXISTS visitor_school_ids BIGINT[] NOT NULL DEFAULT '{}';
 
+		-- Before this migration ReplaceAbandoned retained only the replacement
+		-- school in the state row. Its predecessor has an exact, seed-owned
+		-- marker: retireAbandonedSchool renamed its subdomain to
+		-- x<school id>-<order slug> (truncated to the PostgreSQL limit).
+		-- Recover only that marker in the current school's organization; never
+		-- infer a school from a visitor name or from every hidden demo school.
+		UPDATE platform.demo_school_states AS state
+		SET visitor_school_ids = array_remove(
+			state.visitor_school_ids || ARRAY[state.tenant_id] || COALESCE((
+				SELECT array_agg(abandoned.id ORDER BY abandoned.id)
+				FROM platform.schools AS current_school
+				JOIN platform.schools AS abandoned ON abandoned.organization_id = current_school.organization_id
+				WHERE current_school.id = state.tenant_id
+					AND abandoned.deleted_at IS NOT NULL
+					AND abandoned.subdomain = left('x' || abandoned.id::TEXT || '-' || state.name, 63)
+			), '{}'::BIGINT[]), NULL)
+		WHERE cardinality(state.visitor_school_ids) = 0;
+
 		CREATE OR REPLACE FUNCTION platform.erase_closed_demo_visitors()
 		RETURNS INTEGER
 		LANGUAGE plpgsql
@@ -76,6 +94,9 @@ const demoVisitorErasureUpSQL = `
 		AS $$
 		DECLARE
 			hidden_schools BIGINT[];
+			legacy_school_ids BIGINT[];
+			recovered_visitor_account_ids BIGINT[];
+			recovered_visitor_parent_account_ids BIGINT[];
 			erased_account_ids BIGINT[];
 			visitor RECORD;
 			target_name TEXT;
@@ -83,7 +104,7 @@ const demoVisitorErasureUpSQL = `
 		BEGIN
 			PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0));
 			FOR visitor IN
-				SELECT state.name, state.tenant_id,
+				SELECT state.name, state.tenant_id, state.attempts,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
 					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids,
 					array_remove(state.visitor_school_ids || ARRAY[state.tenant_id], NULL) AS visitor_school_ids
@@ -96,7 +117,7 @@ const demoVisitorErasureUpSQL = `
 				target_name := visitor.name;
 				PERFORM pg_advisory_xact_lock(hashtextextended('demo school seed:' || target_name, 3461));
 				PERFORM pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:' || target_name, 0));
-				SELECT state.name, state.tenant_id,
+				SELECT state.name, state.tenant_id, state.attempts,
 					array_remove(state.visitor_account_ids || ARRAY[state.visitor_account_id], NULL) AS visitor_account_ids,
 					array_remove(state.visitor_parent_account_ids || ARRAY[state.visitor_parent_account_id], NULL) AS visitor_parent_account_ids,
 					array_remove(state.visitor_school_ids || ARRAY[state.tenant_id], NULL) AS visitor_school_ids
@@ -110,11 +131,49 @@ const demoVisitorErasureUpSQL = `
 				IF NOT FOUND THEN
 					CONTINUE;
 				END IF;
+				-- Keep the runtime path in addition to the migration backfill. It
+				-- covers a row restored from a pre-migration backup before it is
+				-- erased, using the same exact replacement marker.
+				SELECT COALESCE(array_agg(abandoned.id ORDER BY abandoned.id), '{}'::BIGINT[])
+				INTO legacy_school_ids
+				FROM platform.schools AS current_school
+				JOIN platform.schools AS abandoned ON abandoned.organization_id = current_school.organization_id
+				WHERE current_school.id = visitor.tenant_id
+					AND abandoned.deleted_at IS NOT NULL
+					AND abandoned.subdomain = left('x' || abandoned.id::TEXT || '-' || visitor.name, 63);
+				visitor.visitor_school_ids := array_remove(visitor.visitor_school_ids || legacy_school_ids, NULL);
+				SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
+				FROM platform.schools AS school
+				WHERE school.id = ANY (visitor.visitor_school_ids)
+					AND school.deleted_at IS NOT NULL;
+				-- SaveVisitor writes the account ids immediately after each account
+				-- is created. If that database write itself failed, recover only the
+				-- two deterministic seed identities in the affected schools. The
+				-- random order suffix and attempt number make these account addresses
+				-- independent of a visitor's display name.
+				SELECT COALESCE(array_agg(account.id), '{}'::BIGINT[])
+				INTO recovered_visitor_account_ids
+				FROM users.persons AS person
+				JOIN auth.accounts AS account ON account.id = person.account_id
+				WHERE person.tenant_id = ANY (hidden_schools)
+					AND account.email = ANY (ARRAY(
+						SELECT 'julia.klein@demo-' || regexp_replace(visitor.name, '^.*-', '') ||
+							CASE WHEN attempt.number > 1 THEN '-' || attempt.number::TEXT ELSE '' END || '.moto-ogs.de'
+						FROM generate_series(1, GREATEST(visitor.attempts, 1)) AS attempt(number)
+					));
+				SELECT COALESCE(array_agg(account.id), '{}'::BIGINT[])
+				INTO recovered_visitor_parent_account_ids
+				FROM users.guardian_profiles AS guardian
+				JOIN auth.accounts AS account ON account.id = guardian.account_id
+				WHERE guardian.tenant_id = ANY (hidden_schools)
+					AND account.email = ANY (ARRAY(
+						SELECT 'sabine.schneider@demo-' || regexp_replace(visitor.name, '^.*-', '') ||
+							CASE WHEN attempt.number > 1 THEN '-' || attempt.number::TEXT ELSE '' END || '.moto-ogs.de'
+						FROM generate_series(1, GREATEST(visitor.attempts, 1)) AS attempt(number)
+					));
+				visitor.visitor_account_ids := array_remove(visitor.visitor_account_ids || recovered_visitor_account_ids, NULL);
+				visitor.visitor_parent_account_ids := array_remove(visitor.visitor_parent_account_ids || recovered_visitor_parent_account_ids, NULL);
 				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
-					SELECT COALESCE(array_agg(school.id), '{}') INTO hidden_schools
-					FROM platform.schools AS school
-					WHERE school.id = ANY (visitor.visitor_school_ids)
-						AND school.deleted_at IS NOT NULL;
 					UPDATE users.persons SET first_name = 'Demo', last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
 						AND account_id = ANY (visitor.visitor_account_ids);

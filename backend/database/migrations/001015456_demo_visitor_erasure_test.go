@@ -1,12 +1,39 @@
 package migrations
 
 import (
+	"fmt"
 	"testing"
 
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestDemoVisitorErasureBackfillsAbandonedReplacementSchools(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := t.Context()
+	currentID, _ := testpkg.CreateTestTenant(t, db)
+	const slug = "ogs-legacy-abc123"
+
+	var abandonedID int64
+	require.NoError(t, db.NewRaw(`INSERT INTO platform.schools (organization_id, name, slug, subdomain, deleted_at)
+		SELECT organization_id, 'Aufgegebene Demo', 'aufgegeben', 'aufgegeben', NOW()
+		FROM platform.schools WHERE id = ? RETURNING id`, currentID).Scan(ctx, &abandonedID))
+	retiredSubdomain := fmt.Sprintf("x%d-%s", abandonedID, slug)
+	_, err := db.NewRaw(`UPDATE platform.schools SET slug = ?, subdomain = ? WHERE id = ?`,
+		retiredSubdomain, retiredSubdomain, abandonedID).Exec(ctx)
+	require.NoError(t, err)
+	_, err = db.NewRaw(`INSERT INTO platform.demo_school_states (name, tenant_id, seed_state, status)
+		VALUES (?, ?, '{}'::jsonb, 'ready')`, slug, currentID).Exec(ctx)
+	require.NoError(t, err)
+
+	require.NoError(t, demoVisitorErasureUp(ctx, db))
+	var recovered bool
+	require.NoError(t, db.NewRaw(`SELECT ? = ANY(visitor_school_ids) FROM platform.demo_school_states WHERE name = ?`,
+		abandonedID, slug).Scan(ctx, &recovered))
+	assert.True(t, recovered, "the pre-migration abandoned school is retained for visitor erasure")
+}
 
 // Only the demo process erases demo visitors (#4048). The function writes
 // tables of other owners as their owner, so no serving role may call it,
