@@ -78,7 +78,7 @@ func (f *careFixture) emitter(
 	broadcaster realtime.Broadcaster,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := communicationtest.NewParentEventEmitter(f.db, testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
 	return emitter
 }
 

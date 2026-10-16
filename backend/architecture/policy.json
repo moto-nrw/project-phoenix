@@ -10039,50 +10039,6 @@
       "target_role": "public"
     },
     {
-      "id": "communication.test-support.application",
-      "description": "Communication test support returns the consumer-facing emitter shell.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "communication",
-      "target_role": "application"
-    },
-    {
-      "id": "communication.test-support.delivery-public",
-      "description": "Communication test support accepts the realtime broadcaster under test.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
-      "id": "communication.test-support.tenant-runtime",
-      "description": "Communication test support accepts the unit of work the detached parent-event paths run under.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "communication",
-      "source_role": "test-support",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "people-directory.adapter-test.communication-support",
-      "description": "Student route tests compose the real guardian wake through Communication test support (#2731).",
-      "scopes": [
-        "external_test"
-      ],
-      "source_owner": "people-directory",
-      "source_role": "adapter-test",
-      "target_owner": "communication",
-      "target_role": "test-support"
-    },
-    {
       "id": "communication.integration-test.organization-compose",
       "description": "Communication integration tests compose target validation with Organization and Tenancy.",
       "scopes": [
