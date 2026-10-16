@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
@@ -47,7 +46,7 @@ func keysetPage[T any](
 		if filters.StudentID != 0 && studentID != filters.StudentID {
 			continue
 		}
-		if filters.Search != "" && !strutil.ContainsFold(name, filters.Search) {
+		if filters.Search != "" && !containsFold(name, filters.Search) {
 			continue
 		}
 		matched = append(matched, row)

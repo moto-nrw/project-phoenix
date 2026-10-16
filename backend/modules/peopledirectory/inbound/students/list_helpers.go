@@ -16,7 +16,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/internal/strutil"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -459,18 +458,18 @@ func matchesSearchFilter(person *peopleModule.Person, studentID int64, search st
 	studentIDStr := strconv.FormatInt(studentID, 10)
 	fullName := person.FirstName + " " + person.LastName
 
-	return strutil.ContainsFold(person.FirstName, search) ||
-		strutil.ContainsFold(person.LastName, search) ||
-		strutil.ContainsFold(studentIDStr, search) ||
-		strutil.ContainsFold(fullName, search)
+	return containsFold(person.FirstName, search) ||
+		containsFold(person.LastName, search) ||
+		containsFold(studentIDStr, search) ||
+		containsFold(fullName, search)
 }
 
 // matchesNameFilters checks if a student matches the name filters
 func matchesNameFilters(person *peopleModule.Person, firstName, lastName string) bool {
-	if firstName != "" && !strutil.ContainsFold(person.FirstName, firstName) {
+	if firstName != "" && !containsFold(person.FirstName, firstName) {
 		return false
 	}
-	if lastName != "" && !strutil.ContainsFold(person.LastName, lastName) {
+	if lastName != "" && !containsFold(person.LastName, lastName) {
 		return false
 	}
 	return true
