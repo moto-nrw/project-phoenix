@@ -23,14 +23,14 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/care|github.com/moto-nrw/project-phoenix/models/config",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/models/config"
   ],
-  "atomic_cutover": "Twenty-nine consumer key/enum strings are identical to the former models/config values, including the public review BookingsAuthoritative alias. The workflow port names its own vocabulary; test imports change mechanically with all assertions preserved. Five models/config keys fall. The only five remaining strutil call sites use a local strings.TrimSpace/nil helper with the same non-mutating semantics; the unused legacy-shared package and its one classification are deleted. One additional strutil key falls. Keys 273 -> 267; #4073 48 -> 42; rules 925 -> 925; composition 1664 -> 1664; portal compose budget 507 -> 507 and total 67661 -> 67661. No rule, grant, owner or facade added. No HTTP/package moves beyond deleting the unused utility.",
+  "atomic_cutover": "Twenty-nine consumer key/enum strings are identical to the former models/config values, including the public review BookingsAuthoritative alias. The workflow port names its own vocabulary; test imports change mechanically with all assertions preserved. Five models/config keys fall. The only five remaining strutil call sites use a local strings.TrimSpace/nil helper with the same non-mutating semantics; the unused legacy-shared package and its one classification are deleted. One additional strutil key falls. Keys 270 -> 264; #4073 48 -> 42; rules 918 -> 918; composition 1664 -> 1664; portal compose budget 507 -> 507 and total 67661 -> 67661. No rule, grant, owner or facade added. No HTTP/package moves beyond deleting the unused utility.",
   "tests": [
     "Source comparison: 29/29 consumer strings equal the existing models/config and modules/settings/review vocabulary.",
-    "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref 81cb7509d69bdb51825239a45b3341436b72604d.",
+    "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref 43ed3af94931ff10f79fb0c281a1fba134666ece.",
     "Pinned complete non-fast scripts/test-changed.sh origin/development; existing parent settings, reason, cutoff, guardian contact/relationship permissions and API/router suites; lint/import/deadcode gates. No assertions or timeout changes."
   ],
   "runtime_evidence": {
-    "source": "Local verification of the workflow vocabulary and final optional-text utility cut on development 81cb7509d69bdb51825239a45b3341436b72604d. No production/staging sample or latency benchmark.",
+    "source": "Local verification of the workflow vocabulary and final optional-text utility cut on development 43ed3af94931ff10f79fb0c281a1fba134666ece. No production/staging sample or latency benchmark.",
     "sources": [
       "backend/workflows/parentportal/care/setting_keys.go",
       "backend/workflows/parentportal/vocabulary.go",
