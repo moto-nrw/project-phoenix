@@ -9373,16 +9373,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-sse.orm-sql",
-      "description": "SSE HTTP composition accepts Bun.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-sse",
-      "source_role": "http",
-      "target_class": "orm-sql"
-    },
-    {
       "id": "inbound-sse.adapter-test.crypto",
       "description": "SSE adapter tests mint signed JWT fixtures.",
       "scopes": [
