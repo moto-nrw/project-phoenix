@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
-	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/api/staff-shifts"
+	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -13,7 +13,7 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/inbound/timetracking"
+	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 

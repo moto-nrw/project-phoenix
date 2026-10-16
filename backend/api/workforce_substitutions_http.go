@@ -7,9 +7,9 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	substitutionsHTTP "github.com/moto-nrw/project-phoenix/api/substitutions"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
