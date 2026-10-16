@@ -94,7 +94,7 @@ func TestStaffScheduleOverview_TenantIsolationAcrossEveryProjectionRead(t *testi
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
@@ -212,7 +212,7 @@ func TestStaffScheduleOverview_WeeklySummariesResolveSollAndIsolateTenant(t *tes
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
@@ -296,7 +296,7 @@ func TestStaffScheduleOverview_WeeklySummariesIncludeShiftsOutsideViewport(t *te
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: shiftRows, Instances: timetableRepos.InstanceReads(),
 		InstanceStaff: timetableRepos.InstanceStaffReads(),
-		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: repos.Staff,
+		Rooms:         api.NewRoomRepository(owners.Rooms), Staff: api.NewPlanStaffDirectory(repos.Staff),
 		WorkSchedules: workforceRepositoryAdapter.NewStaffWorkScheduleRepository(owners.Workforce), WorkModels: workforceRepositoryAdapter.NewWorkTimeModelRepository(owners.Workforce),
 	})
 
