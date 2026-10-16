@@ -348,7 +348,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 	communicationCapability, err := communicationCompose.New(communicationCompose.Dependencies{
 		DB:            pool,
 		Organizations: organizations,
-		People:        persons,
+		Viewers:       communicationViewerNames{query: persons},
 		Audit:         communicationCompose.NewOperatorAnnouncementAudit(NewOperatorAuditLog(db).Create),
 		Observe:       observeCommunication,
 	})
