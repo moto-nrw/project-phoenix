@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	substitutionsHTTP "github.com/moto-nrw/project-phoenix/api/substitutions"
+	substitutionsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/substitutions"
 	"github.com/stretchr/testify/require"
 )
 
