@@ -55,7 +55,6 @@ import (
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound"
-	importCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/inbound/compose"
 	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
@@ -1757,7 +1756,7 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 	// CSV/Excel import endpoints.
 	tenant.Mount("/import", importAPI.NewResource(importAPI.Dependencies{
 		Students: modules.imports.Student, Staff: modules.imports.Staff, ClassList: modules.imports.ClassList,
-		Files: dataImportCompose.NewFileDecoder(), Runtime: importCompose.HTTPRuntime(pool, svc.PeopleDirectory, modules.membership, modules.imports.OpeningBalance),
+		Files: dataImportCompose.NewFileDecoder(), Runtime: dataImportHTTPRuntime(svc.PeopleDirectory, modules.membership, modules.imports.OpeningBalance),
 	}).Router())
 	tenant.Mount("/admin/grade-transitions", gradeTransitionHTTP.NewGradeTransitionResource(svc.GradeTransition).Router())
 }

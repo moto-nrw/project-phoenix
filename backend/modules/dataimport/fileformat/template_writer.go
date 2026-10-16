@@ -51,15 +51,15 @@ func (Decoder) Template(kind dataimport.TemplateKind, format dataimport.FileForm
 		writer.Flush()
 		return output.Bytes(), writer.Error()
 	case dataimport.XLSX:
-		file := excelize.NewFile()
+		file, err := newExcelSheet(sheetName)
+		if err != nil {
+			return nil, err
+		}
 		defer func() {
 			if err := file.Close(); err != nil {
 				slog.Default().Error("Error closing Excel file", slog.String("error", err.Error()))
 			}
 		}()
-		if err := setupExcelSheet(file, sheetName); err != nil {
-			return nil, err
-		}
 		writeExcelHeaders(file, sheetName, headers)
 		writeExcelExampleRows(file, sheetName, examples)
 		setExcelColumnWidths(file, sheetName, len(headers), width)
