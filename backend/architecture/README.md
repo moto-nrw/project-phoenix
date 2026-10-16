@@ -3898,6 +3898,20 @@ the shared authorization rules stay in the composition behind the
 application's `OperationCaller` port (`compose/operation_caller.go`), so the
 moved code imports neither `auth/authorize` nor the session token adapter.
 
+Epoch 57 replaces the 99 same-owner aliases of the Timetable composition
+(`compose/templates.go`, `instances.go`, `operations.go`) with defined types
+in the non-internal package `modules/timetable/ports` (role `port`). The
+roots, the HTTP tests and the Care Plan contract suite name those types
+directly; the composition only constructs. ADR 0058 addendum point 5 makes
+`port` a source role of the reach (`reviewedInternalReachRule`). The epoch
+adds `domain.port-public` (and deletes `care-plan.port.care-plan.public`,
+which it covers), `timetable-activities.port.student-presence.public`,
+`timetable-activities.port.legacy-model` (temporary until #4086 dissolves
+`models/schedule` and `models/activities`),
+`care-plan.contracttest.timetable-activities.port` (narrowing of the
+contract suite's existing compose reach) and, accepted by the ADR 0053
+composition reach, `root-composition.reach.domain.port`; 902 → 906 rules.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

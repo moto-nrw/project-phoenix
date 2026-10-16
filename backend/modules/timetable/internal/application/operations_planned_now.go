@@ -7,6 +7,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -91,7 +92,7 @@ func (s *operations) plannedNowAccess(ctx context.Context, accountID int64, isAd
 	if !hasStaff && !access.allOperational {
 		return plannedNowAccess{}, timetable.ErrTimetableOperationForbidden
 	}
-	access.startsAny, err = s.schoolWideScope(ctx, accountID, isAdmin, ScopedBlockStart)
+	access.startsAny, err = s.schoolWideScope(ctx, accountID, isAdmin, ports.ScopedBlockStart)
 	if err != nil {
 		return plannedNowAccess{}, err
 	}
@@ -173,7 +174,7 @@ func (s *operations) plannedNowCandidates(
 			roomName:    roomNames[inst.RoomID],
 			canStart: inst.TemplateType != timetable.GroupTypeDuty && access.hasStaff &&
 				(access.adminActions || staffAssigned(staffByInstance[inst.ID], access.staffID) ||
-					access.startsAny && s.scopeAdmits(ScopedBlockStart, inst)),
+					access.startsAny && s.scopeAdmits(ports.ScopedBlockStart, inst)),
 		})
 	}
 	return candidates, nil

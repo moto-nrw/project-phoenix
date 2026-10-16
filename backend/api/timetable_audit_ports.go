@@ -5,7 +5,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
 // The Audit Platform's trails the Timetable owner writes through
@@ -18,12 +18,12 @@ import (
 // key of this map literal.
 var _ = map[bool]struct{}{
 	false: {},
-	auditModels.DeviationEventAbsence == timetableCompose.DeviationEventAbsence &&
-		auditModels.DeviationEventReturnToPresence == timetableCompose.DeviationEventReturnToPresence &&
-		auditModels.DeviationEventSubstitution == timetableCompose.DeviationEventSubstitution &&
-		auditModels.DeviationEventSubstituteRemoved == timetableCompose.DeviationEventSubstituteRemoved &&
-		auditModels.DeviationEventSickReported == timetableCompose.DeviationEventSickReported &&
-		auditModels.DeviationEventSickCleared == timetableCompose.DeviationEventSickCleared &&
+	auditModels.DeviationEventAbsence == timetablePorts.DeviationEventAbsence &&
+		auditModels.DeviationEventReturnToPresence == timetablePorts.DeviationEventReturnToPresence &&
+		auditModels.DeviationEventSubstitution == timetablePorts.DeviationEventSubstitution &&
+		auditModels.DeviationEventSubstituteRemoved == timetablePorts.DeviationEventSubstituteRemoved &&
+		auditModels.DeviationEventSickReported == timetablePorts.DeviationEventSickReported &&
+		auditModels.DeviationEventSickCleared == timetablePorts.DeviationEventSickCleared &&
 		auditModels.AttendanceFieldStatus == timetable.AttendanceCorrectionFieldStatus &&
 		auditModels.AttendanceFieldSubstatus == timetable.AttendanceCorrectionFieldSubstatus &&
 		auditModels.AttendanceFieldNote == timetable.AttendanceCorrectionFieldNote &&
@@ -33,7 +33,7 @@ var _ = map[bool]struct{}{
 // TimetableAttendanceCorrectionTrail serves the correction trail from the
 // Audit Platform's attendance corrections; nil stays nil, so the correction
 // fails closed.
-func TimetableAttendanceCorrectionTrail(corrections attendanceCorrectionLedger) timetableCompose.AttendanceCorrectionTrail {
+func TimetableAttendanceCorrectionTrail(corrections attendanceCorrectionLedger) timetablePorts.AttendanceCorrectionTrail {
 	if corrections == nil {
 		return nil
 	}
@@ -51,7 +51,7 @@ type timetableCorrectionTrail struct {
 	corrections attendanceCorrectionLedger
 }
 
-func (t timetableCorrectionTrail) RecordAttendanceCorrections(ctx context.Context, records []timetableCompose.AttendanceCorrectionRecord) error {
+func (t timetableCorrectionTrail) RecordAttendanceCorrections(ctx context.Context, records []timetablePorts.AttendanceCorrectionRecord) error {
 	rows := make([]*auditModels.AttendanceCorrection, 0, len(records))
 	for _, record := range records {
 		rows = append(rows, &auditModels.AttendanceCorrection{

@@ -26,6 +26,7 @@ import (
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -102,7 +103,7 @@ func detectWindowConflicts(inputs []windowConflictInput) map[int64][]timetable.I
 		}
 		blocks = append(blocks, block)
 	}
-	detection := &conflictDetection{deps: ConflictDetectionDependencies{ContentHash: testContentHash}}
+	detection := &conflictDetection{deps: ports.ConflictDetectionDependencies{ContentHash: testContentHash}}
 	return detection.DetectWindowConflicts(blocks)
 }
 

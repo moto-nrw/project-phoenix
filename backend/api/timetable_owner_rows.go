@@ -6,7 +6,7 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,7 +18,7 @@ type timetableGroupLookup interface {
 
 // TimetableEducationGroupNames names School Structure's education groups
 // for the Timetable owner rows (#3551).
-func TimetableEducationGroupNames(groups timetableGroupLookup) timetableCompose.EducationGroupNames {
+func TimetableEducationGroupNames(groups timetableGroupLookup) timetablePorts.EducationGroupNames {
 	return timetableEducationGroupNames{groups: groups}
 }
 
@@ -43,7 +43,7 @@ func (g timetableEducationGroupNames) EducationGroupNames(ctx context.Context, i
 // TimetableDeviationPorts binds the Audit Platform's Änderungsprotokoll to
 // the Timetable owner rows: the reader, and the protocol, which stays unbound
 // without a repository so the deviation writes fail closed.
-func TimetableDeviationPorts(events TimetableDeviationTrail) (timetableCompose.DeviationEventReader, timetableCompose.DeviationProtocol) {
+func TimetableDeviationPorts(events TimetableDeviationTrail) (timetablePorts.DeviationEventReader, timetablePorts.DeviationProtocol) {
 	if events == nil {
 		return timetableDeviationEvents{}, nil
 	}
@@ -52,7 +52,7 @@ func TimetableDeviationPorts(events TimetableDeviationTrail) (timetableCompose.D
 
 // TimetableDeviationProtocol appends the owner's Änderungsprotokoll entries
 // to the Audit Platform's deviation events.
-func TimetableDeviationProtocol(events TimetableDeviationTrail) timetableCompose.DeviationProtocol {
+func TimetableDeviationProtocol(events TimetableDeviationTrail) timetablePorts.DeviationProtocol {
 	return timetableDeviationProtocol{events: events}
 }
 
@@ -60,7 +60,7 @@ type timetableDeviationProtocol struct {
 	events TimetableDeviationTrail
 }
 
-func (p timetableDeviationProtocol) RecordDeviationEvent(ctx context.Context, event timetableCompose.DeviationEventRecord) error {
+func (p timetableDeviationProtocol) RecordDeviationEvent(ctx context.Context, event timetablePorts.DeviationEventRecord) error {
 	return p.events.Create(ctx, &auditModels.DeviationEvent{
 		ActivityGroupID: event.ActivityGroupID,
 		OccurrenceDate:  auditModels.Date(event.OccurrenceDate),

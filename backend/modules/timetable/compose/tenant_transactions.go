@@ -6,7 +6,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -20,7 +20,7 @@ func (t tenantTransactions) InTenant(ctx context.Context, tenantID int64, fn fun
 
 // NewTenantTransactions binds the tenant transactions to the database; a nil
 // database gives nil, which the services read as "not configured".
-func NewTenantTransactions(db *bun.DB) application.TenantTransactions {
+func NewTenantTransactions(db *bun.DB) ports.TenantTransactions {
 	if db == nil {
 		return nil
 	}
@@ -34,7 +34,7 @@ type tenantDatabase struct {
 
 // NewTenantDatabase binds the tenant transactions and the advisory locks to
 // the database; a nil database gives nil.
-func NewTenantDatabase(db *bun.DB) application.TenantDatabase {
+func NewTenantDatabase(db *bun.DB) ports.TenantDatabase {
 	if db == nil {
 		return nil
 	}

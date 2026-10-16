@@ -8,6 +8,7 @@ import (
 
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -47,7 +48,7 @@ func TestClearUnderstaffedAckIfStaffed_NoAckIsNoop(t *testing.T) {
 	inst := ackUnitInstance(false)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
@@ -68,7 +69,7 @@ func TestClearUnderstaffedAckIfStaffed_StillShortStaffedKeepsAck(t *testing.T) {
 		{StaffID: 11, IsAbsent: false, IsSubstitute: false},
 		{StaffID: 12, IsAbsent: true, IsSubstitute: false},
 	}}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
@@ -91,7 +92,7 @@ func TestClearUnderstaffedAckIfStaffed_FullyStaffedClearsAck(t *testing.T) {
 		{StaffID: 11, IsAbsent: true, IsSubstitute: false},
 		{StaffID: 12, IsAbsent: false, IsSubstitute: true},
 	}}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStaffRepo: staffRepo,
 		Protocol:          events,
@@ -116,7 +117,7 @@ func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
 	inst := ackUnitInstance(true)
 	instanceRepo := &deleteUnitInstanceRepo{instance: inst}
 	staffRepo := &ackUnitStaffRepo{err: errors.New("staff load failed")}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
@@ -124,7 +125,7 @@ func TestClearUnderstaffedAckIfStaffed_LoadStaffError(t *testing.T) {
 	}}
 
 	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil)
-	var scheduleErr *ScheduleError
+	var scheduleErr *ports.ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "clear stale ack: load staff", scheduleErr.Op)
 }
@@ -133,14 +134,14 @@ func TestClearUnderstaffedAckIfStaffed_LoadInstanceError(t *testing.T) {
 	t.Parallel()
 
 	instanceRepo := &deleteUnitInstanceRepo{findErr: errors.New("instance load failed")}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStaffRepo: &ackUnitStaffRepo{},
 		Logger:            slog.New(slog.DiscardHandler),
 	}}
 
 	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), int64(700), nil)
-	var scheduleErr *ScheduleError
+	var scheduleErr *ports.ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "load instance", scheduleErr.Op)
 }
@@ -153,7 +154,7 @@ func TestClearUnderstaffedAckIfStaffed_UpdatePersistError(t *testing.T) {
 	staffRepo := &ackUnitStaffRepo{rows: []*scheduleModel.InstanceStaff{
 		{StaffID: 11, IsAbsent: false, IsSubstitute: false},
 	}}
-	svc := &InstanceLifecycleService{deps: InstanceLifecycleDependencies{
+	svc := &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:      instanceRepo,
 		InstanceStaffRepo: staffRepo,
 		Protocol:          &recordingDeviationProtocol{},
@@ -161,7 +162,7 @@ func TestClearUnderstaffedAckIfStaffed_UpdatePersistError(t *testing.T) {
 	}}
 
 	err := svc.ClearUnderstaffedAckIfStaffed(context.Background(), inst.ID, nil)
-	var scheduleErr *ScheduleError
+	var scheduleErr *ports.ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)
 	assert.Equal(t, "clear stale ack: update", scheduleErr.Op)
 }
