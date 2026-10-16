@@ -22,13 +22,13 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/care|github.com/moto-nrw/project-phoenix/services/parentmessaging",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/compose|github.com/moto-nrw/project-phoenix/services/parentmessaging"
   ],
-  "atomic_cutover": "The root binds the consumer event port to the public parent-authored Communication event capability. Recipient, actor, tenant, child, request status and reference stay separate. Emission and guardian invalidation remain optional and after commit. The explicit-tenant shared fail-open setting policy moves to Communication public; the compatibility function delegates to that same policy, so staff and parent paths do not diverge. The workflow gate is bound separately from its optional emitter. Existing test settings are hoisted unchanged and passed to both ports; all original assertions remain. Keys 249 -> 247; #4073 42 -> 40; rules 912 -> 912; composition 1657 unchanged; portal compose 507 unchanged; total compose 67632 unchanged. No rules or grants added or removed. Messaging declaration access remains for a following port cut.",
+  "atomic_cutover": "The root binds the consumer event port to the public parent-authored Communication event capability. Recipient, actor, tenant, child, request status and reference stay separate. Emission and guardian invalidation remain optional and after commit. The explicit-tenant shared fail-open setting policy moves to Communication public; the compatibility function delegates to that same policy, so staff and parent paths do not diverge. The workflow gate is bound separately from its optional emitter. Existing test settings are hoisted unchanged and passed to both ports; all original assertions remain. Keys 230 -> 228; #4073 42 -> 40; rules 902 -> 902; composition 1657 unchanged; portal compose 507 unchanged; total compose 67622 unchanged. No rules or grants added or removed. Messaging declaration access remains for a following port cut.",
   "tests": [
-    "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref 7f37c5c11cd0ee04c109bdf987e3feab85138012.",
+    "GOCACHE=/tmp/gocache-4073 scripts/run-go-toolchain.sh scripts/backend-architecture.sh check; validate-ticket --all --base-ref 1ae678a15c56ff7cee4e7fb7ce5fa23eced4ec83.",
     "Pinned full non-fast scripts/test-changed.sh origin/development; lint. Existing portal/care/Communication and HTTP suites retain all assertions. New root tests preserve tenant/context, setting-key/error direction, recipient versus actor and event/ref forwarding."
   ],
   "runtime_evidence": {
-    "source": "Local in-process port cut against development 7f37c5c11cd0ee04c109bdf987e3feab85138012; localhost test database only.",
+    "source": "Local in-process port cut against development 1ae678a15c56ff7cee4e7fb7ce5fa23eced4ec83; localhost test database only.",
     "sources": [
       "backend/api/parent_portal_messaging_ports.go",
       "backend/api/parent_portal_messaging_ports_test.go",

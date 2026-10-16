@@ -117,7 +117,7 @@ const (
 // moduleLegacyBudgetTotal is the sum of every entry below, measured with the
 // same run. It catches LOC moved between two legacy trees, which leaves the
 // individual budgets looking fine. Shrink-only, like every entry.
-const moduleLegacyBudgetTotal = 2731
+const moduleLegacyBudgetTotal = 1798
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
@@ -157,7 +157,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry.
-const moduleComposeBudgetTotal = 67632
+const moduleComposeBudgetTotal = 67622
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -190,7 +190,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/facilities/compose/repositoryadapter":   242,
 	"modules/feedback/compose":                       219,
 	"modules/filestorage/compose":                    642,
-	"modules/grouplive/compose":                      16,
+	"modules/grouplive/compose":                      14,
 	"modules/guardianlinkview/compose":               8, // #4076, see the parent request feed projection below
 	"modules/identityaccess/compose":                 7339,
 	"modules/mealplan/compose":                       274,
@@ -218,7 +218,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentdirectoryview/compose":            9, // #4076, see the parent request feed projection above
 	"modules/studentpresence/compose":                 1805,
 	"modules/studentpresence/compose/presenceservice": 873,
-	"modules/supervisiondashboard/compose":            27,
+	"modules/supervisiondashboard/compose":            19,
 	"modules/timetable/compose":                       14251,
 	"modules/timetable/compose/httpadapter":           3964,
 	"modules/timetableenrollmentprovenance/compose":   10, // #4076, see the parent request feed projection above
@@ -246,16 +246,17 @@ var moduleComposeBudgets = map[string]int{
 var moduleLegacyBudgets = map[string]int{
 	// No ticket today.
 	"modules/devicefleet/compose/legacy": 231,
-	// No ticket today.
-	"modules/emergencysnapshot/legacy": 298,
+	// #4077 moved the adapters into the root; the German name order stays
+	// until #4086 settles internal/collation.
+	"modules/emergencysnapshot/legacy": 11,
 	// No ticket today.
 	"modules/facilities/compose/legacy": 517,
-	// No ticket today. Two lines under the first seed: #3427 removed the
-	// carelifecycle import PR #3408 (#3350) had added to legacy.go, and #3501
-	// replaced the user-context service with a local CallerContext port.
-	"modules/grouplive/legacy": 539,
-	// No ticket today.
-	"modules/supervisiondashboard/legacy": 701,
+	// #4077 moved the adapters into the root; the German name order stays
+	// until #4086 settles internal/collation.
+	"modules/grouplive/legacy": 11,
+	// No ticket today. #4077 moved the access, settings and yard adapters
+	// into the root.
+	"modules/supervisiondashboard/legacy": 583,
 	// No ticket today — and the largest tree of the twelve.
 	// No ticket today — grew from 15,402 LOC at creation to 15,666. #3556
 	// moved the group substitution relations to the legacy root's binding,

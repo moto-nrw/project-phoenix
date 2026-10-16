@@ -7,15 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	educationModels "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	facilitiesService "github.com/moto-nrw/project-phoenix/services/facilities"
 	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -89,15 +85,6 @@ func (m *mockEducationService) GetGroupsWithRoomsByIDs(_ context.Context, ids []
 	return m.getGroupsWithRoomsByIDsFn(ids)
 }
 
-type mockSchulhofService struct {
-	facilitiesService.SchulhofService
-	statusFn func(staffID int64) (*facilitiesService.SchulhofStatus, error)
-}
-
-func (m *mockSchulhofService) GetSchulhofStatus(_ context.Context, staffID int64) (*facilitiesService.SchulhofStatus, error) {
-	return m.statusFn(staffID)
-}
-
 type mockOperationsService struct {
 	timetable.OperationQuery
 	plannedNowFn     func(calendarpkg.Date, time.Time, timetable.PlannedNowOptions) ([]timetable.OperationPlannedInstance, error)
@@ -135,30 +122,26 @@ func (m *mockArrivalService) GetBulkEffectiveArrivalTimesForDate(_ context.Conte
 	return m.getBulkEffectiveArrivalTimesForDateFn(studentIDs, date)
 }
 
+// rootPorts stands in for the access, settings and yard ports the root
+// binds; the composition only needs them present.
+type rootPorts struct {
+	supervisiondashboard.Access
+	supervisiondashboard.Settings
+	supervisiondashboard.Yard
+}
+
 func fullSources() Sources {
 	return Sources{
+		Access:      rootPorts{},
 		Active:      &mockActiveService{},
 		UserContext: &mockUserContextService{},
 		Education:   &mockEducationService{},
-		Schulhof:    &mockSchulhofService{},
+		Yard:        rootPorts{},
 		Operations:  &mockOperationsService{},
-		Settings:    &settingsDouble{},
+		Settings:    rootPorts{},
 		Pickups:     &mockPickupService{},
 		Arrivals:    &mockArrivalService{},
 	}
-}
-
-func adminContext() context.Context {
-	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{
-		AccountID: 99,
-		TenantID:  23,
-		Scope:     string(permissions.ScopeTenant),
-		Admin:     true,
-	})
-	if err != nil {
-		panic(err)
-	}
-	return permissions.WithPrincipal(context.Background(), principal)
 }
 
 func int64Ptr(value int64) *int64 { return &value }
@@ -173,43 +156,6 @@ func TestNewRejectsMissingSourcesAtComposition(t *testing.T) {
 	query, err = New(fullSources())
 	require.NoError(t, err)
 	assert.NotNil(t, query)
-}
-
-func TestCallerResolvesOverviewAndPermissions(t *testing.T) {
-	t.Parallel()
-
-	settings := &settingsDouble{ResolveStringFn: func(_ context.Context, key string) (string, error) {
-		if key != configModel.KeyOperationalOverviewScope {
-			return "", errors.New("unexpected settings key: " + key)
-		}
-		return configModel.OverviewScopeAdmins, nil
-	}}
-	a := access{settings: settings}
-
-	ctx := context.WithValue(adminContext(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 99, IsAdmin: true})
-	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{permissions.SchedulesRead})
-	caller, err := a.Caller(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, supervisiondashboard.Caller{
-		AccountID: 99, TokenAdmin: true, AdminScope: true, OperationalOverview: true, CanReadSchedules: true,
-	}, caller)
-
-	settings.ResolveStringFn = func(context.Context, string) (string, error) {
-		return configModel.OverviewScopeOwn, nil
-	}
-	caller, err = a.Caller(ctx)
-	require.NoError(t, err)
-	assert.True(t, caller.OperationalOverview, "admins always have the school-wide overview")
-
-	settings.ResolveStringFn = func(context.Context, string) (string, error) { return "", errors.New("boom") }
-	_, err = a.Caller(ctx)
-	require.ErrorContains(t, err, "operational overview scope")
-
-	plain := context.WithValue(context.Background(), sessiontoken.CtxPermissions, []string{permissions.UsersRead})
-	settings.ResolveStringFn = func(context.Context, string) (string, error) { return configModel.OverviewScopeOwn, nil }
-	caller, err = a.Caller(plain)
-	require.NoError(t, err)
-	assert.Equal(t, supervisiondashboard.Caller{CanReadStudents: true}, caller)
 }
 
 func TestRunningSessionsResolveRelationsAndRooms(t *testing.T) {
@@ -337,75 +283,6 @@ func TestMyGroupsResolvesRoomsOnlyForGroupsWithRooms(t *testing.T) {
 	got, err = g.MyGroups(ctx)
 	require.NoError(t, err)
 	assert.Empty(t, got)
-}
-
-func TestSettingsBranches(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
-	mock := &settingsDouble{
-		ResolveBoolFn:   func(context.Context, string) (bool, error) { return true, nil },
-		ResolveStringFn: func(context.Context, string) (string, error) { return "", errors.New("boom") },
-	}
-	s := settings{settings: mock}
-
-	_, err := s.TrackingIndicatorLabels(ctx)
-	require.Error(t, err)
-
-	mock.ResolveStringFn = func(context.Context, string) (string, error) { return "  ", nil }
-	labels, err := s.TrackingIndicatorLabels(ctx)
-	require.NoError(t, err)
-	assert.Empty(t, labels)
-
-	mock.ResolveStringFn = func(_ context.Context, key string) (string, error) {
-		if key == configModel.KeyTrackingIndicator1 {
-			return "Hausaufgaben", nil
-		}
-		return "", nil
-	}
-	labels, err = s.TrackingIndicatorLabels(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, []string{"Hausaufgaben"}, labels)
-
-	mock.ResolveBoolFn = func(_ context.Context, key string) (bool, error) {
-		return key != configModel.KeyTrackingIndicatorsEnabled, nil
-	}
-	labels, err = s.TrackingIndicatorLabels(ctx)
-	require.NoError(t, err)
-	assert.Nil(t, labels, "disabled indicators carry no labels")
-
-	// The switch alone decides since #3730; no string setting is consulted.
-	mock.ResolveStringFn = func(context.Context, string) (string, error) { return "", errors.New("settings unavailable") }
-	enabled, err := s.SpontaneousActivitiesEnabled(ctx)
-	require.NoError(t, err)
-	assert.True(t, enabled)
-
-	mock.ResolveBoolFn = func(_ context.Context, key string) (bool, error) {
-		return key != configModel.KeyWebSpontaneousActivities, nil
-	}
-	enabled, err = s.SpontaneousActivitiesEnabled(ctx)
-	require.NoError(t, err)
-	assert.False(t, enabled, "a school with the switch off starts no spontaneous activities")
-
-	mock.ResolveBoolFn = func(context.Context, string) (bool, error) { return false, errors.New("boom") }
-	_, err = s.SpontaneousActivitiesEnabled(ctx)
-	require.ErrorContains(t, err, "spontaneous activities")
-
-	type prefetched struct{}
-	var preparedKeys []string
-	mock.PrefetchFn = func(ctx context.Context, keys []string) (context.Context, error) {
-		preparedKeys = keys
-		return context.WithValue(ctx, prefetched{}, true), nil
-	}
-	prepared, err := s.Prepare(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, true, prepared.Value(prefetched{}), "the request continues with the prefetched context")
-	assert.Contains(t, preparedKeys, configModel.KeyWeekendFollowsFriday)
-	mock.PrefetchFn = func(ctx context.Context, _ []string) (context.Context, error) {
-		return ctx, errors.New("settings down")
-	}
-	_, err = s.Prepare(ctx)
-	require.EqualError(t, err, "settings down")
 }
 
 func TestPresenceMapsVisitsAndAttendance(t *testing.T) {
@@ -553,27 +430,6 @@ func TestScheduleForwardsQueryAndPreservesWireShape(t *testing.T) {
 	require.Error(t, err)
 	_, err = s.SessionBlocks(ctx, supervisiondashboard.SessionBlocksQuery{Date: "today"})
 	require.Error(t, err)
-}
-
-func TestYardPreservesWireShape(t *testing.T) {
-	t.Parallel()
-
-	roomID := int64(21)
-	retained := &facilitiesService.SchulhofStatus{
-		Exists: true, RoomID: &roomID, RoomName: "Schulhof", ActivityGroupID: int64Ptr(3), ActiveGroupID: int64Ptr(8), IsUserSupervising: true,
-		SupervisionID: int64Ptr(4), SupervisorCount: 1, StudentCount: 12,
-		Supervisors: []facilitiesService.SupervisorInfo{{ID: 4, StaffID: 7, Name: "Erika Muster", IsCurrentUser: true}},
-	}
-	y := NewYard(&mockSchulhofService{statusFn: func(staffID int64) (*facilitiesService.SchulhofStatus, error) {
-		assert.Equal(t, int64(77), staffID)
-		return retained, nil
-	}})
-
-	status, err := y.Status(context.Background(), 77)
-	require.NoError(t, err)
-	assertSameJSON(t, retained, status)
-	assertSameJSON(t, &facilitiesService.SchulhofStatus{}, schulhofStatus(&facilitiesService.SchulhofStatus{}))
-	assert.Nil(t, schulhofStatus(nil))
 }
 
 func TestCalendarRendersBerlinDaysAndClocks(t *testing.T) {
