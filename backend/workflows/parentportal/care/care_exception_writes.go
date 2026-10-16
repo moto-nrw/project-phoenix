@@ -11,7 +11,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -234,7 +233,7 @@ func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, 
 	if err != nil {
 		return false, err
 	}
-	return pickup != nil && (pickup.Source == scheduleModels.ExceptionSourceStaff || pickup.HasManualPartialAbsence()), nil
+	return pickup != nil && (pickup.Source == exceptionSourceStaff || pickup.HasManualPartialAbsence()), nil
 }
 
 // DeleteCareException removes only the guardian-authored pickup exception for
@@ -289,7 +288,7 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 	if pickup.HasManualPartialAbsence() {
 		return ErrCareExceptionConflict
 	}
-	if pickup.Source != scheduleModels.ExceptionSourceGuardian {
+	if pickup.Source != exceptionSourceGuardian {
 		return nil
 	}
 	cutoff, err := s.pickupChangeCutoffInTx(ctx, tenantID)

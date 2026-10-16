@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 16.10.2026 · Ratchet 194 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
+Stand 16.10.2026 · Ratchet 191 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 61 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-56.192 in `compose`
+56.190 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 15 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 83 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 26 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 23 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 5 |
@@ -21,9 +21,17 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 194 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 191 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Anfragefreigaben lesen nur einreichendes Konto, Kind und Anfrageart über einen eigenen Port.
+Die Root bindet Care Plans öffentlichen Read. Payload- und Snapshot-Dekodierung sowie bisherige
+Not-found- und JSON-Fehlerdiagnosen bleiben erhalten. Care verwendet eigene Ausnahmequellen und
+`time.Friday` statt Schedule-Modellen. Auswahl von Wochen- und Abholanfragen liegt in Care Plans
+Application; Compose übersetzt nur den Filter. Drei Keys fallen: 194 → 191, #4073 26 → 23.
+Regeln 865 unverändert. Care-Plan-Compose 4.334 → 4.333, Portal-Compose 506 → 505,
+Compose gesamt 56.192 → 56.190 LOC; kein Budget steigt. Keine neue Regel, Freigabe oder Alias.
 
 #4073: Parent-HTTP deklariert eigene Push-, Benachrichtigungs- und PWA-Ports.
 Die Root übersetzt Deliverys öffentlichen Geräte- und Einwilligungsvertrag; dieselben

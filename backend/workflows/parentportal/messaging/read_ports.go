@@ -3,7 +3,6 @@ package messaging
 import (
 	"context"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -26,9 +25,9 @@ type GuardianProfiles interface {
 	GuardianProfileReads
 }
 
-// CareRequestReads reads one care-schedule change request.
+// CareRequestReads reads the submitting account, child and kind of a request.
 type CareRequestReads interface {
-	FindByID(ctx context.Context, id any) (*scheduleModels.CareScheduleChangeRequest, error)
+	FindIdentity(ctx context.Context, id int64) (submittedBy, studentID int64, requestKind string, err error)
 }
 
 // ExcusedRequestReads reads one absence request.
