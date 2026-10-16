@@ -41,7 +41,9 @@ func init() {
 //
 // platform.operator_audit_log.operator_id keeps its foreign key without an
 // action on purpose: an account whose ledger entries are still there cannot
-// be deleted.
+// be deleted. It is the only reference to platform.operators that refuses a
+// deletion: suggestions.operator_comments went with migration 1.12.1, whose
+// suggestions.comments names its author without a foreign key.
 const operatorAccountRetentionUpSQL = `
 		ALTER TABLE platform.operators ADD COLUMN IF NOT EXISTS deactivated_at TIMESTAMPTZ;
 		UPDATE platform.operators SET deactivated_at = updated_at WHERE NOT active AND deactivated_at IS NULL;

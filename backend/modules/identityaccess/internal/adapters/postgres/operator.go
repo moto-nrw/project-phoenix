@@ -204,7 +204,8 @@ const operatorDeletionCutoffSQL = `(
 
 // DeleteDeactivatedOperators removes accounts before the database-clock
 // cutoff. The cascades take their credentials and sessions along; a ledger
-// entry still pointing at an account refuses the whole deletion.
+// entry still pointing at an account refuses the whole deletion. No other
+// reference refuses it (TestOnlyTheOperatorLedgerRefusesAnOperatorDeletion).
 func (s *Store) DeleteDeactivatedOperators(ctx context.Context) (int, domain.OperationStats, error) {
 	db, err := s.database(ctx)
 	if err != nil {
