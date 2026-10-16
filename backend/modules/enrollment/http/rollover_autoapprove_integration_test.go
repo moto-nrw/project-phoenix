@@ -12,7 +12,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	enrollmentModels "github.com/moto-nrw/project-phoenix/models/enrollment"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -334,7 +333,7 @@ func TestRolloverService_AutoApprove_InactiveExistingStudentImmediateBecomesActi
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
-		mode: configModel.EnrollmentActivationModeImmediate,
+		mode: settingValueActivationImmediate,
 	})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
@@ -378,7 +377,7 @@ func TestRolloverService_AutoApprove_StatusChangeWritesSystemAudit(t *testing.T)
 	t.Parallel()
 	testpkg.SetupIsolatedTestDB(t)
 	env, cleanup := setupAutoApproveIntegrationEnvWithSettings(t, stubActivationSettings{
-		mode: configModel.EnrollmentActivationModeImmediate,
+		mode: settingValueActivationImmediate,
 	})
 	defer cleanup()
 	ctx := testpkg.Ctx(t)
