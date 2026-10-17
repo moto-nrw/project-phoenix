@@ -3,6 +3,8 @@ package announcement
 import (
 	"context"
 	"log/slog"
+
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // Runtime identifies the school of the ambient transaction.
@@ -11,12 +13,13 @@ type Runtime interface {
 }
 
 // NewService wires the staff announcement service.
-func NewService(cfg ServiceConfig, runtime Runtime) Service {
+func NewService(cfg ServiceConfig, runtime Runtime, policy deliveryPorts.ParentDeliveryPolicy) Service {
 	logger := cfg.Logger
 	if logger == nil {
 		logger = slog.Default()
 	}
 	return &service{
+		deliveryPolicy:   policy,
 		runtime:          runtime,
 		repo:             cfg.Repo,
 		settings:         cfg.Settings,

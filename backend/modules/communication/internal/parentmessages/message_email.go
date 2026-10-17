@@ -8,12 +8,10 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/localization"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 const (
@@ -113,9 +111,9 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 	}
 
 	schoolName, logoURL := s.resolveSchoolBrand(ctx, thread.TenantID)
-	locale := localization.DefaultLocale()
+	locale := s.deliveryPolicy.DefaultLocale()
 	if profile.PortalLocale != nil {
-		locale = localization.NormalizeLocale(*profile.PortalLocale)
+		locale = s.deliveryPolicy.NormalizeLocale(*profile.PortalLocale)
 	}
 	request := platformModels.OutboxEnqueueRequest{
 		Kind:              platformModels.EmailKindParentMessage,
@@ -130,7 +128,7 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 			messagePayloadSchoolName:  schoolName,
 			messagePayloadMessagesURL: strings.TrimRight(s.ParentsURL, "/") + "/messages/" + strconv.FormatInt(thread.StudentID, 10),
 			messagePayloadLogoURL:     logoURL,
-			messagePayloadMotoLogoURL: emailbranding.MotoLogoURL(s.ParentsURL),
+			messagePayloadMotoLogoURL: s.deliveryPolicy.MotoLogoURL(s.ParentsURL),
 		},
 	}
 	if err := s.Outbox.EnqueueOutbox(ctx, request); err != nil {
@@ -139,7 +137,7 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 	return nil
 }
 
-func NewParentMessageRenderer(cfg ParentMessageRendererConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
+func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPorts.LocaleNormalizer) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
 	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
 		recipient, _ := row.Payload[messagePayloadRecipient].(string)
 		if strings.TrimSpace(recipient) == "" {
@@ -155,7 +153,7 @@ func NewParentMessageRenderer(cfg ParentMessageRendererConfig) func(context.Cont
 		if messagesURL == "" {
 			return nil, fmt.Errorf("%s payload missing messages_url", row.Kind)
 		}
-		copy := messageEmailCopy(locale, first, last, schoolName, "")
+		copy := messageEmailCopy(locale, first, last, schoolName, "", policy)
 		return &email.Message{
 			From:     cfg.DefaultFrom,
 			To:       email.NewEmail(strings.TrimSpace(first+" "+last), recipient),
@@ -185,11 +183,11 @@ func NewParentMessageRenderer(cfg ParentMessageRendererConfig) func(context.Cont
 	}
 }
 
-func messageEmailCopy(locale, firstName, lastName, schoolName, childName string) parentMessageEmailCopy {
+func messageEmailCopy(locale, firstName, lastName, schoolName, childName string, policy deliveryPorts.LocaleNormalizer) parentMessageEmailCopy {
 	name := strings.TrimSpace(firstName + " " + lastName)
 	school := strings.TrimSpace(schoolName)
 	child := strings.TrimSpace(childName)
-	switch localization.NormalizeLocale(locale) {
+	switch policy.NormalizeLocale(locale) {
 	case "en":
 		return parentMessageEmailCopy{
 			Subject: "New message from the OGS", Kicker: "New message",
@@ -301,7 +299,7 @@ func (s *Service) guardianAcceptsMessageMail(ctx context.Context, thread *usersM
 	if s.Preferences == nil {
 		return true
 	}
-	remaining, err := s.Preferences.FilterNotOptedOut(ctx, notifications.TypeParentMessage, []int64{thread.GuardianAccountID})
+	remaining, err := s.Preferences.FilterNotOptedOut(ctx, deliveryPorts.TypeParentMessage, []int64{thread.GuardianAccountID})
 	if err != nil {
 		// A consent lookup that did not answer is not a yes.
 		s.Logger.Warn("messaging: guardian e-mail consent check failed",
@@ -326,7 +324,7 @@ func (s *Service) resolveSchoolBrand(ctx context.Context, tenantID int64) (strin
 	logoURL := ""
 	if s.LoginImages != nil {
 		if raw, imgErr := s.LoginImages.GetLoginImageURL(ctx, tenantID); imgErr == nil {
-			logoURL = emailbranding.SchoolLogoURL(s.ParentsURL, raw)
+			logoURL = s.deliveryPolicy.SchoolLogoURL(s.ParentsURL, raw)
 		}
 	}
 	return name, logoURL

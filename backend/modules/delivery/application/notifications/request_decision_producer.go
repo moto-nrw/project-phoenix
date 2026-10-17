@@ -6,13 +6,18 @@ import (
 	"fmt"
 )
 
+// RequestDecisionPreferences is the exact consent operation the producer uses.
+type RequestDecisionPreferences interface {
+	FilterOptedIn(context.Context, string, []int64) ([]int64, error)
+}
+
 // RequestDecisionNotifier produces consent-filtered guardian request decisions.
 type RequestDecisionNotifier struct {
 	notifier    Service
-	preferences PreferenceService
+	preferences RequestDecisionPreferences
 }
 
-func NewRequestDecisionNotifier(notifier Service, preferences PreferenceService) *RequestDecisionNotifier {
+func NewRequestDecisionNotifier(notifier Service, preferences RequestDecisionPreferences) *RequestDecisionNotifier {
 	if notifier == nil || preferences == nil {
 		panic("request decision notifier: notifier and preferences are required")
 	}

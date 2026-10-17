@@ -9,7 +9,7 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // Scheduled reminder (#3162).
@@ -256,8 +256,8 @@ func (s *service) SendDueReminders(ctx context.Context, notBefore, dueBefore tim
 // audience) applied unchanged.
 func (s *service) deliverReminder(ctx context.Context, a *usersModels.ParentAnnouncement) (reminderDeliveryResult, error) {
 	pushAccepted, err := s.notifyReminderGuardians(ctx, a, reminderPushShape(a))
-	pushDeferred := errors.Is(err, notifications.ErrOutsideActiveWindow)
-	if err != nil && !pushDeferred && !errors.Is(err, notifications.ErrDisabled) {
+	pushDeferred := s.deliveryPolicy.IsOutsideActiveWindow(err)
+	if err != nil && !pushDeferred && !s.deliveryPolicy.IsNotificationsDisabled(err) {
 		return reminderDeliverySkipped, fmt.Errorf("announcement: reminder push notifications: %w", err)
 	}
 	emailAccepted := 0
@@ -299,7 +299,7 @@ func reminderPushShape(a *usersModels.ParentAnnouncement) pushShape {
 	}
 	return pushShape{
 		notificationType: parentAnnouncementNotificationType,
-		copyKind:         notifications.ParentAnnouncementReminder,
+		copyKind:         deliveryPorts.ParentAnnouncementReminder,
 		deepLink:         "/",
 		idempotencyKey:   fmt.Sprintf("parent-announcement-reminder:%d:%d:%d", a.ID, stamp, reminderPublicationCycle(a)),
 		relatedType:      relatedEntityTypeReminder,

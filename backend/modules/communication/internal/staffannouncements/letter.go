@@ -9,9 +9,8 @@ import (
 
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // letterIntro is the opening line of an Elternbrief mail. The body follows it,
@@ -166,7 +165,7 @@ func (s *service) applyEmailOptOuts(ctx context.Context, a *usersModels.ParentAn
 	if len(accountIDs) == 0 {
 		return
 	}
-	remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+	remaining, err := s.preferences.FilterNotOptedOut(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 	if err != nil {
 		s.logger.Warn("announcement: opt-out filter failed, mailing all addressed guardians",
 			slog.String("error", err.Error()))
@@ -235,7 +234,7 @@ func (s *service) queueLetterMailsAs(ctx context.Context, a *usersModels.ParentA
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := spec.kicker
 	intro := spec.intro(schoolName)
@@ -540,7 +539,7 @@ func (s *service) ResendFailedEmails(ctx context.Context, id int64) (int, error)
 		return 0, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	portalURL := s.letterPortalURL(a.ID)
 	kicker := defaultEmailKicker
 	intro := ""

@@ -9,9 +9,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/email"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // ParentAnnouncementConfig is the compatibility composition seam for the
@@ -39,9 +39,9 @@ type ParentAnnouncementConfig struct {
 	Settings         staff.Settings
 	Outbox           ParentAnnouncementOutbox
 	PushOutbox       ParentAnnouncementPushOutbox
-	Notifier         notifications.Service
-	ReminderNotifier notifications.DurableReceiptService
-	Preferences      notifications.PreferenceService
+	Notifier         func(context.Context, communication.NotificationEvent) error
+	ReminderNotifier func(context.Context, communication.NotificationEvent) (int, error)
+	Preferences      deliveryPorts.NotificationPreferences
 	Deliveries       ParentAnnouncementDeliveryRecorder
 	Fingerprints     staff.Fingerprints
 	ParentsURL       string
@@ -50,17 +50,17 @@ type ParentAnnouncementConfig struct {
 
 type ParentAnnouncementEmailConfig struct{ DefaultFrom email.Email }
 
-func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime) communication.ParentAnnouncementCapability {
+func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentAnnouncementCapability {
 	var deliveries staff.DeliveryRecorder
 	if cfg.Deliveries != nil {
 		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
 	}
 	return &parentAnnouncements{service: staff.NewService(staff.ServiceConfig{
-		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: cfg.Notifier,
-		ReminderNotifier: cfg.ReminderNotifier,
+		Repo: cfg.Repo, Settings: cfg.Settings, Outbox: cfg.Outbox, PushOutbox: cfg.PushOutbox, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier),
+		ReminderNotifier: deliveryPorts.NewDurableNotificationSender(cfg.ReminderNotifier),
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints,
-	}, runtime)}
+	}, runtime, policy)}
 }
 
 func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
