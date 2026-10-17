@@ -12,6 +12,7 @@ import (
 	"time"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -63,8 +64,7 @@ func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster)
 		svc.Education,
 		svc.Active,
 		svc.People,
-		svc.UserContext,
-	)
+		svc.UserContext, transactionFailures.IsConstraintViolation)
 
 	return &testContext{
 		db:       db,

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +43,8 @@ func TestReplyToChangeRequestAcceptsPositiveID(t *testing.T) {
 	t.Parallel()
 
 	service := newCapturingChangeRequestService()
-	resource := &Resource{ChangeRequestService: service}
+	resource := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, ChangeRequestService: service}
 	recorder := httptest.NewRecorder()
 
 	resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("status-token", "42"))
@@ -69,7 +71,8 @@ func TestReplyToChangeRequestRejectsInvalidIDs(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			service := newCapturingChangeRequestService()
-			resource := &Resource{ChangeRequestService: service}
+			resource := &Resource{
+				Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, ChangeRequestService: service}
 			recorder := httptest.NewRecorder()
 
 			resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("status-token", test.id))
@@ -85,7 +88,8 @@ func TestReplyToChangeRequestRejectsMissingTokenIndependently(t *testing.T) {
 	t.Parallel()
 
 	service := newCapturingChangeRequestService()
-	resource := &Resource{ChangeRequestService: service}
+	resource := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, ChangeRequestService: service}
 	recorder := httptest.NewRecorder()
 
 	resource.replyToChangeRequest(recorder, newChangeRequestReplyRequest("   ", "42"))

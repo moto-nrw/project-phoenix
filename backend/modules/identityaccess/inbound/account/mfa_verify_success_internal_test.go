@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
@@ -102,7 +103,8 @@ func TestMFAVerify_SuccessReturnsTokenPair(t *testing.T) {
 			TenantID:  70010001,
 		},
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -139,7 +141,8 @@ func TestMFAVerify_RememberDeviceIssuesTrustedCookie(t *testing.T) {
 		issueCookie:    "td.cookie.value",
 		issueExpiresAt: time.Now().Add(90 * 24 * time.Hour),
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -177,7 +180,8 @@ func TestMFAVerify_RememberDeviceFailureDoesNotBreakLogin(t *testing.T) {
 		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueErr:     errors.New("cookie store down"),
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -206,7 +210,8 @@ func TestMFAVerify_RememberDeviceEmptyCookieSkipsHeader(t *testing.T) {
 		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 		issueCookie:  "", // tenant has trusted devices disabled
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -233,7 +238,8 @@ func TestMFAVerify_IssueTokensFailureSurfacesAsUnauthorized(t *testing.T) {
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -254,7 +260,8 @@ func TestMFAVerify_IssueTokensFailureForAccountNotFoundReturns401(t *testing.T) 
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -274,7 +281,8 @@ func TestMFAVerify_SchoolPortalOnlyAccountReturnsPortalCode(t *testing.T) {
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{
@@ -295,7 +303,8 @@ func TestMFAVerify_IssueTokensUnknownErrorMapsTo500(t *testing.T) {
 	mfa := &trustedDeviceMFAStub{
 		verifyResult: identityaccess.VerifiedMFAChallenge{AccountID: 1, TenantID: testpkg.Tenant(t)},
 	}
-	rs := &Resource{Sessions: auth, MFAService: mfa}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Sessions: auth, MFAService: mfa}
 
 	rr := httptest.NewRecorder()
 	rs.mfaVerify(rr, verifyRequest(t, MFAVerifyRequest{

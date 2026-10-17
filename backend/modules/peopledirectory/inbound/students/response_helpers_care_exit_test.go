@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,6 +24,7 @@ func TestEnrichWithCareExitFlag_PropagatesRecordedExitLookupFailure(t *testing.T
 
 	lookupErr := errors.New("care exit lookup unavailable")
 	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation:  transactionFailures.IsConstraintViolation,
 		CareLifecycleService: failingRecordedExitService{err: lookupErr},
 	}}
 	responses := []StudentResponse{{ID: 42, CareEndsOn: "2026-08-23"}}

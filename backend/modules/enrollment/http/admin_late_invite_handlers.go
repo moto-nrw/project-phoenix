@@ -159,7 +159,7 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		return createErr
 	})
 	if err != nil {
-		mapManualEnrollmentError(w, r, err)
+		rs.mapManualEnrollmentError(w, r, err)
 		return
 	}
 
@@ -291,7 +291,7 @@ func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) 
 	}
 }
 
-func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
+func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, capability.ErrDecisionChildNotFound),
 		errors.Is(err, capability.ErrDecisionRequestNotFound):
@@ -304,7 +304,7 @@ func mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error)
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, capability.ErrGuardianAccountMismatch):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch))
-	case common.IsTransientDatabaseError(err):
+	case rs.Failures.Transient(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
 		mapSubmitError(w, r, err)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,7 +51,8 @@ func TestLoginRefusalsCarryCodes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rr := httptest.NewRecorder()
-			(&Resource{}).handleLoginError(rr, httptest.NewRequest(http.MethodPost, "/auth/login", nil), tc.err)
+			(&Resource{
+				ConstraintViolation: transactionFailures.IsConstraintViolation}).handleLoginError(rr, httptest.NewRequest(http.MethodPost, "/auth/login", nil), tc.err)
 			assert.Equal(t, tc.status, rr.Code)
 			assert.Equal(t, tc.code, decodeWireError(t, rr).Code)
 		})
@@ -164,7 +166,8 @@ func TestRegistrationRefusalsCarryCodes(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			rr := httptest.NewRecorder()
-			(&Resource{}).handleRegistrationError(rr, httptest.NewRequest(http.MethodPost, "/auth/register", nil), tc.err)
+			(&Resource{
+				ConstraintViolation: transactionFailures.IsConstraintViolation}).handleRegistrationError(rr, httptest.NewRequest(http.MethodPost, "/auth/register", nil), tc.err)
 			body := decodeWireError(t, rr)
 			assert.Equal(t, http.StatusBadRequest, rr.Code)
 			assert.Equal(t, tc.code, body.Code)

@@ -13,6 +13,7 @@ import (
 	"testing"
 	"time"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -149,6 +150,7 @@ func (m *mockDecisionService) RecordPhaseExportAudit(_ context.Context, _ int64,
 
 func buildAdminDecisionRouter(svc DecisionService) chi.Router {
 	rs := &Resource{
+		Failures:        DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		DecisionService: svc,
 		// db nil → runInTenantTx short-circuits straight to the closure.
 	}
@@ -252,7 +254,8 @@ func TestListAdminRequestsHandler_ConfigReadDoesNotReturnStatusToken(t *testing.
 	mock := &mockDecisionService{
 		listResult: []*RequestSummary{summary},
 	}
-	w := executeAdminRouteWithPermissions(t, &Resource{DecisionService: mock}, http.MethodGet, "/admin/requests", []string{"config:read"})
+	w := executeAdminRouteWithPermissions(t, &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock}, http.MethodGet, "/admin/requests", []string{"config:read"})
 	require.Equal(t, http.StatusOK, w.Code)
 
 	body := w.Body.String()
@@ -272,7 +275,8 @@ func TestAdminRequestRoutes_DetailRequiresConfigManage(t *testing.T) {
 			makeReqSummary(1234, 5678, makeChildSummary(99, "Lina", "Kind", capability.ChildStatusSubmitted)),
 		},
 	}
-	rs := &Resource{DecisionService: mock}
+	rs := &Resource{
+		Failures: DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation}, DecisionService: mock}
 
 	listReadOnly := executeAdminRouteWithPermissions(t, rs, http.MethodGet, "/admin/requests", []string{"config:read"})
 	assert.Equal(t, http.StatusOK, listReadOnly.Code)
@@ -701,6 +705,7 @@ func TestDecideAdminChildHandler_DoesNotRetryAfterDecisionBodySucceeded(t *testi
 		},
 	}
 	rs := &Resource{
+		Failures:        DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		DecisionService: mock,
 		runInTenantTxForTest: func(r *http.Request, fn func(ctx context.Context) error) error {
 			if err := fn(r.Context()); err != nil {
