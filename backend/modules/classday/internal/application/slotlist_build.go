@@ -386,23 +386,31 @@ func filterRows(rows []classday.Row, params listRequest) []classday.Row {
 
 	out := make([]classday.Row, 0, len(rows))
 	for _, row := range rows {
-		// InstanceIDs are a slot-list filter only; they are ignored for pickup
-		// cohorts (whose rows carry InstanceID 0), where a non-empty selection
-		// would otherwise drop every row (#1565 review).
-		if params.Target == classday.TargetSlots && len(instanceSet) > 0 && !instanceSet[row.InstanceID] {
+		if !rowMatchesFilters(&row, params.Target, instanceSet, groupSet, classSet) {
 			continue
-		}
-		if len(groupSet) > 0 && (row.GroupID == nil || !groupSet[*row.GroupID]) {
-			continue
-		}
-		if len(classSet) > 0 {
-			if _, ok := classSet[row.SchoolClass]; !ok {
-				continue
-			}
 		}
 		out = append(out, row)
 	}
 	return out
+}
+
+// rowMatchesFilters applies the three independent list dimensions to one row.
+func rowMatchesFilters(row *classday.Row, target classday.Target, instanceSet, groupSet map[int64]bool, classSet map[string]struct{}) bool {
+	// InstanceIDs are a slot-list filter only; they are ignored for pickup
+	// cohorts (whose rows carry InstanceID 0), where a non-empty selection
+	// would otherwise drop every row (#1565 review).
+	if target == classday.TargetSlots && len(instanceSet) > 0 && !instanceSet[row.InstanceID] {
+		return false
+	}
+	if len(groupSet) > 0 && (row.GroupID == nil || !groupSet[*row.GroupID]) {
+		return false
+	}
+	if len(classSet) > 0 {
+		if _, ok := classSet[row.SchoolClass]; !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func int64StructSet(ids []int64) map[int64]struct{} {
