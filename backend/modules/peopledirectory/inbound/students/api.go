@@ -251,9 +251,11 @@ type ResourceConfig struct {
 	PrivacyConsents PrivacyConsentCapability
 	// StudentDocumentService backs the child's Dokumente tab (#777).
 	StudentDocumentService careplan.StudentDocuments
-	ListExportService      lists.Renderer
-	Logger                 *slog.Logger
-	Now                    func() time.Time
+	// DocumentStorage creates the native byte coordinator lazily for each request.
+	DocumentStorage   StudentDocumentStorage
+	ListExportService lists.Renderer
+	Logger            *slog.Logger
+	Now               func() time.Time
 	// DeviceAuthenticator guards the RFID routes. The Device Fleet
 	// composition builds it; this resource only mounts it. Without one the
 	// routes reject every request rather than serve unauthenticated kiosks.
