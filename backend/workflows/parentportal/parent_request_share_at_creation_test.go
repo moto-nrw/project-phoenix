@@ -29,6 +29,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:        api.ParentGuardianChanges(),
 		DeparturePolicy:        api.ParentDeparturePolicy(),
 		GuardianPolicy:         api.NewParentGuardianPolicy(),
 		Fingerprints:           api.SecurityFingerprints{},
