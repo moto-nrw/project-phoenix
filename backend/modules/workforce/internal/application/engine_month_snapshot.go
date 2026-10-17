@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
-func (e engine) LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*workforce.StaffMonthBalanceSnapshot, error) {
+func (e Engine) LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*workforce.StaffMonthBalanceSnapshot, error) {
 	value, err := e.service.LatestClosedMonth(ctx, staffID, year, month)
 	if value == nil {
 		return nil, err
@@ -17,12 +17,12 @@ func (e engine) LatestClosedMonth(ctx context.Context, staffID int64, year, mont
 	return &result, err
 }
 
-func (e engine) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*workforce.StaffMonthBalanceSnapshot, error) {
+func (e Engine) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*workforce.StaffMonthBalanceSnapshot, error) {
 	values, err := e.service.ClosedMonthSnapshots(ctx, year, month)
 	return monthSnapshotsToPublic(values), err
 }
 
-func (e engine) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int64) ([]*workforce.StaffMonthBalanceSnapshot, error) {
+func (e Engine) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int64) ([]*workforce.StaffMonthBalanceSnapshot, error) {
 	values, err := e.service.ClosedMonthSnapshotsForStaff(ctx, staffIDs)
 	return monthSnapshotsToPublic(values), err
 }
@@ -39,11 +39,11 @@ func monthSnapshotsToPublic(values []*domain.StaffMonthBalanceSnapshot) []*workf
 	return result
 }
 
-func (e engine) RecordClosedMonth(ctx context.Context, value workforce.StaffMonthBalanceSnapshot) (workforce.StaffMonthBalanceSnapshot, error) {
+func (e Engine) RecordClosedMonth(ctx context.Context, value workforce.StaffMonthBalanceSnapshot) (workforce.StaffMonthBalanceSnapshot, error) {
 	result, err := e.service.RecordClosedMonth(ctx, domain.StaffMonthBalanceSnapshot(value))
 	return workforce.StaffMonthBalanceSnapshot(result), err
 }
 
-func (e engine) ReopenMonthSnapshot(ctx context.Context, id, actorID int64, at time.Time, reason string) (int64, error) {
+func (e Engine) ReopenMonthSnapshot(ctx context.Context, id, actorID int64, at time.Time, reason string) (int64, error) {
 	return e.service.ReopenMonthSnapshot(ctx, id, actorID, at, reason)
 }
