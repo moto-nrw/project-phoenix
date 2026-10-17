@@ -154,7 +154,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/school_identity.go:(*AccountLifecycle).resolveIdentityPerson":                                  61,
 	"modules/identityaccess/internal/application/school_invitation.go:(*SchoolInvitation).AcceptInvitation":                                     65,
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).loginSchoolWithMFAGate":                               107,
-	"modules/identityaccess/internal/application/session_refresh.go:(*AccountAuthentication).refreshSessionInTransaction":                       130,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).finishScheduledAccountWideWipe":                 66,
 	"modules/identityaccess/internal/application/staff_offboarding.go:(*AccountLifecycle).ExecuteStaffOffboarding":                              61,
 	"modules/identityaccess/internal/application/staff_offboarding.go:(*AccountLifecycle).staffOffboardingSnapshot":                             77,

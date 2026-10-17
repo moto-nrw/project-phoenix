@@ -179,7 +179,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).loginSchoolWithMFAGate":               32,
 	"modules/identityaccess/internal/application/school_login.go:(*AccountAuthentication).schoolMintGuard":                      20,
 	"modules/identityaccess/internal/application/session_cleanup.go:(*AccountAuthentication).reconcileRevokedSessions":          25,
-	"modules/identityaccess/internal/application/session_refresh.go:(*AccountAuthentication).refreshSessionInTransaction":       75,
 	"modules/identityaccess/internal/application/session_refresh.go:(*AccountAuthentication).resolveRefreshHandoff":             20,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).ScheduleAccountWideRevoke":      21,
 	"modules/identityaccess/internal/application/session_revocation.go:(*AccountAuthentication).finishScheduledAccountWideWipe": 39,
