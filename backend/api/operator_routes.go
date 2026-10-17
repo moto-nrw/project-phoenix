@@ -116,7 +116,7 @@ func operatorRouter(
 	identityRoutes.mountRefreshRoute(r)
 	identityRoutes.mountMFAEnrollmentRoutes(r)
 	r.Group(func(r chi.Router) {
-		r.Use(identityRoutes.sessions.Operator()...)
+		r.Use(identityRoutes.sessions.Operator(ReadOnlyPreviewMiddleware)...)
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes)

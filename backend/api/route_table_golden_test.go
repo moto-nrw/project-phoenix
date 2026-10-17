@@ -132,7 +132,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 	t.Run("every authenticated write route carries the read-only preview guard", func(t *testing.T) {
 		const (
 			authenticator = "modules/identityaccess/sessiontoken.Authenticator"
-			readOnlyGuard = "api/common.ReadOnlyPreviewMiddleware"
+			readOnlyGuard = "api.ReadOnlyPreviewMiddleware"
 		)
 		safeMethods := map[string]bool{
 			http.MethodGet:     true,
@@ -165,7 +165,7 @@ func checkRouteTableGolden(t *testing.T, apiInstance *serveGraph) {
 		sort.Strings(unguarded)
 
 		require.Emptyf(t, unguarded,
-			"these routes authenticate a JWT without api/common.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after sessiontoken.Authenticator in the group that mounts them:\n%s",
+			"these routes authenticate a JWT without api.ReadOnlyPreviewMiddleware — a read-only staff-preview token could write through them. Add the middleware right after sessiontoken.Authenticator in the group that mounts them:\n%s",
 			strings.Join(unguarded, "\n"))
 	})
 }
