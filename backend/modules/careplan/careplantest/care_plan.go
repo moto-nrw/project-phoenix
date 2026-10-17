@@ -17,7 +17,7 @@ type TB interface {
 }
 
 // NewStoredPickupBaselines composes fixture reads with booking authority off.
-func NewStoredPickupBaselines(records carePlanCompose.PickupBaselineRecords, links careplan.ApprovedBookingReader) careplan.PickupBaselineReader {
+func NewStoredPickupBaselines(records carePlanPorts.PickupBaselineRecords, links careplan.ApprovedBookingReader) careplan.PickupBaselineReader {
 	baselines, err := carePlanCompose.NewPickupBaselines(records, links, func(context.Context) (bool, error) { return false, nil })
 	if err != nil {
 		panic(err)
