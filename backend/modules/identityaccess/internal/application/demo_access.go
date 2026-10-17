@@ -6,8 +6,10 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // DemoAccess runs the demo access of the public demo (#3462): a prospect
@@ -406,4 +408,120 @@ func (s *AccountAuthentication) demoTenantLock(ctx context.Context, account doma
 		return failed("switch tenant", domain.ErrDemoSessionTenantLocked)
 	}
 	return nil
+}
+
+type DemoSchoolsPort struct{ Schools identityPorts.DemoSchools }
+
+func (p DemoSchoolsPort) MarkDemoSchoolUsed(ctx context.Context, slug string, usedAt time.Time) error {
+	return p.Schools.MarkDemoSchoolUsed(ctx, slug, usedAt)
+}
+
+func (p DemoSchoolsPort) ReplaceDemoSchool(ctx context.Context, slug, schoolName, firstName, lastName string) (string, error) {
+	newSlug, err := p.Schools.ReplaceDemoSchool(ctx, slug, schoolName, firstName, lastName)
+	switch {
+	case errors.Is(err, identityaccess.ErrDemoCapacityReached):
+		return "", domain.ErrDemoCapacityReached
+	case errors.Is(err, identityaccess.ErrDemoAccessInvalid):
+		return "", domain.ErrDemoAccessInvalid
+	}
+	return newSlug, err
+}
+
+func (p DemoSchoolsPort) PrepareDemoSchool(ctx context.Context, schoolName, firstName, lastName string) (string, error) {
+	slug, err := p.Schools.PrepareDemoSchool(ctx, schoolName, firstName, lastName)
+	if errors.Is(err, identityaccess.ErrDemoCapacityReached) {
+		return "", domain.ErrDemoCapacityReached
+	}
+	return slug, err
+}
+
+func (p DemoSchoolsPort) DemoSchoolEntry(ctx context.Context, slug string) (domain.DemoSchoolEntry, error) {
+	entry, err := p.Schools.DemoSchoolEntry(ctx, slug)
+	return domain.DemoSchoolEntry{
+		Exists: entry.Exists, Status: entry.Status, TenantID: entry.SchoolID, AccountID: entry.AccountID, ParentAccountID: entry.ParentAccountID,
+	}, err
+}
+
+type DemoAccessTokens struct {
+	Mint            func() (string, string, error)
+	FingerprintFunc func(string) string
+}
+
+func (t DemoAccessTokens) NewToken() (string, string, error) { return t.Mint() }
+
+func (t DemoAccessTokens) Fingerprint(raw string) string { return t.FingerprintFunc(raw) }
+
+// demoAccessMail hands the internal access to the root's mail binding.
+type DemoAccessMail struct{ Mail identityaccess.DemoAccessMail }
+
+func (m DemoAccessMail) SendDemoAccessLink(ctx context.Context, access domain.DemoAccess, entryURL string) {
+	m.Mail.SendDemoAccessLink(ctx, demoAccessMessage(access), entryURL)
+}
+
+func (m DemoAccessMail) SendDemoLead(ctx context.Context, access domain.DemoAccess) {
+	m.Mail.SendDemoLead(ctx, demoAccessMessage(access))
+}
+
+type DemoAccessEngine struct{ Flows *DemoAccess }
+
+func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
+	return demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{
+		Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName,
+		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
+	}, request.ClientIP, request.EntryURLPrefix))
+}
+
+func (e DemoAccessEngine) DemoAccessStatus(ctx context.Context, token string) (identityaccess.DemoAccessProgress, error) {
+	access, status, err := e.Flows.Status(ctx, token)
+	if err != nil {
+		return identityaccess.DemoAccessProgress{}, demoAccessError(err)
+	}
+	return identityaccess.DemoAccessProgress{Status: status, SchoolSlug: access.SchoolSlug, SchoolName: access.SchoolName}, nil
+}
+
+func (e DemoAccessEngine) RedeemDemoAccess(ctx context.Context, token, role, ipAddress, userAgent string) (identityaccess.DemoEntry, error) {
+	entry, err := e.Flows.Redeem(ctx, token, domain.DemoRole(role), ipAddress, userAgent)
+	if err != nil {
+		return identityaccess.DemoEntry{}, demoAccessError(err)
+	}
+	return identityaccess.DemoEntry{
+		AccessToken: entry.AccessToken, RefreshToken: entry.RefreshToken,
+		AccessID: entry.AccessID, Role: string(entry.Role), Source: entry.Source, FixedRole: entry.FixedRole,
+	}, nil
+}
+
+func (e DemoAccessEngine) ResetDemoAccess(ctx context.Context, token, clientIP string) error {
+	_, err := e.Flows.Reset(ctx, token, clientIP)
+	return demoAccessError(err)
+}
+
+var demoAccessSentinels = []struct{ internal, public error }{
+	{domain.ErrDemoAccessInvalid, identityaccess.ErrDemoAccessInvalid},
+	{domain.ErrDemoAccessUnknown, identityaccess.ErrDemoAccessUnknown},
+	{domain.ErrDemoAccessExpired, identityaccess.ErrDemoAccessExpired},
+	{domain.ErrDemoSchoolPreparing, identityaccess.ErrDemoSchoolPreparing},
+	{domain.ErrDemoCapacityReached, identityaccess.ErrDemoCapacityReached},
+}
+
+func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessage {
+	return identityaccess.DemoAccessMessage{
+		AccessID: access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
+		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
+	}
+}
+
+func demoAccessError(err error) error {
+	if err == nil {
+		return nil
+	}
+	var limited *domain.DemoAccessRateLimitedError
+	if errors.As(err, &limited) {
+		return &identityaccess.DemoAccessRateLimitError{RetryAt: limited.RetryAt}
+	}
+	for _, sentinel := range demoAccessSentinels {
+		if errors.Is(err, sentinel.internal) {
+			return sentinel.public
+		}
+	}
+	return fmt.Errorf("identity access demo access: %w", err)
 }

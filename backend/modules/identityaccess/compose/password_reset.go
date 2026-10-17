@@ -6,10 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
@@ -40,18 +38,10 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 	}
 	return application.NewPasswordReset(auth, application.PasswordResetDependencies{
 		Store: store, Logins: store, Passwords: deps.Passwords,
-		Delivery:         passwordResetDelivery{deps.Delivery},
+		Delivery:         application.PasswordResetDelivery{Source: deps.Delivery},
 		Runtime:          tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Expiry:           deps.Expiry,
 		RateLimitEnabled: deps.RateLimitEnabled,
 		Logger:           deps.Logger,
 	})
-}
-
-type passwordResetDelivery struct {
-	source identityPorts.PasswordResetDelivery
-}
-
-func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) {
-	d.source.DispatchPasswordReset(ctx, application.PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)
 }

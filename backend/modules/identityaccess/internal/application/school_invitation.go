@@ -9,8 +9,11 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // Operation names the invitation flows report.
@@ -770,4 +773,24 @@ func trimmed(value *string) *string {
 	}
 	text := strings.TrimSpace(*value)
 	return &text
+}
+
+type InvitationGrantPolicy struct {
+	Source identityPorts.InvitationGrantPolicy
+}
+
+func (p InvitationGrantPolicy) CanGrantRole(role domain.RoleFacts, actorPermissions, rolePermissions []string) bool {
+	return p.Source.CanGrantRole(identityaccess.RoleFacts(role), actorPermissions, rolePermissions)
+}
+
+type SchoolInvitationDelivery struct {
+	Source identityPorts.SchoolInvitationDelivery
+}
+
+func (d SchoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) {
+	d.Source.DispatchSchoolInvitation(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
+}
+
+func (d SchoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {
+	return d.Source.QueueSchoolWelcome(ctx, PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)
 }

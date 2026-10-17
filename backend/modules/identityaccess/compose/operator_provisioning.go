@@ -5,9 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -52,10 +50,10 @@ func newOperatorProvisioning(
 		Tokens:    tokens,
 		Passwords: sessions.Passwords,
 		Hasher:    operators.Passwords,
-		Format:    emailFormat{deps.Format},
-		Audit:     operatorAudit{operators.Audit},
-		Invites:   operatorInvitationDelivery{source: deps.Invites, expiry: deps.InvitationExpiry},
-		Changes:   operatorEmailChangeDelivery{source: deps.Changes, expiry: deps.EmailChangeExpiry},
+		Format:    application.EmailFormat{Source: deps.Format},
+		Audit:     application.OperatorAudit{Source: operators.Audit},
+		Invites:   application.OperatorInvitationDelivery{Source: deps.Invites, Expiry: deps.InvitationExpiry},
+		Changes:   application.OperatorEmailChangeDelivery{Source: deps.Changes, Expiry: deps.EmailChangeExpiry},
 		Runtime:   tenantRuntime{attach: attach, runner: tenant.NewTransactionRunner()},
 		Expiry: application.OperatorProvisioningExpiry{
 			Invitation: deps.InvitationExpiry, EmailChange: deps.EmailChangeExpiry,
@@ -65,35 +63,5 @@ func newOperatorProvisioning(
 }
 
 // --- port adapters ---------------------------------------------------------
-
-type emailFormat struct{ source identityPorts.EmailFormat }
-
-func (f emailFormat) IsRoutable(address string) bool { return f.source.IsRoutable(address) }
-
-type operatorInvitationDelivery struct {
-	source identityPorts.OperatorInvitationDelivery
-	expiry time.Duration
-}
-
-func (d operatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Context, invitation domain.OperatorInvitation, inviterName string) {
-	d.source.DispatchOperatorInvitation(ctx, application.PublicOperatorInvitation(invitation), inviterName, d.expiry)
-}
-
-type operatorEmailChangeDelivery struct {
-	source identityPorts.OperatorEmailChangeDelivery
-	expiry time.Duration
-}
-
-func (d operatorEmailChangeDelivery) DispatchOperatorEmailChangeVerification(ctx context.Context, change domain.OperatorEmailChange) {
-	d.source.DispatchOperatorEmailChangeVerification(ctx, application.PublicOperatorEmailChange(change), d.expiry)
-}
-
-func (d operatorEmailChangeDelivery) DispatchOperatorEmailChangeRequested(ctx context.Context, operator domain.Operator, maskedNewEmail string) {
-	d.source.DispatchOperatorEmailChangeRequested(ctx, identityaccess.Operator(operator), maskedNewEmail)
-}
-
-func (d operatorEmailChangeDelivery) DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string) {
-	d.source.DispatchOperatorEmailChangeConfirmed(ctx, oldEmail, displayName)
-}
 
 // --- engine methods --------------------------------------------------------

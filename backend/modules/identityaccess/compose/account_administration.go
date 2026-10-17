@@ -33,7 +33,7 @@ func newAccountAdministration(
 	}
 	return application.NewAccountAdministration(auth, application.AccountAdministrationDependencies{
 		Store:     store,
-		Schools:   schoolDirectory{sessions.Schools},
+		Schools:   application.SchoolDirectory{Source: sessions.Schools},
 		Verifier:  sessions.Passwords,
 		Passwords: deps.Passwords,
 		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},

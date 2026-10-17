@@ -6,10 +6,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
@@ -60,37 +58,17 @@ func newSchoolInvitation(
 	}
 	return application.NewSchoolInvitation(application.SchoolInvitationDependencies{
 		Store: store, Logins: store, Roles: postgres.NewRoleStore(store),
-		Policy:    roleAssignmentPolicy{},
-		Grants:    invitationGrantPolicy{deps.Grants},
+		Policy:    application.RoleAssignmentPolicy{},
+		Grants:    application.InvitationGrantPolicy{Source: deps.Grants},
 		Identity:  lifecycle,
-		Schools:   schoolDirectory{sessions.Schools},
+		Schools:   application.SchoolDirectory{Source: sessions.Schools},
 		Owners:    deps.Owners,
 		Passwords: deps.Passwords,
-		Delivery:  schoolInvitationDelivery{deps.Delivery},
+		Delivery:  application.SchoolInvitationDelivery{Source: deps.Delivery},
 		Runtime:   tenantRuntime{attach: attach, runner: newTransactionRunner()},
 		Expiry:    deps.Expiry,
 		Logger:    deps.Logger,
 	})
-}
-
-type invitationGrantPolicy struct {
-	source identityPorts.InvitationGrantPolicy
-}
-
-func (p invitationGrantPolicy) CanGrantRole(role domain.RoleFacts, actorPermissions, rolePermissions []string) bool {
-	return p.source.CanGrantRole(identityaccess.RoleFacts(role), actorPermissions, rolePermissions)
-}
-
-type schoolInvitationDelivery struct {
-	source identityPorts.SchoolInvitationDelivery
-}
-
-func (d schoolInvitationDelivery) DispatchSchoolInvitation(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, expiry time.Duration) {
-	d.source.DispatchSchoolInvitation(ctx, application.PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), expiry)
-}
-
-func (d schoolInvitationDelivery) QueueSchoolWelcome(ctx context.Context, invitation domain.SchoolInvitation, schoolName string, portal domain.InvitationPortal, rolePermissions []string) error {
-	return d.source.QueueSchoolWelcome(ctx, application.PublicSchoolInvitation(invitation), schoolName, identityaccess.InvitationPortal(portal), rolePermissions)
 }
 
 // --- engine methods --------------------------------------------------------

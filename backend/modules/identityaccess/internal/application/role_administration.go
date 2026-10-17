@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
@@ -479,4 +480,57 @@ func (r *RoleAdministration) ensureOrganizationRBACMembership(ctx context.Contex
 		return failed(op, domain.ErrAccountNotFound)
 	}
 	return nil
+}
+
+type LateSchoolIdentity struct {
+	Current func() *AccountLifecycle
+}
+
+func (i LateSchoolIdentity) EnsureSchoolIdentity(ctx context.Context, input domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
+	lifecycle := i.Current()
+	if lifecycle == nil {
+		return nil, errors.New("identity access compose: the school identity chain is not composed")
+	}
+	return lifecycle.EnsureSchoolIdentity(ctx, input)
+}
+
+// accountAdministration serves the offboarding port: role removals run
+// through the role administration so their session revocation holds, the
+// deactivation through the account administration, which schedules the
+// account-wide session wipe with it (#3332).
+type AccountAdministrationSeam struct {
+	Roles    *RoleAdministration
+	Accounts *AccountAdministration
+}
+
+func (a AccountAdministrationSeam) RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error {
+	return a.Roles.RemoveRoleFromAccount(ctx, accountID, roleID)
+}
+
+func (a AccountAdministrationSeam) DeactivateAccount(ctx context.Context, accountID int64) error {
+	return a.Accounts.DeactivateAccount(ctx, accountID)
+}
+
+func (d StaffDirectory) HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error) {
+	return d.Source.HasLiveCaregiverProfile(ctx, accountID)
+}
+
+// roleAssignmentPolicy binds the public assignment rules to the application
+// port.
+type RoleAssignmentPolicy struct{}
+
+func (RoleAssignmentPolicy) IsLehrkraftSystemRole(role *domain.RoleFacts) bool {
+	return identityaccess.IsLehrkraftSystemRole(publicRoleFacts(role))
+}
+
+func (RoleAssignmentPolicy) IsGuardianTierRole(role *domain.RoleFacts) bool {
+	return identityaccess.IsGuardianTierRole(publicRoleFacts(role))
+}
+
+func (RoleAssignmentPolicy) IsPlatformCaregiverRole(role *domain.RoleFacts) bool {
+	return identityaccess.IsPlatformCaregiverRole(publicRoleFacts(role))
+}
+
+func (RoleAssignmentPolicy) ValidateAssignableSchoolRole(role *domain.RoleFacts, tenantID int64) error {
+	return identityaccess.ValidateAssignableSchoolRole(publicRoleFacts(role), tenantID)
 }

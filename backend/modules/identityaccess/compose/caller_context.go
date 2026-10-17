@@ -94,12 +94,12 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 			return caller
 		},
 		Memo:       requestMemo(deps.Memo),
-		Accounts:   callerAccounts{deps.Accounts},
-		People:     callerPeople{deps.People},
+		Accounts:   application.CallerAccounts{Profiles: deps.Accounts},
+		People:     application.CallerPeople{People: deps.People},
 		Membership: deps.Membership,
 		Structure:  deps.Structure,
 		Activities: deps.Activities,
-		Sessions:   callerSessions{deps.Sessions},
+		Sessions:   application.CallerSessions{CallerSessions: deps.Sessions},
 		Write:      transaction{}.RunWrite,
 		RemoveFile: os.Remove,
 		Logger:     deps.Logger,
@@ -108,13 +108,13 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 		appDeps.LiveTopics = deps.LiveTopics
 	}
 	if deps.Overview != nil {
-		appDeps.Overview = callerOverview{deps.Overview}
+		appDeps.Overview = application.CallerOverview{Overview: deps.Overview}
 	}
 	app, err := application.NewCallerContext(appDeps)
 	if err != nil {
 		return identityaccess.CallerContext{}, err
 	}
-	engine := callerEngine{app: app}
+	engine := application.CallerEngine{App: app}
 	result := identityaccess.CallerContext{CallerIdentities: engine, CallerReach: engine, CallerProfiles: engine}
 	if deps.Review != nil {
 		review, err := newParentRequestReview(app, *deps.Review)
@@ -126,9 +126,9 @@ func NewCallerContext(deps CallerContextDependencies) (identityaccess.CallerCont
 	return result, nil
 }
 
-func newParentRequestReview(caller *application.CallerContext, deps ParentRequestReviewDependencies) (reviewEngine, error) {
+func newParentRequestReview(caller *application.CallerContext, deps ParentRequestReviewDependencies) (application.ReviewEngine, error) {
 	if deps.Permissions == nil {
-		return reviewEngine{}, errors.New("identity access compose: review permissions are required")
+		return application.ReviewEngine{}, errors.New("identity access compose: review permissions are required")
 	}
 	appDeps := application.ParentRequestReviewDependencies{
 		Permissions: func(permissions []string) domain.ReviewPermissions {
@@ -143,26 +143,7 @@ func newParentRequestReview(caller *application.CallerContext, deps ParentReques
 		appDeps.Settings = deps.Settings
 	}
 	review, err := application.NewParentRequestReview(caller, appDeps)
-	return reviewEngine{review: review}, err
-}
-
-type reviewEngine struct {
-	review *application.ParentRequestReview
-}
-
-func (e reviewEngine) ReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {
-	schoolWide, groups, err := e.review.Scope(ctx, permissions)
-	return schoolWide, groups, mapCallerError(err)
-}
-
-func (e reviewEngine) AbsenceReviewScope(ctx context.Context, permissions []string) (bool, []int64, error) {
-	schoolWide, groups, err := e.review.AbsenceScope(ctx, permissions)
-	return schoolWide, groups, mapCallerError(err)
-}
-
-func (e reviewEngine) ReviewAccessLevel(ctx context.Context, permissions []string) (string, error) {
-	level, err := e.review.AccessLevel(ctx, permissions)
-	return level, mapCallerError(err)
+	return application.ReviewEngine{Review: review}, err
 }
 
 // CallerMemo is the request-scoped slot the caller context memoizes the
@@ -185,130 +166,4 @@ func requestMemo(memo func(context.Context) CallerMemo) func(context.Context) po
 		}
 		return nil
 	}
-}
-
-type callerAccounts struct {
-	profiles identityaccess.AccountProfiles
-}
-
-func (a callerAccounts) FindAccountMetadata(ctx context.Context, accountID int64) (domain.AccountMetadata, error) {
-	value, err := a.profiles.FindAccountMetadata(ctx, accountID)
-	return domain.AccountMetadata(value), err
-}
-
-func (a callerAccounts) SetAccountUsername(ctx context.Context, accountID int64, username string) error {
-	return a.profiles.SetAccountUsername(ctx, accountID, username)
-}
-
-func (a callerAccounts) SetAccountAvatar(ctx context.Context, accountID int64, avatar string) error {
-	return a.profiles.SetAccountAvatar(ctx, accountID, avatar)
-}
-
-func (a callerAccounts) FindAccountProfile(ctx context.Context, accountID int64) (domain.AccountProfile, bool, error) {
-	bio, settings, found, err := a.profiles.FindAccountProfile(ctx, accountID)
-	return domain.AccountProfile{Bio: bio, Settings: settings}, found, err
-}
-
-func (a callerAccounts) SetAccountBio(ctx context.Context, accountID int64, bio string) error {
-	return a.profiles.SetAccountBio(ctx, accountID, bio)
-}
-
-type callerPeople struct{ people identityPorts.CallerPeople }
-
-func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (domain.CallerPerson, bool, error) {
-	person, found, err := p.people.FindPersonByAccount(ctx, accountID)
-	return domain.CallerPerson(person), found, err
-}
-
-func (p callerPeople) CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error {
-	return p.people.CreatePerson(ctx, accountID, firstName, lastName)
-}
-
-func (p callerPeople) RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error {
-	return p.people.RenamePerson(ctx, personID, firstName, lastName)
-}
-
-type callerSessions struct{ identityPorts.CallerSessions }
-
-func (s callerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]domain.CallerVisit, error) {
-	visits, err := s.CallerSessions.SessionVisits(ctx, sessionID)
-	if err != nil {
-		return nil, err
-	}
-	result := make([]domain.CallerVisit, 0, len(visits))
-	for _, visit := range visits {
-		result = append(result, domain.CallerVisit(visit))
-	}
-	return result, nil
-}
-
-type callerOverview struct{ overview identityPorts.CallerOverview }
-
-func (o callerOverview) HasOperationalOverview(ctx context.Context, staff ports.StaffPresence, assignmentBound, admin bool) (bool, error) {
-	return o.overview.HasOperationalOverview(ctx, staff, assignmentBound, admin)
-}
-
-// mapCallerError turns the application's caller-context errors into the
-// public ones, keeping the failed operation and the wrapped cause.
-// A context a use case wraps around such an error keeps its text, and
-// errors.Is/As reach the public error inside it.
-func mapCallerError(err error) error {
-	if err == nil {
-		return nil
-	}
-	if mapped, ok := mapCallerErrorValue(err); ok {
-		return mapped
-	}
-	inner := errors.Unwrap(err)
-	if inner == nil {
-		return err
-	}
-	mappedInner := mapCallerError(inner)
-	if mappedInner == inner {
-		return err
-	}
-	return &mappedCallerError{text: err.Error(), cause: mappedInner}
-}
-
-// mapCallerErrorValue translates one of the application's caller-context
-// errors itself, not an error wrapping one.
-func mapCallerErrorValue(err error) (error, bool) {
-	switch e := err.(type) {
-	case *domain.CallerError:
-		return &identityaccess.CallerError{Op: e.Op, Err: mapCallerError(e.Err)}, true
-	case *domain.CallerGroupsPartialError:
-		return &identityaccess.CallerGroupsPartialError{
-			Op: e.Op, SuccessCount: e.SuccessCount, FailureCount: e.FailureCount,
-			FailedIDs: e.FailedIDs, LastErr: e.LastErr,
-		}, true
-	case *domain.SSESetupError:
-		return &identityaccess.SSESetupError{Message: e.Message, Status: e.Status}, true
-	}
-	for _, pair := range callerSentinels {
-		if err == pair[0] {
-			return pair[1], true
-		}
-	}
-	return nil, false
-}
-
-// mappedCallerError keeps the text of a wrapped caller-context error while
-// its cause is the public error.
-type mappedCallerError struct {
-	text  string
-	cause error
-}
-
-func (e *mappedCallerError) Error() string { return e.text }
-
-func (e *mappedCallerError) Unwrap() error { return e.cause }
-
-var callerSentinels = [][2]error{
-	{domain.ErrCallerNotAuthenticated, identityaccess.ErrCallerNotAuthenticated},
-	{domain.ErrCallerNotFound, identityaccess.ErrCallerNotFound},
-	{domain.ErrCallerNotAuthorized, identityaccess.ErrCallerNotAuthorized},
-	{domain.ErrCallerNotLinkedToPerson, identityaccess.ErrCallerNotLinkedToPerson},
-	{domain.ErrCallerNotLinkedToStaff, identityaccess.ErrCallerNotLinkedToStaff},
-	{domain.ErrCallerNotLinkedToTeacher, identityaccess.ErrCallerNotLinkedToTeacher},
-	{domain.ErrCallerGroupNotFound, identityaccess.ErrCallerGroupNotFound},
 }
