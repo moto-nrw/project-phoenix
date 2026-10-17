@@ -12,6 +12,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/auditlog"
+
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
 
@@ -1347,9 +1349,13 @@ func parsePositiveInt(valueStr string, defaultValue int) int {
 func requestReviewDependencies(modules moduleServices, db transactionruntime.Database) (requestreviewcompose.ProjectionDependencies, carePlanModule.CareScheduleReviewQuery, error) {
 	pool := db.Pool()
 	svc := modules.services
-	reviewStudents, err := requestreviewcompose.NewStudentDirectory(pool, modules.persons, func(observation requestreviewcompose.DirectoryObservation) {
+	reviewGroups, err := schoolStructureCompose.New(schoolStructureCompose.Dependencies{DB: pool, Observe: func(observation schoolStructureCompose.Observation) {
 		observability.ObserveSchoolStructureOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, schoolStructureModule.ErrorCode(observation.Err), observation.Err)
-	})
+	}})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review groups: %w", err)
+	}
+	reviewStudents, err := requestreviewcompose.NewStudentDirectory(modules.persons, reviewGroups)
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review student directory: %w", err)
 	}
@@ -1414,9 +1420,13 @@ func requestReviewDependencies(modules moduleServices, db transactionruntime.Dat
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("offering review queue: %w", err)
 	}
-	corrections, err := requestreviewcompose.NewCorrectionLog(pool, modules.persons, func(ctx context.Context) bool {
+	correctionQueries, err := auditCompose.NewCorrectionQueries(pool, func(auditlog.Observation) {})
+	if err != nil {
+		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("request review corrections: %w", err)
+	}
+	corrections, err := requestreviewcompose.NewCorrectionLog(correctionQueries, modules.persons, func(ctx context.Context) bool {
 		return studentsAPI.RequestReviewCorrectionAccess(ctx, modules.userContext.HasCurrentStaff)
-	}, func(requestreviewcompose.AuditObservation) {})
+	})
 	if err != nil {
 		return requestreviewcompose.ProjectionDependencies{}, nil, fmt.Errorf("direct correction history: %w", err)
 	}

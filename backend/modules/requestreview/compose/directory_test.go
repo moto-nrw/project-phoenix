@@ -19,7 +19,7 @@ func TestDirectoryDecoratesOnlyRequestedChildrenInTheTenant(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
 	require.NoError(t, err)
-	directory, err := NewStudentDirectory(db, people, func(DirectoryObservation) {})
+	directory, err := composeStudentDirectory(t, db, people)
 	require.NoError(t, err)
 	group := testpkg.CreateTestEducationGroup(t, db, "ReviewDirectory")
 	grouped := testpkg.CreateTestStudent(t, db, "Grouped", "Child", "1a")
@@ -42,16 +42,16 @@ func TestDirectoryDecoratesOnlyRequestedChildrenInTheTenant(t *testing.T) {
 
 func TestDirectoryIsOptionalButConfiguredOwnerFailuresAreNot(t *testing.T) {
 	t.Parallel()
-	directory, err := NewStudentDirectory(nil, nil, nil)
+	directory, err := NewStudentDirectory(nil, nil)
 	require.NoError(t, err)
 	require.Nil(t, directory)
 
 	db := testpkg.SetupTestDB(t)
 	people, err := peoplecompose.New(peoplecompose.Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(peoplecompose.Observation) {}})
 	require.NoError(t, err)
-	_, err = NewStudentDirectory(nil, people, func(DirectoryObservation) {})
+	_, err = NewStudentDirectory(people, nil)
 	require.Error(t, err)
-	directory, err = NewStudentDirectory(db, people, func(DirectoryObservation) {})
+	directory, err = composeStudentDirectory(t, db, people)
 	require.NoError(t, err)
 	student := testpkg.CreateTestStudent(t, db, "Cancelled", "Read", "1a")
 	ctx, cancel := context.WithCancel(testpkg.Ctx(t))

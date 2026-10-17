@@ -1,6 +1,7 @@
 package compose_test
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -14,6 +15,19 @@ import (
 // The typed root composes the owners the internal review tests run over. It
 // imports this package, so the binding lives in the external test package.
 func init() {
+	requestreviewcompose.ComposeReviewDecorations = func(t *testing.T, db *bun.DB, people requestreviewcompose.ReviewPeople, allowed func(context.Context) bool) (requestreviewcompose.ReviewDecorations, error) {
+		t.Helper()
+		groups, err := api.NewSchoolStructure(testpkg.NewDatabase(t, db))
+		require.NoError(t, err)
+		students, err := requestreviewcompose.NewStudentDirectory(people, groups)
+		if err != nil {
+			return requestreviewcompose.ReviewDecorations{}, err
+		}
+		queries, err := api.NewUnobservedCorrectionQueries(testpkg.NewDatabase(t, db))
+		require.NoError(t, err)
+		corrections, err := requestreviewcompose.NewCorrectionLog(queries, people, allowed)
+		return requestreviewcompose.ReviewDecorations{Students: students, Corrections: corrections}, err
+	}
 	requestreviewcompose.ComposeReviewSources = func(t *testing.T) (*bun.DB, requestreviewcompose.ReviewComposition) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
