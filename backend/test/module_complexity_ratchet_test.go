@@ -324,7 +324,7 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession": 19,
 
-	"workflows/staffoffboarding/compose/new.go:New":                  32,
+	"workflows/staffoffboarding/compose/new.go:New":                  28,
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 17,
 
 	"workflows/studentdeletion/compose/new.go:Assemble":                         25,
