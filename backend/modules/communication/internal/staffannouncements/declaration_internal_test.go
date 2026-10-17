@@ -1,19 +1,18 @@
 package announcement
 
 import (
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-
 	"context"
 	"errors"
 	"io"
 	"testing"
 	"time"
 
+	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 func declarationTestInput() Input {
@@ -212,7 +211,7 @@ func TestDeclarationLifecycleVersionsProofAndDeleteGuard(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}}, testpkg.TenantTransactionRuntime{}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}, Fingerprints: securityFingerprints{}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{}).(*service)
 	svc.SetAttachmentPurger(digestStub{&stubPurger{}})
 
 	_, err := svc.Publish(ctx, announcement.ID)
@@ -288,7 +287,7 @@ func TestDeclarationWithSubmissionsKeepsItsDeliveryMode(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement, submissions: []*usersModels.DeclarationSubmission{{ID: 1}}}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}, testpkg.TenantTransactionRuntime{}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{}).(*service)
 
 	in := declarationTestInput()
 	in.DeliveryMode = usersModels.ParentAnnouncementDeliveryStandard
@@ -311,7 +310,7 @@ func TestDeclarationWithSubmissionsKeepsItsRules(t *testing.T) {
 	announcement.ID = 9
 	announcement.SetTenantID(3)
 	repo := &declarationRepo{announcement: announcement, submissions: []*usersModels.DeclarationSubmission{{ID: 1}}}
-	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}, testpkg.TenantTransactionRuntime{}).(*service)
+	svc := NewService(ServiceConfig{Repo: repo, Settings: newsOn{}}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{}).(*service)
 
 	in := declarationTestInput()
 	in.Declaration.Signers = usersModels.DeclarationSignersAll

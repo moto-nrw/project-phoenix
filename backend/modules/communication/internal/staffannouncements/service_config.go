@@ -4,7 +4,7 @@ import (
 	"log/slog"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -14,14 +14,14 @@ type ServiceConfig struct {
 	Settings   Settings
 	Outbox     OutboxEnqueuer
 	PushOutbox PushOutboxCanceller
-	Notifier   notifications.Service
+	Notifier   deliveryPorts.NotificationSender
 	// ReminderNotifier provides an outbox receipt for a claimed scheduled
 	// reminder. It is intentionally separate from Notifier: publication keeps
 	// its fire-and-forget notification semantics.
-	ReminderNotifier notifications.DurableReceiptService
+	ReminderNotifier deliveryPorts.DurableNotificationSender
 	// Preferences gates the push by the guardian's own consent. Optional; when
 	// absent no guardian is notified at all, which is the safe direction.
-	Preferences notifications.PreferenceService
+	Preferences deliveryPorts.NotificationPreferences
 	// Deliveries records who an Elternbrief was addressed to and what happened
 	// to their mail. Optional: without it the letter still publishes and mails
 	// still go out, only the staff matrix stays empty.

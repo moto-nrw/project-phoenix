@@ -8,12 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/localization"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the staff announcement
@@ -230,13 +228,13 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 		}
 		seen[r.AccountID] = struct{}{}
 		accountIDs = append(accountIDs, r.AccountID)
-		localeByAccount[r.AccountID] = localization.NormalizeLocale(r.PortalLocale)
+		localeByAccount[r.AccountID] = s.deliveryPolicy.NormalizeLocale(r.PortalLocale)
 	}
 	if len(accountIDs) == 0 {
 		return nil, nil
 	}
 	if s.preferences != nil {
-		filtered, err := s.preferences.FilterOptedIn(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		filtered, err := s.preferences.FilterOptedIn(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 		if err != nil {
 			return nil, fmt.Errorf("announcement: filter opted-in reminder recipients: %w", err)
 		}
@@ -250,22 +248,22 @@ func (s *service) pushPollReminder(ctx context.Context, a *usersModels.ParentAnn
 		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
 	}
 	for locale, group := range groups {
-		title, body := notifications.ParentAnnouncementCopy(locale, notifications.ParentPollReminder)
-		err := s.notifier.Notify(ctx, notifications.Event{
+		title, body := s.deliveryPolicy.ParentAnnouncementCopy(locale, deliveryPorts.ParentPollReminder)
+		err := s.notifier.Notify(ctx, deliveryPorts.NotificationEvent{
 			Type:           parentAnnouncementNotificationType,
 			IdempotencyKey: fmt.Sprintf("parent-poll-reminder:%d:%d", a.ID, a.UpdatedAt.UTC().UnixNano()),
 			RelatedType:    relatedEntityTypePollReminder, RelatedID: a.ID,
 			Title:    title,
 			Body:     body,
 			DeepLink: "/",
-			Priority: notifications.PriorityNormal,
-			Audience: notifications.Audience{
+			Priority: deliveryPorts.PriorityNormal,
+			Audience: deliveryPorts.NotificationAudience{
 				TenantID:           a.GetTenantID(),
-				Scope:              notifications.ScopeGuardian,
+				Scope:              deliveryPorts.ScopeGuardian,
 				GuardianAccountIDs: group,
 			},
-		})
-		if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		}.Public())
+		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 			s.logger.Info("parent poll reminder push suppressed by tenant notification gate",
 				slog.Int64("announcement_id", a.ID),
 				slog.String("reason", err.Error()),
@@ -317,7 +315,7 @@ func (s *service) enqueueReminderEmails(
 		}
 		// Mirrors the publish path: honour an explicit opt-out, but do not require
 		// an opt-in (most families have no preference row at all).
-		remaining, err := s.preferences.FilterNotOptedOut(ctx, notifications.TypeParentAnnouncement, accountIDs)
+		remaining, err := s.preferences.FilterNotOptedOut(ctx, deliveryPorts.TypeParentAnnouncement, accountIDs)
 		if err != nil {
 			return nil, fmt.Errorf("announcement: filter opted-out reminder recipients: %w", err)
 		}
@@ -341,7 +339,7 @@ func (s *service) enqueueReminderEmails(
 		return nil, fmt.Errorf("announcement: resolve school name: %w", err)
 	}
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	queuedAccountIDs := make([]int64, 0, len(recipients))
 	seenEmails := make(map[string]struct{}, len(recipients))
 	for _, r := range recipients {
