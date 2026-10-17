@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -374,7 +373,7 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 
 func parentAttendance(t *testing.T, db *bun.DB) parentportal.AttendanceReader {
 	t.Helper()
-	module, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
+	module, err := api.NewCheckinTestPresence(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return api.BindParentAttendance(module)
 }

@@ -21,7 +21,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -43,6 +42,8 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 	organizationTenancy, err := api.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	repos = repos.WithSchoolProjections(organizationTenancy)
+	messageStores, err := api.NewParentMessagingTestRepositories(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	bc := testpkg.NewRecordingBroadcaster()
 	settings := messagingSettingsStub{
 		boolValues: map[string]bool{
@@ -64,9 +65,9 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		GuardianProfileRepo:   repos.GuardianProfile,
 		Settings:              settings,
 		MessageThreadRepo:     repos.ParentMessageThread,
-		MessageRepo:           communicationtest.NewParentMessageRepository(db),
+		MessageRepo:           messageStores.Message,
 		MessageReadRepo:       repos.ParentMessageRead,
-		Conversations:         api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
+		Conversations:         api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		Logger:                slog.Default(),
 	})
@@ -101,9 +102,11 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, 
 		Body:            body,
 	}
 	m.SetTenantID(chain.TenantID)
+	messageStores, err := api.NewParentMessagingTestRepositories(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
+	require.NoError(t, api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
 	return thread.ID, staffAccount.ID
 }
 

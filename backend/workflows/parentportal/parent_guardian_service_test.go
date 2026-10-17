@@ -14,8 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -161,7 +159,7 @@ func TestCreateGuardianContact_AddsAccountlessPickupContact(t *testing.T) {
 		Where("student_id = ? AND guardian_profile_id = ?", chain.StudentID, created.GuardianProfileID).
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &role)
 	require.NoError(t, err)
-	assert.Equal(t, authorize.GuardianRolePickupOnly, role)
+	assert.Equal(t, "pickup_only", role)
 }
 
 func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
@@ -171,8 +169,8 @@ func TestCreateGuardianContact_RequiresPickupPermissionForFlags(t *testing.T) {
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	editorID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "contact-creator", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
-		authorize.GuardianPermissionGuardianEdit: true,
+		"parent_portal.access":        true,
+		"parent_portal.guardian.edit": true,
 	})
 	defer cleanup()
 
@@ -359,7 +357,7 @@ func TestUpdateGuardianContact_RejectsAccountHolder(t *testing.T) {
 
 	// Another guardian WITH their own portal account, linked to the same child.
 	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "other-parent", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
+		"parent_portal.access": true,
 	})
 	defer cleanup()
 
@@ -456,8 +454,8 @@ func TestUpdateGuardianRelationship_PickupManageGate(t *testing.T) {
 
 	// A caller WITH guardian.edit but WITHOUT pickup.manage may NOT flip the flag.
 	editorID, editorCleanup := linkAccountGuardian(t, db, chain.StudentID, "editor-parent", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
-		authorize.GuardianPermissionGuardianEdit: true,
+		"parent_portal.access":        true,
+		"parent_portal.guardian.edit": true,
 	})
 	defer editorCleanup()
 	editorAccountID := accountIDForProfile(t, db, editorID)
@@ -504,8 +502,8 @@ func TestUpdateGuardianRelationship_NoteOnlyEditLeavesFlagsUntouched(t *testing.
 
 	// A guardian.edit-only caller (no pickup.manage) edits ONLY the note.
 	editorID, editorCleanup := linkAccountGuardian(t, db, chain.StudentID, "note-editor", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
-		authorize.GuardianPermissionGuardianEdit: true,
+		"parent_portal.access":        true,
+		"parent_portal.guardian.edit": true,
 	})
 	defer editorCleanup()
 	editorAccountID := accountIDForProfile(t, db, editorID)
@@ -536,8 +534,8 @@ func TestUpdateGuardianRelationship_PickupManageWithoutEditFlipsFlags(t *testing
 	// advertises can_manage_pickup for them, so the write must honor it instead of
 	// 403-ing on a missing guardian.edit (the bug this fix closes).
 	managerID, managerCleanup := linkAccountGuardian(t, db, chain.StudentID, "manager-parent", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
-		authorize.GuardianPermissionPickupManage: true,
+		"parent_portal.access":        true,
+		"parent_portal.pickup.manage": true,
 	})
 	defer managerCleanup()
 	managerAccountID := accountIDForProfile(t, db, managerID)
@@ -586,7 +584,7 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnAccountHolders(t *testing.T) {
 
 	// Another guardian WITH their own portal account, linked to the same child.
 	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "other-parent", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
+		"parent_portal.access": true,
 	})
 	defer cleanup()
 
@@ -690,7 +688,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, rows, "a fresh contact edit must write audit rows")
 
-	byField := make(map[string]*auditModels.GuardianChange, len(rows))
+	byField := make(map[string]struct{}, len(rows))
 	for _, r := range rows {
 		assert.Equal(t, "contact", r.ChangeType)
 		assert.Equal(t, contactID, r.GuardianProfileID)
@@ -702,7 +700,7 @@ func TestUpdateGuardianContact_WritesContactAuditRows(t *testing.T) {
 		// current value).
 		assert.Nil(t, r.OldValue, "contact audit rows must not store the old value (PII)")
 		assert.Nil(t, r.NewValue, "contact audit rows must not store the new value (PII)")
-		byField[r.FieldName] = r
+		byField[r.FieldName] = struct{}{}
 	}
 	// The changed fields are recorded by name (email + phones both changed here).
 	require.Contains(t, byField, "email")
@@ -922,7 +920,7 @@ func TestListChildGuardians_RedactsSocialWorkerContact(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sozialarbeiter", authorize.GuardianRoleSocialWorker)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sozialarbeiter", "social_worker")
 	defer cleanup()
 
 	guardians, err := svc.ListChildGuardians(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -951,7 +949,7 @@ func TestUpdateGuardianContact_RejectsSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-edit", authorize.GuardianRoleSocialWorker)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-edit", "social_worker")
 	defer cleanup()
 
 	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, swID, parentService.GuardianContactInput{
@@ -969,7 +967,7 @@ func TestUpdateGuardianRelationship_RejectsFlagsOnSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-flag", authorize.GuardianRoleSocialWorker)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-flag", "social_worker")
 	defer cleanup()
 
 	canPickup := true
@@ -989,7 +987,7 @@ func TestListChildGuardians_LocksFullGuardianWithoutAccount(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent", authorize.GuardianRoleLegalGuardian)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent", "legal_guardian")
 	defer cleanup()
 
 	guardians, err := svc.ListChildGuardians(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -1016,7 +1014,7 @@ func TestUpdateGuardianContact_RejectsFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-edit", authorize.GuardianRoleCoGuardian)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-edit", "co_guardian")
 	defer cleanup()
 
 	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, legalID, parentService.GuardianContactInput{
@@ -1034,7 +1032,7 @@ func TestUpdateGuardianRelationship_RejectsFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-flag", authorize.GuardianRoleLegalGuardian)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-flag", "legal_guardian")
 	defer cleanup()
 
 	canPickup := true
@@ -1053,7 +1051,7 @@ func TestUpdateGuardianContact_AllowsHelperRoleWithoutAccount(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	helperID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "helper-pickup", authorize.GuardianRolePickupOnly)
+	helperID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "helper-pickup", "pickup_only")
 	defer cleanup()
 
 	updated, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, helperID, parentService.GuardianContactInput{
@@ -1123,7 +1121,7 @@ func TestUpdateGuardianRelationship_RejectsNoteOnContactLockedAccountHolder(t *t
 	// Another guardian WITH their own portal account (contact read-only), linked
 	// to the same child with a non-full-guardian relationship.
 	otherID, cleanup := linkAccountGuardian(t, db, chain.StudentID, "note-acct-holder", map[string]interface{}{
-		authorize.GuardianPermissionPortalAccess: true,
+		"parent_portal.access": true,
 	})
 	defer cleanup()
 
@@ -1164,7 +1162,7 @@ func TestUpdateGuardianRelationship_RejectsNoteOnFullGuardian(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-note", authorize.GuardianRoleLegalGuardian)
+	legalID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "co-parent-note", "legal_guardian")
 	defer cleanup()
 
 	guardians, err := svc.ListChildGuardians(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
@@ -1190,7 +1188,7 @@ func TestUpdateGuardianRelationship_RejectsNoteOnSocialWorker(t *testing.T) {
 	svc, db := buildGuardianService(t)
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
-	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-note", authorize.GuardianRoleSocialWorker)
+	swID, cleanup := linkRoleGuardian(t, db, chain.StudentID, "sw-note", "social_worker")
 	defer cleanup()
 
 	_, err := svc.UpdateGuardianRelationship(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, swID, parentService.GuardianRelationshipInput{

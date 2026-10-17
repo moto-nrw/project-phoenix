@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	modelsBase "github.com/moto-nrw/project-phoenix/models/base"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -281,9 +280,6 @@ func (s *stubGuardianProfileRepo) FindWithoutAccount(context.Context) ([]*userMo
 	return nil, nil
 }
 func (s *stubGuardianProfileRepo) FindInvitable(context.Context) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) ListWithOptions(context.Context, *modelsBase.QueryOptions) ([]*userModels.GuardianProfile, error) {
 	return nil, nil
 }
 func (s *stubGuardianProfileRepo) SearchByText(context.Context, string, int) ([]*userModels.GuardianProfile, error) {
