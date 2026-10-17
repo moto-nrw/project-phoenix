@@ -104,16 +104,6 @@ func (a studentNoteDeletionAudit) RecordStudentNoteDeletion(
 	return a.repo.Create(ctx, record)
 }
 
-func (a studentNoteDeletionAudit) RecordLegacyStudentNoteDeletion(
-	ctx context.Context, studentID, noteID int64,
-) error {
-	record := auditModels.NewDataDeletion(studentID, auditModels.DeletionTypeManual, 1, "system")
-	record.DeletionReason = "legacy supervisor notes cleared"
-	record.SetMetadata("student_note_id", noteID)
-	record.SetMetadata("source", "supervisor_notes")
-	return a.repo.Create(ctx, record)
-}
-
 type studentFieldAuditLog struct {
 	repo studentFieldEditTrail
 }
@@ -199,7 +189,7 @@ func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record 
 		days[day] = string(value)
 	}
 	return s.care.SaveStudentCareProfile(ctx, careplan.StudentCareProfile{
-		MembershipID: membershipID, SupervisorNotes: record.SupervisorNotes, HealthInfo: record.HealthInfo,
+		MembershipID: membershipID, HealthInfo: record.HealthInfo,
 		PickupStatus: record.PickupStatus, Sick: record.Sick != nil && *record.Sick,
 		SickSince: record.SickSince, Excused: record.Excused != nil && *record.Excused, ExcusedSince: record.ExcusedSince,
 	}, &careplan.StudentDeparturePlan{

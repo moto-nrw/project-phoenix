@@ -49,7 +49,6 @@ export const WithNotes: Story = {
     student: {
       ...baseStudent,
       health_info: "Allergie gegen Nüsse",
-      supervisor_notes: "Braucht Unterstützung bei den Hausaufgaben",
       extra_info: "Abholung nur durch Erziehungsberechtigte",
     },
   },

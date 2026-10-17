@@ -120,10 +120,6 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *Student) {
 	if req.HealthInfo != nil {
 		student.HealthInfo = req.HealthInfo
 	}
-	if req.SupervisorNotes != nil {
-		student.SupervisorNotes = req.SupervisorNotes
-		student.SupervisorNotesSupplied = true
-	}
 	if req.DepartureCompanionNote != nil {
 		student.DepartureCompanionNote = req.DepartureCompanionNote
 	}

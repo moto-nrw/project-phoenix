@@ -162,7 +162,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 34617
+const moduleComposeBudgetTotal = 34615
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -208,7 +208,7 @@ var moduleComposeBudgets = map[string]int{
 	// Timetable's advisory locks moved into the root and gave up more than
 	// the three hold.
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 2754,
+	"modules/peopledirectory/compose":                 2752,
 	"modules/peopledirectory/compose/vocabulary":      110,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,

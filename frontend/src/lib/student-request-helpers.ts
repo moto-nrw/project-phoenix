@@ -43,7 +43,6 @@ interface BackendStudentRequest {
   address_city?: string;
   address_postal_code?: string;
   health_info?: string;
-  supervisor_notes?: string;
   pickup_status?: string;
   // Guardians created atomically with the student (guardian_profiles system).
   guardians?: StudentGuardianPayload[];
@@ -156,7 +155,6 @@ export function buildBackendStudentRequest(
     address_city: backendData.address_city,
     address_postal_code: backendData.address_postal_code,
     health_info: backendData.health_info,
-    supervisor_notes: backendData.supervisor_notes,
     pickup_status: backendData.pickup_status,
   };
 

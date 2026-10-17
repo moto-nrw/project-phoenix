@@ -183,7 +183,7 @@ func newStudentWriteRow(record domain.StudentRecord, tenantID int64) studentWrit
 	row.EnrolledUntil = studentDateParam(record.EnrolledUntil)
 	row.AddressStreet, row.AddressCity = record.AddressStreet, record.AddressCity
 	row.AddressPostalCode = record.AddressPostalCode
-	row.ExtraInfo, row.SupervisorNotes = record.ExtraInfo, record.SupervisorNotes
+	row.ExtraInfo = record.ExtraInfo
 	row.HealthInfo, row.PickupStatus = record.HealthInfo, record.PickupStatus
 	row.Sick, row.SickSince = record.Sick, record.SickSince
 	row.Excused, row.ExcusedSince = record.Excused, record.ExcusedSince

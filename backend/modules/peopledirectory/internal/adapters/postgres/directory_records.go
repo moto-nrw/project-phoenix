@@ -32,10 +32,9 @@ type directoryRecordRow struct {
 	AddressCity       *string `bun:"address_city"`
 	AddressPostalCode *string `bun:"address_postal_code"`
 
-	ExtraInfo       *string `bun:"extra_info"`
-	SupervisorNotes *string `bun:"supervisor_notes"`
-	HealthInfo      *string `bun:"health_info"`
-	PickupStatus    *string `bun:"pickup_status"`
+	ExtraInfo    *string `bun:"extra_info"`
+	HealthInfo   *string `bun:"health_info"`
+	PickupStatus *string `bun:"pickup_status"`
 
 	DepartureDays          directory.DepartureDays         `bun:"departure_days"`
 	AllowedDepartureModes  directory.AllowedDepartureModes `bun:"allowed_departure_modes"`
@@ -63,7 +62,7 @@ func (r directoryRecordRow) toDomain() directory.StudentRecord {
 		PersonID: r.PersonID, SchoolClass: r.SchoolClass, GroupID: r.GroupID, Status: r.Status,
 
 		AddressStreet: r.AddressStreet, AddressCity: r.AddressCity, AddressPostalCode: r.AddressPostalCode,
-		ExtraInfo: r.ExtraInfo, SupervisorNotes: r.SupervisorNotes,
+		ExtraInfo:  r.ExtraInfo,
 		HealthInfo: r.HealthInfo, PickupStatus: r.PickupStatus,
 		DepartureDays: r.DepartureDays, AllowedDepartureModes: r.AllowedDepartureModes,
 		PickupDays: r.PickupDays, BusDays: r.BusDays, DepartureCompanionNote: r.DepartureCompanionNote,
@@ -85,7 +84,7 @@ const studentRecordColumns = `"student".id, "student".created_at, "student".upda
 	"student".person_id, "student".school_class, "student".group_id, "student".status,
 	"student".enrolled_from, "student".enrolled_until,
 	"student".address_street, "student".address_city, "student".address_postal_code,
-	"student".extra_info, "student".supervisor_notes, "student".health_info, "student".pickup_status,
+	"student".extra_info, "student".health_info, "student".pickup_status,
 	"student".departure_days, "student".allowed_departure_modes, "student".pickup_days, "student".bus_days,
 	"student".departure_companion_note,
 	"student".sick, "student".sick_since, "student".excused, "student".excused_since,

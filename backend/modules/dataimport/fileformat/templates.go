@@ -227,7 +227,7 @@ func writeHinweiseSheet(f *excelize.File) {
 		{"Erz1.Sprache", "Nein", "de, en, tr, ar, ...", "Bevorzugte Sprache (ISO 639-1, Standard: de)"},
 		// row 23: section header "Kinder-Zusatzinfos" (injected)
 		{"Gesundheitsinfo", "Nein", "Text", "Allergien, Medikamente, etc."},
-		{"Betreuernotizen", "Nein", "Text", "Interne Notizen für Betreuer"},
+		{"Betreuernotizen", "Nein", "Text", "Dauerhafter Hinweis zum Kind. Steht danach im Reiter Notizen. Eltern sehen ihn nicht."},
 		{"Zusatzinfo", "Nein", "Text", "Sonstige Informationen (Elternnotizen)"},
 		{"Datenschutz", "Ja", hintYesNo, "Datenschutzerklärung akzeptiert"},
 		{"Aufbewahrung(Tage)", "Nein", "1-31 (Standard: 30)", "Datenaufbewahrungsfrist in Tagen"},

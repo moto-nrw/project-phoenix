@@ -124,9 +124,6 @@ func populateSensitiveStudentFields(response *StudentResponse, student *Student)
 	if student.DepartureCompanionNote != nil && *student.DepartureCompanionNote != "" {
 		response.DepartureCompanionNote = *student.DepartureCompanionNote
 	}
-	if student.SupervisorNotes != nil {
-		response.SupervisorNotes = *student.SupervisorNotes
-	}
 	if student.Sick != nil {
 		response.Sick = *student.Sick
 	}
@@ -240,9 +237,6 @@ func populateSnapshotSensitiveFields(response *StudentResponse, student *Student
 	}
 	if student.HealthInfo != nil {
 		response.HealthInfo = *student.HealthInfo
-	}
-	if student.SupervisorNotes != nil {
-		response.SupervisorNotes = *student.SupervisorNotes
 	}
 	if student.Sick != nil {
 		response.Sick = *student.Sick

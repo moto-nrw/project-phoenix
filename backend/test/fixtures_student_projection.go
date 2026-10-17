@@ -103,7 +103,7 @@ const studentDirectorySource = `(SELECT p.id, p.tenant_id, p.person_id, p.create
 	p.photo_path, p.photo_consent_given_at, p.photo_consent_given_by,
 	p.agb_accepted_at, p.data_processing_accepted_at, p.email_contact_accepted_at,
 	m.id AS membership_id, m.school_class, m.group_id, m.status, m.enrolled_from, m.enrolled_until,
-	c.supervisor_notes, c.health_info, c.pickup_status, c.departure_days,
+	c.health_info, c.pickup_status, c.departure_days,
 	c.allowed_departure_modes, c.departure_companion_note, c.pickup_days, c.bus_days,
 	c.sick, c.sick_since, c.excused, c.excused_since
 	FROM users.student_profiles AS p

@@ -3,12 +3,10 @@ package application
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // StudentWrite is one create or update of a child, as the caller submits it:
@@ -28,10 +26,6 @@ type StudentWrite struct {
 	// NoteSupplied distinguishes "the caller cleared the note" from "the caller
 	// said nothing about it", which a nil pointer alone cannot.
 	NoteSupplied bool
-	// SupervisorNotesSupplied says the legacy master-data field changed. It is
-	// separate from the value because unrelated writes carry a hydrated record
-	// and must not resurrect a deliberately removed carried-over hint.
-	SupervisorNotesSupplied bool
 }
 
 // A failed composite command must undo its own writes even when an ambient
@@ -72,10 +66,6 @@ func (s *StudentService) CreateStudent(ctx context.Context, write StudentWrite) 
 		}
 		err = s.owners.SaveCare(txCtx, membershipID, record, resolved, noteToStore(resolved, write.CompanionNote), write.Plan.Touched() || write.NoteSupplied)
 		if err != nil {
-			return err
-		}
-		if err := s.syncLegacySupervisorNotes(txCtx, stats, record.ID, record.SupervisorNotes,
-			write.SupervisorNotesSupplied && hasLegacySupervisorNotes(record.SupervisorNotes)); err != nil {
 			return err
 		}
 		result = applyPlanToRecord(record, resolved, noteToStore(resolved, write.CompanionNote))
@@ -176,49 +166,23 @@ func (s *StudentService) persistStudentWrite(
 	if err := s.saveStudentOwners(ctx, record, plan, note, planTouched); err != nil {
 		return domain.StudentRecord{}, err
 	}
-	if err := s.syncLegacySupervisorNotes(ctx, stats, record.ID, record.SupervisorNotes, write.SupervisorNotesSupplied); err != nil {
-		return domain.StudentRecord{}, err
-	}
 	return record, nil
 }
 
-func (s *StudentService) syncLegacySupervisorNotes(
+// importPermanentHint writes the import's „Betreuernotizen" cell to the note
+// card. An empty cell says nothing about the child, so it never removes a hint.
+func (s *StudentService) importPermanentHint(
 	ctx context.Context,
 	stats *domain.OperationStats,
 	studentID int64,
-	supervisorNotes *string,
-	supplied bool,
+	hint *string,
 ) error {
-	if !supplied {
+	if hint == nil || strings.TrimSpace(*hint) == "" {
 		return nil
 	}
-	var deletedNoteID int64
-	if !hasLegacySupervisorNotes(supervisorNotes) {
-		legacyNote, found, findStats, err := s.notes.FindLegacySupervisorNote(ctx, studentID, "UPDATE")
-		stats.Add(findStats)
-		if err != nil {
-			return err
-		}
-		if found {
-			if s.audit == nil {
-				return ports.ErrStudentNoteDeletionAuditUnavailable
-			}
-			deletedNoteID = legacyNote.ID
-		}
-	}
-	queryStats, err := s.notes.SyncLegacySupervisorNotes(ctx, studentID, supervisorNotes)
+	queryStats, err := s.notes.ImportPermanentHint(ctx, studentID, strings.TrimSpace(*hint))
 	stats.Add(queryStats)
-	if err != nil || deletedNoteID == 0 {
-		return err
-	}
-	if err := s.audit.RecordLegacyStudentNoteDeletion(ctx, studentID, deletedNoteID); err != nil {
-		return fmt.Errorf("record legacy student note deletion: %w", err)
-	}
-	return nil
-}
-
-func hasLegacySupervisorNotes(notes *string) bool {
-	return notes != nil && strings.TrimSpace(*notes) != ""
+	return err
 }
 
 func (s *StudentService) saveStudentOwners(ctx context.Context, record domain.StudentRecord, plan domain.DeparturePlan, note *string, touched bool) error {

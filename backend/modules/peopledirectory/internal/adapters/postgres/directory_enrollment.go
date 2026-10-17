@@ -25,7 +25,6 @@ type enrollmentReadRow struct {
 	AddressCity              *string             `bun:"address_city"`
 	AddressPostalCode        *string             `bun:"address_postal_code"`
 	ExtraInfo                *string             `bun:"extra_info"`
-	SupervisorNotes          *string             `bun:"supervisor_notes"`
 	HealthInfo               *string             `bun:"health_info"`
 	PickupStatus             *string             `bun:"pickup_status"`
 	DepartureCompanionNote   *string             `bun:"departure_companion_note"`
@@ -87,4 +86,4 @@ func (s *studentDirectoryReads) ReadEnrollment(ctx context.Context, id int64, lo
 	return directory.EnrollmentRecord(row), stats, nil
 }
 
-const enrollmentColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id, "student".person_id, "student".school_class, "student".status, "student".address_street, "student".address_city, "student".address_postal_code, "student".extra_info, "student".supervisor_notes, "student".health_info, "student".pickup_status, "student".departure_companion_note, "student".photo_path, "student".group_id, "student".sick, "student".excused, "student".sick_since, "student".excused_since, "student".photo_consent_given_at, "student".agb_accepted_at, "student".data_processing_accepted_at, "student".email_contact_accepted_at, "student".photo_consent_given_by, "student".allowed_departure_modes, "student".departure_days, "student".bus_days, "student".pickup_days`
+const enrollmentColumns = `"student".id, "student".created_at, "student".updated_at, "student".tenant_id, "student".person_id, "student".school_class, "student".status, "student".address_street, "student".address_city, "student".address_postal_code, "student".extra_info, "student".health_info, "student".pickup_status, "student".departure_companion_note, "student".photo_path, "student".group_id, "student".sick, "student".excused, "student".sick_since, "student".excused_since, "student".photo_consent_given_at, "student".agb_accepted_at, "student".data_processing_accepted_at, "student".email_contact_accepted_at, "student".photo_consent_given_by, "student".allowed_departure_modes, "student".departure_days, "student".bus_days, "student".pickup_days`

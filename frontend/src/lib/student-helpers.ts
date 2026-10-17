@@ -504,7 +504,6 @@ export interface BackendStudent {
   }[];
   birthday?: string;
   health_info?: string;
-  supervisor_notes?: string;
   pickup_status?: string;
   pickup_time?: string; // Today's effective pickup time (HH:MM)
   pickup_is_exception?: boolean; // True if today's pickup time is an exception
@@ -725,7 +724,6 @@ export interface Student {
   confirmed_companion_extensions?: CompanionExtensionConfirmation[];
   birthday?: string;
   health_info?: string;
-  supervisor_notes?: string;
   pickup_status?: string;
   pickup_time?: string; // Today's effective pickup time (HH:MM)
   pickup_is_exception?: boolean; // True if today's pickup time is an exception
@@ -825,7 +823,6 @@ export function mapStudentResponse(
     companion_student_ids: backendStudent.companion_student_ids?.map(String),
     birthday: backendStudent.birthday,
     health_info: backendStudent.health_info,
-    supervisor_notes: backendStudent.supervisor_notes,
     pickup_status: backendStudent.pickup_status,
     pickup_time: backendStudent.pickup_time,
     pickup_is_exception: backendStudent.pickup_is_exception,
@@ -956,7 +953,6 @@ export function prepareStudentForBackend(
     departure_companion_note?: string;
     birthday?: string;
     health_info?: string;
-    supervisor_notes?: string;
     pickup_status?: string;
     companions?: { companion_student_id: string; weekdays: string[] }[];
     companions_fingerprint?: string;
@@ -1038,7 +1034,6 @@ export function prepareStudentForBackend(
         ? student.birthday
         : undefined,
     health_info: student.health_info,
-    supervisor_notes: student.supervisor_notes,
     pickup_status: student.pickup_status,
     sick: student.sick,
     excused: student.excused,
@@ -1064,7 +1059,6 @@ export interface UpdateStudentRequest {
   departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
-  supervisor_notes?: string;
   pickup_status?: string;
   bus?: boolean;
   bus_days?: BusDays;
@@ -1097,7 +1091,6 @@ export interface BackendUpdateRequest {
   departure_companion_note?: string;
   birthday?: string;
   health_info?: string;
-  supervisor_notes?: string;
   pickup_status?: string;
   bus?: boolean;
   bus_days?: BusDays;
@@ -1169,7 +1162,6 @@ const DIRECT_FIELD_MAPPINGS: FieldMapping[] = [
   { source: "departure_companion_note", target: "departure_companion_note" },
   { source: "birthday", target: "birthday" },
   { source: "health_info", target: "health_info" },
-  { source: "supervisor_notes", target: "supervisor_notes" },
   { source: "pickup_status", target: "pickup_status" },
   // departure_days is the single source of truth (#1610); bus_days/pickup_days
   // are still accepted by the backend for partial legacy updates.

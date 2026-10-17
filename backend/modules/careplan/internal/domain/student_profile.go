@@ -3,14 +3,13 @@ package domain
 import "time"
 
 type StudentCareProfile struct {
-	MembershipID    int64
-	SupervisorNotes *string
-	HealthInfo      *string
-	PickupStatus    *string
-	Sick            bool
-	SickSince       *time.Time
-	Excused         bool
-	ExcusedSince    *time.Time
+	MembershipID int64
+	HealthInfo   *string
+	PickupStatus *string
+	Sick         bool
+	SickSince    *time.Time
+	Excused      bool
+	ExcusedSince *time.Time
 }
 
 type StudentDeparturePlan struct {
