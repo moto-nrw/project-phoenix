@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -90,7 +89,7 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		sf.UserContext,
 		nil, // emitter — best-effort, after commit
 		nil, // broadcaster — cache fan-out
-		testpkg.RequestReviewPolicy[*userModels.Student]{UserContext: sf.UserContext}, testpkg.PermissionsFromContext,
+		testpkg.NewRequestReviewPolicy(sf.UserContext, repos.Student.FindByIDForUpdate), testpkg.PermissionsFromContext,
 		nil,
 		slog.Default(),
 		sf.StudentAudit,

@@ -17,3 +17,9 @@ func (p RequestReviewPolicy[S]) Allows(ctx context.Context, permissions []string
 	allowed, _ := securityruntime.CanUpdateStudent(ctx, permissions, student, p.UserContext)
 	return allowed, nil
 }
+
+// NewRequestReviewPolicy infers the child type from the bound lock-read port.
+// The read is a type witness, not an extra query; authorization is unchanged.
+func NewRequestReviewPolicy[S interface{ IsAuthorizationStudent() bool }](source securityruntime.StudentAccessUserContext, _ func(context.Context, int64) (S, error)) RequestReviewPolicy[S] {
+	return RequestReviewPolicy[S]{UserContext: source}
+}

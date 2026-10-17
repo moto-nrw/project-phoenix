@@ -9,14 +9,12 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // stubEnrollmentRequestRepo captures inputs to the repo and replays
@@ -215,7 +213,7 @@ func TestService_ListEnrollmentsForAccount_KeepsReasonWhenPhaseEnablesIt(t *test
 // Only FindByAccountID and UpdatePortalLocaleByAccountID carry behaviour; the
 // rest satisfy the interface and are never exercised by the profile tests.
 type stubGuardianProfileRepo struct {
-	findResult *userModels.GuardianProfile
+	findResult *peopledirectory.GuardianProfileFixture
 	findErr    error
 
 	updateErr           error
@@ -225,7 +223,7 @@ type stubGuardianProfileRepo struct {
 	gotFindAccountIDArg int64
 }
 
-func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*userModels.GuardianProfile, error) {
+func (s *stubGuardianProfileRepo) FindByAccountID(_ context.Context, accountID int64) (*peopledirectory.GuardianProfileFixture, error) {
 	s.gotFindAccountIDArg = accountID
 	return s.findResult, s.findErr
 }
@@ -256,59 +254,13 @@ func (p portalLocalePeople) ListGuardiansByAccount(context.Context, []int64) ([]
 
 func (p portalLocalePeople) SetGuardianPortalLocale(ctx context.Context, accountID int64, locale string) (int64, error) {
 	err := p.repo.UpdatePortalLocaleByAccountID(ctx, accountID, locale)
-	if errors.Is(err, userModels.ErrGuardianProfileNotFound) {
+	if errors.Is(err, parentService.ErrGuardianProfileNotFound) {
 		return 0, nil
 	}
 	if err != nil {
 		return 0, err
 	}
 	return 1, nil
-}
-
-func (s *stubGuardianProfileRepo) Create(context.Context, *userModels.GuardianProfile) error {
-	return nil
-}
-func (s *stubGuardianProfileRepo) FindByID(context.Context, int64) (*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) LockByIDForUpdate(context.Context, int64) error { return nil }
-func (s *stubGuardianProfileRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindByEmails(context.Context, []string) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindWithoutAccount(context.Context) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindInvitable(context.Context) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) SearchByText(context.Context, string, int) ([]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-
-func (s *stubGuardianProfileRepo) FindLoginReadyPortalProfilesByIDs(context.Context, []int64) (map[int64]*userModels.GuardianProfile, error) {
-	return nil, nil
-}
-func (s *stubGuardianProfileRepo) Count(context.Context) (int, error) { return 0, nil }
-func (s *stubGuardianProfileRepo) Update(context.Context, *userModels.GuardianProfile) error {
-	return nil
-}
-func (s *stubGuardianProfileRepo) Delete(context.Context, int64) error             { return nil }
-func (s *stubGuardianProfileRepo) LinkAccount(context.Context, int64, int64) error { return nil }
-func (s *stubGuardianProfileRepo) UnlinkAccount(context.Context, int64) error      { return nil }
-func (s *stubGuardianProfileRepo) GetStudentCount(context.Context, int64) (int, error) {
-	return 0, nil
-}
-func (s *stubGuardianProfileRepo) LoadProfileWithChildren(context.Context, int64) (*userModels.GuardianProfileWithChildren, error) {
-	return nil, nil
 }
 
 func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo) *parentService.Portal {
@@ -321,7 +273,7 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
-		GuardianProfileRepo: repo,
+		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
 	})
 }
@@ -332,7 +284,7 @@ func TestService_GetProfile_ExplicitLocale(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{
+		findResult: &peopledirectory.GuardianProfileFixture{
 			FirstName:    "Karin",
 			LastName:     "Klein",
 			PortalLocale: localePtr("en"),
@@ -354,7 +306,7 @@ func TestService_GetProfile_NormalizesRegionSubtag(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("en-US")},
+		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: localePtr("en-US")},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -368,7 +320,7 @@ func TestService_GetProfile_NullLocaleIsNotExplicit(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: nil},
+		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: nil},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -384,7 +336,7 @@ func TestService_GetProfile_EmptyLocaleIsNotExplicit(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findResult: &userModels.GuardianProfile{PortalLocale: localePtr("")},
+		findResult: &peopledirectory.GuardianProfileFixture{PortalLocale: localePtr("")},
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -398,7 +350,7 @@ func TestService_GetProfile_MissingProfileIsBenign(t *testing.T) {
 	t.Parallel()
 
 	repo := &stubGuardianProfileRepo{
-		findErr: userModels.ErrGuardianProfileNotFound,
+		findErr: parentService.ErrGuardianProfileNotFound,
 	}
 	svc := buildParentServiceWithGuardian(t, repo)
 
@@ -484,7 +436,7 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
-		GuardianProfileRepo: repo,
+		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
 	})
 
@@ -558,10 +510,10 @@ func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
 	// rows (account has no guardian_profiles row). The service must surface it,
 	// not report the locale as saved — a preference that never persisted cannot
 	// masquerade as success.
-	repo := &stubGuardianProfileRepo{updateErr: userModels.ErrGuardianProfileNotFound}
+	repo := &stubGuardianProfileRepo{updateErr: parentService.ErrGuardianProfileNotFound}
 	svc := buildParentServiceWithGuardian(t, repo)
 
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
-	assert.ErrorIs(t, err, userModels.ErrGuardianProfileNotFound)
+	assert.ErrorIs(t, err, parentService.ErrGuardianProfileNotFound)
 }
