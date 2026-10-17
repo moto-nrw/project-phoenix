@@ -255,10 +255,12 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 	// caller who can't see a student's planned schedule (because they
 	// don't supervise the student's education group) must not see the
 	// real check-in/out clock either.
-	access := common.DetermineStudentAccessWithStaffLookup(r, func(ctx context.Context) (bool, error) {
+	admin, staff := rs.authorization.StudentDataAccess(r.Context(), func(ctx context.Context) (bool, error) {
 		staff, err := rs.UserContextService.GetCurrentStaff(ctx)
 		return staff != nil, err
 	})
+
+	access := &common.StudentAccessContext{IsAdmin: admin, IsStaff: staff}
 
 	attendanceStatuses, err := rs.fetchAttendanceStatusesForVisits(r, results, access)
 	if err != nil {

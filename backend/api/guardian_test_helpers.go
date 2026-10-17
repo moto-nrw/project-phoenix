@@ -61,3 +61,14 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	carrier := &serviceGraph{Guardian: guardian}
 	return GuardianTestModule{PeopleDirectory: people, PhotoRuntime: photoRuntime, runtime: NewGuardianDirectoryRuntime(carrier, lists.NewRendererService(), auth.GuardianInvitation, identity.HasCurrentStaff, peopleCompose.NewLegacyRepositoryRuntime(db.Pool()))}, nil
 }
+
+// ParentGuardianRoleFixture supplies the canonical role preset as stored
+// fixture values, without exposing Security's implementation to the workflow.
+func ParentGuardianRoleFixture(role string) (string, map[string]interface{}) {
+	normalized, granted := securityruntime.StudentGuardianRolePreset(role)
+	permissions := make(map[string]interface{}, len(granted))
+	for _, permission := range granted {
+		permissions[permission] = true
+	}
+	return normalized, permissions
+}

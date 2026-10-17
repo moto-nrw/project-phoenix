@@ -29,6 +29,8 @@ type VisitAuthorizer func(context.Context, int64, bool, int64, VisitAccessQuery)
 
 // Authorization supplies the Security Runtime policies used by active routes.
 type Authorization struct {
+	// StudentDataAccess resolves admin permission and verified staff presence.
+	StudentDataAccess   func(context.Context, func(context.Context) (bool, error)) (admin, staff bool)
 	Visit               VisitAuthorizer
 	OperationalOverview func(context.Context, Settings, StaffAccess, bool, bool) (bool, error)
 }

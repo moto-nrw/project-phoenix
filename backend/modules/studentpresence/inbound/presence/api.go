@@ -61,6 +61,9 @@ func NewResource(operations PresenceOperations, personService People, educationS
 	if authorization.OperationalOverview == nil {
 		panic("active API: overview authorization is required")
 	}
+	if authorization.StudentDataAccess == nil {
+		panic("active API: student data authorization is required")
+	}
 	return &Resource{
 		Operations:         operations,
 		Presence:           presence,

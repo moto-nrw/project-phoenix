@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -31,6 +32,9 @@ func authorizeVisitForTest(ctx context.Context, accountID int64, readAll bool, v
 func authorizationForTest() Authorization {
 	return Authorization{
 		Visit: authorizeVisitForTest,
+		StudentDataAccess: func(ctx context.Context, lookup func(context.Context) (bool, error)) (bool, bool) {
+			return securityruntime.StudentDataAccess(ctx, testpkg.PermissionsFromContext(ctx), lookup)
+		},
 		OperationalOverview: func(ctx context.Context, settings Settings, staff StaffAccess, assignmentBound, admin bool) (bool, error) {
 			return securityruntime.CanViewOperationalOverview(ctx, settings, staff, assignmentBound, admin)
 		},
@@ -93,4 +97,15 @@ func TestResourceRequiresTenantRequestRuntime(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestResourceRequiresStudentDataAuthorization(t *testing.T) {
+	t.Parallel()
+	authorization := authorizationForTest()
+	authorization.StudentDataAccess = nil
+	require.PanicsWithValue(t, "active API: student data authorization is required", func() {
+		NewResource(nil, nil, nil, nil, nil, nil,
+			func(testutil.Router, func(testutil.Router, common.Middleware)) {}, slog.Default(), mappingReadQueries{},
+			requestRuntimeForTest(func(ctx context.Context, _, _ int64) context.Context { return ctx }), authorization, nil)
+	})
 }
