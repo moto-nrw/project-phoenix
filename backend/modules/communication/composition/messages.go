@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
@@ -20,9 +19,9 @@ import (
 )
 
 type ParentMessagingConfig struct {
-	ThreadRepo  usersModels.ParentMessageThreadRepository
-	MessageRepo usersModels.ParentMessageRepository
-	ReadRepo    usersModels.ParentMessageReadRepository
+	ThreadRepo  deliveryPorts.ParentMessageThreadRepositorySource
+	MessageRepo deliveryPorts.ParentMessageRepositorySource
+	ReadRepo    deliveryPorts.ParentMessageReadRepositorySource
 	Persons     parentMessages.PersonLookup
 	// UserContext is the caller: the student read rules gate the read scope,
 	// and its groups serve the "own groups" count scope (#3673).
@@ -44,7 +43,7 @@ type ParentMessagingConfig struct {
 func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentMessagingCapability {
 	return &parentMessaging{
 		service: parentMessages.NewService(parentMessages.Config{
-			ThreadRepo: cfg.ThreadRepo, MessageRepo: cfg.MessageRepo, ReadRepo: cfg.ReadRepo,
+			ThreadRepo: parentMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: parentMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: parentMessages.NewReadRepository(cfg.ReadRepo),
 			Persons: cfg.Persons, UserContext: cfg.UserContext, Settings: cfg.Settings,
 			Broadcaster: cfg.Broadcaster, Logger: cfg.Logger,
 			Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences, Outbox: cfg.Outbox,
@@ -307,7 +306,7 @@ func observeResult[T any](ctx context.Context, observe func(Observation), operat
 	return run(runCtx)
 }
 
-func mapParentMessageInbox(rows []*usersModels.InboxThread) []communication.ParentMessageInboxThread {
+func mapParentMessageInbox(rows []*parentMessages.InboxThread) []communication.ParentMessageInboxThread {
 	result := make([]communication.ParentMessageInboxThread, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, communication.ParentMessageInboxThread{
@@ -334,7 +333,7 @@ func mapParentMessageThread(thread *parentMessages.ThreadDetail) (*communication
 	}, nil
 }
 
-func mapParentMessages(rows []*usersModels.ParentMessage) ([]communication.ParentMessage, error) {
+func mapParentMessages(rows []*parentMessages.ParentMessage) ([]communication.ParentMessage, error) {
 	result := make([]communication.ParentMessage, 0, len(rows))
 	for _, row := range rows {
 		mapped, err := mapParentMessage(row)
@@ -346,7 +345,7 @@ func mapParentMessages(rows []*usersModels.ParentMessage) ([]communication.Paren
 	return result, nil
 }
 
-func mapParentMessage(row *usersModels.ParentMessage) (communication.ParentMessage, error) {
+func mapParentMessage(row *parentMessages.ParentMessage) (communication.ParentMessage, error) {
 	var payload json.RawMessage
 	if row.Payload != nil {
 		encoded, err := json.Marshal(row.Payload)

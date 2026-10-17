@@ -3,10 +3,11 @@ package parentstore
 import (
 	models "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	messageValues "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 func portalFromRetainedInboxThread(v models.InboxThread) (communication.PortalInboxThread, error) {
-	payload, err := portalPayloadFromRetained(v.LastMessagePayload)
+	payload, err := messageValues.ParentPayloadFromFacts(v.LastMessagePayload)
 	if err != nil {
 		return communication.PortalInboxThread{}, err
 	}
@@ -37,7 +38,7 @@ func portalFromRetainedInboxThread(v models.InboxThread) (communication.PortalIn
 }
 
 func portalFromRetainedParentMessage(v models.ParentMessage) (communication.PortalParentMessage, error) {
-	payload, err := portalPayloadFromRetained(v.Payload)
+	payload, err := messageValues.ParentPayloadFromFacts(v.Payload)
 	if err != nil {
 		return communication.PortalParentMessage{}, err
 	}
@@ -69,7 +70,7 @@ func portalFromRetainedParentMessage(v models.ParentMessage) (communication.Port
 	}, nil
 }
 func portalToRetainedParentMessage(v communication.PortalParentMessage) (models.ParentMessage, error) {
-	payload, err := portalPayloadToRetained(v.Payload)
+	payload, err := messageValues.ParentPayloadToFacts(v.Payload)
 	if err != nil {
 		return models.ParentMessage{}, err
 	}

@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
 	"github.com/moto-nrw/project-phoenix/api"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
@@ -17,8 +19,6 @@ import (
 	// repos that return errors, so they pin the error-mapping branches the happy-path
 	// DB tests cannot reach. The forbidden/not-found/disabled sentinels stay distinct
 	// from these server faults — that distinction is the whole point of the mapping.
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 
@@ -33,25 +33,25 @@ var errBoom = errors.New("transient DB failure")
 // --- fake repos (only the called methods are overridden) ----------------
 
 type fakeThreadRepo struct {
-	usersModels.ParentMessageThreadRepository
-	thread           *usersModels.ParentMessageThread
+	messaging.ParentMessageThreadRepository
+	thread           *messaging.ParentMessageThread
 	findErr          error
-	guardians        []*usersModels.MessageableGuardian
+	guardians        []*messaging.MessageableGuardian
 	listGuardiansErr error
 	getOrCreateErr   error
 }
 
 func (f *fakeThreadRepo) LockForMessageAppend(context.Context, int64) error { return nil }
 
-func (f *fakeThreadRepo) FindByID(context.Context, int64) (*usersModels.ParentMessageThread, error) {
+func (f *fakeThreadRepo) FindByID(context.Context, int64) (*messaging.ParentMessageThread, error) {
 	return f.thread, f.findErr
 }
 
-func (f *fakeThreadRepo) ListGuardiansForStudent(context.Context, int64) ([]*usersModels.MessageableGuardian, error) {
+func (f *fakeThreadRepo) ListGuardiansForStudent(context.Context, int64) ([]*messaging.MessageableGuardian, error) {
 	return f.guardians, f.listGuardiansErr
 }
 
-func (f *fakeThreadRepo) GetOrCreate(context.Context, int64, int64, int64) (*usersModels.ParentMessageThread, error) {
+func (f *fakeThreadRepo) GetOrCreate(context.Context, int64, int64, int64) (*messaging.ParentMessageThread, error) {
 	if f.getOrCreateErr != nil {
 		return nil, f.getOrCreateErr
 	}
@@ -59,14 +59,14 @@ func (f *fakeThreadRepo) GetOrCreate(context.Context, int64, int64, int64) (*use
 }
 
 type fakeMessageRepo struct {
-	usersModels.ParentMessageRepository
-	messages   []*usersModels.ParentMessage
+	messaging.ParentMessageRepository
+	messages   []*messaging.ParentMessage
 	listErr    error
 	createErr  error
 	createSeen bool
 }
 
-func (f *fakeMessageRepo) Create(_ context.Context, m *usersModels.ParentMessage) error {
+func (f *fakeMessageRepo) Create(_ context.Context, m *messaging.ParentMessage) error {
 	f.createSeen = true
 	if f.createErr != nil {
 		return f.createErr
@@ -75,21 +75,21 @@ func (f *fakeMessageRepo) Create(_ context.Context, m *usersModels.ParentMessage
 	return nil
 }
 
-func (f *fakeMessageRepo) ListByThread(context.Context, int64, int) ([]*usersModels.ParentMessage, error) {
+func (f *fakeMessageRepo) ListByThread(context.Context, int64, int) ([]*messaging.ParentMessage, error) {
 	return f.messages, f.listErr
 }
 
 type fakeReadRepo struct {
-	usersModels.ParentMessageReadRepository
-	inbox       []*usersModels.InboxThread
+	messaging.ParentMessageReadRepository
+	inbox       []*messaging.InboxThread
 	inboxErr    error
 	unread      int
 	unreadErr   error
-	studentRows []*usersModels.InboxThread
+	studentRows []*messaging.InboxThread
 	studentErr  error
 }
 
-func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, bool) ([]*usersModels.InboxThread, error) {
+func (f *fakeReadRepo) ListInboxForStaff(context.Context, int64, bool, bool) ([]*messaging.InboxThread, error) {
 	return f.inbox, f.inboxErr
 }
 
@@ -97,7 +97,7 @@ func (f *fakeReadRepo) UnreadMessageCountForStaff(context.Context, int64, bool) 
 	return f.unread, f.unreadErr
 }
 
-func (f *fakeReadRepo) ListThreadsForStudent(context.Context, int64, int64) ([]*usersModels.InboxThread, error) {
+func (f *fakeReadRepo) ListThreadsForStudent(context.Context, int64, int64) ([]*messaging.InboxThread, error) {
 	return f.studentRows, f.studentErr
 }
 
@@ -108,16 +108,14 @@ type fakePersons struct {
 	messaging.PersonLookup
 }
 
-func (fakePersons) GetStudentByID(context.Context, int64) (*usersModels.Student, error) {
-	var gid int64 = 1 // fake in-memory student, not a DB row
-	return &usersModels.Student{GroupID: &gid}, nil
+func (fakePersons) FindParentMessageStudent(context.Context, int64) (*communication.ParentMessageStudent, error) {
+	return &communication.ParentMessageStudent{AuthorizationStudent: true}, nil
 }
-
-func (fakePersons) FindByAccountID(context.Context, int64) (*usersModels.Person, error) {
+func (fakePersons) FindStaffSenderName(context.Context, int64) (*communication.StaffSenderName, error) {
 	return nil, nil
 }
 
-func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentMessageRepository, rr usersModels.ParentMessageReadRepository) *messaging.Service {
+func errSvc(tr messaging.ParentMessageThreadRepository, mr messaging.ParentMessageRepository, rr messaging.ParentMessageReadRepository) *messaging.Service {
 	return messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  tr,
@@ -165,7 +163,7 @@ func TestGetThread_FindThreadErrorIsServerFaultNotNotFound(t *testing.T) {
 func TestGetThread_ListMessagesErrorPropagates(t *testing.T) {
 	t.Parallel()
 
-	tr := &fakeThreadRepo{thread: &usersModels.ParentMessageThread{StudentID: 7}}
+	tr := &fakeThreadRepo{thread: &messaging.ParentMessageThread{StudentID: 7}}
 	tr.thread.ID = 5
 	svc := errSvc(tr, &fakeMessageRepo{listErr: errBoom}, &fakeReadRepo{})
 	_, err := svc.GetThread(errCtx(t), 5)
@@ -206,7 +204,7 @@ func TestStartThread_GetOrCreateErrorPropagates(t *testing.T) {
 	t.Parallel()
 
 	tr := &fakeThreadRepo{
-		guardians:      []*usersModels.MessageableGuardian{{AccountID: 2}},
+		guardians:      []*messaging.MessageableGuardian{{AccountID: 2}},
 		getOrCreateErr: errBoom,
 	}
 	svc := errSvc(tr, &fakeMessageRepo{}, &fakeReadRepo{})
@@ -221,8 +219,8 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 	// A failed message insert must surface an error AND must not have fired the SSE
 	// fan-out (which would wake clients for a message that never persisted).
 	tr := &fakeThreadRepo{
-		thread:    &usersModels.ParentMessageThread{StudentID: 7},
-		guardians: []*usersModels.MessageableGuardian{{AccountID: 2}},
+		thread:    &messaging.ParentMessageThread{StudentID: 7},
+		guardians: []*messaging.MessageableGuardian{{AccountID: 2}},
 	}
 	tr.thread.ID = 5
 	tr.thread.GuardianAccountID = 2

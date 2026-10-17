@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -36,10 +35,10 @@ type stubPreferences struct {
 }
 
 type stubGuardianProfiles struct {
-	profile *usersModels.GuardianProfile
+	profile *communication.ParentMessageGuardianContact
 }
 
-func (s stubGuardianProfiles) FindByAccountID(context.Context, int64) (*usersModels.GuardianProfile, error) {
+func (s stubGuardianProfiles) FindMessageGuardianProfile(context.Context, int64) (*communication.ParentMessageGuardianContact, error) {
 	return s.profile, nil
 }
 
@@ -49,8 +48,8 @@ func (s *stubPreferences) FilterOptedIn(_ context.Context, notificationType stri
 	return s.optedIn, s.err
 }
 
-func testThread() *usersModels.ParentMessageThread {
-	thread := &usersModels.ParentMessageThread{
+func testThread() *ParentMessageThread {
+	thread := &ParentMessageThread{
 		StudentID:         55,
 		GuardianAccountID: 42,
 	}
@@ -119,7 +118,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 		s := NewService(Config{
 			Logger: slog.Default(), Notifier: notifier,
 			Preferences:      &stubPreferences{optedIn: []int64{42}},
-			GuardianProfiles: stubGuardianProfiles{profile: &usersModels.GuardianProfile{PortalLocale: &locale}},
+			GuardianProfiles: stubGuardianProfiles{profile: &communication.ParentMessageGuardianContact{PortalLocale: &locale}},
 		}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 
 		s.notifyGuardianDevice(context.Background(), testThread(), 123)
