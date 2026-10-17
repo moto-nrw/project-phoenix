@@ -220,7 +220,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":                                                        81,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).remapClassTeacherAssignments":                                                      62,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).revertClassTeacherAssignments":                                                     68,
-	"workflows/gradetransition/compose/new.go:Assemble":                                                                                         85,
+	"workflows/gradetransition/compose/new.go:Assemble":                                                                                         78,
 	"workflows/parentportal/care/parent_care_schedule_service.go:(*Service).buildCareScheduleView":                                              74,
 	"workflows/parentportal/care/parent_today_status_service.go:(*Service).GetChildTodayStatus":                                                 75,
 	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).RespondToAnnouncement":                                          107,
