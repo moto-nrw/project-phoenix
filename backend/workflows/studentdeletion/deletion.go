@@ -7,10 +7,6 @@ package studentdeletion
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -139,6 +135,8 @@ type Directory interface {
 	LockEnrollmentClassWrites(ctx context.Context) error
 	FindPerson(ctx context.Context, id int64) (peopledirectory.Person, error)
 	FindPersonForMutation(ctx context.Context, id int64) (peopledirectory.Person, error)
+	// ListStudentRecordsDueForStatus lists the automatic deletion's candidates.
+	ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]peopledirectory.StudentRecord, error)
 	peopledirectory.StudentDeletionCommand
 }
 
@@ -173,6 +171,13 @@ type Conversations interface {
 	LockStudentMessageThreads(context.Context, int64) error
 }
 
+// Enrollment is the Enrollment port: the child's enrollment references for
+// the preview, and the accepted enrollments that leave with the child (#3962).
+type Enrollment interface {
+	CountStudentReferences(context.Context, int64) (int, error)
+	DeleteApprovedEnrollmentsOfStudent(context.Context, int64) (int, error)
+}
+
 // Counter is an owner query answering one preview number for a child.
 type Counter func(ctx context.Context, studentID int64) (int, error)
 
@@ -191,16 +196,16 @@ type Dependencies struct {
 	Timetable     Timetable
 	Structure     Structure
 	Conversations Conversations
+	Enrollment    Enrollment
 
-	CountAttendance           Counter
-	CountVisits               Counter
-	CountConsents             Counter
-	CountEnrollmentReferences Counter
-	CountActivityEnrollments  Counter
-	CountAppointments         Counter
-	CountFeedback             Counter
-	CountAuditReferences      Counter
-	CountGuardianInvitations  Counter
+	CountAttendance          Counter
+	CountVisits              Counter
+	CountConsents            Counter
+	CountActivityEnrollments Counter
+	CountAppointments        Counter
+	CountFeedback            Counter
+	CountAuditReferences     Counter
+	CountGuardianInvitations Counter
 
 	// LockCareBookingWrites is the tenant-wide recurrence gate every
 	// care-booking writer takes. The withdrawal path holds it after the shared
@@ -225,7 +230,7 @@ type Workflow struct{ deps Dependencies }
 func New(deps Dependencies) (*Workflow, error) {
 	if deps.UnitOfWork == nil || deps.Authorize == nil || deps.Today == nil || deps.Now == nil ||
 		deps.Directory == nil || deps.CarePlan == nil || deps.Timetable == nil || deps.Structure == nil || deps.Conversations == nil ||
-		deps.CountAttendance == nil || deps.CountVisits == nil || deps.CountConsents == nil || deps.CountEnrollmentReferences == nil ||
+		deps.CountAttendance == nil || deps.CountVisits == nil || deps.CountConsents == nil || deps.Enrollment == nil ||
 		deps.CountActivityEnrollments == nil || deps.CountAppointments == nil || deps.CountFeedback == nil ||
 		deps.CountAuditReferences == nil || deps.CountGuardianInvitations == nil ||
 		deps.LockCareBookingWrites == nil || deps.AppendAudit == nil || deps.PhotoRemoved == nil || deps.CompanionsChanged == nil || deps.Observe == nil {
@@ -553,7 +558,7 @@ func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (C
 	if counts.Consents, err = w.deps.CountConsents(ctx, studentID); err != nil {
 		return Counts{}, err
 	}
-	if counts.EnrollmentReferences, err = w.deps.CountEnrollmentReferences(ctx, studentID); err != nil {
+	if counts.EnrollmentReferences, err = w.deps.Enrollment.CountStudentReferences(ctx, studentID); err != nil {
 		return Counts{}, err
 	}
 	rosterRemovals, err := w.deps.Timetable.CountStudentRosterRemovals(ctx, studentID)
@@ -736,12 +741,7 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 	if _, err := w.deps.Directory.DeleteLegacyGuardianLinks(ctx, preview.PersonID); err != nil {
 		return result, err
 	}
-	// Before the cascade: the document rows go with the child, the queued
-	// intents do not, and they are what gets the bytes off disk.
-	if result.DocumentCleanups, err = w.deps.CarePlan.QueueCareDocumentCleanupForDeletedStudent(ctx, preview.StudentID, now); err != nil {
-		return result, err
-	}
-	if result.WithdrawalsRedacted, err = w.deps.CarePlan.RedactWithdrawalsForDeletedStudent(ctx, preview.StudentID, actor.AccountID, now); err != nil {
+	if err := w.releaseDependents(ctx, actor, preview, now, &result); err != nil {
 		return result, err
 	}
 	deleted, err := w.deps.Directory.DeleteStudent(ctx, preview.StudentID)
@@ -771,29 +771,6 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 		w.deps.CompanionsChanged(ctx, actor, result.StudentID)
 	}
 	return result, nil
-}
-
-func fingerprintOf(studentUpdatedAt, personUpdatedAt time.Time, counts Counts) (string, error) {
-	payload := struct {
-		StudentUpdatedAt int64  `json:"student_updated_at"`
-		PersonUpdatedAt  int64  `json:"person_updated_at"`
-		Counts           Counts `json:"counts"`
-	}{StudentUpdatedAt: studentUpdatedAt.UnixNano(), PersonUpdatedAt: personUpdatedAt.UnixNano(), Counts: counts}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func equalFingerprint(actual, expected string) bool {
-	actualBytes, actualErr := hex.DecodeString(actual)
-	expectedBytes, expectedErr := hex.DecodeString(strings.TrimSpace(expected))
-	if actualErr != nil || expectedErr != nil || len(actualBytes) != len(expectedBytes) {
-		return false
-	}
-	return subtle.ConstantTimeCompare(actualBytes, expectedBytes) == 1
 }
 
 func ascending(ids []int64) []int64 {

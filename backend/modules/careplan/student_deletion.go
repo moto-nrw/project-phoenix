@@ -45,8 +45,11 @@ func (m *Module) ResolvePendingWithdrawalAsDeleted(ctx context.Context, completi
 	return m.engine.ResolvePendingWithdrawalAsDeleted(ctx, completionID, actorAccountID, at)
 }
 
+// RedactWithdrawalsForDeletedStudent redacts the withdrawal tasks of a child
+// the student deletion removes. An actorAccountID of 0 is the nightly
+// retention run (#3962): it resolves a pending task without an actor.
 func (m *Module) RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, error) {
-	if studentID <= 0 || actorAccountID <= 0 || at.IsZero() {
+	if studentID <= 0 || actorAccountID < 0 || at.IsZero() {
 		return 0, ErrInvalidCareExit
 	}
 	return m.engine.RedactWithdrawalsForDeletedStudent(ctx, studentID, actorAccountID, at)

@@ -33,6 +33,8 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	owners, err := NewRetentionTestOwners(db, testpkg.TenantRuntime(t, admin))
 	require.NoError(t, err)
+	students, err := NewStudentTestRetention(db, owners.Audit, owners.Settings)
+	require.NoError(t, err)
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          owners.Audit,
 		settings:             owners.Settings,
@@ -49,7 +51,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		submissionLimits:     owners.SubmissionLimits,
 		settingAudit:         owners.SettingAudit,
 		exportTransfers:      owners.ExportTransfers,
-	})
+	}, students)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -69,7 +71,7 @@ func (r workerRetention) runSteps(ctx context.Context) error {
 		if err != nil {
 			return fmt.Errorf("retention step %s: %w", step.Kind, err)
 		}
-		if outcome.Deleted == 0 {
+		if outcome.Deleted == 0 || step.LogsSubjects {
 			continue
 		}
 		if err := r.log(ctx, step.Kind, outcome); err != nil {
@@ -113,6 +115,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRParentMessageRetentionDays,
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
+		settingsModule.KeyGDPRStudentRetentionDays,
 	}, retentionSettingKeys)
 }
 

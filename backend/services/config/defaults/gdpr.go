@@ -225,6 +225,27 @@ func init() {
 		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
 	})
 
+	// Children whose care ended (#3962), counted from the last care day. A
+	// year covers questions after the departure (billing, a sibling's
+	// enrollment, a return). The frame of 30 days to 3 years is ADR 0048's.
+	// The deletion takes the child with every related record, the accepted
+	// enrollment included.
+	config.Register(config.Definition{
+		Key:             config.KeyGDPRStudentRetentionDays,
+		Label:           "Kinder nach dem letzten Betreuungstag aufbewahren (Tage)",
+		Description:     "So lange speichert moto ein Kind nach seinem letzten Betreuungstag. Danach löscht moto das Kind mit allen Angaben. Kinder, die wieder betreut werden, bleiben.",
+		Type:            config.FieldNumber,
+		Default:         365,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		AccessPolicy:    config.AccessOperatorManaged,
+		Tab:             "gdpr",
+		Category:        "schülerdaten",
+		SortOrder:       33,
+		Validation:      config.Range(30, 1095),
+		DependsOn:       config.DependsOnEq(config.KeyDataCleanupEnabled, true),
+	})
+
 	minPWAUsageRetentionDays := float64(30)
 	maxPWAUsageRetentionDays := float64(365)
 	config.Register(config.Definition{

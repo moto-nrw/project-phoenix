@@ -72,7 +72,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go": 1767,
 	"modules/workforce/timetracking.go":                                              808,
 	"workflows/reminderdelivery/internal/application/service.go":                     864,
-	"workflows/studentdeletion/deletion.go":                                          811,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {
