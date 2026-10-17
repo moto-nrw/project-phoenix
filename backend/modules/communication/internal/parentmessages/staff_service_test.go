@@ -64,10 +64,10 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 
 	repos := newRepositories(t, db)
 	return staffmessaging.NewService(staffmessaging.Config{
-		ThreadRepo:  repos.Thread,
-		MessageRepo: repos.Message,
-		ReadRepo:    repos.Read,
-		Persons:     persons,
+		ThreadRepo:  staffmessaging.NewThreadRepository(repos.Thread),
+		MessageRepo: staffmessaging.NewMessageRepository(repos.Message),
+		ReadRepo:    staffmessaging.NewReadRepository(repos.Read),
+		Persons:     api.BindStaffSenderNames(persons),
 		Settings:    configModels.NewStaffMessagingValues(settings),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
@@ -84,9 +84,9 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 	}
 	repos := newRepositories(t, db)
 	return staffmessaging.NewService(staffmessaging.Config{
-		ThreadRepo:  repos.Thread,
-		MessageRepo: repos.Message,
-		ReadRepo:    repos.Read,
+		ThreadRepo:  staffmessaging.NewThreadRepository(repos.Thread),
+		MessageRepo: staffmessaging.NewMessageRepository(repos.Message),
+		ReadRepo:    staffmessaging.NewReadRepository(repos.Read),
 		Settings:    configModels.NewStaffMessagingValues(settings),
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }

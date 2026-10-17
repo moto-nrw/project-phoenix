@@ -476,7 +476,7 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(b.DB.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(b.DB.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: b.graph.Users, Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
+		Persons: BindStaffSenderNames(b.graph.Users), Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
