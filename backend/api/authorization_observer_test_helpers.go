@@ -9,5 +9,5 @@ import (
 )
 
 func authorizationObserverTestHandler() http.Handler {
-	return common.SecurityPrincipalMiddleware(common.RequiresPermission("users:read")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
+	return SecurityPrincipalMiddleware(common.RequiresPermission("users:read")(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {})))
 }
