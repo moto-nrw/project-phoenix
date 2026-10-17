@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application/rotation"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -18,19 +19,6 @@ import (
 // runtime seams the composition root binds. The seams below are expressed in
 // public values so the root can implement them without the module's
 // internal vocabulary; this package adapts them to the consumer-owned ports.
-
-// SchoolDirectory reads the Organisation & Tenancy school facts login
-// resolves. Missing schools report found=false.
-type SchoolDirectory interface {
-	FindSchool(ctx context.Context, id int64) (identityaccess.School, bool, error)
-	FindSchoolBySubdomain(ctx context.Context, subdomain string) (identityaccess.School, bool, error)
-	LockSchoolShared(ctx context.Context, id int64) (identityaccess.School, bool, error)
-	ListActiveSchoolsByID(ctx context.Context, schoolIDs []int64) ([]identityaccess.School, error)
-	// ListManageableSchoolIDs returns the live, active schools of the
-	// organisation: the set an organisation-scoped administrator may
-	// administer accounts at.
-	ListManageableSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
-}
 
 // PersonDirectory reads the person name of an account in the tenant the
 // context carries.
@@ -43,31 +31,9 @@ type PasswordVerifier interface {
 	VerifyPassword(password, hash string) (bool, error)
 }
 
-// TokenCodec signs and parses the session JWTs.
-type TokenCodec interface {
-	IssueTokenPair(access identityaccess.SessionClaims, refresh identityaccess.RefreshClaims) (accessToken, refreshToken string, err error)
-	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
-	ParseAccessToken(token string) (identityaccess.SessionClaims, error)
-	ParseRefreshToken(token string) (identityaccess.RefreshClaims, error)
-	RefreshExpiry() time.Duration
-	// IssueAccessToken signs an access-only JWT (the staff preview mints no
-	// refresh token); ParseAccessTokenAllowExpired verifies its signature but
-	// not its expiry; AccessExpiry is the access token lifetime.
-	IssueAccessToken(claims identityaccess.SessionClaims) (string, error)
-	ParseAccessTokenAllowExpired(token string) (identityaccess.SessionClaims, error)
-	AccessExpiry() time.Duration
-}
-
 // MFAPolicyLock pins a school's MFA mode for the caller's transaction.
 type MFAPolicyLock interface {
 	LockMFAPolicySharedForTenant(ctx context.Context, tenantID int64) error
-}
-
-// AuthAudit appends authentication events and resolves pending wipes.
-type AuthAudit interface {
-	RecordAuthEvent(ctx context.Context, event identityaccess.AuthEvent) error
-	ListPendingAccountWideWipes(ctx context.Context) ([]identityaccess.PendingAccountWideWipe, error)
-	ClaimPendingAccountWideWipes(ctx context.Context, accountID int64) ([]identityaccess.PendingAccountWideWipe, error)
 }
 
 // PushSubscriptionCleanup removes the Delivery platform's push rows a
@@ -85,12 +51,12 @@ type PushSubscriptionCleanup interface {
 // beyond the database. TenantRuntime attaches the unit of work the flows
 // open their transactions under; nil leaves the context as is.
 type SessionDependencies struct {
-	Schools       SchoolDirectory
+	Schools       identityPorts.SchoolDirectory
 	Persons       PersonDirectory
 	Passwords     PasswordVerifier
-	Codec         TokenCodec
+	Codec         identityPorts.TokenCodec
 	MFALock       MFAPolicyLock
-	Audit         AuthAudit
+	Audit         identityPorts.AuthAudit
 	Push          PushSubscriptionCleanup
 	TenantRuntime func(context.Context) context.Context
 	Logger        *slog.Logger
@@ -125,7 +91,7 @@ func newAccountAuthentication(service *application.Service, store ports.AccountL
 	})
 }
 
-type schoolDirectory struct{ source SchoolDirectory }
+type schoolDirectory struct{ source identityPorts.SchoolDirectory }
 
 func (d schoolDirectory) FindSchool(ctx context.Context, id int64) (domain.School, bool, error) {
 	school, found, err := d.source.FindSchool(ctx, id)
@@ -158,7 +124,7 @@ func (d schoolDirectory) ManageableSchoolIDs(ctx context.Context, organizationID
 	return d.source.ListManageableSchoolIDs(ctx, organizationID)
 }
 
-type tokenCodec struct{ source TokenCodec }
+type tokenCodec struct{ source identityPorts.TokenCodec }
 
 func (c tokenCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (string, string, error) {
 	return c.source.IssueTokenPair(identityaccess.SessionClaims(access), identityaccess.RefreshClaims(refresh))
@@ -180,7 +146,7 @@ func (c tokenCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error
 
 func (c tokenCodec) RefreshExpiry() time.Duration { return c.source.RefreshExpiry() }
 
-type authAudit struct{ source AuthAudit }
+type authAudit struct{ source identityPorts.AuthAudit }
 
 func (a authAudit) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
 	public := identityaccess.AuthEvent{

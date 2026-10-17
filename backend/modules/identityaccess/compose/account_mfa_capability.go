@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // composedAccountMFA serves the public MFA capability over the flows this
@@ -177,7 +177,7 @@ func (c composedAccountMFA) GetGlobalMFAOverride(ctx context.Context, accountID 
 // the flows read as "not required, not enrolled".
 type capabilityGate struct{ capability identityaccess.AccountMFA }
 
-var _ ports.MFAGate = capabilityGate{}
+var _ internalports.MFAGate = capabilityGate{}
 
 func (g capabilityGate) Configured() bool { return g.capability != nil }
 
@@ -188,14 +188,14 @@ func (g capabilityGate) IsRequired(ctx context.Context, accountID int64, _ strin
 	return g.capability.IsRequired(ctx, accountID, roleNames, tenantID)
 }
 
-func (g capabilityGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {
+func (g capabilityGate) ResolvePolicy(ctx context.Context, accountID, tenantID int64) (internalports.MFAPolicy, error) {
 	if g.capability == nil {
 		return domain.MFAPolicy{}, nil
 	}
 	return g.capability.ResolveMFAPolicy(ctx, accountID, tenantID)
 }
 
-func (g capabilityGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (ports.MFAPolicy, error) {
+func (g capabilityGate) ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (internalports.MFAPolicy, error) {
 	if g.capability == nil {
 		return domain.MFAPolicy{}, nil
 	}

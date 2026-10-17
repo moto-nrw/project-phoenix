@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -16,35 +17,13 @@ import (
 // a routable address, which stays where it is owned instead of becoming a
 // second copy of the pattern here.
 
-// OperatorInvitationDelivery mails the invitation link. The module decides
-// what the link is worth and when it goes out; the root owns the transport,
-// the portal host and the template, and records the outcome back through
-// the module.
-type OperatorInvitationDelivery interface {
-	DispatchOperatorInvitation(ctx context.Context, invitation identityaccess.OperatorInvitation, inviterName string, expiry time.Duration)
-}
-
-// OperatorEmailChangeDelivery mails the three messages an e-mail change
-// sends: the confirmation link to the new address, the heads-up to the
-// current one and the notice to the address that was replaced.
-type OperatorEmailChangeDelivery interface {
-	DispatchOperatorEmailChangeVerification(ctx context.Context, change identityaccess.OperatorEmailChange, expiry time.Duration)
-	DispatchOperatorEmailChangeRequested(ctx context.Context, operator identityaccess.Operator, maskedNewEmail string)
-	DispatchOperatorEmailChangeConfirmed(ctx context.Context, oldEmail, displayName string)
-}
-
-// EmailFormat is the People Directory contact rule for a routable address.
-type EmailFormat interface {
-	IsRoutable(address string) bool
-}
-
 // OperatorProvisioningDependencies compose the invitation and e-mail change
 // flows. They require the operator dependencies: the flows reuse the
 // operator ledger and the credential policy.
 type OperatorProvisioningDependencies struct {
-	Invites           OperatorInvitationDelivery
-	Changes           OperatorEmailChangeDelivery
-	Format            EmailFormat
+	Invites           identityPorts.OperatorInvitationDelivery
+	Changes           identityPorts.OperatorEmailChangeDelivery
+	Format            identityPorts.EmailFormat
 	InvitationExpiry  time.Duration
 	EmailChangeExpiry time.Duration
 }
@@ -87,12 +66,12 @@ func newOperatorProvisioning(
 
 // --- port adapters ---------------------------------------------------------
 
-type emailFormat struct{ source EmailFormat }
+type emailFormat struct{ source identityPorts.EmailFormat }
 
 func (f emailFormat) IsRoutable(address string) bool { return f.source.IsRoutable(address) }
 
 type operatorInvitationDelivery struct {
-	source OperatorInvitationDelivery
+	source identityPorts.OperatorInvitationDelivery
 	expiry time.Duration
 }
 
@@ -101,7 +80,7 @@ func (d operatorInvitationDelivery) DispatchOperatorInvitation(ctx context.Conte
 }
 
 type operatorEmailChangeDelivery struct {
-	source OperatorEmailChangeDelivery
+	source identityPorts.OperatorEmailChangeDelivery
 	expiry time.Duration
 }
 

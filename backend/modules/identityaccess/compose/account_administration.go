@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // newAccountAdministration composes the account administration flows
@@ -13,7 +13,7 @@ import (
 // The manageable-school set an organisation administrator is bounded by
 // comes from the school directory the session dependencies already bind.
 func newAccountAdministration(
-	store ports.AccountAdministrationStore,
+	store internalports.AccountAdministrationStore,
 	auth *application.AccountAuthentication,
 	sessions *SessionDependencies,
 	deps *LifecycleDependencies,

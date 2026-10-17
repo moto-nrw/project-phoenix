@@ -10,6 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -18,84 +19,20 @@ import (
 // values so the root can implement them without the module's internal
 // vocabulary; this package adapts them to the consumer-owned ports.
 
-// OperatorAudit appends operator actions to the Audit platform's
-// platform-scoped ledger on the caller's transaction.
-type OperatorAudit interface {
-	RecordOperatorAction(ctx context.Context, entry identityaccess.OperatorAuditEntry) error
-}
-
 // PasswordHasher hashes a new password and applies the strength policy.
 type PasswordHasher interface {
 	HashPassword(password string) (string, error)
 	ValidatePasswordStrength(password string) error
 }
 
-// OrganizationName is the organisation fact the access listing shows.
-type OrganizationName struct {
-	ID   int64
-	Name string
-}
-
-// OrganizationDirectory reads the Organisation & Tenancy facts the access
-// listing shows: the schools behind the mappings and the organisation
-// names in the owner's name order.
-type OrganizationDirectory interface {
-	ListSchools(ctx context.Context, ids []int64) ([]identityaccess.School, error)
-	ListOrganizationNames(ctx context.Context, ids []int64) ([]OrganizationName, error)
-}
-
-// AccountPersonIdentity is one person row that carries the account at any
-// school, with the facts the name resolution decides on.
-type AccountPersonIdentity struct {
-	ID        int64
-	TenantID  int64
-	FirstName string
-	LastName  string
-	Deleted   bool
-	IsStudent bool
-}
-
-// AccountIdentityFact reports whether a person and a staff record back the
-// account at one school.
-type AccountIdentityFact struct {
-	TenantID  int64
-	HasPerson bool
-	HasStaff  bool
-}
-
-// SchoolIdentityRequest describes the identity chain a school access
-// requires: person, staff and (for caregiver roles) teacher rows.
-type SchoolIdentityRequest struct {
-	AccountID    int64
-	TenantID     int64
-	Role         identityaccess.SchoolRole
-	FirstName    string
-	LastName     string
-	Position     string
-	CreatePerson bool
-}
-
-// SchoolIdentityProvisioner is the People Directory and School Membership
-// identity chain a school access requires and the facts the listing shows
-// about it. The tenant-scoped reads take the tenant from the context; the
-// platform-wide reads run administratively. A request the caller can
-// correct is reported as *identityaccess.InvalidInputError.
-type SchoolIdentityProvisioner interface {
-	HasLivePersonAtSchool(ctx context.Context, accountID int64) (bool, error)
-	ListAccountPersons(ctx context.Context, accountID int64) ([]AccountPersonIdentity, error)
-	HasLiveCaregiverProfile(ctx context.Context, accountID int64) (bool, error)
-	EnsureSchoolIdentity(ctx context.Context, request SchoolIdentityRequest) error
-	ListAccountIdentityFacts(ctx context.Context, accountID int64) ([]AccountIdentityFact, error)
-}
-
 // OperatorDependencies are the seams the operator flows need beyond the
 // account-session dependencies they share (the password verifier, the JWT
 // codec, the auth ledger, the schools and the tenant runtime).
 type OperatorDependencies struct {
-	Audit         OperatorAudit
+	Audit         identityPorts.OperatorAudit
 	Passwords     PasswordHasher
-	Organizations OrganizationDirectory
-	Identities    SchoolIdentityProvisioner
+	Organizations identityPorts.OrganizationDirectory
+	Identities    identityPorts.SchoolIdentityProvisioner
 	Logger        *slog.Logger
 }
 
@@ -150,7 +87,7 @@ func newOperatorFlows(service *application.Service, store *postgres.Store, token
 	return operatorAuth, accountAccess, nil
 }
 
-type operatorAudit struct{ source OperatorAudit }
+type operatorAudit struct{ source identityPorts.OperatorAudit }
 
 func (a operatorAudit) RecordOperatorAction(ctx context.Context, entry domain.OperatorAuditEntry) error {
 	return a.source.RecordOperatorAction(ctx, publicOperatorAuditEntry(entry))
@@ -182,7 +119,9 @@ func publicOperatorAuditEntry(entry domain.OperatorAuditEntry) identityaccess.Op
 	return public
 }
 
-type organizationDirectory struct{ source OrganizationDirectory }
+type organizationDirectory struct {
+	source identityPorts.OrganizationDirectory
+}
 
 func (d organizationDirectory) ListSchools(ctx context.Context, ids []int64) ([]domain.School, error) {
 	schools, err := d.source.ListSchools(ctx, ids)
@@ -209,7 +148,7 @@ func (d organizationDirectory) ListOrganizationNames(ctx context.Context, ids []
 }
 
 type schoolIdentityProvisioner struct {
-	source    SchoolIdentityProvisioner
+	source    identityPorts.SchoolIdentityProvisioner
 	lifecycle *application.AccountLifecycle
 }
 
@@ -248,7 +187,7 @@ func (p schoolIdentityProvisioner) EnsureSchoolIdentity(ctx context.Context, req
 		}
 		return err
 	}
-	err := p.source.EnsureSchoolIdentity(ctx, SchoolIdentityRequest{
+	err := p.source.EnsureSchoolIdentity(ctx, identityPorts.SchoolIdentityRequest{
 		AccountID: request.AccountID, TenantID: request.TenantID, Role: schoolRoleFact(request.Role),
 		FirstName: request.FirstName, LastName: request.LastName, Position: request.Position, CreatePerson: request.CreatePerson,
 	})

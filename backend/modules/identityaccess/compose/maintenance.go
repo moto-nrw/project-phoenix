@@ -7,9 +7,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // The Identity & Access compositions of the command roots: the cleanup CLI's
@@ -59,9 +61,9 @@ func AccountExists(profiles identityaccess.AccountProfiles) func(context.Context
 type SessionMaintenanceDependencies struct {
 	DB      *bun.DB
 	Runtime tenant.UnitOfWork
-	Schools SchoolDirectory
+	Schools identityPorts.SchoolDirectory
 	Persons PersonDirectory
-	Audit   AuthAudit
+	Audit   identityPorts.AuthAudit
 	Push    PushSubscriptionCleanup
 	// ResetExpiry configures the reset flows; the sweep only deletes spent
 	// links and stale rate-limit windows and never issues one.

@@ -10,20 +10,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
-
-// PasswordResetDelivery mails a reset link asynchronously. The root resolves
-// the portal host for the scope and records the outcome through
-// RecordPasswordResetDelivery once the send settles.
-type PasswordResetDelivery interface {
-	DispatchPasswordReset(ctx context.Context, link identityaccess.PasswordResetLink, recipient string, scope identityaccess.PasswordResetScope, expiry time.Duration)
-}
 
 // PasswordResetDependencies compose the password reset flows (#2722). They
 // require the session dependencies: the flows reuse the portal-role lookups
 // and the session revocation.
 type PasswordResetDependencies struct {
-	Delivery         PasswordResetDelivery
+	Delivery         identityPorts.PasswordResetDelivery
 	Passwords        PasswordPolicy
 	Expiry           time.Duration
 	RateLimitEnabled bool
@@ -54,7 +48,9 @@ func newPasswordReset(auth *application.AccountAuthentication, store *postgres.S
 	})
 }
 
-type passwordResetDelivery struct{ source PasswordResetDelivery }
+type passwordResetDelivery struct {
+	source identityPorts.PasswordResetDelivery
+}
 
 func (d passwordResetDelivery) DispatchPasswordReset(ctx context.Context, token domain.PasswordResetToken, recipient string, scope domain.PasswordResetScope, expiry time.Duration) {
 	d.source.DispatchPasswordReset(ctx, application.PublicPasswordResetLink(token), recipient, identityaccess.PasswordResetScope(scope), expiry)

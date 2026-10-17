@@ -10,17 +10,9 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// CallerPeople is the People Directory seam of the caller context: the
-// person linked to an account and the caller's own name edits. found is
-// false, without an error, when the account has no person in the tenant.
-type CallerPeople interface {
-	FindPersonByAccount(ctx context.Context, accountID int64) (person identityaccess.CallerPerson, found bool, err error)
-	CreatePerson(ctx context.Context, accountID int64, firstName, lastName string) error
-	RenamePerson(ctx context.Context, personID int64, firstName, lastName *string) error
-}
 
 // CallerMembership is the School Membership seam: the staff member of a
 // person and the teacher of a staff member.
@@ -45,28 +37,11 @@ type CallerActivities interface {
 	SupervisedActivityGroupIDs(ctx context.Context, staffID int64) ([]int64, error)
 }
 
-// CallerSessions is the Student Presence seam: the room sessions a caller
-// reaches and their visits.
-type CallerSessions interface {
-	OpenSessionIDsForActivities(ctx context.Context, activityGroupIDs []int64) ([]int64, error)
-	SupervisedSessionIDs(ctx context.Context, staffID int64) ([]int64, error)
-	SessionExists(ctx context.Context, sessionID int64) (bool, error)
-	SessionVisits(ctx context.Context, sessionID int64) ([]identityaccess.CallerVisit, error)
-}
-
 // CallerLiveTopics is the Student Presence seam of live-update clients:
 // every open room session of the school, or a staff member's own.
 type CallerLiveTopics interface {
 	OpenSessionIDs(ctx context.Context) ([]int64, error)
 	StaffSessionIDs(ctx context.Context, staffID int64) ([]int64, error)
-}
-
-// CallerOverview decides the school-wide operational overview scope
-// (#2380) for a caller whose staff identity staff verifies.
-type CallerOverview interface {
-	HasOperationalOverview(ctx context.Context, staff interface {
-		HasCurrentStaff(context.Context) (bool, error)
-	}, assignmentBound, admin bool) (bool, error)
 }
 
 // CallerContextDependencies binds the caller context at the composition
@@ -79,13 +54,13 @@ type CallerContextDependencies struct {
 	Caller     func(context.Context) identityaccess.Caller
 	Memo       func(context.Context) CallerMemo
 	Accounts   identityaccess.AccountProfiles
-	People     CallerPeople
+	People     identityPorts.CallerPeople
 	Membership CallerMembership
 	Structure  CallerStructure
 	Activities CallerActivities
-	Sessions   CallerSessions
+	Sessions   identityPorts.CallerSessions
 	LiveTopics CallerLiveTopics
-	Overview   CallerOverview
+	Overview   identityPorts.CallerOverview
 	Review     *ParentRequestReviewDependencies
 	Logger     *slog.Logger
 }
@@ -238,7 +213,7 @@ func (a callerAccounts) SetAccountBio(ctx context.Context, accountID int64, bio 
 	return a.profiles.SetAccountBio(ctx, accountID, bio)
 }
 
-type callerPeople struct{ people CallerPeople }
+type callerPeople struct{ people identityPorts.CallerPeople }
 
 func (p callerPeople) FindPersonByAccount(ctx context.Context, accountID int64) (domain.CallerPerson, bool, error) {
 	person, found, err := p.people.FindPersonByAccount(ctx, accountID)
@@ -253,7 +228,7 @@ func (p callerPeople) RenamePerson(ctx context.Context, personID int64, firstNam
 	return p.people.RenamePerson(ctx, personID, firstName, lastName)
 }
 
-type callerSessions struct{ CallerSessions }
+type callerSessions struct{ identityPorts.CallerSessions }
 
 func (s callerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]domain.CallerVisit, error) {
 	visits, err := s.CallerSessions.SessionVisits(ctx, sessionID)
@@ -267,7 +242,7 @@ func (s callerSessions) SessionVisits(ctx context.Context, sessionID int64) ([]d
 	return result, nil
 }
 
-type callerOverview struct{ overview CallerOverview }
+type callerOverview struct{ overview identityPorts.CallerOverview }
 
 func (o callerOverview) HasOperationalOverview(ctx context.Context, staff ports.StaffPresence, assignmentBound, admin bool) (bool, error) {
 	return o.overview.HasOperationalOverview(ctx, staff, assignmentBound, admin)

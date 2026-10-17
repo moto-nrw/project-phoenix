@@ -12,51 +12,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // The MFA and passkey composition owns its persistence. School settings,
 // challenge signing, code hashing, mail and the operator action log arrive
 // through consumer-owned seams.
-
-// AccountMFARecords is the test-decoration view of native MFA persistence.
-// A state change that did not apply is an error, keeping codes single-use.
-type AccountMFARecords interface {
-	FindAccountIdentity(ctx context.Context, accountID int64) (identityaccess.AccountMFAIdentity, bool, error)
-	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
-	// LockAccountForOverrideWrite takes the account row FOR UPDATE ahead of
-	// an override write, so a session mint and an override cannot interleave
-	// unordered. A missing account is not an error.
-	LockAccountForOverrideWrite(ctx context.Context, accountID int64) error
-	IncrementMFAAttempts(ctx context.Context, accountID int64, threshold int, duration time.Duration) (identityaccess.AccountLockout, error)
-	ResetMFAAttempts(ctx context.Context, accountID int64) error
-
-	FindCredential(ctx context.Context, accountID int64) (identityaccess.AccountMFACredential, bool, error)
-	CreateCredential(ctx context.Context, credential identityaccess.AccountMFACredential) error
-	TouchCredential(ctx context.Context, id int64, usedAt time.Time) error
-	DeleteCredentials(ctx context.Context, accountID int64) error
-
-	CreateChallenge(ctx context.Context, challenge identityaccess.AccountMFAChallenge) (identityaccess.AccountMFAChallenge, error)
-	ActivateChallenge(ctx context.Context, id int64) error
-	ConsumeChallenge(ctx context.Context, id int64, consumedAt time.Time) error
-	CountChallengesSince(ctx context.Context, accountID int64, since time.Time) (int, error)
-	FindActiveChallengeForAccount(ctx context.Context, id, accountID int64) (identityaccess.AccountMFAChallenge, bool, error)
-	FindActiveChallengeInScope(ctx context.Context, accountID, tenantID int64, scope string) (identityaccess.AccountMFAChallenge, bool, error)
-
-	CreateTrustedDevice(ctx context.Context, device identityaccess.AccountTrustedDevice) (identityaccess.AccountTrustedDevice, error)
-	FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (identityaccess.AccountTrustedDevice, bool, error)
-	ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]identityaccess.AccountTrustedDevice, error)
-	TouchTrustedDevice(ctx context.Context, id int64, usedAt time.Time) error
-	RevokeTrustedDevice(ctx context.Context, id int64, revokedAt time.Time) error
-	RevokeAllTrustedDevices(ctx context.Context, accountID int64, revokedAt time.Time) error
-	RevokeTenantTrustedDevices(ctx context.Context, accountID, tenantID int64, revokedAt time.Time) error
-
-	FindGlobalOverride(ctx context.Context, accountID int64) (identityaccess.AccountMFAOverride, bool, error)
-	FindTenantOverride(ctx context.Context, accountID, tenantID int64) (identityaccess.AccountMFAOverride, bool, error)
-	UpsertGlobalOverride(ctx context.Context, override identityaccess.AccountMFAOverride) error
-	UpsertTenantOverride(ctx context.Context, override identityaccess.AccountMFAOverride) error
-	DeleteGlobalOverride(ctx context.Context, accountID int64) error
-	DeleteTenantOverride(ctx context.Context, accountID, tenantID int64) error
-}
 
 // MFASettings resolves the school settings that parameterise the account
 // gate. Each answers the school's override for a positive tenant and the
@@ -72,32 +33,11 @@ type MFASettings interface {
 	LockoutDuration(ctx context.Context, tenantID int64) (time.Duration, error)
 }
 
-// MFAChallengeCodec signs and parses the short-lived challenge JWTs.
-type MFAChallengeCodec interface {
-	IssueChallengeToken(claims identityaccess.MFAChallengeClaims, ttl time.Duration) (string, error)
-	ParseChallengeToken(token string) (identityaccess.MFAChallengeClaims, error)
-}
-
 // ShortCodeHasher hashes and verifies the e-mail codes through the
 // project-wide Argon2id helper.
 type ShortCodeHasher interface {
 	HashShortCode(plain string) (string, error)
 	VerifyShortCode(plain, encodedHash string) (bool, error)
-}
-
-// MFAMail sends the two MFA messages. DeliverCode is synchronous and
-// fail-closed: the module activates a code only after the transport accepted
-// it. NotifyTrustedDeviceAdded is fire-and-forget.
-type MFAMail interface {
-	DeliverCode(ctx context.Context, message identityaccess.MFACodeMail) error
-	NotifyTrustedDeviceAdded(ctx context.Context, message identityaccess.TrustedDeviceMail)
-}
-
-// OperatorActionLog appends an operator entry outside the caller's outcome,
-// so the request never pays for the insert and a failed append never fails a
-// login.
-type OperatorActionLog interface {
-	RecordOperatorActionAsync(entry identityaccess.OperatorAuditEntry)
 }
 
 // PasskeyDependencies are the relying-party facts the ceremonies need. A
@@ -122,12 +62,12 @@ type PasskeyDependencies struct {
 type MFADependencies struct {
 	// DecorateRecords lets behavior tests inject persistence failures.
 	// Production leaves it nil and uses the native records directly.
-	DecorateRecords func(AccountMFARecords) AccountMFARecords
+	DecorateRecords func(identityPorts.AccountMFARecords) identityPorts.AccountMFARecords
 	Settings        MFASettings
-	Codec           MFAChallengeCodec
+	Codec           identityPorts.MFAChallengeCodec
 	Codes           ShortCodeHasher
-	Mail            MFAMail
-	OperatorAudit   OperatorActionLog
+	Mail            identityPorts.MFAMail
+	OperatorAudit   identityPorts.OperatorActionLog
 	// JWTSecret derives the trusted-device HMAC key, so the cookie signature
 	// and the JWT signing key stay independent.
 	JWTSecret string
@@ -300,7 +240,9 @@ func (g operatorMFAGate) TrustedDeviceDays() int {
 
 // --- the seams the root fills ------------------------------------------------
 
-type mfaChallengeCodec struct{ source MFAChallengeCodec }
+type mfaChallengeCodec struct {
+	source identityPorts.MFAChallengeCodec
+}
 
 func (c mfaChallengeCodec) IssueChallengeToken(claims domain.MFAChallengeClaims, ttl time.Duration) (string, error) {
 	return c.source.IssueChallengeToken(identityaccess.MFAChallengeClaims(claims), ttl)
@@ -311,7 +253,7 @@ func (c mfaChallengeCodec) ParseChallengeToken(token string) (domain.MFAChalleng
 	return domain.MFAChallengeClaims(claims), err
 }
 
-type mfaMail struct{ source MFAMail }
+type mfaMail struct{ source identityPorts.MFAMail }
 
 func (m mfaMail) DeliverCode(ctx context.Context, message domain.MFACodeMail) error {
 	return m.source.DeliverCode(ctx, identityaccess.MFACodeMail(message))
@@ -325,7 +267,7 @@ func (m mfaMail) NotifyTrustedDeviceAdded(ctx context.Context, message domain.Tr
 // the operator entries to the operator action log.
 type mfaAuditTrail struct {
 	events   authAudit
-	operator OperatorActionLog
+	operator identityPorts.OperatorActionLog
 }
 
 func (t mfaAuditTrail) RecordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
@@ -338,7 +280,9 @@ func (t mfaAuditTrail) RecordOperatorActionAsync(entry domain.OperatorAuditEntry
 
 // --- the account MFA records -------------------------------------------------
 
-type accountMFARecords struct{ source AccountMFARecords }
+type accountMFARecords struct {
+	source identityPorts.AccountMFARecords
+}
 
 func (r accountMFARecords) FindAccountIdentity(ctx context.Context, accountID int64) (domain.AccountIdentity, bool, error) {
 	identity, found, err := r.source.FindAccountIdentity(ctx, accountID)

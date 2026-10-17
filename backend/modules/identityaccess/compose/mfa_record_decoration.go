@@ -7,11 +7,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
 )
 
 // publicAccountMFARecords exposes native records only when a test decorates
 // persistence to exercise an infrastructure failure through the public flows.
-type publicAccountMFARecords struct{ source ports.AccountMFARecords }
+type publicAccountMFARecords struct {
+	source ports.AccountMFARecords
+}
 
 func (r publicAccountMFARecords) FindAccountIdentity(ctx context.Context, accountID int64) (identityaccess.AccountMFAIdentity, bool, error) {
 	identity, found, err := r.source.FindAccountIdentity(ctx, accountID)
@@ -143,4 +146,4 @@ func (r publicAccountMFARecords) DeleteTenantOverride(ctx context.Context, accou
 	return r.source.DeleteTenantOverride(ctx, accountID, tenantID)
 }
 
-var _ AccountMFARecords = publicAccountMFARecords{}
+var _ identityPorts.AccountMFARecords = publicAccountMFARecords{}
