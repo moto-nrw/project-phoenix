@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,28 +6,34 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
 )
 
-type engine struct {
-	service *application.Service
+// NewEngine serves the Device Fleet capability from the application service;
+// observe receives the rejected requests and now is the fleet clock.
+func NewEngine(service *Service, observe ports.Observer, now func() time.Time) Engine {
+	return Engine{service: service, observe: observe, now: now}
+}
+
+// Engine is the Device Fleet capability over the application service.
+type Engine struct {
+	service *Service
 	observe ports.Observer
 	now     func() time.Time
 }
 
-func (e engine) ObserveRejection(operation string, duration time.Duration, err error) {
+func (e Engine) ObserveRejection(operation string, duration time.Duration, err error) {
 	e.observe(ports.Observation{Operation: operation, Duration: duration, Err: err})
 }
 
-func (e engine) Now() time.Time { return e.now() }
+func (e Engine) Now() time.Time { return e.now() }
 
-func (e engine) DeviceOnlineWindow(ctx context.Context) time.Duration {
+func (e Engine) DeviceOnlineWindow(ctx context.Context) time.Duration {
 	return e.service.DeviceOnlineWindow(ctx)
 }
 
-func (e engine) IsDeviceOnlineAt(ctx context.Context, device devicefleet.Device, now time.Time) bool {
+func (e Engine) IsDeviceOnlineAt(ctx context.Context, device devicefleet.Device, now time.Time) bool {
 	return e.service.IsDeviceOnlineAt(ctx, toDomainDevice(device), now)
 }
 
@@ -38,138 +44,138 @@ func toDomainDevice(device devicefleet.Device) domain.Device {
 	}
 }
 
-func (e engine) FindDevice(ctx context.Context, id int64) (devicefleet.Device, error) {
+func (e Engine) FindDevice(ctx context.Context, id int64) (devicefleet.Device, error) {
 	value, err := e.service.FindDevice(ctx, id)
-	return toPublicDevice(value), mapError(err)
+	return toPublicDevice(value), MapError(err)
 }
 
-func (e engine) FindDeviceForUpdate(ctx context.Context, id int64) (devicefleet.Device, error) {
+func (e Engine) FindDeviceForUpdate(ctx context.Context, id int64) (devicefleet.Device, error) {
 	value, err := e.service.FindDeviceForUpdate(ctx, id)
-	return toPublicDevice(value), mapError(err)
+	return toPublicDevice(value), MapError(err)
 }
 
-func (e engine) FindDeviceByDeviceID(ctx context.Context, deviceID string) (devicefleet.Device, error) {
+func (e Engine) FindDeviceByDeviceID(ctx context.Context, deviceID string) (devicefleet.Device, error) {
 	value, err := e.service.FindDeviceByDeviceID(ctx, deviceID)
-	return toPublicDevice(value), mapError(err)
+	return toPublicDevice(value), MapError(err)
 }
 
-func (e engine) FindDeviceByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, error) {
+func (e Engine) FindDeviceByAPIKey(ctx context.Context, apiKey string) (devicefleet.Device, error) {
 	value, err := e.service.FindDeviceByAPIKey(ctx, apiKey)
-	return toPublicDevice(value), mapError(err)
+	return toPublicDevice(value), MapError(err)
 }
 
-func (e engine) ListDevices(ctx context.Context, filter devicefleet.DeviceFilter) ([]devicefleet.Device, error) {
+func (e Engine) ListDevices(ctx context.Context, filter devicefleet.DeviceFilter) ([]devicefleet.Device, error) {
 	values, err := e.service.ListDevices(ctx, toDomainFilter(filter))
-	return toPublicDevices(values), mapError(err)
+	return toPublicDevices(values), MapError(err)
 }
 
-func (e engine) ListDevicesByID(ctx context.Context, ids []int64) ([]devicefleet.Device, error) {
+func (e Engine) ListDevicesByID(ctx context.Context, ids []int64) ([]devicefleet.Device, error) {
 	values, err := e.service.ListDevicesByIDs(ctx, ids)
-	return toPublicDevices(values), mapError(err)
+	return toPublicDevices(values), MapError(err)
 }
 
-func (e engine) ListOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]devicefleet.Device, error) {
+func (e Engine) ListOfflineDevices(ctx context.Context, offlineSince time.Duration) ([]devicefleet.Device, error) {
 	values, err := e.service.ListOfflineDevices(ctx, offlineSince)
-	return toPublicDevices(values), mapError(err)
+	return toPublicDevices(values), MapError(err)
 }
 
-func (e engine) CountDevicesByType(ctx context.Context) (map[string]int, error) {
+func (e Engine) CountDevicesByType(ctx context.Context) (map[string]int, error) {
 	counts, err := e.service.CountDevicesByType(ctx)
-	return counts, mapError(err)
+	return counts, MapError(err)
 }
 
-func (e engine) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {
+func (e Engine) CountDevicesByTenant(ctx context.Context) (map[int64]int, error) {
 	counts, err := e.service.CountDevicesByTenant(ctx)
-	return counts, mapError(err)
+	return counts, MapError(err)
 }
 
-func (e engine) ListDevicesByTenant(ctx context.Context, tenantIDs []int64) ([]devicefleet.Device, error) {
+func (e Engine) ListDevicesByTenant(ctx context.Context, tenantIDs []int64) ([]devicefleet.Device, error) {
 	values, err := e.service.ListDevicesByTenants(ctx, tenantIDs)
-	return toPublicDevices(values), mapError(err)
+	return toPublicDevices(values), MapError(err)
 }
 
-func (e engine) CreateDevice(ctx context.Context, input devicefleet.CreateDevice) (devicefleet.Device, error) {
+func (e Engine) CreateDevice(ctx context.Context, input devicefleet.CreateDevice) (devicefleet.Device, error) {
 	value, err := e.service.CreateDevice(ctx, domain.CreateDevice{
 		DeviceID: input.DeviceID, DeviceType: input.DeviceType, Name: input.Name,
 		Status: domain.DeviceStatus(input.Status), APIKey: input.APIKey, LastSeen: input.LastSeen,
 		RegisteredByID: input.RegisteredByID, RoomID: input.RoomID,
 	})
-	return toPublicDevice(value), mapError(err)
+	return toPublicDevice(value), MapError(err)
 }
 
-func (e engine) UpdateDevice(ctx context.Context, input devicefleet.UpdateDevice) (devicefleet.Device, error) {
+func (e Engine) UpdateDevice(ctx context.Context, input devicefleet.UpdateDevice) (devicefleet.Device, error) {
 	value, err := e.service.UpdateDevice(ctx, toDomainUpdate(input))
-	return toPublicDevice(value), mapError(err)
+	return toPublicDevice(value), MapError(err)
 }
 
-func (e engine) UpdateDeviceColumns(ctx context.Context, input devicefleet.UpdateDevice, columns []string) (int64, error) {
+func (e Engine) UpdateDeviceColumns(ctx context.Context, input devicefleet.UpdateDevice, columns []string) (int64, error) {
 	affected, err := e.service.UpdateDeviceColumns(ctx, toDomainUpdate(input), columns)
-	return affected, mapError(err)
+	return affected, MapError(err)
 }
 
-func (e engine) DeleteDevice(ctx context.Context, id int64) error {
-	return mapError(e.service.DeleteDevice(ctx, id))
+func (e Engine) DeleteDevice(ctx context.Context, id int64) error {
+	return MapError(e.service.DeleteDevice(ctx, id))
 }
 
-func (e engine) UpdateDeviceStatus(ctx context.Context, deviceID string, status devicefleet.DeviceStatus) error {
-	return mapError(e.service.UpdateDeviceStatus(ctx, deviceID, domain.DeviceStatus(status)))
+func (e Engine) UpdateDeviceStatus(ctx context.Context, deviceID string, status devicefleet.DeviceStatus) error {
+	return MapError(e.service.UpdateDeviceStatus(ctx, deviceID, domain.DeviceStatus(status)))
 }
 
-func (e engine) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
-	return mapError(e.service.UpdateDeviceLastSeen(ctx, id, lastSeen))
+func (e Engine) UpdateDeviceLastSeen(ctx context.Context, id int64, lastSeen time.Time) error {
+	return MapError(e.service.UpdateDeviceLastSeen(ctx, id, lastSeen))
 }
 
-func (e engine) UpdateDeviceRoom(ctx context.Context, id, roomID int64) error {
-	return mapError(e.service.UpdateDeviceRoom(ctx, id, roomID))
+func (e Engine) UpdateDeviceRoom(ctx context.Context, id, roomID int64) error {
+	return MapError(e.service.UpdateDeviceRoom(ctx, id, roomID))
 }
 
-func (e engine) ListDisplays(ctx context.Context) ([]devicefleet.Display, error) {
+func (e Engine) ListDisplays(ctx context.Context) ([]devicefleet.Display, error) {
 	values, err := e.service.ListDisplays(ctx)
 	result := make([]devicefleet.Display, 0, len(values))
 	for _, value := range values {
 		result = append(result, toPublicDisplay(value))
 	}
-	return result, mapError(err)
+	return result, MapError(err)
 }
 
-func (e engine) CreateDisplay(ctx context.Context, name string) (devicefleet.Display, string, error) {
+func (e Engine) CreateDisplay(ctx context.Context, name string) (devicefleet.Display, string, error) {
 	value, rawToken, err := e.service.CreateDisplay(ctx, name)
-	return toPublicDisplay(value), rawToken, mapError(err)
+	return toPublicDisplay(value), rawToken, MapError(err)
 }
 
-func (e engine) UpdateDisplay(ctx context.Context, id int64, name *string, isActive *bool) (devicefleet.Display, error) {
+func (e Engine) UpdateDisplay(ctx context.Context, id int64, name *string, isActive *bool) (devicefleet.Display, error) {
 	value, err := e.service.UpdateDisplay(ctx, id, name, isActive)
-	return toPublicDisplay(value), mapError(err)
+	return toPublicDisplay(value), MapError(err)
 }
 
-func (e engine) RegenerateDisplayToken(ctx context.Context, id int64) (string, error) {
+func (e Engine) RegenerateDisplayToken(ctx context.Context, id int64) (string, error) {
 	_, rawToken, err := e.service.RegenerateDisplayToken(ctx, id)
-	return rawToken, mapError(err)
+	return rawToken, MapError(err)
 }
 
-func (e engine) DeleteDisplay(ctx context.Context, id int64) error {
-	return mapError(e.service.DeleteDisplay(ctx, id))
+func (e Engine) DeleteDisplay(ctx context.Context, id int64) error {
+	return MapError(e.service.DeleteDisplay(ctx, id))
 }
 
-func (e engine) Dashboard(ctx context.Context, rawToken string) (devicefleet.Dashboard, error) {
+func (e Engine) Dashboard(ctx context.Context, rawToken string) (devicefleet.Dashboard, error) {
 	value, err := e.service.ResolveDashboard(ctx, rawToken)
 	if err != nil {
-		return devicefleet.Dashboard{}, mapError(err)
+		return devicefleet.Dashboard{}, MapError(err)
 	}
 	return toPublicDashboard(value), nil
 }
 
-func (e engine) FindUnregisteredTagScan(ctx context.Context, id int64) (devicefleet.UnregisteredTagScan, error) {
+func (e Engine) FindUnregisteredTagScan(ctx context.Context, id int64) (devicefleet.UnregisteredTagScan, error) {
 	value, err := e.service.FindUnregisteredTagScan(ctx, id)
-	return toPublicUnregisteredTagScan(value), mapError(err)
+	return toPublicUnregisteredTagScan(value), MapError(err)
 }
 
-func (e engine) ListUnregisteredTagScans(ctx context.Context, filter devicefleet.UnregisteredTagScanFilter) ([]devicefleet.UnregisteredTagScan, error) {
+func (e Engine) ListUnregisteredTagScans(ctx context.Context, filter devicefleet.UnregisteredTagScanFilter) ([]devicefleet.UnregisteredTagScan, error) {
 	values, err := e.service.ListUnregisteredTagScans(ctx, domain.UnregisteredTagScanFilter{
 		TenantIDs: filter.TenantIDs, UnresolvedOnly: filter.UnresolvedOnly, Limit: filter.Limit,
 	})
 	if err != nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	result := make([]devicefleet.UnregisteredTagScan, 0, len(values))
 	for _, value := range values {
@@ -178,23 +184,23 @@ func (e engine) ListUnregisteredTagScans(ctx context.Context, filter devicefleet
 	return result, nil
 }
 
-func (e engine) RecordUnregisteredTagScan(ctx context.Context, input devicefleet.RecordUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
+func (e Engine) RecordUnregisteredTagScan(ctx context.Context, input devicefleet.RecordUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
 	value, err := e.service.RecordUnregisteredTagScan(ctx, domain.RecordUnregisteredTagScan{
 		TagUID: input.TagUID, DeviceID: input.DeviceID, ScannedAt: input.ScannedAt,
 	})
-	return toPublicUnregisteredTagScan(value), mapError(err)
+	return toPublicUnregisteredTagScan(value), MapError(err)
 }
 
-func (e engine) ResolveUnregisteredTagScan(ctx context.Context, input devicefleet.ResolveUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
+func (e Engine) ResolveUnregisteredTagScan(ctx context.Context, input devicefleet.ResolveUnregisteredTagScan) (devicefleet.UnregisteredTagScan, error) {
 	value, err := e.service.ResolveUnregisteredTagScan(ctx, domain.ResolveUnregisteredTagScan{
 		ID: input.ID, OperatorID: input.OperatorID, Note: input.Note,
 	})
-	return toPublicUnregisteredTagScan(value), mapError(err)
+	return toPublicUnregisteredTagScan(value), MapError(err)
 }
 
-func (e engine) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff time.Time) (int64, error) {
+func (e Engine) DeleteExpiredUnregisteredTagScans(ctx context.Context, cutoff time.Time) (int64, error) {
 	deleted, err := e.service.DeleteExpiredUnregisteredTagScans(ctx, cutoff)
-	return deleted, mapError(err)
+	return deleted, MapError(err)
 }
 
 func toPublicUnregisteredTagScan(value domain.UnregisteredTagScan) devicefleet.UnregisteredTagScan {
@@ -255,7 +261,7 @@ func toPublicDisplay(value domain.Display) devicefleet.Display {
 	}
 }
 
-func toPublicDashboard(value application.Dashboard) devicefleet.Dashboard {
+func toPublicDashboard(value Dashboard) devicefleet.Dashboard {
 	dashboard := devicefleet.Dashboard{
 		Status: value.Status, SchoolName: value.SchoolName, DisplayName: value.DisplayName,
 		ServerTime: value.ServerTime, Date: value.Date,
@@ -293,7 +299,7 @@ func toPublicDashboard(value application.Dashboard) devicefleet.Dashboard {
 }
 
 // mapError translates internal sentinels to the stable errors callers match.
-func mapError(err error) error {
+func MapError(err error) error {
 	switch {
 	case err == nil:
 		return nil
