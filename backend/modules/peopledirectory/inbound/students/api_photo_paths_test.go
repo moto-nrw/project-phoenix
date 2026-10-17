@@ -30,6 +30,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -42,7 +43,7 @@ import (
 func seedPhotoFile(t *testing.T, tc *testContext, studentID int64) (storedURL, onDisk string) {
 	t.Helper()
 
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	require.NoError(t, err, "resolve public dir")
 	dir := filepath.Join(pubDir, "uploads", "student-photos")
 	require.NoError(t, os.MkdirAll(dir, 0o755), "mkdir student-photos")

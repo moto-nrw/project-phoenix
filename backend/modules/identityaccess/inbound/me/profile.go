@@ -129,7 +129,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	targetDir := filepath.Join(avatarDir, globalAvatarDir)
-	filePath, err := common.SaveImage(uploaded.File, targetDir, fmt.Sprintf("%d", account.ID), uploaded.ContentType)
+	filePath, err := common.SaveImage(uploaded.File, targetDir, fmt.Sprintf("%d", account.ID), uploaded.ContentType, res.uploads)
 	if err != nil {
 		render.Status(r, http.StatusInternalServerError)
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -139,7 +139,7 @@ func (res *Resource) uploadAvatar(w http.ResponseWriter, r *http.Request) {
 	avatarURL := fmt.Sprintf("/uploads/avatars/%s/%s", globalAvatarDir, filepath.Base(filePath))
 	profile, err := res.caller.UpdateAvatar(r.Context(), avatarURL)
 	if err != nil {
-		common.RemoveImage(filePath)
+		res.uploads.RemoveUpload(filePath)
 	}
 	res.respond(w, r, profileResponse(profile), err, "Avatar uploaded successfully")
 }
@@ -184,11 +184,11 @@ func (res *Resource) serveAvatar(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorForbidden(errors.New("access denied")))
 		return
 	}
-	filePath, err := common.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
+	filePath, err := res.uploads.StoredPath("public", avatarPath, "/uploads/avatars/")
 	if err != nil {
 		render.Status(r, http.StatusForbidden)
 		common.RenderError(w, r, common.ErrorForbidden(err))
 		return
 	}
-	common.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
+	common.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400", res.uploads)
 }

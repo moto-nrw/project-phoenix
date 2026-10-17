@@ -9,6 +9,7 @@ import (
 	"time"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,6 +71,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 		nil, nil, nil, nil,
 		NewTestPhases(TestPhaseDependencies{Records: NewTestModule()}),
 		nil, nil, nil, nil, nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, dbPublicSchools{db: db},
+		nativeUploads.UploadFiles{},
 	)
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/phases/public/%s", targetSchool.Slug), nil)
 	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))

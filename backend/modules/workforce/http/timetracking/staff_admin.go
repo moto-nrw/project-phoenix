@@ -20,6 +20,7 @@ import (
 
 // StaffAdminResource serves the workforce half of /api/staff.
 type StaffAdminResource struct {
+	uploads              common.UploadStorage
 	PersonService        workforce.StaffDirectory
 	StaffDocumentService workforce.StaffDocuments
 	OffboardingCleanup   workforce.DocumentCleanupQueue
@@ -48,6 +49,7 @@ type StaffAdminResource struct {
 // resource. Schedules is the Workforce query the schedule views read the
 // assigned template and the running schedule version from.
 type StaffAdminDependencies struct {
+	Uploads            common.UploadStorage
 	Staff              workforce.StaffDirectory
 	Documents          workforce.StaffDocuments
 	OffboardingCleanup workforce.DocumentCleanupQueue
@@ -75,6 +77,9 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 	if deps.Staff == nil || deps.Documents == nil || deps.OffboardingCleanup == nil || deps.WorkSessions == nil || deps.StaffAbsences == nil || deps.Identity == nil {
 		panic("staff admin resource: staff directory, documents, work sessions, absences and identity are required")
 	}
+	if deps.Uploads == nil {
+		panic("staff admin resource: upload storage is required")
+	}
 	// Normalised once here so the handlers can log through rs.logger without
 	// a nil guard at every call site.
 	logger := deps.Logger
@@ -86,6 +91,7 @@ func NewStaffAdminResource(deps StaffAdminDependencies) *StaffAdminResource {
 		schedules = deps.Schedules
 	}
 	return &StaffAdminResource{
+		uploads:              deps.Uploads,
 		PersonService:        deps.Staff,
 		StaffDocumentService: deps.Documents,
 		OffboardingCleanup:   deps.OffboardingCleanup,

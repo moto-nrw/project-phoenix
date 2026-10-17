@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 
 	"github.com/go-chi/chi/v5"
@@ -224,12 +225,12 @@ func staffPermissionGate(required ...string) staffHTTP.Middleware {
 }
 
 func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string) {
-	filePath, err := apiCommon.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
+	filePath, err := nativeUploads.ResolveStoredPath("public", avatarPath, "/uploads/avatars/")
 	if err != nil {
 		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 		return
 	}
-	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400")
+	apiCommon.ServeImage(w, r, filepath.Dir(filePath), filepath.Base(filePath), "private, max-age=86400", nativeUploads.UploadFiles{})
 }
 
 // renderStaffWriteFailure classifies the create/update/offboard errors: a

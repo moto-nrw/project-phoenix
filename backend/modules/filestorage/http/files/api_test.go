@@ -22,6 +22,7 @@ import (
 	"time"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
@@ -68,7 +69,7 @@ type apiContext struct {
 
 func setupFileStoreRoute(t *testing.T) *apiContext {
 	t.Helper()
-	objects, err := common.PrivateUploadsBackend()
+	objects, err := nativeUploads.PrivateUploadsBackend()
 	require.NoError(t, err)
 	db, svc := setupFileStoreModule(t, objects)
 	resource := filestoreAPI.NewResource(svc.FileStore, slog.Default())
@@ -80,7 +81,7 @@ func setupFileStoreRoute(t *testing.T) *apiContext {
 	_, adminAccount := testpkg.CreateTestPersonWithAccount(t, db, "Leitung", fmt.Sprintf("Admin-%d", suffix))
 	_, memberAccount := testpkg.CreateTestPersonWithAccount(t, db, "Team", fmt.Sprintf("Mitglied-%d", suffix))
 	t.Cleanup(func() {
-		if pubDir, err := common.ResolvePublicDir(); err == nil {
+		if pubDir, err := nativeUploads.ResolvePublicDir(); err == nil {
 			_ = os.RemoveAll(filepath.Join(pubDir, "uploads", "files", fmt.Sprint(testpkg.Tenant(t))))
 		}
 	})
