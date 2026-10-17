@@ -4086,6 +4086,14 @@ exceptions and the excusal rows over them move into `internal/application`
 `NewPickupApprovalExceptions`, `NewPickupExcusalRows`). The composition goes
 from 2,876 to 2,572 LOC.
 
+The School Structure group facade follows: the public group management over
+the group application and the private group reads, with the group value and
+error mapping (`groups.NewManagement`, `groups.PublicGroup`,
+`groups.LegacyGroup`, `groups.PublicGroupError`), moves from
+`modules/schoolstructure/compose` into `internal/application/groups`; the
+retained testhooks adapters keep calling them there. The composition goes from
+1,258 to 904 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
