@@ -3,6 +3,7 @@ package schoolmembership
 import (
 	"context"
 	"errors"
+	"time"
 )
 
 var ErrOffboardingConflict = errors.New("staff membership changed since offboarding preview")
@@ -25,15 +26,19 @@ type Retirement struct {
 // Offboarding is the Membership command used by the staff lifecycle workflow.
 // It does not revoke identity access or mutate other owners' assignments.
 type Offboarding struct {
-	preview func(context.Context, int64) (RetirementPreview, error)
-	execute func(context.Context, int64, string) (Retirement, error)
+	preview   func(context.Context, int64) (RetirementPreview, error)
+	execute   func(context.Context, int64, string) (Retirement, error)
+	eraseNext func(context.Context, time.Time, int64) (RetiredStaffErasure, bool, error)
 }
 
-func NewOffboarding(preview func(context.Context, int64) (RetirementPreview, error), execute func(context.Context, int64, string) (Retirement, error)) *Offboarding {
+// NewOffboarding binds the retirement queries and commands. eraseNext is the
+// Membership half of the automatic deletion of retired staff (#3963); a graph
+// without that deletion may leave it nil.
+func NewOffboarding(preview func(context.Context, int64) (RetirementPreview, error), execute func(context.Context, int64, string) (Retirement, error), eraseNext func(context.Context, time.Time, int64) (RetiredStaffErasure, bool, error)) *Offboarding {
 	if preview == nil || execute == nil {
 		panic("school membership: offboarding queries and commands are required")
 	}
-	return &Offboarding{preview: preview, execute: execute}
+	return &Offboarding{preview: preview, execute: execute, eraseNext: eraseNext}
 }
 
 // Preview describes the Membership changes and a revision of the locked facts.

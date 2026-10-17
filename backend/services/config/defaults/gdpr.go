@@ -110,7 +110,7 @@ func init() {
 	config.Register(config.Definition{
 		Key:             config.KeyGDPRTimeTrackingRetentionDays,
 		Label:           "Zeiterfassung aufbewahren",
-		Description:     "So lange speichert moto Stempelzeiten, Pausen, Korrekturen und Abwesenheiten. Danach löscht moto sie. Mindestens 2 Jahre.",
+		Description:     "So lange speichert moto Stempelzeiten, Pausen, Korrekturen und Abwesenheiten. Danach löscht moto sie. Personal, das ausgetreten ist, löscht moto nach derselben Frist ab dem Austritt. Mindestens 2 Jahre.",
 		Type:            config.FieldSelect,
 		Default:         730,
 		ReadPermission:  "config:read",

@@ -35,6 +35,8 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 	require.NoError(t, err)
 	students, err := NewStudentTestRetention(db, owners.Audit, owners.Settings)
 	require.NoError(t, err)
+	staff, err := newStaffRetention(db, owners.Audit, owners.Settings, nil)
+	require.NoError(t, err)
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          owners.Audit,
 		settings:             owners.Settings,
@@ -51,7 +53,7 @@ func newRetentionSuite(t *testing.T) retentionSuite {
 		submissionLimits:     owners.SubmissionLimits,
 		settingAudit:         owners.SettingAudit,
 		exportTransfers:      owners.ExportTransfers,
-	}, students)
+	}, students, staff)
 	require.NoError(t, err)
 	return retentionSuite{admin: admin, serve: serve, retention: retention}
 }
@@ -132,6 +134,7 @@ func TestWorkerRetentionPreloadsRetentionWindows(t *testing.T) {
 		settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 		settingsModule.KeyGDPRStaffSickNoteRetentionDays,
 		settingsModule.KeyGDPRStudentRetentionDays,
+		settingsModule.KeyGDPRTimeTrackingRetentionDays,
 	}, retentionSettingKeys)
 }
 
