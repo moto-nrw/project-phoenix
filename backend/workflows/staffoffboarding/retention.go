@@ -234,13 +234,6 @@ func (r *Retention) removeSupervisions(ctx context.Context, staffID int64) (int6
 // anonymize leaves a person alone who is on the staff again under a newer
 // membership, and one an earlier membership's erasure anonymized already.
 func (r *Retention) anonymize(ctx context.Context, personID int64) (bool, error) {
-	_, err := r.deps.LiveStaff.FindStaffByPerson(ctx, personID)
-	if err == nil {
-		return false, nil
-	}
-	if !errors.Is(err, schoolmembership.ErrStaffNotFound) {
-		return false, err
-	}
 	person, err := r.deps.People.FindPersonForMutation(ctx, personID)
 	if errors.Is(err, peopledirectory.ErrPersonNotFound) {
 		return false, nil
@@ -250,6 +243,17 @@ func (r *Retention) anonymize(ctx context.Context, personID int64) (bool, error)
 	}
 	if person.DeletedAt != nil {
 		return false, nil
+	}
+	// Lock the person before checking for a newer membership. A rehire needs
+	// a foreign-key lock on this row, so it cannot complete between this final
+	// check and the anonymization. A rehire committed while the other owners
+	// erased the old membership is therefore visible here.
+	_, err = r.deps.LiveStaff.FindStaffByPerson(ctx, personID)
+	if err == nil {
+		return false, nil
+	}
+	if !errors.Is(err, schoolmembership.ErrStaffNotFound) {
+		return false, err
 	}
 	anonymized, err := r.deps.People.AnonymizeRetiredStaffPerson(ctx, person.ID, person.UpdatedAt)
 	if err != nil {

@@ -193,6 +193,25 @@ func TestNightlyRetentionKeepsTheNameOfARehiredStaffMember(t *testing.T) {
 	assert.False(t, logged[0].PersonAnonymized)
 }
 
+func TestNightlyStaffRetentionKeepsSickNotesUntilTheirOwnWindowEnds(t *testing.T) {
+	t.Parallel()
+	suite := newRetentionSuite(t)
+	school := testpkg.Tenant(t)
+	_, err := suite.admin.ExecContext(context.Background(), `INSERT INTO config.setting_values (tenant_id, setting_key, value)
+		VALUES (?, 'gdpr.staff_sick_note_retention_days', '1095'::jsonb)`, school)
+	require.NoError(t, err)
+
+	former := suite.staffWithRecords(t, school, "Bescheinigung")
+	uploader := testpkg.CreateTestAccount(t, suite.admin, "staff-retention-sick-note")
+	sickNote, _ := suite.staffDocument(t, school, former.staffID, uploader.ID, "au_bescheinigung", 800)
+	suite.retire(t, former.staffID, 731)
+
+	suite.run(t, school)
+
+	assert.True(t, suite.exists(t, "users.staff_documents", sickNote), "the sick-note workflow owns this document's longer retention period")
+	assert.Equal(t, 1, suite.staffRecords(t, former.staffID), "only the sick note remains after the former staff member's records are erased")
+}
+
 func TestNightlyRetentionErasesEveryFormerMembershipOfOnePerson(t *testing.T) {
 	t.Parallel()
 	suite := newRetentionSuite(t)

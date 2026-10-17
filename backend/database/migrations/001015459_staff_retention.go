@@ -151,7 +151,9 @@ const staffRetentionUpSQL = `
 			counts := counts || jsonb_build_object('qualifications', deleted_count);
 			WITH removed AS (
 				DELETE FROM users.staff_documents
-				WHERE tenant_id = p_tenant_id AND staff_id = p_staff_id
+				WHERE tenant_id = p_tenant_id
+				  AND staff_id = p_staff_id
+				  AND category <> 'au_bescheinigung'
 				RETURNING tenant_id, staff_id, filename_stored, file_deleted_at
 			), queued AS (
 				INSERT INTO users.staff_document_file_cleanup (tenant_id, staff_id, filename_stored, retry_after)

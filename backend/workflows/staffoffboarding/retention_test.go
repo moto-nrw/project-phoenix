@@ -17,11 +17,14 @@ import (
 // retiredDoubles stands in for the owners of the automatic deletion: due
 // lists the staff members School Membership hands out in ID order.
 type retiredDoubles struct {
-	due       []int64
-	cursors   []int64
-	refuse    map[int64]bool
-	failStaff map[int64]error
-	logged    []int64
+	due                           []int64
+	cursors                       []int64
+	refuse                        map[int64]bool
+	failStaff                     map[int64]error
+	logged                        []int64
+	live                          map[int64]bool
+	rehireBeforeMembershipRecheck map[int64]bool
+	anonymizationCalls            int
 }
 
 func (d *retiredDoubles) EraseNextRetiredStaff(_ context.Context, _ time.Time, afterID int64) (schoolmembership.RetiredStaffErasure, bool, error) {
@@ -34,7 +37,10 @@ func (d *retiredDoubles) EraseNextRetiredStaff(_ context.Context, _ time.Time, a
 	return schoolmembership.RetiredStaffErasure{}, false, nil
 }
 
-func (d *retiredDoubles) FindStaffByPerson(context.Context, int64) (schoolmembership.Staff, error) {
+func (d *retiredDoubles) FindStaffByPerson(_ context.Context, personID int64) (schoolmembership.Staff, error) {
+	if d.live[personID] {
+		return schoolmembership.Staff{PersonID: personID}, nil
+	}
 	return schoolmembership.Staff{}, schoolmembership.ErrStaffNotFound
 }
 
@@ -43,10 +49,14 @@ func (d *retiredDoubles) EraseRetiredStaffRecords(_ context.Context, staffID int
 }
 
 func (d *retiredDoubles) FindPersonForMutation(_ context.Context, id int64) (peopledirectory.Person, error) {
+	if d.rehireBeforeMembershipRecheck[id] {
+		d.live[id] = true
+	}
 	return peopledirectory.Person{ID: id, UpdatedAt: time.Date(2026, 1, 5, 9, 0, 0, 0, time.UTC)}, nil
 }
 
 func (d *retiredDoubles) AnonymizeRetiredStaffPerson(_ context.Context, personID int64, _ time.Time) (bool, error) {
+	d.anonymizationCalls++
 	return !d.refuse[personID/10], nil
 }
 
@@ -85,6 +95,21 @@ func TestStaffRetentionSkipsARefusedPersonAndGoesOn(t *testing.T) {
 	assert.Equal(t, staffoffboarding.RetentionResult{Deleted: 2, Refused: 1, RetentionDays: 730}, result)
 	assert.Equal(t, []int64{3, 8}, doubles.logged, "a refused staff member is not logged")
 	assert.Equal(t, []int64{0, 3, 5, 8}, doubles.cursors, "the cursor moves past every staff member taken, refused ones included")
+}
+
+func TestStaffRetentionDoesNotAnonymizeAPersonRehiredBeforeTheFinalMembershipCheck(t *testing.T) {
+	t.Parallel()
+	doubles := &retiredDoubles{
+		due:                           []int64{3},
+		live:                          map[int64]bool{},
+		rehireBeforeMembershipRecheck: map[int64]bool{30: true},
+	}
+
+	result, err := newRetentionDoubles(t, doubles, 730, nil).DeleteExpiredStaff(context.Background())
+
+	require.NoError(t, err)
+	assert.Equal(t, staffoffboarding.RetentionResult{Deleted: 1, RetentionDays: 730}, result)
+	assert.Zero(t, doubles.anonymizationCalls, "the locked membership check keeps a rehired person's identity")
 }
 
 func TestStaffRetentionCountsTheRecordsOfOneErasure(t *testing.T) {
