@@ -94,7 +94,7 @@ func (rs *Resource) getEnrollmentProfile(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	resp := common.BuildGuardianProfileResponse(claims, loaded)
+	resp := common.BuildGuardianProfileResponse(common.GuardianProfileDefaults{FirstName: claims.FirstName, LastName: claims.LastName, Email: claims.Sub}, loaded)
 	common.Respond(w, r, http.StatusOK, resp, "Profile retrieved")
 }
 
