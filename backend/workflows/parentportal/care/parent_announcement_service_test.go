@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/assert"
@@ -20,8 +22,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -61,23 +61,23 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 func seedPublishedAnnouncement(
 	t *testing.T,
 	ctx context.Context,
-	repo usersModels.ParentAnnouncementRepository,
+	repo api.ParentAnnouncementFixtures,
 	createdBy, tenantID int64,
 	requiresAck bool,
-) *usersModels.ParentAnnouncement {
+) *communication.ParentAnnouncementFixture {
 	t.Helper()
-	a := &usersModels.ParentAnnouncement{
+	a := &communication.ParentAnnouncementFixture{
 		Title:                   "Sommerfest",
 		Body:                    "Wir feiern am Freitag.",
-		Priority:                usersModels.ParentAnnouncementPriorityInfo,
+		Priority:                "info",
 		RequiresAcknowledgement: requiresAck,
 		Active:                  true,
 		CreatedBy:               createdBy,
 	}
-	a.SetTenantID(tenantID)
+	a.TenantID = tenantID
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
 	now := time.Now().Add(-time.Minute)
 	require.NoError(t, repo.SetPublished(ctx, a.ID, &now))
 	t.Cleanup(func() { _ = repo.Delete(ctx, a.ID) })
@@ -100,7 +100,7 @@ func TestAnnouncementFeed_ListUnreadReadAcknowledge(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, true)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
@@ -146,7 +146,7 @@ func TestAnnouncementFeed_StaleVersionRejected(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	// A published_at the client never actually saw (wrong version) is rejected as
@@ -163,7 +163,7 @@ func TestAnnouncementFeed_AckNotRequired(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	err := svc.AcknowledgeAnnouncement(ctx, chain.AccountID, ann.ID, *ann.PublishedAt)
@@ -190,7 +190,7 @@ func TestAnnouncementFeed_NewsDisabledHidesEverything(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, true)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, true)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	// With the school's news feature off, the feed and badge are empty and a

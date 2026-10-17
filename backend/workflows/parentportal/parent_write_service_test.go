@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
@@ -43,18 +42,18 @@ type recordingParentAbsenceNotifier struct {
 
 // studentReads is the student surface the portal reads; the test may not name
 // the portal's own port.
-type studentReads interface {
-	FindByID(ctx context.Context, id any) (*userModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error)
+type studentReads[T any] interface {
+	FindByID(ctx context.Context, id any) (*T, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*T, error)
 }
 
-type pausingStudentRepository struct {
-	studentReads
+type pausingStudentRepository[T any] struct {
+	studentReads[T]
 	locked  chan<- struct{}
 	release <-chan struct{}
 }
 
-func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (r *pausingStudentRepository[T]) FindByIDForUpdate(ctx context.Context, id int64) (*T, error) {
 	student, err := r.studentReads.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
@@ -70,22 +69,22 @@ func (r *pausingStudentRepository) FindByIDForUpdate(ctx context.Context, id int
 
 // signalingStudentService takes the staff write's student lock through the
 // People Directory and signals the attempt.
-type signalingStudentService struct {
+type signalingStudentService[T any] struct {
 	directory interface {
-		LockStudent(ctx context.Context, id int64) (*userModels.Student, error)
+		LockStudent(ctx context.Context, id int64) (*T, error)
 	}
 	students interface {
-		Update(ctx context.Context, student *userModels.Student) error
+		Update(ctx context.Context, student *T) error
 	}
 	attempted chan<- struct{}
 }
 
-func (s *signalingStudentService) GetByIDForUpdate(ctx context.Context, id int64) (*userModels.Student, error) {
+func (s *signalingStudentService[T]) GetByIDForUpdate(ctx context.Context, id int64) (*T, error) {
 	close(s.attempted)
 	return s.directory.LockStudent(ctx, id)
 }
 
-func (s *signalingStudentService) Update(ctx context.Context, student *userModels.Student) error {
+func (s *signalingStudentService[T]) Update(ctx context.Context, student *T) error {
 	return s.students.Update(ctx, student)
 }
 
@@ -417,7 +416,7 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 		Source:                careplan.ExceptionSourceStaff,
 		CreatedBy:             staff.ID,
 	}
-	pickup.SetTenantID(chain.TenantID)
+	pickup.TenantID = chain.TenantID
 	require.NoError(t, api.CreateParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), repos.CarePlan(), pickup))
 
 	_, err := svc.SubmitSickNote(
@@ -455,11 +454,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		ChildRepo:      repos.ParentChildReads(),
 		StatusDayRepo:  repos.StudentStatusDay,
 		CareExceptions: repos.CarePlan(),
-		StudentRepo: &pausingStudentRepository{
-			studentReads: repos.Student,
-			locked:       parentLocked,
-			release:      releaseParent,
-		},
+		StudentRepo:    newPausingStudentRepository(repos.Student, parentLocked, releaseParent),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentSickNoteEnabled: true,
@@ -475,10 +470,7 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)
 	staffAttempted := make(chan struct{})
-	staffStudentSvc := &signalingStudentService{
-		directory: api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))),
-		students:  repos.Student, attempted: staffAttempted,
-	}
+	staffStudentSvc := newSignalingStudentService(api.NewStudentDirectory(api.MustNewPeopleDirectory(testpkg.MustDatabase(db))), repos.Student, staffAttempted)
 	date := calendar.NewDate(2026, 8, 24).AddDays(40)
 
 	ctx, cancel := context.WithTimeout(testpkg.WithPackageTenantRuntime(context.Background()), 5*time.Second)
@@ -665,12 +657,12 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	otherAccount := testpkg.CreateTestAccount(t, db, "other-absence-parent")
-	otherProfile := &userModels.GuardianProfile{
+	otherProfile := &testpkg.GuardianProfile{
 		FirstName: "Andere", LastName: "Person", Email: &otherAccount.Email,
 		AccountID: &otherAccount.ID, HasAccount: true,
 		PreferredContactMethod: "email", LanguagePreference: "de",
 	}
-	otherProfile.SetTenantID(chain.TenantID)
+	otherProfile.TenantID = chain.TenantID
 	_, err := db.NewInsert().Model(otherProfile).ModelTableExpr(`users.guardian_profiles`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	link := &testpkg.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
@@ -1033,4 +1025,15 @@ func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
 	commands, err := api.NewParentPortalCareProfiles(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return commands
+}
+
+func newPausingStudentRepository[T any](source studentReads[T], locked chan<- struct{}, release <-chan struct{}) *pausingStudentRepository[T] {
+	return &pausingStudentRepository[T]{studentReads: source, locked: locked, release: release}
+}
+func newSignalingStudentService[T any](directory interface {
+	LockStudent(context.Context, int64) (*T, error)
+}, students interface {
+	Update(context.Context, *T) error
+}, attempted chan<- struct{}) *signalingStudentService[T] {
+	return &signalingStudentService[T]{directory: directory, students: students, attempted: attempted}
 }
