@@ -7,6 +7,7 @@ package me
 import (
 	"testing"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -69,6 +70,6 @@ func TestProfileUpdateRequest_PartialFields(t *testing.T) {
 func TestNewResource_ReturnsResource(t *testing.T) {
 	t.Parallel()
 
-	resource := NewResource(identityaccess.CallerContext{}, nil, scopeTestTenantSession(testpkg.TenantSessionGates()))
+	resource := NewResource(identityaccess.CallerContext{}, nil, scopeTestTenantSession(testpkg.TenantSessionGates()), nativeUploads.UploadFiles{})
 	assert.NotNil(t, resource)
 }

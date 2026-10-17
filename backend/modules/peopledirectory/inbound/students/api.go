@@ -131,6 +131,7 @@ var _ StudentPresence = studentpresence.Presence(nil)
 // ResourceConfig holds all dependencies for creating a students Resource.
 // Using a config struct instead of individual parameters improves maintainability.
 type ResourceConfig struct {
+	Uploads common.UploadStorage
 	// PeopleDirectory is the owner capability the routes read and write a
 	// child's own row, the persons they render under and the directory list
 	// through (#3349, #2731).
@@ -273,6 +274,9 @@ type DeviceIdentity func(context.Context) (deviceID string, ok bool)
 
 // NewResource creates a new students resource from the provided configuration.
 func NewResource(cfg ResourceConfig) *Resource {
+	if cfg.StudentPhotos != nil && cfg.Uploads == nil {
+		panic("student resource: upload storage is required with photo lifecycle")
+	}
 	if cfg.Now == nil {
 		cfg.Now = time.Now
 	}

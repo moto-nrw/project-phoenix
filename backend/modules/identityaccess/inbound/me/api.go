@@ -29,15 +29,19 @@ type Rows interface {
 
 // Resource handles the /api/me routes.
 type Resource struct {
-	caller identityaccess.CallerContext
-	rows   Rows
-	router chi.Router
+	uploads common.UploadStorage
+	caller  identityaccess.CallerContext
+	rows    Rows
+	router  chi.Router
 }
 
 // NewResource mounts the /api/me routes behind the tenant security chain.
 // Every route runs in the request's tenant transaction.
-func NewResource(caller identityaccess.CallerContext, rows Rows, configureSession func(chi.Router)) *Resource {
-	res := &Resource{caller: caller, rows: rows, router: chi.NewRouter()}
+func NewResource(caller identityaccess.CallerContext, rows Rows, configureSession func(chi.Router), uploads common.UploadStorage) *Resource {
+	if uploads == nil {
+		panic("me resource: upload storage is required")
+	}
+	res := &Resource{caller: caller, rows: rows, router: chi.NewRouter(), uploads: uploads}
 	configureSession(res.router)
 	withTx := common.TenantTxMiddleware
 
