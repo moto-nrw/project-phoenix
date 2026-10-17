@@ -59,7 +59,7 @@ func newCutoffServiceDeps(t *testing.T) cutoffServiceDeps {
 func (d cutoffServiceDeps) service(t *testing.T, settings parentService.SettingsService, now func() time.Time) *parentService.Portal {
 	t.Helper()
 	cfg := d.base
-	cfg.CareExceptions = d.repos.CarePlan()
+	cfg.CareExceptions = api.NewParentCareExceptions(d.repos.CarePlan())
 	cfg.Settings = settings
 	cfg.MealPlan = availableMealPlan(false)
 	cfg.StudentUpdates = api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster())

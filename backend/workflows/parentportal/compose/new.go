@@ -10,7 +10,6 @@ import (
 	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging"
@@ -19,6 +18,7 @@ import (
 // Dependencies are the collaborators of the guardian portal. Runtime is
 // required; optional notifiers may be nil. Tests bind the ports their flows reach.
 type Dependencies struct {
+	CarePlanPolicy  care.CarePlanPolicy
 	GuardianPolicy  care.GuardianPolicy
 	DeparturePolicy care.DeparturePolicy
 	Fingerprints    messaging.ContentFingerprints
@@ -44,17 +44,15 @@ type Dependencies struct {
 	StatusDayRepo       care.StatusDayReads
 	Attendance          care.AttendanceReader
 
-	ArrivalSchedules careplan.ArrivalScheduleService
-	PickupSchedules  careplan.PickupScheduleService
+	ArrivalSchedules care.ArrivalSchedules
+	PickupSchedules  care.PickupSchedules
 	CareRequests     carerequests.Service
-	ExcusedRequests  careplan.ExcusedAbsenceRequests
-	// CarePlan is the Care Plan capability: the day exceptions, the status
-	// days and the Stammdaten requests the flows read and command.
-	CarePlan careplan.Capability
+	ExcusedRequests  care.ExcusedAbsenceRequests
+	// CarePlan supplies native day locks, absence reports and pickup commands.
+	CarePlan parentportal.CarePlanCommands
 	// CareExceptions overrides the day-exception reads and locks; nil uses
 	// CarePlan.
-	CareExceptions    care.CareExceptions
-	PickupAutoExcusal careplan.PickupAutoExcusal
+	CareExceptions care.CareExceptions
 
 	CarePeriods      care.CarePeriodReads
 	OfferingHistory  care.OfferingHistoryReads
@@ -102,7 +100,7 @@ type Dependencies struct {
 // resolver reaches the child flows once both exist.
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
-	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows}))
+	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows})).MessagingFlows
 	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }
@@ -120,7 +118,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 		ChangeRequestRepo: deps.ChangeRequestRepo, StatusDayRepo: deps.StatusDayRepo, Settings: deps.Settings,
 		Attendance:       deps.Attendance,
 		ArrivalSchedules: deps.ArrivalSchedules, PickupSchedules: deps.PickupSchedules, CareRequests: deps.CareRequests,
-		ExcusedRequests: deps.ExcusedRequests, PickupAutoExcusal: deps.PickupAutoExcusal,
+		ExcusedRequests: deps.ExcusedRequests, CarePlanPolicy: deps.CarePlanPolicy,
 		CarePeriods: deps.CarePeriods, OfferingHistory: deps.OfferingHistory,
 		CareOfferingRepo: deps.CareOfferingRepo, OfferingChanges: deps.OfferingChanges,
 		StudentAudit: deps.StudentAudit, StudentConsents: deps.StudentConsents, StudentPhotos: deps.StudentPhotos,
@@ -153,13 +151,11 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 	}
 }
 
-// owners are the owners' commands the flows write through. Care Plan
-// constructs its guardian commands over its own capability; the pickup
-// excusal stays optional, as in the flows.
+// owners are native command ports, bound to the same owner capabilities at Root.
 type owners struct {
 	careExceptions   care.CareExceptions
-	guardianAbsences careplan.GuardianAbsenceReports
-	guardianPickups  careplan.GuardianPickupExceptions
+	guardianAbsences care.GuardianAbsenceReports
+	guardianPickups  care.GuardianPickupExceptions
 	guardians        care.GuardianRecords
 	students         care.StudentRecords
 }
@@ -169,8 +165,8 @@ func bindOwners(deps Dependencies) owners {
 	if deps.CarePlan != nil {
 		bound = owners{
 			careExceptions:   deps.CarePlan,
-			guardianAbsences: mustOwner(careplancompose.NewGuardianAbsences(deps.CarePlan)),
-			guardianPickups:  mustOwner(careplancompose.NewGuardianPickupExceptions(deps.CarePlan, deps.PickupAutoExcusal)),
+			guardianAbsences: deps.CarePlan,
+			guardianPickups:  deps.CarePlan,
 		}
 	}
 	if deps.CareExceptions != nil {
@@ -183,13 +179,4 @@ func bindOwners(deps Dependencies) owners {
 		bound.students = studentRecords{care: deps.CareProfiles, people: deps.People}
 	}
 	return bound
-}
-
-// mustOwner unwraps an owner constructor whose only failure is a missing
-// dependency, which bindOwners has already ruled out.
-func mustOwner[T any](value T, err error) T {
-	if err != nil {
-		panic(err)
-	}
-	return value
 }

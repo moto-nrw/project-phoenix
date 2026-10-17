@@ -7,6 +7,7 @@ package announcement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,24 +15,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/localization"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
 // queue e-mail rows inside the current tenant transaction, and cancel not-yet-
 // sent rows when an announcement is retracted before the worker drains them.
 type OutboxEnqueuer interface {
-	Enqueue(ctx context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
-	// CancelPendingByRelatedEntity cancels the still-pending outbox rows queued
-	// for an announcement when it is unpublished or deleted, so a retracted or
-	// corrected announcement can never deliver its stale title + portal link.
-	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+	deliveryPorts.MailOutbox
 }
 
 // PushOutboxCanceller is the narrow durable-push operation needed when an
@@ -188,13 +180,15 @@ type Service interface {
 }
 
 type service struct {
+	deliveryPolicy   deliveryPorts.ParentDeliveryPolicy
+	runtime          Runtime
 	repo             usersModels.ParentAnnouncementRepository
 	settings         Settings
 	outbox           OutboxEnqueuer
 	pushOutbox       PushOutboxCanceller
-	notifier         notifications.Service
-	reminderNotifier notifications.DurableReceiptService
-	preferences      notifications.PreferenceService
+	notifier         deliveryPorts.NotificationSender
+	reminderNotifier deliveryPorts.DurableNotificationSender
+	preferences      deliveryPorts.NotificationPreferences
 	deliveries       DeliveryRecorder
 	fingerprints     Fingerprints
 	parentsURL       string
@@ -204,34 +198,13 @@ type service struct {
 	logger      *slog.Logger
 }
 
-// NewService wires the staff announcement service.
-func NewService(cfg ServiceConfig) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return &service{
-		repo:             cfg.Repo,
-		settings:         cfg.Settings,
-		outbox:           cfg.Outbox,
-		pushOutbox:       cfg.PushOutbox,
-		notifier:         cfg.Notifier,
-		reminderNotifier: cfg.ReminderNotifier,
-		preferences:      cfg.Preferences,
-		deliveries:       cfg.Deliveries,
-		fingerprints:     cfg.Fingerprints,
-		parentsURL:       cfg.ParentsURL,
-		logger:           logger,
-	}
-}
-
 // newsEnabled reports whether the parent-news feature is on for the current
 // tenant. Runs inside the request tenant tx, so ResolveBool is correct.
 func (s *service) newsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
 		return false, nil
 	}
-	return s.settings.ResolveBool(ctx, configModel.KeyParentNewsEnabled)
+	return s.settings.ParentNewsEnabled(ctx)
 }
 
 func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {
@@ -583,10 +556,8 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *usersMod
 	if s.notifier == nil {
 		return 0, nil
 	}
-	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, func(ctx context.Context, event notifications.Event) (int, error) {
-		return 1, s.notifier.Notify(ctx, event)
-	})
-	if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, deliveryPorts.NewSingleReceiptSender(s.notifier))
+	if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 		return accepted, nil
 	}
 	return accepted, err
@@ -599,16 +570,14 @@ func (s *service) notifyReminderGuardians(ctx context.Context, a *usersModels.Pa
 	if s.reminderNotifier == nil {
 		return 0, nil
 	}
-	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.reminderNotifier.NotifyDurably)
+	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.reminderNotifier)
 }
 
-type guardianNotificationSender func(context.Context, notifications.Event) (int, error)
-
-func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape, notify guardianNotificationSender) (int, error) {
+func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersModels.ParentAnnouncement, shape pushShape, notify deliveryPorts.DurableNotificationSender) (int, error) {
 	var err error
-	priority := notifications.PriorityNormal
+	priority := deliveryPorts.PriorityNormal
 	if a.Priority == usersModels.ParentAnnouncementPriorityImportant {
-		priority = notifications.PriorityHigh
+		priority = deliveryPorts.PriorityHigh
 	}
 	var accountIDs []int64
 	seen := make(map[int64]struct{})
@@ -627,7 +596,7 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 		}
 		seen[recipient.AccountID] = struct{}{}
 		accountIDs = append(accountIDs, recipient.AccountID)
-		localeByAccount[recipient.AccountID] = localization.NormalizeLocale(recipient.PortalLocale)
+		localeByAccount[recipient.AccountID] = s.deliveryPolicy.NormalizeLocale(recipient.PortalLocale)
 	}
 	if len(accountIDs) == 0 {
 		return 0, nil
@@ -663,8 +632,8 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 	}
 	accepted := 0
 	for locale, group := range groups {
-		title, body := notifications.ParentAnnouncementCopy(locale, copyKind)
-		count, err := notify(ctx, notifications.Event{
+		title, body := s.deliveryPolicy.ParentAnnouncementCopy(locale, copyKind)
+		count, err := notify.NotifyDurably(ctx, deliveryPorts.NotificationEvent{
 			Type: notificationType,
 			// The push outbox deduplicates by tenant and key. Each locale is a
 			// distinct payload and audience, so it needs its own replay-safe key.
@@ -674,13 +643,13 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *usersM
 			Body:     body,
 			DeepLink: deepLink,
 			Priority: priority,
-			Audience: notifications.Audience{
+			Audience: deliveryPorts.NotificationAudience{
 				TenantID:           a.GetTenantID(),
-				Scope:              notifications.ScopeGuardian,
+				Scope:              deliveryPorts.ScopeGuardian,
 				GuardianAccountIDs: group,
 			},
-		})
-		if errors.Is(err, notifications.ErrDisabled) || errors.Is(err, notifications.ErrOutsideActiveWindow) {
+		}.Public())
+		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 			s.logger.Info("parent announcement push suppressed by tenant notification gate",
 				slog.Int64("announcement_id", a.ID),
 				slog.Int("recipient_count", len(accountIDs)),
@@ -837,7 +806,7 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 	// URLs the enrollment mails use, so the announcement mail renders the school
 	// logo (header) and the moto logo (footer) instead of the plain fallbacks.
 	logoURL := s.resolveSchoolLogoURL(ctx, tenantID)
-	motoLogoURL := emailbranding.MotoLogoURL(s.parentsURL)
+	motoLogoURL := s.deliveryPolicy.MotoLogoURL(s.parentsURL)
 	kicker := spec.kicker
 	intro := spec.intro(schoolName)
 	// Every recipient of this path has portal access by construction
@@ -849,24 +818,24 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 		// Deliberately NO announcement body here: e-mail is the least trusted
 		// channel, so the mail carries only the title plus a link into the
 		// parent portal, where reading also counts for the read stats.
-		request := emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:     rcpt.Email,
-				emailPayloadFirstName:     rcpt.FirstName,
-				emailPayloadLastName:      rcpt.LastName,
-				emailPayloadTitle:         spec.title,
-				emailPayloadSchoolName:    schoolName,
-				emailPayloadPortalURL:     s.parentsURL,
-				emailPayloadLogoURL:       logoURL,
-				emailPayloadMotoLogoURL:   motoLogoURL,
-				emailPayloadKicker:        kicker,
-				emailPayloadIntro:         intro,
-				emailPayloadHasAttachment: hasAttachment,
+		request := deliveryPorts.MailEnqueueInput{
+			Kind: deliveryPorts.MailKindParentAnnouncement,
+			Payload: map[string]json.RawMessage{
+				emailPayloadRecipient:     deliveryPorts.JSONString(rcpt.Email),
+				emailPayloadFirstName:     deliveryPorts.JSONString(rcpt.FirstName),
+				emailPayloadLastName:      deliveryPorts.JSONString(rcpt.LastName),
+				emailPayloadTitle:         deliveryPorts.JSONString(spec.title),
+				emailPayloadSchoolName:    deliveryPorts.JSONString(schoolName),
+				emailPayloadPortalURL:     deliveryPorts.JSONString(s.parentsURL),
+				emailPayloadLogoURL:       deliveryPorts.JSONString(logoURL),
+				emailPayloadMotoLogoURL:   deliveryPorts.JSONString(motoLogoURL),
+				emailPayloadKicker:        deliveryPorts.JSONString(kicker),
+				emailPayloadIntro:         deliveryPorts.JSONString(intro),
+				emailPayloadHasAttachment: deliveryPorts.JSONBool(hasAttachment),
 			},
 			RelatedEntityType: spec.relatedType,
 			RelatedEntityID:   a.ID,
-		}
+		}.Public()
 		if spec.idempotencyKey != nil {
 			request.IdempotencyKey = spec.idempotencyKey(rcpt.Email)
 		}
@@ -898,7 +867,7 @@ func (s *service) resolveSchoolLogoURL(ctx context.Context, tenantID int64) stri
 		)
 		return ""
 	}
-	return emailbranding.SchoolLogoURL(s.parentsURL, raw)
+	return s.deliveryPolicy.SchoolLogoURL(s.parentsURL, raw)
 }
 
 // cancelPendingEmails cancels announcement and poll-reminder e-mails that have

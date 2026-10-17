@@ -78,8 +78,8 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 				parentportal.KeyGuardianParentInviteMode: parentportal.ParentInviteModeDisabled,
 			},
 		},
-		ArrivalSchedules: sf.ArrivalSchedule,
-		PickupSchedules:  sf.PickupSchedule,
+		ArrivalSchedules: api.NewParentArrivalSchedules(sf.ArrivalSchedule),
+		PickupSchedules:  api.NewParentPickupSchedules(sf.PickupSchedule),
 		CareRequests:     sf.CareRequests,
 		StatusDayRepo:    repos.StudentStatusDay,
 		Logger:           slog.Default(),
@@ -88,6 +88,8 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		},
 
 		DeparturePolicy: api.ParentDeparturePolicy(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 

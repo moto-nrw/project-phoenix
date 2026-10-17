@@ -6,7 +6,6 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 )
@@ -34,8 +33,8 @@ func TestToCareScheduleResponseIncludesCareDayStatus(t *testing.T) {
 
 	response := toCareScheduleResponse(&parentService.ChildCareSchedule{
 		Weekdays: []parentService.CareScheduleWeekday{
-			{Weekday: 1, Status: careplan.CareDayScheduled},
-			{Weekday: 2, Status: careplan.CareDayNotScheduled},
+			{Weekday: 1, Status: "scheduled"},
+			{Weekday: 2, Status: "not_scheduled"},
 		},
 	})
 

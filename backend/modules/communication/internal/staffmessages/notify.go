@@ -2,14 +2,12 @@ package staffmessaging
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // notifyAfterCommit wakes the conversation's participants and pushes to the
@@ -48,7 +46,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 		return
 	}
 
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		event := realtime.NewStaffMessageEvent(senderAccountID, threadID)
 		if err := s.Broadcaster.BroadcastToStaffAccounts(tenantID, participants, event); err != nil {
 			s.Logger.Warn("staffmessaging: broadcast failed",
@@ -117,7 +115,7 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 	// The single enforcement point for "nothing without consent": build the
 	// relation-based candidate set first, then narrow it here — never the other
 	// way round.
-	optedIn, err := s.Preferences.FilterOptedIn(ctx, notifications.TypeStaffMessage, candidates)
+	optedIn, err := s.Preferences.FilterOptedIn(ctx, deliveryPorts.TypeStaffMessage, candidates)
 	if err != nil {
 		s.Logger.Warn("staffmessaging: filter opted-in recipients failed",
 			slog.Int64("thread_id", thread.ID),
@@ -129,8 +127,8 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		return
 	}
 
-	err = s.Notifier.Notify(ctx, notifications.Event{
-		Type:           notifications.TypeStaffMessage,
+	err = s.Notifier.Notify(ctx, deliveryPorts.NotificationEvent{
+		Type:           deliveryPorts.TypeStaffMessage,
 		IdempotencyKey: fmt.Sprintf("staff-message:%d:%d", thread.ID, messageID),
 		RelatedType:    "staff_message_thread", RelatedID: thread.ID,
 		Title:    "Neue Nachricht aus dem Team",
@@ -139,15 +137,15 @@ func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.Staf
 		// The same conversation in "moto schule" (#2208); the school host
 		// strips the /school prefix itself.
 		SchoolDeepLink: fmt.Sprintf("/school/nachrichten/%d", thread.ID),
-		Priority:       notifications.PriorityNormal,
-		Audience: notifications.Audience{
+		Priority:       deliveryPorts.PriorityNormal,
+		Audience: deliveryPorts.NotificationAudience{
 			TenantID:        thread.TenantID,
-			Scope:           notifications.ScopeStaff,
+			Scope:           deliveryPorts.ScopeStaff,
 			StaffAccountIDs: optedIn,
 		},
-	})
+	}.Public())
 	switch {
-	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
+	case s.deliveryPolicy.IsNotificationsDisabled(err), s.deliveryPolicy.IsOutsideActiveWindow(err):
 		s.Logger.Info("staffmessaging: push suppressed by tenant notification gate",
 			slog.Int64("thread_id", thread.ID),
 			slog.String("reason", err.Error()),

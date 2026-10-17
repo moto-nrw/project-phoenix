@@ -6,11 +6,17 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // NewParentEventEmitter builds Communication's real parent-event emitter over
@@ -30,8 +36,8 @@ func NewParentEventEmitter(
 	logger *slog.Logger,
 ) *communicationCompose.ParentEventEmitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB: db.Pool(), Runtime: runtime, ThreadRepo: threadRepo, MessageRepo: messageRepo,
-		Settings: settings, Broadcaster: broadcaster, Logger: logger,
+		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
+		Settings: settingsValues.NewParentEventValues(settings), Broadcaster: broadcaster, Logger: logger,
 	})
 }
 
@@ -43,9 +49,56 @@ func NewParentConversationCore(
 	readRepo userModels.ParentMessageReadRepository,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
-) communicationCompose.ParentConversationCore {
-	return communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
-		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo,
-		Broadcaster: broadcaster, Logger: logger,
+) parentportal.ConversationCore {
+	return BindParentConversationCore(parentStore.NewPortalConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo, Broadcaster: broadcaster, Logger: logger,
+	})))
+}
+
+// ParentConversationMessagesFixture reads the same message snapshot through
+// the owner's native public facade, preserving nil/empty and the original error.
+func ParentConversationMessagesFixture(ctx context.Context, source communication.PortalMessageReads, threadID int64, limit int) ([]*parentportal.ParentMessage, error) {
+	rows, err := source.PortalListByThread(ctx, threadID, limit)
+	return parentMessagingSlice(rows, func(row *communication.PortalParentMessage) *parentportal.ParentMessage {
+		return parentMessagingPointer(row, parentMessagingFromOwnerParentMessage)
+	}), err
+}
+
+// NewCommunicationTestNotifier constructs the original channel-free router
+// through its owner composition, exposing only native public commands.
+func NewCommunicationTestNotifier(settings interface {
+	ResolveBoolForTenant(context.Context, int64, string) (bool, error)
+	ResolveStringForTenant(context.Context, int64, string) (string, error)
+}, logger *slog.Logger) devices.NotificationCommands {
+	return deliveryCompose.NewNotifier(settings, logger, nil)
+}
+
+// NewCommunicationRequestDecisionNotifier binds the real producer to a native
+// observation callback, preserving its consent and transaction policy.
+func NewCommunicationRequestDecisionNotifier(send func(context.Context, communication.NotificationEvent) error, preferences interface {
+	FilterOptedIn(context.Context, string, []int64) ([]int64, error)
+}) interface {
+	NotifyRequestDecision(context.Context, int64, int64, int64, string, string, int64, string, string) error
+} {
+	var notifier deliveryCompose.NotificationService
+	if send != nil {
+		notifier = communicationDecisionNotification(send)
+	}
+	return deliveryCompose.NewRequestDecisionNotifier(notifier, preferences)
+}
+
+type communicationDecisionNotification func(context.Context, communication.NotificationEvent) error
+
+func (send communicationDecisionNotification) Notify(ctx context.Context, event deliveryCompose.NotificationEvent) error {
+	return send(ctx, communication.NotificationEvent{
+		Type: event.Type, IdempotencyKey: event.IdempotencyKey,
+		RelatedType: event.RelatedType, RelatedID: event.RelatedID,
+		Audience: communication.NotificationAudience{
+			TenantID: event.Audience.TenantID, Scope: string(event.Audience.Scope),
+			GuardianAccountID: event.Audience.GuardianAccountID, GuardianAccountIDs: event.Audience.GuardianAccountIDs,
+			ActiveGroupID: event.Audience.ActiveGroupID, StaffAccountIDs: event.Audience.StaffAccountIDs, StudentIDs: event.Audience.StudentIDs,
+		},
+		Priority: event.Priority, Title: event.Title, Body: event.Body,
+		DeepLink: event.DeepLink, SchoolDeepLink: event.SchoolDeepLink, Data: event.Data, Portal: event.Portal,
 	})
 }

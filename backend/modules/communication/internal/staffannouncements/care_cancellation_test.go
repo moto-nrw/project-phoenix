@@ -6,11 +6,11 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -40,11 +40,11 @@ func buildNoticeService(t *testing.T, settings *settingsDouble) (announcement.Se
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := announcement.NewService(announcement.ServiceConfig{
 		Repo:       repos.ParentAnnouncement,
-		Settings:   settings,
-		Notifier:   notifications.NewService(settings, slog.Default()),
+		Settings:   configModel.NewParentAnnouncementValues(settings),
+		Notifier:   noticeNotificationCallback(api.BindCommunicationNotificationSender(api.NewCommunicationTestNotifier(settings, slog.Default()))),
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	return svc, db, repos
 }
 
@@ -127,4 +127,12 @@ func TestCareCancellationReachFor_CountsLinkedGuardians(t *testing.T) {
 	}))
 	require.NotNil(t, reach)
 	assert.Equal(t, 1, reach.FamilyCount)
+}
+
+// noticeNotificationCallback observes the same real router through its native
+// public event boundary; it does not replace consent or audience policy.
+type noticeNotificationCallback func(context.Context, communication.NotificationEvent) error
+
+func (send noticeNotificationCallback) Notify(ctx context.Context, event communication.NotificationEvent) error {
+	return send(ctx, event)
 }

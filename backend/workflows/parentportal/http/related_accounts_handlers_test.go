@@ -80,7 +80,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CareExceptions,
+		CarePlan:            api.NewParentCarePlanCommands(repos.CareExceptions, nil),
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -92,6 +92,8 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
@@ -197,7 +199,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CareExceptions,
+		CarePlan:            api.NewParentCarePlanCommands(repos.CareExceptions, nil),
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
@@ -209,6 +211,8 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))

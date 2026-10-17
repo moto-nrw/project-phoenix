@@ -6,15 +6,15 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
-
-	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // newRepositories wires the staff messaging stores the way production does:
@@ -68,9 +68,8 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		MessageRepo: repos.Message,
 		ReadRepo:    repos.Read,
 		Persons:     persons,
-		Settings:    settings,
-		DB:          db,
-	})
+		Settings:    configModels.NewStaffMessagingValues(settings),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 
 // newServiceWithBrokenRetention wires a service whose retention setting cannot
@@ -88,9 +87,8 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 		ThreadRepo:  repos.Thread,
 		MessageRepo: repos.Message,
 		ReadRepo:    repos.Read,
-		Settings:    settings,
-		DB:          db,
-	})
+		Settings:    configModels.NewStaffMessagingValues(settings),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 }
 
 // asAccount returns a context that authenticates as the given account inside

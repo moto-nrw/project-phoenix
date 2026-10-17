@@ -37,7 +37,7 @@ type PendingApplicantSource interface {
 //
 // SchoolName is not served here: the school's name belongs to Organisation
 // and Tenancy, and the composition root decorates it exactly as before.
-func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, links GuardianLinkRows, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+func NewParentAnnouncementRepository(db *bun.DB, applicants PendingApplicantSource, links GuardianLinkRows, clocks ...func() time.Time) ParentAnnouncementRepository {
 	if applicants == nil {
 		panic("communication parent store: pending applicant source is required")
 	}
@@ -595,4 +595,4 @@ func reminderModels(values []*parentaudience.ParentAnnouncementReminderRecipient
 	return rows
 }
 
-var _ usersModels.ParentAnnouncementRepository = (*announcementRepository)(nil)
+var _ ParentAnnouncementRepository = (*announcementRepository)(nil)

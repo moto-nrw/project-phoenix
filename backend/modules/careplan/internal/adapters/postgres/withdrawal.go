@@ -83,10 +83,15 @@ func (s *Store) ResolvePendingWithdrawalAsDeleted(ctx context.Context, completio
 // RedactWithdrawalsForDeletedStudent redacts every task still linked to the
 // child: a pending task is resolved with the deleted outcome, a finished one
 // only loses its child references. It returns the number of redacted rows.
+// The nightly retention run passes no actor (0) and leaves resolved_by empty.
 func (s *Store) RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, domain.OperationStats, error) {
 	db, tenantID, err := s.databaseForWrite(ctx, "redact withdrawals for deleted student")
 	if err != nil {
 		return 0, domain.OperationStats{}, err
+	}
+	var resolvedBy *int64
+	if actorAccountID > 0 {
+		resolvedBy = &actorAccountID
 	}
 	stats, rows, err := execute(ctx, db.NewUpdate().TableExpr(`users.care_withdrawal_completions AS "completion"`).
 		Set(`state = CASE WHEN state = ? THEN ? ELSE state END`, withdrawalStatePending, withdrawalStateResolved).
@@ -96,7 +101,7 @@ func (s *Store) RedactWithdrawalsForDeletedStudent(ctx context.Context, studentI
 		Set(`source_request_child_id = NULL`).
 		Set(`source_offerings = '[]'::jsonb`).
 		Set(`obsolete_reason = CASE WHEN state = ? THEN NULL ELSE obsolete_reason END`, withdrawalStatePending).
-		Set(`resolved_by = CASE WHEN state = ? THEN ? ELSE resolved_by END`, withdrawalStatePending, actorAccountID).
+		Set(`resolved_by = CASE WHEN state = ? THEN ?::bigint ELSE resolved_by END`, withdrawalStatePending, resolvedBy).
 		Set(`resolved_at = CASE WHEN state = ? THEN ? ELSE resolved_at END`, withdrawalStatePending, at).
 		Set(`updated_at = ?`, at).
 		Where(`"completion".tenant_id = ?`, tenantID).

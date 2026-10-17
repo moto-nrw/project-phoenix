@@ -9,20 +9,19 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type pickupRequestBaseline struct {
-	careplan.PickupScheduleService
+	PickupSchedules
 	calls int
 }
 
-func (b *pickupRequestBaseline) GetEffectivePickupTimeForDate(context.Context, int64, calendar.Date) (*careplan.EffectivePickupTime, error) {
+func (b *pickupRequestBaseline) GetEffectivePickupTimeForDate(context.Context, int64, calendar.Date) (*EffectivePickupTime, error) {
 	b.calls++
 	clock := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC))
-	return &careplan.EffectivePickupTime{PickupTime: &clock}, nil
+	return &EffectivePickupTime{PickupTime: &clock}, nil
 }
 
 func TestPickupRequestBaselineEnrichmentPreservesFrozenHistory(t *testing.T) {
@@ -47,7 +46,7 @@ func TestPickupRequestBaselineEnrichmentPreservesFrozenHistory(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			baseline := &pickupRequestBaseline{}
-			svc := &Service{Config: Config{PickupSchedules: baseline, Logger: slog.Default()}}
+			svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, PickupSchedules: baseline, Logger: slog.Default()}}
 			original := []byte(tt.payload)
 			snapshot := []byte(`{"diff":[{"label":"Frozen","old":"14:00","new":"16:00"}]}`)
 			rows := []carerequests.Request{{Status: tt.status, Payload: original, DecisionSnapshot: snapshot}}

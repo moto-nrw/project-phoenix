@@ -36,9 +36,10 @@ func NewChildFlows(cfg ChildConfig) *ChildFlows {
 }
 
 // NewMessagingFlows builds the announcement, conversation and request-sharing
-// flows. The composition binds their child resolver to the child flows.
-func NewMessagingFlows(cfg MessagingConfig) *MessagingFlows {
-	return messaging.New(cfg)
+// flows behind the public native response facade. The composition binds
+// their child resolver to the child flows.
+func NewMessagingFlows(cfg MessagingConfig) *Portal {
+	return &Portal{MessagingFlows: messaging.New(cfg)}
 }
 
 const (

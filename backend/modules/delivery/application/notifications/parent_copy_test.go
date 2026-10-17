@@ -3,13 +3,14 @@ package notifications
 import (
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestParentMessageCopyUsesPortalLocale(t *testing.T) {
 	t.Parallel()
 
-	title, body := ParentMessageCopy("en")
+	title, body := (devices.ParentDeliveryPolicy{}).ParentMessageCopy("en")
 	assert.Equal(t, "New message from the OGS", title)
 	assert.Equal(t, "You have a new message in the parent portal.", body)
 }
@@ -25,7 +26,7 @@ func TestParentAppointmentCopyUsesPortalLocale(t *testing.T) {
 func TestParentAnnouncementCopyUsesPortalLocale(t *testing.T) {
 	t.Parallel()
 
-	title, body := ParentAnnouncementCopy("ru", ParentPollReminder)
+	title, body := (devices.ParentDeliveryPolicy{}).ParentAnnouncementCopy("ru", ParentPollReminder)
 	assert.Equal(t, "Напоминание: опрос открыт", title)
 	assert.Contains(t, body, "ребёнка")
 }
@@ -64,7 +65,7 @@ func TestParentAnnouncementCopyCoversEveryLocaleAndKind(t *testing.T) {
 		titles := map[string]string{}
 		bodies := map[string]string{}
 		for _, locale := range parentLocales {
-			titles[locale], bodies[locale] = ParentAnnouncementCopy(locale, kind)
+			titles[locale], bodies[locale] = (devices.ParentDeliveryPolicy{}).ParentAnnouncementCopy(locale, kind)
 		}
 		assertDistinctPerLocale(t, titles)
 		assertDistinctPerLocale(t, bodies)
@@ -97,7 +98,7 @@ func TestParentMessageCopyCoversEveryLocale(t *testing.T) {
 	titles := map[string]string{}
 	bodies := map[string]string{}
 	for _, locale := range parentLocales {
-		titles[locale], bodies[locale] = ParentMessageCopy(locale)
+		titles[locale], bodies[locale] = (devices.ParentDeliveryPolicy{}).ParentMessageCopy(locale)
 	}
 	assertDistinctPerLocale(t, titles)
 	assertDistinctPerLocale(t, bodies)
@@ -135,8 +136,8 @@ func TestParentRequestDecisionCopySeparatesApprovalFromRejection(t *testing.T) {
 func TestParentCopyFallsBackToGerman(t *testing.T) {
 	t.Parallel()
 
-	deTitle, deBody := ParentMessageCopy("de")
-	title, body := ParentMessageCopy("fr")
+	deTitle, deBody := (devices.ParentDeliveryPolicy{}).ParentMessageCopy("de")
+	title, body := (devices.ParentDeliveryPolicy{}).ParentMessageCopy("fr")
 	assert.Equal(t, deTitle, title)
 	assert.Equal(t, deBody, body)
 }

@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -55,7 +54,7 @@ func (c CareScheduleRequestCapabilities) Any() bool {
 // configured set, matching the diff convention).
 type CareScheduleWeekday struct {
 	Weekday int
-	Status  careplan.CareDayStatus
+	Status  CareDayStatus
 	Arrival string
 	Pickup  string
 	Modes   []string
@@ -268,7 +267,7 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 		for _, m := range modes {
 			keys = append(keys, string(m))
 		}
-		if len(keys) == 0 && status == careplan.CareDayScheduled {
+		if len(keys) == 0 && status == CareDayScheduled {
 			// An empty configured set means the child goes home alone — surface
 			// that explicitly instead of an ambiguous empty list (matches the
 			// request-diff convention).
@@ -318,14 +317,14 @@ func pendingCareRequest(
 	}
 }
 
-func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) careplan.CareDayStatus {
+func careDayStatus(hasCarePlan, hasArrivalDay bool, arrival, pickup string) CareDayStatus {
 	if hasArrivalDay || arrival != "" || pickup != "" {
-		return careplan.CareDayScheduled
+		return CareDayScheduled
 	}
 	if hasCarePlan {
-		return careplan.CareDayNotScheduled
+		return CareDayNotScheduled
 	}
-	return careplan.CareDayUnknown
+	return CareDayUnknown
 }
 
 // hasActiveAbsenceToday reports whether the child has any active scheduled
@@ -422,7 +421,7 @@ func MapCareRequestError(err error, op string) error {
 		return ErrCareRequestAlreadyPending
 	case errors.Is(err, carerequests.ErrInvalidPayload):
 		return ErrInvalidCareRequestPayload
-	case errors.Is(err, careplan.ErrPickupChangeCutoffPassed):
+	case errors.Is(err, carerequests.ErrPickupChangeCutoffPassed):
 		return ErrPickupChangeCutoffPassed
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)

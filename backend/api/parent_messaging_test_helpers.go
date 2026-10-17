@@ -6,7 +6,6 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -19,9 +18,9 @@ func NewMessageableGuardianRepository(db transactionruntime.Database) *peopleCom
 // ParentMessagingTestRepositories is the parent-conversation data layer for
 // repository tests.
 type ParentMessagingTestRepositories struct {
-	Thread  userModels.ParentMessageThreadRepository
-	Message userModels.ParentMessageRepository
-	Read    userModels.ParentMessageReadRepository
+	Thread  parentStore.ParentMessageThreadRepository
+	Message parentStore.ParentMessageRepository
+	Read    parentStore.ParentMessageReadRepository
 }
 
 // NewParentMessagingTestRepositories composes Communication's conversation

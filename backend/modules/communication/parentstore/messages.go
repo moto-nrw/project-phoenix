@@ -12,7 +12,7 @@ import (
 
 // NewParentMessageRepository returns the message log behind the existing
 // repository contract.
-func NewParentMessageRepository(db *bun.DB) usersModels.ParentMessageRepository {
+func NewParentMessageRepository(db *bun.DB) ParentMessageRepository {
 	return &messageRepository{store: parentpostgres.NewMessageStore(postgresDatabase(db))}
 }
 
@@ -111,7 +111,7 @@ type GuardianLister interface {
 
 // NewParentMessageThreadRepository returns the thread store behind the existing
 // repository contract. guardians supplies the recipient picker's rows.
-func NewParentMessageThreadRepository(db *bun.DB, guardians GuardianLister) usersModels.ParentMessageThreadRepository {
+func NewParentMessageThreadRepository(db *bun.DB, guardians GuardianLister) ParentMessageThreadRepository {
 	if guardians == nil {
 		panic("communication parent store: guardian lister is required")
 	}

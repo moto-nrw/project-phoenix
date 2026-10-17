@@ -164,22 +164,22 @@ func (s careOfferingRepoStub) ListByIDs(
 
 type offeringChangesStub struct {
 	OfferingChangeRequests
-	catalog      *careplan.OfferingChangeCatalog
-	view         *careplan.OfferingChangeView
+	catalog      *OfferingChangeCatalog
+	view         *OfferingChangeView
 	earliest     calendar.Date
 	catalogErr   error
 	viewErr      error
 	earliestErr  error
 	createErr    error
 	withdrawErr  error
-	createdInput careplan.CreateOfferingChangeInput
+	createdInput CreateOfferingChangeInput
 	withdrawn    [3]int64
 }
 
 func (s *offeringChangesStub) Catalog(
 	_ context.Context,
 	_ int64,
-) (*careplan.OfferingChangeCatalog, error) {
+) (*OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
 
@@ -187,23 +187,23 @@ func (s *offeringChangesStub) CatalogAt(
 	_ context.Context,
 	_ int64,
 	_ calendar.Date,
-) (*careplan.OfferingChangeCatalog, error) {
+) (*OfferingChangeCatalog, error) {
 	return s.catalog, s.catalogErr
 }
 
 func (s *offeringChangesStub) GetForStudent(
 	_ context.Context,
 	_ int64,
-) (*careplan.OfferingChangeView, error) {
+) (*OfferingChangeView, error) {
 	return s.view, s.viewErr
 }
 
 func (s *offeringChangesStub) SubmitOfferingChange(
 	_ context.Context,
-	input careplan.CreateOfferingChangeInput,
-) (*careplan.OfferingChangeRequest, error) {
+	input CreateOfferingChangeInput,
+) (*OfferingChangeRequest, error) {
 	s.createdInput = input
-	return &careplan.OfferingChangeRequest{}, s.createErr
+	return &OfferingChangeRequest{}, s.createErr
 }
 
 func (s *offeringChangesStub) Withdraw(
@@ -262,7 +262,7 @@ func careOfferingsService(
 	child *ChildSummary,
 	changes *offeringChangesStub,
 ) *Service {
-	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
+	svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
 		StudentRepo:    careOfferingsStudentReads(StudentReads.FindByIDForUpdate),
@@ -310,21 +310,21 @@ func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	}
 	changes := &offeringChangesStub{
 		earliest: today.AddDays(15),
-		view: &careplan.OfferingChangeView{
-			Request: &careplan.OfferingChangeRequest{
+		view: &OfferingChangeView{
+			Request: &OfferingChangeRequest{
 				ID:            61,
 				CreatedAt:     createdAt,
 				EffectiveFrom: today.AddDays(20).String(),
 				ParentNote:    &note,
 				SubmittedBy:   11,
 			},
-			Diff: []careplan.OfferingChangeDiffEntry{{
+			Diff: []OfferingChangeDiffEntry{{
 				Label:    "Erste Sortierung",
 				OldState: "not_booked",
 				NewState: "booked",
 				NewDays:  []string{"tue"},
 			}},
-			LastDecision: &careplan.OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
+			LastDecision: &OfferingChangeDecision{ID: 60, SubmittedBy: 11, Status: "rejected"},
 		},
 	}
 	svc := careOfferingsService(db, permittedCareOfferingsChild(t), changes)
@@ -394,7 +394,7 @@ func TestGetChildCareOfferingsWithoutEnrollmentStillReturnsEmptySlices(t *testin
 func TestPendingOfferingChange_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
-	view := &careplan.OfferingChangeView{Request: &careplan.OfferingChangeRequest{SubmittedBy: 41}}
+	view := &OfferingChangeView{Request: &OfferingChangeRequest{SubmittedBy: 41}}
 	assert.Nil(t, pendingOfferingChange(view, 42, false))
 }
 
@@ -412,7 +412,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 		CareOfferingID: 1,
 		ValidUntil:     &periodEndExclusive,
 	}}}
-	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
+	svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{},
 		CarePeriods:     carePeriodRepoStub{periods: []*CarePeriod{period}},
 		OfferingHistory: links,
 		CareOfferingRepo: careOfferingRepoStub{offerings: []*CareOffering{{
@@ -555,7 +555,7 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{}, CarePeriods: tt.repo}}
+			svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{}, CarePeriods: tt.repo}}
 			got, err := svc.currentCarePeriod(testpkg.WithPackageTenantRuntime(context.Background()), 22, today)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -628,7 +628,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{}, Settings: tt.settings, Logger: slog.Default()}}
+			svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{}, Settings: tt.settings, Logger: slog.Default()}}
 			got, reason := svc.resolveOfferingChangeAvailabilityForStudent(
 				testpkg.WithPackageTenantRuntime(context.Background()),
 				tt.child,
@@ -649,7 +649,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	today := calendar.TodayDate()
 	child := permittedCareOfferingsChild(t)
 	changes := &offeringChangesStub{
-		catalog:  &careplan.OfferingChangeCatalog{PhaseID: 99},
+		catalog:  &OfferingChangeCatalog{PhaseID: 99},
 		earliest: today.AddDays(15),
 	}
 	svc := careOfferingsService(db, child, changes)
@@ -659,7 +659,7 @@ func TestOfferingChangeCommandsAuthorizeDelegateAndRefresh(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(99), catalog.PhaseID)
 
-	selections := []careplan.OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
+	selections := []OfferingChangeSelection{{OfferingID: 41, SelectedDays: []string{"mon"}}}
 	view, err := svc.CreateOfferingChangeRequest(testpkg.WithPackageTenantRuntime(context.Background()), 11, 22, selections, today.AddDays(20), "Bitte", false, nil)
 	require.NoError(t, err)
 	assert.NotNil(t, view)

@@ -7,7 +7,6 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MarkUnread marks the conversation unread for the whole team (#3654). Every
@@ -59,7 +58,7 @@ func (s *Service) broadcastStaffUnreadAfterCommit(ctx context.Context, thread *u
 	}
 	tenantID := thread.TenantID
 	threadID := thread.ID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		if err := s.Broadcaster.BroadcastParentMessage(tenantID, 0, realtime.NewParentMessageUnreadChangedEvent()); err != nil {
 			s.Logger.Warn("messaging: failed to broadcast unread mark change",
 				slog.Int64("tenant_id", tenantID),

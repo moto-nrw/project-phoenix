@@ -38,23 +38,25 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CarePlan(),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
 			excusedRequiresApproval: true,
 		},
-		ExcusedRequests:     excused,
+		ExcusedRequests:     api.NewParentExcusedAbsenceRequests(excused),
 		ExcusedRequestRepo:  repos.ExcusedAbsenceRequest,
 		ParentRequestEvents: api.NewParentRequestEvents(events),
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, excused, api.NewParentRequestEventFixtureReads(events), db
 }

@@ -63,6 +63,8 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: repo,
 		Logger:                slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -132,6 +134,8 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: nil,
 		Logger:                slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.ListEnrollmentsForAccount(testpkg.WithPackageTenantRuntime(context.Background()), 1)
@@ -278,6 +282,8 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
 		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -401,6 +407,8 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.GetProfile(testpkg.WithPackageTenantRuntime(context.Background()), 1234)
@@ -443,6 +451,8 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
 		GuardianProfileRepo: api.NewParentGuardianProfileReadFixture(repo.FindByAccountID),
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	profile, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en-US")
@@ -489,6 +499,8 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")

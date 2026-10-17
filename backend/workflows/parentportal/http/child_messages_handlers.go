@@ -19,21 +19,21 @@ import (
 // the message froze staff-name visibility on at send time (see toMessageResponses
 // and operations.parent_message_staff_name_visible).
 type MessageResponse struct {
-	ID             string         `json:"id"`
-	SenderKind     string         `json:"sender_kind"`
-	SenderName     string         `json:"sender_name"`
-	Body           string         `json:"body"`
-	CreatedAt      time.Time      `json:"created_at"`
-	Kind           string         `json:"kind"`
-	EventType      string         `json:"event_type,omitempty"`
-	RequestType    string         `json:"request_type,omitempty"`
-	RequestStatus  string         `json:"request_status,omitempty"`
-	Payload        map[string]any `json:"payload,omitempty"`
-	RefTable       string         `json:"ref_table,omitempty"`
-	RefID          string         `json:"ref_id,omitempty"`
-	AppliedAt      *time.Time     `json:"applied_at,omitempty"`
-	DecisionReason string         `json:"decision_reason,omitempty"`
-	ReadByStaff    bool           `json:"read_by_staff,omitempty"`
+	ID             string                     `json:"id"`
+	SenderKind     string                     `json:"sender_kind"`
+	SenderName     string                     `json:"sender_name"`
+	Body           string                     `json:"body"`
+	CreatedAt      time.Time                  `json:"created_at"`
+	Kind           string                     `json:"kind"`
+	EventType      string                     `json:"event_type,omitempty"`
+	RequestType    string                     `json:"request_type,omitempty"`
+	RequestStatus  string                     `json:"request_status,omitempty"`
+	Payload        map[string]json.RawMessage `json:"payload,omitempty"`
+	RefTable       string                     `json:"ref_table,omitempty"`
+	RefID          string                     `json:"ref_id,omitempty"`
+	AppliedAt      *time.Time                 `json:"applied_at,omitempty"`
+	DecisionReason string                     `json:"decision_reason,omitempty"`
+	ReadByStaff    bool                       `json:"read_by_staff,omitempty"`
 }
 
 // ThreadSummaryResponse is one row on the parent thread list. counterpart_name
@@ -52,13 +52,13 @@ type ThreadSummaryResponse struct {
 	// of the German LastMessageBody (which the full conversation already
 	// localizes the same way). Empty for plain messages, where LastMessageBody is
 	// the human-written, language-neutral text.
-	LastMessageKind        string         `json:"last_message_kind,omitempty"`
-	LastEventType          string         `json:"last_event_type,omitempty"`
-	LastRequestType        string         `json:"last_request_type,omitempty"`
-	LastRequestStatus      string         `json:"last_request_status,omitempty"`
-	LastMessagePayload     map[string]any `json:"last_message_payload,omitempty"`
-	LastMessageReadByStaff bool           `json:"last_message_read_by_staff"`
-	Unread                 int            `json:"unread"`
+	LastMessageKind        string                     `json:"last_message_kind,omitempty"`
+	LastEventType          string                     `json:"last_event_type,omitempty"`
+	LastRequestType        string                     `json:"last_request_type,omitempty"`
+	LastRequestStatus      string                     `json:"last_request_status,omitempty"`
+	LastMessagePayload     map[string]json.RawMessage `json:"last_message_payload,omitempty"`
+	LastMessageReadByStaff bool                       `json:"last_message_read_by_staff"`
+	Unread                 int                        `json:"unread"`
 }
 
 // toThreadSummary maps a projected inbox thread to the parent-facing summary,

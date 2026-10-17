@@ -21,9 +21,9 @@ func TestMergeDepartureExceptions(t *testing.T) {
 		Date: calendar.NewDate(2026, time.September, 10), PickupTime: &pickup,
 		Source: careplan.ExceptionSourceGuardian, PickupSource: careplan.ExceptionSourceGuardian,
 	}}
-	merged := mergeDepartureExceptions(days, []careplan.DepartureException{
-		{ExceptionDate: careplan.Date(calendar.NewDate(2026, time.September, 10)), DepartureMode: careplan.DepartureModePickup},
-		{ExceptionDate: careplan.Date(calendar.NewDate(2026, time.September, 9)), DepartureMode: careplan.DepartureModeBus},
+	merged := mergeDepartureExceptions(days, []DepartureException{
+		{ExceptionDate: calendar.Date(calendar.NewDate(2026, time.September, 10)), DepartureMode: careplan.DepartureModePickup},
+		{ExceptionDate: calendar.Date(calendar.NewDate(2026, time.September, 9)), DepartureMode: careplan.DepartureModeBus},
 	})
 
 	require.Len(t, merged, 2)

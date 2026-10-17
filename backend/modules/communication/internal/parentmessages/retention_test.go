@@ -15,7 +15,9 @@ type retentionWindow struct {
 	err  error
 }
 
-func (w retentionWindow) ResolveInt(context.Context, string) (int, error) { return w.days, w.err }
+func (w retentionWindow) ParentMessageRetentionDays(context.Context) (int, error) {
+	return w.days, w.err
+}
 
 type recordingRetentionStore struct {
 	cutoff time.Time

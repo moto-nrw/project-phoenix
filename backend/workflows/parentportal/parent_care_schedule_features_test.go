@@ -54,7 +54,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Locales:                api.ParentPortalLocales(),
 		Runtime:                api.ParentPortalRuntime{},
 		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:               repos.CarePlan(),
+		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
 		ChildRepo:              repos.ParentChildReads(),
@@ -65,16 +65,16 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
 		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		ArrivalSchedules:       sf.ArrivalSchedule,
-		PickupSchedules:        sf.PickupSchedule,
+		ArrivalSchedules:       api.NewParentArrivalSchedules(sf.ArrivalSchedule),
+		PickupSchedules:        api.NewParentPickupSchedules(sf.PickupSchedule),
 		CareRequests:           sf.CareRequests,
 		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: repos.FamilyProtection,
-		ParentRequestShares:    repos.ParentRequestShare,
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection),
+		ParentRequestShares:    api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		StatusDayRepo:          repos.StudentStatusDay,
-		MessageThreadRepo:      repos.ParentMessageThread,
-		MessageRepo:            communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:        repos.ParentMessageRead,
+		MessageThreadRepo:      api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:            api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:        api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:          api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
 		Logger:                 slog.Default(),
 		Now: func() time.Time {
@@ -82,6 +82,8 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db
 }
 

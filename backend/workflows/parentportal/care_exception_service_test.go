@@ -30,7 +30,7 @@ var errBoom = errors.New("boom: repository unavailable")
 // without a broken database. Embedding the interface means every method not
 // overridden here delegates to the real repo.
 type stubPickupRepo struct {
-	parentService.CareExceptions
+	api.ParentCareExceptionSource
 	findErr  error
 	rangeErr error
 }
@@ -42,11 +42,11 @@ func (s stubPickupRepo) ListPickupExceptions(ctx context.Context, filter carepla
 	if filter.Date == "" && s.rangeErr != nil {
 		return nil, s.rangeErr
 	}
-	return s.CareExceptions.ListPickupExceptions(ctx, filter)
+	return s.ParentCareExceptionSource.ListPickupExceptions(ctx, filter)
 }
 
 type stubArrivalRepo struct {
-	parentService.CareExceptions
+	api.ParentCareExceptionSource
 	findErr  error
 	rangeErr error
 }
@@ -58,12 +58,12 @@ func (s stubArrivalRepo) ListArrivalExceptions(ctx context.Context, filter carep
 	if filter.Date == "" && s.rangeErr != nil {
 		return nil, s.rangeErr
 	}
-	return s.CareExceptions.ListArrivalExceptions(ctx, filter)
+	return s.ParentCareExceptionSource.ListArrivalExceptions(ctx, filter)
 }
 
 type careRepoWrap struct {
-	pickup  func(parentService.CareExceptions) parentService.CareExceptions
-	arrival func(parentService.CareExceptions) parentService.CareExceptions
+	pickup  func(api.ParentCareExceptionSource) api.ParentCareExceptionSource
+	arrival func(api.ParentCareExceptionSource) api.ParentCareExceptionSource
 }
 
 type careTestService struct {
@@ -88,7 +88,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
-	var records parentService.CareExceptions = repos.CarePlan()
+	var records api.ParentCareExceptionSource = repos.CarePlan()
 	if w.pickup != nil {
 		records = w.pickup(records)
 	}
@@ -102,14 +102,14 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		Attendance:      parentAttendance(t, db),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  records,
+		CareExceptions:  api.NewParentCareExceptions(records),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
@@ -120,13 +120,15 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		},
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return careTestService{Portal: svc}, db
 }
 
 // buildCareServiceWithPickupRepo builds the care service with a wrapped pickup
 // repository, used to inject read failures.
-func buildCareServiceWithPickupRepo(t *testing.T, wrap func(parentService.CareExceptions) parentService.CareExceptions) (careTestService, *bun.DB) {
+func buildCareServiceWithPickupRepo(t *testing.T, wrap func(api.ParentCareExceptionSource) api.ParentCareExceptionSource) (careTestService, *bun.DB) {
 	return buildCareServiceWithRepos(t, careRepoWrap{pickup: wrap})
 }
 
@@ -142,14 +144,14 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		Attendance:      parentAttendance(t, db),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CarePlan(),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
 		},
@@ -160,6 +162,8 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		},
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return careTestService{Portal: svc}, bc, db
 }
@@ -749,8 +753,8 @@ func TestDeleteCareException_RemovesPickupAndPreservesArrival(t *testing.T) {
 func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
-	svc, db := buildCareServiceWithPickupRepo(t, func(r parentService.CareExceptions) parentService.CareExceptions {
-		return stubPickupRepo{CareExceptions: r, findErr: errBoom}
+	svc, db := buildCareServiceWithPickupRepo(t, func(r api.ParentCareExceptionSource) api.ParentCareExceptionSource {
+		return stubPickupRepo{ParentCareExceptionSource: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
@@ -776,8 +780,8 @@ func TestSubmitCareException_RepoErrorSurfaces(t *testing.T) {
 func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
-	svc, db := buildCareServiceWithPickupRepo(t, func(r parentService.CareExceptions) parentService.CareExceptions {
-		return stubPickupRepo{CareExceptions: r, rangeErr: errBoom}
+	svc, db := buildCareServiceWithPickupRepo(t, func(r api.ParentCareExceptionSource) api.ParentCareExceptionSource {
+		return stubPickupRepo{ParentCareExceptionSource: r, rangeErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -794,8 +798,8 @@ func TestListCareExceptions_RepoErrorSurfaces(t *testing.T) {
 func TestDeleteCareException_RepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
-	svc, db := buildCareServiceWithPickupRepo(t, func(r parentService.CareExceptions) parentService.CareExceptions {
-		return stubPickupRepo{CareExceptions: r, findErr: errBoom}
+	svc, db := buildCareServiceWithPickupRepo(t, func(r api.ParentCareExceptionSource) api.ParentCareExceptionSource {
+		return stubPickupRepo{ParentCareExceptionSource: r, findErr: errBoom}
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
@@ -811,8 +815,8 @@ func TestListCareExceptions_ArrivalRepoErrorSurfaces(t *testing.T) {
 	t.Parallel()
 
 	svc, db := buildCareServiceWithRepos(t, careRepoWrap{
-		arrival: func(r parentService.CareExceptions) parentService.CareExceptions {
-			return stubArrivalRepo{CareExceptions: r, rangeErr: errBoom}
+		arrival: func(r api.ParentCareExceptionSource) api.ParentCareExceptionSource {
+			return stubArrivalRepo{ParentCareExceptionSource: r, rangeErr: errBoom}
 		},
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -846,13 +850,13 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  stubArrivalRepo{CareExceptions: repos.CarePlan(), findErr: errBoom},
+		CareExceptions:  api.NewParentCareExceptions(stubArrivalRepo{ParentCareExceptionSource: repos.CarePlan(), findErr: errBoom}),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
@@ -861,6 +865,8 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		Now:            careFixtureNow,
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))

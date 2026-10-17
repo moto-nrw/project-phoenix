@@ -1,24 +1,30 @@
 package messaging_test
 
-// Integration tests for "Als ungelesen markieren" (#3654): a staff member marks
-// a parent conversation unread for the whole team. They run on the real
-// repositories so the inbox projection, the aggregate badge and the student
-// card are checked together with the write path.
-
 import (
 	"context"
 	"log/slog"
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	// Integration tests for "Als ungelesen markieren" (#3654): a staff member marks
+	// a parent conversation unread for the whole team. They run on the real
+	// repositories so the inbox projection, the aggregate badge and the student
+	// card are checked together with the write path.
+
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
+
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -325,9 +331,9 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
-		Settings:    stubSettings{messagingEnabled: false},
-		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
-	})
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
+		Broadcaster: f.bc, Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	ctx := adminCtx(t, f.staffAccount)
 
 	count, err := disabled.UnreadMessageCount(ctx)

@@ -3,7 +3,6 @@ package messaging
 import (
 	"context"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -42,7 +41,7 @@ type OfferingChangeRequestReads interface {
 
 // FamilyProtectionReads reads the current family protection of children.
 type FamilyProtectionReads interface {
-	CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*usersModels.FamilyProtectionEvent, error)
+	CurrentForStudents(ctx context.Context, studentIDs []int64) (map[int64]*FamilyProtectionEvent, error)
 }
 
 // OfferingChangeIdentity is the child and submitting account of the request.

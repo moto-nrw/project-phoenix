@@ -57,7 +57,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/careplan/internal/application/excused_requests.go":                      1567,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
-	"modules/communication/internal/staffannouncements/service.go":                   1209,
+	"modules/communication/internal/staffannouncements/service.go":                   1178,
 	"modules/enrollment/form_schema.go":                                              1015,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1004,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1850,
@@ -69,7 +69,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go": 1767,
 	"modules/workforce/timetracking.go":                                              808,
 	"workflows/reminderdelivery/internal/application/service.go":                     864,
-	"workflows/studentdeletion/deletion.go":                                          811,
 }
 
 func TestModuleFileSizeRatchet(t *testing.T) {

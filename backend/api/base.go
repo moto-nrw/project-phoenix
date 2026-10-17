@@ -14,35 +14,16 @@ import (
 
 	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
 
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-
-	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
-
-	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
-
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-
-	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
-	slogchi "github.com/samber/slog-chi"
-	"github.com/spf13/viper"
-
 	"github.com/moto-nrw/project-phoenix/analytics"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	iotAPI "github.com/moto-nrw/project-phoenix/api/iot/compose"
 	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
 	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
+	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
@@ -56,12 +37,14 @@ import (
 	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
+	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/retained"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
 	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
 	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
@@ -73,6 +56,7 @@ import (
 	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
+	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
@@ -98,18 +82,25 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
+	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
 	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
 	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
+	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
 	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
+	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/observability"
@@ -118,6 +109,8 @@ import (
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
 	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
+	slogchi "github.com/samber/slog-chi"
+	"github.com/spf13/viper"
 )
 
 // recordHTTPRuntimeEvent turns one runtime event into a metric and, for
@@ -347,7 +340,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		DB:            pool,
 		Organizations: organizations,
 		Viewers:       communicationViewerNames{query: persons},
-		Audit:         communicationCompose.NewOperatorAnnouncementAudit(NewOperatorAuditLog(db).Create),
+		Audit:         NewCommunicationAnnouncementAudit(NewOperatorAuditLog(db).Create),
 		Observe:       observeCommunication,
 	})
 	if err != nil {

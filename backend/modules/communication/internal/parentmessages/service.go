@@ -18,16 +18,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/uptrace/bun"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const maxMessageLen = 2000
@@ -78,6 +73,8 @@ type PersonLookup interface {
 // Service is the staff-side messaging service.
 type Service struct {
 	Config
+	runtime        Runtime
+	deliveryPolicy deliveryPorts.ParentDeliveryPolicy
 }
 
 // Config is the dependency-injection bundle.
@@ -87,22 +84,21 @@ type Config struct {
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     PersonLookup
 	UserContext StudentReadAccess
-	Settings    parentmessaging.SettingsResolver
+	Settings    Settings
 	Broadcaster realtime.Broadcaster
-	DB          *bun.DB
 	Logger      *slog.Logger
 
 	// Notifier and Preferences push a staff reply to the guardian's devices
 	// (#1671). Both optional and both required together: without the consent
 	// service there is nobody who agreed, so the push is skipped rather than
 	// sent past consent.
-	Notifier    notifications.Service
-	Preferences notifications.PreferenceService
+	Notifier    deliveryPorts.NotificationSender
+	Preferences deliveryPorts.NotificationPreferences
 
 	// Outbox, GuardianProfiles, Schools and ParentsURL queue the guardian e-mail
 	// for a new OGS message (#2307). All are optional so bare-constructed unit
 	// test services remain silent. LoginImages only decorates the mail header.
-	Outbox           platformModels.OutboxEnqueuer
+	Outbox           deliveryPorts.MailEnqueuer
 	GuardianProfiles GuardianProfileFinder
 	Schools          SchoolFinder
 	LoginImages      LoginImageResolver
@@ -115,11 +111,11 @@ type Config struct {
 }
 
 // NewService wires a staff messaging service.
-func NewService(cfg Config) *Service {
+func NewService(cfg Config, runtime Runtime, policy deliveryPorts.ParentDeliveryPolicy) *Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Service{Config: cfg}
+	return &Service{Config: cfg, runtime: runtime, deliveryPolicy: policy}
 }
 
 // StudentReadAccess applies the Security Runtime's student read rules to the
@@ -500,7 +496,7 @@ func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID 
 	}
 
 	accountID := accountIDFromCtx(ctx)
-	thread, err := s.ThreadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
+	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
@@ -550,7 +546,7 @@ func (s *Service) OpenThread(ctx context.Context, studentID, guardianAccountID i
 		return nil, err
 	}
 
-	thread, err := s.ThreadRepo.GetOrCreate(ctx, tenant.FromContext(ctx), studentID, guardianAccountID)
+	thread, err := s.ThreadRepo.GetOrCreate(ctx, s.runtime.TenantID(ctx), studentID, guardianAccountID)
 	if err != nil {
 		return nil, fmt.Errorf("messaging: get-or-create thread: %w", err)
 	}
@@ -659,7 +655,7 @@ func (s *Service) staffNameVisibleToParents(ctx context.Context) bool {
 	if s.Settings == nil {
 		return false
 	}
-	visible, err := s.Settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
+	visible, err := s.Settings.ParentMessageStaffNameVisible(ctx)
 	if err != nil {
 		s.Logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
 			slog.String("error", err.Error()),
@@ -684,7 +680,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 	guardianAccountID := thread.GuardianAccountID
 	threadID := thread.ID
 	studentID := thread.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastValues(tenantID, guardianAccountID, threadID, studentID)
 	})
 }
@@ -716,7 +712,7 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 		return
 	}
 
-	optedIn, err := s.Preferences.FilterOptedIn(ctx, notifications.TypeParentMessage, []int64{thread.GuardianAccountID})
+	optedIn, err := s.Preferences.FilterOptedIn(ctx, deliveryPorts.TypeParentMessage, []int64{thread.GuardianAccountID})
 	if err != nil {
 		s.Logger.Warn("messaging: filter opted-in guardian failed",
 			slog.Int64("thread_id", thread.ID),
@@ -739,25 +735,25 @@ func (s *Service) notifyGuardianDevice(ctx context.Context, thread *usersModels.
 			locale = *profile.PortalLocale
 		}
 	}
-	title, notificationBody := notifications.ParentMessageCopy(locale)
+	title, notificationBody := s.deliveryPolicy.ParentMessageCopy(locale)
 
-	err = s.Notifier.Notify(ctx, notifications.Event{
-		Type:           notifications.TypeParentMessage,
+	err = s.Notifier.Notify(ctx, deliveryPorts.NotificationEvent{
+		Type:           deliveryPorts.TypeParentMessage,
 		IdempotencyKey: fmt.Sprintf("parent-message:%d:%d", thread.ID, messageID),
 		RelatedType:    "parent_message_thread", RelatedID: thread.ID,
 		Title:    title,
 		Body:     notificationBody,
 		DeepLink: "/messages",
-		Priority: notifications.PriorityNormal,
-		Audience: notifications.Audience{
+		Priority: deliveryPorts.PriorityNormal,
+		Audience: deliveryPorts.NotificationAudience{
 			TenantID:           thread.TenantID,
-			Scope:              notifications.ScopeGuardian,
+			Scope:              deliveryPorts.ScopeGuardian,
 			GuardianAccountIDs: optedIn,
 			StudentIDs:         []int64{thread.StudentID},
 		},
-	})
+	}.Public())
 	switch {
-	case errors.Is(err, notifications.ErrDisabled), errors.Is(err, notifications.ErrOutsideActiveWindow):
+	case s.deliveryPolicy.IsNotificationsDisabled(err), s.deliveryPolicy.IsOutsideActiveWindow(err):
 		s.Logger.Info("messaging: guardian push suppressed by tenant notification gate",
 			slog.Int64("thread_id", thread.ID),
 			slog.String("reason", err.Error()),
@@ -783,7 +779,7 @@ func (s *Service) broadcastReadAfterCommit(ctx context.Context, thread *usersMod
 	guardianAccountID := thread.GuardianAccountID
 	threadID := thread.ID
 	studentID := thread.StudentID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		BroadcastRead(s.Broadcaster, s.Logger, tenantID, guardianAccountID, threadID, studentID)
 	})
 }

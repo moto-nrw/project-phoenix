@@ -123,13 +123,13 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CarePlan(),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: values,
 			stringValues: map[string]string{
@@ -141,6 +141,8 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 		Logger:         slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}
 	return cfg, bc, db
 }
@@ -167,22 +169,24 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		Locales:           api.ParentPortalLocales(),
 		Runtime:           api.ParentPortalRuntime{},
 		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:          repos.CarePlan(),
+		CarePlan:          api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
 		StudentRepo:       api.NewParentStudentReads(repos.Student),
-		CareExceptions:    repos.CarePlan(),
+		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(bc),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:   repos.ParentMessageRead,
+		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
 		Logger:            slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, bc, db, repos
 }
@@ -455,12 +459,12 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
-		CareExceptions:  repos.CarePlan(),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		StudentRepo:     newPausingStudentRepository(api.NewParentStudentReads(repos.Student), parentLocked, releaseParent),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
@@ -475,6 +479,8 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 		Logger:         slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	statusSvc := presenceservice.NewStatusDays(repos.StudentStatusDay, nil, nil, repos.CarePlan().LockExceptionDay)

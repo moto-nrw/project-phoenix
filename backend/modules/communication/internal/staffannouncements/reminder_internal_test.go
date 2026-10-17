@@ -14,7 +14,9 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -92,7 +94,7 @@ func newReminderHarness(repo *reminderRepo) *reminderHarness {
 		Outbox:           h.outbox,
 		ParentsURL:       "https://parents.example.test",
 		Logger:           slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{}, devices.ParentDeliveryPolicy{})
 	h.svc.SetAttachmentPurger(&stubPurger{})
 	return h
 }
@@ -366,7 +368,7 @@ func TestSendDueReminders_PushOutsideWindowReleasesClaimForRetry(t *testing.T) {
 		claim: map[int64]bool{a.ID: true},
 	}
 	h := newReminderHarness(repo)
-	h.notifier.err = notifications.ErrOutsideActiveWindow
+	h.notifier.err = devices.ErrOutsideNotificationWindow
 
 	sent, retryFrom, err := h.svc.SendDueReminders(context.Background(), time.Now().Add(-time.Hour), time.Now())
 	require.NoError(t, err)
@@ -592,7 +594,7 @@ func TestReminderPushShape_IsKeyedOnTheReminderMoment(t *testing.T) {
 
 	a := publishedWithReminder(false)
 	shape := reminderPushShape(a)
-	assert.Equal(t, notifications.ParentAnnouncementReminder, shape.copyKind)
+	assert.Equal(t, communication.ParentAnnouncementReminder, shape.copyKind)
 	assert.Equal(t, parentAnnouncementNotificationType, shape.notificationType, "consent is the announcement consent")
 	assert.Equal(t, relatedEntityTypeReminder, shape.relatedType)
 

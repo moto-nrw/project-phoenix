@@ -32,12 +32,14 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Runtime:         ParentPortalRuntime{},
 		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: NewParentStudentGuardianReads(parents.StudentGuardian), GuardianProfileRepo: NewParentGuardianProfileReads(parents.GuardianProfile),
-		Settings: BindParentSettings(module.Settings), ArrivalSchedules: module.ArrivalSchedule, PickupSchedules: module.PickupSchedule,
+		Settings: BindParentSettings(module.Settings), ArrivalSchedules: NewParentArrivalSchedules(module.ArrivalSchedule), PickupSchedules: NewParentPickupSchedules(module.PickupSchedule),
 		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(repos.CarePlan),
-		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
-		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo: repos.ParentMessage,
+		FamilyProtectionEvents: BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: BindParentRequestShareRecords(repos.ParentRequestShare),
+		StatusDayRepo: repos.StudentStatusDay, MessageThreadRepo: BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo: BindParentMessageReads(repos.ParentMessage),
 		Logger:      slog.Default(),
+
+		CarePlanPolicy: NewParentCarePlanPolicy(),
 	}), nil
 }
 

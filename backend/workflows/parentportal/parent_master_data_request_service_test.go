@@ -30,7 +30,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CarePlan(),
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
@@ -44,6 +44,8 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -297,7 +299,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CarePlan(),
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
@@ -312,6 +314,8 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

@@ -15,31 +15,25 @@ import (
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
-// NewTenantRuntime binds the PostgreSQL unit of work on db: tenant and
-// administrative transactions under their database roles, savepoints,
-// advisory locks, the replay of deadlock and serialization failures for
-// retry-safe commands, and the context handoff to the repositories and the
-// Audit adapters. Pool waits reach the unit-of-work observer.
+// NewTenantRuntime binds tenant/admin transactions under their database roles,
+// savepoints, advisory locks and retry-safe deadlock/serialization replay.
+// It hands context to repositories and Audit; pool waits reach the observer.
 func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := database.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
-	if err != nil {
-		return tenant.UnitOfWork{}, err
-	}
-	return bindTenantRuntime(unitOfWork, database.IsRetryableTransactionError)
+	return bindTenantRuntime(unitOfWork, err, database.IsRetryableTransactionError)
 }
 
-// NewDemoTenantRuntime is NewTenantRuntime for the standing demo's
-// restricted database role: tenant transactions keep RLS without switching to
-// phoenix_tenant, no command is replayed and pool waits are not observed.
+// NewDemoTenantRuntime keeps the demo's RLS without switching database role;
+// commands are not replayed and pool waits are not observed.
 func NewDemoTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := database.NewDemoPostgresUnitOfWork(db, func(context.Context, time.Duration) {})
+	return bindTenantRuntime(unitOfWork, err, func(error) bool { return false })
+}
+
+func bindTenantRuntime(unitOfWork *database.PostgresUnitOfWork, err error, retryable func(error) bool) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	return bindTenantRuntime(unitOfWork, func(error) bool { return false })
-}
-
-func bindTenantRuntime(unitOfWork *database.PostgresUnitOfWork, retryable func(error) bool) (tenant.UnitOfWork, error) {
 	runtime, err := tenant.NewUnitOfWork(
 		unitOfWork.WithinTenant,
 		unitOfWork.WithinAdmin,
@@ -67,3 +61,8 @@ func OpenPool() (*bun.DB, error) { return database.DBConn() }
 // OpenServePool opens the least-privilege phoenix_auth pool the HTTP server
 // runs on.
 func OpenServePool() (*bun.DB, error) { return database.DBConnForServe() }
+
+// TenantCallback binds a context-only callback to the retained SQL type gate.
+func TenantCallback(fn func(context.Context) error) func(context.Context, bun.Tx) error {
+	return func(ctx context.Context, _ bun.Tx) error { return fn(ctx) }
+}

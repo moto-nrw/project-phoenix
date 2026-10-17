@@ -34,7 +34,7 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CarePlan(),
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
@@ -49,6 +49,8 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, api.NewParentRequestEventFixtureReads(events), db
 }
@@ -76,7 +78,7 @@ func TestEditExcusedRequestReplacesWithdrawal(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, original.ID, edited.ID, "an edit keeps the request id, so the share survives")
 	require.Len(t, edited.Dates, 1)
-	assert.Equal(t, careplan.Date(corrected), edited.Dates[0])
+	assert.Equal(t, corrected, edited.Dates[0])
 	assert.Equal(t, "Doch einen Tag später", edited.Note)
 	assert.Equal(t, absencerecords.ExcusedRequestStatusPending, edited.Status)
 	assert.NotEqual(t, version, careplan.ParentRequestVersion(edited.UpdatedAt), "an edit bumps the version")

@@ -115,7 +115,7 @@ var (
 )
 
 // NewRequestDecisionNotifier binds consent and dispatch for request decisions.
-func NewRequestDecisionNotifier(notifier NotificationService, preferences NotificationPreferenceService) *notifications.RequestDecisionNotifier {
+func NewRequestDecisionNotifier(notifier NotificationService, preferences notifications.RequestDecisionPreferences) *notifications.RequestDecisionNotifier {
 	return notifications.NewRequestDecisionNotifier(notifier, preferences)
 }
 

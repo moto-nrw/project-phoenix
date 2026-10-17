@@ -16,7 +16,7 @@ type FamilyProtectionEventRepository struct {
 	runtime Runtime
 }
 
-func NewFamilyProtectionEventRepository(runtime Runtime) userModels.FamilyProtectionEventRepository {
+func NewFamilyProtectionEventRepository(runtime Runtime) ports.FamilyProtectionRecords {
 	return &FamilyProtectionEventRepository{runtime: requireRuntime(runtime)}
 }
 

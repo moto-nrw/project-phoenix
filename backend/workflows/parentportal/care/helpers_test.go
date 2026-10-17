@@ -28,6 +28,8 @@ func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) parentportal.Ch
 		RequestSharing: unusedRequestSharer{},
 
 		DeparturePolicy: api.ParentDeparturePolicy(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 

@@ -7,10 +7,6 @@ package studentdeletion
 
 import (
 	"context"
-	"crypto/sha256"
-	"crypto/subtle"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"sort"
 	"strings"
@@ -103,16 +99,17 @@ type Confirmation struct {
 // Preview is the owner-consistent impact snapshot. Fingerprint binds the
 // confirmation to the exact student, person and counts it was shown for.
 type Preview struct {
-	StudentID        int64
-	PersonID         int64
-	ConfirmationName string
-	Fingerprint      string
-	Counts           Counts
-	Alumnus          bool
-	CareEnded        bool
-	PhotoPath        string
-	CompanionIDs     []int64
-	personUpdatedAt  time.Time
+	StudentID         int64
+	PersonID          int64
+	ConfirmationName  string
+	Fingerprint       string
+	Counts            Counts
+	Alumnus           bool
+	CareEnded         bool
+	PhotoPath         string
+	CompanionIDs      []int64
+	hasEnrollmentRefs bool
+	personUpdatedAt   time.Time
 }
 
 // Result reports what one committed deletion changed.
@@ -139,6 +136,8 @@ type Directory interface {
 	LockEnrollmentClassWrites(ctx context.Context) error
 	FindPerson(ctx context.Context, id int64) (peopledirectory.Person, error)
 	FindPersonForMutation(ctx context.Context, id int64) (peopledirectory.Person, error)
+	// ListStudentRecordsDueForStatus lists the automatic deletion's candidates.
+	ListStudentRecordsDueForStatus(ctx context.Context, status, bound, asOf string) ([]peopledirectory.StudentRecord, error)
 	peopledirectory.StudentDeletionCommand
 }
 
@@ -173,6 +172,14 @@ type Conversations interface {
 	LockStudentMessageThreads(context.Context, int64) error
 }
 
+// Enrollment is the Enrollment port: the preview counts the accepted
+// enrollments that leave with the child, while the total retains the locked
+// recheck for every linked enrollment (#3962).
+type Enrollment interface {
+	CountStudentReferencesForDeletion(context.Context, int64) (approved, total int, err error)
+	DeleteApprovedEnrollmentsOfStudent(context.Context, int64) (int, error)
+}
+
 // Counter is an owner query answering one preview number for a child.
 type Counter func(ctx context.Context, studentID int64) (int, error)
 
@@ -191,16 +198,16 @@ type Dependencies struct {
 	Timetable     Timetable
 	Structure     Structure
 	Conversations Conversations
+	Enrollment    Enrollment
 
-	CountAttendance           Counter
-	CountVisits               Counter
-	CountConsents             Counter
-	CountEnrollmentReferences Counter
-	CountActivityEnrollments  Counter
-	CountAppointments         Counter
-	CountFeedback             Counter
-	CountAuditReferences      Counter
-	CountGuardianInvitations  Counter
+	CountAttendance          Counter
+	CountVisits              Counter
+	CountConsents            Counter
+	CountActivityEnrollments Counter
+	CountAppointments        Counter
+	CountFeedback            Counter
+	CountAuditReferences     Counter
+	CountGuardianInvitations Counter
 
 	// LockCareBookingWrites is the tenant-wide recurrence gate every
 	// care-booking writer takes. The withdrawal path holds it after the shared
@@ -225,7 +232,7 @@ type Workflow struct{ deps Dependencies }
 func New(deps Dependencies) (*Workflow, error) {
 	if deps.UnitOfWork == nil || deps.Authorize == nil || deps.Today == nil || deps.Now == nil ||
 		deps.Directory == nil || deps.CarePlan == nil || deps.Timetable == nil || deps.Structure == nil || deps.Conversations == nil ||
-		deps.CountAttendance == nil || deps.CountVisits == nil || deps.CountConsents == nil || deps.CountEnrollmentReferences == nil ||
+		deps.CountAttendance == nil || deps.CountVisits == nil || deps.CountConsents == nil || deps.Enrollment == nil ||
 		deps.CountActivityEnrollments == nil || deps.CountAppointments == nil || deps.CountFeedback == nil ||
 		deps.CountAuditReferences == nil || deps.CountGuardianInvitations == nil ||
 		deps.LockCareBookingWrites == nil || deps.AppendAudit == nil || deps.PhotoRemoved == nil || deps.CompanionsChanged == nil || deps.Observe == nil {
@@ -461,7 +468,7 @@ func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview
 	if err != nil {
 		return Preview{}, err
 	}
-	if current != preview.Counts {
+	if current.Counts != preview.Counts || current.hasEnrollmentRefs != preview.hasEnrollmentRefs {
 		return Preview{}, ErrPreviewChanged
 	}
 	return preview, nil
@@ -492,17 +499,18 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	if err != nil {
 		return Preview{}, err
 	}
-	fingerprint, err := fingerprintOf(student.UpdatedAt, person.UpdatedAt, counts)
+	fingerprint, err := fingerprintOf(student.UpdatedAt, person.UpdatedAt, counts.Counts)
 	if err != nil {
 		return Preview{}, err
 	}
 	preview := Preview{
 		StudentID: studentID, PersonID: student.PersonID,
 		ConfirmationName: strings.TrimSpace(person.FirstName + " " + person.LastName),
-		Fingerprint:      fingerprint, Counts: counts,
-		Alumnus:         student.Status == peopledirectory.StudentStatusAlumnus,
-		CareEnded:       student.EnrolledUntil != "" && w.deps.Today() > student.EnrolledUntil,
-		personUpdatedAt: person.UpdatedAt,
+		Fingerprint:      fingerprint, Counts: counts.Counts,
+		Alumnus:           student.Status == peopledirectory.StudentStatusAlumnus,
+		CareEnded:         student.EnrolledUntil != "" && w.deps.Today() > student.EnrolledUntil,
+		hasEnrollmentRefs: counts.hasEnrollmentRefs,
+		personUpdatedAt:   person.UpdatedAt,
 	}
 	if student.PhotoPath != nil {
 		preview.PhotoPath = *student.PhotoPath
@@ -510,71 +518,71 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	return preview, nil
 }
 
-func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (Counts, error) {
-	var counts Counts
+func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (countSnapshot, error) {
+	var counts countSnapshot
 	var err error
 	if counts.TimetableAssignments, err = w.deps.Timetable.CountStudentAssignments(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.ActivityEnrollments, err = w.deps.CountActivityEnrollments(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	visits, err := w.deps.CountVisits(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	attendance, err := w.deps.CountAttendance(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	carePlanCounts, err := w.deps.CarePlan.CountCarePlanDeletionRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.AttendanceRecords = visits + attendance + carePlanCounts.StatusDays + carePlanCounts.ExcusedRequests
 	if counts.CareSchedules, err = w.deps.CarePlan.CountStudentScheduleRows(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID, personID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.CompanionLinks, err = w.deps.CarePlan.CountCompanionLinks(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	invitations, err := w.deps.CountGuardianInvitations(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	conversations, err := w.deps.Conversations.CountStudentConversationRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.Communications = invitations + conversations + carePlanCounts.CareRequests + carePlanCounts.DataRequests
 	if counts.Consents, err = w.deps.CountConsents(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
-	if counts.EnrollmentReferences, err = w.deps.CountEnrollmentReferences(ctx, studentID); err != nil {
-		return Counts{}, err
+	if err := w.loadEnrollmentRefs(ctx, studentID, &counts); err != nil {
+		return countSnapshot{}, err
 	}
 	rosterRemovals, err := w.deps.Timetable.CountStudentRosterRemovals(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	history, err := w.deps.Structure.CountStudentTransitionHistory(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	appointments, err := w.deps.CountAppointments(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	auditReferences, err := w.deps.CountAuditReferences(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	feedback, err := w.deps.CountFeedback(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.OtherRecords = rosterRemovals + history + appointments + auditReferences + feedback
 	return counts, nil
@@ -736,12 +744,7 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 	if _, err := w.deps.Directory.DeleteLegacyGuardianLinks(ctx, preview.PersonID); err != nil {
 		return result, err
 	}
-	// Before the cascade: the document rows go with the child, the queued
-	// intents do not, and they are what gets the bytes off disk.
-	if result.DocumentCleanups, err = w.deps.CarePlan.QueueCareDocumentCleanupForDeletedStudent(ctx, preview.StudentID, now); err != nil {
-		return result, err
-	}
-	if result.WithdrawalsRedacted, err = w.deps.CarePlan.RedactWithdrawalsForDeletedStudent(ctx, preview.StudentID, actor.AccountID, now); err != nil {
+	if err := w.releaseDependents(ctx, actor, preview, now, &result); err != nil {
 		return result, err
 	}
 	deleted, err := w.deps.Directory.DeleteStudent(ctx, preview.StudentID)
@@ -771,29 +774,6 @@ func (w *Workflow) mutate(ctx context.Context, actor Actor, preview Preview, rea
 		w.deps.CompanionsChanged(ctx, actor, result.StudentID)
 	}
 	return result, nil
-}
-
-func fingerprintOf(studentUpdatedAt, personUpdatedAt time.Time, counts Counts) (string, error) {
-	payload := struct {
-		StudentUpdatedAt int64  `json:"student_updated_at"`
-		PersonUpdatedAt  int64  `json:"person_updated_at"`
-		Counts           Counts `json:"counts"`
-	}{StudentUpdatedAt: studentUpdatedAt.UnixNano(), PersonUpdatedAt: personUpdatedAt.UnixNano(), Counts: counts}
-	encoded, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-	sum := sha256.Sum256(encoded)
-	return hex.EncodeToString(sum[:]), nil
-}
-
-func equalFingerprint(actual, expected string) bool {
-	actualBytes, actualErr := hex.DecodeString(actual)
-	expectedBytes, expectedErr := hex.DecodeString(strings.TrimSpace(expected))
-	if actualErr != nil || expectedErr != nil || len(actualBytes) != len(expectedBytes) {
-		return false
-	}
-	return subtle.ConstantTimeCompare(actualBytes, expectedBytes) == 1
 }
 
 func ascending(ids []int64) []int64 {

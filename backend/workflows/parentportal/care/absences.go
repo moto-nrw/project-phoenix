@@ -10,7 +10,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -20,7 +19,7 @@ import (
 // the selected absence type requires office approval (#1845, #2447, #2449).
 type SickNoteResult struct {
 	StatusDays     []*absencerecords.StudentStatusDay
-	PendingRequest *careplan.ExcusedAbsenceRequest
+	PendingRequest *ExcusedAbsenceRequest
 }
 
 // SubmitSickNote reports the child absent for the given dates with the chosen
@@ -174,11 +173,11 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 
 	// Care Plan takes the care-day locks, refuses a day with a manual partial
 	// absence, clears the other statuses and records the reported ones.
-	days, err := s.GuardianAbsences.ReportGuardianAbsence(ctx, careplan.GuardianAbsenceReport{
+	days, err := s.GuardianAbsences.ReportGuardianAbsence(ctx, GuardianAbsenceReport{
 		StudentID: report.studentID, GuardianAccountID: report.accountID,
 		Dates: carePlanDates(report.dates), Status: report.status, Note: note, ReportedAt: now,
 	})
-	if errors.Is(err, careplan.ErrManualPartialAbsenceConflict) {
+	if errors.Is(err, s.CarePlanPolicy.Error(CarePlanManualPartialAbsenceConflict)) {
 		return nil, ErrCareExceptionConflict
 	}
 	if err != nil {
@@ -220,7 +219,7 @@ func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report
 
 // statusDaysFromCarePlan returns Care Plan's status days in the portal's
 // response shape.
-func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*absencerecords.StudentStatusDay {
+func statusDaysFromCarePlan(days []StudentStatusDay) []*absencerecords.StudentStatusDay {
 	rows := make([]*absencerecords.StudentStatusDay, 0, len(days))
 	for _, day := range days {
 		row := &absencerecords.StudentStatusDay{
@@ -251,7 +250,7 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 	if s.ExcusedRequests == nil {
 		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
-	var req *careplan.ExcusedAbsenceRequest
+	var req *ExcusedAbsenceRequest
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
 		// Lock and re-read the child before creating a pending request so both
@@ -265,7 +264,7 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 		}
 		// The note is mandatory only while the school's reason policy asks the
 		// family for one (#2267, story 28).
-		created, err := s.ExcusedRequests.Submit(txCtx, careplan.ExcusedRequestCreateInput{
+		created, err := s.ExcusedRequests.Submit(txCtx, ExcusedRequestCreateInput{
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
 			Dates:             carePlanDates(dates),

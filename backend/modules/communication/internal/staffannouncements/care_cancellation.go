@@ -8,8 +8,7 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // Cancellation notice (#2601).
@@ -81,7 +80,7 @@ func (s *service) CareCancellationReachFor(ctx context.Context, studentIDs []int
 	if len(ids) == 0 {
 		return reach, nil
 	}
-	count, err := s.repo.CountReachableGuardiansForStudents(ctx, tenant.FromContext(ctx), ids)
+	count, err := s.repo.CountReachableGuardiansForStudents(ctx, s.runtime.TenantID(ctx), ids)
 	if err != nil {
 		return nil, fmt.Errorf("announcement: count reachable guardians: %w", err)
 	}
@@ -183,12 +182,12 @@ func ValidateCareCancellationText(title, body string) (string, string, error) {
 // family can opt into cancellations separately from news.
 func pushShapeFor(a *usersModels.ParentAnnouncement) (notificationType, copyKind, deepLink string) {
 	if a.IsSystem() && *a.SystemKind == usersModels.ParentAnnouncementSystemKindCareCancellation {
-		return notifications.TypeParentCareCancelled, notifications.ParentCareCancelled, careCancelledDeepLink
+		return deliveryPorts.TypeParentCareCancelled, deliveryPorts.ParentCareCancelled, careCancelledDeepLink
 	}
 	if a.IsPoll() {
-		return parentAnnouncementNotificationType, notifications.ParentPollPublished, "/"
+		return parentAnnouncementNotificationType, deliveryPorts.ParentPollPublished, "/"
 	}
-	return parentAnnouncementNotificationType, notifications.ParentAnnouncementPublished, "/"
+	return parentAnnouncementNotificationType, deliveryPorts.ParentAnnouncementPublished, "/"
 }
 
 func uniquePositive(ids []int64) []int64 {

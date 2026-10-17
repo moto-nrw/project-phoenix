@@ -83,7 +83,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
@@ -101,6 +101,8 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, invites, db
 }
@@ -429,7 +431,7 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CarePlan(),
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
@@ -443,6 +445,8 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -509,7 +513,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
@@ -526,6 +530,8 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }

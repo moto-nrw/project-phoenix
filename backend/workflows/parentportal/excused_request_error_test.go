@@ -65,7 +65,7 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
@@ -73,10 +73,12 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings:        excusedApprovalSettings{requiresApproval: true},
 		StudentUpdates:  api.BindParentStudentUpdates(bc),
-		ExcusedRequests: excused,
+		ExcusedRequests: api.NewParentExcusedAbsenceRequests(excused),
 		Logger:          slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db
 }
 
