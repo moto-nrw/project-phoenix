@@ -1,4 +1,4 @@
-package sessiontoken
+package securityruntime
 
 import (
 	"context"
