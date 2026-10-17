@@ -188,9 +188,9 @@ func (m *parentMessaging) SetParentMessageCountScope(ctx context.Context, scope 
 }
 
 type StaffMessagingConfig struct {
-	ThreadRepo  usersModels.StaffMessageThreadRepository
-	MessageRepo usersModels.StaffMessageRepository
-	ReadRepo    usersModels.StaffMessageReadRepository
+	ThreadRepo  deliveryPorts.StaffThreadSource
+	MessageRepo deliveryPorts.StaffMessageSource
+	ReadRepo    deliveryPorts.StaffReadSource
 	Persons     staffMessages.PersonLookup
 	Settings    staffMessages.Settings
 	Broadcaster realtime.Broadcaster
@@ -203,7 +203,7 @@ type StaffMessagingConfig struct {
 func NewStaffMessaging(cfg StaffMessagingConfig, runtime staffMessages.Runtime, policy deliveryPorts.NotificationErrors) communication.StaffMessagingRuntime {
 	return &staffMessaging{
 		service: staffMessages.NewService(staffMessages.Config{
-			ThreadRepo: cfg.ThreadRepo, MessageRepo: cfg.MessageRepo, ReadRepo: cfg.ReadRepo,
+			ThreadRepo: staffMessages.NewThreadRepository(cfg.ThreadRepo), MessageRepo: staffMessages.NewMessageRepository(cfg.MessageRepo), ReadRepo: staffMessages.NewReadRepository(cfg.ReadRepo),
 			Persons: cfg.Persons, Settings: cfg.Settings, Broadcaster: cfg.Broadcaster,
 			Logger: cfg.Logger, Notifier: deliveryPorts.NewNotificationSender(cfg.Notifier), Preferences: cfg.Preferences,
 		}, runtime, policy),
@@ -379,7 +379,7 @@ func mapStaffMessageThread(thread *staffMessages.ThreadDetail) *communication.St
 	return result
 }
 
-func mapStaffMessage(message *usersModels.StaffMessage) communication.StaffMessage {
+func mapStaffMessage(message *staffMessages.StaffMessage) communication.StaffMessage {
 	return communication.StaffMessage{
 		ID: message.ID, SenderAccountID: message.SenderAccountID, SenderName: message.SenderName,
 		Body: message.Body, CreatedAt: message.CreatedAt,

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 )
 
 // SchoolDirectory names the schools of the inbox rows and the announcement
@@ -119,7 +120,10 @@ type MessagingRepositories struct {
 	ParentAnnouncement  ParentAnnouncementRepository
 	ParentMessageThread ParentMessageThreadRepository
 	ParentMessageRead   ParentMessageReadRepository
-	StaffMessageRead    usersModels.StaffMessageReadRepository
+	StaffMessageRead    interface {
+		usersModels.StaffMessageReadRepository
+		communication.StaffReadRecords
+	}
 }
 
 // WithSchoolNames returns the repositories with the announcement and inbox

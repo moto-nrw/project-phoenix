@@ -13,7 +13,7 @@ import (
 
 // NewStaffMessageThreadRepository returns the conversation store behind the
 // existing repository contract.
-func NewStaffMessageThreadRepository(db *bun.DB) usersModels.StaffMessageThreadRepository {
+func NewStaffMessageThreadRepository(db *bun.DB) StaffMessageThreadRepository {
 	return &threadRepository{store: staffpostgres.NewThreadStore(postgresDatabase(db))}
 }
 
@@ -73,7 +73,7 @@ func threadModel(value *domain.StaffMessageThread) *usersModels.StaffMessageThre
 
 // NewStaffMessageRepository returns the message log behind the existing
 // repository contract.
-func NewStaffMessageRepository(db *bun.DB) usersModels.StaffMessageRepository {
+func NewStaffMessageRepository(db *bun.DB) StaffMessageRepository {
 	return &messageRepository{store: staffpostgres.NewMessageStore(postgresDatabase(db))}
 }
 
@@ -139,7 +139,7 @@ type ColleagueDirectory interface {
 // NewStaffMessageReadRepository returns the read cursors, the inbox and badge
 // projection and the colleague lookups behind the existing repository
 // contract. colleagues is required; a graph without it must not start.
-func NewStaffMessageReadRepository(db *bun.DB, colleagues ColleagueDirectory) usersModels.StaffMessageReadRepository {
+func NewStaffMessageReadRepository(db *bun.DB, colleagues ColleagueDirectory) StaffMessageReadRepository {
 	if colleagues == nil {
 		panic("communication staff store: colleague directory is required")
 	}
