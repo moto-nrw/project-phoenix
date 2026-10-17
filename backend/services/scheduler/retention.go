@@ -144,7 +144,8 @@ func (s *Scheduler) noteCleanupFailure(jobID string, tenantID int64, now time.Ti
 type RetentionRun func(ctx context.Context, tenantID int64) error
 
 // newRetentionRun builds the retention run over the owners' steps. Each step
-// that deletes something writes one deletion-log entry; a failing step or log
+// that deletes something writes one deletion-log entry, unless it logs each
+// deleted subject itself (LogsSubjects); a failing step or log
 // entry aborts the run, so the tenant transaction rolls back and the run is
 // caught up later.
 func newRetentionRun(steps []ports.RetentionStep, log ports.RetentionLog, logger *slog.Logger) (RetentionRun, error) {
@@ -179,8 +180,10 @@ func runRetention(ctx context.Context, tenantID int64, steps []ports.RetentionSt
 		if outcome.Deleted == 0 {
 			continue
 		}
-		if err := log(ctx, step.Kind, outcome); err != nil {
-			return fmt.Errorf("log retention step %s: %w", step.Kind, err)
+		if !step.LogsSubjects {
+			if err := log(ctx, step.Kind, outcome); err != nil {
+				return fmt.Errorf("log retention step %s: %w", step.Kind, err)
+			}
 		}
 		logger.Info("retention step completed",
 			slog.Int64("tenant_id", tenantID),

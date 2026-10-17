@@ -21,6 +21,10 @@ type RetentionStep struct {
 	// Kind names the data kind in the logs and in the deletion log.
 	Kind string
 	Run  func(context.Context) (RetentionOutcome, error)
+	// LogsSubjects marks a step that writes one deletion-log entry per
+	// deleted subject itself, like the automatic deletion of a child
+	// (#3962); the run then adds no entry for the data kind.
+	LogsSubjects bool
 }
 
 // RetentionOutcome reports how many rows one step deleted and the retention

@@ -88,8 +88,7 @@ func ambientTransaction(ctx context.Context) (bun.IDB, int64) {
 	return tx, tenant.FromContext(ctx)
 }
 
-// New constructs only the required owner capabilities. It does not build or
-// retain a service/repository factory.
+// New constructs only the required owner capabilities, without a factory.
 func New(deps Dependencies) (*studentdeletion.Workflow, error) {
 	assembled, err := Assemble(deps)
 	if err != nil {
@@ -99,8 +98,7 @@ func New(deps Dependencies) (*studentdeletion.Workflow, error) {
 }
 
 // Assemble binds the workflow ports without constructing the workflow, so a
-// test can wrap one owner command (to inject a failure after it) and still
-// run every other owner for real.
+// test can wrap one owner command and still run every other owner for real.
 func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 	for name, missing := range map[string]bool{
 		"database": deps.DB == nil, "people directory": deps.Directory == nil, "care plan": deps.CarePlan == nil,
@@ -154,7 +152,6 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 	if err != nil {
 		return studentdeletion.Dependencies{}, err
 	}
-	enrollment := enrollmentcompose.New()
 	auditReferences := auditpostgres.NewStudentDeletionRepository(ambientTransaction)
 	return studentdeletion.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
@@ -163,14 +160,13 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		},
 		Today: today, Now: now,
 		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: structure,
-		Conversations:   parentstore.NewStudentConversations(deps.DB),
+		Conversations: parentstore.NewStudentConversations(deps.DB), Enrollment: enrollmentcompose.New(),
 		CountAttendance: presence.CountAttendanceRecords,
 		CountVisits:     presence.CountStudentVisitsForDeletion,
 		CountConsents: func(ctx context.Context, studentID int64) (int, error) {
 			consents, err := presence.ListPrivacyConsents(ctx, studentID)
 			return len(consents), err
 		},
-		CountEnrollmentReferences: enrollment.CountStudentReferences,
 		CountActivityEnrollments: func(ctx context.Context, studentID int64) (int, error) {
 			db, tenantID := ambientTransaction(ctx)
 			if db == nil {
@@ -183,23 +179,7 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		CountAuditReferences:     auditReferences.CountStudentReferences,
 		CountGuardianInvitations: identity.CountStudentGuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
-		AppendAudit: func(ctx context.Context, actor studentdeletion.Actor, result studentdeletion.Result) error {
-			deletedBy := "account:" + strconv.FormatInt(actor.AccountID, 10)
-			dataDeletion := auditModels.NewDataDeletion(result.StudentID, auditModels.DeletionTypeManual, result.Counts.Total()+result.PrimaryRowsDeleted, deletedBy)
-			dataDeletion.DeletionReason = result.Reason
-			dataDeletion.SetTenantID(actor.TenantID)
-			dataDeletion.SetMetadata("student_deletion", true)
-			dataDeletion.SetMetadata("counts", result.Counts)
-			if err := audit.Append(ctx, dataDeletion); err != nil {
-				return err
-			}
-			tombstone := &auditModels.StudentDeletion{
-				StudentID: result.StudentID, ActorAccountID: actor.AccountID, Reason: result.Reason,
-				Counts: auditModels.StudentDeletionCounts(result.Counts),
-			}
-			tombstone.SetTenantID(actor.TenantID)
-			return audit.Append(ctx, tombstone)
-		},
+		AppendAudit:              appendDeletionAudit(audit),
 		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) {
 			if deps.UnlinkPhoto != nil {
 				deps.UnlinkPhoto(ctx, path)
@@ -209,9 +189,7 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 			if deps.Broadcaster == nil {
 				return
 			}
-			// After the OUTER transaction commits, like every other companion
-			// broadcast: a subscriber woken earlier would refetch the
-			// still-present row.
+			// After the OUTER commit: an earlier subscriber would refetch the row.
 			tenant.RegisterAfterCommit(ctx, func() {
 				source := "manual"
 				event := realtime.NewEvent(realtime.EventStudentCompanionsChanged, "", realtime.EventData{Source: &source})
@@ -233,4 +211,26 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 			)
 		},
 	}, nil
+}
+
+// appendDeletionAudit writes the deletion log entry and the tombstone. Actor
+// account 0 is the nightly retention run (#3962): no actor, written by system.
+func appendDeletionAudit(audit auditModels.Command) func(context.Context, studentdeletion.Actor, studentdeletion.Result) error {
+	return func(ctx context.Context, actor studentdeletion.Actor, result studentdeletion.Result) error {
+		deletionType, deletedBy, actorID := auditModels.DeletionTypeManual, "account:"+strconv.FormatInt(actor.AccountID, 10), &actor.AccountID
+		if actor.AccountID == 0 {
+			deletionType, deletedBy, actorID = auditModels.DeletionTypeStudentRetention, "system", nil
+		}
+		dataDeletion := auditModels.NewDataDeletion(result.StudentID, deletionType, result.Counts.Total()+result.PrimaryRowsDeleted, deletedBy)
+		dataDeletion.DeletionReason = result.Reason
+		dataDeletion.SetTenantID(actor.TenantID)
+		dataDeletion.SetMetadata("student_deletion", true)
+		dataDeletion.SetMetadata("counts", result.Counts)
+		if err := audit.Append(ctx, dataDeletion); err != nil {
+			return err
+		}
+		tombstone := &auditModels.StudentDeletion{StudentID: result.StudentID, ActorAccountID: actorID, Reason: result.Reason, Counts: auditModels.StudentDeletionCounts(result.Counts)}
+		tombstone.SetTenantID(actor.TenantID)
+		return audit.Append(ctx, tombstone)
+	}
 }

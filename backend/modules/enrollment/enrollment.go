@@ -107,7 +107,7 @@ type engine interface {
 	PendingAnnouncementApplicants(context.Context) ([]PendingAnnouncementApplicant, error)
 	CareExitApplicationLinks(context.Context, []int64) ([]CareExitApplicationLink, error)
 	CreatedStudentRequestChildIDs(context.Context, []int64) ([]int64, error)
-	CountStudentReferences(context.Context, int64) (int, error)
+	CountStudentReferencesForDeletion(context.Context, int64) (approved, total int, err error)
 	ApprovedBookings(context.Context) ([]ApprovedBooking, error)
 	OpenPhaseCandidates(context.Context) ([]*Phase, error)
 	AccountRequests(context.Context, int64, string) ([]AccountRequest, error)
