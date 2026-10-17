@@ -16,6 +16,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 )
 
@@ -53,7 +54,7 @@ func (rs *Resource) exportBetreuungsplan(w http.ResponseWriter, r *http.Request)
 		common.RenderError(w, r, planExportInvalidRenderer(err))
 		return
 	}
-	if params.Variant == planexport.VariantInternal && !common.CanExportInternalPlan(r.Context()) {
+	if params.Variant == planexport.VariantInternal && !common.CanExportInternalPlan(sessiontoken.PermissionsFromCtx(r.Context())) {
 		common.RenderError(w, r, common.ErrorForbiddenWithCode(errors.New("internal plan exports require schedules:manage"),
 			common.CodeTimetableExportInternalForbidden))
 		return
