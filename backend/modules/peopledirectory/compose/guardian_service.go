@@ -5,6 +5,7 @@ import (
 
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -31,3 +32,10 @@ func (t guardianTransactions) WithTenantTx(ctx context.Context, fn func(context.
 }
 
 func (guardianTransactions) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
+
+// ApplyDefaultGuardianRole gives a relationship the default preset its
+// relationship type, primary, emergency and pickup facts select, with the
+// permissions that preset grants.
+func ApplyDefaultGuardianRole(presets peoplePorts.GuardianRolePresets, link *users.StudentGuardian) {
+	application.ApplyDefaultGuardianRole(presets, link)
+}

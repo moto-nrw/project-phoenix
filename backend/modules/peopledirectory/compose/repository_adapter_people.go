@@ -7,7 +7,6 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -84,7 +83,7 @@ func defaultGuardianRole(presets ports.GuardianRolePresets) func(*userModels.Stu
 	if presets == nil {
 		return nil
 	}
-	return func(link *userModels.StudentGuardian) { application.ApplyDefaultGuardianRole(presets, link) }
+	return func(link *userModels.StudentGuardian) { ApplyDefaultGuardianRole(presets, link) }
 }
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.
