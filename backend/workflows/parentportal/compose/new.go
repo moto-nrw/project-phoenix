@@ -40,6 +40,7 @@ type Dependencies struct {
 	GuardianPhoneRepo   care.GuardianPhoneReads
 	StudentGuardianRepo care.StudentGuardianReads
 	ChangeRequestRepo   care.DataRequestReads
+	DataRequests        care.StudentDataRequestCommands
 	StatusDayRepo       care.StatusDayReads
 	Attendance          care.AttendanceReader
 
@@ -108,7 +109,7 @@ func New(deps Dependencies) *parentportal.Portal {
 
 func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Service) care.Config {
 	cfg := care.Config{
-		CareExceptions: bound.careExceptions, DataRequests: bound.dataRequests,
+		CareExceptions: bound.careExceptions, DataRequests: deps.DataRequests,
 		GuardianAbsences: bound.guardianAbsences, GuardianPickups: bound.guardianPickups,
 		Guardians: bound.guardians, Students: bound.students,
 		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime,
@@ -157,7 +158,6 @@ func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messag
 // excusal stays optional, as in the flows.
 type owners struct {
 	careExceptions   care.CareExceptions
-	dataRequests     care.StudentDataRequestCommands
 	guardianAbsences careplan.GuardianAbsenceReports
 	guardianPickups  careplan.GuardianPickupExceptions
 	guardians        care.GuardianRecords
@@ -169,7 +169,6 @@ func bindOwners(deps Dependencies) owners {
 	if deps.CarePlan != nil {
 		bound = owners{
 			careExceptions:   deps.CarePlan,
-			dataRequests:     deps.CarePlan,
 			guardianAbsences: mustOwner(careplancompose.NewGuardianAbsences(deps.CarePlan)),
 			guardianPickups:  mustOwner(careplancompose.NewGuardianPickupExceptions(deps.CarePlan, deps.PickupAutoExcusal)),
 		}

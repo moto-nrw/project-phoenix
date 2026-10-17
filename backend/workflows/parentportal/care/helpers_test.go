@@ -21,11 +21,13 @@ import (
 // resolution, as the portal composition does in production.
 func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) parentportal.ChildResolver {
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.ParentGuardianPolicy{},
+		GuardianPolicy: api.NewParentGuardianPolicy(),
 
 		Runtime:   api.ParentPortalRuntime{},
 		ChildRepo: repos.ParentChildReads(), StudentRepo: api.NewParentStudentReads(repos.Student),
 		RequestSharing: unusedRequestSharer{},
+
+		DeparturePolicy: api.ParentDeparturePolicy(),
 	})
 }
 

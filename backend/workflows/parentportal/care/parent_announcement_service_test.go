@@ -38,7 +38,7 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		GuardianPolicy:        api.ParentGuardianPolicy{},
+		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},
 		Declarations:          api.ParentDeclarationPolicy(),
 		Runtime:               api.ParentPortalRuntime{},

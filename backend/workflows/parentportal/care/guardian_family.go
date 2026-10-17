@@ -3,8 +3,6 @@ package care
 import (
 	"context"
 	"errors"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // callerFamilyStudentSet returns the set of student IDs (in the current tenant)
@@ -90,7 +88,7 @@ func (s *Service) profilesEscapingFamily(ctx context.Context, profileIDs []int64
 // child's pickup/emergency arrangement, not a co-parent's or social worker's
 // contact details. Read and write use the same predicate so the listing never
 // shows data the caller could then blank-overwrite.
-func contactProtected(profile *GuardianProfile, link *usersModels.StudentGuardian, isSelf, sharedAcrossFamilies bool) bool {
+func contactProtected(profile *GuardianProfile, link *GuardianRelationship, isSelf, sharedAcrossFamilies bool) bool {
 	if isSelf {
 		return false
 	}
@@ -102,7 +100,7 @@ func contactProtected(profile *GuardianProfile, link *usersModels.StudentGuardia
 // projectChildGuardian builds the parent-facing projection of one guardian.
 // sharedAcrossFamilies marks a contact-only profile that also serves a child
 // outside the caller's family — editable only by the school, not this caller.
-func projectChildGuardian(profile *GuardianProfile, link *usersModels.StudentGuardian, phones []*GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool, fullGuardianRole func(string) bool) *ChildGuardian {
+func projectChildGuardian(profile *GuardianProfile, link *GuardianRelationship, phones []*GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool, fullGuardianRole func(string) bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 	// "Account holder" derives from has_account OR account_id (HasPortalAccount),
 	// matching every write guard, so a drifted row (account_id set,

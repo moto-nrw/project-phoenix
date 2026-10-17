@@ -1,15 +1,14 @@
 package users
 
 import (
-	"errors"
-	"strings"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 )
 
 // ErrStudentGuardianNotFound is returned when no student-guardian relationship joins a
 // given student and guardian profile. Mirrors ErrGuardianProfileNotFound so
 // callers can map a missing relationship to a stable sentinel instead of
 // matching sql.ErrNoRows.
-var ErrStudentGuardianNotFound = errors.New("student guardian relationship not found")
+var ErrStudentGuardianNotFound = contact.ErrStudentGuardianNotFound
 
 // GuardianLinkedChild is a minimal projection of a child currently linked to a
 // guardian, used by the guardian picker search to show which children a guardian
@@ -71,38 +70,13 @@ func (sg *StudentGuardian) SetGuardianAuthorizationData(role string, permissions
 
 // Validate ensures student guardian data is valid
 func (sg *StudentGuardian) Validate() error {
-	if sg.StudentID <= 0 {
-		return errors.New("student ID is required")
-	}
-
-	if sg.GuardianProfileID <= 0 {
-		return errors.New("guardian profile ID is required")
-	}
-
-	// Validate relationship type
-	if sg.RelationshipType == "" {
-		return errors.New("relationship type is required")
-	}
-
-	// Convert relationship type to lowercase for consistency
-	sg.RelationshipType = strings.ToLower(sg.RelationshipType)
-
-	// Validate against the shared allowed set (single source of truth)
-	if !IsValidRelationshipType(sg.RelationshipType) {
-		return errors.New("invalid relationship type")
-	}
-
-	sg.GuardianRole = strings.ToLower(strings.TrimSpace(sg.GuardianRole))
-	if sg.GuardianRole == "" {
-		sg.GuardianRole = "custom"
-	}
-
-	// Initialize permissions with empty object if nil
-	if sg.Permissions == nil {
+	value := contact.GuardianRelationshipValues{StudentID: sg.StudentID, GuardianProfileID: sg.GuardianProfileID, RelationshipType: sg.RelationshipType, GuardianRole: sg.GuardianRole, PermissionsPresent: sg.Permissions != nil}
+	err := contact.NormalizeGuardianRelationship(&value)
+	sg.RelationshipType, sg.GuardianRole = value.RelationshipType, value.GuardianRole
+	if value.PermissionsPresent && sg.Permissions == nil {
 		sg.Permissions = make(map[string]interface{})
 	}
-
-	return nil
+	return err
 }
 
 // SetStudent links this relationship to a student

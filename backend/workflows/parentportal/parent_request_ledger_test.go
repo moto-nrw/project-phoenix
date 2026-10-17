@@ -33,7 +33,7 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -51,8 +51,10 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 		},
 		ExcusedRequests:     excused,
 		ExcusedRequestRepo:  repos.ExcusedAbsenceRequest,
-		ParentRequestEvents: events,
+		ParentRequestEvents: api.NewParentRequestEvents(events),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return svc, excused, api.NewParentRequestEventFixtureReads(events), db
 }

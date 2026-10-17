@@ -4,13 +4,15 @@ import (
 	"errors"
 	"net/mail"
 	"strings"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
 )
 
 // ErrGuardianProfileNotFound is returned by repositories when no guardian
 // profile matches the lookup. Exposed as a sentinel so callers can tell a
 // genuine "row missing" apart from an underlying DB failure via errors.Is.
 // The message text is kept stable because other packages match on it.
-var ErrGuardianProfileNotFound = errors.New("guardian profile not found")
+var ErrGuardianProfileNotFound = contact.ErrGuardianProfileNotFound
 
 // ErrGuardianAccountConflict means linking would replace another account or
 // remove an existing parent's access to children. It requires reconciliation.

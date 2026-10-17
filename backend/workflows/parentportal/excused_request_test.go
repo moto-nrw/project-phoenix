@@ -72,7 +72,7 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -95,6 +95,8 @@ func buildAbsenceApprovalServices(t *testing.T, sickRequiresApproval, excusedReq
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return svc, excused, bc, db
 }

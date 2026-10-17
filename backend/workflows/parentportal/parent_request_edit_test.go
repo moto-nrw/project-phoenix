@@ -29,7 +29,7 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -42,11 +42,13 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          api.NewParentPersonReads(repos.Person),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
-		ParentRequestEvents: events,
+		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
+		ParentRequestEvents: api.NewParentRequestEvents(events),
 		Settings:            masterDataSettings(false, true, false),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return svc, api.NewParentRequestEventFixtureReads(events), db
 }

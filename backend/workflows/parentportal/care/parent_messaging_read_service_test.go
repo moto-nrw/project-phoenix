@@ -53,7 +53,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		},
 	}
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		GuardianPolicy:        api.ParentGuardianPolicy{},
+		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},
 		Declarations:          api.ParentDeclarationPolicy(),
 		Runtime:               api.ParentPortalRuntime{},

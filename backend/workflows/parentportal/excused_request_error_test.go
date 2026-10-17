@@ -60,7 +60,7 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -75,6 +75,8 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 		StudentUpdates:  api.BindParentStudentUpdates(bc),
 		ExcusedRequests: excused,
 		Logger:          slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	}), db
 }
 

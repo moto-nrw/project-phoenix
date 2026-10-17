@@ -75,7 +75,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -87,9 +87,11 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
-		StudentGuardianRepo: repos.StudentGuardian,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
@@ -190,7 +192,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -202,9 +204,11 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
-		StudentGuardianRepo: repos.StudentGuardian,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))

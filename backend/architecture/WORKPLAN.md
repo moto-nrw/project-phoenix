@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 165 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 164 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-34.667 in `compose`
+34.630 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 3 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 2 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
@@ -21,9 +21,22 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 165 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 164 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Care verwendet native Workflow-Werte für Beziehungen, Stammdaten-Anträge
+und Ledger-Ereignisse. Die Root bindet die öffentlichen Owner-Facetten an eigene
+Ports. Dieselben Abfragen und Sperren bleiben erhalten; gemeinsame Kontaktregeln
+bewahren die kanonische Validierung samt Teil-Normalisierung vor Fehlern.
+Fehler behalten Ursache und Text. JSON bewahrt Permission-Werte, leere Objekte
+und große Ganzzahlen. Der Ledger nutzt denselben Insert mit `clock_timestamp`.
+Ein Produktionskey fällt: 165 → 164, #4073 3 → 2; #4074 bleibt bei 44.
+Regeln 844, Epoche 72 und Composition 1.657 bleiben gleich. Portal-Compose sinkt
+von 479 auf 478 LOC, die Summe von 34.631 auf 34.630. Keine neue Freigabe,
+Klassifizierung oder Ausnahme; keine neuen Typaliase und keine höheren Budgets. Routen, Antworten,
+Goldens, IoT und Portal-Isolation bleiben unverändert.
+Nachweis: [native Care-Werte](parent-portal-native-care-records-4073.json).
 
 #4073: Die äußere Workflow-Suite konstruiert Beziehungen, Telefone und
 Schutzereignisse mit nativen Testwerten. Die Root bindet Test-Facetten derselben
