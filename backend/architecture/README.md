@@ -4026,7 +4026,7 @@ refresh rotation's recovery-proof binding is handed in. Epoch 67 adds
 `identity-access.application.tenant-runtime`,
 `identity-access.application.transaction-runtime` and
 `identity-access.module-internal-test.tenant-runtime`. The composition goes
-from 7,356 to 4,073 LOC.
+from 7,356 to 4,075 LOC.
 
 ### Enrollment wiring out of services (#4012)
 

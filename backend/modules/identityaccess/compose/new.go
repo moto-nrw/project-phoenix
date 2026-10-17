@@ -144,8 +144,7 @@ func New(dependencies Dependencies) (*identityaccess.Module, error) {
 		Resets: resets, Invitations: invitations, Provisioning: provisioning, Administration: administration,
 		MFAFlows: flows, OperatorProvisioning: operatorProvisioning, SignInRetention: application.NewSignInDataRetention(store, invitationLogger(dependencies.Invitations)),
 		InvitationMaintenance: application.NewSchoolInvitationMaintenance(store, invitationLogger(dependencies.Invitations)),
-		Runtime:               runtime.Attach,
-		WithRecoveryProof:     rotation.WithRecoveryProof,
+		Runtime:               runtime.Attach, WithRecoveryProof: rotation.WithRecoveryProof,
 	})
 	return identityaccess.NewDemoModule(e, runtime, demoAccess), nil
 }
