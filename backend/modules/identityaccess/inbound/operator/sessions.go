@@ -55,11 +55,11 @@ func (s Sessions) MFAEnrollment() []func(http.Handler) http.Handler {
 // Operator authenticates an operator access token: platform scope, the
 // read-only preview guard, the security principal and an operator that is
 // still active.
-func (s Sessions) Operator() []func(http.Handler) http.Handler {
+func (s Sessions) Operator(preview func(http.Handler) http.Handler) []func(http.Handler) http.Handler {
 	return []func(http.Handler) http.Handler{
 		s.tokenAuth.Verifier(),
 		sessiontoken.Authenticator,
-		common.ReadOnlyPreviewMiddleware,
+		preview,
 		RequiresOperatorScope,
 		common.SecurityPrincipalMiddleware,
 		RequiresActiveOperator(s.operators),

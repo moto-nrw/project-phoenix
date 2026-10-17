@@ -1998,7 +1998,7 @@ func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
 				r.Use(sessiontoken.Authenticator)
-				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
+				r.Use(ReadOnlyPreviewMiddleware)
 				r.Use(TenantScopeMiddleware)
 				r.Use(apiCommon.SecurityPrincipalMiddleware)
 				register(r)
