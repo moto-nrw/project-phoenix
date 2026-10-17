@@ -39,9 +39,9 @@ func init() {
 // 1.15.453, accepts only the tenant of the calling transaction, refuses a
 // staff member who has not left before p_retired_before and a cutoff outside
 // the 730- to 2920-day frame of the time-tracking window. The frame allows
-// one more day at its far end: the nightly run computes the cutoff from its
-// own Berlin day, which can still be yesterday when the database has passed
-// midnight. It deletes every
+// one more day at both ends: the nightly run computes the cutoff from its
+// own Berlin day, which can differ from the database's day around midnight.
+// It deletes every
 // Workforce record of the staff member and queues the stored names of
 // document files that still exist in users.staff_document_file_cleanup.
 const staffRetentionUpSQL = `
@@ -76,7 +76,7 @@ const staffRetentionUpSQL = `
 			END IF;
 			invoker_is_superuser := audit.authorize_retention_tenant(p_tenant_id);
 			latest_allowed_cutoff := (
-				((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 730)::timestamp
+				((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 729)::timestamp
 			) AT TIME ZONE 'Europe/Berlin';
 			earliest_allowed_cutoff := (
 				((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 2921)::timestamp

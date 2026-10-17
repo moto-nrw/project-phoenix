@@ -36,6 +36,34 @@ func TestStaffRetentionFunctionIsOnlyForTheTenantRole(t *testing.T) {
 	assert.Equal(t, []string{"phoenix_tenant"}, grantees, "only the tenant role may run the erasure")
 }
 
+func TestStaffRetentionAllowsOneDayNewerBerlinCutoff(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	authDB := testpkg.SetupServeTestDB(t)
+	t.Cleanup(func() { require.NoError(t, authDB.Close()) })
+	tenantID, _ := testpkg.CreateTestTenant(t, db)
+	staff := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Retention", "Boundary")
+
+	_, err := db.ExecContext(context.Background(), `
+		UPDATE users.staff_school_memberships
+		SET deleted_at = (((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 730)::timestamp
+			AT TIME ZONE 'Europe/Berlin')
+		WHERE id = ?`, staff.ID)
+	require.NoError(t, err)
+
+	err = withPhoenixTenantTx(t, authDB, tenantID, func(ctx context.Context, tx testpkg.Tx) error {
+		_, err := tx.ExecContext(ctx, `
+			SELECT users.erase_retired_staff_records(
+				?,
+				?,
+				(((clock_timestamp() AT TIME ZONE 'Europe/Berlin')::date - 729)::timestamp
+					AT TIME ZONE 'Europe/Berlin')
+			)`, tenantID, staff.ID)
+		return err
+	})
+	require.NoError(t, err, "the guard accepts the cutoff from an application already on the next Berlin day")
+}
+
 func TestStaffRetentionRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
