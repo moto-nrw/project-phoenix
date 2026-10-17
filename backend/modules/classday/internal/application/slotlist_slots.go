@@ -485,6 +485,15 @@ func (s *service) classifyPlannedRow(
 		return presentOnlyEntry(p, row.StudentID, present), true
 	case row.ManualStatusAt == nil && rawCareDay == ports.CareDayCancelled:
 		return cancelledPlannedEntry(p, row, present)
+	default:
+		return classifyRosterExpectation(p, row, present, verdict)
+	}
+}
+
+// classifyRosterExpectation applies the roster's frozen expectation after the
+// unplanned and live care-day cases have been handled.
+func classifyRosterExpectation(p slotContext, row ports.InstanceStudent, present bool, verdict ports.CareDay) ([]mergedEntry, bool) {
+	switch {
 	case row.Status == ports.AttendanceExpected && !verdict.Expected():
 		// #1747 non-booking safety net for a COMPLETED block: ending the slot
 		// froze the not_scheduled marker into the row, so AttendanceRowCareDay
@@ -504,7 +513,7 @@ func (s *service) classifyPlannedRow(
 	default:
 		return []mergedEntry{{
 			StudentID:        row.StudentID,
-			InstanceID:       inst.ID,
+			InstanceID:       p.inst.ID,
 			SlotLabel:        p.slotLabel,
 			RoomName:         p.roomName,
 			Planned:          true,
