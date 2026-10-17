@@ -178,9 +178,9 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(bc),
-		MessageThreadRepo: repos.ParentMessageThread,
-		MessageRepo:       communicationtest.NewParentMessageRepository(db),
-		MessageReadRepo:   repos.ParentMessageRead,
+		MessageThreadRepo: api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:       api.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:   api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:     api.NewParentConversationCore(repos.ParentMessageThread, communicationtest.NewParentMessageRepository(db), repos.ParentMessageRead, bc, slog.Default()),
 		Logger:            slog.Default(),
 

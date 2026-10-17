@@ -51,8 +51,8 @@ type PeopleRepositorySuiteFactory struct {
 	ParentPortalRepositories
 	GuardianPhoneNumber   peoplePorts.GuardianPhoneNumberRepository
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
-	FamilyProtection      usersModels.FamilyProtectionEventRepository
-	ParentRequestShare    usersModels.ParentRequestShareEventRepository
+	FamilyProtection      peoplePorts.FamilyProtectionRecords
+	ParentRequestShare    peoplePorts.ParentRequestShareRecords
 	ParentRequestEvent    peoplePorts.ParentRequestEventRecords
 	GroupSubstitution     GroupSubstitutionRepository
 	CaregiverBindingLock  peoplePorts.CaregiverBindingLocker
@@ -196,7 +196,7 @@ func NewPeopleRepositorySuiteParentMessaging(db transactionruntime.Database) (Pa
 
 // NewPeopleRepositorySuiteAnnouncements is the parent announcement store over
 // the given Enrollment audience queries.
-func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) usersModels.ParentAnnouncementRepository {
+func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audience AnnouncementEnrollmentQueries, clocks ...func() time.Time) parentStore.ParentAnnouncementRepository {
 	return parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(audience), guardianLinkView.NewReader(), clocks...)
 }
 

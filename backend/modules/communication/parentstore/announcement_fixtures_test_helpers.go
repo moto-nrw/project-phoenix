@@ -75,13 +75,20 @@ func (f ParentAnnouncementFixtures) ListOptions(ctx context.Context, id int64) (
 	return values, err
 }
 
-// Declaration reads retain the workflow's existing vocabulary. This fixture
-// cutover does not claim to remove its retained production DTO dependency.
-func (f ParentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, row *usersModels.DeclarationVersion) error {
-	return f.repo.InsertDeclarationVersion(ctx, row)
+// Declarations use the same stored records and canonical owner encoding.
+func (f ParentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, value *communication.PortalDeclarationVersion) error {
+	row := portalRecordPointer(value, portalToRetainedDeclarationVersion)
+	err := f.repo.InsertDeclarationVersion(ctx, row)
+	if value != nil && row != nil {
+		*value = portalFromRetainedDeclarationVersion(*row)
+	}
+	return err
 }
-func (f ParentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*usersModels.DeclarationSubmission, error) {
-	return f.repo.ListDeclarationSubmissions(ctx, tenantID, id)
+func (f ParentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*communication.PortalDeclarationSubmission, error) {
+	rows, err := f.repo.ListDeclarationSubmissions(ctx, tenantID, id)
+	return portalRecordSlice(rows, func(row *usersModels.DeclarationSubmission) *communication.PortalDeclarationSubmission {
+		return portalRecordPointer(row, portalFromRetainedDeclarationSubmission)
+	}), err
 }
 
 func announcementFixtureToRow(value *communication.ParentAnnouncementFixture) *usersModels.ParentAnnouncement {

@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -56,7 +55,7 @@ var (
 // schools, newest-published first, each with the guardian's read/ack state.
 // Schools that have turned the news feature off are excluded so the feed agrees
 // with the unread badge. Cross-tenant.
-func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*usersModels.AnnouncementFeedItem, error) {
+func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
 	}
@@ -65,9 +64,9 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 		return nil, err
 	}
 	if scope.IsEmpty() {
-		return []*usersModels.AnnouncementFeedItem{}, nil
+		return []*AnnouncementFeedItem{}, nil
 	}
-	var out []*usersModels.AnnouncementFeedItem
+	var out []*AnnouncementFeedItem
 	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		rows, err := s.AnnouncementRepo.ListFeedForAccount(adminCtx, accountID, scope)
 		if err != nil {
@@ -88,17 +87,17 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 // for the poll items of a feed page, in two batched queries rather than one per
 // item. Plain Mitteilungen are skipped entirely, so a feed without polls costs
 // nothing extra.
-func (s *Service) attachPollData(ctx context.Context, accountID int64, items []*usersModels.AnnouncementFeedItem) error {
+func (s *Service) attachPollData(ctx context.Context, accountID int64, items []*AnnouncementFeedItem) error {
 	pollIDs := make([]int64, 0, len(items))
-	byID := make(map[int64]*usersModels.AnnouncementFeedItem, len(items))
+	byID := make(map[int64]*AnnouncementFeedItem, len(items))
 	for _, item := range items {
 		if !item.IsPoll() {
 			continue
 		}
 		pollIDs = append(pollIDs, item.ID)
 		byID[item.ID] = item
-		item.Options = []*usersModels.ParentAnnouncementOption{}
-		item.Children = []*usersModels.AnnouncementPollChild{}
+		item.Options = []*ParentAnnouncementOption{}
+		item.Children = []*AnnouncementPollChild{}
 	}
 	if len(pollIDs) == 0 {
 		return nil
@@ -349,7 +348,7 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	if deadline != nil && !deadline.After(time.Now()) {
 		return ErrPollClosed
 	}
-	var options []*usersModels.ParentAnnouncementOption
+	var options []*ParentAnnouncementOption
 	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
 		options, err = s.AnnouncementRepo.ListOptions(adminCtx, announcementID)
@@ -395,9 +394,9 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	})
 }
 
-func validPollSelection(responseType string, options []*usersModels.ParentAnnouncementOption, optionIDs []int64) bool {
-	if responseType != usersModels.ParentAnnouncementResponseSingleChoice &&
-		responseType != usersModels.ParentAnnouncementResponseMultiChoice {
+func validPollSelection(responseType string, options []*ParentAnnouncementOption, optionIDs []int64) bool {
+	if responseType != ParentAnnouncementResponseSingleChoice &&
+		responseType != ParentAnnouncementResponseMultiChoice {
 		return false
 	}
 	if len(optionIDs) == 0 {
@@ -417,7 +416,7 @@ func validPollSelection(responseType string, options []*usersModels.ParentAnnoun
 		}
 		seen[optionID] = struct{}{}
 	}
-	return responseType != usersModels.ParentAnnouncementResponseSingleChoice || len(optionIDs) == 1
+	return responseType != ParentAnnouncementResponseSingleChoice || len(optionIDs) == 1
 }
 
 // announcementVisibleForTenant is the per-announcement feature gate shared by
@@ -452,8 +451,8 @@ func (s *Service) announcementVisibleForTenant(ctx context.Context, tenantID, an
 // feed is visible (news on) and those that contribute system-authored rows
 // (every school). See newsEnabledTenants for how the candidate set is
 // derived.
-func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (usersModels.AnnouncementFeedScope, error) {
-	var scope usersModels.AnnouncementFeedScope
+func (s *Service) announcementFeedScope(ctx context.Context, accountID int64) (AnnouncementFeedScope, error) {
+	var scope AnnouncementFeedScope
 	allTenantIDs, err := s.announcementTenants(ctx, accountID)
 	if err != nil {
 		return scope, err
@@ -537,7 +536,7 @@ func (s *Service) announcementTenants(ctx context.Context, accountID int64) ([]i
 
 // announcementIsLive reports whether an announcement is currently visible to
 // guardians: active, published, publish time reached, not past expiry.
-func announcementIsLive(a *usersModels.ParentAnnouncement) bool {
+func announcementIsLive(a *ParentAnnouncement) bool {
 	if a == nil || !a.Active || a.PublishedAt == nil {
 		return false
 	}
