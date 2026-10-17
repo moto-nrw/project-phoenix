@@ -9,13 +9,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -66,14 +66,14 @@ func linkContactOnlyGuardian(t *testing.T, db *bun.DB, studentID int64, emailSee
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	ctx := testpkg.Ctx(t)
 	profile := testpkg.CreateTestGuardianProfile(t, db, emailSeed)
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
 		EmergencyPriority: 2,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
 		_, _ = db.NewDelete().TableExpr("users.guardian_phone_numbers").Where("guardian_profile_id = ?", profile.ID).Exec(bg)
@@ -403,14 +403,14 @@ func TestUpdateGuardianContact_RejectsCrossFamilySharedProfile(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("users.student_profiles").Where("id = ?", other.ID).Exec(bg)
 		_, _ = db.NewDelete().TableExpr("users.persons").Where("id = ?", other.PersonID).Exec(bg)
 	}()
-	otherLink := &userModels.StudentGuardian{
+	otherLink := &peopledirectory.GuardianLinkFixture{
 		StudentID:         other.ID,
 		GuardianProfileID: contactID,
 		RelationshipType:  "relative",
 		EmergencyPriority: 2,
 	}
-	otherLink.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentGuardian.Create(testpkg.Ctx(t), otherLink))
+	otherLink.TenantID = testpkg.Tenant(t)
+	require.NoError(t, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CreateGuardianLinkFixture(testpkg.Ctx(t), otherLink))
 
 	_, err := svc.UpdateGuardianContact(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, contactID, parentService.GuardianContactInput{
 		FirstName: "Helga",
@@ -765,7 +765,7 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 	t.Helper()
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	account := testpkg.CreateTestAccount(t, db, "parent")
-	profile := &userModels.GuardianProfile{
+	profile := &testpkg.GuardianProfile{
 		FirstName:              "Other",
 		LastName:               "Guardian",
 		Email:                  &account.Email,
@@ -774,7 +774,7 @@ func linkAccountGuardian(t *testing.T, db *bun.DB, studentID int64, seed string,
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(testpkg.Tenant(t))
+	profile.TenantID = testpkg.Tenant(t)
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	require.NoError(t, err)
 
@@ -883,25 +883,25 @@ func linkRoleGuardian(t *testing.T, db *bun.DB, studentID int64, emailSeed, role
 	profile.AddressStreet = ptr("Amtsstr. 5")
 	require.NoError(t, repos.GuardianProfile.Update(ctx, profile))
 
-	phone := &userModels.GuardianPhoneNumber{
+	phone := &peopledirectory.GuardianPhoneFixture{
 		GuardianProfileID: profile.ID,
 		PhoneNumber:       "0151 99999999",
-		PhoneType:         userModels.PhoneTypeMobile,
+		PhoneType:         peopledirectory.PhoneTypeMobile,
 		IsPrimary:         true,
 		Priority:          1,
 	}
-	phone.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.GuardianPhoneNumber.Create(ctx, phone))
+	phone.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianPhoneFixture(ctx, phone))
 
-	link := &userModels.StudentGuardian{
+	link := &peopledirectory.GuardianLinkFixture{
 		StudentID:         studentID,
 		GuardianProfileID: profile.ID,
 		RelationshipType:  "relative",
 		GuardianRole:      role,
 		EmergencyPriority: 2,
 	}
-	link.SetTenantID(testpkg.Tenant(t))
-	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, repos.CreateGuardianLinkFixture(ctx, link))
 
 	cleanup := func() {
 		bg := testpkg.WithPackageTenantRuntime(context.Background())
@@ -1343,7 +1343,7 @@ func driftedGuardianInsertErr(t *testing.T, db *bun.DB, accountID *int64, hasAcc
 	t.Helper()
 	ctx := testpkg.WithPackageTenantRuntime(context.Background())
 	email := emailSeed + "@drift.test"
-	profile := &userModels.GuardianProfile{
+	profile := &testpkg.GuardianProfile{
 		FirstName:              "Drifted",
 		LastName:               "Helper",
 		Email:                  &email,
@@ -1352,7 +1352,7 @@ func driftedGuardianInsertErr(t *testing.T, db *bun.DB, accountID *int64, hasAcc
 		PreferredContactMethod: "email",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(testpkg.Tenant(t))
+	profile.TenantID = testpkg.Tenant(t)
 	_, err := db.NewInsert().Model(profile).ModelTableExpr(`users.guardian_profiles`).Exec(ctx)
 	if err == nil {
 		_, _ = db.NewDelete().TableExpr("users.guardian_profiles").Where("id = ?", profile.ID).Exec(ctx)
@@ -1395,24 +1395,24 @@ func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
 
 // guardianProfiles is the guardian-profile surface the portal reads; the test
 // may not name the portal's own ports.
-type guardianProfiles interface {
-	FindByID(ctx context.Context, id int64) (*userModels.GuardianProfile, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
-	FindByEmail(ctx context.Context, email string) (*userModels.GuardianProfile, error)
-	FindByAccountID(ctx context.Context, accountID int64) (*userModels.GuardianProfile, error)
+type guardianProfiles[T any] interface {
+	FindByID(ctx context.Context, id int64) (*T, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*T, error)
+	FindByEmail(ctx context.Context, email string) (*T, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*T, error)
 	LockByIDForUpdate(ctx context.Context, id int64) error
-	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.GuardianProfile, error)
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*T, error)
 }
 
 // emailLookupFailingGuardianRepo wraps the real guardian-profile repository and
 // fails FindByEmail with a fixed error, delegating everything else. It lets the
 // email-lookup-error test inject a DB/RLS-style failure on exactly that call.
-type emailLookupFailingGuardianRepo struct {
-	guardianProfiles
+type emailLookupFailingGuardianRepo[T any] struct {
+	guardianProfiles[T]
 	err error
 }
 
-func (r emailLookupFailingGuardianRepo) FindByEmail(context.Context, string) (*userModels.GuardianProfile, error) {
+func (r emailLookupFailingGuardianRepo[T]) FindByEmail(context.Context, string) (*T, error) {
 	return nil, r.err
 }
 
@@ -1446,7 +1446,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: emailLookupFailingGuardianRepo{guardianProfiles: repos.GuardianProfile, err: lookupErr},
+		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(repos.GuardianProfile, lookupErr),
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		Logger:              slog.Default(),
 	})
@@ -1483,4 +1483,8 @@ func guardianFirstName(t *testing.T, db *bun.DB, profileID int64) string {
 		Scan(testpkg.WithPackageTenantRuntime(context.Background()), &name)
 	require.NoError(t, err)
 	return name
+}
+
+func newEmailLookupFailingGuardianRepo[T any](source guardianProfiles[T], err error) emailLookupFailingGuardianRepo[T] {
+	return emailLookupFailingGuardianRepo[T]{guardianProfiles: source, err: err}
 }
