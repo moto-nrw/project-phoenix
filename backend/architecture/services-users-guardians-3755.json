@@ -61,9 +61,9 @@
   "runtime_evidence": {
     "source": "Local runs on the #3755 branch on 2026-10-12 against the local postgres-test server.",
     "sources": [
-      "backend/modules/peopledirectory/compose/guardian_service.go",
-      "backend/modules/peopledirectory/compose/guardian_payment_service.go",
-      "backend/modules/peopledirectory/compose/guardian_ports.go",
+      "backend/modules/peopledirectory/internal/application/guardian_service.go",
+      "backend/modules/peopledirectory/internal/application/guardian_payment_service.go",
+      "backend/modules/peopledirectory/ports/guardian_ports.go",
       "backend/api/guardian_service_ports.go",
       "backend/api/service_graph_compose.go"
     ],

@@ -845,7 +845,7 @@ type PlatformWiring struct {
 
 // GuardianDisplayQuery names the guardians of the Delivery recipients.
 type GuardianDisplayQuery interface {
-	GuardianDisplays(context.Context, []int64) ([]peopleCompose.GuardianDisplay, error)
+	GuardianDisplays(context.Context, []int64) ([]peoplePorts.GuardianDisplay, error)
 }
 
 // OperatorProvisioningSources are the values of this graph the root binds

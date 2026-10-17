@@ -1,17 +1,17 @@
-package compose
+package application
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The phone numbers of a guardian profile.
 
 // AddPhoneNumber adds a new phone number to a guardian
-func (s *GuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest) (*users.GuardianPhoneNumber, error) {
 	// Lock the guardian profile so phone-list writers serialize with the
 	// parents-portal contact path, which locks the same row before its wholesale
 	// phone replace (delete-all + re-insert) — see UpdateGuardian. Without this a
@@ -57,7 +57,7 @@ func (s *GuardianService) AddPhoneNumber(ctx context.Context, guardianID int64, 
 // newGuardianPhone builds the phone row AddPhoneNumber inserts: next
 // priority, a known phone type, and primary when it is the guardian's first
 // number or the request asks for it.
-func (s *GuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req PhoneNumberCreateRequest, count int) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) newGuardianPhone(ctx context.Context, guardianID int64, req peoplePorts.PhoneNumberCreateRequest, count int) (*users.GuardianPhoneNumber, error) {
 	// Get next priority
 	priority, err := s.GuardianPhoneNumberRepo.GetNextPriority(ctx, guardianID)
 	if err != nil {
@@ -79,12 +79,12 @@ func (s *GuardianService) newGuardianPhone(ctx context.Context, guardianID int64
 		IsPrimary: req.IsPrimary || count == 0,
 		Priority:  priority,
 	}
-	phone.SetTenantID(tenant.FromContext(ctx))
+	phone.SetTenantID(s.transactions.TenantID(ctx))
 	return phone, nil
 }
 
 // UpdatePhoneNumber updates an existing phone number
-func (s *GuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req PhoneNumberUpdateRequest) error {
+func (s *RetainedGuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, req peoplePorts.PhoneNumberUpdateRequest) error {
 	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
 		return fmt.Errorf(errMsgPhoneNotFound, err)
@@ -134,7 +134,7 @@ func (s *GuardianService) UpdatePhoneNumber(ctx context.Context, phoneID int64, 
 }
 
 // DeletePhoneNumber removes a phone number
-func (s *GuardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
+func (s *RetainedGuardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) error {
 	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
 		return fmt.Errorf(errMsgPhoneNotFound, err)
@@ -171,7 +171,7 @@ func (s *GuardianService) DeletePhoneNumber(ctx context.Context, phoneID int64) 
 }
 
 // SetPrimaryPhone sets a phone number as the primary contact
-func (s *GuardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
+func (s *RetainedGuardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) error {
 	phone, err := s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 	if err != nil {
 		return fmt.Errorf(errMsgPhoneNotFound, err)
@@ -190,11 +190,11 @@ func (s *GuardianService) SetPrimaryPhone(ctx context.Context, phoneID int64) er
 }
 
 // GetGuardianPhoneNumbers retrieves all phone numbers for a guardian, sorted by priority
-func (s *GuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) GetGuardianPhoneNumbers(ctx context.Context, guardianID int64) ([]*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByGuardianID(ctx, guardianID)
 }
 
 // GetPhoneNumberByID retrieves a phone number by ID
-func (s *GuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
+func (s *RetainedGuardianService) GetPhoneNumberByID(ctx context.Context, phoneID int64) (*users.GuardianPhoneNumber, error) {
 	return s.GuardianPhoneNumberRepo.FindByID(ctx, phoneID)
 }

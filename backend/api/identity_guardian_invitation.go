@@ -12,7 +12,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -195,7 +195,7 @@ func (r guardianInvitationReads) owner() (identityaccess.GuardianInvitations, er
 	return module, nil
 }
 
-func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]peopleCompose.GuardianInvitationRecord, error) {
+func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]peoplePorts.GuardianInvitationRecord, error) {
 	module, err := r.owner()
 	if err != nil {
 		return nil, err
@@ -207,7 +207,7 @@ func (r guardianInvitationReads) ListOpen(ctx context.Context, guardianProfileID
 	return guardianListRecords(invitations), nil
 }
 
-func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peopleCompose.GuardianInvitationRecord, error) {
+func (r guardianInvitationReads) ListRedeemable(ctx context.Context) ([]peoplePorts.GuardianInvitationRecord, error) {
 	module, err := r.owner()
 	if err != nil {
 		return nil, err
@@ -240,10 +240,10 @@ func (r guardianInvitationReads) ListByProfile(ctx context.Context, guardianProf
 	return result, nil
 }
 
-func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peopleCompose.GuardianInvitationRecord {
-	result := make([]peopleCompose.GuardianInvitationRecord, 0, len(invitations))
+func guardianListRecords(invitations []identityaccess.GuardianInvitation) []peoplePorts.GuardianInvitationRecord {
+	result := make([]peoplePorts.GuardianInvitationRecord, 0, len(invitations))
 	for _, invitation := range invitations {
-		result = append(result, peopleCompose.GuardianInvitationRecord{
+		result = append(result, peoplePorts.GuardianInvitationRecord{
 			ID: invitation.ID, TenantID: invitation.TenantID, Token: invitation.Token,
 			GuardianProfileID: invitation.GuardianProfileID, CreatedBy: invitation.CreatedBy,
 			ExpiresAt: invitation.ExpiresAt, AcceptedAt: invitation.AcceptedAt, EmailSentAt: invitation.EmailSentAt,

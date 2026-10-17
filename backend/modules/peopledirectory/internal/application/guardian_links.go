@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -7,14 +7,14 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The links between guardians and students: reading them with their
 // invitation state, creating, updating and removing them.
 
 // GetStudentGuardians retrieves all guardians for a student
-func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int64) ([]*GuardianWithRelationship, error) {
+func (s *RetainedGuardianService) GetStudentGuardians(ctx context.Context, studentID int64) ([]*peoplePorts.GuardianWithRelationship, error) {
 	relationships, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, err
@@ -37,7 +37,7 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 		return nil, err
 	}
 
-	result := make([]*GuardianWithRelationship, 0, len(relationships))
+	result := make([]*peoplePorts.GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
 		profile, ok := profiles[rel.GuardianProfileID]
 		if !ok {
@@ -46,7 +46,7 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 
 		profile.PhoneNumbers = phonesByProfile[profile.ID]
 
-		result = append(result, &GuardianWithRelationship{
+		result = append(result, &peoplePorts.GuardianWithRelationship{
 			Profile:           profile,
 			Relationship:      rel,
 			InvitationPending: invitationPendingForStudent(profile, rel.StudentID, openInvitations[profile.ID]),
@@ -62,7 +62,7 @@ func (s *GuardianService) GetStudentGuardians(ctx context.Context, studentID int
 // WITH an account can still have an open invitation — a pending-approval
 // role-upgrade request (#2172) — but only one anchored to this child counts,
 // so a sibling's invite never marks an unrelated row as pending.
-func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []GuardianInvitationRecord) bool {
+func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64, invitations []peoplePorts.GuardianInvitationRecord) bool {
 	for _, inv := range invitations {
 		if profile.HasAccount && (inv.StudentID == nil || *inv.StudentID != studentID) {
 			continue
@@ -74,8 +74,8 @@ func invitationPendingForStudent(profile *users.GuardianProfile, studentID int64
 
 // openInvitationsByProfile batches the open-invitation status used by the
 // guardian list. The repository excludes accepted, expired, and rejected rows.
-func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]GuardianInvitationRecord, error) {
-	byProfile := make(map[int64][]GuardianInvitationRecord)
+func (s *RetainedGuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]peoplePorts.GuardianInvitationRecord, error) {
+	byProfile := make(map[int64][]peoplePorts.GuardianInvitationRecord)
 	invitations, err := s.GuardianInvitations.ListOpen(ctx, profileIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load open guardian invitations: %w", err)
@@ -87,7 +87,7 @@ func (s *GuardianService) openInvitationsByProfile(ctx context.Context, profileI
 }
 
 // GetGuardianStudents retrieves all students for a guardian
-func (s *GuardianService) GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*StudentWithRelationship, error) {
+func (s *RetainedGuardianService) GetGuardianStudents(ctx context.Context, guardianProfileID int64) ([]*peoplePorts.StudentWithRelationship, error) {
 	relationships, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
@@ -102,14 +102,14 @@ func (s *GuardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 		return nil, err
 	}
 
-	result := make([]*StudentWithRelationship, 0, len(relationships))
+	result := make([]*peoplePorts.StudentWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
 		student, ok := students[rel.StudentID]
 		if !ok || student.IsAlumnus() {
 			continue // Skip missing and graduated students
 		}
 
-		result = append(result, &StudentWithRelationship{
+		result = append(result, &peoplePorts.StudentWithRelationship{
 			Student:      student,
 			Relationship: rel,
 		})
@@ -120,12 +120,12 @@ func (s *GuardianService) GetGuardianStudents(ctx context.Context, guardianProfi
 
 // applyRolePreset sets the relationship's role to the preset and its
 // parent-portal permissions to exactly the ones the preset grants.
-func (s *GuardianService) applyRolePreset(relationship *users.StudentGuardian, role string) {
+func (s *RetainedGuardianService) applyRolePreset(relationship *users.StudentGuardian, role string) {
 	ApplyGuardianRolePreset(s.RolePresets, relationship, role)
 }
 
 // LinkGuardianToStudent creates a relationship between guardian and student
-func (s *GuardianService) LinkGuardianToStudent(ctx context.Context, req StudentGuardianCreateRequest) (*users.StudentGuardian, error) {
+func (s *RetainedGuardianService) LinkGuardianToStudent(ctx context.Context, req peoplePorts.StudentGuardianCreateRequest) (*users.StudentGuardian, error) {
 	// Validate guardian profile exists
 	if _, err := s.GuardianProfileRepo.FindByID(ctx, req.GuardianProfileID); err != nil {
 		return nil, fmt.Errorf(errMsgGuardianNotFound, err)
@@ -137,7 +137,7 @@ func (s *GuardianService) LinkGuardianToStudent(ctx context.Context, req Student
 	}
 
 	if s.RolePresets == nil {
-		return nil, errGuardianRolePresetsUnbound
+		return nil, errGuardianServiceRolePresetsUnbound
 	}
 	role := req.GuardianRole
 	if strings.TrimSpace(role) == "" {
@@ -156,7 +156,7 @@ func (s *GuardianService) LinkGuardianToStudent(ctx context.Context, req Student
 		EmergencyPriority:  req.EmergencyPriority,
 	}
 	s.applyRolePreset(relationship, role)
-	relationship.SetTenantID(tenant.FromContext(ctx))
+	relationship.SetTenantID(s.transactions.TenantID(ctx))
 
 	// Idempotent on an existing link: re-linking a guardian already attached to
 	// this student is a pure NO-OP, never an error. LinkIfNotExists inserts via
@@ -183,7 +183,7 @@ func (s *GuardianService) LinkGuardianToStudent(ctx context.Context, req Student
 }
 
 // existingGuardianLink returns the stored link of the guardian to the student.
-func (s *GuardianService) existingGuardianLink(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error) {
+func (s *RetainedGuardianService) existingGuardianLink(ctx context.Context, studentID, guardianProfileID int64) (*users.StudentGuardian, error) {
 	existingLinks, err := s.StudentGuardianRepo.FindByStudentID(ctx, studentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load existing guardian link: %w", err)
@@ -198,7 +198,7 @@ func (s *GuardianService) existingGuardianLink(ctx context.Context, studentID, g
 }
 
 // GetStudentGuardianRelationship retrieves a student-guardian relationship by ID
-func (s *GuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
+func (s *RetainedGuardianService) GetStudentGuardianRelationship(ctx context.Context, relationshipID int64) (*users.StudentGuardian, error) {
 	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
 		return nil, fmt.Errorf("relationship not found: %w", err)
@@ -207,7 +207,7 @@ func (s *GuardianService) GetStudentGuardianRelationship(ctx context.Context, re
 }
 
 // UpdateStudentGuardianRelationship updates a student-guardian relationship
-func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req StudentGuardianUpdateRequest) error {
+func (s *RetainedGuardianService) UpdateStudentGuardianRelationship(ctx context.Context, relationshipID int64, req peoplePorts.StudentGuardianUpdateRequest) error {
 	relationship, err := s.StudentGuardianRepo.FindByID(ctx, relationshipID)
 	if err != nil {
 		return fmt.Errorf("relationship not found: %w", err)
@@ -219,7 +219,7 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 	}
 	if req.GuardianRole != nil {
 		if s.RolePresets == nil {
-			return errGuardianRolePresetsUnbound
+			return errGuardianServiceRolePresetsUnbound
 		}
 		s.applyRolePreset(relationship, *req.GuardianRole)
 	}
@@ -275,13 +275,13 @@ func (s *GuardianService) UpdateStudentGuardianRelationship(ctx context.Context,
 // caller without that permission gets ErrPayerRemovalRequiresFinancial and the
 // relationship stays intact. The check runs under the student lock so a payer
 // assigned concurrently cannot slip past it.
-func (s *GuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
-	return s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
+func (s *RetainedGuardianService) RemoveGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+	return s.transactions.RunInTx(ctx, func(txCtx context.Context) error {
 		return s.removeGuardianFromStudent(txCtx, studentID, guardianProfileID, changedByAccountID, mayClearPayer)
 	})
 }
 
-func (s *GuardianService) removeGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
+func (s *RetainedGuardianService) removeGuardianFromStudent(ctx context.Context, studentID, guardianProfileID, changedByAccountID int64, mayClearPayer bool) error {
 	// The student row serializes this deletion with SetStudentPayer, which
 	// takes the same lock before it reads a relationship's is_payer state.
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
@@ -305,10 +305,10 @@ func (s *GuardianService) removeGuardianFromStudent(ctx context.Context, student
 
 // deleteGuardianLink removes one link. Clearing the payer mark with it needs
 // the financial permission and writes the payer audit row first.
-func (s *GuardianService) deleteGuardianLink(ctx context.Context, rel *users.StudentGuardian, changedByAccountID int64, mayClearPayer bool) error {
+func (s *RetainedGuardianService) deleteGuardianLink(ctx context.Context, rel *users.StudentGuardian, changedByAccountID int64, mayClearPayer bool) error {
 	if rel.IsPayer {
 		if !mayClearPayer {
-			return ErrPayerRemovalRequiresFinancial
+			return peoplePorts.ErrPayerRemovalRequiresFinancial
 		}
 		if err := s.recordPayerChange(ctx, rel.GuardianProfileID, rel.StudentID, changedByAccountID, "true", "false"); err != nil {
 			return err

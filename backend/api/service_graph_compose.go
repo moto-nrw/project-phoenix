@@ -541,18 +541,16 @@ func composePeople(b graphBuild) (graphBuild, error) {
 		return b, fmt.Errorf("staff admin: %w", err)
 	}
 	b.graph.StaffDocuments = staffAdmin
-	b.graph.Guardian = peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
+	b.graph.Guardian = peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: people.GuardianProfiles, GuardianPhoneNumberRepo: peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool()),
 		StudentGuardianRepo: people.StudentGuardians, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentRepo: people.Students, PersonRepo: people.Persons,
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(b.DB.Pool()),
 		GuardianFinancialAudit: people.GuardianFinancialAudit(b.audits.GuardianFinancialChange),
 		DataAccessLog:          people.GuardianDataAccessLog(b.audits.DataAccessLog),
-		RolePresets: peopleCompose.GuardianRolePresetFuncs{
+		RolePresets: peoplePorts.GuardianRolePresetFuncs{
 			Default: securityruntime.DefaultStudentGuardianRole, Presets: securityruntime.StudentGuardianRolePreset,
-		},
-		DB: b.DB.Pool(),
-	})
+		}}, b.DB.Pool())
 	b.graph.PeopleDirectory = b.Persons
 	return b, nil
 }

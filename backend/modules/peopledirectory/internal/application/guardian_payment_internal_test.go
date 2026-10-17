@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"errors"
@@ -6,6 +6,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 func paymentStrPtr(v string) *string { return &v }
@@ -18,7 +20,7 @@ func TestNormalizeGuardianPaymentInput(t *testing.T) {
 
 	t.Run("normalizes spacing and case", func(t *testing.T) {
 		t.Parallel()
-		out, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
+		out, err := normalizeGuardianPaymentInput(ports.GuardianPaymentInput{
 			IBAN: paymentStrPtr("  de89 3704 0044 0532 0130 00 "),
 		})
 		require.NoError(t, err)
@@ -29,24 +31,24 @@ func TestNormalizeGuardianPaymentInput(t *testing.T) {
 	t.Run("rejects a broken checksum", func(t *testing.T) {
 		t.Parallel()
 		// Same shape as the valid IBAN above, last digit changed.
-		_, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
+		_, err := normalizeGuardianPaymentInput(ports.GuardianPaymentInput{
 			IBAN: paymentStrPtr("DE89370400440532013001"),
 		})
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, ErrGuardianPaymentInvalid))
+		assert.True(t, errors.Is(err, ports.ErrGuardianPaymentInvalid))
 	})
 
 	t.Run("rejects a checksum-valid IBAN with the wrong country length", func(t *testing.T) {
 		t.Parallel()
-		_, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
+		_, err := normalizeGuardianPaymentInput(ports.GuardianPaymentInput{
 			IBAN: paymentStrPtr("DE41370400440532013"),
 		})
-		require.ErrorIs(t, err, ErrGuardianIBANInvalid)
+		require.ErrorIs(t, err, ports.ErrGuardianIBANInvalid)
 	})
 
 	t.Run("empty values clear the fields", func(t *testing.T) {
 		t.Parallel()
-		out, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
+		out, err := normalizeGuardianPaymentInput(ports.GuardianPaymentInput{
 			IBAN:          paymentStrPtr("   "),
 			AccountHolder: paymentStrPtr(""),
 		})
@@ -57,7 +59,7 @@ func TestNormalizeGuardianPaymentInput(t *testing.T) {
 
 	t.Run("account holder is trimmed and bounded", func(t *testing.T) {
 		t.Parallel()
-		out, err := normalizeGuardianPaymentInput(GuardianPaymentInput{
+		out, err := normalizeGuardianPaymentInput(ports.GuardianPaymentInput{
 			AccountHolder: paymentStrPtr("  Sabine Schneider  "),
 		})
 		require.NoError(t, err)
@@ -68,11 +70,11 @@ func TestNormalizeGuardianPaymentInput(t *testing.T) {
 		for i := range long {
 			long[i] = 'a'
 		}
-		_, err = normalizeGuardianPaymentInput(GuardianPaymentInput{
+		_, err = normalizeGuardianPaymentInput(ports.GuardianPaymentInput{
 			AccountHolder: paymentStrPtr(string(long)),
 		})
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, ErrGuardianPaymentInvalid))
+		assert.True(t, errors.Is(err, ports.ErrGuardianPaymentInvalid))
 	})
 }
 
@@ -94,7 +96,7 @@ func TestSamePayer(t *testing.T) {
 func TestGuardianPaymentRowHasIBAN(t *testing.T) {
 	t.Parallel()
 
-	assert.False(t, GuardianPaymentRow{}.HasIBAN())
-	assert.True(t, GuardianPaymentRow{IBANMasked: "•••• 3000"}.HasIBAN())
-	assert.True(t, GuardianPaymentRow{IBAN: "DE89370400440532013000"}.HasIBAN())
+	assert.False(t, ports.GuardianPaymentRow{}.HasIBAN())
+	assert.True(t, ports.GuardianPaymentRow{IBANMasked: "•••• 3000"}.HasIBAN())
+	assert.True(t, ports.GuardianPaymentRow{IBAN: "DE89370400440532013000"}.HasIBAN())
 }

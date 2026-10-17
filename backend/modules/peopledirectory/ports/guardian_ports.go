@@ -64,3 +64,14 @@ type GuardianDataAccess struct {
 type GuardianDataAccessLog interface {
 	RecordGuardianDataAccess(ctx context.Context, access GuardianDataAccess) error
 }
+
+// GuardianRolePresets is the Security Runtime's role-preset policy of a
+// student-guardian relationship.
+type GuardianRolePresets interface {
+	// DefaultRole is the preset a new relationship takes when the caller
+	// chose none.
+	DefaultRole(relationshipType string, isPrimary, isEmergencyContact, canPickup bool) string
+	// Preset returns the stored role of a preset and the parent-portal
+	// permissions it grants.
+	Preset(role string) (string, []string)
+}

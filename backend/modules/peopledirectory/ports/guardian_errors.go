@@ -1,4 +1,4 @@
-package compose
+package ports
 
 import (
 	"errors"
@@ -6,26 +6,15 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 )
 
-// The guardian service's error vocabulary, moved with it from services/users
-// (#3755). The model-free errors of the people services live in
-// userscontract (#3750). Do not change the messages: they are rendered
-// verbatim by the HTTP layer.
 var (
 	// ErrGuardianDeletePreviewChanged indicates the affected guardian links no
 	// longer match the set the admin confirmed.
 	ErrGuardianDeletePreviewChanged = errors.New("Die Verknüpfungen haben sich seit der Vorschau geändert. Bitte erneut prüfen.") //nolint:staticcheck // ST1005: user-facing German message
-
 	// ErrGuardianForceDeleteRequiresAdmin indicates a full delete of a guardian
 	// still linked to students was requested by a non-admin. The full delete
 	// reaches across siblings the caller may not supervise, so it is restricted
 	// to admins.
 	ErrGuardianForceDeleteRequiresAdmin = errors.New("only administrators can fully delete a guardian linked to students")
-
-	// errGuardianRolePresetsUnbound refuses a role assignment while the
-	// composition root has not bound the role presets; nothing falls back to
-	// a role of its own.
-	errGuardianRolePresetsUnbound = errors.New("guardian role presets are not wired; refusing role assignment")
-
 	// ErrPayerRemovalRequiresFinancial refuses to unlink a guardian who is the
 	// child's payer when the caller lacks guardians:financial (#2608). Clearing
 	// the payer mark changes who is charged for the child; that decision is
