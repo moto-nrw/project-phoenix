@@ -19,7 +19,7 @@ type masterDataStudent struct {
 	AllowedDepartureModes AllowedDepartureModes
 }
 
-func masterDataPersonValues(person *usersModels.Person) *masterDataPerson {
+func masterDataPersonValues(person *Person) *masterDataPerson {
 	if person == nil {
 		return nil
 	}

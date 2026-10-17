@@ -36,7 +36,7 @@ type StudentReads interface {
 
 // PersonReads reads the child's person row.
 type PersonReads interface {
-	FindByID(ctx context.Context, id any) (*usersModels.Person, error)
+	FindByID(ctx context.Context, id int64) (*Person, error)
 }
 
 // GuardianProfileReads reads and locks guardian profiles.
@@ -51,8 +51,10 @@ type GuardianProfileReads interface {
 
 // GuardianPhoneReads reads guardian phone numbers.
 type GuardianPhoneReads interface {
-	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*usersModels.GuardianPhoneNumber, error)
-	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*usersModels.GuardianPhoneNumber, error)
+	NormalizePhone(*GuardianPhoneNumber) error
+	PhoneTypeOrMobile(string) string
+	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*GuardianPhoneNumber, error)
+	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*GuardianPhoneNumber, error)
 }
 
 // StudentGuardianReads reads and locks the guardian relationships.

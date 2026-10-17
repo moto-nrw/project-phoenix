@@ -3,8 +3,6 @@ package care
 import (
 	"context"
 	"strings"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // guardianChangeEntry is one pending audit row: change type, field, and the
@@ -70,7 +68,7 @@ type guardianContactSnapshot struct {
 	phones     string
 }
 
-func snapshotGuardianContact(profile *GuardianProfile, phones []*usersModels.GuardianPhoneNumber) guardianContactSnapshot {
+func snapshotGuardianContact(profile *GuardianProfile, phones []*GuardianPhoneNumber) guardianContactSnapshot {
 	return guardianContactSnapshot{
 		firstName:  profile.FirstName,
 		lastName:   profile.LastName,
@@ -94,7 +92,7 @@ func snapshotGuardianContact(profile *GuardianProfile, phones []*usersModels.Gua
 // decision (notes content is never logged). Because no values are stored, the
 // rows die with the child/guardian via the table's ON DELETE CASCADE and need
 // no separate retention window.
-func (s *Service) auditContactChanges(ctx context.Context, accountID, studentID, guardianProfileID int64, before guardianContactSnapshot, profile *GuardianProfile, newPhones []*usersModels.GuardianPhoneNumber) error {
+func (s *Service) auditContactChanges(ctx context.Context, accountID, studentID, guardianProfileID int64, before guardianContactSnapshot, profile *GuardianProfile, newPhones []*GuardianPhoneNumber) error {
 	var changes []guardianChangeEntry
 	add := func(field, oldVal, newVal string) {
 		if oldVal != newVal {
@@ -125,7 +123,7 @@ func boolAuditValue(b bool) *string {
 // The label is part of the rendering: a label-only edit (same number/type/
 // primary) is still an accepted change and must produce a distinct string so it
 // writes an audit row rather than diffing identically and being dropped.
-func formatPhonesForAudit(phones []*usersModels.GuardianPhoneNumber) string {
+func formatPhonesForAudit(phones []*GuardianPhoneNumber) string {
 	if len(phones) == 0 {
 		return ""
 	}
