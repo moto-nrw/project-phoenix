@@ -4063,6 +4063,14 @@ the public and error mapping (`application.NewEngine`, `application.Engine`,
 `school-membership.application.tenant-runtime` for the staff identity read.
 The compositions go from 701 to 372, 708 to 479 and 869 to 354 LOC.
 
+The Identity & Access session token codec (`application.SessionCodec`,
+`application.NewSessionCodec`, `application.JWTSigner`) and the Enrollment
+decision adapter (`application.PublicDecisions`) move into their owners'
+`internal/application`. With the codec gone, the Identity & Access composition
+no longer imports the token library; epoch 72 removes the stale
+`external.crypto.identity-access.production.compose` grant. The compositions
+go from 1,963 to 1,801 and 823 to 716 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
