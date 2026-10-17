@@ -42,6 +42,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:           api.ParentPortalRuntime{},
 		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
 		CarePlan:          repos.CarePlan(),
 		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -108,6 +109,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:           api.ParentPortalRuntime{},
 		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
 		CarePlan:          repos.CarePlan(),
 		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),

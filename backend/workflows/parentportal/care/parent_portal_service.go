@@ -16,7 +16,6 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MealPlanEntry is the parent-portal view of one planned dish. Keeping this
@@ -186,7 +185,7 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		return nil, fmt.Errorf("parent: guardian profile repo not wired")
 	}
 	profile := &Profile{Locale: s.Locales.Default(), Explicit: false}
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -255,7 +254,7 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		return nil, fmt.Errorf("parent: update portal locale: %w", err)
 	}
 	profile := &Profile{Locale: normalized, Explicit: true}
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
 		if err != nil {
 			return err
@@ -282,7 +281,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 		return errors.New("parent: guardian records are not configured")
 	}
 	var tenantIDs []int64
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var readErr error
 		tenantIDs, readErr = s.Guardians.ListGuardianProfileTenants(adminCtx, accountID)
 		return readErr
@@ -292,7 +291,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 	}
 	var updated int64
 	for _, tenantID := range tenantIDs {
-		err := InTenant(ctx, tenantID, func(txCtx context.Context) error {
+		err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 			rows, writeErr := s.Guardians.SetGuardianPortalLocale(txCtx, accountID, locale)
 			updated += rows
 			return writeErr
@@ -319,7 +318,7 @@ func (s *Service) ListChildrenForAccount(ctx context.Context, accountID int64) (
 	// account_tenants WHERE clause in the query keeps the result set
 	// scoped to the caller's own membership.
 	var children []*ChildSummary
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
@@ -348,7 +347,7 @@ func (s *Service) ListEnrollableForAccount(ctx context.Context, accountID int64)
 	}
 
 	var phases []*EnrollablePhase
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.EnrollablePhaseRepo.ListEnrollable(adminCtx, accountID)
 		if listErr != nil {
 			return listErr
@@ -417,7 +416,7 @@ func (s *Service) GetEnrollmentSubmitStatus(ctx context.Context, accountID, scho
 	}
 
 	var status *GuardianSubmitStatus
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		st, stErr := s.EnrollablePhaseRepo.GuardianSubmitStatus(adminCtx, accountID, schoolID)
 		if stErr != nil {
 			return stErr
@@ -443,7 +442,7 @@ func (s *Service) ListEnrollmentsForAccount(ctx context.Context, accountID int64
 	}
 
 	var requests []*EnrollmentRequestSummary
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		list, listErr := s.EnrollmentRequestRepo.ListByAccount(adminCtx, accountID)
 		if listErr != nil {
 			return listErr

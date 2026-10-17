@@ -8,8 +8,6 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 var (
@@ -60,7 +58,7 @@ func (s *Service) ResolvePermittedChild(ctx context.Context, accountID, studentI
 	}
 
 	var resolved *Child
-	err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		child, findErr := s.ChildRepo.FindForAccount(adminCtx, accountID, studentID)
 		if findErr != nil {
 			return findErr

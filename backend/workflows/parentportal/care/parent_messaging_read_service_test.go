@@ -54,6 +54,7 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		},
 	}
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		Runtime:               api.ParentPortalRuntime{},
 		MessagingEnabled:      api.BindParentMessagingGate(settings, slog.Default()),
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),

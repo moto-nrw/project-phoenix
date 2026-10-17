@@ -81,7 +81,7 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 	}
 
 	var out []*RelatedAccount
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		links, err := s.StudentGuardianRepo.FindByStudentID(txCtx, studentID)
 		if err != nil {
 			return err
@@ -224,7 +224,7 @@ func (s *Service) InviteRelatedAccount(ctx context.Context, accountID, studentID
 		return nil, ErrGuardianAccessUnavailable
 	}
 	var result GuardianInviteOutcome
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -310,7 +310,7 @@ func (s *Service) RemoveRelatedAccount(ctx context.Context, accountID, studentID
 	if s.GuardianInvites == nil {
 		return ErrGuardianAccessUnavailable
 	}
-	return InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	return s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}

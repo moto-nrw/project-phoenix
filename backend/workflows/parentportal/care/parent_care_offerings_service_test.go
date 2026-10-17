@@ -258,7 +258,7 @@ func careOfferingsService(
 	child *ChildSummary,
 	changes *offeringChangesStub,
 ) *Service {
-	svc := &Service{Config: Config{
+	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
 		StudentRepo:    careOfferingsStudentRepoStub{},
@@ -408,7 +408,7 @@ func TestLoadChildCareOfferingsReadsOfferingHistory(t *testing.T) {
 		CareOfferingID: 1,
 		ValidUntil:     &periodEndExclusive,
 	}}}
-	svc := &Service{Config: Config{
+	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
 		CarePeriods:     carePeriodRepoStub{periods: []*CarePeriod{period}},
 		OfferingHistory: links,
 		CareOfferingRepo: careOfferingRepoStub{offerings: []*CareOffering{{
@@ -551,7 +551,7 @@ func TestCurrentCarePeriodSelection(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &Service{Config: Config{CarePeriods: tt.repo}}
+			svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{}, CarePeriods: tt.repo}}
 			got, err := svc.currentCarePeriod(testpkg.WithPackageTenantRuntime(context.Background()), 22, today)
 			if tt.wantErr {
 				require.Error(t, err)
@@ -624,7 +624,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			svc := &Service{Config: Config{Settings: tt.settings, Logger: slog.Default()}}
+			svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{}, Settings: tt.settings, Logger: slog.Default()}}
 			got, reason := svc.resolveOfferingChangeAvailabilityForStudent(
 				testpkg.WithPackageTenantRuntime(context.Background()),
 				tt.child,

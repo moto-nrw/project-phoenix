@@ -8,7 +8,6 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -69,7 +68,7 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*us
 		return []*usersModels.AnnouncementFeedItem{}, nil
 	}
 	var out []*usersModels.AnnouncementFeedItem
-	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		rows, err := s.AnnouncementRepo.ListFeedForAccount(adminCtx, accountID, scope)
 		if err != nil {
 			return err
@@ -139,7 +138,7 @@ func (s *Service) UnreadAnnouncementCount(ctx context.Context, accountID int64) 
 		return 0, nil
 	}
 	var count int
-	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		n, err := s.AnnouncementRepo.CountUnreadForAccount(adminCtx, accountID, scope)
 		if err != nil {
 			return err
@@ -191,7 +190,7 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	var requiresAck bool
 	var announcementPublishedAt time.Time
 	var announcementSystemKind *string
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement: %w", err)
@@ -255,7 +254,7 @@ func (s *Service) stampAnnouncement(ctx context.Context, accountID, announcement
 	// must surface as ErrAnnouncementStale (409) — not a silent 200 that would let
 	// the client mark the retracted wording read/acknowledged locally while the DB
 	// and staff stats stay unchanged.
-	return tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		if ack {
 			applied, err := s.AnnouncementRepo.MarkAcknowledged(adminCtx, announcementTenantID, announcementID, accountID, expectedPublishedAt)
 			if err != nil {
@@ -297,7 +296,7 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	var isPoll bool
 	var responseType string
 	var deadline *time.Time
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load announcement: %w", err)
@@ -351,7 +350,7 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 		return ErrPollClosed
 	}
 	var options []*usersModels.ParentAnnouncementOption
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var err error
 		options, err = s.AnnouncementRepo.ListOptions(adminCtx, announcementID)
 		if err != nil {
@@ -367,11 +366,11 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	// Phase 2: the write re-evaluates liveness, version AND deadline inside the
 	// same statement, so a deadline that passes between here and the write cannot
 	// let a late answer through. A missed guard is a 409, never a silent 200.
-	return tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		// Poll authorization above uses a snapshot. Lock and re-read the student
 		// in this write transaction so a concurrent care exit cannot leave a new
 		// response behind after the child became read-only.
-		studentCtx := tenant.WithTenantID(adminCtx, announcementTenantID)
+		studentCtx := s.Runtime.WithTenantID(adminCtx, announcementTenantID)
 		student, err := s.StudentRepo.FindByIDForUpdate(studentCtx, studentID)
 		if err != nil {
 			return err
@@ -511,7 +510,7 @@ func (s *Service) announcementTenants(ctx context.Context, accountID int64) ([]i
 			allTenantIDs = append(allTenantIDs, id)
 		}
 	}
-	if txErr := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if txErr := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		children, err := s.ChildRepo.ListByAccount(adminCtx, accountID)
 		if err != nil {
 			return err
