@@ -49,6 +49,10 @@ type Membership interface {
 	Execute(context.Context, int64, string) (schoolmembership.Retirement, error)
 }
 
+// Staff is the live School Membership record the workflow snapshots before
+// starting the owner commands.
+type Staff = schoolmembership.Staff
+
 type Workforce interface {
 	Lock(context.Context, int64) error
 	Preview(context.Context, int64, string) (workforce.OffboardingPreview, error)

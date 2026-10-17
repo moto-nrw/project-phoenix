@@ -11020,17 +11020,6 @@
       "target_role": "public"
     },
     {
-      "id": "staff-offboarding.compose.offboarding.school-membership.public",
-      "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "staff-offboarding",
-      "source_role": "compose",
-      "target_owner": "school-membership",
-      "target_role": "public"
-    },
-    {
       "id": "staff-offboarding.compose.offboarding.workforce.public",
       "description": "Wire the staff lifecycle owner workflow required by #2709 without legacy repository orchestration.",
       "scopes": [
