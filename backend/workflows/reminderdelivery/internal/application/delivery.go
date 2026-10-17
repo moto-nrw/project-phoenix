@@ -451,96 +451,9 @@ func (s *preparation) prepareReminderPushDispatch(ctx context.Context, delivery 
 	var profileIDs []int64
 	var studentIDs []int64
 	err := s.runtime.WithinTenant(ctx, delivery.appointment.TenantID, func(txCtx context.Context) error {
-		current, err := s.deps.Appointments.FindReminderCandidateForUpdate(txCtx, delivery.appointment.ID)
-		if err != nil {
-			return err
-		}
-		if current == nil {
-			return nil
-		}
-		// An edit between claim and dispatch bumps the revision, which invalidates
-		// the claim this delivery holds — nothing can ever match it again, so it is
-		// released here. Dropping the reminder with it would lose it for good: the
-		// scan boundary has already moved past this occurrence and no later tick
-		// offers it again. So the claim is re-taken under the new revision instead,
-		// and only the checks below decide whether the reminder is still warranted.
-		revised := current.Revision != delivery.appointment.Revision
-		if revised {
-			if err := s.releaseReminderPushProfiles(txCtx, delivery.appointment, delivery.occurrence, delivery.profileIDs); err != nil {
-				return err
-			}
-		}
-		rule, err := s.deps.Appointments.FindRecurrenceRule(txCtx, current.ID)
-		if err != nil {
-			return fmt.Errorf("reload reminder recurrence: %w", err)
-		}
-		if (rule == nil && current.StartDate != delivery.occurrence) ||
-			(rule != nil && !appointments.OccurrenceExists(current, rule, delivery.occurrence)) {
-			return nil
-		}
-		overrides, err := s.deps.Appointments.FindOccurrenceOverrides(txCtx, []int64{current.ID}, []appointments.Date{delivery.occurrence})
-		if err != nil {
-			return fmt.Errorf("reload reminder override: %w", err)
-		}
-		var override *appointments.AppointmentOccurrenceOverride
-		if len(overrides) > 0 {
-			override = overrides[0]
-		}
-		if override != nil && override.Cancelled {
-			return nil
-		}
-		// An edit can also have moved the occurrence. A reminder is only worth
-		// sending at the moment it was due for, so one that moved away is not sent
-		// now — returning nothing releases the claim (below), which leaves the tick
-		// that reaches the occurrence's new moment free to take it.
-		if !delivery.stillDue(appointments.OccurrenceStartInstant(appointments.EffectiveOccurrence(current, delivery.occurrence, override))) {
-			return nil
-		}
-		if s.deps.FilterPush == nil {
-			return nil
-		}
-		optedIn, err := s.deps.FilterPush(txCtx, []int64{delivery.accountID})
-		if err != nil {
-			return fmt.Errorf("filter opted-in guardians: %w", err)
-		}
-		if len(optedIn) == 0 {
-			return nil
-		}
-		audiences, err := s.deps.Audiences(txCtx, []int64{current.ID})
-		if err != nil {
-			return err
-		}
-		recipients := audiences[current.ID]
-		reachableSet := make(map[int64]struct{}, len(recipients.GuardianIDs))
-		for _, profileID := range recipients.GuardianIDs {
-			profile, ok := recipients.Profiles[profileID]
-			if ok && profile.AccountID != nil && *profile.AccountID == delivery.accountID {
-				reachableSet[profileID] = struct{}{}
-			}
-		}
-		for _, profileID := range delivery.profileIDs {
-			if _, ok := reachableSet[profileID]; !ok {
-				continue
-			}
-			// The claim released above has to be replaced before the push goes out,
-			// or a re-scan of this window could send the reminder a second time.
-			if revised {
-				claimed, err := s.deps.Appointments.ClaimReminderPushDelivery(txCtx, current.ID, current.Revision, delivery.occurrence, profileID)
-				if err != nil {
-					return fmt.Errorf("claim revised reminder push delivery: %w", err)
-				}
-				if !claimed {
-					continue
-				}
-			}
-			profileIDs = append(profileIDs, profileID)
-		}
-		if len(profileIDs) == 0 {
-			return nil
-		}
-		studentIDs = recipients.StudentIDs([]int64{delivery.accountID})
-		appointment = current
-		return nil
+		var prepareErr error
+		appointment, profileIDs, studentIDs, prepareErr = s.prepareReminderPushInTx(txCtx, delivery)
+		return prepareErr
 	})
 	if err != nil {
 		return nil, nil, nil, err
