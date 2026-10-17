@@ -71,7 +71,7 @@ type StatusDayResponse struct {
 	Note       *string   `json:"note,omitempty"`
 }
 
-func toStatusDayResponse(d *absencerecords.StudentStatusDay) StatusDayResponse {
+func toStatusDayResponse(d *parentService.StudentStatusDaySnapshot) StatusDayResponse {
 	return StatusDayResponse{
 		ID:         strconv.FormatInt(d.ID, 10),
 		StudentID:  strconv.FormatInt(d.StudentID, 10),
@@ -102,7 +102,7 @@ type ParentExcusedRequestResponse struct {
 	IsSelf bool `json:"is_self"`
 }
 
-func toParentExcusedRequestResponse(req *careplan.ExcusedAbsenceRequest, accountID int64) ParentExcusedRequestResponse {
+func toParentExcusedRequestResponse(req *parentService.ExcusedAbsenceRequestSnapshot, accountID int64) ParentExcusedRequestResponse {
 	dates := make([]string, 0, len(req.Dates))
 	for _, d := range req.Dates {
 		dates = append(dates, d.String())

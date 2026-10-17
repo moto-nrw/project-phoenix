@@ -3,8 +3,6 @@ package care
 import (
 	"context"
 	"fmt"
-
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
 
 // childFeatureSettings holds the tenant settings behind ChildFeatureFlags,
@@ -18,7 +16,7 @@ type childFeatureSettings struct {
 	notes              bool
 	pickupChange       bool
 	pickupChangeMode   bool
-	pickupCutoff       careplan.SameDayCutoff
+	pickupCutoff       SameDayCutoff
 	inviteMode         string
 	canRemove          bool
 	masterEdit         bool
@@ -144,21 +142,21 @@ func (r childSettingResolver) resolveAbsenceAndNoteSettings(out *childFeatureSet
 
 // resolvePickupChangeSettings resolves the one-day pickup change switch and the
 // school's same-day cutoff; a switched-off change has no cutoff.
-func (s *Service) resolvePickupChangeSettings(r childSettingResolver) (bool, careplan.SameDayCutoff, error) {
+func (s *Service) resolvePickupChangeSettings(r childSettingResolver) (bool, SameDayCutoff, error) {
 	enabled, err := r.resolveBool(KeyParentPickupChangeEnabled)
 	if err != nil {
-		return false, careplan.SameDayCutoff{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
+		return false, SameDayCutoff{}, fmt.Errorf("parent: resolve pickup-change setting: %w", err)
 	}
 	pickupCutoffClock, err := r.resolveString(KeyParentPickupChangeCutoffTime)
 	if err != nil {
-		return false, careplan.SameDayCutoff{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
+		return false, SameDayCutoff{}, fmt.Errorf("parent: resolve pickup-change cutoff: %w", err)
 	}
 	if !enabled {
 		pickupCutoffClock = ""
 	}
-	cutoff, err := careplan.NewSameDayCutoff(pickupCutoffClock, s.now())
+	cutoff, err := s.CarePlanPolicy.NewSameDayCutoff(pickupCutoffClock, s.now())
 	if err != nil {
-		return false, careplan.SameDayCutoff{}, fmt.Errorf("parent: %w", err)
+		return false, SameDayCutoff{}, fmt.Errorf("parent: %w", err)
 	}
 	return enabled, cutoff, nil
 }

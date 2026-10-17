@@ -43,6 +43,8 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 		},
 
 		DeparturePolicy: api.ParentDeparturePolicy(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db
 }
 
@@ -70,14 +72,16 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 		Attendance:       parentAttendance(t, db),
 		StatusDayRepo:    repos.StudentStatusDay,
 		StudentRepo:      api.NewParentStudentReads(repos.Student),
-		ArrivalSchedules: arrivals,
-		PickupSchedules:  pickups,
+		ArrivalSchedules: api.NewParentArrivalSchedules(arrivals),
+		PickupSchedules:  api.NewParentPickupSchedules(pickups),
 		Logger:           slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},
 
 		DeparturePolicy: api.ParentDeparturePolicy(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db
 }
 

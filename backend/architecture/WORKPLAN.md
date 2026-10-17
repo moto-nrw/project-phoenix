@@ -3,17 +3,17 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 164 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 162 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.630 in `compose`
+34.617 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 2 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 81 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 1 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
@@ -21,9 +21,23 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 164 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 162 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Care verwendet eigene Plan-, Ausnahme-, Abwesenheits- und Angebots-DTOs
+sowie schmale Ports. Die Root bindet die öffentlichen Care-Plan-Facetten;
+die HTTP-Projektionen erhalten öffentliche Workflow-Snapshots. Cutoff-Prüfung,
+lazy Uhr, Buchungsdatum und Fehlerursachen bleiben beim kanonischen Owner.
+Die eigene Filterform enthält nur die vier verwendeten Selektoren. Metadaten,
+Roh-JSON, `nil` und leere Listen bleiben erhalten. Die Compose-Konstruktoren
+wandern an die Root; Auto-Excusal und optionale Test-Overrides bleiben erhalten.
+Zwei Produktionskeys fallen: 164 → 162, #4073 2 → 1 und #4004 82 → 81.
+#4074 bleibt bei 44. Regeln 844, Epoche 72 und Composition 1.657 bleiben gleich.
+Portal-Compose sinkt 478 → 465 LOC, die Summe 34.630 → 34.617. Keine neue
+Freigabe, Regel, Ausnahme, Alias oder höheren Budgets. Routen, Antworten,
+Goldens, IoT, Beziehungsrechte und Portal-Isolation bleiben unverändert.
+Nachweis: [native Care-Plan-Ports](parent-portal-native-care-plan-4073.json).
 
 #4073: Care verwendet native Workflow-Werte für Beziehungen, Stammdaten-Anträge
 und Ledger-Ereignisse. Die Root bindet die öffentlichen Owner-Facetten an eigene

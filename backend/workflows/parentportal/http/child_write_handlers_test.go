@@ -83,18 +83,20 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CareExceptions,
+		CarePlan:        api.NewParentCarePlanCommands(repos.CareExceptions, nil),
 		People:          api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CareExceptions,
+		CareExceptions:  api.NewParentCareExceptions(repos.CareExceptions),
 		Settings:        settings,
-		ExcusedRequests: repos.ExcusedRequests,
+		ExcusedRequests: api.NewParentExcusedAbsenceRequests(repos.ExcusedRequests),
 		Logger:          slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
@@ -240,7 +242,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CareExceptions,
+		CarePlan:        api.NewParentCarePlanCommands(repos.CareExceptions, nil),
 		People:          api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
@@ -249,6 +251,8 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		Logger:          slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc}).Router(api.ParentSessionChain))
 }

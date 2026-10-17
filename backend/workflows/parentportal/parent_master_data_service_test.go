@@ -49,7 +49,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CarePlan(),
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
@@ -64,6 +64,8 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -118,7 +120,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
-		CarePlan:            repos.CarePlan(),
+		CarePlan:            api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
@@ -132,6 +134,8 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		Logger:              slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
@@ -169,6 +173,8 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 		Settings:        masterDataSettings(true, true, false),
 		MealPlan:        availableMealPlan(false),
 		Logger:          slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 

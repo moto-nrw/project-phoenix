@@ -35,7 +35,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		Declarations:           api.ParentDeclarationPolicy(),
 		Locales:                api.ParentPortalLocales(),
 		Runtime:                api.ParentPortalRuntime{},
-		CarePlan:               repos.CarePlan(),
+		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
 		ChildRepo:              repos.ParentChildReads(),
@@ -47,7 +47,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		FamilyProtectionEvents: repos.FamilyProtection,
 		ParentRequestShares:    repos.ParentRequestShare,
 		ParentRequestEvents:    api.NewParentRequestEvents(repos.ParentRequestEvent),
-		ExcusedRequests:        excused,
+		ExcusedRequests:        api.NewParentExcusedAbsenceRequests(excused),
 		ExcusedRequestRepo:     repos.ExcusedAbsenceRequest,
 		Settings: excusedApprovalSettings{
 			sickRequiresApproval:    true,
@@ -56,6 +56,8 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		Logger: slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	// Portal implements the sharing surface at compile time.
 	var sharing parentService.RequestSharingService = svc

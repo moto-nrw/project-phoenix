@@ -92,6 +92,8 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 		Runtime:         api.ParentPortalRuntime{},
 		ChildRepo:       child,
 		Logger:          slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -108,6 +110,8 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 		EnrollablePhaseRepo: enroll,
 		EnrollmentSettings:  stubEnrollmentSettings{},
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 
@@ -144,6 +148,8 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 		EnrollablePhaseRepo: repo,
 		EnrollmentSettings:  stubEnrollmentSettings{values: map[int64]bool{11: true, 22: false}},
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	got, err := svc.ListEnrollableForAccount(fakeAdminContext(t), 999)
@@ -166,6 +172,8 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
 		EnrollmentSettings:  stubEnrollmentSettings{err: want},
 		Logger:              slog.Default(),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	_, err := svc.ListEnrollableForAccount(fakeAdminContext(t), 999)
@@ -323,6 +331,8 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 		Runtime:         api.ParentPortalRuntime{},
 		ChildRepo:       &stubChildRepo{},
 		Logger:          nil,
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	require.NotNil(t, svc)
 

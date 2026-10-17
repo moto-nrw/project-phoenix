@@ -39,17 +39,17 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
-		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChildReads(),
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CarePlan(),
-		PickupAutoExcusal: newPickupExcusal(t, db, repos.CarePlan(),
+		CarePlan: api.NewParentCarePlanCommands(repos.CarePlan(), newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
 			timetableDeps.Capability, false,
-		),
+		)),
+		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:   careProfiles(t, db),
+		ChildRepo:      repos.ParentChildReads(),
+		StatusDayRepo:  repos.StudentStatusDay,
+		StudentRepo:    api.NewParentStudentReads(repos.Student),
+		CareExceptions: api.NewParentCareExceptions(repos.CarePlan()),
+
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentPickupChangeEnabled: true},
 		},
@@ -57,6 +57,8 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		Logger:         slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return careTestService{Portal: svc}, db
 }

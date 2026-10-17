@@ -43,13 +43,13 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 			Declarations:    api.ParentDeclarationPolicy(),
 			Locales:         api.ParentPortalLocales(),
 			Runtime:         api.ParentPortalRuntime{},
-			CarePlan:        repos.CarePlan(),
+			CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 			People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 			CareProfiles:    careProfiles(t, db),
 			ChildRepo:       repos.ParentChildReads(),
 			StatusDayRepo:   repos.StudentStatusDay,
 			StudentRepo:     api.NewParentStudentReads(repos.Student),
-			CareExceptions:  repos.CarePlan(),
+			CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 			Settings: parentSettingsStub{
 				stringValues: map[string]string{
 					parentportal.KeyGuardianParentInviteMode:  parentportal.ParentInviteModeDisabled,
@@ -60,6 +60,8 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 			Logger:   slog.Default(),
 
 			DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+			CarePlanPolicy: api.NewParentCarePlanPolicy(),
 		})
 
 		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

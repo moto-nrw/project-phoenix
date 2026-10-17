@@ -52,7 +52,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
@@ -65,6 +65,8 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 		Now:             func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin) },
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 }
 

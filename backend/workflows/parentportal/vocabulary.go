@@ -26,13 +26,11 @@ type (
 	StaffParentMessageReport        = care.StaffParentMessageReport
 	StaffParentMessageNotifier      = care.StaffParentMessageNotifier
 	CareException                   = care.CareException
-	CareExceptions                  = care.CareExceptions
 	CareOfferingSelection           = care.CareOfferingSelection
 	PickupChangeRequest             = care.PickupChangeRequest
 	CareRequestDiffEntry            = care.CareRequestDiffEntry
 	CareScheduleRequestCapabilities = care.CareScheduleRequestCapabilities
 	CareScheduleWeekday             = care.CareScheduleWeekday
-	ChildCareOfferings              = care.ChildCareOfferings
 	ChildCareSchedule               = care.ChildCareSchedule
 	ChildConsent                    = care.ChildConsent
 	ChildFeatureFlags               = care.ChildFeatureFlags
@@ -55,13 +53,11 @@ type (
 	MealWeekday                     = care.MealWeekday
 	MessageThreadView               = messaging.MessageThreadView
 	ParentRequestEventView          = messaging.ParentRequestEventView
-	PendingOfferingChange           = care.PendingOfferingChange
 	Profile                         = care.Profile
 	RelatedAccount                  = care.RelatedAccount
 	RequestSharingRecipient         = messaging.RequestSharingRecipient
 	RequestSharingService           = messaging.RequestSharingService
 	RequestSharingState             = messaging.RequestSharingState
-	SickNoteResult                  = care.SickNoteResult
 	StudentPhotoUnlinker            = care.StudentPhotoUnlinker
 	TodayStatus                     = care.TodayStatus
 )

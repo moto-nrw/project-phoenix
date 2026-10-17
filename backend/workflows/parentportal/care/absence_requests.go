@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,18 +15,18 @@ import (
 // recently decided absence requests submitted by the calling guardian. The
 // child's effective absence state is shared separately; request notes and
 // decision reasons remain private to their submitter.
-func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*careplan.ExcusedAbsenceRequest, error) {
+func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*ExcusedAbsenceRequest, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
 	}
 	if s.ExcusedRequests == nil {
-		return []*careplan.ExcusedAbsenceRequest{}, nil
+		return []*ExcusedAbsenceRequest{}, nil
 	}
 	// Show rejected/withdrawn requests for two weeks so a parent learns the
 	// outcome, while pending ones show regardless of age.
 	recentSince := time.Now().AddDate(0, 0, -14)
-	var out []*careplan.ExcusedAbsenceRequest
+	var out []*ExcusedAbsenceRequest
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.ExcusedRequests.ListForStudent(txCtx, studentID, recentSince)
 		if err != nil {
@@ -45,20 +45,17 @@ func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 	return out, nil
 }
 
-// carePlanDates hands the calendar days to the Care Plan owner in its own
-// canonical form; both types carry YYYY-MM-DD.
-func carePlanDates(dates []calendar.Date) []careplan.Date {
-	result := make([]careplan.Date, len(dates))
-	for i := range dates {
-		result[i] = careplan.Date(dates[i])
-	}
+// carePlanDates copies submitted dates, retaining a non-nil empty request list.
+func carePlanDates(dates []calendar.Date) []calendar.Date {
+	result := make([]calendar.Date, len(dates))
+	copy(result, dates)
 	return result
 }
 
 func visibleExcusedRequests(
-	rows []*careplan.ExcusedAbsenceRequest, accountID int64, visibility RequestShareVisibility,
-) []*careplan.ExcusedAbsenceRequest {
-	out := make([]*careplan.ExcusedAbsenceRequest, 0, len(rows))
+	rows []*ExcusedAbsenceRequest, accountID int64, visibility RequestShareVisibility,
+) []*ExcusedAbsenceRequest {
+	out := make([]*ExcusedAbsenceRequest, 0, len(rows))
 	for _, row := range rows {
 		if row != nil && visibility.Allows(RequestShareExcused, row.ID, accountID, row.SubmittedBy) {
 			out = append(out, row)
@@ -73,23 +70,23 @@ func visibleExcusedRequests(
 // (stale, reason required).
 func mapExcusedRequestError(err error, op string) error {
 	switch {
-	case errors.Is(err, careplan.ErrExcusedRequestNoDates):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestNoDates):
 		return ErrNoDates
-	case errors.Is(err, careplan.ErrExcusedRequestEmptyNote):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestEmptyNote):
 		return ErrEmptyNote
-	case errors.Is(err, careplan.ErrExcusedRequestNoteTooLong):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestNoteTooLong):
 		return ErrNoteTooLong
-	case errors.Is(err, careplan.ErrExcusedRequestOverlap):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestOverlap):
 		return ErrExcusedRequestOverlap
 	// A planned partial-day excusal already owns one of the requested dates
 	// (same refusal as a direct parent status write that Care Plan refuses
 	// with ErrManualPartialAbsenceConflict). Surface as the existing care
 	// conflict so the handler returns HTTP 409, not 500.
-	case errors.Is(err, careplan.ErrExcusedRequestStatusConflict):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestStatusConflict):
 		return ErrCareExceptionConflict
-	case errors.Is(err, careplan.ErrExcusedRequestNotFound):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestNotFound):
 		return ErrExcusedRequestNotFound
-	case errors.Is(err, careplan.ErrExcusedRequestNotPending):
+	case errors.Is(err, excusedrequests.ErrExcusedRequestNotPending):
 		return ErrExcusedRequestNotPending
 	default:
 		return fmt.Errorf("parent: %s: %w", op, err)
@@ -105,7 +102,7 @@ func mapExcusedRequestError(err error, op string) error {
 func (s *Service) EditExcusedRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	dates []calendar.Date, note, expectedVersion string,
-) (*careplan.ExcusedAbsenceRequest, error) {
+) (*ExcusedAbsenceRequest, error) {
 	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
 	if err != nil {
 		return nil, err
@@ -116,7 +113,7 @@ func (s *Service) EditExcusedRequest(
 	if s.ExcusedRequests == nil {
 		return nil, ErrExcusedRequestNotFound
 	}
-	var out *careplan.ExcusedAbsenceRequest
+	var out *ExcusedAbsenceRequest
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
@@ -125,7 +122,7 @@ func (s *Service) EditExcusedRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		req, editErr := s.ExcusedRequests.EditRequest(txCtx, careplan.ExcusedRequestEditInput{
+		req, editErr := s.ExcusedRequests.EditRequest(txCtx, ExcusedRequestEditInput{
 			RequestID:         requestID,
 			StudentID:         studentID,
 			GuardianAccountID: accountID,
