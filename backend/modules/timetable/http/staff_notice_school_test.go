@@ -1,4 +1,4 @@
-package httpadapter_test
+package timetablehttp_test
 
 // Tagesinformationen mit Zielgruppe (#2208): die Schul-Route liest als
 // Lehrkraft, die OGS-Route als Betreuung, und die Leitung sieht, wer bestätigt
@@ -27,17 +27,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
+	timetablehttp "github.com/moto-nrw/project-phoenix/modules/timetable/http"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
-
-// TestMain gives every test in this binary its own tenant (#2419), so parallel
-// tests in the shared package clone cannot see or overwrite each other's rows.
-func TestMain(m *testing.M) {
-	testpkg.PerTestTenants()
-	testpkg.Run(m)
-}
 
 // init seeds JWT viper defaults before any test builds a resource through the
 // protected tenant group. CI runs without a .env, so AUTH_JWT_SECRET is unset;
@@ -119,7 +112,7 @@ func setupStaffNoticeRoutes(t *testing.T) *staffNoticeRouteFixture {
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.Tenant(t)
 
-	rs := httpadapter.NewStaffNoticeResource(newStaffNoticeService(t, db), noticeAccountID)
+	rs := timetablehttp.NewStaffNoticeResource(newStaffNoticeService(t, db), noticeAccountID)
 
 	suffix := time.Now().UnixNano()
 	staffLast := fmt.Sprintf("Kraft-%d", suffix)
