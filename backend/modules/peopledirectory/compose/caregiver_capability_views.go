@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
+	"github.com/uptrace/bun"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // CaregiverCapabilityViews serves People Directory's caregiver capability to
@@ -27,13 +29,13 @@ import (
 //
 // Each wrapper keeps the original error text and chain.
 type CaregiverCapabilityViews struct {
-	service CaregiverCapabilityService
+	service ports.CaregiverCapabilityService
 	db      *bun.DB
 }
 
 // NewCaregiverCapabilityViews binds the caregiver capability for the HTTP
 // adapters. db opens the administrative transaction of the operator routes.
-func NewCaregiverCapabilityViews(service CaregiverCapabilityService, db *bun.DB) CaregiverCapabilityViews {
+func NewCaregiverCapabilityViews(service ports.CaregiverCapabilityService, db *bun.DB) CaregiverCapabilityViews {
 	return CaregiverCapabilityViews{service: service, db: db}
 }
 

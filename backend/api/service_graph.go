@@ -38,7 +38,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -143,7 +142,7 @@ type serviceGraph struct {
 	StaffDocuments           *workforceModule.StaffAdmin
 	StudentDocuments         careplan.StudentDocuments
 	FileStore                *filestorageModule.Module
-	CaregiverCapability      peopleCompose.CaregiverCapabilityService
+	CaregiverCapability      peoplePorts.CaregiverCapabilityService
 	Guardian                 peoplePorts.GuardianService
 	PeopleDirectory          peopledirectory.Capability
 	Emergency                emergencysnapshot.Query

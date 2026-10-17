@@ -4010,6 +4010,13 @@ through `ports.TenantTxRunner`, and `MissingStudentError` leaves
 `people-directory.port.transaction-runtime`. The composition goes to 4,033
 LOC.
 
+The caregiver capability service and the guardian directory provider follow
+(`application.NewCaregiverCapabilityService`, `application.GuardianDirectory`).
+The caregiver service's Bun-transaction check stays in the composition and is
+handed in; the provider's constraint classification moves to the ports'
+error vocabulary (`IsConstraintViolation`). The composition goes to 2,779
+LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

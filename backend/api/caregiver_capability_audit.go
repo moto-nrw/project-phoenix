@@ -4,7 +4,7 @@ import (
 	"context"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // caregiverCapabilityAuditIP stands in for the client address: the change is
@@ -20,7 +20,7 @@ type caregiverCapabilityAudit struct {
 // newCaregiverCapabilityAudit binds the audit port. A nil repository leaves
 // the port unbound, so the capability refuses the change instead of
 // committing it without an audit event.
-func newCaregiverCapabilityAudit(events AuthEventAppender) peopleCompose.CaregiverCapabilityAudit {
+func newCaregiverCapabilityAudit(events AuthEventAppender) peoplePorts.CaregiverCapabilityAudit {
 	if events == nil {
 		return nil
 	}

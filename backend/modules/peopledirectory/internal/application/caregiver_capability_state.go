@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,24 +6,10 @@ import (
 	"strings"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
-
-// CaregiverAccount is the account a caregiver capability belongs to.
-type CaregiverAccount struct {
-	ID    int64
-	Email string
-}
-
-// CaregiverIdentity supplies the account and school-role facts needed to
-// enable or disable a caregiver profile. Calls join the caller's transaction.
-type CaregiverIdentity interface {
-	FindCaregiverAccount(context.Context, int64) (*CaregiverAccount, error)
-	HasActiveSchoolMembership(context.Context, int64) (bool, error)
-	ListSchoolAccountRoleNames(context.Context, int64) ([]string, error)
-	FindSystemRoleID(context.Context, string) (int64, bool, error)
-}
 
 type caregiverRoleFlags struct {
 	hasAdminRole         bool
@@ -129,7 +115,7 @@ func (s *caregiverCapabilityService) loadCaregiverProfile(
 func (s *caregiverCapabilityService) loadAccountAndTenant(
 	ctx context.Context,
 	accountID int64,
-) (*CaregiverAccount, int64, error) {
+) (*peoplePorts.CaregiverAccount, int64, error) {
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return nil, 0, &userscontract.UsersError{Op: "caregiver capability", Err: fmt.Errorf("tenant context is required")}
