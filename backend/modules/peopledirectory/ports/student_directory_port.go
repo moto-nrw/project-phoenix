@@ -1,23 +1,17 @@
-package compose
+package ports
 
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
-
-// The staff student directory moved to its owner in #3349. What stays here is
-// the contract the retained student service calls (it left services/users in
-// #3753); the filter surface, the SQL and the ordering belong to
-// modules/peopledirectory, and the composition root binds an implementation
-// (NewStudentDirectory).
 
 // StudentDirectoryReader is the filtered, paginated directory read.
 type StudentDirectoryReader interface {
 	// ListStudents returns one ordered page of the selection.
-	ListStudents(ctx context.Context, filter userModels.StudentDirectoryFilter) ([]*userModels.Student, error)
+	ListStudents(ctx context.Context, filter users.StudentDirectoryFilter) ([]*users.Student, error)
 	// CountStudents counts the same selection without its page window.
-	CountStudents(ctx context.Context, filter userModels.StudentDirectoryFilter) (int, error)
+	CountStudents(ctx context.Context, filter users.StudentDirectoryFilter) (int, error)
 	// ListStudentIDs returns the ids of every non-alumni child.
 	ListStudentIDs(ctx context.Context) ([]int64, error)
 }
@@ -27,10 +21,10 @@ type StudentDirectoryReader interface {
 // pairs with.
 type StudentDirectoryLocker interface {
 	// GetStudentsByID reads the owned rows of the given children.
-	GetStudentsByID(ctx context.Context, ids []int64) ([]*userModels.Student, error)
+	GetStudentsByID(ctx context.Context, ids []int64) ([]*users.Student, error)
 	// LockStudent re-reads one owned row and holds its lock for the caller's
 	// transaction.
-	LockStudent(ctx context.Context, id int64) (*userModels.Student, error)
+	LockStudent(ctx context.Context, id int64) (*users.Student, error)
 	// LockPhotoFeature takes the per-tenant photo gate. The caller takes it
 	// before LockStudent, which is the order the owner's own photo writes use.
 	LockPhotoFeature(ctx context.Context) error

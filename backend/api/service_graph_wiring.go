@@ -137,7 +137,7 @@ type PeopleWiring struct {
 	ClassTeachers ClassTeacherRepository
 	// CaregiverBindingLock serializes the caregiver capability re-check over
 	// the owners whose tables can retain the capability.
-	CaregiverBindingLock userModels.CaregiverBindingLocker
+	CaregiverBindingLock peoplePorts.CaregiverBindingLocker
 
 	// The directories of the School Structure group and substitution
 	// services.
@@ -168,7 +168,7 @@ type PeopleWiring struct {
 
 	// StudentAudit records the per-child change history through the People
 	// Directory.
-	StudentAudit peopleCompose.StudentAuditRecorder
+	StudentAudit peoplePorts.StudentAuditRecorder
 
 	// Care Plan's schedule rows in Timetable's retained vocabulary.
 	PickupSchedules   timetablePorts.CarePickupScheduleRows
@@ -181,8 +181,8 @@ type PeopleWiring struct {
 	SupervisionBlockers      func(studentpresence.SupervisionRecords) peopleCompose.SupervisionBlockers
 	CaregiverIdentity        func(*identityaccess.Module) peopleCompose.CaregiverIdentity
 	CaregiverCapabilityAudit func(AuthEventAppender) peopleCompose.CaregiverCapabilityAudit
-	GuardianFinancialAudit   func(auditModels.GuardianFinancialChangeCreator) peopleCompose.GuardianFinancialAudit
-	GuardianDataAccessLog    func(DataAccessAppender) peopleCompose.GuardianDataAccessLog
+	GuardianFinancialAudit   func(auditModels.GuardianFinancialChangeCreator) peoplePorts.GuardianFinancialAudit
+	GuardianDataAccessLog    func(DataAccessAppender) peoplePorts.GuardianDataAccessLog
 	ClassAssignmentAudit     func(auditModels.StaffMasterDataChangeCreator) education.ClassAssignmentAudit
 	SubstitutionAudit        func(auditModels.SubstitutionChangeCreator) education.SubstitutionAudit
 	StudentConsents          func(StudentConsentAppender) StudentConsentRecords
@@ -685,7 +685,7 @@ type MasterDataDecisionWiring struct {
 	Fields      peopledirectory.StudentFieldReviewQuery
 	Students    masterDataStudentRows
 	Persons     masterDataPersonRows
-	Audit       peopleCompose.StudentChangeRecorder
+	Audit       peoplePorts.StudentChangeRecorder
 	Scope       careplanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster

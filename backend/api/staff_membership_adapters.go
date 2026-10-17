@@ -7,6 +7,7 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -55,11 +56,11 @@ type StaffMembershipRepository struct {
 	Deps       *staffMembershipDeps
 }
 
-var _ userModels.StaffRepository = StaffMembershipRepository{}
+var _ peoplePorts.StaffRepository = StaffMembershipRepository{}
 
 // membershipNotFound rebuilds the not-found error shape the legacy
 // repositories returned, so callers keep classifying with both
-// errors.Is(err, sql.ErrNoRows) and userModels.IsRepositoryNoRows(err).
+// errors.Is(err, sql.ErrNoRows) and peoplePorts.IsRepositoryNoRows(err).
 func membershipNotFound(op string) error { return repositoryNotFound(op) }
 
 // membershipError maps an owner error onto the legacy repository error shape.
@@ -285,7 +286,7 @@ func (r StaffMembershipRepository) FindWithPerson(ctx context.Context, id int64)
 		switch {
 		case personErr == nil:
 			staff.Person = person
-		case userModels.IsRepositoryNoRows(personErr):
+		case peoplePorts.IsRepositoryNoRows(personErr):
 			// Person not found is acceptable — staff.Person stays nil.
 		default:
 			return nil, repositoryError("find with person - load person", personErr)
@@ -520,7 +521,7 @@ func (r StaffMembershipRepository) GetStaffContactInfo(ctx context.Context, staf
 	}
 	person, err := r.Deps.persons.FindByID(ctx, value.PersonID)
 	if err != nil {
-		if userModels.IsRepositoryNoRows(err) {
+		if peoplePorts.IsRepositoryNoRows(err) {
 			return nil, membershipNotFound(op)
 		}
 		return nil, repositoryError(op, err)

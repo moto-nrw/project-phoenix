@@ -18,6 +18,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -144,7 +145,7 @@ type CareRequestSources struct {
 	Reviews     CarePlanReviewPolicy
 	Permissions func(context.Context) []string
 	Events      ParentRequestEvents
-	Audit       peopleCompose.StudentChangeRecorder
+	Audit       peoplePorts.StudentChangeRecorder
 	Shares      communicationCompose.ParentShareVisibilityResolver
 	Today       func() timezone.Date
 	Logger      *slog.Logger
@@ -158,7 +159,7 @@ type PickupAdjustmentSources struct {
 	Baselines        careplan.PickupBaselineReader
 	Offerings        careplan.DirectOfferingAdjustments
 	Settings         settingsCompose.SettingsService
-	Audit            peopleCompose.StudentPickupPlanRecorder
+	Audit            peoplePorts.StudentPickupPlanRecorder
 	Today            func() timezone.Date
 }
 

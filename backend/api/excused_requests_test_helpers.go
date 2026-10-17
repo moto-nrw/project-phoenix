@@ -11,6 +11,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -19,8 +20,8 @@ import (
 // Berlin calendar day.
 type ExcusedRequestTestOptions struct {
 	CarePlan    careplan.Capability
-	Students    usersModels.StudentRepository
-	Persons     usersModels.PersonRepository
+	Students    peoplePorts.StudentRepository
+	Persons     peoplePorts.PersonRepository
 	Scope       carePlanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster

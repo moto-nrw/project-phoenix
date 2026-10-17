@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Error messages and SQL fragments
@@ -22,7 +24,7 @@ type guardianPhoneNumberRepository struct {
 }
 
 // NewGuardianPhoneNumberRepository creates a new GuardianPhoneNumberRepository instance
-func NewGuardianPhoneNumberRepository(runtime Runtime) GuardianPhoneNumberRepository {
+func NewGuardianPhoneNumberRepository(runtime Runtime) ports.GuardianPhoneNumberRepository {
 	return &guardianPhoneNumberRepository{runtime: requireRuntime(runtime)}
 }
 

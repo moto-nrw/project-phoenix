@@ -11,6 +11,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // This file is the translation seam of the student write path (#3349): People
@@ -232,7 +233,7 @@ func translateStudentWriteError(err error) error {
 // enrollment approval, the imports, the master-data review — goes through the
 // owner without knowing it.
 type studentRepositoryWithOwnerWrites struct {
-	usersRepo.StudentRepository
+	peoplePorts.StudentRepository
 	writes *StudentWrites
 	reads  *StudentReads
 	// The teacher assignment is School Membership's, so the roster reads
@@ -462,7 +463,7 @@ type StudentRepositoryOwner interface {
 
 // NewStudentRepository composes the retained read surface of the child table
 // with People Directory's reads and writes (#3349).
-func NewStudentRepository(dependencies StudentRepositoryDependencies) usersRepo.StudentRepository {
+func NewStudentRepository(dependencies StudentRepositoryDependencies) peoplePorts.StudentRepository {
 	repository := usersRepo.NewStudentRepository(NewLegacyRepositoryRuntime(dependencies.DB), dependencies.Students)
 	if dependencies.Directory == nil {
 		return repository

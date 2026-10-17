@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -21,9 +22,9 @@ import (
 type EnrollmentFlowTestRepositories struct {
 	TimetableTestRepositories
 	School                       organizationtenancy.Capability
-	StudentGuardian              usersModels.StudentGuardianRepository
-	GuardianProfile              usersModels.GuardianProfileRepository
-	GuardianPhoneNumber          usersModels.GuardianPhoneNumberRepository
+	StudentGuardian              peoplePorts.StudentGuardianRepository
+	GuardianProfile              peoplePorts.GuardianProfileRepository
+	GuardianPhoneNumber          peoplePorts.GuardianPhoneNumberRepository
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	EnrollmentDeletionAudit      auditModels.EnrollmentDeletionRepository

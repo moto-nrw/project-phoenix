@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -18,8 +18,8 @@ import (
 // composition root binds over the retained repositories, and two tenant
 // settings it binds over the Settings Platform.
 type (
-	BirthdayStore    = ports.BirthdayStore
-	BirthdaySettings = ports.BirthdaySettings
+	BirthdayStore    = internalports.BirthdayStore
+	BirthdaySettings = internalports.BirthdaySettings
 	BirthdayEntry    = domain.BirthdayEntry
 	BirthdayKind     = domain.BirthdayKind
 	BirthdayMonthDay = domain.MonthDay

@@ -3978,12 +3978,17 @@ the roots name are values of `modules/careplan/ports`. Epoch 64 adds
 `own-test-support.domain.compose`): the Care Plan test support names the
 student name projection. The composition goes from 4,333 to 3,147 LOC.
 
-The People Directory's retained legacy services (guardians, payment data,
-caregiver capability, the person and staff directories) stay in the
-composition for now: they run on the repository contracts and the query
-vocabulary of `database/repositories/users`, a postgres package the
-application may not import. They leave with #4004, which dissolves
-`models/users` and those repositories.
+The repository contracts and the query and error vocabulary of the retained
+People Directory repositories move from `database/repositories/users` into
+`modules/peopledirectory/ports` as defined types, together with the port
+declarations of the composition (person writer, staff directory, student
+directory, photo, audit and guardian payment ports). The repositories,
+the composition and the roots name them there; the matching aliases of
+`compose/vocabulary` go (#4085). Epoch 65 adds
+`people-directory.port.legacy-model` (temporary until #4004 dissolves
+`models/users`) and `people-directory.postgres.port`, the first rule of the
+postgres-to-own-port shape of ADR 0058 addendum point 6. The composition goes
+from 7,627 to 7,316 LOC. The retained services move next.
 
 ### Enrollment wiring out of services (#4012)
 

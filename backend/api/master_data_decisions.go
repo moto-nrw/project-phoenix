@@ -4,14 +4,13 @@ import (
 	"context"
 	"errors"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -128,7 +127,7 @@ func (r masterDataFieldReviews) ReviewFields(ctx context.Context, changes []care
 type masterDataRecords struct {
 	students masterDataStudentRows
 	persons  masterDataPersonRows
-	audit    peopleCompose.StudentChangeRecorder
+	audit    peoplePorts.StudentChangeRecorder
 }
 
 // masterDataStudentRows and masterDataPersonRows are the retained student and

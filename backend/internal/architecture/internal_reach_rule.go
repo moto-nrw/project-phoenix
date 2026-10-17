@@ -33,7 +33,11 @@ package architecture
 //     models/schedule and models/activities into their owner;
 //   - a rule into another owner's `port` role from a source selector that
 //     the base already grants that owner's `compose` role. A composition may
-//     import its own ports, so the rule narrows a reach that exists.
+//     import its own ports, so the rule narrows a reach that exists;
+//   - one rule per owner from a domain's `postgres` role into the same
+//     owner's `port` role, production only: the owner's repositories
+//     implement the repository contracts of its ports (#4084). It stays
+//     inside one owner, so it adds no edge to the owner graph.
 //
 // Every other owner kind, role, target, external class and scope stays under
 // the ordinary loosening guards.
@@ -53,7 +57,7 @@ const internalReachTestRole = "module-internal-test"
 // reviewedInternalReachRule reports whether a rule lies inside the reviewed
 // reach of a domain owner's implementation.
 func reviewedInternalReachRule(rule Rule, base *Policy, owners map[string]Owner) bool {
-	if reviewedPortLegacyModelRule(rule, owners) || reviewedPortNarrowingRule(rule, base) {
+	if reviewedPortLegacyModelRule(rule, owners) || reviewedPortNarrowingRule(rule, base) || reviewedPostgresPortRule(rule, owners) {
 		return true
 	}
 	if rule.TargetRole != "public" || rule.TargetClass != "" || rule.TargetOwnerKind != "" || len(rule.Scopes) != 1 {
@@ -88,6 +92,15 @@ func reviewedPortLegacyModelRule(rule Rule, owners map[string]Owner) bool {
 	source, known := owners[rule.SourceOwner]
 	return known && source.Kind == "domain" && rule.SourceOwnerKind == "" && rule.SourceRole == "port" &&
 		rule.TargetOwner == rule.SourceOwner && rule.TargetOwnerKind == "" && rule.TargetRole == "legacy-model" &&
+		rule.TargetClass == "" && !rule.SameOwner && len(rule.Scopes) == 1 && rule.Scopes[0] == string(ScopeProduction)
+}
+
+// reviewedPostgresPortRule reports the per-owner rule from a domain's
+// postgres role into its own port role.
+func reviewedPostgresPortRule(rule Rule, owners map[string]Owner) bool {
+	source, known := owners[rule.SourceOwner]
+	return known && source.Kind == "domain" && rule.SourceOwnerKind == "" && rule.SourceRole == "postgres" &&
+		rule.TargetOwner == rule.SourceOwner && rule.TargetOwnerKind == "" && rule.TargetRole == "port" &&
 		rule.TargetClass == "" && !rule.SameOwner && len(rule.Scopes) == 1 && rule.Scopes[0] == string(ScopeProduction)
 }
 

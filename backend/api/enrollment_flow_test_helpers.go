@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -68,7 +69,7 @@ func (enrollmentFlowGuardianDirectory) ResolveGuardianDisplays(context.Context, 
 
 // NewEnrollmentFlowStudentAudit records student changes with the request's
 // audit actor, the way the root binds the decision flow's student audit.
-func NewEnrollmentFlowStudentAudit(db transactionruntime.Database, actor peopleCompose.RequestAuditActor) peopleCompose.StudentAuditService {
+func NewEnrollmentFlowStudentAudit(db transactionruntime.Database, actor peoplePorts.RequestAuditActor) peoplePorts.StudentAuditService {
 	return peopleCompose.NewStudentAuditService(actor, NewStudentAudit(db))
 }
 

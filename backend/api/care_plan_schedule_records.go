@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
@@ -294,7 +294,7 @@ func legacyScheduleID(raw any) (int64, error) {
 
 // legacyScheduleQueryOptions translates the retained repository query shape
 // into the owner's schedule query options.
-func legacyScheduleQueryOptions(options *userModels.QueryOptions) *careplan.StudentScheduleQueryOptions {
+func legacyScheduleQueryOptions(options *peoplePorts.QueryOptions) *careplan.StudentScheduleQueryOptions {
 	if options == nil {
 		return nil
 	}
@@ -309,13 +309,13 @@ func legacyScheduleQueryOptions(options *userModels.QueryOptions) *careplan.Stud
 	if options.Sorting != nil {
 		result.Sorting = make([]careplan.StudentScheduleSortField, 0, len(options.Sorting.Fields))
 		for _, field := range options.Sorting.Fields {
-			result.Sorting = append(result.Sorting, careplan.StudentScheduleSortField{Field: field.Field, Descending: field.Direction == userModels.SortDesc})
+			result.Sorting = append(result.Sorting, careplan.StudentScheduleSortField{Field: field.Field, Descending: field.Direction == peoplePorts.SortDesc})
 		}
 	}
 	return result
 }
 
-func legacyScheduleQueryFilter(filter userModels.QueryFilter) *careplan.StudentScheduleQueryFilter {
+func legacyScheduleQueryFilter(filter peoplePorts.QueryFilter) *careplan.StudentScheduleQueryFilter {
 	result := &careplan.StudentScheduleQueryFilter{}
 	for _, condition := range filter.Conditions() {
 		result.Conditions = append(result.Conditions, careplan.StudentScheduleQueryCondition{Field: condition.Field, Operator: string(condition.Operator), Value: condition.Value})

@@ -32,6 +32,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -96,7 +97,7 @@ type serviceGraphInputs struct {
 	// photo lifecycle's surfaces from, and PhotoUnlinker removes the stored
 	// files; without a slot the graph composes no photo lifecycle.
 	StudentPhotoSlot *peopleCompose.StudentPhotoRuntime
-	PhotoUnlinker    peopleCompose.PhotoUnlinker
+	PhotoUnlinker    peoplePorts.PhotoUnlinker
 
 	Workforce       WorkforceWiring
 	FileStorage     FileStorageWiring

@@ -3,6 +3,8 @@ package users
 import (
 	"context"
 	"errors"
+
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // CaregiverBindingOwners is the consumer-owned port over the four owners whose
@@ -24,7 +26,7 @@ type caregiverBindingLocker struct {
 	owners CaregiverBindingOwners
 }
 
-func NewCaregiverBindingLocker(owners CaregiverBindingOwners) CaregiverBindingLocker {
+func NewCaregiverBindingLocker(owners CaregiverBindingOwners) ports.CaregiverBindingLocker {
 	return &caregiverBindingLocker{owners: owners}
 }
 
@@ -47,7 +49,7 @@ func (r *caregiverBindingLocker) LockCaregiverCapabilityBindings(ctx context.Con
 	}
 	for _, step := range steps {
 		if err := step.lock(ctx); err != nil {
-			return &DatabaseError{
+			return &ports.DatabaseError{
 				Op:  "lock caregiver capability binding table " + step.table,
 				Err: err,
 			}

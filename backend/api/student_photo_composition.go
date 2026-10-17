@@ -11,6 +11,7 @@ import (
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModel "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 )
@@ -37,9 +38,9 @@ type StudentPhotoConsentRecorder interface {
 }
 
 type studentPhotoRuntime struct {
-	settings    peopleCompose.PhotoSettings
+	settings    peoplePorts.PhotoSettings
 	broadcaster PhotoBroadcaster
-	unlinker    peopleCompose.PhotoUnlinker
+	unlinker    peoplePorts.PhotoUnlinker
 	consents    StudentPhotoConsentRecorder
 	logger      *slog.Logger
 	actor       func(context.Context) int64
@@ -127,7 +128,7 @@ type StudentPhotoCapability interface {
 	ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string)
 }
 
-func (s studentPhotos) CommitUpload(ctx context.Context, req peopleCompose.CommitUploadRequest) error {
+func (s studentPhotos) CommitUpload(ctx context.Context, req peoplePorts.CommitUploadRequest) error {
 	if peopleCompose.CallerTenantID(ctx) <= 0 {
 		return ErrPhotoNoTenant
 	}
@@ -243,7 +244,7 @@ func NewStudentPhotos(
 	directory StudentPhotoCapability,
 	slot *peopleCompose.StudentPhotoRuntime,
 	deps StudentPhotoRuntimeDependencies,
-) peopleCompose.StudentPhotoService {
+) peoplePorts.StudentPhotoService {
 	runtime := studentPhotoRuntime{
 		settings: deps.Settings, broadcaster: deps.Broadcaster,
 		unlinker: deps.Unlinker, consents: deps.Consents, logger: deps.Logger,
@@ -258,9 +259,9 @@ func NewStudentPhotos(
 // StudentPhotoRuntimeDependencies are the surfaces the photo lifecycle needs
 // from the other owners.
 type StudentPhotoRuntimeDependencies struct {
-	Settings    peopleCompose.PhotoSettings
+	Settings    peoplePorts.PhotoSettings
 	Broadcaster PhotoBroadcaster
-	Unlinker    peopleCompose.PhotoUnlinker
+	Unlinker    peoplePorts.PhotoUnlinker
 	Consents    StudentPhotoConsentRecorder
 	Logger      *slog.Logger
 	// ActingAccount reads the acting account of the request a granted

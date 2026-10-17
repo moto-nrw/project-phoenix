@@ -6,8 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // GuardianFinancialDataRepository implements
@@ -40,7 +42,7 @@ func (r *GuardianFinancialDataRepository) FindByGuardianProfileID(ctx context.Co
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, &DatabaseError{Op: "find guardian financial data by guardian profile id", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find guardian financial data by guardian profile id", Err: translateNotFound(err)}
 	}
 	return data, nil
 }
@@ -63,7 +65,7 @@ func (r *GuardianFinancialDataRepository) ListByGuardianProfileIDs(ctx context.C
 	query = withTenantFilter(ctx, r.runtime, query, "guardian_financial_data")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list guardian financial data by guardian profile ids", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list guardian financial data by guardian profile ids", Err: translateNotFound(err)}
 	}
 
 	for _, row := range rows {
@@ -83,7 +85,7 @@ func (r *GuardianFinancialDataRepository) Create(ctx context.Context, data *user
 	}
 	ensureTenantID(ctx, r.runtime, data)
 	if _, err := r.runtime.DB(ctx).NewInsert().Model(data).ModelTableExpr(`users.guardian_financial_data`).Exec(ctx); err != nil {
-		return &DatabaseError{Op: "create", Err: err}
+		return &ports.DatabaseError{Op: "create", Err: err}
 	}
 	return nil
 }
@@ -103,7 +105,7 @@ func (r *GuardianFinancialDataRepository) Update(ctx context.Context, data *user
 	query = withTenantFilter(ctx, r.runtime, query, "guardian_financial_data")
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &DatabaseError{Op: "update", Err: err}
+		return &ports.DatabaseError{Op: "update", Err: err}
 	}
 	return assertRowsAffected(result, 1, "update GuardianFinancialData")
 }

@@ -8,9 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
-
 	"github.com/moto-nrw/project-phoenix/api"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -239,6 +238,6 @@ func promoteGuardian(
 // guardianSeedRepositories are the guardian rows the parent-portal seed
 // command promotes to portal accounts.
 type guardianSeedRepositories struct {
-	GuardianProfile usersModels.GuardianProfileRepository
-	StudentGuardian usersModels.StudentGuardianRepository
+	GuardianProfile peoplePorts.GuardianProfileRepository
+	StudentGuardian peoplePorts.StudentGuardianRepository
 }

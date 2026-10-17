@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 )
 
@@ -28,7 +29,7 @@ func NewCareScheduleChangeRequestRepository(capability careplan.Capability) time
 	return timetableCompose.NewCareScheduleRequestRows(NewCarePlanRows(capability))
 }
 
-func NewStudentDataChangeRequestRepository(capability careplan.Capability) userModels.StudentDataChangeRequestRepository {
+func NewStudentDataChangeRequestRepository(capability careplan.Capability) peoplePorts.StudentDataChangeRequestRepository {
 	return studentDataRequestRepository{capability: capability}
 }
 
@@ -63,7 +64,7 @@ func (r ExcusedAbsenceRequestRepository) FindByID(ctx context.Context, raw any) 
 	return excusedRequestFromPublic(value), nil
 }
 
-func (r ExcusedAbsenceRequestRepository) ListWithOptions(ctx context.Context, options *userModels.QueryOptions) ([]*absencerecords.ExcusedAbsenceRequest, error) {
+func (r ExcusedAbsenceRequestRepository) ListWithOptions(ctx context.Context, options *peoplePorts.QueryOptions) ([]*absencerecords.ExcusedAbsenceRequest, error) {
 	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Options: legacyScheduleQueryOptions(options)})
 	return excusedRequestsToLegacy(values), err
 }
@@ -78,12 +79,12 @@ func (r ExcusedAbsenceRequestRepository) ListRecentForStudent(ctx context.Contex
 	return excusedRequestsToLegacy(values), err
 }
 
-func (r ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
+func (r ExcusedAbsenceRequestRepository) ListPendingForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
 	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{absencerecords.ExcusedRequestStatusPending}, Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
 
-func (r ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
+func (r ExcusedAbsenceRequestRepository) ListDecidedForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*absencerecords.ExcusedAbsenceRequest, error) {
 	values, err := r.capability.ListExcusedAbsenceRequests(ctx, careplan.ExcusedAbsenceRequestFilter{Statuses: []string{absencerecords.ExcusedRequestStatusApproved, absencerecords.ExcusedRequestStatusRejected, absencerecords.ExcusedRequestStatusWithdrawn}, Queue: publicQueueFilter(filters)})
 	return excusedRequestsToLegacy(values), err
 }
@@ -168,11 +169,11 @@ func (r studentDataRequestRepository) ListParentVisibleByStudent(ctx context.Con
 	return r.list(ctx, careplan.StudentDataRequestFilter{StudentID: studentID, ParentVisible: true, Limit: limit})
 }
 
-func (r studentDataRequestRepository) ListPendingForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
+func (r studentDataRequestRepository) ListPendingForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
 	return r.list(ctx, careplan.StudentDataRequestFilter{Statuses: []string{userModels.DataChangeStatusPending}, Queue: publicQueueFilter(filters)})
 }
 
-func (r studentDataRequestRepository) ListDecidedForTenant(ctx context.Context, filters userModels.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
+func (r studentDataRequestRepository) ListDecidedForTenant(ctx context.Context, filters peoplePorts.RequestQueueFilters) ([]*userModels.StudentDataChangeRequest, error) {
 	return r.list(ctx, careplan.StudentDataRequestFilter{Statuses: []string{userModels.DataChangeStatusAutoApplied, userModels.DataChangeStatusApproved, userModels.DataChangeStatusRejected}, Queue: publicQueueFilter(filters)})
 }
 
@@ -233,7 +234,7 @@ func mapStudentDataRequestError(err error) error {
 	}
 }
 
-func publicQueueFilter(value userModels.RequestQueueFilters) *careplan.RequestQueueFilter {
+func publicQueueFilter(value peoplePorts.RequestQueueFilters) *careplan.RequestQueueFilter {
 	return &careplan.RequestQueueFilter{UrgentOnly: value.UrgentOnly, UrgentDate: value.UrgentDate, StudentIDs: value.StudentIDs, StudentID: value.StudentID, Search: value.Search, BeforeInstant: value.BeforeInstant, BeforeID: value.BeforeID, Limit: value.Limit}
 }
 

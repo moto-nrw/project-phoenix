@@ -144,6 +144,13 @@ From policy epoch 50 a reviewed epoch may add exactly these rules
    A projection or workflow target, another owner's `legacy-model`, a
    platform's non-public role and the reverse DAG direction stay rejected.
 
+6. From policy epoch 65 a domain's `postgres` role may reach the same
+   owner's `port` role, per owner and production only: the owner's
+   repositories implement the repository contracts its ports declare
+   (`reviewedPostgresPortRule`). The rule stays inside one owner and adds no
+   edge to the owner graph. People Directory is the first user
+   (`people-directory.postgres.port`, #4084).
+
 A per-owner rule is added in the change that first uses it. The composition's
 rule into the same target goes once the composition no longer needs it.
 Projection, workflow and platform sources, other targets, external classes

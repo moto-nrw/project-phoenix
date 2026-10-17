@@ -10,7 +10,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
@@ -20,7 +20,7 @@ import (
 
 type CareLifecycleTestModule struct {
 	CareLifecycle careplan.CareLifecycle
-	StudentAudit  peopleCompose.StudentAuditService
+	StudentAudit  peoplePorts.StudentAuditService
 	Settings      settingsCompose.SettingsService
 }
 
@@ -59,7 +59,7 @@ func NewCareLifecycleTestModule(db transactionruntime.Database, unit tenant.Unit
 // capability over the given collaborators, so a suite can stand in the
 // caller's staff identity or leave an audit repository out.
 func NewStudentDocumentsTestModule(
-	db transactionruntime.Database, records careplan.Capability, students userModels.StudentRepository,
+	db transactionruntime.Database, records careplan.Capability, students peoplePorts.StudentRepository,
 	userContext securityruntime.StudentAccessUserContext,
 	edits auditModels.StudentFieldEditRepository, accessLog auditModels.DataAccessLogRepository,
 ) (careplan.StudentDocuments, error) {
