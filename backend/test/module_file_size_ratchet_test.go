@@ -58,7 +58,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/communication/internal/adapters/parentaudience/projection.go":           945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
 	"modules/communication/internal/staffannouncements/service.go":                   1178,
-	"modules/enrollment/form_schema.go":                                              1015,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1004,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1850,
 	"modules/timetable/compose/httpadapter/schedules.go":                             1090,
@@ -66,7 +65,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/workforce/http/timetracking/api.go":                                     804,
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    845,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go": 1767,
-	"modules/workforce/timetracking.go":                                              808,
 	"workflows/reminderdelivery/internal/application/service.go":                     864,
 }
 
