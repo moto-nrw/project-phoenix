@@ -17,6 +17,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	shifttypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/shifttypes"
 	staffshiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
@@ -64,11 +65,13 @@ func staffShiftsRuntime(deps staffShiftsDependencies) staffshiftsHTTP.Runtime {
 			}
 			return staffshiftsHTTP.Actor{StaffID: staffID, AccountID: deps.ActorAccountID(ctx)}, nil
 		},
-		MarkRollback:          tenant.MarkRollback,
-		CanExportInternalPlan: common.CanExportInternalPlan,
-		TimeTrackingManage:    permissions.TimeTrackingManage,
-		SchedulesRead:         permissions.SchedulesRead,
-		UsersRead:             permissions.UsersRead,
+		MarkRollback: tenant.MarkRollback,
+		CanExportInternalPlan: func(ctx context.Context) bool {
+			return common.CanExportInternalPlan(sessiontoken.PermissionsFromCtx(ctx))
+		},
+		TimeTrackingManage: permissions.TimeTrackingManage,
+		SchedulesRead:      permissions.SchedulesRead,
+		UsersRead:          permissions.UsersRead,
 	}
 }
 
