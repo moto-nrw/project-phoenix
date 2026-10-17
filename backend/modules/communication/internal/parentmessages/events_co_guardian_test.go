@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -32,16 +34,16 @@ func TestEmitChildEventToOtherGuardians_NeutralForEveryoneButTheSubmitter(t *tes
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	full := parentmessaging.ChildEvent{
 		EventType:      "request_status",
-		ActorKind:      usersModels.ParentMessageSenderStaff,
+		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: reviewer.ID,
 		Body:           "Betreuungsstand geändert: Krankmeldung 01.09.2026",
 		RequestType:    "absence",
-		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		RequestStatus:  messaging.ParentMessageRequestStatusDone,
 		DecisionReason: "Attest liegt vor",
 		RefTable:       "active.excused_absence_requests",
 		RefID:          i64(99),
@@ -75,14 +77,14 @@ func TestEmitChildEventToOtherGuardians_LoneGuardianGetsNothing(t *testing.T) {
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 
 	settings := &toggleSettings{enabled: true}
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		settings, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	recipients := otherGuardiansOf(t, db, emitter, submitter)
 	assert.Empty(t, recipients, "a child with one guardian has nobody to notify")
 	emitter.EmitChildEventToGuardians(submitter.TenantID, submitter.StudentID, recipients,
 		parentmessaging.ChildEvent{
-			EventType: "request_status", ActorKind: usersModels.ParentMessageSenderStaff,
+			EventType: "request_status", ActorKind: messaging.ParentMessageSenderStaff,
 			Body: "Betreuungsstand geändert: Krankmeldung 01.09.2026",
 		})
 
@@ -123,7 +125,7 @@ func TestResolveDecisionAudience_SplitsSharedFromNeutral(t *testing.T) {
 	shared := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Mitleser")
 	uninvolved := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Rita", "Ohnezugang")
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	var audience parentmessaging.DecisionAudience
@@ -155,7 +157,7 @@ func TestResolveDecisionAudience_NoSharesMeansEverybodyNeutral(t *testing.T) {
 	submitter := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestCoGuardianForStudent(t, db, submitter.StudentID, "Klaus", "Zweitelternteil")
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: true}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	var audience parentmessaging.DecisionAudience

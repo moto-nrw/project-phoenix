@@ -73,12 +73,11 @@ func newCareScheduleRequestService(
 
 func (f *careFixture) emitter(
 	t *testing.T,
-	messageRepo usersModels.ParentMessageRepository,
 	settings parentmessaging.TenantSettingsResolver,
 	broadcaster realtime.Broadcaster,
 ) *parentmessaging.Emitter {
 	t.Helper()
-	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, messageRepo, settings, broadcaster, slog.Default())
+	emitter := api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, communicationtest.NewParentMessageRepository(f.db), settings, broadcaster, slog.Default())
 	return emitter
 }
 
@@ -541,7 +540,7 @@ func TestDecide_ApproveRefusedWhenGuardianAccessRevoked(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, nil, nil, nil),
+		api.NewParentEventEmitter(testpkg.MustDatabase(f.db), testpkg.TenantRuntime(t, f.db), f.repos.ParentMessageThread, nil, nil, nil, slog.Default()),
 		nil,
 		slog.Default(),
 	)
@@ -613,7 +612,7 @@ func TestDecide_RejectClosesRequestPillEvenWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, communicationtest.NewParentMessageRepository(f.db), settings, nil),
+		f.emitter(t, settings, nil),
 		nil,
 		slog.Default(),
 	)
@@ -665,7 +664,7 @@ func TestCreateRequest_RequestCreatedPillDoesNotAdvanceThreadPreview(t *testing.
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, communicationtest.NewParentMessageRepository(f.db), &toggleSettings{enabled: true}, nil),
+		f.emitter(t, &toggleSettings{enabled: true}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -719,7 +718,7 @@ func TestDecide_NoReconcilePillWhenRequestFiledWhileDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, communicationtest.NewParentMessageRepository(f.db), fakeDisabledSettings{}, nil),
+		f.emitter(t, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -754,7 +753,7 @@ func TestDecide_ApproveAllowedWhenMessagingDisabled(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, communicationtest.NewParentMessageRepository(f.db), fakeDisabledSettings{}, nil),
+		f.emitter(t, fakeDisabledSettings{}, nil),
 		nil,
 		slog.Default(),
 	)
@@ -1114,7 +1113,7 @@ func TestCareRequestLifecycle_WakesAllGuardians(t *testing.T) {
 		f.sf.ArrivalSchedule,
 		f.sf.PickupSchedule,
 		f.sf,
-		f.emitter(t, communicationtest.NewParentMessageRepository(f.db), &toggleSettings{enabled: true}, broadcaster),
+		f.emitter(t, &toggleSettings{enabled: true}, broadcaster),
 		broadcaster,
 		slog.Default(),
 	)

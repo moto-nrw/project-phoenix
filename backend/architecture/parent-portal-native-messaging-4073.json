@@ -41,11 +41,13 @@
       "backend/workflows/parentportal/messaging/repository_ports.go",
       "backend/workflows/parentportal/messaging/parent_declaration_service.go",
       "backend/workflows/parentportal/messaging_portal.go",
-      "backend/modules/communication/parentstore/portal_conversation.go",
+      "backend/modules/communication/internal/application/parent_conversation_binding.go",
+      "backend/modules/communication/internal/parentmessages/native_conversation_binding.go",
       "backend/modules/communication/parentstore/portal_declaration_policy.go",
       "backend/database/repositories/users/guardian_sharing_records.go",
       "backend/api/parent_messaging_native_test.go",
-      "backend/modules/communication/internal/parentmessages/portal_native_contract_internal_test.go"
+      "backend/modules/communication/internal/application/parent_native_contract_internal_test.go",
+      "backend/modules/communication/internal/staffannouncements/parent_native_declaration_policy_internal_test.go"
     ],
     "workload": "Existing workflow/Care/HTTP/API and owner-store suites; original family-protection/share, proof-integrity and receipt regressions; native mutation/error/context/JSON/canonical-encoding tests and complete nonfast structural gates.",
     "thresholds": "Retire exactly the listed production key. Preserve original queries, lock order, tenant/relationship authorization, validation/error causes, nil/empty/number semantics, IDs, timestamps and wire contracts. No new grants, type aliases, rules, exceptions, graph fields or budget increase.",

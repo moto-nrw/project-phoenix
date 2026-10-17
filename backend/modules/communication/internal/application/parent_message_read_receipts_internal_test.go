@@ -1,4 +1,4 @@
-package users
+package application
 
 import (
 	"testing"
