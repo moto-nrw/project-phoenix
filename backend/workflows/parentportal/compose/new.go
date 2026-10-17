@@ -1,8 +1,6 @@
 // Package compose binds the guardian portal workflow to the owners it
-// coordinates (#3420): the retained read models of the child, its school and
-// its guardians, the owners' commands, and the platform's live events, meal
-// plan and language catalog. It holds no database: every flow runs in the
-// tenant unit of work of the request context.
+// coordinates (#3420), including its read, command and pure policy ports.
+// It holds no database; every flow joins the request's tenant unit of work.
 package compose
 
 import (
@@ -31,6 +29,7 @@ type (
 type Dependencies struct {
 	GuardianPolicy care.GuardianPolicy
 	Fingerprints   messaging.ContentFingerprints
+	Declarations   messaging.DeclarationPolicy
 	Locales        care.Locales
 	Runtime        care.Runtime
 	Logger         *slog.Logger
@@ -147,7 +146,7 @@ func careConfig(deps Dependencies, bound owners, messagingFlows *messaging.Servi
 
 func messagingConfig(deps Dependencies, resolver messaging.ChildResolver) messaging.Config {
 	return messaging.Config{
-		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints,
+		Logger: deps.Logger, Now: deps.Now, Runtime: deps.Runtime, Children: resolver, GuardianPolicy: deps.GuardianPolicy, Fingerprints: deps.Fingerprints, Declarations: deps.Declarations,
 		ChildRepo: deps.ChildRepo, EnrollmentRequestRepo: deps.EnrollmentRequestRepo, Settings: deps.Settings,
 		StudentRepo: deps.StudentRepo, StudentGuardianRepo: deps.StudentGuardianRepo, GuardianProfileRepo: deps.GuardianProfileRepo,
 		AnnouncementRepo:  deps.AnnouncementRepo,

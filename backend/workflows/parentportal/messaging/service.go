@@ -53,6 +53,7 @@ type MessagingGate func(context.Context, int64) bool
 type Config struct {
 	GuardianPolicy PermissionValues
 	Fingerprints   ContentFingerprints
+	Declarations   DeclarationPolicy
 	Runtime        care.Runtime
 	Logger         *slog.Logger
 	Now            func() time.Time
@@ -98,6 +99,9 @@ func New(cfg Config) *Service {
 	}
 	if cfg.GuardianPolicy == nil {
 		panic("messaging: guardian policy is required")
+	}
+	if cfg.Declarations == nil {
+		panic("messaging: declaration policy is required")
 	}
 	if cfg.Fingerprints == nil {
 		panic("messaging: fingerprints are required")

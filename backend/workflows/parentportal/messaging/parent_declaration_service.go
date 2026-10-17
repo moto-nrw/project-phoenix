@@ -9,7 +9,6 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -52,7 +51,7 @@ type PasswordConfirmer func(ctx context.Context, password string) error
 // declarationTarget is the resolved announcement a declaration is made on.
 type declarationTarget struct {
 	tenantID         int64
-	rules            declarations.DeclarationRules
+	rules            declarationRules
 	requiresPassword bool
 }
 
@@ -68,7 +67,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	if err != nil {
 		return nil, false, err
 	}
-	if in.Action != declarations.DeclarationActionRevoked {
+	if in.Action != DeclarationActionRevoked {
 		if err := s.authorizeDeclarationChild(ctx, accountID, in.StudentID, target.tenantID); err != nil {
 			return nil, false, err
 		}
@@ -144,7 +143,7 @@ func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, annou
 // announcement. New agreements and refusals still require the normal live
 // announcement window.
 func declarationActionAnnouncementIsLive(a *usersModels.ParentAnnouncement, action string) bool {
-	if action != declarations.DeclarationActionRevoked {
+	if action != DeclarationActionRevoked {
 		return a != nil && a.IsDeclaration() && announcementIsLive(a)
 	}
 	if a == nil || !a.IsDeclaration() || !a.Active || a.PublishedAt == nil {
@@ -207,7 +206,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 	if err != nil {
 		return nil, false, err
 	}
-	if signer == nil && in.Action == declarations.DeclarationActionRevoked {
+	if signer == nil && in.Action == DeclarationActionRevoked {
 		signer, err = repo.HoldHistoricalDeclarationSigner(ctx, target.tenantID, announcementID, accountID, in.StudentID)
 		if err != nil {
 			return nil, false, err
@@ -225,7 +224,7 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 		return mine, false, nil
 	}
 	now := time.Now()
-	if err := checkDeclarationAction(rules, mine, in.Action, now); err != nil {
+	if err := checkDeclarationAction(s.Declarations, rules, mine, in.Action, now); err != nil {
 		return nil, false, err
 	}
 	submission := newDeclarationSubmission(target.tenantID, announcementID, accountID, version, signer, in, passwordConfirmed, now, s.Fingerprints.Content)
@@ -239,24 +238,24 @@ func (s *Service) writeDeclaration(ctx context.Context, accountID, announcementI
 // lockedDeclarationVersion re-reads the announcement under the child lock and
 // requires that the guardian declares on the current version. A new
 // declaration for a child whose care ended is refused; a revocation is not.
-func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarations.DeclarationRules, *usersModels.DeclarationVersion, error) {
+func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announcementID int64, in DeclarationInput) (declarationRules, *usersModels.DeclarationVersion, error) {
 	a, err := s.AnnouncementRepo.FindByID(ctx, announcementID)
 	if err != nil {
-		return declarations.DeclarationRules{}, nil, fmt.Errorf("parent: reload declaration: %w", err)
+		return declarationRules{}, nil, fmt.Errorf("parent: reload declaration: %w", err)
 	}
 	if !declarationActionAnnouncementIsLive(a, in.Action) {
-		return declarations.DeclarationRules{}, nil, ErrAnnouncementNotFound
+		return declarationRules{}, nil, ErrAnnouncementNotFound
 	}
 	version, err := s.AnnouncementRepo.LatestDeclarationVersion(ctx, tenantID, announcementID)
 	if err != nil {
-		return declarations.DeclarationRules{}, nil, fmt.Errorf("parent: load declaration version: %w", err)
+		return declarationRules{}, nil, fmt.Errorf("parent: load declaration version: %w", err)
 	}
 	if version == nil || version.ID != in.VersionID {
-		return declarations.DeclarationRules{}, nil, ErrDeclarationVersionChanged
+		return declarationRules{}, nil, ErrDeclarationVersionChanged
 	}
-	if in.Action != declarations.DeclarationActionRevoked {
+	if in.Action != DeclarationActionRevoked {
 		if err := s.requireCareRunning(ctx, tenantID, in.StudentID); err != nil {
-			return declarations.DeclarationRules{}, nil, err
+			return declarationRules{}, nil, err
 		}
 	}
 	return feedDeclarationRules(a.Declaration, a.ResponseDeadline), version, nil
@@ -264,15 +263,15 @@ func (s *Service) lockedDeclarationVersion(ctx context.Context, tenantID, announ
 
 // checkDeclarationAction maps a refused action to the error the portal can
 // explain: the deadline for a late answer, otherwise "not possible".
-func checkDeclarationAction(rules declarations.DeclarationRules, mine *usersModels.DeclarationSubmission, action string, now time.Time) error {
+func checkDeclarationAction(policy DeclarationPolicy, rules declarationRules, mine *usersModels.DeclarationSubmission, action string, now time.Time) error {
 	myLatest := ""
 	if mine != nil {
 		myLatest = mine.Action
 	}
-	if declarations.DeclarationActionAllowed(rules, true, myLatest, action, now) {
+	if policy.ActionAllowed(rules.Revocable, rules.Deadline, true, myLatest, action, now) {
 		return nil
 	}
-	if rules.Closed(now) && action != declarations.DeclarationActionRevoked {
+	if policy.Closed(rules.Deadline, now) && action != DeclarationActionRevoked {
 		return ErrDeclarationClosed
 	}
 	return ErrDeclarationActionNotAllowed
@@ -335,8 +334,8 @@ func DeclarationContentHash(version *usersModels.DeclarationVersion, fingerprint
 
 func knownDeclarationAction(action string) bool {
 	switch action {
-	case declarations.DeclarationActionAgreed, declarations.DeclarationActionDeclined,
-		declarations.DeclarationActionRevoked:
+	case DeclarationActionAgreed, DeclarationActionDeclined,
+		DeclarationActionRevoked:
 		return true
 	default:
 		return false
@@ -352,8 +351,8 @@ func containsDeclarationChild(children []*usersModels.DeclarationChild, studentI
 	return false
 }
 
-func feedDeclarationRules(settings usersModels.AnnouncementDeclarationSettings, deadline *time.Time) declarations.DeclarationRules {
-	return declarations.DeclarationRules{
-		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable, Deadline: deadline,
+func feedDeclarationRules(settings usersModels.AnnouncementDeclarationSettings, deadline *time.Time) declarationRules {
+	return declarationRules{
+		Signers: settings.Signers, Revocable: settings.Revocable, Deadline: deadline,
 	}
 }

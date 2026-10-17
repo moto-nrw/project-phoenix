@@ -86,6 +86,7 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		ChildRepo:      child,
@@ -99,6 +100,7 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: enroll,
@@ -133,6 +135,7 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: repo,
@@ -153,6 +156,7 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
@@ -309,6 +313,7 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		ChildRepo:      &stubChildRepo{},

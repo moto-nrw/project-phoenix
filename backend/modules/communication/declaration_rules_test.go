@@ -1,4 +1,4 @@
-package parentmessaging
+package communication
 
 import (
 	"testing"

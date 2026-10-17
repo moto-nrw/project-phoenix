@@ -38,6 +38,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),

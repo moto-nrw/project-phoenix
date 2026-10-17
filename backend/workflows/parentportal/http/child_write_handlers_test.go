@@ -79,6 +79,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:  api.ParentGuardianPolicy{},
 		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
 		CarePlan:        repos.CareExceptions,
@@ -232,6 +233,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CareExceptions,
