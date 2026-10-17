@@ -212,137 +212,186 @@ func (s *service) projectStaffCalendarEvents(ctx context.Context, owner staffFee
 	}
 	var events []CalendarEvent
 	err := s.cfg.Runtime.WithinTenant(ctx, owner.tenantID, func(txCtx context.Context) error {
-		person, err := s.cfg.PersonRepo.FindByAccountID(txCtx, owner.accountID)
-		if err != nil {
-			return err
-		}
-		if person == nil {
-			return ErrNotFound
-		}
-		staff, err := s.cfg.StaffRepo.FindByPersonID(txCtx, person.ID)
-		if err != nil {
-			if s.cfg.MissingRecord(err) {
-				return ErrNotFound
-			}
-			return err
-		}
-		if staff == nil {
-			return ErrNotFound
-		}
-		reachable, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(txCtx, []int64{staff.ID})
-		if err != nil {
-			return err
-		}
-		if !reachable[staff.ID] {
-			return ErrNotFound
-		}
-
-		from := s.today().AddDays(-feedPastDays)
-		to := s.today().AddDays(feedFutureDays)
-		appointments, err := s.listAppointmentsVisibleToStaff(txCtx, staff.ID, toCalendarDate(from), toCalendarDate(to))
-		if err != nil {
-			return err
-		}
-		ids := make([]int64, 0, len(appointments))
-		for _, appointment := range appointments {
-			ids = append(ids, appointment.ID)
-		}
-		recurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, ids)
-		if err != nil {
-			return err
-		}
-		recurrenceByID := make(map[int64]*appointmentcap.RecurrenceRule, len(recurrences))
-		for _, recurrence := range recurrences {
-			recurrenceByID[recurrence.AppointmentID] = recurrence
-		}
-		cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(txCtx, ids)
-		if err != nil {
-			return err
-		}
-		overridesByID := make(map[int64][]*appointmentcap.AppointmentOccurrenceOverride, len(cancelledOverrides))
-		for _, override := range cancelledOverrides {
-			overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
-		}
-		emittedIDs := make(map[int64]struct{}, len(appointments))
-		for _, appointment := range appointments {
-			recurrence := recurrenceByID[appointment.ID]
-			if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
-				continue
-			}
-			event := appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID])
-			event.Description = ""
-			events = append(events, event)
-			emittedIDs[appointment.ID] = struct{}{}
-		}
-
-		tombstoneCutoff := s.today().AddDays(-feedTombstoneDays).BerlinMidnight()
-		tombstones, err := s.listStaffCancellationTombstones(txCtx, staff.ID, tombstoneCutoff)
-		if err != nil {
-			return err
-		}
-		tombstoneIDs := make([]int64, 0, len(tombstones))
-		for _, appointment := range tombstones {
-			if _, emitted := emittedIDs[appointment.ID]; !emitted {
-				tombstoneIDs = append(tombstoneIDs, appointment.ID)
-			}
-		}
-		tombstoneRecurrences, err := s.cfg.Appointments.FindRecurrenceRules(txCtx, tombstoneIDs)
-		if err != nil {
-			return err
-		}
-		tombstoneRecurrenceByID := make(map[int64]*appointmentcap.RecurrenceRule, len(tombstoneRecurrences))
-		for _, recurrence := range tombstoneRecurrences {
-			tombstoneRecurrenceByID[recurrence.AppointmentID] = recurrence
-		}
-		for _, appointment := range tombstones {
-			if _, emitted := emittedIDs[appointment.ID]; emitted {
-				continue
-			}
-			event := appointmentICSEvent(appointment, tombstoneRecurrenceByID[appointment.ID], nil)
-			event.Description = ""
-			events = append(events, event)
-		}
-
-		timetableEvents, err := s.staffTimetableFeedEvents(txCtx, staff.ID, from, to)
-		if err != nil {
-			return err
-		}
-		shiftEvents, err := s.staffShiftFeedEvents(txCtx, staff.ID, from, to)
-		if err != nil {
-			return err
-		}
-		staffEvents := append(timetableEvents, shiftEvents...)
-		currentStaffEventIDs := make(map[string]struct{}, len(staffEvents))
-		for _, staffEvent := range staffEvents {
-			currentStaffEventIDs[staffEvent.ID] = struct{}{}
-			event, err := staffCalendarICSEvent(owner.tenantID, staffEvent)
-			if err != nil {
-				return err
-			}
-			events = append(events, event)
-		}
-		staffTombstones, err := s.cfg.StaffFeedTombstoneRepo.ListForStaffSince(txCtx, staff.ID, tombstoneCutoff)
-		if err != nil {
-			return err
-		}
-		for _, tombstone := range staffTombstones {
-			staffEvent := staffFeedTombstoneEvent(tombstone)
-			if _, current := currentStaffEventIDs[staffEvent.ID]; current {
-				continue
-			}
-			event, err := staffCalendarICSEvent(owner.tenantID, staffEvent)
-			if err != nil {
-				return err
-			}
-			events = append(events, event)
-		}
-		return nil
+		var err error
+		events, err = s.staffFeedEventsForOwner(txCtx, owner)
+		return err
 	})
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+	return events, nil
+}
+
+func (s *service) staffFeedEventsForOwner(ctx context.Context, owner staffFeedOwner) ([]CalendarEvent, error) {
+	staffID, err := s.staffFeedStaffID(ctx, owner.accountID)
+	if err != nil {
+		return nil, err
+	}
+	from := s.today().AddDays(-feedPastDays)
+	to := s.today().AddDays(feedFutureDays)
+	events, emittedIDs, err := s.staffFeedAppointments(ctx, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	tombstoneCutoff := s.today().AddDays(-feedTombstoneDays).BerlinMidnight()
+	tombstones, err := s.staffFeedAppointmentTombstones(ctx, staffID, tombstoneCutoff, emittedIDs)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, tombstones...)
+	assignments, currentIDs, err := s.staffFeedAssignments(ctx, owner.tenantID, staffID, from, to)
+	if err != nil {
+		return nil, err
+	}
+	events = append(events, assignments...)
+	removedAssignments, err := s.staffFeedAssignmentTombstones(ctx, owner.tenantID, staffID, tombstoneCutoff, currentIDs)
+	if err != nil {
+		return nil, err
+	}
+	return append(events, removedAssignments...), nil
+}
+
+func (s *service) staffFeedStaffID(ctx context.Context, accountID int64) (int64, error) {
+	person, err := s.cfg.PersonRepo.FindByAccountID(ctx, accountID)
+	if err != nil {
+		return 0, err
+	}
+	if person == nil {
+		return 0, ErrNotFound
+	}
+	staff, err := s.cfg.StaffRepo.FindByPersonID(ctx, person.ID)
+	if err != nil {
+		if s.cfg.MissingRecord(err) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	if staff == nil {
+		return 0, ErrNotFound
+	}
+	reachable, err := s.cfg.StaffRepo.FindReachableCalendarStaffIDs(ctx, []int64{staff.ID})
+	if err != nil {
+		return 0, err
+	}
+	if !reachable[staff.ID] {
+		return 0, ErrNotFound
+	}
+	return staff.ID, nil
+}
+
+func (s *service) staffFeedAppointments(ctx context.Context, staffID int64, from, to appointmentcap.Date) ([]CalendarEvent, map[int64]struct{}, error) {
+	appointments, err := s.listAppointmentsVisibleToStaff(ctx, staffID, toCalendarDate(from), toCalendarDate(to))
+	if err != nil {
+		return nil, nil, err
+	}
+	ids := make([]int64, 0, len(appointments))
+	for _, appointment := range appointments {
+		ids = append(ids, appointment.ID)
+	}
+	recurrences, err := s.cfg.Appointments.FindRecurrenceRules(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	recurrenceByID := make(map[int64]*appointmentcap.RecurrenceRule, len(recurrences))
+	for _, recurrence := range recurrences {
+		recurrenceByID[recurrence.AppointmentID] = recurrence
+	}
+	cancelledOverrides, err := s.cfg.Appointments.FindCancelledOccurrenceOverrides(ctx, ids)
+	if err != nil {
+		return nil, nil, err
+	}
+	overridesByID := make(map[int64][]*appointmentcap.AppointmentOccurrenceOverride, len(cancelledOverrides))
+	for _, override := range cancelledOverrides {
+		overridesByID[override.AppointmentID] = append(overridesByID[override.AppointmentID], override)
+	}
+	var events []CalendarEvent
+	emittedIDs := make(map[int64]struct{}, len(appointments))
+	for _, appointment := range appointments {
+		recurrence := recurrenceByID[appointment.ID]
+		if recurrence != nil && !hasOccurrenceInWindow(appointment, recurrence, from, to) {
+			continue
+		}
+		event := appointmentICSEvent(appointment, recurrence, overridesByID[appointment.ID])
+		event.Description = ""
+		events = append(events, event)
+		emittedIDs[appointment.ID] = struct{}{}
+	}
+	return events, emittedIDs, nil
+}
+
+func (s *service) staffFeedAppointmentTombstones(ctx context.Context, staffID int64, cutoff time.Time, emittedIDs map[int64]struct{}) ([]CalendarEvent, error) {
+	tombstones, err := s.listStaffCancellationTombstones(ctx, staffID, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	tombstoneIDs := make([]int64, 0, len(tombstones))
+	for _, appointment := range tombstones {
+		if _, emitted := emittedIDs[appointment.ID]; !emitted {
+			tombstoneIDs = append(tombstoneIDs, appointment.ID)
+		}
+	}
+	recurrences, err := s.cfg.Appointments.FindRecurrenceRules(ctx, tombstoneIDs)
+	if err != nil {
+		return nil, err
+	}
+	recurrenceByID := make(map[int64]*appointmentcap.RecurrenceRule, len(recurrences))
+	for _, recurrence := range recurrences {
+		recurrenceByID[recurrence.AppointmentID] = recurrence
+	}
+	var events []CalendarEvent
+	for _, appointment := range tombstones {
+		if _, emitted := emittedIDs[appointment.ID]; emitted {
+			continue
+		}
+		event := appointmentICSEvent(appointment, recurrenceByID[appointment.ID], nil)
+		event.Description = ""
+		events = append(events, event)
+	}
+	return events, nil
+}
+
+func (s *service) staffFeedAssignments(ctx context.Context, tenantID, staffID int64, from, to appointmentcap.Date) ([]CalendarEvent, map[string]struct{}, error) {
+	timetableEvents, err := s.staffTimetableFeedEvents(ctx, staffID, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	shiftEvents, err := s.staffShiftFeedEvents(ctx, staffID, from, to)
+	if err != nil {
+		return nil, nil, err
+	}
+	staffEvents := append(timetableEvents, shiftEvents...)
+	currentIDs := make(map[string]struct{}, len(staffEvents))
+	var events []CalendarEvent
+	for _, staffEvent := range staffEvents {
+		currentIDs[staffEvent.ID] = struct{}{}
+		event, err := staffCalendarICSEvent(tenantID, staffEvent)
+		if err != nil {
+			return nil, nil, err
+		}
+		events = append(events, event)
+	}
+	return events, currentIDs, nil
+}
+
+func (s *service) staffFeedAssignmentTombstones(ctx context.Context, tenantID, staffID int64, cutoff time.Time, currentIDs map[string]struct{}) ([]CalendarEvent, error) {
+	tombstones, err := s.cfg.StaffFeedTombstoneRepo.ListForStaffSince(ctx, staffID, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	var events []CalendarEvent
+	for _, tombstone := range tombstones {
+		staffEvent := staffFeedTombstoneEvent(tombstone)
+		if _, current := currentIDs[staffEvent.ID]; current {
+			continue
+		}
+		event, err := staffCalendarICSEvent(tenantID, staffEvent)
+		if err != nil {
+			return nil, err
+		}
+		events = append(events, event)
 	}
 	return events, nil
 }

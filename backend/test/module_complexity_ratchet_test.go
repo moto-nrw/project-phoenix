@@ -219,7 +219,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/schoolcalendar/internal/adapters/postgres/store.go:(*Store).ListDateframes":                                18,
 	"modules/schoolcalendar/internal/domain/ical.go:formatRRULE":                                                        22,
 	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).ParentCalendarFeedByToken":                   58,
-	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).projectStaffCalendarEvents":                  73,
 	"modules/schoolcalendar/portal/internal/application/ics.go:(*service).ParentAppointmentICS":                         24,
 	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).dispatchGuardianDevicesAfterCommit": 18,
 	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).notifyGuardians":                    26,
