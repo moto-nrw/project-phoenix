@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -146,7 +144,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	created, err := svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, date, pickup, "", "Arzttermin", nil)
 	require.NoError(t, err)
 	require.NotNil(t, created)
-	assert.Equal(t, scheduleModels.CareRequestStatusPending, created.Status)
+	assert.Equal(t, "pending", created.Status)
 
 	listed, err := svc.ListPickupChangeRequests(ctx, chain.AccountID, chain.StudentID)
 	require.NoError(t, err)
@@ -159,8 +157,7 @@ func TestPickupChangeRoundTrip(t *testing.T) {
 	assert.True(t, found, "die eigene Anfrage steht in der Liste")
 
 	// Nothing was applied: only a staff approval may move a pickup time.
-	applied, err := repos.StudentPickupException.FindByStudentIDAndDate(
-		tenant.WithTenantID(ctx, chain.TenantID), chain.StudentID, scheduleModels.Date(date))
+	applied, err := api.FindParentPickupExceptionFixture(tenant.WithTenantID(ctx, chain.TenantID), repos.CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	assert.Nil(t, applied, "eine Anfrage allein aendert keine Abholzeit")
 }

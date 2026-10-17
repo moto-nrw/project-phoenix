@@ -6,10 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -83,13 +84,13 @@ func seedPickupScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID in
 		return false
 	}
 	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Abholung", "Autor")
-	row := &scheduleModels.StudentPickupSchedule{
+	row := &careplan.PickupSchedule{
 		StudentID: studentID, Weekday: weekday, PickupTime: pickup, CreatedBy: author.ID,
 	}
 	row.SetTenantID(tenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentPickupSchedule.Create(txCtx, row)
+		return api.CreateParentPickupScheduleFixture(txCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), row)
 	}))
 	t.Cleanup(func() {
 		_ = testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
@@ -114,13 +115,13 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 	// Real staff row rather than a guessed id: created_by carries a foreign key.
 	author := testpkg.CreateTestStaffForTenant(t, db, tenantID, "Plan", "Autor")
 
-	row := &scheduleModels.StudentArrivalSchedule{
+	row := &testpkg.StudentArrivalSchedule{
 		StudentID:       studentID,
 		Weekday:         weekday,
 		ExpectedArrival: arrival,
 		CreatedBy:       author.ID,
 	}
-	row.SetTenantID(tenantID)
+	row.TenantID = tenantID
 
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 	err := testpkg.WithTenantTx(t, ctx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
@@ -136,7 +137,7 @@ func seedArrivalScheduleForToday(t *testing.T, db *bun.DB, tenantID, studentID i
 		cleanupCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), tenantID)
 		_ = testpkg.WithTenantTx(t, cleanupCtx, db, tenantID, func(txCtx context.Context, tx bun.Tx) error {
 			_, delErr := tx.NewDelete().
-				Model((*scheduleModels.StudentArrivalSchedule)(nil)).
+				Model((*testpkg.StudentArrivalSchedule)(nil)).
 				ModelTableExpr(`schedule.student_arrival_schedules`).
 				Where("student_id = ?", studentID).
 				Exec(txCtx)
@@ -355,13 +356,13 @@ func TestGetChildTodayStatusAbsentArrivalExceptionOverridesWeeklyPlan(t *testing
 		t.Skip("Wochenplaene gelten nur montags bis freitags")
 	}
 	staff := testpkg.CreateTestStaffForTenant(t, db, chain.TenantID, "Abwesenheit", "Autor")
-	exception := &scheduleModels.StudentArrivalException{
-		StudentID: chain.StudentID, ExceptionDate: scheduleModels.NewDate(2026, 8, 24), ExpectedArrival: nil, CreatedBy: staff.ID,
+	exception := &careplan.ArrivalException{
+		StudentID: chain.StudentID, ExceptionDate: careplan.Date(calendar.NewDate(2026, 8, 24)), ExpectedArrival: nil, CreatedBy: staff.ID,
 	}
 	exception.SetTenantID(chain.TenantID)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
 	require.NoError(t, testpkg.WithTenantTx(t, ctx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentArrivalException.Create(txCtx, exception)
+		return api.CreateParentArrivalExceptionFixture(txCtx, api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), exception)
 	}))
 
 	status, err := svc.GetChildTodayStatus(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID)
