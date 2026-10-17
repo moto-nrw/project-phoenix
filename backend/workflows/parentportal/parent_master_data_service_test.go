@@ -43,6 +43,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
@@ -114,6 +115,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
@@ -163,6 +165,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},

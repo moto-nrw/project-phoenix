@@ -84,6 +84,7 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
@@ -101,6 +102,7 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
@@ -139,6 +141,7 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 		{SchoolID: 22, PhaseID: 202},
 	}}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
@@ -163,6 +166,7 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 
 	want := errors.New("settings unavailable")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
@@ -323,6 +327,7 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	testpkg.SetupTestDB(t)
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},

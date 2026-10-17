@@ -59,6 +59,7 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
