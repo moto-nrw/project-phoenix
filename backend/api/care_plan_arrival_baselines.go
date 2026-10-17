@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -19,7 +20,7 @@ type arrivalBaselineStudents interface {
 // NewArrivalBaselines binds the caller-supplied native People and Timetable
 // projections to Care Plan. It constructs no repository or service graph.
 func NewArrivalBaselines(
-	records compose.ArrivalBaselineRecords,
+	records carePlanPorts.ArrivalBaselineRecords,
 	students arrivalBaselineStudents,
 	classes timetable.ClassArrivalQuery,
 	links careplan.ApprovedBookingReader,

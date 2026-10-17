@@ -7,6 +7,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -62,7 +63,7 @@ func (f fixedPickupBaseline) HasBookedOfferingPickupForWeekday(_ context.Context
 
 // newPickupBaselineService builds the legacy-mode test projection.
 func newPickupBaselineService(
-	records compose.PickupBaselineRecords,
+	records carePlanPorts.PickupBaselineRecords,
 	links careplan.ApprovedBookingReader,
 ) careplan.PickupBaselineReader {
 	baselines, err := compose.NewPickupBaselines(records, links, func(context.Context) (bool, error) { return false, nil })
