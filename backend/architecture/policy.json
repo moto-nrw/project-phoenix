@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 67,
+  "policy_epoch": 68,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -9691,6 +9691,17 @@
       ],
       "source_owner": "care-plan",
       "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "care-plan.application.tenant-runtime",
+      "description": "Care Plan application code joins the caller's transaction or opens one for the tenant in context when it writes the student profile columns (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "care-plan",
+      "source_role": "application",
       "target_owner": "tenant-runtime",
       "target_role": "public"
     },
