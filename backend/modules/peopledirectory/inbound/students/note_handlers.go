@@ -212,7 +212,7 @@ func (rs *Resource) currentNoteDeleteAuthorization(
 	if err != nil {
 		return peopleModule.StudentNoteDeleteAuthorization{}, err
 	}
-	if cache := sessiontoken.RequestIdentityCacheFrom(ctx); cache != nil {
+	if cache := securityruntime.RequestIdentityCacheFrom(ctx); cache != nil {
 		cache.Evict(tenant.FromContext(ctx), accountID)
 	}
 	reader, err := rs.noteReader(ctx)

@@ -116,3 +116,10 @@ The first ports make the existing permission source explicit: the root binds
 projected staff access to Security Runtime with the native session permission
 lookup. Plan-export authorization takes those same permission values directly.
 Middleware order, authorization results and response bodies stay unchanged.
+
+The request identity memo moves to Security Runtime's existing `public` role.
+It is a request-scoped security-context slot, keyed by tenant and account;
+Identity still owns entry contents, and the root still binds its consumer
+memo port. Attachment, eviction, locking and idempotence stay unchanged.
+The shared fixture adapter binds the same capability for Identity's behavior
+suites; it adds no test permission or alternate cache.
