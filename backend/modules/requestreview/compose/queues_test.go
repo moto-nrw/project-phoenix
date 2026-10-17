@@ -396,13 +396,36 @@ type ReviewComposition struct {
 // cannot import it; root_composition_test.go binds it.
 var ComposeReviewSources func(t *testing.T) (*bun.DB, ReviewComposition)
 
+// ReviewDecorations are the student directory and the correction log over the
+// School Structure groups and the Audit Platform's correction query the root
+// builds; root_composition_test.go sets ComposeReviewDecorations like
+// ComposeReviewSources.
+type ReviewDecorations struct {
+	Students    requestreview.StudentDirectory
+	Corrections requestreview.CorrectionLog
+}
+
+var ComposeReviewDecorations func(t *testing.T, db *bun.DB, people ReviewPeople, allowed func(context.Context) bool) (ReviewDecorations, error)
+
+func composeStudentDirectory(t *testing.T, db *bun.DB, people ReviewPeople) (requestreview.StudentDirectory, error) {
+	t.Helper()
+	decorations, err := ComposeReviewDecorations(t, db, people, func(context.Context) bool { return true })
+	return decorations.Students, err
+}
+
+func composeCorrectionLog(t *testing.T, db *bun.DB, people ReviewPeople, allowed func(context.Context) bool) (requestreview.CorrectionLog, error) {
+	t.Helper()
+	decorations, err := ComposeReviewDecorations(t, db, people, allowed)
+	return decorations.Corrections, err
+}
+
 // The two-tenant proof runs the projection over the real retained queues:
 // each school's reviewer lists and counts exactly the requests of that
 // school, across all four request tables, under the least-privilege role.
 func TestRequestReviewEnforcesRLS(t *testing.T) {
 	t.Parallel()
 	db, svc := ComposeReviewSources(t)
-	reviewStudents, err := NewStudentDirectory(db, svc.PeopleDirectory, func(DirectoryObservation) {})
+	reviewStudents, err := composeStudentDirectory(t, db, svc.PeopleDirectory)
 	require.NoError(t, err)
 	masterData, err := NewMasterDataReviews(db, testpkg.StudentDirectory{}, svc.PeopleDirectory,
 		func(context.Context) (ReviewScope, error) {
@@ -433,7 +456,7 @@ func TestRequestReviewEnforcesRLS(t *testing.T) {
 		ObserveCare: func(CareObservation) {}, ObserveTimetable: func(TimetableObservation) {},
 	})
 	require.NoError(t, err)
-	corrections, err := NewCorrectionLog(db, svc.PeopleDirectory, func(context.Context) bool { return true }, func(AuditObservation) {})
+	corrections, err := composeCorrectionLog(t, db, svc.PeopleDirectory, func(context.Context) bool { return true })
 	require.NoError(t, err)
 	query, err := requestreview.NewChecked(requestreview.Dependencies{
 		Queues: requestreview.Queues{DirectCorrections: corrections, MasterData: nativeMasterQueue(masterData),
