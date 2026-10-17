@@ -73,7 +73,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    845,
 	"modules/workforce/internal/adapters/postgres/worksession_store.go":              1147,
 	"modules/workforce/internal/application/timetracking/staff_absence_service.go":   2125,
-	"modules/workforce/internal/application/timetracking/work_session_service.go":    2934,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go": 1767,
 	"modules/workforce/compose/worksession_rows.go":                                  871,
 	"modules/workforce/timetracking.go":                                              808,
