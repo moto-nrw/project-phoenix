@@ -4039,6 +4039,14 @@ student profile commands (`application.NewStudentProfiles` over
 functions. Epoch 68 adds `care-plan.application.tenant-runtime`. The
 composition goes from 3,147 to 2,876 LOC.
 
+Student Presence follows: the engine that serves the capability over the
+application service, with its public mapping of attendance, visits, sessions,
+supervisions, live groups and privacy consent (`application.NewEngine`), moves
+from `modules/studentpresence/compose` into `internal/application`; a missing
+attendance or visit row is recognised through the transaction runtime's no-rows
+sentinel. Epoch 69 adds `student-presence.application.transaction-runtime`.
+The composition goes from 1,805 to 621 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
