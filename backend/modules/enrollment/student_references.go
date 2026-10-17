@@ -18,16 +18,17 @@ func (m *Module) CreatedStudentRequestChildIDs(ctx context.Context, studentIDs [
 	return ids, err
 }
 
-// CountStudentReferences counts request children that retain a created or matched
-// student link. A child referencing the student through both links counts once.
-func (m *Module) CountStudentReferences(ctx context.Context, studentID int64) (int, error) {
-	var count int
-	err := m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
-		var err error
-		count, err = m.engine.CountStudentReferences(txCtx, studentID)
+// CountStudentReferencesForDeletion counts request children that retain a
+// created or matched student link. The approved count is the number the
+// student deletion removes; the total lets it still lock and recheck an open,
+// rejected, or withdrawn reference before the student goes. A child
+// referencing the student through both links counts once.
+func (m *Module) CountStudentReferencesForDeletion(ctx context.Context, studentID int64) (approved, total int, err error) {
+	err = m.transactions.RunInTx(ctx, func(txCtx context.Context) error {
+		approved, total, err = m.engine.CountStudentReferencesForDeletion(txCtx, studentID)
 		return err
 	})
-	return count, err
+	return approved, total, err
 }
 
 // DeleteApprovedEnrollmentsOfStudent deletes the approved enrollment children

@@ -63,7 +63,7 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 		matched, err = module.HasActiveRequestForMatchedStudent(ctx, phaseIDs[1-i], studentIDs[1-i], 0)
 		require.NoError(t, err)
 		require.False(t, matched)
-		count, err := module.CountStudentReferences(ctx, studentIDs[i])
+		count, _, err := module.CountStudentReferencesForDeletion(ctx, studentIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, 1, count)
 		createdIDs, err := module.CreatedStudentRequestChildIDs(ctx, studentIDs)
@@ -135,7 +135,7 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 		for _, link := range allLinks {
 			require.Equal(t, schoolID, link.TenantID)
 		}
-		count, err = module.CountStudentReferences(ctx, studentIDs[1-i])
+		count, _, err = module.CountStudentReferencesForDeletion(ctx, studentIDs[1-i])
 		require.NoError(t, err)
 		require.Zero(t, count, "another school's child references are not visible")
 		linkFailure := errors.New("after student link writes")
@@ -165,7 +165,7 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 		foreignPeriods, err := module.StudentCarePeriods(foreignCtx, studentIDs[i])
 		require.NoError(t, err)
 		require.Empty(t, foreignPeriods)
-		count, err = module.CountStudentReferences(ctx, studentIDs[i])
+		count, _, err = module.CountStudentReferencesForDeletion(ctx, studentIDs[i])
 		require.NoError(t, err)
 		require.Equal(t, 1, count, "one child with both links is counted once")
 		createdIDs, err = module.CreatedStudentRequestChildIDs(ctx, append(studentIDs, studentIDs[i]))
@@ -198,8 +198,8 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 	err := testpkg.WithTenantTx(t, ctx, db, schoolIDs[0], func(txCtx context.Context, tx bun.Tx) error {
 		_, err := tx.NewRaw("SELECT 1 / 0").Exec(txCtx)
 		require.Error(t, err)
-		_, countErr := module.CountStudentReferences(txCtx, studentIDs[0])
-		require.ErrorContains(t, countErr, "count enrollment student references")
+		_, _, countErr := module.CountStudentReferencesForDeletion(txCtx, studentIDs[0])
+		require.ErrorContains(t, countErr, "count enrollment student references for deletion")
 		_, sourceErr := module.CreatedStudentRequestChildIDs(txCtx, studentIDs)
 		require.ErrorContains(t, sourceErr, "list enrollment children created as students")
 		_, linksErr := module.CareExitApplicationLinks(txCtx, studentIDs)
@@ -235,4 +235,40 @@ func TestApprovedBookingsTenantScopeNullStudentAndReadFailure(t *testing.T) {
 	count, err = module.CountCreatedStudentsByPhase(testpkg.ContextForTenant(testpkg.Ctx(t), schoolIDs[1]), phaseIDs[1])
 	require.NoError(t, err)
 	require.Equal(t, 1, count, "another school's children remain")
+}
+
+func TestCountStudentReferencesForDeletionSeparatesRetainedChildren(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module := enrollmentCompose.New()
+	schoolID := testpkg.Tenant(t)
+	ctx := testpkg.ContextForTenant(testpkg.Ctx(t), schoolID)
+	phase := testpkg.CreateTestEnrollmentPhase(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Reference", "Count", "3a")
+
+	err := testpkg.WithTenantTx(t, ctx, db, schoolID, func(txCtx context.Context, tx bun.Tx) error {
+		var requestID int64
+		err := tx.NewRaw(`INSERT INTO enrollment.requests (tenant_id,phase_id,guardian_first_name,guardian_last_name,guardian_email,status_token,consent_flags,custom_data)
+			VALUES (?,?,'First','Last','count@example.test',?,'{}'::jsonb,'{}'::jsonb) RETURNING id`, schoolID, phase.ID, fmt.Sprintf("reference-count-%d", schoolID)).Scan(txCtx, &requestID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.NewRaw(`INSERT INTO enrollment.request_children
+			(tenant_id,request_id,first_name,last_name,date_of_birth,status,activation_mode,sort_order,custom_data,created_student_id,matched_student_id)
+			VALUES (?,?,'Approved','Child','2018-04-15',?,'scheduled',0,'{}'::jsonb,?,NULL),
+			 (?,?,'Open','Child','2018-04-15',?,'scheduled',1,'{}'::jsonb,NULL,?),
+			 (?,?,'Rejected','Child','2018-04-15',?,'scheduled',2,'{}'::jsonb,?,NULL),
+			 (?,?,'Withdrawn','Child','2018-04-15',?,'scheduled',3,'{}'::jsonb,NULL,?)`,
+			schoolID, requestID, enrollment.ChildStatusApproved, student.ID,
+			schoolID, requestID, enrollment.ChildStatusSubmitted, student.ID,
+			schoolID, requestID, enrollment.ChildStatusRejected, student.ID,
+			schoolID, requestID, enrollment.ChildStatusWithdrawn, student.ID).Exec(txCtx)
+		return err
+	})
+	require.NoError(t, err)
+
+	approved, total, err := module.CountStudentReferencesForDeletion(ctx, student.ID)
+	require.NoError(t, err)
+	require.Equal(t, 1, approved, "only the approved enrollment child leaves with the student")
+	require.Equal(t, 4, total, "retained enrollment children still require the locked recheck")
 }

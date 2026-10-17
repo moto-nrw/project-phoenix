@@ -48,18 +48,27 @@ func (r *Store) CreatedStudentRequestChildIDs(ctx context.Context, studentIDs []
 	return ids, nil
 }
 
-func (r *Store) CountStudentReferences(ctx context.Context, studentID int64) (int, error) {
+func (r *Store) CountStudentReferencesForDeletion(ctx context.Context, studentID int64) (approved, total int, err error) {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	db, err := r.resolve(ctx)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	count, err := db.NewSelect().TableExpr("enrollment.request_children").Where("tenant_id = ?", tenantID).Where("(created_student_id = ? OR matched_student_id = ?)", studentID, studentID).Count(ctx)
+	var counts struct {
+		Approved int `bun:"approved"`
+		Total    int `bun:"total"`
+	}
+	err = db.NewSelect().TableExpr("enrollment.request_children").
+		ColumnExpr("COUNT(*) FILTER (WHERE status = ?) AS approved", enrollment.ChildStatusApproved).
+		ColumnExpr("COUNT(*) AS total").
+		Where("tenant_id = ?", tenantID).
+		Where("(created_student_id = ? OR matched_student_id = ?)", studentID, studentID).
+		Scan(ctx, &counts)
 	if err != nil {
-		return 0, fmt.Errorf("count enrollment student references: %w", err)
+		return 0, 0, fmt.Errorf("count enrollment student references for deletion: %w", err)
 	}
-	return int(count), nil
+	return counts.Approved, counts.Total, nil
 }

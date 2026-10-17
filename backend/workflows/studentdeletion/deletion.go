@@ -99,16 +99,17 @@ type Confirmation struct {
 // Preview is the owner-consistent impact snapshot. Fingerprint binds the
 // confirmation to the exact student, person and counts it was shown for.
 type Preview struct {
-	StudentID        int64
-	PersonID         int64
-	ConfirmationName string
-	Fingerprint      string
-	Counts           Counts
-	Alumnus          bool
-	CareEnded        bool
-	PhotoPath        string
-	CompanionIDs     []int64
-	personUpdatedAt  time.Time
+	StudentID         int64
+	PersonID          int64
+	ConfirmationName  string
+	Fingerprint       string
+	Counts            Counts
+	Alumnus           bool
+	CareEnded         bool
+	PhotoPath         string
+	CompanionIDs      []int64
+	hasEnrollmentRefs bool
+	personUpdatedAt   time.Time
 }
 
 // Result reports what one committed deletion changed.
@@ -171,10 +172,11 @@ type Conversations interface {
 	LockStudentMessageThreads(context.Context, int64) error
 }
 
-// Enrollment is the Enrollment port: the child's enrollment references for
-// the preview, and the accepted enrollments that leave with the child (#3962).
+// Enrollment is the Enrollment port: the preview counts the accepted
+// enrollments that leave with the child, while the total retains the locked
+// recheck for every linked enrollment (#3962).
 type Enrollment interface {
-	CountStudentReferences(context.Context, int64) (int, error)
+	CountStudentReferencesForDeletion(context.Context, int64) (approved, total int, err error)
 	DeleteApprovedEnrollmentsOfStudent(context.Context, int64) (int, error)
 }
 
@@ -466,7 +468,7 @@ func (w *Workflow) lockedSnapshot(ctx context.Context, studentID int64) (Preview
 	if err != nil {
 		return Preview{}, err
 	}
-	if current != preview.Counts {
+	if current.Counts != preview.Counts || current.hasEnrollmentRefs != preview.hasEnrollmentRefs {
 		return Preview{}, ErrPreviewChanged
 	}
 	return preview, nil
@@ -497,17 +499,18 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	if err != nil {
 		return Preview{}, err
 	}
-	fingerprint, err := fingerprintOf(student.UpdatedAt, person.UpdatedAt, counts)
+	fingerprint, err := fingerprintOf(student.UpdatedAt, person.UpdatedAt, counts.Counts)
 	if err != nil {
 		return Preview{}, err
 	}
 	preview := Preview{
 		StudentID: studentID, PersonID: student.PersonID,
 		ConfirmationName: strings.TrimSpace(person.FirstName + " " + person.LastName),
-		Fingerprint:      fingerprint, Counts: counts,
-		Alumnus:         student.Status == peopledirectory.StudentStatusAlumnus,
-		CareEnded:       student.EnrolledUntil != "" && w.deps.Today() > student.EnrolledUntil,
-		personUpdatedAt: person.UpdatedAt,
+		Fingerprint:      fingerprint, Counts: counts.Counts,
+		Alumnus:           student.Status == peopledirectory.StudentStatusAlumnus,
+		CareEnded:         student.EnrolledUntil != "" && w.deps.Today() > student.EnrolledUntil,
+		hasEnrollmentRefs: counts.hasEnrollmentRefs,
+		personUpdatedAt:   person.UpdatedAt,
 	}
 	if student.PhotoPath != nil {
 		preview.PhotoPath = *student.PhotoPath
@@ -515,71 +518,71 @@ func (w *Workflow) snapshot(ctx context.Context, studentID int64, lock bool) (Pr
 	return preview, nil
 }
 
-func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (Counts, error) {
-	var counts Counts
+func (w *Workflow) loadCounts(ctx context.Context, studentID, personID int64) (countSnapshot, error) {
+	var counts countSnapshot
 	var err error
 	if counts.TimetableAssignments, err = w.deps.Timetable.CountStudentAssignments(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.ActivityEnrollments, err = w.deps.CountActivityEnrollments(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	visits, err := w.deps.CountVisits(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	attendance, err := w.deps.CountAttendance(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	carePlanCounts, err := w.deps.CarePlan.CountCarePlanDeletionRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.AttendanceRecords = visits + attendance + carePlanCounts.StatusDays + carePlanCounts.ExcusedRequests
 	if counts.CareSchedules, err = w.deps.CarePlan.CountStudentScheduleRows(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.GuardianLinks, err = w.deps.Directory.CountStudentGuardianLinks(ctx, studentID, personID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	if counts.CompanionLinks, err = w.deps.CarePlan.CountCompanionLinks(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	invitations, err := w.deps.CountGuardianInvitations(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	conversations, err := w.deps.Conversations.CountStudentConversationRecords(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.Communications = invitations + conversations + carePlanCounts.CareRequests + carePlanCounts.DataRequests
 	if counts.Consents, err = w.deps.CountConsents(ctx, studentID); err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
-	if counts.EnrollmentReferences, err = w.deps.Enrollment.CountStudentReferences(ctx, studentID); err != nil {
-		return Counts{}, err
+	if err := w.loadEnrollmentRefs(ctx, studentID, &counts); err != nil {
+		return countSnapshot{}, err
 	}
 	rosterRemovals, err := w.deps.Timetable.CountStudentRosterRemovals(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	history, err := w.deps.Structure.CountStudentTransitionHistory(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	appointments, err := w.deps.CountAppointments(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	auditReferences, err := w.deps.CountAuditReferences(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	feedback, err := w.deps.CountFeedback(ctx, studentID)
 	if err != nil {
-		return Counts{}, err
+		return countSnapshot{}, err
 	}
 	counts.OtherRecords = rosterRemovals + history + appointments + auditReferences + feedback
 	return counts, nil
