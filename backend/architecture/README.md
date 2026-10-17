@@ -3957,6 +3957,22 @@ package, so the roots name them without aliases. Epoch 62 adds
 unit-of-work integration test needs to name the owner seam (ADR 0058
 addendum point 5). The composition goes to 7,627 LOC.
 
+Workforce follows the same way: the engine that serves the public capability
+over the application service and the staff administration's engine and
+adapters (`application.Engine`, `application.StaffAdminEngine`,
+`application.MapError`) move from `modules/workforce/compose` into
+`internal/application`; the composition goes from 7,021 to 5,190 LOC. Epoch
+63 adds `workforce.application.transaction-runtime` (ADR 0058 addendum point
+2): the staff administration keeps its not-found shape through
+`transactionruntime.ErrNoRows` instead of `database/sql`.
+
+The People Directory's retained legacy services (guardians, payment data,
+caregiver capability, the person and staff directories) stay in the
+composition for now: they run on the repository contracts and the query
+vocabulary of `database/repositories/users`, a postgres package the
+application may not import. They leave with #4004, which dissolves
+`models/users` and those repositories.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

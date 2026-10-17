@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -8,29 +8,27 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 )
 
-// --- staff shifts ---
-
-func (e engine) FindStaffShift(ctx context.Context, id int64) (workforce.StaffShift, error) {
+func (e Engine) FindStaffShift(ctx context.Context, id int64) (workforce.StaffShift, error) {
 	value, err := e.service.FindStaffShift(ctx, id)
 	return shiftToPublic(value), mapShiftError(err)
 }
 
-func (e engine) ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error) {
+func (e Engine) ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error) {
 	values, err := e.service.ListStaffShifts(ctx, shiftFilterToDomain(filter))
 	return shiftsToPublic(values), mapShiftError(err)
 }
 
-func (e engine) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, error) {
+func (e Engine) UsedStaffShiftWeeks(ctx context.Context, from, to string) ([]string, error) {
 	values, err := e.service.UsedStaffShiftWeeks(ctx, from, to)
 	return values, mapShiftError(err)
 }
 
-func (e engine) CreateStaffShift(ctx context.Context, shift workforce.StaffShift) (workforce.StaffShift, error) {
+func (e Engine) CreateStaffShift(ctx context.Context, shift workforce.StaffShift) (workforce.StaffShift, error) {
 	created, err := e.service.CreateStaffShift(ctx, shiftToDomain(shift))
 	return shiftToPublic(created), mapShiftError(err)
 }
 
-func (e engine) CreateStaffShifts(ctx context.Context, shifts []workforce.StaffShift) ([]workforce.StaffShift, error) {
+func (e Engine) CreateStaffShifts(ctx context.Context, shifts []workforce.StaffShift) ([]workforce.StaffShift, error) {
 	values := make([]domain.StaffShift, 0, len(shifts))
 	for _, shift := range shifts {
 		values = append(values, shiftToDomain(shift))
@@ -39,90 +37,86 @@ func (e engine) CreateStaffShifts(ctx context.Context, shifts []workforce.StaffS
 	return shiftsToPublic(created), mapShiftError(err)
 }
 
-func (e engine) UpdateStaffShift(ctx context.Context, shift workforce.StaffShift) (workforce.StaffShift, error) {
+func (e Engine) UpdateStaffShift(ctx context.Context, shift workforce.StaffShift) (workforce.StaffShift, error) {
 	updated, err := e.service.UpdateStaffShift(ctx, shiftToDomain(shift))
 	return shiftToPublic(updated), mapShiftError(err)
 }
 
-func (e engine) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error) {
+func (e Engine) SetStaffShiftSickAbsence(ctx context.Context, shiftID int64, absenceID *int64) (int64, error) {
 	affected, err := e.service.SetStaffShiftSickAbsence(ctx, shiftID, absenceID)
 	return affected, mapShiftError(err)
 }
 
-func (e engine) DeleteStaffShift(ctx context.Context, id int64) error {
+func (e Engine) DeleteStaffShift(ctx context.Context, id int64) error {
 	return mapShiftError(e.service.DeleteStaffShift(ctx, id))
 }
 
-func (e engine) DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, from string) (int64, error) {
+func (e Engine) DeleteUpcomingStaffShifts(ctx context.Context, staffID int64, from string) (int64, error) {
 	deleted, err := e.service.DeleteUpcomingStaffShifts(ctx, staffID, from)
 	return deleted, mapShiftError(err)
 }
 
-func (e engine) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, error) {
+func (e Engine) DeleteRegenerableSeriesShifts(ctx context.Context, seriesID int64, from string) (int64, error) {
 	deleted, err := e.service.DeleteRegenerableSeriesShifts(ctx, seriesID, from)
 	return deleted, mapShiftError(err)
 }
 
-func (e engine) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
+func (e Engine) RepointDetachedSeriesShifts(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
 	moved, err := e.service.RepointDetachedSeriesShifts(ctx, fromSeriesID, toSeriesID, from)
 	return moved, mapShiftError(err)
 }
 
-// --- shift series ---
-
-func (e engine) FindStaffShiftSeries(ctx context.Context, id int64) (workforce.StaffShiftSeries, error) {
+func (e Engine) FindStaffShiftSeries(ctx context.Context, id int64) (workforce.StaffShiftSeries, error) {
 	value, err := e.service.FindStaffShiftSeries(ctx, id)
 	return seriesToPublic(value), mapShiftError(err)
 }
 
-func (e engine) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excludeID int64, from string) (workforce.StaffShiftSeries, error) {
+func (e Engine) FindOverlappingSeriesInLineage(ctx context.Context, rootID, excludeID int64, from string) (workforce.StaffShiftSeries, error) {
 	value, err := e.service.FindOverlappingSeriesInLineage(ctx, rootID, excludeID, from)
 	return seriesToPublic(value), mapShiftError(err)
 }
 
-func (e engine) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]string, error) {
+func (e Engine) SeriesExceptionDates(ctx context.Context, seriesID int64) ([]string, error) {
 	values, err := e.service.SeriesExceptionDates(ctx, seriesID)
 	return values, mapShiftError(err)
 }
 
-func (e engine) CreateStaffShiftSeries(ctx context.Context, series workforce.StaffShiftSeries) (workforce.StaffShiftSeries, error) {
+func (e Engine) CreateStaffShiftSeries(ctx context.Context, series workforce.StaffShiftSeries) (workforce.StaffShiftSeries, error) {
 	created, err := e.service.CreateStaffShiftSeries(ctx, seriesToDomain(series))
 	return seriesToPublic(created), mapShiftError(err)
 }
 
-func (e engine) UpdateStaffShiftSeries(ctx context.Context, series workforce.StaffShiftSeries) (workforce.StaffShiftSeries, error) {
+func (e Engine) UpdateStaffShiftSeries(ctx context.Context, series workforce.StaffShiftSeries) (workforce.StaffShiftSeries, error) {
 	updated, err := e.service.UpdateStaffShiftSeries(ctx, seriesToDomain(series))
 	return seriesToPublic(updated), mapShiftError(err)
 }
 
-func (e engine) DeleteStaffShiftSeries(ctx context.Context, id int64) error {
+func (e Engine) DeleteStaffShiftSeries(ctx context.Context, id int64) error {
 	return mapShiftError(e.service.DeleteStaffShiftSeries(ctx, id))
 }
 
-func (e engine) CapStaffShiftSeries(ctx context.Context, id int64, until string) error {
+func (e Engine) CapStaffShiftSeries(ctx context.Context, id int64, until string) error {
 	return mapShiftError(e.service.CapStaffShiftSeries(ctx, id, until))
 }
 
-func (e engine) CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64, until string) (int64, error) {
+func (e Engine) CapStaffShiftSeriesForStaff(ctx context.Context, staffID int64, until string) (int64, error) {
 	capped, err := e.service.CapStaffShiftSeriesForStaff(ctx, staffID, until)
 	return capped, mapShiftError(err)
 }
 
-func (e engine) RecordSeriesException(ctx context.Context, exception workforce.StaffShiftSeriesException) error {
+func (e Engine) RecordSeriesException(ctx context.Context, exception workforce.StaffShiftSeriesException) error {
 	return mapShiftError(e.service.RecordSeriesException(ctx, domain.StaffShiftSeriesException{
 		ID: exception.ID, TenantID: exception.TenantID, SeriesID: exception.SeriesID,
 		Date: exception.Date, CreatedBy: exception.CreatedBy, CreatedAt: exception.CreatedAt,
 	}))
 }
 
-func (e engine) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
+func (e Engine) RepointSeriesExceptions(ctx context.Context, fromSeriesID, toSeriesID int64, from string) (int64, error) {
 	moved, err := e.service.RepointSeriesExceptions(ctx, fromSeriesID, toSeriesID, from)
 	return moved, mapShiftError(err)
 }
 
-// --- shift types ---
-
-func (e engine) ListShiftTypes(ctx context.Context) ([]workforce.ShiftType, error) {
+func (e Engine) ListShiftTypes(ctx context.Context) ([]workforce.ShiftType, error) {
 	values, err := e.service.ListShiftTypes(ctx)
 	if err != nil {
 		return nil, mapShiftError(err)
@@ -134,31 +128,29 @@ func (e engine) ListShiftTypes(ctx context.Context) ([]workforce.ShiftType, erro
 	return result, nil
 }
 
-func (e engine) FindShiftType(ctx context.Context, id int64) (workforce.ShiftType, error) {
+func (e Engine) FindShiftType(ctx context.Context, id int64) (workforce.ShiftType, error) {
 	value, err := e.service.FindShiftType(ctx, id)
 	return shiftTypeToPublic(value), mapShiftError(err)
 }
 
-func (e engine) CreateShiftType(ctx context.Context, shiftType workforce.ShiftType) (workforce.ShiftType, error) {
+func (e Engine) CreateShiftType(ctx context.Context, shiftType workforce.ShiftType) (workforce.ShiftType, error) {
 	created, err := e.service.CreateShiftType(ctx, shiftTypeToDomain(shiftType))
 	return shiftTypeToPublic(created), mapShiftError(err)
 }
 
-func (e engine) CreateShiftTypeIfAbsent(ctx context.Context, shiftType workforce.ShiftType) (workforce.ShiftType, bool, error) {
+func (e Engine) CreateShiftTypeIfAbsent(ctx context.Context, shiftType workforce.ShiftType) (workforce.ShiftType, bool, error) {
 	created, inserted, err := e.service.CreateShiftTypeIfAbsent(ctx, shiftTypeToDomain(shiftType))
 	return shiftTypeToPublic(created), inserted, mapShiftError(err)
 }
 
-func (e engine) UpdateShiftType(ctx context.Context, shiftType workforce.ShiftType) (workforce.ShiftType, error) {
+func (e Engine) UpdateShiftType(ctx context.Context, shiftType workforce.ShiftType) (workforce.ShiftType, error) {
 	updated, err := e.service.UpdateShiftType(ctx, shiftTypeToDomain(shiftType))
 	return shiftTypeToPublic(updated), mapShiftError(err)
 }
 
-func (e engine) DeleteShiftType(ctx context.Context, id int64) error {
+func (e Engine) DeleteShiftType(ctx context.Context, id int64) error {
 	return mapShiftError(e.service.DeleteShiftType(ctx, id))
 }
-
-// --- mapping ---
 
 func shiftToDomain(value workforce.StaffShift) domain.StaffShift {
 	return domain.StaffShift{
@@ -265,6 +257,6 @@ func mapShiftError(err error) error {
 	case errors.Is(err, domain.ErrShiftTypeNameTaken):
 		return &workforce.ConflictError{Kind: workforce.ErrShiftTypeNameTaken, Cause: conflictCause(err)}
 	default:
-		return mapError(err)
+		return MapError(err)
 	}
 }
