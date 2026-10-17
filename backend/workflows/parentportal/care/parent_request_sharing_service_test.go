@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -25,13 +24,13 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	author := testpkg.CreateTestParentGuardianChain(t, db)
 	other := testpkg.CreateTestParentGuardianChain(t, db)
 	ctx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), author.TenantID)
-	request := &userModels.StudentDataChangeRequest{
+	request := &parentportal.StudentDataChangeRequest{
 		StudentID: author.StudentID, SubmittedBy: author.AccountID,
-		Target: userModels.DataChangeTargetPerson, FieldKey: "first_name",
+		Target: parentportal.DataChangeTargetPerson, FieldKey: "first_name",
 		OldValue: json.RawMessage(`"Felix"`), NewValue: json.RawMessage(`"Feli"`),
-		Status: userModels.DataChangeStatusPending,
+		Status: parentportal.DataChangeStatusPending,
 	}
-	request.SetTenantID(author.TenantID)
+	request.TenantID = author.TenantID
 	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		GuardianPolicy: api.ParentGuardianPolicy{},
