@@ -14,7 +14,8 @@
     "workflows/parentportal/http",
     "api",
     "modules/delivery/devices",
-    "modules/delivery/application/locales"
+    "modules/delivery/application/locales",
+    "auth/authorize"
   ],
   "affected_tables": [
     "None changed. Relationship-scoped permission checks, guardian row validation and tenant owner commands retain their order."
@@ -24,11 +25,12 @@
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/compose|github.com/moto-nrw/project-phoenix/localization",
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/messaging|github.com/moto-nrw/project-phoenix/auth/authorize"
   ],
-  "atomic_cutover": "Care and Messaging stop importing auth/authorize. Workflow-owned ports receive canonical full-role, default-preset, stored-value and content-fingerprint decisions through Root adapters to public Security Runtime. Permission action strings are consumer protocol values, not grants or aliases. All existing relationship/action gates remain; grants never derive from membership. Default application still replaces the role and permissions with a non-nil map, preserving false/absent/nil/nonboolean semantics through the public permission function. Declaration hashes receive identical canonical byte slices. Root moves the existing optional StudentUpdated broadcaster binding and event body out of compose. Compose receives consumer StudentUpdates and Locales ports. Delivery public LocaleCatalog delegates via its own locales application to the unchanged localization adapter. Existing policy rules already permit both owned edges. Remove parent-portal.compose.delivery-platform.public without replacement; add only the locales package classification. No new rules, grants, aliases, exceptions, epoch, Root graph fields/stages/setters/late-bound slots or budget increases. Parent compose505->487 and total54050->54032; exact keys183->180, carrier21->18, rules837->836, composition1657 unchanged. WORKPLAN stale global185 header is reconciled to measured180. The existing pure-delegation ratchet measures21 instead of22 Parent Portal delegations after the old event adapter is removed; lower its ceiling22->21. Lower the matching total passthrough ceiling3091->3090 as well.",
+  "atomic_cutover": "Care and Messaging replace their auth/authorize imports with workflow-owned GuardianPolicy, PermissionValues and ContentFingerprints. Root binds canonical public Security Runtime role/preset/value functions and the existing SecurityFingerprints adapter; consumer permission strings remain action protocol names, not grants or aliases. Default role assignment still replaces permissions with a non-nil map; stored values retain absent/nil/false and nonboolean truthiness. Declaration hashes receive identical canonical bytes. Delete the unused legacy ContentFingerprint: its body is identical to existing public Security Runtime.Fingerprint. Move the two now fixture-only role setters, body/signature unchanged, behind the existing testhooks build convention. Root moves the unchanged optional StudentUpdated event binding out of Compose, which receives workflow Locales/StudentUpdates ports. Delivery public LocaleCatalog delegates through its own locales application to the unchanged localization adapter, using existing platform.public-application and delivery.application.same-owner-adapter rules. Add only that application classification and delete parent-portal.compose.delivery-platform.public without replacement. Accepted base e7b9b555d1237ec4554d1887b355a0c4af85541c includes upstream #4212/#4213, preserved without conflicts. Own delta183->180keys,21->18carrier keys,836->835rules,1657composition flat,compose505->487,total54050->54032,passthrough22->21,total3091->3090. No new rule, grant, alias, exception, epoch, Root graph field/stage/setter/late-bound slot or increased budget. Original immutable AST proof base is188552d321bc9c9d7dc4744227b1cf7f3628c94e.",
   "tests": [
-    "Existing Care suite passed5.757s, HTTP0.922s and API12.488s. A missed nonliteral fixture Broadcaster assignment was mechanically bound before the final complete non-fast gate. No test expectation changed.",
-    "Read-only AST comparison preserves32 behavior-fixture files,307 tests,1491 complete assertions and2619 non-import literals. Including2 ratchet files,34 files/309 test names/1491 assertions/3001 literals are identical after inverse normalization of the4 declared lower budget values. Production AST parity preserves259 complete functions across25 files after declared injected-policy/hash substitutions, helper parameters and constructor guards.",
-    "Final COMPLETE NONFAST gate session34323 EXIT0:all67 affected packages pass. Source API/workflow/Delivery lint56668 EXIT0,0issues. Final architecture59048 EXIT0:180keys/1657targets/allbudgets. Immutable-base inventory28332 EXIT0:3of3 retirements/137files. Focused measured compose/passthrough ratchets14895 EXIT0. Initial full runs failed only on the two matching passthrough ceiling updates, now both lowered; no behavior/assertion changes."
+    "Final integrated architecture84205 EXIT0:180keys/1657targets/allbudgets. Immutable-base inventory76697 EXIT0:3of3 retirements across137files. Complete deadcode12209 EXIT0 in test, production and architecture-command modes, without exceptions.",
+    "Read-only AST parity:32 behavior-fixture files/307 tests/1491 complete assertions/2619 non-import literals unchanged. Including2 ratchet files,34 files/309 test names/1491 assertions/3001 literals identical after inverse normalization of the4 declared lowered budget values. Production parity:259 complete functions in25 files after declared injected-policy/hash substitutions, helper parameters and constructor guards.",
+    "Both moved role-helper bodies and signatures match the base exactly apart from file-end whitespace. Removed legacy SHA body exactly matches the existing public Security Runtime method. All fixture APIs and test assertions are preserved.",
+    "Final complete NONFAST session98739 EXIT0:all156 affected packages pass after integrated base and fixture-helper tagging, including Auth/API/Portal/Care/HTTP, router golden, migrations, module and hermetic ratchets. Source API/workflow/Delivery lint0; additional Auth lint37938 EXIT0,0issues. Full deadcode12209 EXIT0, architecture84205 EXIT0/180keys/1657targets/allbudgets, inventory76697 EXIT0/3of3/137files. Earlier failed or stopped runs are not substituted for the final successful gate."
   ],
   "runtime_evidence": {
     "source": "Assigned localhost test database and pinned toolchain with fresh private cache; immutable base 188552d321bc9c9d7dc4744227b1cf7f3628c94e. No production/staging requests.",
@@ -40,7 +42,9 @@
       "backend/modules/securityruntime/guardian_role.go",
       "backend/modules/delivery/devices/locales.go",
       "backend/modules/delivery/application/locales/catalog.go",
-      "backend/localization/locales.go"
+      "backend/localization/locales.go",
+      "backend/auth/authorize/guardian_permission_test_helpers.go",
+      "backend/auth/authorize/fingerprint.go"
     ],
     "workload": "Existing full Parent Portal/Care/HTTP/API suites and complete non-fast affected tests; source lint, architecture, inventory and AST parity.",
     "thresholds": "Retire exactly3 listed carrier keys with no new debt or permission reach; rules decrease by1, no new rules; composition1657flat and both compose budgets18LOC lower. Preserve relationship and portal isolation, action gates, role defaults, canonical bytes, locales, errors, routes and responses.",
@@ -98,7 +102,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "The final complete non-fast gate passes all67 affected packages on the assigned localhost DB, including full Parent Portal/Care/HTTP/API behavior and router golden plus module/hermetic ratchets. All existing assertions retained. No native server/browser smoke or benchmark."
+      "result": "Final complete non-fast gate98739 passes all156 affected packages, including Auth/API/Parent Portal/Care/HTTP/router golden, migrations74.793s, module and hermetic tests. Full deadcode and source/Auth lint pass. All existing assertions retained. No native server/browser smoke or benchmark."
     }
   },
   "rollback_and_cleanup": "Revert workflow ports, Root/Delivery bindings, construction and call substitutions, three key retirements, one rule removal and classification, two budget reductions and evidence together. No schema/data rollback or cleanup.",

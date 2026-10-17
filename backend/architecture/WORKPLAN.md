@@ -29,8 +29,9 @@ Geht sie nicht auf, ist eine Zeile hier veraltet.
 eigene Workflow-Ports zur öffentlichen Security Runtime. Die Root bindet den bestehenden
 Live-Event-Trigger und Deliverys öffentlichen Sprachkatalog; eine eigene Delivery-Anwendung
 nutzt dafür denselben Locale-Adapter. Beziehungsgates, Rollen-Defaults, kanonische Bytes,
-Sprachprüfung, Fehler, Routen und Antworten bleiben gleich. Drei Keys fallen: 183 → 180,
-#4073 21 → 18. Eine Compose-Regel entfällt ersatzlos: 837 → 836; keine neue Freigabe.
+Sprachprüfung, Fehler, Routen und Antworten bleiben gleich. Der aufruferlose alte
+ContentFingerprint-Helper entfällt; die öffentliche Security Runtime enthält bereits denselben Hash. Drei Keys fallen: 183 → 180,
+#4073 21 → 18. Eine Compose-Regel entfällt ersatzlos: 836 → 835; keine neue Freigabe.
 Composition bleibt 1.657; Parent-Compose 505 → 487 LOC, Compose-Summe 54.050 → 54.032.
 Der Delegations-Ratchet sinkt gemessen von 22 auf 21, seine Summe von 3.091 auf 3.090.
 Ein Anwendungspaket wird klassifiziert;
