@@ -7,8 +7,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -97,5 +95,5 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 		return decideErr
 	})
 	require.NoError(t, err)
-	assert.Equal(t, scheduleModels.CareRequestStatusApproved, decided.Request.Status)
+	assert.Equal(t, "approved", decided.Request.Status)
 }

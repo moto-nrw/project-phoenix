@@ -9,7 +9,6 @@ import (
 	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 
@@ -18,8 +17,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
@@ -89,20 +86,19 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	block := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Nachmittags-AG",
 	})
-	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, scheduleModels.AttendanceStatusExpected)
+	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, testpkg.ScheduleAttendanceStatusExpected)
 
 	// Parent pulls the pickup forward to 14:45 → the 15:00 block is excused.
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
 	require.NoError(t, err)
 
 	row := loadSlotRow(t, db, slot.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusAbsent, row.Status)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusAbsent, row.Status)
 	require.NotNil(t, row.Substatus)
-	assert.Equal(t, scheduleModels.AttendanceSubstatusExcused, *row.Substatus)
+	assert.Equal(t, "excused", *row.Substatus)
 	require.NotNil(t, row.PickupExceptionID)
 
-	exception, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentPickupException.FindByStudentIDAndDate(
-		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
+	exception, err := api.FindParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	require.NotNil(t, exception)
 	assert.True(t, exception.ExcusedAuto)
@@ -114,7 +110,7 @@ func TestSubmitCareException_PullForwardCouplesAndReleases(t *testing.T) {
 	require.NoError(t, err)
 
 	row = loadSlotRow(t, db, slot.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusExpected, row.Status)
 	assert.Nil(t, row.PickupExceptionID)
 }
 
@@ -131,21 +127,20 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 	block := testpkg.CreateTestActivityInstance(t, db, date, room.ID, testpkg.ActivityInstanceOpts{
 		StartHHMM: "15:00", EndHHMM: "16:00", Title: "Nachmittags-AG",
 	})
-	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, scheduleModels.AttendanceStatusExpected)
+	slot := testpkg.CreateTestInstanceStudent(t, db, block.ID, chain.StudentID, testpkg.ScheduleAttendanceStatusExpected)
 
 	_, err := svc.SubmitCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date, wallClock(14, 45), nil)
 	require.NoError(t, err)
-	require.Equal(t, scheduleModels.AttendanceStatusAbsent, loadSlotRow(t, db, slot.ID).Status)
+	require.Equal(t, testpkg.ScheduleAttendanceStatusAbsent, loadSlotRow(t, db, slot.ID).Status)
 
 	require.NoError(t, svc.DeleteCareException(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, date))
 
 	row := loadSlotRow(t, db, slot.ID)
-	assert.Equal(t, scheduleModels.AttendanceStatusExpected, row.Status)
+	assert.Equal(t, testpkg.ScheduleAttendanceStatusExpected, row.Status)
 	assert.Nil(t, row.PickupExceptionID)
 	assert.Nil(t, row.Substatus)
 
-	exception, err := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).StudentPickupException.FindByStudentIDAndDate(
-		testpkg.TenantContext(chain.TenantID), chain.StudentID, scheduleModels.Date(date))
+	exception, err := api.FindParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))).CarePlan(), chain.StudentID, date)
 	require.NoError(t, err)
 	assert.Nil(t, exception, "withdrawing the override removes the guardian row")
 }
@@ -154,7 +149,7 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 // repositories, including its Care Plan reads and student-before-day locks.
 func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
-	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: api.NewPartialAbsencePreview(testpkg.MustDatabase(db))}, tt, db}
+	adapter := api.NewPickupExcusalTimetable(tt, api.NewPartialAbsencePreview(testpkg.MustDatabase(db)))
 	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), Preview: adapter}
 	if extensions {
 		deps.Extensions = adapter
@@ -162,38 +157,4 @@ func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRec
 	service, err := compose.NewPickupAutoExcusal(deps)
 	require.NoError(t, err)
 	return service
-}
-
-type pickupExcusalTimetable struct {
-	partialAbsencePreview
-	timetable.Capability
-	db *bun.DB
-}
-
-func (a pickupExcusalTimetable) RecordPickupDayExtension(ctx context.Context, input compose.PickupDayExtension) error {
-	return a.Capability.RecordPickupDayExtension(ctx, timetable.PickupDayExtension(input))
-}
-func (a pickupExcusalTimetable) RecordPickupWeekdayExtension(ctx context.Context, input compose.PickupWeekdayExtension) error {
-	return a.Capability.RecordPickupWeekdayExtension(ctx, timetable.PickupWeekdayExtension(input))
-}
-
-// partialAbsenceReads is the joined block read the preview builds on.
-type partialAbsenceReads interface {
-	FindPartialAbsenceBlocks(context.Context, int64, string, time.Time) ([]scheduleModels.PartialAbsenceBlock, error)
-}
-
-// partialAbsencePreview serves the Care Plan's partial absence preview port
-// the way the retained services do (#2762).
-type partialAbsencePreview struct{ reads partialAbsenceReads }
-
-func (p partialAbsencePreview) FindPartialAbsenceBlocks(ctx context.Context, studentID int64, date calendar.Date, clock time.Time) ([]carerequests.Block, error) {
-	rows, err := p.reads.FindPartialAbsenceBlocks(ctx, studentID, date.String(), clock)
-	if err != nil {
-		return nil, err
-	}
-	blocks := make([]carerequests.Block, 0, len(rows))
-	for _, row := range rows {
-		blocks = append(blocks, carerequests.Block{ID: row.ID, Title: row.Title, StartTime: row.StartTime, EndTime: row.EndTime})
-	}
-	return blocks, nil
 }
