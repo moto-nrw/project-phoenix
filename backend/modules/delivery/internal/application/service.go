@@ -69,14 +69,6 @@ func (s *Service) Statuses(ctx context.Context, tenantID int64, transport domain
 	return s.store.Statuses(ctx, tenantID, transport, related.Type, related.ID)
 }
 
-func (s *Service) ReplaceEmailDeliveries(ctx context.Context, tenantID int64, related domain.RelatedEntity, rows []domain.EmailDelivery) error {
-	return s.store.ReplaceEmailDeliveries(ctx, tenantID, related.Type, related.ID, rows)
-}
-
-func (s *Service) DeleteEmailDeliveries(ctx context.Context, tenantID int64, related domain.RelatedEntity) (int64, error) {
-	return s.store.DeleteEmailDeliveries(ctx, tenantID, related.Type, related.ID)
-}
-
 func (s *Service) EmailDeliveryStatuses(ctx context.Context, tenantID int64, related domain.RelatedEntity) (statuses []domain.EmailDeliveryStatus, err error) {
 	started := time.Now()
 	defer func() {
@@ -113,14 +105,6 @@ func (s *Service) EmailDeliveryStatuses(ctx context.Context, tenantID int64, rel
 		return left < right
 	})
 	return statuses, nil
-}
-
-func (s *Service) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {
-	return s.store.AttachEmailOutbox(ctx, tenantID, deliveryID, outboxID)
-}
-
-func (s *Service) ClaimFailedEmailDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
-	return s.store.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
 }
 
 func boolCount(value bool) int {
