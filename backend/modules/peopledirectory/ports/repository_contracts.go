@@ -35,6 +35,7 @@ type CRUDRepository[T any] interface {
 
 // PersonRepository defines operations for managing persons
 type PersonRepository interface {
+	peopledirectory.DirectoryPersonReads
 	CRUDRepository[*users.Person]
 
 	// FindByIDForUpdate retrieves and locks a person row for a transaction.
@@ -551,6 +552,7 @@ type GuardianProfileRepository interface {
 
 // GuardianPhoneNumberRepository defines operations for managing guardian phone numbers
 type GuardianPhoneNumberRepository interface {
+	peopledirectory.GuardianPhoneReads
 	// Create inserts a new phone number into the database
 	Create(ctx context.Context, phone *users.GuardianPhoneNumber) error
 

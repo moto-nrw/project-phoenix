@@ -57,7 +57,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:   careProfiles(t, db),
 		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		GuardianPhoneRepo: repos.GuardianPhoneNumber, PersonRepo: repos.Person,
+		GuardianPhoneRepo: api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: api.NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
 		ChangeRequestRepo:      repos.StudentDataChangeRequest,
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,

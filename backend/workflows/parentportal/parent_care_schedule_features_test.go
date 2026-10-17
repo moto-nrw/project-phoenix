@@ -60,7 +60,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		StudentRepo:            repos.Student,
 		StudentGuardianRepo:    repos.StudentGuardian,
 		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		PersonRepo:             repos.Person,
+		PersonRepo:             api.NewParentPersonReads(repos.Person),
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
 		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),

@@ -102,7 +102,7 @@ func contactProtected(profile *GuardianProfile, link *usersModels.StudentGuardia
 // projectChildGuardian builds the parent-facing projection of one guardian.
 // sharedAcrossFamilies marks a contact-only profile that also serves a child
 // outside the caller's family — editable only by the school, not this caller.
-func projectChildGuardian(profile *GuardianProfile, link *usersModels.StudentGuardian, phones []*usersModels.GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool, fullGuardianRole func(string) bool) *ChildGuardian {
+func projectChildGuardian(profile *GuardianProfile, link *usersModels.StudentGuardian, phones []*GuardianPhoneNumber, accountID int64, canEdit, canManage, sharedAcrossFamilies bool, fullGuardianRole func(string) bool) *ChildGuardian {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 	// "Account holder" derives from has_account OR account_id (HasPortalAccount),
 	// matching every write guard, so a drifted row (account_id set,
@@ -162,7 +162,7 @@ func projectChildGuardian(profile *GuardianProfile, link *usersModels.StudentGua
 
 // applyGuardianContactDetails copies the personal contact identifiers (email,
 // address, phones) of an unprotected guardian into the projection.
-func applyGuardianContactDetails(g *ChildGuardian, profile *GuardianProfile, phones []*usersModels.GuardianPhoneNumber) {
+func applyGuardianContactDetails(g *ChildGuardian, profile *GuardianProfile, phones []*GuardianPhoneNumber) {
 	if profile.Email != nil {
 		g.Email = *profile.Email
 	}
