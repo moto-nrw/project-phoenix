@@ -1,4 +1,4 @@
-package schoolportal_test
+package api
 
 import (
 	"encoding/json"
@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/stretchr/testify/assert"
@@ -17,30 +19,18 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
-	scheduleModel "github.com/moto-nrw/project-phoenix/models/schedule"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-// supervisionFixture is one Lehrkraft with a school token and the rows the
-// assignment-bound surface reads.
-type supervisionFixture struct {
-	db       *bun.DB
-	resource *schoolportal.Resource
-	tenantID int64
-	router   chi.Router
-	claims   sessiontoken.AppClaims
-	staffID  int64
-}
-
 const supervisionPermission = "supervision:own"
 
-func setupSupervisionFixture(t *testing.T) *supervisionFixture {
+func setupSupervisionFixture(t *testing.T) (*bun.DB, *schoolportal.Resource, int64, chi.Router, sessiontoken.AppClaims, int64) {
 	t.Helper()
 
 	clock := func() time.Time {
@@ -55,36 +45,29 @@ func setupSupervisionFixture(t *testing.T) *supervisionFixture {
 	// provisioning service gives every real school.
 	testpkg.EnsureWebManualDevice(t, db)
 
-	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, nil)
-	router := schoolportal.NewResource(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource, clock), nil, nil, nil).Router()
+	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
+	router := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource, clock), nil, nil, nil).Router()
 
-	return &supervisionFixture{
-		db:       db,
-		resource: resource,
-		tenantID: tenantID,
-		router:   router,
-		staffID:  staff.ID,
-		claims: sessiontoken.AppClaims{
-			ID: int(account.ID), Sub: account.Email,
-			Roles: []string{"lehrkraft"}, TenantID: tenantID,
-			Scope: tenant.ScopeSchool,
-		},
-	}
+	return db, resource, tenantID, router, sessiontoken.AppClaims{
+		ID: int(account.ID), Sub: account.Email,
+		Roles: []string{"lehrkraft"}, TenantID: tenantID,
+		Scope: tenant.ScopeSchool,
+	}, staff.ID
 }
 
 // todayInstance creates a planned block for today in its own room.
-func (f *supervisionFixture) todayInstance(t *testing.T, title string) *testpkg.ActivityInstance {
+func schoolSupervisionTodayInstance(t *testing.T, supervisionDB *bun.DB, supervisionTenantID int64, title string) *testpkg.ActivityInstance {
 	t.Helper()
 
-	room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", title, time.Now().UnixNano()))
-	return testpkg.CreateTestActivityInstance(t, f.db, calendar.NewDate(2026, 8, 24), room.ID, testpkg.ActivityInstanceOpts{
+	room := testpkg.CreateTestRoomForTenant(t, supervisionDB, supervisionTenantID, fmt.Sprintf("Raum-%s-%d", title, time.Now().UnixNano()))
+	return testpkg.CreateTestActivityInstance(t, supervisionDB, calendar.NewDate(2026, 8, 24), room.ID, testpkg.ActivityInstanceOpts{
 		Title: title,
 	})
 }
 
 // request fires one authenticated school-portal call carrying exactly the
 // permission the supervision surface requires.
-func (f *supervisionFixture) request(t *testing.T, method, path string, body io.Reader) *httptest.ResponseRecorder {
+func schoolSupervisionRequest(t *testing.T, supervisionRouter chi.Router, supervisionClaims sessiontoken.AppClaims, method, path string, body io.Reader) *httptest.ResponseRecorder {
 	t.Helper()
 	if body == nil && (method == http.MethodPost || method == http.MethodPatch) {
 		// The complete handler insists on a JSON body; an empty object is the
@@ -93,10 +76,8 @@ func (f *supervisionFixture) request(t *testing.T, method, path string, body io.
 	}
 	req := httptest.NewRequest(method, path, body)
 	req.Header.Set("Content-Type", "application/json")
-	return testutil.ExecuteWithAuthPermissions(t, f.router, req, f.claims, []string{supervisionPermission})
+	return testutil.ExecuteWithAuthPermissions(t, supervisionRouter, req, supervisionClaims, []string{supervisionPermission})
 }
-
-func (f *supervisionFixture) chi() chi.Router { return f.router }
 
 // instanceIDsInDayList decodes the day list into the instance IDs it names.
 func instanceIDsInDayList(t *testing.T, body []byte) []int64 {
@@ -121,57 +102,57 @@ func instanceIDsInDayList(t *testing.T, body []byte) []int64 {
 // sees and may operate in "moto schule".
 func TestSchoolSupervisionsFollowTheAssignment(t *testing.T) {
 	t.Parallel()
-	f := setupSupervisionFixture(t)
+	supervisionDB, _, supervisionTenantID, supervisionRouter, supervisionClaims, supervisionStaffID := setupSupervisionFixture(t)
 
-	mine := f.todayInstance(t, "Lernzeit")
-	foreign := f.todayInstance(t, "Fremde Aufsicht")
+	mine := schoolSupervisionTodayInstance(t, supervisionDB, supervisionTenantID, "Lernzeit")
+	foreign := schoolSupervisionTodayInstance(t, supervisionDB, supervisionTenantID, "Fremde Aufsicht")
 
-	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.tenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
-	testpkg.CreateTestInstanceStaff(t, f.db, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, supervisionDB, supervisionTenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
+	testpkg.CreateTestInstanceStaff(t, supervisionDB, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
 	// Without an assignment of her own, the day list is empty and the foreign
 	// block's roster is closed — the "keine Einteilung" criterion.
-	rec := f.request(t, http.MethodGet, "/supervisions/", nil)
+	rec := schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, "/supervisions/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, instanceIDsInDayList(t, rec.Body.Bytes()))
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", mine.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", mine.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// Assigned: her own block appears, the foreign one still does not.
-	assignment := testpkg.CreateTestInstanceStaff(t, f.db, mine.ID, f.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	assignment := testpkg.CreateTestInstanceStaff(t, supervisionDB, mine.ID, supervisionStaffID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
-	rec = f.request(t, http.MethodGet, "/supervisions/", nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, "/supervisions/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, []int64{mine.ID}, instanceIDsInDayList(t, rec.Body.Bytes()))
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", mine.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", mine.ID), nil)
 	assert.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", foreign.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", foreign.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 	// Starting creates an active-group supervisor row. It must not preserve
 	// school-portal access after the actual timetable assignment is revoked.
-	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", mine.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", mine.ID), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// Removing the assignment withdraws both, server-side.
-	_, err := f.db.NewDelete().
+	_, err := supervisionDB.NewDelete().
 		TableExpr("schedule.instance_staff").
 		Where("id = ?", assignment.ID).
-		Exec(testpkg.TenantContext(f.tenantID))
+		Exec(testpkg.TenantContext(supervisionTenantID))
 	require.NoError(t, err)
 
-	rec = f.request(t, http.MethodGet, "/supervisions/", nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, "/supervisions/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, instanceIDsInDayList(t, rec.Body.Bytes()))
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", mine.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", mine.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
@@ -185,9 +166,9 @@ func TestSchoolSupervisionsFollowTheAssignment(t *testing.T) {
 // planned into months ago.
 func TestSchoolSupervisionsAreBoundToToday(t *testing.T) {
 	t.Parallel()
-	f := setupSupervisionFixture(t)
+	supervisionDB, _, supervisionTenantID, supervisionRouter, supervisionClaims, supervisionStaffID := setupSupervisionFixture(t)
 
-	student := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Andere", "Woche", "2a")
+	student := testpkg.CreateTestStudentForTenant(t, supervisionDB, supervisionTenantID, "Andere", "Woche", "2a")
 
 	for _, tc := range []struct {
 		name string
@@ -197,18 +178,18 @@ func TestSchoolSupervisionsAreBoundToToday(t *testing.T) {
 		{name: "vergangener Block", date: calendar.NewDate(2026, 8, 24).AddDays(-14)},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			room := testpkg.CreateTestRoomForTenant(t, f.db, f.tenantID, fmt.Sprintf("Raum-%s-%d", tc.name, time.Now().UnixNano()))
-			other := testpkg.CreateTestActivityInstance(t, f.db, tc.date, room.ID, testpkg.ActivityInstanceOpts{
+			room := testpkg.CreateTestRoomForTenant(t, supervisionDB, supervisionTenantID, fmt.Sprintf("Raum-%s-%d", tc.name, time.Now().UnixNano()))
+			other := testpkg.CreateTestActivityInstance(t, supervisionDB, tc.date, room.ID, testpkg.ActivityInstanceOpts{
 				Title:     "Lernzeit",
 				StartHHMM: "10:00",
 				EndHHMM:   "11:00",
 			})
-			testpkg.CreateTestInstanceStaff(t, f.db, other.ID, f.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
-			testpkg.CreateTestInstanceStudent(t, f.db, other.ID, student.ID, scheduleModel.AttendanceStatusExpected)
+			testpkg.CreateTestInstanceStaff(t, supervisionDB, other.ID, supervisionStaffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+			testpkg.CreateTestInstanceStudent(t, supervisionDB, other.ID, student.ID, testpkg.ScheduleAttendanceStatusExpected)
 
 			// Assigned, same school, correct permission — and still closed,
 			// because the day is part of the boundary.
-			rec := f.request(t, http.MethodGet, "/supervisions/", nil)
+			rec := schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, "/supervisions/", nil)
 			require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 			assert.NotContains(t, instanceIDsInDayList(t, rec.Body.Bytes()), other.ID)
 
@@ -216,12 +197,12 @@ func TestSchoolSupervisionsAreBoundToToday(t *testing.T) {
 				fmt.Sprintf("/supervisions/%d/roster", other.ID),
 				fmt.Sprintf("/supervisions/%d/students/%d/sheet", other.ID, student.ID),
 			} {
-				rec = f.request(t, http.MethodGet, path, nil)
+				rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, path, nil)
 				assert.Equal(t, http.StatusForbidden, rec.Code, path+": "+rec.Body.String())
 			}
-			rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", other.ID), nil)
+			rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", other.ID), nil)
 			assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
-			rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", other.ID, student.ID), nil)
+			rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", other.ID, student.ID), nil)
 			assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 		})
 	}
@@ -233,31 +214,31 @@ func TestSchoolSupervisionsAreBoundToToday(t *testing.T) {
 // who holds a users.staff row just like they do.
 func TestSchoolSupervisionsIgnoreOperationalOverview(t *testing.T) {
 	t.Parallel()
-	f := setupSupervisionFixture(t)
+	supervisionDB, supervisionResource, supervisionTenantID, supervisionRouter, supervisionClaims, _ := setupSupervisionFixture(t)
 
-	foreign := f.todayInstance(t, "Fremde Aufsicht")
-	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.tenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
-	testpkg.CreateTestInstanceStaff(t, f.db, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	foreign := schoolSupervisionTodayInstance(t, supervisionDB, supervisionTenantID, "Fremde Aufsicht")
+	otherStaff, _ := testpkg.CreateTestStaffWithAccountForTenant(t, supervisionDB, supervisionTenantID, "Andere", fmt.Sprintf("Kraft-%d", time.Now().UnixNano()))
+	testpkg.CreateTestInstanceStaff(t, supervisionDB, foreign.ID, otherStaff.ID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
-	require.NoError(t, f.resource.Timetable.SettingsService.(settingsWriter).SetValue(
-		testpkg.TenantContext(f.tenantID),
+	require.NoError(t, supervisionResource.Timetable.(*timetable.Resource).SettingsService.(schoolPortalSettingsWriter).SetValue(
+		testpkg.TenantContext(supervisionTenantID),
 		configModel.KeyOperationalOverviewScope,
 		configModel.OverviewScopeAllStaff,
 		nil, nil,
 	))
 
-	rec := f.request(t, http.MethodGet, "/supervisions/", nil)
+	rec := schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, "/supervisions/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, instanceIDsInDayList(t, rec.Body.Bytes()), "all_staff must not widen a school token")
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// The same holds for an account that ALSO carries an admin claim set: the
 	// portal decides, not the role.
-	f.claims.IsAdmin = true
-	f.claims.Roles = []string{"lehrkraft", "admin"}
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
+	supervisionClaims.IsAdmin = true
+	supervisionClaims.Roles = []string{"lehrkraft", "admin"}
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
@@ -266,56 +247,56 @@ func TestSchoolSupervisionsIgnoreOperationalOverview(t *testing.T) {
 // children the block she runs actually holds.
 func TestSchoolSupervisionStudentBoundary(t *testing.T) {
 	t.Parallel()
-	f := setupSupervisionFixture(t)
+	supervisionDB, _, supervisionTenantID, supervisionRouter, supervisionClaims, supervisionStaffID := setupSupervisionFixture(t)
 
-	mine := f.todayInstance(t, "Lernzeit")
-	testpkg.CreateTestInstanceStaff(t, f.db, mine.ID, f.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	mine := schoolSupervisionTodayInstance(t, supervisionDB, supervisionTenantID, "Lernzeit")
+	testpkg.CreateTestInstanceStaff(t, supervisionDB, mine.ID, supervisionStaffID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
-	onRoster := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Auf", "Liste", "2a")
-	offRoster := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Nicht", "Liste", "3b")
-	testpkg.CreateTestInstanceStudent(t, f.db, mine.ID, onRoster.ID, scheduleModel.AttendanceStatusExpected)
+	onRoster := testpkg.CreateTestStudentForTenant(t, supervisionDB, supervisionTenantID, "Auf", "Liste", "2a")
+	offRoster := testpkg.CreateTestStudentForTenant(t, supervisionDB, supervisionTenantID, "Nicht", "Liste", "3b")
+	testpkg.CreateTestInstanceStudent(t, supervisionDB, mine.ID, onRoster.ID, testpkg.ScheduleAttendanceStatusExpected)
 
 	// Start the block so the check-in path is reachable at all.
-	rec := f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", mine.ID), nil)
+	rec := schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/start", mine.ID), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	// A child of the school that is NOT on this roster stays untouchable, even
 	// though the caller legitimately operates the block.
-	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, offRoster.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, offRoster.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/students/%d/sheet", mine.ID, offRoster.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/students/%d/sheet", mine.ID, offRoster.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
 	// The roster child can be checked in and its sheet read.
-	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, onRoster.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, onRoster.ID), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/students/%d/sheet", mine.ID, onRoster.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/students/%d/sheet", mine.ID, onRoster.ID), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "pickup_contacts")
 	assert.Contains(t, rec.Body.String(), "emergency_contacts")
 
 	// The stored roster is retained as history, but an alumnus must leave the
 	// effective current roster and cannot be checked out through this route.
-	_, err := f.db.NewUpdate().
+	_, err := supervisionDB.NewUpdate().
 		TableExpr("users.student_school_memberships").
 		Set("status = ?", "alumnus").
 		Where("student_profile_id = ? AND deleted_at IS NULL", onRoster.ID).
-		Exec(testpkg.TenantContext(f.tenantID))
+		Exec(testpkg.TenantContext(supervisionTenantID))
 	require.NoError(t, err)
-	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-out", mine.ID, onRoster.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-out", mine.ID, onRoster.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 
-	careEnded := testpkg.CreateTestStudentForTenant(t, f.db, f.tenantID, "Betreuung", "Beendet", "2a")
-	testpkg.CreateTestInstanceStudent(t, f.db, mine.ID, careEnded.ID, scheduleModel.AttendanceStatusExpected)
-	_, err = f.db.NewUpdate().
+	careEnded := testpkg.CreateTestStudentForTenant(t, supervisionDB, supervisionTenantID, "Betreuung", "Beendet", "2a")
+	testpkg.CreateTestInstanceStudent(t, supervisionDB, mine.ID, careEnded.ID, testpkg.ScheduleAttendanceStatusExpected)
+	_, err = supervisionDB.NewUpdate().
 		TableExpr("users.student_school_memberships").
 		Set("enrolled_until = ?", calendar.NewDate(2026, 8, 24).AddDays(-1)).
 		Where("student_profile_id = ? AND deleted_at IS NULL", careEnded.ID).
-		Exec(testpkg.TenantContext(f.tenantID))
+		Exec(testpkg.TenantContext(supervisionTenantID))
 	require.NoError(t, err)
-	rec = f.request(t, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, careEnded.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodPost, fmt.Sprintf("/supervisions/%d/students/%d/check-in", mine.ID, careEnded.ID), nil)
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
 
@@ -323,10 +304,10 @@ func TestSchoolSupervisionStudentBoundary(t *testing.T) {
 // the surface: a block of another school is invisible, assignment or not.
 func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 	t.Parallel()
-	f := setupSupervisionFixture(t)
+	supervisionDB, _, _, supervisionRouter, supervisionClaims, supervisionStaffID := setupSupervisionFixture(t)
 
-	otherTenantID, _ := testpkg.CreateTestTenant(t, f.db)
-	otherRoom := testpkg.CreateTestRoomForTenant(t, f.db, otherTenantID, fmt.Sprintf("Fremdraum-%d", time.Now().UnixNano()))
+	otherTenantID, _ := testpkg.CreateTestTenant(t, supervisionDB)
+	otherRoom := testpkg.CreateTestRoomForTenant(t, supervisionDB, otherTenantID, fmt.Sprintf("Fremdraum-%d", time.Now().UnixNano()))
 	otherCtx := testpkg.TenantContext(otherTenantID)
 
 	foreign := &testpkg.ActivityInstance{
@@ -335,26 +316,26 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 		StartTime: calendar.NormalizeWallClock(time.Date(2000, 1, 1, 10, 0, 0, 0, time.UTC)),
 		EndTime:   calendar.NormalizeWallClock(time.Date(2000, 1, 1, 11, 0, 0, 0, time.UTC)),
 		RoomID:    otherRoom.ID,
-		Status:    scheduleModel.InstanceStatusPlanned,
+		Status:    testpkg.ScheduleInstanceStatusPlanned,
 	}
 	foreign.TenantID = otherTenantID
-	testpkg.InsertActivityInstanceRow(t, otherCtx, f.db, foreign)
+	testpkg.InsertActivityInstanceRow(t, otherCtx, supervisionDB, foreign)
 
 	// Planting an assignment for this Lehrkraft at the OTHER school is not even
 	// expressible: the composite FK on instance_staff binds (staff_id,
 	// tenant_id), so a staff member of one school cannot be planned into
 	// another school's block. The schema is the first of the three guards; the
 	// token binding and the tenant transaction are the other two.
-	foreignAssignment := &scheduleModel.InstanceStaff{InstanceID: foreign.ID, StaffID: f.staffID, IsPrimary: true}
-	foreignAssignment.SetTenantID(otherTenantID)
-	_, err := f.db.NewInsert().Model(foreignAssignment).ModelTableExpr("schedule.instance_staff").Exec(otherCtx)
+	foreignAssignment := &testpkg.InstanceStaff{InstanceID: foreign.ID, StaffID: supervisionStaffID, IsPrimary: true}
+	foreignAssignment.TenantID = otherTenantID
+	_, err := supervisionDB.NewInsert().Model(foreignAssignment).ModelTableExpr("schedule.instance_staff").Exec(otherCtx)
 	require.Error(t, err, "a staff member must not be assignable to another school's block")
 
-	rec := f.request(t, http.MethodGet, "/supervisions/", nil)
+	rec := schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, "/supervisions/", nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Empty(t, instanceIDsInDayList(t, rec.Body.Bytes()))
 
-	rec = f.request(t, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
+	rec = schoolSupervisionRequest(t, supervisionRouter, supervisionClaims, http.MethodGet, fmt.Sprintf("/supervisions/%d/roster", foreign.ID), nil)
 	assert.NotEqual(t, http.StatusOK, rec.Code, rec.Body.String())
 }
 
@@ -363,12 +344,12 @@ func TestSchoolSupervisionsCrossTenant(t *testing.T) {
 // correctly scoped and assigned.
 func TestSchoolSupervisionsRequirePermission(t *testing.T) {
 	t.Parallel()
-	f := setupSupervisionFixture(t)
+	supervisionDB, _, supervisionTenantID, supervisionRouter, supervisionClaims, supervisionStaffID := setupSupervisionFixture(t)
 
-	mine := f.todayInstance(t, "Lernzeit")
-	testpkg.CreateTestInstanceStaff(t, f.db, mine.ID, f.staffID, testpkg.InstanceStaffOpts{IsPrimary: true})
+	mine := schoolSupervisionTodayInstance(t, supervisionDB, supervisionTenantID, "Lernzeit")
+	testpkg.CreateTestInstanceStaff(t, supervisionDB, mine.ID, supervisionStaffID, testpkg.InstanceStaffOpts{IsPrimary: true})
 
 	req := httptest.NewRequest(http.MethodGet, "/supervisions/", nil)
-	rec := testutil.ExecuteWithAuthPermissions(t, f.chi(), req, f.claims, []string{"class_day:read"})
+	rec := testutil.ExecuteWithAuthPermissions(t, supervisionRouter, req, supervisionClaims, []string{"class_day:read"})
 	assert.Equal(t, http.StatusForbidden, rec.Code, rec.Body.String())
 }
