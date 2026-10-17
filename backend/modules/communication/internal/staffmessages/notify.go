@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
@@ -13,7 +12,7 @@ import (
 // notifyAfterCommit wakes the conversation's participants and pushes to the
 // recipient's devices. Both are side effects of a successful send: never let
 // either fail the send itself.
-func (s *Service) notifyAfterCommit(ctx context.Context, thread *usersModels.StaffMessageThread, message *usersModels.StaffMessage, senderAccountID int64) {
+func (s *Service) notifyAfterCommit(ctx context.Context, thread *StaffMessageThread, message *StaffMessage, senderAccountID int64) {
 	if thread == nil || message == nil {
 		return
 	}
@@ -30,7 +29,7 @@ func (s *Service) notifyAfterCommit(ctx context.Context, thread *usersModels.Sta
 // The fan-out addresses the thread's participants only. Staff and school
 // portal clients use separate indexes, so a chat refresh reaches both
 // immediately and never depends on notification consent or delivery hours.
-func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.StaffMessageThread, senderAccountID int64) {
+func (s *Service) broadcastAfterCommit(ctx context.Context, thread *StaffMessageThread, senderAccountID int64) {
 	if s.Broadcaster == nil {
 		return
 	}
@@ -73,7 +72,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 // The copy names neither the sender nor the message. A push payload leaves the
 // backend and is rendered on a lock screen; the conversation behind the deep
 // link is authenticated, and that is where the content belongs.
-func (s *Service) notifyRecipients(ctx context.Context, thread *usersModels.StaffMessageThread, messageID, senderAccountID int64) {
+func (s *Service) notifyRecipients(ctx context.Context, thread *StaffMessageThread, messageID, senderAccountID int64) {
 	if s.Notifier == nil || s.Preferences == nil {
 		return
 	}
