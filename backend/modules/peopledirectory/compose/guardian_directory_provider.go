@@ -12,7 +12,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Guardian directory composition (#2663). The People Directory facade owns
@@ -232,7 +231,7 @@ func (p *GuardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardi
 	var phone *users.GuardianPhoneNumber
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		phone, txErr = p.Guardians.AddPhoneNumber(txCtx, guardianID, ports.PhoneNumberCreateRequest{
+		phone, txErr = p.Guardians.AddPhoneNumber(txCtx, guardianID, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary,
 		})
 		return txErr
@@ -245,7 +244,7 @@ func (p *GuardianDirectoryProvider) AddGuardianPhone(ctx context.Context, guardi
 
 func (p *GuardianDirectoryProvider) UpdateGuardianPhone(ctx context.Context, phoneID int64, input peopledirectory.GuardianPhoneUpdate) error {
 	return mapGuardianPhoneError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.Guardians.UpdatePhoneNumber(txCtx, phoneID, ports.PhoneNumberUpdateRequest{
+		return p.Guardians.UpdatePhoneNumber(txCtx, phoneID, peoplePorts.PhoneNumberUpdateRequest{
 			PhoneNumber: input.PhoneNumber, PhoneType: input.PhoneType, Label: input.Label, IsPrimary: input.IsPrimary, Priority: input.Priority,
 		})
 	}))
@@ -267,7 +266,7 @@ func (p *GuardianDirectoryProvider) LinkGuardianToStudent(ctx context.Context, i
 	var link *users.StudentGuardian
 	err := p.inTenantTx(ctx, func(txCtx context.Context) error {
 		var txErr error
-		link, txErr = p.Guardians.LinkGuardianToStudent(txCtx, ports.StudentGuardianCreateRequest{
+		link, txErr = p.Guardians.LinkGuardianToStudent(txCtx, peoplePorts.StudentGuardianCreateRequest{
 			StudentID: input.StudentID, GuardianProfileID: input.GuardianProfileID,
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
@@ -296,7 +295,7 @@ func (p *GuardianDirectoryProvider) AddGuardiansToStudent(ctx context.Context, s
 
 func (p *GuardianDirectoryProvider) UpdateGuardianLink(ctx context.Context, linkID int64, input peopledirectory.GuardianLinkUpdate) error {
 	return mapGuardianLinkError(p.inTenantTx(ctx, func(txCtx context.Context) error {
-		return p.Guardians.UpdateStudentGuardianRelationship(txCtx, linkID, ports.StudentGuardianUpdateRequest{
+		return p.Guardians.UpdateStudentGuardianRelationship(txCtx, linkID, peoplePorts.StudentGuardianUpdateRequest{
 			RelationshipType: input.RelationshipType, GuardianRole: input.GuardianRole,
 			IsPrimary: input.IsPrimary, IsEmergencyContact: input.IsEmergencyContact, CanPickup: input.CanPickup,
 			PickupNotes: input.PickupNotes, EmergencyPriority: input.EmergencyPriority,
@@ -319,7 +318,7 @@ func (p *GuardianDirectoryProvider) RevealGuardianPayment(ctx context.Context, g
 }
 
 func (p *GuardianDirectoryProvider) UpdateGuardianPayment(ctx context.Context, guardianID int64, input peopledirectory.GuardianPaymentInput) error {
-	return mapGuardianPaymentError(p.Guardians.UpdateGuardianPayment(ctx, guardianID, ports.GuardianPaymentInput{
+	return mapGuardianPaymentError(p.Guardians.UpdateGuardianPayment(ctx, guardianID, peoplePorts.GuardianPaymentInput{
 		IBAN: input.IBAN, AccountHolder: input.AccountHolder,
 	}, input.ActorAccountID, input.Note))
 }
@@ -338,9 +337,9 @@ func mapGuardianError(err error) error {
 		return nil
 	}
 	validation, isValidation := peoplePorts.ValidationFailure(err)
-	var stillLinked *ports.GuardianStillLinkedError
+	var stillLinked *peoplePorts.GuardianStillLinkedError
 	switch {
-	case isValidation && errors.Is(err, ports.ErrGuardianEmailInUse):
+	case isValidation && errors.Is(err, peoplePorts.ErrGuardianEmailInUse):
 		// Still invalid input for every caller; the sentinel adds the code.
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianEmailTaken,
 			&peopledirectory.InvalidGuardianError{Reason: validation.Error()})
@@ -348,11 +347,11 @@ func mapGuardianError(err error) error {
 		return &peopledirectory.InvalidGuardianError{Reason: validation.Error()}
 	case errors.As(err, &stillLinked):
 		return &peopledirectory.GuardianStillLinkedError{StudentNames: stillLinked.StudentNames}
-	case errors.Is(err, ports.ErrGuardianForceDeleteRequiresAdmin):
+	case errors.Is(err, peoplePorts.ErrGuardianForceDeleteRequiresAdmin):
 		return peopledirectory.ErrGuardianForceDeleteRequiresAdmin
-	case errors.Is(err, ports.ErrGuardianDeletePreviewChanged):
+	case errors.Is(err, peoplePorts.ErrGuardianDeletePreviewChanged):
 		return peopledirectory.ErrGuardianDeletePreviewChanged
-	case errors.Is(err, ports.ErrPayerRemovalRequiresFinancial):
+	case errors.Is(err, peoplePorts.ErrPayerRemovalRequiresFinancial):
 		return peopledirectory.ErrPayerRemovalRequiresFinancial
 	case errors.Is(err, users.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
@@ -396,15 +395,15 @@ func mapGuardianPaymentError(err error) error {
 	switch {
 	case errors.Is(err, sql.ErrNoRows), errors.Is(err, users.ErrGuardianProfileNotFound):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianNotFound, err)
-	case errors.Is(err, ports.ErrGuardianIBANInvalid):
+	case errors.Is(err, peoplePorts.ErrGuardianIBANInvalid):
 		return peopledirectory.ErrGuardianIBANInvalid
-	case errors.Is(err, ports.ErrGuardianAccountHolderTooLong):
+	case errors.Is(err, peoplePorts.ErrGuardianAccountHolderTooLong):
 		return peopledirectory.ErrGuardianAccountHolderTooLong
-	case errors.Is(err, ports.ErrGuardianStudentRequired):
+	case errors.Is(err, peoplePorts.ErrGuardianStudentRequired):
 		return peopledirectory.ErrGuardianStudentRequired
-	case errors.Is(err, ports.ErrGuardianNotLinkedToStudent):
+	case errors.Is(err, peoplePorts.ErrGuardianNotLinkedToStudent):
 		return peopledirectory.ErrGuardianNotLinkedToStudent
-	case errors.Is(err, ports.ErrGuardianPaymentInvalid):
+	case errors.Is(err, peoplePorts.ErrGuardianPaymentInvalid):
 		return fmt.Errorf("%w: %w", peopledirectory.ErrGuardianPaymentInvalid, err)
 	default:
 		return err
@@ -413,20 +412,20 @@ func mapGuardianPaymentError(err error) error {
 
 // --- projections ---
 
-func toGuardianCreateRequest(input peopledirectory.GuardianInput) ports.GuardianCreateRequest {
-	return ports.GuardianCreateRequest{
+func toGuardianCreateRequest(input peopledirectory.GuardianInput) peoplePorts.GuardianCreateRequest {
+	return peoplePorts.GuardianCreateRequest{
 		FirstName: input.FirstName, LastName: input.LastName, Email: input.Email,
 		AddressStreet: input.AddressStreet, AddressCity: input.AddressCity, AddressPostalCode: input.AddressPostalCode,
 		PreferredContactMethod: input.PreferredContactMethod, LanguagePreference: input.LanguagePreference, Notes: input.Notes,
 	}
 }
 
-func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []ports.NewStudentGuardian {
-	out := make([]ports.NewStudentGuardian, 0, len(inputs))
+func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []peoplePorts.NewStudentGuardian {
+	out := make([]peoplePorts.NewStudentGuardian, 0, len(inputs))
 	for i := range inputs {
 		in := inputs[i]
-		out = append(out, ports.NewStudentGuardian{
-			Profile: ports.GuardianCreateRequest{
+		out = append(out, peoplePorts.NewStudentGuardian{
+			Profile: peoplePorts.GuardianCreateRequest{
 				FirstName:              strings.TrimSpace(in.FirstName),
 				LastName:               strings.TrimSpace(in.LastName),
 				Email:                  trimToNil(in.Email),
@@ -437,7 +436,7 @@ func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []ports.
 				LanguagePreference:     in.LanguagePreference,
 				Notes:                  trimToNil(in.Notes),
 			},
-			Relationship: ports.StudentGuardianRelationship{
+			Relationship: peoplePorts.StudentGuardianRelationship{
 				RelationshipType:   in.RelationshipType,
 				GuardianRole:       in.GuardianRole,
 				IsPrimary:          in.IsPrimary,
@@ -453,13 +452,13 @@ func toNewStudentGuardians(inputs []peopledirectory.NewStudentGuardian) []ports.
 	return out
 }
 
-func toNewGuardianPhones(phones []peopledirectory.NewGuardianPhone) []ports.PhoneNumberCreateRequest {
+func toNewGuardianPhones(phones []peopledirectory.NewGuardianPhone) []peoplePorts.PhoneNumberCreateRequest {
 	if len(phones) == 0 {
 		return nil
 	}
-	out := make([]ports.PhoneNumberCreateRequest, 0, len(phones))
+	out := make([]peoplePorts.PhoneNumberCreateRequest, 0, len(phones))
 	for i := range phones {
-		out = append(out, ports.PhoneNumberCreateRequest{
+		out = append(out, peoplePorts.PhoneNumberCreateRequest{
 			PhoneNumber: strings.TrimSpace(phones[i].PhoneNumber),
 			PhoneType:   phones[i].PhoneType,
 			Label:       trimToNil(phones[i].Label),
@@ -548,7 +547,7 @@ func toDirectoryStudent(student *users.Student) peopledirectory.Student {
 	}
 }
 
-func toDirectoryPaymentRows(rows []ports.GuardianPaymentRow) []peopledirectory.GuardianPaymentRow {
+func toDirectoryPaymentRows(rows []peoplePorts.GuardianPaymentRow) []peopledirectory.GuardianPaymentRow {
 	result := make([]peopledirectory.GuardianPaymentRow, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, peopledirectory.GuardianPaymentRow{

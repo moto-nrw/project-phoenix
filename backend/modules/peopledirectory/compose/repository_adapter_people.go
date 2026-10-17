@@ -8,7 +8,6 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The retained People Directory repositories (database/repositories/users) are
@@ -65,7 +64,7 @@ type GuardianRelationshipDependencies struct {
 	Access      GuardianStudentAccessCommand
 	// RolePresets is the authorization policy whose default preset a link
 	// without a role or permissions takes; nil leaves such a link as it is.
-	RolePresets ports.GuardianRolePresets
+	RolePresets peoplePorts.GuardianRolePresets
 }
 
 // NewGuardianRelationshipRepository is the relationship store with its
@@ -79,7 +78,7 @@ func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelation
 
 // defaultGuardianRole applies the default preset, or nothing without a
 // policy.
-func defaultGuardianRole(presets ports.GuardianRolePresets) func(*userModels.StudentGuardian) {
+func defaultGuardianRole(presets peoplePorts.GuardianRolePresets) func(*userModels.StudentGuardian) {
 	if presets == nil {
 		return nil
 	}
