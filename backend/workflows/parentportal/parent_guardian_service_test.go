@@ -52,7 +52,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 	})
 	return svc, db
@@ -1448,7 +1448,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
 		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(repos.GuardianProfile), lookupErr),
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 	})
 
