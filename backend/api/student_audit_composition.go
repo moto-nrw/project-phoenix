@@ -106,3 +106,9 @@ func studentAuditSnapshot(student *userModels.Student) peopleModule.StudentAudit
 	}
 	return snapshot
 }
+
+// RecordStudentChanges exposes the already-composed native owner command to
+// the actor-aware owner port, without a legacy-row reconstruction.
+func (s *StudentAudit) RecordStudentChanges(ctx context.Context, before, after peopleModule.StudentAuditSnapshot, editedBy int64, editedByName string) error {
+	return s.capability.RecordStudentChanges(ctx, before, after, editedBy, editedByName)
+}

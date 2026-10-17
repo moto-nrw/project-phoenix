@@ -46,7 +46,7 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
 		AnnouncementRepo:      repos.ParentAnnouncement,
-		StudentRepo:           repos.Student,
+		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},
 		},

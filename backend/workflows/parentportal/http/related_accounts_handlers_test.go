@@ -74,6 +74,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
@@ -83,11 +84,11 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
@@ -188,6 +189,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
@@ -197,11 +199,11 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})

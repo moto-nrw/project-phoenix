@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -34,6 +35,7 @@ type CRUDRepository[T any] interface {
 
 // PersonRepository defines operations for managing persons
 type PersonRepository interface {
+	peopledirectory.DirectoryPersonReads
 	CRUDRepository[*users.Person]
 
 	// FindByIDForUpdate retrieves and locks a person row for a transaction.
@@ -77,6 +79,7 @@ type PersonRepository interface {
 
 // StudentRepository defines operations for managing students
 type StudentRepository interface {
+	peopledirectory.StudentSnapshotReads
 	CRUDRepository[*users.Student]
 
 	// FindByIDs retrieves multiple students by their IDs in a single query
@@ -479,6 +482,10 @@ type StudentCompanionRepository interface {
 
 // GuardianProfileRepository defines operations for managing guardian profiles
 type GuardianProfileRepository interface {
+	// The retained store also serves the native profile capability. New
+	// consumers bind that facade, not the legacy row contract below.
+	peopledirectory.GuardianProfileReads
+
 	// Create inserts a new guardian profile into the database
 	Create(ctx context.Context, profile *users.GuardianProfile) error
 
@@ -546,6 +553,7 @@ type GuardianProfileRepository interface {
 
 // GuardianPhoneNumberRepository defines operations for managing guardian phone numbers
 type GuardianPhoneNumberRepository interface {
+	peopledirectory.GuardianPhoneReads
 	// Create inserts a new phone number into the database
 	Create(ctx context.Context, phone *users.GuardianPhoneNumber) error
 

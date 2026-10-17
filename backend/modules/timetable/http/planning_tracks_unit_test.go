@@ -63,7 +63,7 @@ func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
 		PlanningTracks: new(planningTrackServiceStub),
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGates())))
+	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 	request := httptest.NewRequest(http.MethodGet, "/timetable/planning-tracks/", nil)
 
 	response := testutil.ExecuteWithAuthPermissions(

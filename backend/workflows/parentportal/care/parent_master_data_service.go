@@ -88,8 +88,8 @@ type ChildMasterData struct {
 	PrimaryPhoneID         *int64
 
 	// Permanent weekday departure config — Track B editable, shown read-only.
-	DepartureDays         usersModels.DepartureDays
-	AllowedDepartureModes usersModels.AllowedDepartureModes
+	DepartureDays         DepartureDays
+	AllowedDepartureModes AllowedDepartureModes
 
 	// PendingChanges are the child's open Track B requests (awaiting staff).
 	PendingChanges []*usersModels.StudentDataChangeRequest
@@ -309,7 +309,7 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 
 	// Validate() trims/lowercases the email and rejects bad emails / contact
 	// methods — turn its failure into the stable invalid-value sentinel.
-	if err := profile.Validate(); err != nil {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	newRaw := s.guardianProfileFieldJSON(guardianContactRecord(profile), fieldKey)
@@ -328,7 +328,7 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 
 // setGuardianProfileField applies one Track A guardian field to the profile
 // and returns its previous value as JSON.
-func (s *Service) setGuardianProfileField(profile *usersModels.GuardianProfile, fieldKey, newStr string) (json.RawMessage, error) {
+func (s *Service) setGuardianProfileField(profile *GuardianProfile, fieldKey, newStr string) (json.RawMessage, error) {
 	var oldRaw json.RawMessage
 	switch fieldKey {
 	case "email":
@@ -402,7 +402,7 @@ func (s *Service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	existing := pickPrimaryPhone(phones, func(phone *usersModels.GuardianPhoneNumber) bool { return phone.IsPrimary })
+	existing := pickPrimaryPhone(phones, func(phone *GuardianPhoneNumber) bool { return phone.IsPrimary })
 
 	oldRaw := json.RawMessage("null")
 	if existing != nil {
@@ -427,9 +427,9 @@ func (s *Service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 }
 
 // changePrimaryPhone rewrites the number of the existing primary phone.
-func (s *Service) changePrimaryPhone(ctx context.Context, existing *usersModels.GuardianPhoneNumber, oldRaw json.RawMessage, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
+func (s *Service) changePrimaryPhone(ctx context.Context, existing *GuardianPhoneNumber, oldRaw json.RawMessage, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
 	existing.PhoneNumber = newStr
-	if err := existing.Validate(); err != nil {
+	if err := s.GuardianPhoneRepo.NormalizePhone(existing); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	newRaw := jsonString(existing.PhoneNumber)
@@ -445,15 +445,15 @@ func (s *Service) changePrimaryPhone(ctx context.Context, existing *usersModels.
 
 // addPrimaryPhone creates the guardian's first primary phone.
 func (s *Service) addPrimaryPhone(ctx context.Context, guardianProfileID, tenantID int64, oldRaw json.RawMessage, newStr string) (json.RawMessage, json.RawMessage, *int64, bool, error) {
-	phone := &usersModels.GuardianPhoneNumber{
+	phone := &GuardianPhoneNumber{
 		GuardianProfileID: guardianProfileID,
 		PhoneNumber:       newStr,
-		PhoneType:         usersModels.PhoneTypeMobile,
+		PhoneType:         s.GuardianPhoneRepo.PhoneTypeOrMobile(""),
 		IsPrimary:         true,
 		Priority:          1,
 	}
-	phone.SetTenantID(tenantID)
-	if err := phone.Validate(); err != nil {
+	phone.TenantID = tenantID
+	if err := s.GuardianPhoneRepo.NormalizePhone(phone); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	id, err := s.Guardians.AddGuardianPhoneRecord(ctx, guardianProfileID, GuardianPhoneRecord{
@@ -526,7 +526,7 @@ func (s *Service) loadMasterData(ctx context.Context, accountID, guardianProfile
 	if err != nil {
 		return nil, err
 	}
-	if primary := pickPrimaryPhone(phones, func(phone *usersModels.GuardianPhoneNumber) bool { return phone.IsPrimary }); primary != nil {
+	if primary := pickPrimaryPhone(phones, func(phone *GuardianPhoneNumber) bool { return phone.IsPrimary }); primary != nil {
 		out.PrimaryPhone = &primary.PhoneNumber
 		out.PrimaryPhoneID = &primary.ID
 	}

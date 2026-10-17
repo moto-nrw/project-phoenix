@@ -14,8 +14,8 @@ import (
 
 // GuardianProfileReads reads the guardian profiles messaging addresses.
 type GuardianProfileReads interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
-	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.GuardianProfile, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*care.GuardianProfile, error)
+	FindActivePortalProfilesByIDs(ctx context.Context, ids []int64) (map[int64]*care.GuardianProfile, error)
 }
 
 // GuardianProfiles is the guardian-profile surface the child flows and the

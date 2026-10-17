@@ -41,9 +41,9 @@ func displayHTTPRuntime(displayEnabled func(context.Context) (bool, error)) disp
 func displayProtectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.Middleware)) {
 	r.Group(func(r chi.Router) {
 		r.Use(sessiontoken.Authenticator)
-		r.Use(apiCommon.ReadOnlyPreviewMiddleware)
+		r.Use(ReadOnlyPreviewMiddleware)
 		r.Use(TenantScopeMiddleware)
-		r.Use(apiCommon.SecurityPrincipalMiddleware)
+		r.Use(SecurityPrincipalMiddleware)
 		register(r, apiCommon.TenantTxMiddleware)
 	})
 }

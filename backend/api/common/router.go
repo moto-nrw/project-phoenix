@@ -11,22 +11,22 @@ type Middleware = func(http.Handler) http.Handler
 
 // ProtectedTenantRoutes registers the tenant security chain and supplies the
 // request-scoped transaction middleware without retaining a database handle.
-func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, scope Middleware) {
+func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, preview, scope, principal, settingsCache, identityCache Middleware) {
 
 	r.Group(func(gr chi.Router) {
 		gr.Use(authenticate)
 		// Write block for admin staff-view preview tokens (#2893). Directly
 		// after the Authenticator: it only reads the parsed claims and must
 		// reject before any transaction middleware can run.
-		gr.Use(ReadOnlyPreviewMiddleware)
+		gr.Use(preview)
 		gr.Use(scope)
-		gr.Use(SecurityPrincipalMiddleware)
+		gr.Use(principal)
 		// Request-scoped settings memo cache (issue #2065) and identity memo
 		// cache (issue #2099). Unlike withTx these ARE applied group-wide:
 		// they open no transaction and do no DB work, so running them on
 		// requests that later 403 costs one map allocation each.
-		gr.Use(RequestSettingsCacheMiddleware)
-		gr.Use(RequestIdentityCacheMiddleware)
+		gr.Use(settingsCache)
+		gr.Use(identityCache)
 		fn(gr, TenantTxMiddleware)
 	})
 }
@@ -51,17 +51,17 @@ func ProtectedParentGroup(r chi.Router, fn func(r chi.Router), authenticate, sco
 // ProtectedSchoolRoutes registers the school-portal security chain and
 // supplies the request-scoped transaction middleware without retaining a
 // database handle.
-func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, scope Middleware) {
+func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, preview, scope, principal, settingsCache, identityCache Middleware) {
 
 	r.Group(func(gr chi.Router) {
 		gr.Use(authenticate)
 		// Preview tokens are never school-scope, so SchoolMiddleware already
 		// rejects them — this is defense-in-depth mirroring the tenant group.
-		gr.Use(ReadOnlyPreviewMiddleware)
+		gr.Use(preview)
 		gr.Use(scope)
-		gr.Use(SecurityPrincipalMiddleware)
-		gr.Use(RequestSettingsCacheMiddleware)
-		gr.Use(RequestIdentityCacheMiddleware)
+		gr.Use(principal)
+		gr.Use(settingsCache)
+		gr.Use(identityCache)
 		fn(gr, TenantTxMiddleware)
 	})
 }

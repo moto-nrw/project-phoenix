@@ -30,28 +30,31 @@ type EnrollmentRequestReads interface {
 
 // StudentReads reads and locks the child's row.
 type StudentReads interface {
-	FindByID(ctx context.Context, id any) (*usersModels.Student, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.Student, error)
+	FindByID(ctx context.Context, id int64) (*PortalStudent, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*PortalStudent, error)
 }
 
 // PersonReads reads the child's person row.
 type PersonReads interface {
-	FindByID(ctx context.Context, id any) (*usersModels.Person, error)
+	FindByID(ctx context.Context, id int64) (*Person, error)
 }
 
 // GuardianProfileReads reads and locks guardian profiles.
 type GuardianProfileReads interface {
-	FindByID(ctx context.Context, id int64) (*usersModels.GuardianProfile, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.GuardianProfile, error)
-	FindByEmail(ctx context.Context, email string) (*usersModels.GuardianProfile, error)
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
+	NormalizeProfile(*GuardianProfile) error
+	FindByID(ctx context.Context, id int64) (*GuardianProfile, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+	FindByEmail(ctx context.Context, email string) (*GuardianProfile, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*GuardianProfile, error)
 	LockByIDForUpdate(ctx context.Context, id int64) error
 }
 
 // GuardianPhoneReads reads guardian phone numbers.
 type GuardianPhoneReads interface {
-	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*usersModels.GuardianPhoneNumber, error)
-	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*usersModels.GuardianPhoneNumber, error)
+	NormalizePhone(*GuardianPhoneNumber) error
+	PhoneTypeOrMobile(string) string
+	FindByGuardianID(ctx context.Context, guardianProfileID int64) ([]*GuardianPhoneNumber, error)
+	FindByGuardianIDs(ctx context.Context, guardianProfileIDs []int64) (map[int64][]*GuardianPhoneNumber, error)
 }
 
 // StudentGuardianReads reads and locks the guardian relationships.

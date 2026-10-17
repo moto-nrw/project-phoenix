@@ -24,6 +24,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
@@ -33,10 +34,10 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		PersonRepo:          api.NewParentPersonReads(repos.Person),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            masterDataSettings(false, true, false),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
@@ -288,6 +289,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
@@ -297,10 +299,10 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
-		PersonRepo:          repos.Person,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		PersonRepo:          api.NewParentPersonReads(repos.Person),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		Settings:            settings,
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),

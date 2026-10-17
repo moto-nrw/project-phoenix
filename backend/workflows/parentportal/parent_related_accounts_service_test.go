@@ -77,17 +77,18 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	invites := &stubInvites{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianPolicy: api.ParentGuardianPolicy{},
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Locales:        api.ParentPortalLocales(),
-		Runtime:        api.ParentPortalRuntime{},
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChildReads(),
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        repos.CarePlan(),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
@@ -96,7 +97,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	return svc, invites, db
@@ -420,6 +421,7 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
@@ -430,12 +432,12 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
 		StatusDayRepo:       repos.StudentStatusDay,
-		StudentRepo:         repos.Student,
+		StudentRepo:         api.NewParentStudentReads(repos.Student),
 		Settings:            settings,
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	return svc, db
@@ -497,17 +499,18 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianPolicy: api.ParentGuardianPolicy{},
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Locales:        api.ParentPortalLocales(),
-		Runtime:        api.ParentPortalRuntime{},
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChildReads(),
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        repos.CarePlan(),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues:   map[string]bool{parentService.KeyGuardianParentCanRemove: canRemove},
 			stringValues: map[string]string{parentService.KeyGuardianParentInviteMode: inviteMode},
@@ -515,7 +518,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	return svc, db

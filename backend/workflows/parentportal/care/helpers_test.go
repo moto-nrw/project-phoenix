@@ -24,7 +24,7 @@ func childResolver(db *bun.DB, repos *api.RepositoryTestFactory) parentportal.Ch
 		GuardianPolicy: api.ParentGuardianPolicy{},
 
 		Runtime:   api.ParentPortalRuntime{},
-		ChildRepo: repos.ParentChildReads(), StudentRepo: repos.Student,
+		ChildRepo: repos.ParentChildReads(), StudentRepo: api.NewParentStudentReads(repos.Student),
 		RequestSharing: unusedRequestSharer{},
 	})
 }

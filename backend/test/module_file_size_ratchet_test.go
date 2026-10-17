@@ -53,8 +53,6 @@ var moduleFileSizeTrees = []string{"modules", "workflows"}
 //	cd backend && find modules workflows -name '*.go' ! -name '*_test.go' \
 //	  -exec wc -l {} + | awk '$1 > 800 {print $2, $1}' | sort
 var moduleFileSizeAllowlist = map[string]int{
-	"modules/appointments/appointments.go":                                           846,
-	"modules/appointments/internal/adapters/postgres/store.go":                       1011,
 	"modules/careplan/internal/adapters/postgres/requests.go":                        838,
 	"modules/careplan/internal/application/excused_requests.go":                      1567,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           945,

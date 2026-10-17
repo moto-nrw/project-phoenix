@@ -14,7 +14,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -213,7 +212,7 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		// has that role. Log it so the corruption is observable, then degrade
 		// to the anonymous locale rather than failing a read just to render a
 		// language. Any other error is a real fault and must surface unmasked.
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			s.Logger.Warn("parent: guardian profile missing for authenticated account",
 				slog.Int64("account_id", accountID),
 			)
@@ -246,7 +245,7 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 		// the handler can map it to 409 (a permanent state conflict) instead of
 		// a generic 500. Never swallow it into a fake success — a "saved"
 		// preference that never hit the DB must not masquerade as persisted.
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			s.Logger.Warn("parent: cannot persist portal locale, no guardian profile for account",
 				slog.Int64("account_id", accountID),
 			)
@@ -301,7 +300,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 		}
 	}
 	if updated == 0 {
-		return usersModels.ErrGuardianProfileNotFound
+		return ErrGuardianProfileNotFound
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
 
 // StudentChangeRecorder is the narrow write contract used by services that
@@ -31,6 +32,7 @@ type StudentPickupPlanRecorder interface {
 }
 
 type StudentAuditService interface {
+	peopledirectory.StudentAuditActorCommand
 	StudentChangeRecorder
 	StudentPickupPlanRecorder
 
@@ -44,6 +46,7 @@ type StudentAuditService interface {
 // (database/repositories.NewStudentAudit); this package only resolves who the
 // authenticated caller is, which is not a directory decision.
 type StudentAuditRecorder interface {
+	RecordStudentChanges(context.Context, peopledirectory.StudentAuditSnapshot, peopledirectory.StudentAuditSnapshot, int64, string) error
 	RecordChanges(ctx context.Context, before, after *users.Student, editedBy int64, editedByName string) error
 	RecordPickupPlan(ctx context.Context, studentID int64, before, after, result, reason string, editedBy int64, editedByName string) error
 	RecordSystemStatusChange(ctx context.Context, studentID int64, before, after users.StudentStatus) error

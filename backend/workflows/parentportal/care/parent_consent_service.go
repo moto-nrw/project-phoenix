@@ -5,26 +5,30 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 const (
-	ChildConsentStateGranted     = usersModels.StudentConsentStateGranted
-	ChildConsentStateWithdrawn   = usersModels.StudentConsentStateWithdrawn
-	ChildConsentStateNotRecorded = usersModels.StudentConsentStateNotRecorded
+	ChildConsentStateGranted     = "granted"
+	ChildConsentStateWithdrawn   = "withdrawn"
+	ChildConsentStateNotRecorded = "not_recorded"
 )
 
-type ChildConsent = usersModels.StudentConsentState
+type ChildConsent struct {
+	Key         string
+	State       string
+	ChangedAt   *time.Time
+	CanWithdraw bool
+	CanGrant    bool
+}
 
 // StudentConsentService is the consent surface this portal needs: the shared
 // projection People Directory folds together, and the Audit Platform trail
 // every effective change appends to. The composition root binds both (#3349).
 type StudentConsentService interface {
-	CurrentStates(ctx context.Context, student *usersModels.Student, canManagePhoto bool) ([]ChildConsent, error)
+	CurrentStates(ctx context.Context, student *PortalStudent, canManagePhoto bool) ([]ChildConsent, error)
 	RecordTransitions(
 		ctx context.Context,
-		before, after *usersModels.Student,
+		before, after *PortalStudent,
 		source string,
 		actorAccountID *int64,
 		changedAt time.Time,
@@ -147,14 +151,14 @@ func (s *Service) changePhotoConsent(ctx context.Context, tenantID, accountID, s
 
 // requirePhotoConsentWithdrawn keeps the re-grant path from becoming a
 // first-time consent: it needs an earlier withdrawal in the consent history.
-func (s *Service) requirePhotoConsentWithdrawn(ctx context.Context, student *usersModels.Student) error {
+func (s *Service) requirePhotoConsentWithdrawn(ctx context.Context, student *PortalStudent) error {
 	currentStates, err := s.StudentConsents.CurrentStates(ctx, student, true)
 	if err != nil {
 		return err
 	}
 	for _, consent := range currentStates {
 		if consent.Key == StudentConsentPhoto {
-			if consent.State == usersModels.StudentConsentStateWithdrawn {
+			if consent.State == "withdrawn" {
 				return nil
 			}
 			break
@@ -165,7 +169,7 @@ func (s *Service) requirePhotoConsentWithdrawn(ctx context.Context, student *use
 
 // writePhotoConsent stores the new consent state through People Directory,
 // appends the consent trail, and removes a withdrawn photo after the commit.
-func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int64, student *usersModels.Student, granting bool) error {
+func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int64, student *PortalStudent, granting bool) error {
 	changedAt := s.now()
 	before := *student
 	storedURL := ""
@@ -213,7 +217,7 @@ func (s *Service) writePhotoConsent(ctx context.Context, tenantID, accountID int
 	return nil
 }
 
-func (s *Service) loadChildConsents(ctx context.Context, student *usersModels.Student, canManage bool) ([]ChildConsent, error) {
+func (s *Service) loadChildConsents(ctx context.Context, student *PortalStudent, canManage bool) ([]ChildConsent, error) {
 	if s.StudentConsents == nil {
 		return nil, fmt.Errorf("parent: student consent service not wired")
 	}

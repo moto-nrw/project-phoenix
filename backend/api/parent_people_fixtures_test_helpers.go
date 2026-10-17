@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // These test-only bindings retain the exact stores the fixture graph already
@@ -50,71 +51,39 @@ func (r ParentRequestEventFixtureReads) ListForRequest(ctx context.Context, kind
 	return rows, err
 }
 
-// ParentGuardianProfileReadFixture adapts a native locale-read fixture to the
-// retained workflow read contract. Other reads stay inert as in the old stub.
-type ParentGuardianProfileReadFixture struct {
-	find func(context.Context, int64) (*peopledirectory.GuardianProfileFixture, error)
-}
-
-func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peopledirectory.GuardianProfileFixture, error)) *ParentGuardianProfileReadFixture {
-	return &ParentGuardianProfileReadFixture{find: find}
-}
-func (r *ParentGuardianProfileReadFixture) FindByAccountID(ctx context.Context, id int64) (*peopleVocabulary.GuardianProfile, error) {
-	value, err := r.find(ctx, id)
-	return parentGuardianProfileFixtureRow(value), err
-}
-func (*ParentGuardianProfileReadFixture) FindByID(context.Context, int64) (*peopleVocabulary.GuardianProfile, error) {
-	return nil, nil
-}
-func (*ParentGuardianProfileReadFixture) FindByIDs(context.Context, []int64) (map[int64]*peopleVocabulary.GuardianProfile, error) {
-	return nil, nil
-}
-func (*ParentGuardianProfileReadFixture) FindByEmail(context.Context, string) (*peopleVocabulary.GuardianProfile, error) {
-	return nil, nil
-}
-func (*ParentGuardianProfileReadFixture) LockByIDForUpdate(context.Context, int64) error { return nil }
-func (*ParentGuardianProfileReadFixture) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*peopleVocabulary.GuardianProfile, error) {
-	return nil, nil
-}
-
-func parentGuardianProfileFixtureRow(value *peopledirectory.GuardianProfileFixture) *peopleVocabulary.GuardianProfile {
-	if value == nil {
-		return nil
-	}
-	row := &peopleVocabulary.GuardianProfile{
-		FirstName:              value.FirstName,
-		LastName:               value.LastName,
-		Email:                  value.Email,
-		AddressStreet:          value.AddressStreet,
-		AddressCity:            value.AddressCity,
-		AddressPostalCode:      value.AddressPostalCode,
-		AccountID:              value.AccountID,
-		HasAccount:             value.HasAccount,
-		PreferredContactMethod: value.PreferredContactMethod,
-		LanguagePreference:     value.LanguagePreference,
-		PortalLocale:           value.PortalLocale,
-		Notes:                  value.Notes,
-	}
-	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
-	if value.PhoneNumbers != nil {
-		row.PhoneNumbers = make([]*peopleVocabulary.GuardianPhoneNumber, len(value.PhoneNumbers))
-		for i, phone := range value.PhoneNumbers {
-			if phone == nil {
-				continue
+// NewParentGuardianProfileReadFixture retains the locale stub's complete
+// profile values and inert operations through the native workflow callbacks.
+func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peopledirectory.GuardianProfileFixture, error)) parentportal.GuardianProfiles {
+	return parentportal.NewGuardianProfileReads(parentportal.GuardianProfileReadCallbacks{
+		FindByAccountID: func(ctx context.Context, id int64) (*parentportal.GuardianProfile, error) {
+			value, err := find(ctx, id)
+			if value == nil {
+				return nil, err
 			}
-			mapped := &peopleVocabulary.GuardianPhoneNumber{
-				GuardianProfileID: phone.GuardianProfileID,
-				PhoneNumber:       phone.PhoneNumber,
-				PhoneType:         peopleVocabulary.PhoneType(phone.PhoneType),
-				Label:             phone.Label,
-				IsPrimary:         phone.IsPrimary,
-				Priority:          phone.Priority,
+			profile := &peopledirectory.GuardianProfileSnapshot{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, FirstName: value.FirstName, LastName: value.LastName, Email: value.Email, AddressStreet: value.AddressStreet, AddressCity: value.AddressCity, AddressPostalCode: value.AddressPostalCode, AccountID: value.AccountID, HasAccount: value.HasAccount, PreferredContactMethod: value.PreferredContactMethod, LanguagePreference: value.LanguagePreference, PortalLocale: value.PortalLocale, Notes: value.Notes}
+			if value.PhoneNumbers != nil {
+				profile.PhoneNumbers = make([]*peopledirectory.GuardianProfilePhoneSnapshot, len(value.PhoneNumbers))
+				for i, p := range value.PhoneNumbers {
+					if p != nil {
+						phone := peopledirectory.GuardianProfilePhoneSnapshot(*p)
+						profile.PhoneNumbers[i] = &phone
+					}
+				}
 			}
-			mapped.ID, mapped.TenantID, mapped.CreatedAt, mapped.UpdatedAt = phone.ID, phone.TenantID, phone.CreatedAt, phone.UpdatedAt
-			row.PhoneNumbers[i] = mapped
-		}
-	}
-	return row
+			return parentGuardianProfile(profile), err
+		},
+		FindByID:                      func(context.Context, int64) (*parentportal.GuardianProfile, error) { return nil, nil },
+		FindByIDs:                     func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },
+		FindByEmail:                   func(context.Context, string) (*parentportal.GuardianProfile, error) { return nil, nil },
+		FindActivePortalProfilesByIDs: func(context.Context, []int64) (map[int64]*parentportal.GuardianProfile, error) { return nil, nil },
+		LockByIDForUpdate:             func(context.Context, int64) error { return nil },
+		Normalize: func(value *parentportal.GuardianProfile) error {
+			row := &peopleVocabulary.GuardianProfile{FirstName: value.FirstName, LastName: value.LastName, Email: value.Email, PreferredContactMethod: value.PreferredContactMethod}
+			err := row.Validate()
+			value.FirstName, value.LastName, value.Email = row.FirstName, row.LastName, row.Email
+			return err
+		},
+	})
 }
 
 // ParentPersistedFixtureProtocol binds the composed owner scalar facet.

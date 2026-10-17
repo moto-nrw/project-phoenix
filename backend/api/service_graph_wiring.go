@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
@@ -56,7 +58,6 @@ import (
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
 )
 
@@ -309,12 +310,12 @@ type EnrollmentCareBookings interface {
 
 // EnrollmentCarePeriods answers the parents portal's care periods.
 type EnrollmentCarePeriods interface {
-	CarePeriods(ctx context.Context, studentID int64) ([]*parentportalcompose.CarePeriod, error)
+	CarePeriods(ctx context.Context, studentID int64) ([]*parentportal.CarePeriod, error)
 }
 
 // EnrollmentOfferingHistory answers the parents portal's booked offerings.
 type EnrollmentOfferingHistory interface {
-	OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportalcompose.OfferingBooking, error)
+	OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportal.OfferingBooking, error)
 }
 
 // EnrollmentSettings is the slice of the settings service the Enrollment

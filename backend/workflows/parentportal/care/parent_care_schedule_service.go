@@ -273,7 +273,7 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 			// An empty configured set means the child goes home alone — surface
 			// that explicitly instead of an ambiguous empty list (matches the
 			// request-diff convention).
-			keys = []string{string(usersModels.DepartureAlone)}
+			keys = []string{string(DepartureAlone)}
 		}
 		weekdays = append(weekdays, CareScheduleWeekday{
 			Weekday: wd,

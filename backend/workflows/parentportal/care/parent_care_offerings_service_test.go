@@ -31,7 +31,7 @@ type careOfferingsStudentRepoStub[T any] struct {
 }
 
 type unlockedStudentRead[T any] interface {
-	FindByID(context.Context, any) (*T, error)
+	FindByID(context.Context, int64) (*T, error)
 }
 
 func (careOfferingsStudentRepoStub[T]) FindByIDForUpdate(context.Context, int64) (*T, error) {

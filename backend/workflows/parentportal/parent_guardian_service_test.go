@@ -34,25 +34,26 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianPolicy: api.ParentGuardianPolicy{},
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Locales:        api.ParentPortalLocales(),
-		Runtime:        api.ParentPortalRuntime{},
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChildReads(),
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        repos.CarePlan(),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: mgmtEnabled},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 	})
 	return svc, db
@@ -1396,6 +1397,7 @@ func TestGuardianProfile_AccountStateCannotDrift(t *testing.T) {
 // guardianProfiles is the guardian-profile surface the portal reads; the test
 // may not name the portal's own ports.
 type guardianProfiles[T any] interface {
+	NormalizeProfile(*T) error
 	FindByID(ctx context.Context, id int64) (*T, error)
 	FindByIDs(ctx context.Context, ids []int64) (map[int64]*T, error)
 	FindByEmail(ctx context.Context, email string) (*T, error)
@@ -1429,25 +1431,26 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianPolicy: api.ParentGuardianPolicy{},
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Locales:        api.ParentPortalLocales(),
-		Runtime:        api.ParentPortalRuntime{},
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChildReads(),
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        repos.CarePlan(),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentGuardianManagementEnabled: true},
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(repos.GuardianProfile, lookupErr),
-		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
+		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(repos.GuardianProfile), lookupErr),
+		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		Logger:              slog.Default(),
 	})
 

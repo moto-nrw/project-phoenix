@@ -1176,11 +1176,11 @@ func setupBasicMiddleware(router chi.Router, logger *slog.Logger, httpMetrics *h
 	// outside ProtectedTenantGroup (/auth incl. /auth/tenant/resolve,
 	// /operator, /parent, public enrollment) dedupe their settings lookups
 	// too. Idempotent with the group-wide attachment in api/common.
-	router.Use(apiCommon.RequestSettingsCacheMiddleware)
+	router.Use(RequestSettingsCacheMiddleware)
 	// Request-scoped identity memo cache (issue #2099). Router-wide so routes
 	// outside ProtectedTenantGroup (notably /api/sse, which builds its own JWT
 	// chain) dedupe their identity-chain lookups too.
-	router.Use(apiCommon.RequestIdentityCacheMiddleware)
+	router.Use(RequestIdentityCacheMiddleware)
 }
 
 func syncClientIPToRemoteAddr(next http.Handler) http.Handler {
@@ -1998,9 +1998,9 @@ func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
 		Protected: func(router chi.Router, register func(chi.Router)) {
 			router.Group(func(r chi.Router) {
 				r.Use(sessiontoken.Authenticator)
-				r.Use(apiCommon.ReadOnlyPreviewMiddleware)
+				r.Use(ReadOnlyPreviewMiddleware)
 				r.Use(TenantScopeMiddleware)
-				r.Use(apiCommon.SecurityPrincipalMiddleware)
+				r.Use(SecurityPrincipalMiddleware)
 				register(r)
 			})
 		},
