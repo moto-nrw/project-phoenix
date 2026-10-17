@@ -39,6 +39,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
@@ -131,7 +132,7 @@ type serviceGraph struct {
 	Materialization         timetable.MaterializationCapability
 	TimetableCleanup        timetable.TimetableCleanup
 	TimeTrackingCleanup     workforceCompose.TimeTrackingCleanupService
-	StudentChangeLogCleanup peopleCompose.StudentChangeLogCleanupService
+	StudentChangeLogCleanup peoplePorts.StudentChangeLogCleanupService
 	Instance                timetable.InstanceLifecycleCapability
 	AutoStart               timetable.InstanceAutoStart
 	AutoEnd                 timetable.InstanceAutoEnd

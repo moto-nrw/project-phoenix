@@ -9,7 +9,6 @@ import (
 	"log/slog"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -88,7 +87,7 @@ type Dependencies struct {
 	Conversations             messaging.ConversationCore
 	MessagingEnabled          messaging.MessagingGate
 	AnnouncementRepo          usersModels.ParentAnnouncementRepository
-	CareRequestRepo           scheduleModels.CareScheduleChangeRequestRepository
+	CareRequestRepo           messaging.CareRequestReads
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
 	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
 	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository

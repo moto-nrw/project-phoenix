@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -31,7 +32,7 @@ type StudentDirectoryRows = postgres.StudentDirectory
 type GuardianMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
 type Dependencies struct {
-	StudentOwners              StudentOwners
+	StudentOwners              peoplePorts.StudentOwners
 	StudentClassWriteGateQuery func(context.Context) (*bun.SelectQuery, error)
 	DB                         *bun.DB
 	StudentDirectory           StudentDirectoryRows
@@ -44,7 +45,7 @@ type Dependencies struct {
 	// StudentNoteDeletionAudit records every hidden note in Audit's
 	// append-only deletion ledger. It is optional only for compositions that
 	// do not serve note deletion; that operation fails closed without it.
-	StudentNoteDeletionAudit StudentNoteDeletionAudit
+	StudentNoteDeletionAudit peoplePorts.StudentNoteDeletionAudit
 	// StudentConsentHistory is the Audit Platform seam behind the shared
 	// consent projection. Optional on the same terms; a child without a live
 	// photo consent then reports that the trail is not configured rather than
@@ -62,7 +63,7 @@ type Dependencies struct {
 	// narrowing a departure plan drops the "läuft mit" links it no longer
 	// allows. Optional, on the same terms as the others — a graph that never
 	// binds it refuses only the writes that would touch a link.
-	StudentCompanions StudentCompanions
+	StudentCompanions peoplePorts.StudentCompanions
 	// GuardianLinkOwners writes the pickup permission and the portal access
 	// of a link the parents portal creates or patches. Optional on the same
 	// terms: a graph without it refuses only those link writes.
@@ -112,13 +113,13 @@ func NewWithGuardianMemberships(dependencies Dependencies, memberships GuardianM
 	service := application.New(postgres.New(database), transaction{}, observe)
 	var companions ports.StudentCompanions
 	if dependencies.StudentCompanions != nil {
-		companions = studentCompanions{seam: dependencies.StudentCompanions}
+		companions = application.NewStudentCompanions(dependencies.StudentCompanions)
 	}
-	owners := studentOwners{owners: dependencies.StudentOwners}
+	owners := application.NewStudentOwners(dependencies.StudentOwners)
 	noteStore := postgres.NewStudentNoteStore(database)
 	var noteDeletionAudit ports.StudentNoteDeletionAudit
 	if dependencies.StudentNoteDeletionAudit != nil {
-		noteDeletionAudit = studentNoteDeletionAudit{audit: dependencies.StudentNoteDeletionAudit}
+		noteDeletionAudit = application.NewStudentNoteDeletionAudit(dependencies.StudentNoteDeletionAudit)
 	}
 	students := application.NewStudents(postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), noteStore, companions, owners, transaction{}, noteDeletionAudit, observe)
 	guardians := application.NewGuardians(postgres.NewGuardianStore(database, postgres.PortalMembershipQuery(memberships), dependencies.GuardianLinkRows), dependencies.GuardianLinkOwners, transaction{}, observe)

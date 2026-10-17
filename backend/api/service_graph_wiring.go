@@ -40,6 +40,7 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/planexport"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
@@ -185,7 +186,7 @@ type PeopleWiring struct {
 	ClassAssignmentAudit     func(auditModels.StaffMasterDataChangeCreator) education.ClassAssignmentAudit
 	SubstitutionAudit        func(auditModels.SubstitutionChangeCreator) education.SubstitutionAudit
 	StudentConsents          func(StudentConsentAppender) StudentConsentRecords
-	StudentChangeLogCleanup  func(edits peopleCompose.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peopleCompose.StudentChangeLogCleanupService
+	StudentChangeLogCleanup  func(edits peoplePorts.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peoplePorts.StudentChangeLogCleanupService
 	StatusDayPeople          func(*peopleCompose.PersonDirectory) presenceservice.StatusDayOverviewPeople
 	GroupRosterPeople        func(*peopleCompose.PersonDirectory) GroupRoster
 	MasterDataDecisions      func(MasterDataDecisionWiring) (*careplanCompose.MasterDataDecisions, error)
