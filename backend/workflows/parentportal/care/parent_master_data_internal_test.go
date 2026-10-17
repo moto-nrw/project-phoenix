@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,15 +14,15 @@ func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 	t.Parallel()
 
 	birthday := calendar.NewDate(2018, 3, 4)
-	person := &usersModels.Person{FirstName: "Felix", LastName: "Schneider", Birthday: &birthday}
-	student := &usersModels.Student{
-		AllowedDepartureModes: usersModels.AllowedDepartureModes{
-			usersModels.PickupDayMonday: []usersModels.DepartureMode{usersModels.DeparturePickup},
+	person := &masterDataPerson{FirstName: "Felix", LastName: "Schneider", Birthday: &birthday}
+	student := &masterDataStudent{
+		AllowedDepartureModes: AllowedDepartureModes{
+			"mon": []DepartureMode{DeparturePickup},
 		},
 	}
 
 	oldRaw, newRaw, changed, err := trackBFieldState(
-		usersModels.DataChangeTargetPerson,
+		DataChangeTargetPerson,
 		"last_name",
 		person,
 		student,
@@ -35,7 +34,7 @@ func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 	assert.JSONEq(t, `"Müller"`, string(newRaw))
 
 	oldRaw, newRaw, changed, err = trackBFieldState(
-		usersModels.DataChangeTargetPerson,
+		DataChangeTargetPerson,
 		"birthday",
 		person,
 		student,
@@ -47,7 +46,7 @@ func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 	assert.JSONEq(t, `"2018-03-04"`, string(newRaw))
 
 	oldRaw, newRaw, changed, err = trackBFieldState(
-		usersModels.DataChangeTargetDeparture,
+		"departure",
 		"allowed_departure_modes",
 		person,
 		student,
@@ -62,11 +61,11 @@ func TestTrackBFieldState_PersonAndDepartureBranches(t *testing.T) {
 func TestTrackBFieldState_SchoolClass(t *testing.T) {
 	t.Parallel()
 
-	person := &usersModels.Person{}
-	student := &usersModels.Student{SchoolClass: "1a"}
+	person := &masterDataPerson{}
+	student := &masterDataStudent{SchoolClass: "1a"}
 
 	oldRaw, newRaw, changed, err := trackBFieldState(
-		usersModels.DataChangeTargetStudent,
+		DataChangeTargetStudent,
 		"school_class",
 		person,
 		student,
@@ -78,7 +77,7 @@ func TestTrackBFieldState_SchoolClass(t *testing.T) {
 	assert.JSONEq(t, `"2b"`, string(newRaw))
 
 	_, _, _, err = trackBFieldState(
-		usersModels.DataChangeTargetStudent,
+		DataChangeTargetStudent,
 		"school_class",
 		person,
 		student,
@@ -90,22 +89,22 @@ func TestTrackBFieldState_SchoolClass(t *testing.T) {
 func TestTrackBFieldState_InvalidInputs(t *testing.T) {
 	t.Parallel()
 
-	person := &usersModels.Person{FirstName: "Felix", LastName: "Schneider"}
-	student := &usersModels.Student{}
+	person := &masterDataPerson{FirstName: "Felix", LastName: "Schneider"}
+	student := &masterDataStudent{}
 
-	_, _, _, err := trackBFieldState(usersModels.DataChangeTargetPerson, "first_name", person, student, json.RawMessage(`""`))
+	_, _, _, err := trackBFieldState(DataChangeTargetPerson, "first_name", person, student, json.RawMessage(`""`))
 	assert.ErrorIs(t, err, ErrMasterDataInvalidValue)
 
-	_, _, _, err = trackBFieldState(usersModels.DataChangeTargetPerson, "birthday", person, student, json.RawMessage(`"bad-date"`))
+	_, _, _, err = trackBFieldState(DataChangeTargetPerson, "birthday", person, student, json.RawMessage(`"bad-date"`))
 	assert.ErrorIs(t, err, ErrMasterDataInvalidValue)
 
-	_, _, _, err = trackBFieldState(usersModels.DataChangeTargetPerson, "unknown", person, student, json.RawMessage(`"x"`))
+	_, _, _, err = trackBFieldState(DataChangeTargetPerson, "unknown", person, student, json.RawMessage(`"x"`))
 	assert.ErrorIs(t, err, ErrMasterDataFieldNotEditable)
 
-	_, _, _, err = trackBFieldState(usersModels.DataChangeTargetDeparture, "pickup_status", person, student, json.RawMessage(`{}`))
+	_, _, _, err = trackBFieldState("departure", "pickup_status", person, student, json.RawMessage(`{}`))
 	assert.ErrorIs(t, err, ErrMasterDataFieldNotEditable)
 
-	_, _, _, err = trackBFieldState(usersModels.DataChangeTargetDeparture, "allowed_departure_modes", person, student, json.RawMessage(`{`))
+	_, _, _, err = trackBFieldState("departure", "allowed_departure_modes", person, student, json.RawMessage(`{`))
 	assert.ErrorIs(t, err, ErrMasterDataInvalidValue)
 
 	_, _, _, err = trackBFieldState("guardian_profile", "email", person, student, json.RawMessage(`"x"`))
@@ -115,13 +114,19 @@ func TestTrackBFieldState_InvalidInputs(t *testing.T) {
 func TestMasterDataSmallHelpers(t *testing.T) {
 	t.Parallel()
 
-	primary := &usersModels.GuardianPhoneNumber{PhoneNumber: "2", IsPrimary: true}
+	type phoneChoice struct {
+		ID          int64
+		PhoneNumber string
+		IsPrimary   bool
+	}
+	primaryPhone := func(phone *phoneChoice) bool { return phone.IsPrimary }
+	primary := &phoneChoice{PhoneNumber: "2", IsPrimary: true}
 	primary.ID = 2
-	secondary := &usersModels.GuardianPhoneNumber{PhoneNumber: "1"}
+	secondary := &phoneChoice{PhoneNumber: "1"}
 	secondary.ID = 1
-	assert.Equal(t, primary, pickPrimaryPhone([]*usersModels.GuardianPhoneNumber{secondary, primary}))
-	assert.Equal(t, secondary, pickPrimaryPhone([]*usersModels.GuardianPhoneNumber{secondary}))
-	assert.Nil(t, pickPrimaryPhone(nil))
+	assert.Equal(t, primary, pickPrimaryPhone([]*phoneChoice{secondary, primary}, primaryPhone))
+	assert.Equal(t, secondary, pickPrimaryPhone([]*phoneChoice{secondary}, primaryPhone))
+	assert.Nil(t, pickPrimaryPhone(nil, primaryPhone))
 
 	got, err := decodeStringValue(json.RawMessage(`"  abc  "`))
 	require.NoError(t, err)
@@ -137,7 +142,7 @@ func TestMasterDataSmallHelpers(t *testing.T) {
 
 	email := "parent@example.test"
 	street := "Musterweg 1"
-	profile := &usersModels.GuardianProfile{
+	profile := GuardianContactRecord{
 		Email:                  &email,
 		AddressStreet:          &street,
 		PreferredContactMethod: "email",
