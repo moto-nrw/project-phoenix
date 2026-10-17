@@ -38,7 +38,7 @@
     "Final cutover AST count audit: 741 original assertion/failure calls preserved, now 744 including three additional Care Plan transaction NoError checks. Moved fixture assertion callbacks still invoke the original require functions in the calling test. Nil message write regression demonstrated red panic before its fix, then green against the unchanged owner validation error."
   ],
   "runtime_evidence": {
-    "source": "Pinned repository toolchain, localhost5547 test database and fixed freshly recreated /tmp/gocache-4073 after verified PR4297 merge b5e9a901ed38cb44c272d7c3397ed3e004e7f1f0.",
+    "source": "Verification rerun on 2026-10-18 with the pinned repository toolchain, localhost:5547 test database and the default Go cache /Users/yonnock/Library/Caches/go-build (GOCACHE unset; confirmed with go env GOCACHE). From backend/: env -u GOCACHE ../scripts/run-go-toolchain.sh go test -tags=testhooks -count=1 -p 2 -parallel 8 ./modules/communication/... ./api ./modules/peopledirectory/contracttest/... . No isolated cache created.",
     "sources": [
       "backend/modules/communication/staff_announcement_records.go",
       "backend/modules/communication/internal/application/announcement_records.go",
