@@ -1,0 +1,96 @@
+{
+  "schema_version": 3,
+  "ticket_kind": "migration",
+  "checkpoint_reference": "https://github.com/moto-nrw/project-phoenix/issues/3020",
+  "prerequisites": [
+    "https://github.com/moto-nrw/project-phoenix/blob/development/docs/adr/0059-the-roots-hold-no-service-graph.md",
+    "https://github.com/moto-nrw/project-phoenix/issues/4004#issuecomment-6239845987"
+  ],
+  "owner_and_capability": "Owner and workflow compositions stop building other owners' compositions (ADR 0059 point 6, decision B of #4004): the root builds those owners and passes them as dependencies. First slice: the grade transition workflow (workflows/gradetransition/compose) receives School Structure and Student Presence from the root (api.NewGradeTransitionOwners).",
+  "affected_packages": [
+    "api",
+    "workflows/gradetransition/compose",
+    "modules/schoolstructure/internal/application/groups"
+  ],
+  "affected_tables": [
+    "None: the same owners run the same statements; only the package that constructs them moves."
+  ],
+  "exact_ratchet_keys": [
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose|github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose|github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+  ],
+  "atomic_cutover": "One PR: the workflow composition's Dependencies get Structure and Presence (required), the root builds them with the same constructors, the same database and the same no-op observers the composition used, and the two keys leave legacy.jsonl.",
+  "tests": [
+    "modules/schoolstructure/internal/application/groups: the grade transition workflow suite (apply, revert, failure injection after each owner command) over the owners built by api.NewGradeTransitionOwners, assertions unchanged.",
+    "api: TestFullProductionRouterGolden and the grade transition route suites through NewGradeTransitionTestModule.",
+    "test ratchets and internal/architecture; scripts/backend-architecture.sh check and validate-ticket --all against the development merge base; scripts/test-changed.sh origin/development."
+  ],
+  "runtime_evidence": {
+    "source": "Local run on the PR branch. The workflow receives owners built by the same constructors over the same pool; only the constructing package moves. The evidence is the suites and the architecture check, not a benchmark rerun.",
+    "sources": [
+      "backend/api/grade_transition_owners.go",
+      "backend/api/service_graph_compose_requests.go",
+      "backend/workflows/gradetransition/compose/new.go"
+    ],
+    "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
+    "thresholds": "The suites pass with unchanged assertion strength and the architecture check reports no new violation and no stale baseline entry.",
+    "affected_rows": {
+      "state": "not_applicable",
+      "reason": "No write path changes: the workflow runs the same owner commands."
+    },
+    "query_count": {
+      "state": "not_applicable",
+      "reason": "No query changes: the same owners are constructed in another package."
+    },
+    "latency_p50": {
+      "state": "not_applicable",
+      "reason": "No query or handler changes; only the constructing package moves."
+    },
+    "latency_p95": {
+      "state": "not_applicable",
+      "reason": "No query or handler changes; only the constructing package moves."
+    },
+    "errors": {
+      "state": "measured",
+      "result": "scripts/test-changed.sh origin/development passed every affected package, exit 0; scripts/backend-architecture.sh check passed."
+    },
+    "pool_wait": {
+      "state": "not_applicable",
+      "reason": "The owners use the same pool."
+    },
+    "lock_wait": {
+      "state": "not_applicable",
+      "reason": "No transaction or lock order changes."
+    },
+    "deadlocks": {
+      "state": "not_applicable",
+      "reason": "No transaction or lock order changes."
+    },
+    "job_duration": {
+      "state": "not_applicable",
+      "reason": "No worker path."
+    },
+    "job_retries": {
+      "state": "not_applicable",
+      "reason": "No worker path."
+    },
+    "job_backlog": {
+      "state": "not_applicable",
+      "reason": "No worker path."
+    },
+    "failure": {
+      "state": "measured",
+      "result": "The grade transition suite's failure injection after an owner command still rolls the whole transition back over the root-built owners."
+    },
+    "rollback": {
+      "state": "not_applicable",
+      "reason": "No write path or data changes."
+    },
+    "smoke": {
+      "state": "not_applicable",
+      "reason": "No route, handler or response changes; the route suites and TestFullProductionRouterGolden drive the workflow."
+    }
+  },
+  "rollback_and_cleanup": "Revert the PR; the two keys return and the workflow composition builds the two owners itself again. No data cleanup.",
+  "exit_criterion": "grep 'issues/4004' backend/architecture/legacy.jsonl lists no key from an owner or workflow composition into another owner's compose role, scripts/backend-architecture.sh check passes, and routes, tables and error texts are unchanged."
+}
