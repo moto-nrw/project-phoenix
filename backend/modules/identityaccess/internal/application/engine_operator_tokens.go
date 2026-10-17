@@ -77,7 +77,13 @@ func (e engine) RecordOperatorInvitationDelivery(ctx context.Context, id int64, 
 }
 
 func (e engine) DeleteExpiredOperatorInvitations(ctx context.Context) (int, error) {
-	deleted, err := e.tokens.DeleteExpiredInvitations(ctx)
+	var deleted int
+	err := e.tokens.run(ctx, "delete_expired_operator_invitations", func(txCtx context.Context, stats *domain.OperationStats) error {
+		count, queryStats, deleteErr := e.tokens.store.DeleteExpiredOperatorInvitations(txCtx, e.tokens.now())
+		stats.Add(queryStats)
+		deleted = count
+		return deleteErr
+	})
 	return deleted, MapError(err)
 }
 
@@ -98,7 +104,11 @@ func (e engine) RevokeOperatorEmailChanges(ctx context.Context, operatorID int64
 }
 
 func (e engine) RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery identityaccess.TokenDelivery) error {
-	return MapError(e.tokens.RecordEmailChangeDelivery(ctx, id, domain.TokenDelivery(delivery)))
+	return MapError(e.tokens.run(ctx, "record_operator_email_change_delivery", func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := e.tokens.store.RecordOperatorEmailChangeDelivery(txCtx, id, domain.TokenDelivery(delivery).Bounded())
+		stats.Add(queryStats)
+		return err
+	}))
 }
 
 func (e engine) RevokeExpiredOperatorEmailChanges(ctx context.Context) (int, error) {
