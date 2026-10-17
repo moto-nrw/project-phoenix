@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 type familyProtectionCapabilityStub struct {
@@ -47,7 +48,8 @@ func withConfigManage(req *http.Request, accountID int) *http.Request {
 func TestGetFamilyProtectionReturnsCurrentState(t *testing.T) {
 	t.Parallel()
 	svc := &familyProtectionCapabilityStub{current: map[int64]bool{42: true}}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, FamilyProtection: svc}}
 	req := httptest.NewRequest(http.MethodGet, "/students/42/family-protection", nil)
 	rctx := chi.NewRouteContext()
 	rctx.URLParams.Add("id", "42")
@@ -63,7 +65,8 @@ func TestGetFamilyProtectionReturnsCurrentState(t *testing.T) {
 func TestSetFamilyProtectionForwardsActorAndReason(t *testing.T) {
 	t.Parallel()
 	svc := &familyProtectionCapabilityStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, FamilyProtection: svc}}
 	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
 	req = withConfigManage(req, 55)
 	rctx := chi.NewRouteContext()
@@ -80,7 +83,8 @@ func TestSetFamilyProtectionForwardsActorAndReason(t *testing.T) {
 func TestSetFamilyProtectionRejectsMissingReason(t *testing.T) {
 	t.Parallel()
 	svc := &familyProtectionCapabilityStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, FamilyProtection: svc}}
 	req := httptest.NewRequest(http.MethodPut, "/students/42/family-protection", strings.NewReader(`{"enabled":true,"reason":" "}`))
 	w := httptest.NewRecorder()
 
@@ -94,7 +98,8 @@ func TestSetFamilyProtectionRejectsMissingReason(t *testing.T) {
 func TestSetFamilyProtectionRequiresConfigManage(t *testing.T) {
 	t.Parallel()
 	svc := &familyProtectionCapabilityStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, FamilyProtection: svc}}
 	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
 	rctx := chi.NewRouteContext()
@@ -114,7 +119,8 @@ func TestSetFamilyProtectionRequiresConfigManage(t *testing.T) {
 func TestSetFamilyProtectionUnchangedAnswersOk(t *testing.T) {
 	t.Parallel()
 	svc := &familyProtectionCapabilityStub{enabled: true, setErr: peopleModule.ErrFamilyProtectionUnchanged}
-	rs := &Resource{ResourceConfig: ResourceConfig{FamilyProtection: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, FamilyProtection: svc}}
 	req := staffRequest(http.MethodPut, "/students/42/family-protection", `{"enabled":true,"reason":"Schutz nötig"}`, "")
 	req = withConfigManage(req, 55)
 	rctx := chi.NewRouteContext()

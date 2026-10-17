@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	requestreviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -52,7 +53,8 @@ func TestDecideOfferingChangeRequest_UsesReviewerRolesForAudit(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide", strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"group_supervisor", "staff"}}
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, claims))
@@ -86,7 +88,8 @@ func TestPreviewOfferingChangeRequest_ReturnsMaterializedDays(t *testing.T) {
 		}},
 		ArrivalExpectationsFollowBookings: true,
 	}}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":["9"]}`))
 	rctx := chi.NewRouteContext()
@@ -193,7 +196,8 @@ func TestDecideOfferingChangeRequest_PassesTheConfirmedDate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01"}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
@@ -214,7 +218,8 @@ func TestDecideOfferingChangeRequest_PassesCompleteWithdrawalConfirmation(t *tes
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true,"effective_from":"2026-09-01","complete_withdrawal_confirmed":true}`))
 	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}))
@@ -245,7 +250,8 @@ func TestDecideOfferingChangeRequest_RefusesApprovalWithoutADate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":true}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
@@ -266,7 +272,8 @@ func TestDecideOfferingChangeRequest_RejectionNeedsNoDate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/decide",
 		strings.NewReader(`{"approve":false,"reason":"Kein Platz"}`))
 	claims := sessiontoken.AppClaims{ID: 55, Roles: []string{"staff"}}
@@ -287,7 +294,8 @@ func TestPreviewOfferingChangeRequest_PassesTheChosenDate(t *testing.T) {
 	t.Parallel()
 
 	svc := &fakeOfferingChangeRequestService{preview: &careplan.OfferingChangePreview{}}
-	rs := &Resource{ResourceConfig: ResourceConfig{OfferingChangeService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, OfferingChangeService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/offering-change-requests/100/preview",
 		strings.NewReader(`{"excluded_offering_ids":[],"effective_from":"2026-09-01"}`))
 	rctx := chi.NewRouteContext()

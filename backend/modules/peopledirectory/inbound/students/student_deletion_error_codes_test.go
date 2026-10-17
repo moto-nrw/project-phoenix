@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -42,7 +44,7 @@ func TestWithdrawalDeletionErrorRendererUsesStableCodes(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			request := httptest.NewRequest(http.MethodDelete, "/", nil)
-			renderError(recorder, request, withdrawalDeletionErrorRenderer(tt.err))
+			renderError(recorder, request, (&Resource{ResourceConfig: ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).withdrawalDeletionErrorRenderer(tt.err))
 
 			assert.Equal(t, tt.status, recorder.Code)
 			var response struct {

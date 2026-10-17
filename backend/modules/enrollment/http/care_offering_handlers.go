@@ -460,7 +460,7 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		// FK violation when a selection or care booking already references
 		// this offering — admin should soft-delete (is_active=false).
-		if common.IsConstraintViolation(err) {
+		if rs.Failures.Constraint(err) {
 			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(
 				//nolint:staticcheck // ST1005: user-facing German message
 				errors.New("Das Betreuungsangebot wird bereits verwendet und kann nicht gelöscht werden. Deaktivieren Sie es stattdessen."),

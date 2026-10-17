@@ -12,6 +12,7 @@ import (
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
 )
@@ -32,7 +33,8 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 		return nil, err
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
-		CareRequestService: module.CareRequests, UserContextService: module.UserContext,
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		CareRequestService:  module.CareRequests, UserContextService: module.UserContext,
 		SettingsService: module.Settings, Logger: slog.Default(),
 	})
 	router := chi.NewRouter()
