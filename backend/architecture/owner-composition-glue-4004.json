@@ -6,31 +6,37 @@
     "https://github.com/moto-nrw/project-phoenix/blob/development/docs/adr/0059-the-roots-hold-no-service-graph.md",
     "https://github.com/moto-nrw/project-phoenix/issues/4004#issuecomment-6239845987"
   ],
-  "owner_and_capability": "Owner and workflow compositions stop building other owners' compositions (ADR 0059 point 6, decision B of #4004): the root builds those owners and passes them as dependencies. First slice: the grade transition workflow (workflows/gradetransition/compose) receives School Structure and Student Presence from the root (api.NewGradeTransitionOwners).",
+  "owner_and_capability": "Owner and workflow compositions stop building other owners' compositions (ADR 0059 point 6, decision B of #4004): the root builds those owners and passes them as dependencies. First slice: the grade transition workflow (workflows/gradetransition/compose) receives School Structure and Student Presence from the root (api.NewGradeTransitionOwners). Second slice: the parent portal workflow (workflows/parentportal/compose) receives the Audit Platform's guardian change trail from the root (api.ParentGuardianChanges).",
   "affected_packages": [
     "api",
     "workflows/gradetransition/compose",
-    "modules/schoolstructure/internal/application/groups"
+    "modules/schoolstructure/internal/application/groups",
+    "workflows/parentportal/compose",
+    "workflows/parentportal"
   ],
   "affected_tables": [
     "None: the same owners run the same statements; only the package that constructs them moves."
   ],
   "exact_ratchet_keys": [
     "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose|github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose",
-    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose|github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose|github.com/moto-nrw/project-phoenix/modules/studentpresence/compose",
+    "production|imports.forbidden|github.com/moto-nrw/project-phoenix/workflows/parentportal/compose|github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
   ],
-  "atomic_cutover": "One PR: the workflow composition's Dependencies get Structure and Presence (required), the root builds them with the same constructors, the same database and the same no-op observers the composition used, and the two keys leave legacy.jsonl.",
+  "atomic_cutover": "One PR: the workflow composition's Dependencies get Structure and Presence (required), the root builds them with the same constructors, the same database and the same no-op observers the composition used, and the two keys leave legacy.jsonl. Second PR: the parent portal Dependencies get GuardianChanges, which the root and every suite construction bind to the same NewGuardianChangeLog the composition used, and the key leaves legacy.jsonl.",
   "tests": [
     "modules/schoolstructure/internal/application/groups: the grade transition workflow suite (apply, revert, failure injection after each owner command) over the owners built by api.NewGradeTransitionOwners, assertions unchanged.",
     "api: TestFullProductionRouterGolden and the grade transition route suites through NewGradeTransitionTestModule.",
-    "test ratchets and internal/architecture; scripts/backend-architecture.sh check and validate-ticket --all against the development merge base; scripts/test-changed.sh origin/development."
+    "test ratchets and internal/architecture; scripts/backend-architecture.sh check and validate-ticket --all against the development merge base; scripts/test-changed.sh origin/development.",
+    "workflows/parentportal: the parent portal suites build the workflow with the root's guardian change trail (api.ParentGuardianChanges), assertions unchanged."
   ],
   "runtime_evidence": {
     "source": "Local run on the PR branch. The workflow receives owners built by the same constructors over the same pool; only the constructing package moves. The evidence is the suites and the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/api/grade_transition_owners.go",
       "backend/api/service_graph_compose_requests.go",
-      "backend/workflows/gradetransition/compose/new.go"
+      "backend/workflows/gradetransition/compose/new.go",
+      "backend/api/parent_guardian_changes.go",
+      "backend/workflows/parentportal/compose/new.go"
     ],
     "workload": "scripts/test-changed.sh origin/development through scripts/run-go-toolchain.sh against the local postgres-test server, per-test tenants, default package parallelism.",
     "thresholds": "The suites pass with unchanged assertion strength and the architecture check reports no new violation and no stale baseline entry.",

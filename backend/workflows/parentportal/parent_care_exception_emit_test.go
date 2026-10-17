@@ -40,6 +40,7 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   api.ParentGuardianChanges(),
 		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.NewParentGuardianPolicy(),
 		Fingerprints:      api.SecurityFingerprints{},
@@ -116,6 +117,7 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:   api.ParentGuardianChanges(),
 		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.NewParentGuardianPolicy(),
 		Fingerprints:      api.SecurityFingerprints{},

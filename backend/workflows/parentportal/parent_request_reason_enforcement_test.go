@@ -54,6 +54,7 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 	})
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:    api.ParentGuardianChanges(),
 		DeparturePolicy:    api.ParentDeparturePolicy(),
 		GuardianPolicy:     api.NewParentGuardianPolicy(),
 		Fingerprints:       api.SecurityFingerprints{},
