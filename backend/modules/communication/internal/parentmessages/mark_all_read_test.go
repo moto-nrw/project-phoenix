@@ -16,7 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -63,11 +63,11 @@ func readUnreadView(t *testing.T, f *fixture, accountID int64, studentIDs ...int
 
 // startThreadWithQuestions opens a conversation from staff and adds guardian
 // questions nobody has read yet. It returns the thread and its newest question.
-func startThreadWithQuestions(t *testing.T, f *fixture, chain testpkg.ParentChain, questions ...string) (int64, *usersModels.ParentMessage) {
+func startThreadWithQuestions(t *testing.T, f *fixture, chain testpkg.ParentChain, questions ...string) (int64, *messaging.ParentMessage) {
 	t.Helper()
 	started, err := f.svc.StartThread(adminCtx(t, f.staffAccount), chain.StudentID, chain.AccountID, "Hallo")
 	require.NoError(t, err)
-	var newest *usersModels.ParentMessage
+	var newest *messaging.ParentMessage
 	for _, question := range questions {
 		newest = createGuardianMessage(t, f.db, chain, started.ThreadID, question)
 	}
@@ -175,7 +175,7 @@ func TestMarkAllRead_OnlyForOwnAccount(t *testing.T) {
 		assert.Equal(t, boundary, handledBoundaryOf(t, threadID), "the team boundary stays where it was")
 	}
 
-	for threadID, question := range map[int64]*usersModels.ParentMessage{firstThread: firstQuestion, secondThread: secondQuestion} {
+	for threadID, question := range map[int64]*messaging.ParentMessage{firstThread: firstQuestion, secondThread: secondQuestion} {
 		cleared := clearBoundaryOf(t, threadID, f.staffAccount)
 		require.NotNil(t, cleared)
 		require.NotNil(t, cleared.MessageID)
@@ -250,12 +250,12 @@ func TestMarkAllRead_LaterGuardianMessageIsUnreadAgain(t *testing.T) {
 }
 
 type inboxThenMessage struct {
-	usersModels.ParentMessageReadRepository
+	messaging.ParentMessageReadRepository
 	afterList func()
 	once      *sync.Once
 }
 
-func (r inboxThenMessage) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*usersModels.InboxThread, error) {
+func (r inboxThenMessage) ListInboxForStaff(ctx context.Context, accountID int64, allStudents, onlyUnread bool) ([]*messaging.InboxThread, error) {
 	rows, err := r.ParentMessageReadRepository.ListInboxForStaff(ctx, accountID, allStudents, onlyUnread)
 	if err == nil {
 		r.once.Do(r.afterList)
@@ -307,7 +307,7 @@ func TestMarkAllRead_LeavesChildrenOutsideScope(t *testing.T) {
 	former := testpkg.CreateTestParentGuardianChain(t, f.db)
 	visibleThread, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
 	hiddenThread, _ := startThreadWithQuestions(t, f, former, "Frage")
-	setStudentStatus := func(status usersModels.StudentStatus) {
+	setStudentStatus := func(status string) {
 		t.Helper()
 		_, err := f.db.ExecContext(context.Background(), `
 			UPDATE users.student_school_memberships SET status = ? WHERE student_profile_id = ? AND deleted_at IS NULL
@@ -315,9 +315,9 @@ func TestMarkAllRead_LeavesChildrenOutsideScope(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	setStudentStatus(usersModels.StudentStatusAlumnus)
+	setStudentStatus("alumnus")
 	markAllRead(t, f, adminCtx(t, f.staffAccount))
-	setStudentStatus(usersModels.StudentStatusActive)
+	setStudentStatus("active")
 
 	assert.NotNil(t, cursorOf(t, visibleThread, f.staffAccount))
 	assert.Nil(t, cursorOf(t, hiddenThread, f.staffAccount), "the hidden child's conversation keeps its cursor")
@@ -367,7 +367,7 @@ func TestMarkAllRead_KeepsTeamMark(t *testing.T) {
 		"the reported count keeps the team mark, so the client can explain it")
 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, f.db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, f.db)))
-	thread, err := repos.ParentMessageThread.FindByID(adminCtx(t, f.staffAccount), threadID)
+	thread, err := messaging.NewThreadRepository(repos.ParentMessageThread).FindByID(adminCtx(t, f.staffAccount), threadID)
 	require.NoError(t, err)
 	assert.NotNil(t, thread.StaffMarkedUnreadAt, "the team mark stays")
 	assertTeamUnread(t, f, f.staffAccount, 1)
@@ -388,9 +388,9 @@ func TestMarkAllRead_LeavesParentReadReceipt(t *testing.T) {
 
 	readByStaff := func() bool {
 		t.Helper()
-		messages, err := parentStore.NewParentMessageRepository(f.db).ListByThread(guardianCtx, threadID, 0)
+		messages, err := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(f.db)).ListByThread(guardianCtx, threadID, 0)
 		require.NoError(t, err)
-		messaging.DecorateReadReceipts(guardianCtx, repos.ParentMessageRead, nil, threadID, f.chain.AccountID, messages)
+		messaging.DecorateReadReceipts(guardianCtx, messaging.NewReadRepository(repos.ParentMessageRead), nil, threadID, f.chain.AccountID, messages)
 		return messages[len(messages)-1].ReadByStaff
 	}
 

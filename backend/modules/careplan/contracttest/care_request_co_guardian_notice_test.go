@@ -103,7 +103,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 // (messaging-enabled) emitter and the given explicit share recipients.
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
-	emitter := f.emitter(t, communicationtest.NewParentMessageRepository(f.db), messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
+	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
 	return api.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 		f.repos.CarePlan(), f.sf.PeopleDirectory,
 		f.sf.ArrivalSchedule, f.sf.PickupSchedule, newPickupChangePresence(t, f.db), f.autoExcusal,
