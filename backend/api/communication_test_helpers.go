@@ -33,7 +33,7 @@ func NewParentEventEmitter(
 	logger *slog.Logger,
 ) *communicationCompose.ParentEventEmitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB: db.Pool(), Runtime: runtime, ThreadRepo: threadRepo, MessageRepo: messageRepo,
+		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
 		Settings: settings, Broadcaster: broadcaster, Logger: logger,
 	})
 }

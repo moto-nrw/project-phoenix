@@ -45,18 +45,18 @@ type ParentMessagingConfig struct {
 	Observe          func(Observation)
 }
 
-func NewParentMessaging(cfg ParentMessagingConfig) communication.ParentMessagingCapability {
+func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime) communication.ParentMessagingCapability {
 	return &parentMessaging{
 		service: parentMessages.NewService(parentMessages.Config{
 			ThreadRepo: cfg.ThreadRepo, MessageRepo: cfg.MessageRepo, ReadRepo: cfg.ReadRepo,
 			Persons: cfg.Persons, UserContext: cfg.UserContext, Settings: cfg.Settings,
-			Broadcaster: cfg.Broadcaster, DB: cfg.DB, Logger: cfg.Logger,
+			Broadcaster: cfg.Broadcaster, Logger: cfg.Logger,
 			Notifier: cfg.Notifier, Preferences: cfg.Preferences, Outbox: cfg.Outbox,
 			GuardianProfiles: cfg.GuardianProfiles, Schools: cfg.Schools,
 			LoginImages: cfg.LoginImages, ParentsURL: cfg.ParentsURL,
 			CountPreferences: newCountPreferences(cfg.DB),
 			Groups:           cfg.UserContext,
-		}),
+		}, runtime),
 		observe: cfg.Observe,
 	}
 }
@@ -198,20 +198,19 @@ type StaffMessagingConfig struct {
 	Persons     staffMessages.PersonLookup
 	Settings    configService.SettingsService
 	Broadcaster realtime.Broadcaster
-	DB          *bun.DB
 	Logger      *slog.Logger
 	Notifier    notifications.Service
 	Preferences notifications.PreferenceService
 	Observe     func(Observation)
 }
 
-func NewStaffMessaging(cfg StaffMessagingConfig) communication.StaffMessagingRuntime {
+func NewStaffMessaging(cfg StaffMessagingConfig, runtime staffMessages.Runtime) communication.StaffMessagingRuntime {
 	return &staffMessaging{
 		service: staffMessages.NewService(staffMessages.Config{
 			ThreadRepo: cfg.ThreadRepo, MessageRepo: cfg.MessageRepo, ReadRepo: cfg.ReadRepo,
 			Persons: cfg.Persons, Settings: cfg.Settings, Broadcaster: cfg.Broadcaster,
-			DB: cfg.DB, Logger: cfg.Logger, Notifier: cfg.Notifier, Preferences: cfg.Preferences,
-		}),
+			Logger: cfg.Logger, Notifier: cfg.Notifier, Preferences: cfg.Preferences,
+		}, runtime),
 		observe: cfg.Observe,
 	}
 }

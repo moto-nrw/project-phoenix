@@ -4,6 +4,8 @@
 package messaging
 
 import (
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"context"
 	"errors"
 	"log/slog"
@@ -62,7 +64,7 @@ func newNotifyService(notifier notifications.Service, prefs notifications.Prefer
 		Logger:      slog.Default(),
 		Notifier:    notifier,
 		Preferences: prefs,
-	})
+	}, testpkg.TenantTransactionRuntime{})
 }
 
 func TestNotifyGuardianDevice(t *testing.T) {
@@ -118,7 +120,7 @@ func TestNotifyGuardianDevice(t *testing.T) {
 			Logger: slog.Default(), Notifier: notifier,
 			Preferences:      &stubPreferences{optedIn: []int64{42}},
 			GuardianProfiles: stubGuardianProfiles{profile: &usersModels.GuardianProfile{PortalLocale: &locale}},
-		})
+		}, testpkg.TenantTransactionRuntime{})
 
 		s.notifyGuardianDevice(context.Background(), testThread(), 123)
 

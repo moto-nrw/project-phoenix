@@ -467,14 +467,14 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
 		Outbox: b.outbox(), GuardianProfiles: b.People.GuardianProfiles, Schools: b.People.SchoolNames,
 		LoginImages: b.settingsService, ParentsURL: b.parentsURL, Observe: b.ObserveCommunication,
-	})
+	}, CommunicationRequestRuntime{})
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(b.DB.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(b.DB.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: b.graph.Users, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
+		Persons: b.graph.Users, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "staffmessaging"), Notifier: b.graph.Notifications,
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
-	})
+	}, CommunicationRequestRuntime{})
 	calendar := b.TimetableWiring.Calendar(b.calendarDependencies())
 	b.graph.Calendar, b.graph.CalendarFeedCleanup = calendar, calendar
 	return b, nil
@@ -520,7 +520,7 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 		ReminderNotifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,
 		Fingerprints: SecurityFingerprints{}, Logger: b.Logger.With("service", "announcement"),
-	})
+	}, CommunicationRequestRuntime{})
 	b.graph.ParentAnnouncement = announcements
 	b.late.guardianNoticePublisher = announcements
 	return b, nil

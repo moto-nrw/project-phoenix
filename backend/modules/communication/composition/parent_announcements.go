@@ -51,7 +51,7 @@ type ParentAnnouncementConfig struct {
 
 type ParentAnnouncementEmailConfig struct{ DefaultFrom email.Email }
 
-func NewParentAnnouncements(cfg ParentAnnouncementConfig) communication.ParentAnnouncementCapability {
+func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime) communication.ParentAnnouncementCapability {
 	var deliveries staff.DeliveryRecorder
 	if cfg.Deliveries != nil {
 		deliveries = parentAnnouncementDeliveryAdapter{recorder: cfg.Deliveries}
@@ -61,7 +61,7 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig) communication.ParentAn
 		ReminderNotifier: cfg.ReminderNotifier,
 		Preferences:      cfg.Preferences, Deliveries: deliveries,
 		ParentsURL: cfg.ParentsURL, Logger: cfg.Logger, Fingerprints: cfg.Fingerprints,
-	})}
+	}, runtime)}
 }
 
 func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {

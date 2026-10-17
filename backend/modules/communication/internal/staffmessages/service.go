@@ -23,7 +23,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
 )
 
 // maxMessageLen caps one message in runes. Mirrors the parent-OGS chat limit so
@@ -84,6 +83,7 @@ type Settings interface {
 // Service is the OGS-internal messaging service.
 type Service struct {
 	Config
+	runtime Runtime
 }
 
 // Config is the dependency-injection bundle.
@@ -94,7 +94,6 @@ type Config struct {
 	Persons     PersonLookup
 	Settings    Settings
 	Broadcaster realtime.Broadcaster
-	DB          *bun.DB
 	Logger      *slog.Logger
 
 	// Notifier and Preferences push a message to the recipient's devices. Both
@@ -106,11 +105,11 @@ type Config struct {
 }
 
 // NewService wires an internal messaging service.
-func NewService(cfg Config) *Service {
+func NewService(cfg Config, runtime Runtime) *Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Service{Config: cfg}
+	return &Service{Config: cfg, runtime: runtime}
 }
 
 // actor returns the authenticated account id for the request.

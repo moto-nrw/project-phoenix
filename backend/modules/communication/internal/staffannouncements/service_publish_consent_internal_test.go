@@ -1,6 +1,8 @@
 package announcement
 
 import (
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"context"
 	"errors"
 	"log/slog"
@@ -64,7 +66,7 @@ func consentTestService(repo *fakeAnnouncementRepo, notifier *fakeNotifier, pref
 		Preferences: prefs,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 }
 
 func consentTestRepo() *fakeAnnouncementRepo {
@@ -149,7 +151,7 @@ func TestPublishEmailsEveryGuardianWhoDidNotOptOut(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -193,7 +195,7 @@ func TestPublishEmailsFamiliesWithoutAnyPreferenceRow(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -227,7 +229,7 @@ func TestPublishFailsOnEmailOptOutLookupError(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
 		t.Fatal("a failed opt-out lookup must surface, not silently e-mail everyone")
@@ -257,7 +259,7 @@ func TestPublishDeduplicatesOptedInGuardiansByNormalizedEmail(t *testing.T) {
 		Outbox:      outbox,
 		ParentsURL:  "https://parents.example.test",
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -307,7 +309,7 @@ func TestPublishStillEmailsWhenPushIsGated(t *testing.T) {
 				Outbox:      outbox,
 				ParentsURL:  "https://parents.example.test",
 				Logger:      slog.Default(),
-			})
+			}, testpkg.TenantTransactionRuntime{})
 
 			published, err := svc.Publish(context.Background(), repo.announcement.ID)
 			if err != nil {

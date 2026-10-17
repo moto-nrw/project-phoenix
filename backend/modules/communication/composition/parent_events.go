@@ -8,8 +8,6 @@ import (
 	parentMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 // ParentEventEmitterConfig supplies the retained conversation stores the
@@ -18,8 +16,7 @@ import (
 // gate and realtime fan-out. The stores stay injected until the conversation
 // repositories migrate with #2727.
 type ParentEventEmitterConfig struct {
-	DB          *bun.DB
-	Runtime     tenant.UnitOfWork
+	Runtime     parentMessages.EventRuntime
 	ThreadRepo  usersModels.ParentMessageThreadRepository
 	MessageRepo usersModels.ParentMessageRepository
 	Settings    parentmessaging.TenantSettingsResolver
@@ -32,7 +29,7 @@ type ParentEventEmitterConfig struct {
 // shell.
 func NewParentEventEmitter(cfg ParentEventEmitterConfig) *parentmessaging.Emitter {
 	return parentmessaging.NewEmitter(parentMessages.NewEventEmitter(
-		cfg.DB, cfg.Runtime, cfg.ThreadRepo, cfg.MessageRepo, cfg.Settings, cfg.Broadcaster, cfg.Logger,
+		cfg.Runtime, cfg.ThreadRepo, cfg.MessageRepo, cfg.Settings, cfg.Broadcaster, cfg.Logger,
 	))
 }
 
