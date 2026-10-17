@@ -102,7 +102,7 @@ func (s *Service) GetChildCareOfferings(ctx context.Context, accountID, studentI
 	var period *CarePeriod
 	var canRequest bool
 	var changesDisabledReason string
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, loadErr := s.loadChildCareOfferings(txCtx, studentID, today, view)
 		if loadErr != nil {
 			return loadErr
@@ -230,7 +230,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 		return nil, careplan.ErrOfferingChangeDisabled
 	}
 	var catalog *careplan.OfferingChangeCatalog
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
 		if resolveErr != nil {
 			return resolveErr
@@ -272,7 +272,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, careplan.ErrParentRequestReasonRequired
 	}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -335,7 +335,7 @@ func (s *Service) EditOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, careplan.ErrParentRequestReasonRequired
 	}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

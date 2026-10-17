@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override
@@ -75,7 +74,7 @@ func (s *Service) submitCareException(ctx context.Context, accountID, studentID 
 	}
 	change := careExceptionChange{accountID: accountID, studentID: studentID, date: date, today: today, pickupTime: pickupTime, reason: reason}
 	var result *CareException
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		merged, err := s.writeCareException(txCtx, child.TenantID, change)
 		result = merged
 		return err
@@ -158,7 +157,7 @@ func (s *Service) writeCareException(ctx context.Context, tenantID int64, change
 	}
 	pillBody := CareExceptionEventBody(change.date, change.pickupTime, nil)
 	pillRefTable, pillRefID := s.careExceptionRef(ctx, change.studentID, change.date)
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.SelfService.EmitSelfServicePill(tenantID, change.studentID, change.accountID, "care_exception", pillBody, pillRefTable, pillRefID)
 		s.broadcastStudentUpdated(tenantID, change.studentID)
 		// Fan out to EVERY guardian so a co-guardian's open tab reflects the
@@ -257,7 +256,7 @@ func (s *Service) DeleteCareException(ctx context.Context, accountID, studentID 
 		return ErrPastCareDate
 	}
 	change := careExceptionChange{accountID: accountID, studentID: studentID, date: date, today: today}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		return s.withdrawCareException(txCtx, child.TenantID, change)
 	})
 	if txErr != nil {
@@ -304,7 +303,7 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 		return err
 	}
 	pillBody := "Korrektur: Abholung " + change.date.Format("02.01.") + " zurückgezogen"
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.SelfService.EmitSelfServicePill(tenantID, change.studentID, change.accountID, "care_exception_correction", pillBody, "", nil)
 		s.broadcastStudentUpdated(tenantID, change.studentID)
 		// Fan out to EVERY guardian so a co-guardian's open tab drops the

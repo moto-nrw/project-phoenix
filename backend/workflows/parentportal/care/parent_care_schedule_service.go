@@ -106,7 +106,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view := &ChildCareSchedule{}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.buildCareScheduleView(txCtx, view, accountID, studentID); err != nil {
 			return err
 		}
@@ -165,7 +165,7 @@ func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, stud
 		return nil, ErrCareRequestFieldDisabled
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -390,7 +390,7 @@ func (s *Service) EditCareScheduleRequest(
 		return nil, ErrInvalidCareRequestPayload
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

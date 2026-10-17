@@ -43,7 +43,7 @@ func (s *Service) GetChildCourses(
 		}, nil
 	}
 	var catalog *careplan.CourseCatalog
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CourseCatalog(txCtx, studentID, accountID)
 		if resolveErr != nil {
 			return resolveErr
@@ -80,7 +80,7 @@ func (s *Service) RequestChildCourse(
 	if s.OfferingChanges == nil {
 		return nil, careplan.ErrCourseRequestsDisabled
 	}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}
@@ -122,7 +122,7 @@ func (s *Service) WithdrawChildCourseRequest(
 	if s.OfferingChanges == nil {
 		return nil, careplan.ErrCourseRequestsDisabled
 	}
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		if err := s.RequireCareRunningForUpdate(txCtx, studentID); err != nil {
 			return err
 		}

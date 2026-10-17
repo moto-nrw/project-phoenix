@@ -14,7 +14,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // MasterDataFieldChange is one proposed Track B change submitted by a parent.
@@ -68,7 +67,7 @@ func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 
 	submission := masterDataSubmission{accountID: accountID, studentID: studentID, tenantID: child.TenantID, recipients: recipientGuardianProfileIDs}
 	var created []*usersModels.StudentDataChangeRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, submitErr := s.submitMasterDataInTx(txCtx, submission, changes)
 		created = rows
 		return submitErr
@@ -197,7 +196,7 @@ func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission mas
 	for i, row := range created {
 		refIDs[i] = row.ID
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		if s.Emitter == nil {
 			return
 		}
@@ -227,7 +226,7 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		return nil, err
 	}
 	var out []*usersModels.StudentDataChangeRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, listErr := s.ChangeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
 			return listErr
@@ -267,7 +266,7 @@ func (s *Service) EditMasterDataRequest(
 		return nil, err
 	}
 	var out *usersModels.StudentDataChangeRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr

@@ -15,7 +15,6 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Stammdaten sentinel errors mapped to stable HTTP codes by the handler.
@@ -107,7 +106,7 @@ func (s *Service) GetChildMasterData(ctx context.Context, accountID, studentID i
 	}
 
 	var out *ChildMasterData
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		data, loadErr := s.loadMasterData(txCtx, accountID, child.GuardianProfileID, studentID)
 		if loadErr != nil {
 			return loadErr
@@ -152,7 +151,7 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	edit := trackAEdit{accountID: accountID, studentID: studentID, target: target, fieldKey: fieldKey, value: newStr}
 	var out *ChildMasterData
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		data, applyErr := s.applyTrackAInTx(txCtx, child, edit)
 		out = data
 		return applyErr
@@ -217,7 +216,7 @@ func (s *Service) applyTrackAInTx(ctx context.Context, child *Child, edit trackA
 	}
 	capturedTenant := child.TenantID
 	if changed {
-		tenant.RegisterAfterCommit(ctx, func() {
+		s.Runtime.RegisterAfterCommit(ctx, func() {
 			s.broadcastStudentUpdated(capturedTenant, edit.studentID)
 		})
 	}

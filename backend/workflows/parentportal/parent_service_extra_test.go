@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -82,6 +84,7 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:   api.ParentPortalRuntime{},
 		ChildRepo: child,
 		Logger:    slog.Default(),
 	})
@@ -91,6 +94,7 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: enroll,
 		EnrollmentSettings:  stubEnrollmentSettings{},
 		Logger:              slog.Default(),
@@ -121,6 +125,7 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 		{SchoolID: 22, PhaseID: 202},
 	}}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: repo,
 		EnrollmentSettings:  stubEnrollmentSettings{values: map[int64]bool{11: true, 22: false}},
 		Logger:              slog.Default(),
@@ -137,6 +142,7 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 
 	want := errors.New("settings unavailable")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		EnrollablePhaseRepo: &stubEnrollableRepo{result: []*parentService.EnrollablePhase{{SchoolID: 11}}},
 		EnrollmentSettings:  stubEnrollmentSettings{err: want},
 		Logger:              slog.Default(),
@@ -289,6 +295,7 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 	testpkg.SetupTestDB(t)
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:   api.ParentPortalRuntime{},
 		ChildRepo: &stubChildRepo{},
 		Logger:    nil,
 	})

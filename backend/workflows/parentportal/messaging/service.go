@@ -52,8 +52,9 @@ type MessagingGate func(context.Context, int64) bool
 
 // Config is the dependency bundle of the retained messaging portal services.
 type Config struct {
-	Logger *slog.Logger
-	Now    func() time.Time
+	Runtime care.Runtime
+	Logger  *slog.Logger
+	Now     func() time.Time
 
 	Children ChildResolver
 
@@ -89,8 +90,11 @@ type Service struct {
 	Config
 }
 
-// New wires the retained messaging portal services.
+// New wires the retained messaging portal services. Runtime is required.
 func New(cfg Config) *Service {
+	if cfg.Runtime == nil {
+		panic("messaging: runtime is required")
+	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
