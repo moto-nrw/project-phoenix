@@ -82,6 +82,10 @@ import (
 // alone forwards hundreds of methods — so a register that stopped at the
 // application layer measured where code left, not where it went.
 //
+// Code #4084 moved into other owner packages stays scanned (ADR 0064):
+// modulePassthroughMovedTrees lists them, keyed to their module like the two
+// trees above.
+//
 // Since ADR 0061 (#4084) one register counts both trees per module:
 // modulePassthroughOwnerBudgets replaces the application register
 // modulePassthroughBudgets and the composition register
@@ -168,6 +172,20 @@ import (
 //     into a convention; that trade was declined.
 const modulePassthroughMaxBodyLines = 14
 
+// modulePassthroughMovedTrees are owner packages outside the application
+// layers and the compositions that #4084 moved composition code into (ADR
+// 0064). A method that leaves a counted tree keeps being counted where it
+// lands, so a move cannot lower a budget: the Workforce Dienstplan rows went
+// into internal/planning (#4240), and the root-facing seam and record types
+// into the owners' ports packages (#4174, #4182, #4210, #4227, #4236, #4238).
+var modulePassthroughMovedTrees = []string{
+	"modules/careplan/ports/",
+	"modules/identityaccess/ports/",
+	"modules/peopledirectory/ports/",
+	"modules/timetable/ports/",
+	"modules/workforce/internal/planning/",
+}
+
 // modulePassthroughApplicationSegment selects the scanned tree: every path
 // under a module that reaches into its application layer, at any nesting
 // depth.
@@ -177,8 +195,8 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// by ADR 0063.
-const modulePassthroughOwnerBudgetTotal = 3011
+// by ADR 0063 and by ADR 0064 (3,011 to 3,091).
+const modulePassthroughOwnerBudgetTotal = 3091
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -297,7 +315,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// each one observeRun around a single s.store call.
 	//
 	// ADR 0061: application 52 + modules/peopledirectory/compose 256.
-	"modules/peopledirectory": 307,
+	// ADR 0064: +1, DatabaseError.Error in the scanned ports package.
+	"modules/peopledirectory": 308,
 	// ADR 0061: application 0 + modules/requestreview/compose 17.
 	"modules/requestreview": 17,
 	// ADR 0061: application 0 + modules/schedulerruntime/compose 4.
@@ -355,7 +374,8 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// s.store call.
 	//
 	// ADR 0061: application 98 + modules/timetable/compose 402.
-	"modules/timetable": 490,
+	// ADR 0064: +1, markedRecordError.Error in the scanned ports package.
+	"modules/timetable": 491,
 	// Work sessions (15), the service facade (7), absences, shifts, staff
 	// records, month snapshots, offboarding and substitutions.
 	//
@@ -371,7 +391,10 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// from here like every other entry.
 	//
 	// ADR 0061: application 62 + modules/workforce/compose 338.
-	"modules/workforce": 336,
+	// ADR 0064: +78, the 46 time-tracking row delegations an injected error
+	// field had hidden (#4239) and internal/planning's 32 (18 Dienstplan rows
+	// moved there in #4240, 14 planning methods never scanned before).
+	"modules/workforce": 414,
 	// ADR 0061: application 0 + workflows/openroommove/compose 1.
 	"workflows/openroommove": 1,
 	// ADR 0061 adopted 22; the Root event binding leaves 21 compose delegations.
@@ -538,6 +561,11 @@ func modulePassthroughOwnerKey(rel string) string {
 	}
 	if strings.Contains(rel, modulePassthroughApplicationSegment) {
 		return parts[0] + "/" + parts[1]
+	}
+	for _, tree := range modulePassthroughMovedTrees {
+		if strings.HasPrefix(rel, tree) {
+			return parts[0] + "/" + parts[1]
+		}
 	}
 	for index, part := range parts[:len(parts)-1] {
 		if index >= 2 && (part == "compose" || part == "composition") {

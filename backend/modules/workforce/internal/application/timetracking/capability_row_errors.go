@@ -10,14 +10,12 @@ import (
 // recordErrors builds the retained repository error shape of the capability
 // row adapters through the transaction runtime: every failure wraps its
 // operation, a missing row is both a repository and an SQL not-found error.
-type recordErrors struct {
-	transactionruntime.RecordErrors
-}
+var recordErrors transactionruntime.RecordErrors
 
-// rowsAffected is the legacy repository result for an update that matched no
+// rowsAffectedError is the legacy repository result for an update that matched no
 // row: the same error the generic repository produced.
-func (errs recordErrors) rowsAffected(op string) error {
-	return errs.WrapRecordError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
+func rowsAffectedError(op string) error {
+	return recordErrors.WrapRecordError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
 }
 
 // legacyID accepts the integer shapes the generic repository's untyped id
@@ -41,12 +39,12 @@ func legacyID(id any) (int64, error) {
 	}
 }
 
-// read restores the legacy read error shape: a missing row is the
+// rowReadError restores the legacy read error shape: a missing row is the
 // retained not-found error, every other failure keeps its cause behind the
 // operation.
-func (errs recordErrors) read(op string, err error, notFound error) error {
+func rowReadError(op string, err error, notFound error) error {
 	if notFound != nil && errors.Is(err, notFound) {
-		return errs.MissingRecordError(op)
+		return recordErrors.MissingRecordError(op)
 	}
-	return errs.WrapRecordError(op, err)
+	return recordErrors.WrapRecordError(op, err)
 }
