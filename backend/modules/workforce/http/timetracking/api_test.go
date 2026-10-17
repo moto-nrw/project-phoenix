@@ -392,7 +392,7 @@ func TestRouter(t *testing.T) {
 	t.Parallel()
 
 	rs := testResource(&mockWorkSessionService{}, &mockStaffAbsenceService{}, defaultPersonSvc(), nil)
-	router := rs.Router(scopeTestTenantRoutes(testpkg.TenantSessionGates()))
+	router := rs.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)))
 	assert.NotNil(t, router)
 }
 

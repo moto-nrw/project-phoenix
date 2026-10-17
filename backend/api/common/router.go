@@ -11,7 +11,7 @@ type Middleware = func(http.Handler) http.Handler
 
 // ProtectedTenantRoutes registers the tenant security chain and supplies the
 // request-scoped transaction middleware without retaining a database handle.
-func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, preview, scope, principal Middleware) {
+func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, preview, scope, principal, settingsCache, identityCache Middleware) {
 
 	r.Group(func(gr chi.Router) {
 		gr.Use(authenticate)
@@ -25,8 +25,8 @@ func ProtectedTenantRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 		// cache (issue #2099). Unlike withTx these ARE applied group-wide:
 		// they open no transaction and do no DB work, so running them on
 		// requests that later 403 costs one map allocation each.
-		gr.Use(RequestSettingsCacheMiddleware)
-		gr.Use(RequestIdentityCacheMiddleware)
+		gr.Use(settingsCache)
+		gr.Use(identityCache)
 		fn(gr, TenantTxMiddleware)
 	})
 }
@@ -51,7 +51,7 @@ func ProtectedParentGroup(r chi.Router, fn func(r chi.Router), authenticate, sco
 // ProtectedSchoolRoutes registers the school-portal security chain and
 // supplies the request-scoped transaction middleware without retaining a
 // database handle.
-func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, preview, scope, principal Middleware) {
+func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware), authenticate, preview, scope, principal, settingsCache, identityCache Middleware) {
 
 	r.Group(func(gr chi.Router) {
 		gr.Use(authenticate)
@@ -60,8 +60,8 @@ func ProtectedSchoolRoutes(r chi.Router, fn func(r chi.Router, withTx Middleware
 		gr.Use(preview)
 		gr.Use(scope)
 		gr.Use(principal)
-		gr.Use(RequestSettingsCacheMiddleware)
-		gr.Use(RequestIdentityCacheMiddleware)
+		gr.Use(settingsCache)
+		gr.Use(identityCache)
 		fn(gr, TenantTxMiddleware)
 	})
 }

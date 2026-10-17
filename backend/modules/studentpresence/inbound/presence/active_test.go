@@ -82,7 +82,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 // production — which is the wrong number to hold a budget against.
 func mountActiveRouter(tc *testContext) testutil.Router {
 	r := testutil.NewRouter()
-	r.Use(common.RequestIdentityCacheMiddleware)
+	r.Use(rootAPI.RequestIdentityCacheMiddleware)
 	r.Mount("/active", tc.resource.Router())
 	return r
 }

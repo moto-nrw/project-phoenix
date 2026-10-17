@@ -1,4 +1,4 @@
-package common_test
+package api
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
@@ -20,7 +19,7 @@ func TestRequestSettingsCacheMiddlewareAttachesCache(t *testing.T) {
 	t.Parallel()
 
 	var observed context.Context
-	handler := common.RequestSettingsCacheMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+	handler := RequestSettingsCacheMiddleware(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		observed = r.Context()
 	}))
 

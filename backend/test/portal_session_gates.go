@@ -33,3 +33,17 @@ func principalSessionFacts(ctx context.Context) securityruntime.PrincipalFacts {
 		FamilyID:       claims.FamilyID,
 	}
 }
+
+// TenantSessionGatesWithCaches binds a caller-supplied native settings attachment.
+// The settings implementation imports this fixture package in internal tests,
+// so the fixture receives its real middleware as a value instead of importing it.
+func TenantSessionGatesWithCaches(settingsCache func(http.Handler) http.Handler) (func(http.Handler) http.Handler, func(http.Handler) http.Handler, func(context.Context) bool, func(context.Context) securityruntime.PrincipalFacts, func(http.Handler) http.Handler, func(http.Handler) http.Handler) {
+	authenticate, scope, preview, principal := TenantSessionGates()
+	return authenticate, scope, preview, principal, settingsCache, requestIdentityCache
+}
+
+func requestIdentityCache(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		next.ServeHTTP(w, r.WithContext(securityruntime.WithRequestIdentityCache(r.Context())))
+	})
+}
