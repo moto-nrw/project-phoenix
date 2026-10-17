@@ -3988,7 +3988,16 @@ the composition and the roots name them there; the matching aliases of
 `people-directory.port.legacy-model` (temporary until #4004 dissolves
 `models/users`) and `people-directory.postgres.port`, the first rule of the
 postgres-to-own-port shape of ADR 0058 addendum point 6. The composition goes
-from 7,627 to 7,316 LOC. The retained services move next.
+from 7,627 to 7,316 LOC.
+
+The retained guardian service (profiles, relationships, phone numbers,
+invitations, payment data, validation and masking) follows into
+`internal/application` as `application.RetainedGuardianService`. Its request,
+result and dependency types, its errors and the `GuardianService` port the
+roots and the HTTP layer name are values of `modules/peopledirectory/ports`;
+its transactions run through the `GuardianTransactions` port the composition
+binds to the tenant runtime (`compose/guardian_service.go`). The composition
+goes to 5,087 LOC.
 
 ### Enrollment wiring out of services (#4012)
 

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -47,14 +48,13 @@ func NewGuardianTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	if err != nil {
 		return GuardianTestModule{}, err
 	}
-	guardian := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{
+	guardian := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: r.GuardianProfile, GuardianPhoneNumberRepo: g.Phone, StudentGuardianRepo: r.StudentGuardian,
 		GuardianInvitations: NewGuardianInvitationReads(func() identityaccess.GuardianInvitations { return auth.AccountAuthentication }),
 		StudentRepo:         NewUnboundStudentRepository(db), PersonRepo: r.Person,
 		GuardianFinancialRepo:  g.Financial,
 		GuardianFinancialAudit: NewGuardianFinancialAudit(g.FinancialAudit), DataAccessLog: NewGuardianDataAccessLog(g.AccessLog),
-		RolePresets: guardianRolePresets, DB: db.Pool(),
-	})
+		RolePresets: guardianRolePresets}, db.Pool())
 	peopleCompose.BindGuardianDirectory(people, &peopleCompose.GuardianDirectoryProvider{Guardians: guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), PermissionGranted: securityruntime.GuardianPermissionGranted})
 	// The compatibility carrier only maps the existing four capabilities to
 	// the production runtime closures. It constructs no additional services.

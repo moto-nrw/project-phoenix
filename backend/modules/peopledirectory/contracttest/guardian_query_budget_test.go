@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -42,7 +42,7 @@ func TestStudentGuardiansQueryBudget(t *testing.T) {
 	add := func(from, to int) {
 		for i := from; i < to; i++ {
 			profile := testpkg.CreateTestGuardianProfile(t, db, fmt.Sprintf("student-guardian-budget-%d", i))
-			_, err := service.LinkGuardianToStudent(testpkg.Ctx(t), peopleCompose.StudentGuardianCreateRequest{
+			_, err := service.LinkGuardianToStudent(testpkg.Ctx(t), peoplePorts.StudentGuardianCreateRequest{
 				StudentID: student.ID, GuardianProfileID: profile.ID, RelationshipType: "guardian",
 			})
 			require.NoError(t, err)

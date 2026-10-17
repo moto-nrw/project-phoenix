@@ -8,13 +8,15 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 type Observation = internalports.Observation
@@ -70,7 +72,7 @@ type Dependencies struct {
 	GuardianLinkOwners GuardianLinkOwners
 	// GuardianRolePresets is the role policy the guardian lifecycle links and
 	// promotes with. Optional on the same terms.
-	GuardianRolePresets GuardianRolePresets
+	GuardianRolePresets ports.GuardianRolePresets
 	// GuardianLinkRows is the guardian link projection the root binds; without
 	// it the link reads fail closed.
 	GuardianLinkRows postgres.GuardianLinks

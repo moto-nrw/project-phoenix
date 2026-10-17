@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 )
 
@@ -50,7 +51,7 @@ func newGuardianValidationError(err error) *userscontract.ValidationError {
 // student (TenantTxMiddleware only rolls back on 5xx). Every failure is
 // returned as a *ValidationError (HTTP 400) carrying a user-facing German
 // message.
-func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []NewStudentGuardian) error {
+func (s *RetainedGuardianService) ValidateNewGuardians(ctx context.Context, guardians []peoplePorts.NewStudentGuardian) error {
 	// Track emails seen within this single request so two new guardians sharing
 	// one email are rejected up front rather than colliding on insert.
 	seenEmails := make(map[string]struct{}, len(guardians))
@@ -77,7 +78,7 @@ func (s *GuardianService) ValidateNewGuardians(ctx context.Context, guardians []
 // (FindByID is tenant-scoped via RLS, so a cross-tenant or stale id surfaces
 // as a clean 400, not a 500) and that the relationship fields are valid,
 // matching the new-guardian path and the detail-page link route.
-func (s *GuardianService) validateExistingGuardian(ctx context.Context, position int, guardian NewStudentGuardian) error {
+func (s *RetainedGuardianService) validateExistingGuardian(ctx context.Context, position int, guardian peoplePorts.NewStudentGuardian) error {
 	if _, err := s.GuardianProfileRepo.FindByID(ctx, *guardian.ExistingProfileID); err != nil {
 		//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
 		return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: ausgewählte Person nicht gefunden", position)}
@@ -87,7 +88,7 @@ func (s *GuardianService) validateExistingGuardian(ctx context.Context, position
 
 // validateNewGuardian checks a guardian the request creates: its profile,
 // its relationship, its e-mail and its phone numbers, in that order.
-func (s *GuardianService) validateNewGuardian(ctx context.Context, position int, guardian NewStudentGuardian, seenEmails map[string]struct{}) error {
+func (s *RetainedGuardianService) validateNewGuardian(ctx context.Context, position int, guardian peoplePorts.NewStudentGuardian, seenEmails map[string]struct{}) error {
 	// Profile rules (email format, contact method) via the shared model
 	// Validate() — the same checks the repository runs on insert.
 	probe := &users.GuardianProfile{
@@ -114,7 +115,7 @@ func (s *GuardianService) validateNewGuardian(ctx context.Context, position int,
 
 // validateGuardianRelationship checks the relationship fields both paths
 // share.
-func validateGuardianRelationship(position int, relationship StudentGuardianRelationship) error {
+func validateGuardianRelationship(position int, relationship peoplePorts.StudentGuardianRelationship) error {
 	// Relationship type must be one of the allowed values. Without this,
 	// an unsupported value passes Bind, then fails at insert as a plain
 	// error (HTTP 500). users.IsValidRelationshipType is the single source
@@ -138,7 +139,7 @@ func validateGuardianRelationship(position int, relationship StudentGuardianRela
 // guardian email hits the UNIQUE(tenant_id, email) index on insert and would
 // otherwise surface as a 500 and roll the whole student back. Detect it as
 // bad input. (Reusing the existing guardian profile is deferred to #1513.)
-func (s *GuardianService) validateNewGuardianEmail(ctx context.Context, position int, email string, seenEmails map[string]struct{}) error {
+func (s *RetainedGuardianService) validateNewGuardianEmail(ctx context.Context, position int, email string, seenEmails map[string]struct{}) error {
 	if _, dup := seenEmails[email]; dup {
 		//nolint:staticcheck // ST1005: user-facing German message rendered in the 400 response
 		return &userscontract.ValidationError{Err: fmt.Errorf("Erziehungsberechtigte/r %d: E-Mail-Adresse %q ist mehrfach angegeben", position, email)}
@@ -156,7 +157,7 @@ func (s *GuardianService) validateNewGuardianEmail(ctx context.Context, position
 // after CreateGuardian. The phone type is coerced to mobile for unknown values
 // exactly like AddPhoneNumber, so the probe never rejects a type the real path
 // accepts.
-func validateNewGuardianPhones(position int, phones []PhoneNumberCreateRequest) error {
+func validateNewGuardianPhones(position int, phones []peoplePorts.PhoneNumberCreateRequest) error {
 	for j := range phones {
 		phoneType := users.PhoneType(phones[j].PhoneType)
 		if !users.ValidPhoneTypes[phoneType] {
@@ -180,7 +181,7 @@ func validateNewGuardianPhones(position int, phones []PhoneNumberCreateRequest) 
 // and AddPhoneNumber, all of which join the ambient tenant transaction via the
 // context, so a failure on any guardian aborts the surrounding transaction and
 // leaves no partial student/guardian data behind.
-func (s *GuardianService) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []NewStudentGuardian) error {
+func (s *RetainedGuardianService) AddGuardiansToStudent(ctx context.Context, studentID int64, guardians []peoplePorts.NewStudentGuardian) error {
 	// Defense-in-depth: re-validate before any write so this method is safe
 	// even if a caller forgets the pre-write ValidateNewGuardians call. Bad
 	// client input surfaces as a classified ValidationError (HTTP 400) instead
@@ -206,7 +207,7 @@ func (s *GuardianService) AddGuardiansToStudent(ctx context.Context, studentID i
 
 // addGuardianToStudent creates or selects one guardian at index i, links it
 // to the student, and adds the phone numbers of a newly created profile.
-func (s *GuardianService) addGuardianToStudent(ctx context.Context, studentID int64, i int, g NewStudentGuardian, linked map[int64]struct{}) error {
+func (s *RetainedGuardianService) addGuardianToStudent(ctx context.Context, studentID int64, i int, g peoplePorts.NewStudentGuardian, linked map[int64]struct{}) error {
 	var profileID int64
 	if g.ExistingProfileID != nil {
 		// Select-existing path: link the existing profile as-is. Never
@@ -227,7 +228,7 @@ func (s *GuardianService) addGuardianToStudent(ctx context.Context, studentID in
 	// RelationshipType and EmergencyPriority were already checked by
 	// ValidateNewGuardians (>= 1, allowed type) — parity with the
 	// detail-page link path (LinkGuardianToStudent).
-	if _, err := s.LinkGuardianToStudent(ctx, StudentGuardianCreateRequest{
+	if _, err := s.LinkGuardianToStudent(ctx, peoplePorts.StudentGuardianCreateRequest{
 		StudentID:          studentID,
 		GuardianProfileID:  profileID,
 		RelationshipType:   g.Relationship.RelationshipType,

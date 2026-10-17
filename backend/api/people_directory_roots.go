@@ -32,7 +32,7 @@ import (
 
 // guardianRolePresets is the Security Runtime's role-preset policy as People
 // Directory's preset port.
-var guardianRolePresets = peopleCompose.GuardianRolePresetFuncs{
+var guardianRolePresets = peoplePorts.GuardianRolePresetFuncs{
 	Default: securityruntime.DefaultStudentGuardianRole,
 	Presets: securityruntime.StudentGuardianRolePreset,
 }

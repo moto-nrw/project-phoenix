@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -88,7 +89,7 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 		func(ctx context.Context, tenantID int64) (string, error) {
 			return settings.Settings.ResolveStringForTenant(ctx, tenantID, configModels.KeyEmailReplyToAddress)
 		}, logger)
-	guardians := peopleCompose.NewGuardianService(peopleCompose.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db), DB: db.Pool()})
+	guardians := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: NewGuardianProfileTestRepository(db)}, db.Pool())
 	delivery, err := deliveryCompose.New(deliveryCompose.Dependencies{
 		DB: db.Pool(), People: GuardianDisplayResolver{Query: guardians}, Observe: func(deliveryModule.Observation) {},
 		Provider: &deliveryCompose.MailPushProvider{Registry: deliveryCompose.NewEmailTemplateRegistry(nil), Mailer: email.NewMockMailer(), MailIdentity: identity,
