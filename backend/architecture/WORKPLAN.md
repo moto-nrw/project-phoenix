@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 166 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 165 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 35.038 in `compose`
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 4 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 3 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
@@ -21,9 +21,20 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 166 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 165 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Die äußere Workflow-Suite konstruiert Beziehungen, Telefone und
+Schutzereignisse mit nativen Testwerten. Die Root bindet Test-Facetten derselben
+Owner-Stores; Validierung, Eigentümer-Hälften, Zeitstempel, Fehler und Transaktionen
+bleiben dort. Ledger-Assertions lesen native Werte über dieselben Abfragen.
+Die Konstanten-Vertragsprüfung liest die tatsächlichen Modellwerte über den
+komponierten Owner. Typunabhängige Sperr- und Fehler-Probes reichen dieselben
+Zeilen durch; der Locale-Stub erhält einen nativen Profilwert.
+Ein Test-Key fällt: 166 → 165, #4073 4 → 3; #4074 bleibt bei 44.
+Die drei Produktions-DTO-Keys bleiben sichtbar. Keine neue Regel, Freigabe, Alias,
+Klassifizierung, Ausnahme oder höhere Budgets; keine Produktlogik wird geändert.
 
 #4073: Die reinen Stammdaten-Helfer vergleichen eigene Feld-Snapshots statt
 Persistenzzeilen. Der Kontaktvergleich nutzt den vorhandenen Schreibport-Wert;
