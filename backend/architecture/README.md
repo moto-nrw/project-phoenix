@@ -4030,6 +4030,15 @@ refresh rotation's recovery-proof binding is handed in. Epoch 67 adds
 `identity-access.module-internal-test.tenant-runtime`. The composition goes
 from 7,356 to 4,075 LOC.
 
+Care Plan follows with its record adapters: the generic effective-time record
+adapters (`application.EffectiveRecords`, `ExceptionRecords`, `NoteRecords`
+over `RecordFuncs`), the companion edges (`application.CompanionEdges`) and the
+student profile commands (`application.NewStudentProfiles` over
+`ports.StudentProfileStore`) move from `modules/careplan/compose` into
+`internal/application`; the composition binds the store and the record
+functions. Epoch 68 adds `care-plan.application.tenant-runtime`. The
+composition goes from 3,147 to 2,876 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
