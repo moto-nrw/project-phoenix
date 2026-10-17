@@ -30,7 +30,7 @@ Communications öffentliche, reine Wertepolicy. Die bisherigen Algorithmen und i
 Testkörper ziehen unverändert zur kanonischen Implementierung. Der verbleibende
 Mitarbeiteradapter delegiert dieselben Regeln über seinen bestehenden Eigen-Owner-Zugriff.
 Beziehungsrechte, Fristen, Widerruf, Fehler, kanonische Hashbytes, SQL, Routen und Antworten
-bleiben gleich. Ein Produktionskey fällt: 172 → 171, #4073 10 → 9. Regeln 835 und
+bleiben gleich. Ein Produktionskey fällt: 172 → 171, #4073 10 → 9. Regeln 836 und
 Composition 1.657 bleiben gleich; Parent-Compose 487 → 486 LOC, Compose-Summe 52.846 → 52.845.
 Keine neue Regel, Freigabe, Klassifizierung, Go-Typalias, Ausnahme oder höhere Budgets.
 

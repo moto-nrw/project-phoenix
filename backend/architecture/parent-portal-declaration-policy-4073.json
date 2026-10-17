@@ -27,7 +27,8 @@
   "tests": [
     "Canonical algorithm bytes unchanged after package/duplicate-constants relocation; complete canonical test file unchanged after package rename.",
     "Read-only parity of 28 modified workflow fixture files: 280 existing tests and 1376 assertions, complete files identical after stripping only required Declarations bindings.",
-    "Focused80511 EXIT0: Communication0.221s, legacy0.198s, Portal3.436s,Care6.270s,HTTP0.938s. COMPLETE NONFAST50831 EXIT0:all68 affected packages inclAPI11.319s,Portal1.662s,Care5.796s,HTTP0.638s,Communication/staff and module/hermetic ratchets. Architecture84723 EXIT0:171keys/1657targets/allbudgets; inventory17103 EXIT0:1of1/139files. Lint61344 EXIT0/0 issues; normal push hooks required."
+    "Focused80511 EXIT0: Communication0.221s, legacy0.198s, Portal3.436s,Care6.270s,HTTP0.938s. COMPLETE NONFAST50831 EXIT0:all68 affected packages inclAPI11.319s,Portal1.662s,Care5.796s,HTTP0.638s,Communication/staff and module/hermetic ratchets. Architecture84723 EXIT0:171keys/1657targets/allbudgets; inventory17103 EXIT0:1of1/139files. Lint61344 EXIT0/0 issues; normal push hooks required.",
+    "After clean base merge f549478e871c12774cbf1ae892463de31cc1f57b of development bbb89194cd (shared WORKPLAN/budget intersections), final COMPLETE NONFAST92332 EXIT0/all68, Portal2.527s,Care6.479s,HTTP0.868s,Root/API and Communication suites plus module/hermetic ratchets. No relaxed base-update exception used. Final architecture95256 EXIT0/171keys/1657targets/allbudgets; policy rule count836 at both immutable9e source base and final base/candidate, byte-unchanged policy. Source lint61344 zero issues; normal push hooks still required."
   ],
   "runtime_evidence": {
     "source": "Assigned localhost5547 test database, pinned Go toolchain and private /tmp/gocache-4073; immutable source/proof base 9e000f4bb6aff93a184e6e344c9613ffa44a0d96.",
@@ -41,7 +42,7 @@
       "backend/workflows/parentportal/messaging/parent_declaration_service.go"
     ],
     "workload": "Existing pure declaration state/action/permission/deadline scenarios and full Parent Portal/Care/HTTP behavior suites, Root production router golden and complete affected-package gate.",
-    "thresholds": "One exact production key removed, 172->171, carrier10->9; 835 rules and composition1657 unchanged; Parent Compose487->486,total52846->52845, all other budgets flat. Preserve all old test assertions, exact canonical policy and external behavior.",
+    "thresholds": "One exact production key removed, 172->171, carrier10->9; 836 rules and composition1657 unchanged; Parent Compose487->486,total52846->52845, all other budgets flat. Preserve all old test assertions, exact canonical policy and external behavior.",
     "affected_rows": {
       "state": "not_applicable",
       "reason": "Only a pure declaration value policy and its construction seam change. The complete canonical algorithm is byte-identical after its package/duplicate-constant relocation; all existing test bodies and assertions are retained. No SQL, schema, query, lock, clock source, hash encoding, tenant/session/relationship check, route, response, job or event order changes. No benchmark or browser smoke is claimed."
@@ -96,7 +97,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "Focused80511 EXIT0: Communication0.221s, legacy0.198s, Portal3.436s,Care6.270s,HTTP0.938s. COMPLETE NONFAST50831 EXIT0:all68 affected packages inclAPI11.319s,Portal1.662s,Care5.796s,HTTP0.638s,Communication/staff and module/hermetic ratchets. Architecture84723 EXIT0:171keys/1657targets/allbudgets; inventory17103 EXIT0:1of1/139files. Lint61344 EXIT0/0 issues; normal push hooks required. No native server/browser smoke or benchmark."
+      "result": "After clean base merge f549478e871c12774cbf1ae892463de31cc1f57b of development bbb89194cd (shared WORKPLAN/budget intersections), final COMPLETE NONFAST92332 EXIT0/all68, Portal2.527s,Care6.479s,HTTP0.868s,Root/API and Communication suites plus module/hermetic ratchets. No relaxed base-update exception used. Final architecture95256 EXIT0/171keys/1657targets/allbudgets; policy rule count836 at both immutable9e source base and final base/candidate, byte-unchanged policy. Source lint61344 zero issues; normal push hooks still required. No native server/browser smoke or benchmark."
     }
   },
   "rollback_and_cleanup": "Revert the pure policy move, Root/consumer construction bindings, one baseline retirement and evidence/budget changes together. No schema or data migration. Retained staff delegates remain for #4074 rather than opening a new adapter/public grant.",
