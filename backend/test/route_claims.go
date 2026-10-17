@@ -38,28 +38,6 @@ func WithPermissionsContext(ctx context.Context, permissions []string) context.C
 	return context.WithValue(ctx, sessiontoken.CtxPermissions, permissions)
 }
 
-// MintTestJWT signs a JWT for the given claims using the same configuration as
-// production (sessiontoken.NewTokenAuth reads the JWT secret from viper / env). Pair it
-// with routetest.WithJWTBearer when calling handlers through Resource.Router() so the
-// production auth middleware accepts the request.
-//
-// Callers must arrange for a non-empty auth_jwt_secret to be present before the
-// Resource is constructed (typically via routetest.SeedTestJWTConfig in init() or
-// TestMain). Without a secret, jwx refuses to HMAC-sign and this helper fails.
-//
-// Claims carrying the bootstrap tenant are rebased onto the tenant the test
-// owns, so a test that opted into a per-test tenant gets a matching token
-// without passing the tenant through every claims helper (#2419).
-func MintTestJWT(t testing.TB, claims sessiontoken.AppClaims) string {
-	t.Helper()
-	claims.TenantID = RebaseTenantID(t, claims.TenantID)
-	tokenAuth, err := ConfiguredTokenAuth()
-	require.NoError(t, err, "MintTestJWT: NewTokenAuth")
-	token, err := tokenAuth.CreateJWT(claims)
-	require.NoError(t, err, "MintTestJWT: CreateJWT")
-	return token
-}
-
 // AuthenticationContext returns the identity values injected by request
 // options, preferring an explicit test permission set over claims defaults.
 func AuthenticationContext(ctx context.Context) (sessiontoken.AppClaims, []string) {
