@@ -6,14 +6,13 @@ import (
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
 type StaffMessagingTestRepositories struct {
-	Thread  usersModels.StaffMessageThreadRepository
-	Message usersModels.StaffMessageRepository
-	Read    usersModels.StaffMessageReadRepository
+	Thread  staffStore.StaffMessageThreadRepository
+	Message staffStore.StaffMessageRepository
+	Read    staffStore.StaffMessageReadRepository
 }
 
 func NewStaffMessagingTestRepositories(db transactionruntime.Database, members MembershipTestRepositories) (StaffMessagingTestRepositories, error) {
