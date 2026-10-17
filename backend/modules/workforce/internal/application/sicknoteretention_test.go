@@ -42,7 +42,7 @@ func TestSickNoteRetentionDeletesBeforeTheFirstBerlinDayTheWindowKeeps(t *testin
 	t.Parallel()
 	for _, days := range []int{365, 90, 1095} {
 		store := &sickNoteStoreDouble{}
-		deleted, applied, err := newSickNoteRetentionForTest(store, sickNoteWindowDouble{days: days}).DeleteExpired(context.Background())
+		deleted, applied, err := newSickNoteRetentionForTest(store, sickNoteWindowDouble{days: days}).DeleteExpiredStaffSickNotes(context.Background())
 
 		require.NoError(t, err)
 		assert.Equal(t, 3, deleted)
@@ -63,7 +63,7 @@ func TestSickNoteRetentionDeletesNothingWithoutAValidWindow(t *testing.T) {
 	}
 	for name, window := range cases {
 		store := &sickNoteStoreDouble{}
-		deleted, applied, err := newSickNoteRetentionForTest(store, window).DeleteExpired(context.Background())
+		deleted, applied, err := newSickNoteRetentionForTest(store, window).DeleteExpiredStaffSickNotes(context.Background())
 
 		require.Error(t, err, name)
 		assert.Zero(t, deleted, name)
@@ -76,7 +76,7 @@ func TestSickNoteRetentionReportsAFailedDeletion(t *testing.T) {
 	t.Parallel()
 	store := &sickNoteStoreDouble{err: errors.New("cutoff refused")}
 
-	deleted, applied, err := newSickNoteRetentionForTest(store, sickNoteWindowDouble{days: 365}).DeleteExpired(context.Background())
+	deleted, applied, err := newSickNoteRetentionForTest(store, sickNoteWindowDouble{days: 365}).DeleteExpiredStaffSickNotes(context.Background())
 
 	require.ErrorContains(t, err, "cutoff refused")
 	assert.Zero(t, deleted)

@@ -25,10 +25,10 @@ func NewSickNoteRetention(store ports.SickNoteRetentionStore, settings ports.Sic
 	return &SickNoteRetention{store: store, settings: settings, today: calendar.TodayDate}
 }
 
-// DeleteExpired deletes the sick notes uploaded before the first Berlin day
+// DeleteExpiredStaffSickNotes deletes the sick notes uploaded before the first Berlin day
 // the window keeps and reports them with the window in days. A window it
 // cannot read or outside the configured frame deletes nothing.
-func (r *SickNoteRetention) DeleteExpired(ctx context.Context) (deleted, retentionDays int, err error) {
+func (r *SickNoteRetention) DeleteExpiredStaffSickNotes(ctx context.Context) (deleted, retentionDays int, err error) {
 	days, err := r.settings.StaffSickNoteRetentionDays(ctx)
 	if err != nil {
 		return 0, 0, fmt.Errorf("resolve sick note retention window: %w", err)
