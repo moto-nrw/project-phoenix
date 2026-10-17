@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	auditcompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -77,23 +76,23 @@ type Dependencies struct {
 	StudentAudit        care.StudentChangeRecorder
 	StudentConsents     care.StudentConsentService
 	StudentPhotos       func() care.StudentPhotoUnlinker
-	ParentRequestEvents usersModels.ParentRequestEventRepository
+	ParentRequestEvents messaging.RequestEvents
 	GuardianInvites     care.GuardianAccess
 	GuardianInvitations care.GuardianInvitationReads
 
 	// Messaging: the parent-OGS conversation, announcements, and the reads the
 	// request-sharing ledger joins.
-	MessageThreadRepo         usersModels.ParentMessageThreadRepository
-	MessageRepo               usersModels.ParentMessageRepository
-	MessageReadRepo           usersModels.ParentMessageReadRepository
+	MessageThreadRepo         messaging.MessageThreadAccess
+	MessageRepo               messaging.MessageReads
+	MessageReadRepo           messaging.MessageInboxReads
 	Conversations             messaging.ConversationCore
 	MessagingEnabled          messaging.MessagingGate
-	AnnouncementRepo          usersModels.ParentAnnouncementRepository
+	AnnouncementRepo          messaging.AnnouncementAccess
 	CareRequestRepo           messaging.CareRequestReads
 	ExcusedRequestRepo        messaging.ExcusedRequestReads
 	OfferingChangeRequestRepo messaging.OfferingChangeRequestReads
-	FamilyProtectionEvents    usersModels.FamilyProtectionEventRepository
-	ParentRequestShares       usersModels.ParentRequestShareEventRepository
+	FamilyProtectionEvents    messaging.FamilyProtectionReads
+	ParentRequestShares       messaging.RequestShareRecords
 
 	// Platform: the meal plan, live events and notifiers.
 	MealPlan              MealPlanProvider
