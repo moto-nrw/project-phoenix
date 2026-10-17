@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -31,7 +31,7 @@ type WorkforceAdminCapabilities struct {
 // personnel-record administration with the time-tracking contracts the
 // Workforce composition built. A nil time-tracking side leaves those
 // contracts nil, so a partial composition still serves the routes it has.
-func NewWorkforceAdminCapabilities(people *peopleCompose.PersonDirectory, staffAdmin *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking) WorkforceAdminCapabilities {
+func NewWorkforceAdminCapabilities(people peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin, timeTracking *workforceCompose.TimeTracking) WorkforceAdminCapabilities {
 	capabilities := WorkforceAdminCapabilities{Staff: newStaffDirectoryCapability(people, staffAdmin)}
 	if staffAdmin != nil {
 		capabilities.Documents = staffAdmin
@@ -69,12 +69,12 @@ func timeTrackingAccountStartDate(settings settingsCompose.SettingsService) func
 // is embedded unchanged.
 type staffDirectoryCapability struct {
 	workforceModule.StaffRecordAdmin
-	people *peopleCompose.PersonDirectory
+	people peoplePorts.PersonDirectory
 }
 
 // newStaffDirectoryCapability serves workforce.StaffDirectory: the lookups
 // from the retained person service, the administration from Workforce.
-func newStaffDirectoryCapability(people *peopleCompose.PersonDirectory, admin workforceModule.StaffRecordAdmin) workforceModule.StaffDirectory {
+func newStaffDirectoryCapability(people peoplePorts.PersonDirectory, admin workforceModule.StaffRecordAdmin) workforceModule.StaffDirectory {
 	if people == nil || admin == nil {
 		panic("staff directory capability: person service and personnel-record administration are required")
 	}

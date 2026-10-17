@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
@@ -199,7 +198,7 @@ func bindStaffMembershipRuntime(f *serviceGraph, offboarding offboardingcompose.
 		Offboard: func(ctx context.Context, staffID int64, actorUsername string) error {
 			_, err := workflow.Offboard(context.WithValue(ctx, staffOffboardingActorNameKey{}, actorUsername), staffID)
 			if errors.Is(err, staffoffboarding.ErrInUse) {
-				return peopleCompose.ErrStaffInUse
+				return peoplePorts.ErrStaffInUse
 			}
 			return err
 		},
@@ -348,14 +347,14 @@ func staffDirectoryWrites(f *serviceGraph) (func(context.Context, StaffCreateInp
 // database-error knowledge.
 func ClassifyStaffWriteFailure(err error) (StaffFailureKind, error) {
 	switch {
-	case errors.Is(err, peopleCompose.ErrStaffAdoptionNotPermitted):
+	case errors.Is(err, peoplePorts.ErrStaffAdoptionNotPermitted):
 		return StaffFailureForbidden, err
 	case errors.Is(err, schoolmembership.ErrStaffPersonConflict):
 		return StaffFailureConflict, err
-	case errors.Is(err, peopleCompose.ErrStaffLehrkraftCaregiverProfile):
+	case errors.Is(err, peoplePorts.ErrStaffLehrkraftCaregiverProfile):
 		return StaffFailureConflict, err
-	case errors.Is(err, peopleCompose.ErrStaffInUse):
-		return StaffFailureConflict, peopleCompose.ErrStaffInUse
+	case errors.Is(err, peoplePorts.ErrStaffInUse):
+		return StaffFailureConflict, peoplePorts.ErrStaffInUse
 	case errors.Is(err, staffoffboarding.ErrConflict):
 		return StaffFailureConflict, err
 	case errors.Is(err, staffoffboarding.ErrUnauthorized):

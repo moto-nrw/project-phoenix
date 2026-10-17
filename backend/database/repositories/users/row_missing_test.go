@@ -23,7 +23,7 @@ func TestRowMissing(t *testing.T) {
 		{name: "not-found in a database error", err: &ports.DatabaseError{Op: "find", Err: errors.Join(ports.ErrRepositoryNotFound, errors.New("driver"))}, want: true},
 		{name: "guardian profile sentinel", err: fmt.Errorf("find: %w", usersModels.ErrGuardianProfileNotFound), want: true},
 		{name: "student guardian sentinel", err: fmt.Errorf("find: %w", usersModels.ErrStudentGuardianNotFound), want: true},
-		{name: "missing student", err: MissingStudentError("find student"), want: true},
+		{name: "missing student", err: ports.MissingStudentError("find student"), want: true},
 		{name: "store failure", err: &ports.DatabaseError{Op: "find", Err: errors.New("connection reset")}, want: false},
 	}
 	for _, tt := range tests {
@@ -39,7 +39,7 @@ func TestRowMissing(t *testing.T) {
 func TestMissingStudentErrorKeepsTheCallerSentinels(t *testing.T) {
 	t.Parallel()
 
-	err := MissingStudentError("find student")
+	err := ports.MissingStudentError("find student")
 
 	for _, target := range []error{ports.ErrRepositoryNotFound, sql.ErrNoRows, usersModels.ErrStudentRowMissing} {
 		if !errors.Is(err, target) {

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // This file is the read half of the student translation seam (#3349): People
@@ -41,7 +41,7 @@ func NewStudentReads(directory StudentReadCapability) *StudentReads {
 func (r *StudentReads) FindByID(ctx context.Context, id any) (*userModels.Student, error) {
 	studentID, ok := studentIDOf(id)
 	if !ok {
-		return nil, usersRepo.MissingStudentError("find by id")
+		return nil, peoplePorts.MissingStudentError("find by id")
 	}
 	record, err := r.directory.FindStudentRecord(ctx, studentID)
 	if err != nil {
@@ -56,7 +56,7 @@ func (r *StudentReads) FindByPersonID(ctx context.Context, personID int64) (*use
 		return nil, translateStudentReadError("find by person id", err)
 	}
 	if len(records) == 0 {
-		return nil, usersRepo.MissingStudentError("find by person id")
+		return nil, peoplePorts.MissingStudentError("find by person id")
 	}
 	return studentRecordToModel(records[0]), nil
 }
@@ -304,7 +304,7 @@ func translateStudentReadError(op string, err error) error {
 		return nil
 	}
 	if errors.Is(err, peopleModule.ErrStudentNotFound) || errors.Is(err, peopleModule.ErrInvalidStudent) {
-		return usersRepo.MissingStudentError(op)
+		return peoplePorts.MissingStudentError(op)
 	}
 	return err
 }

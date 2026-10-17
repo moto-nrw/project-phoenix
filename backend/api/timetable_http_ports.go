@@ -7,7 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/classday"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -24,11 +24,11 @@ var errAccountWithoutPerson = errors.New("account has no person")
 // People Directory person service: display names, and whether a child still
 // attends.
 type TimetablePeople struct {
-	persons *peopleCompose.PersonDirectory
+	persons peoplePorts.PersonDirectory
 }
 
 // NewTimetablePeople binds the People port to the person service.
-func NewTimetablePeople(persons *peopleCompose.PersonDirectory) TimetablePeople {
+func NewTimetablePeople(persons peoplePorts.PersonDirectory) TimetablePeople {
 	return TimetablePeople{persons: persons}
 }
 

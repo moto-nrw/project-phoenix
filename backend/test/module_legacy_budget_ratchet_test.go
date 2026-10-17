@@ -121,7 +121,7 @@ const moduleLegacyBudgetTotal = 1226
 
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
-const moduleLegacyFileBudgetTotal = 3786
+const moduleLegacyFileBudgetTotal = 3776
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -137,7 +137,7 @@ const moduleLegacyFileBudgetTotal = 3786
 var moduleLegacyFileBudgets = map[string]int{
 	"api/legacy_builders_test_helpers.go":                                               23,
 	"api/legacy_token_adapter.go":                                                       64,
-	"database/repositories/users/legacy_composition_support.go":                         35,
+	"database/repositories/users/legacy_composition_support.go":                         25,
 	"database/repositories/users/legacy_types.go":                                       14,
 	"modules/peopledirectory/compose/legacy_repository_runtime.go":                      98,
 	"modules/presenceprojection/legacy_rows.go":                                         353,
@@ -162,7 +162,7 @@ var moduleLegacyFileBudgets = map[string]int{
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
 // like every entry; raised by ADR 0063.
-const moduleComposeBudgetTotal = 50269
+const moduleComposeBudgetTotal = 49226
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, first measured on 2026-10-15 on top of development c49b81c3a9: 61
@@ -208,8 +208,8 @@ var moduleComposeBudgets = map[string]int{
 	// Timetable's advisory locks moved into the root and gave up more than
 	// the three hold.
 	"modules/parentrequestfeedprojection/compose":     11,
-	"modules/peopledirectory/compose":                 5074,
-	"modules/peopledirectory/compose/vocabulary":      112,
+	"modules/peopledirectory/compose":                 4033,
+	"modules/peopledirectory/compose/vocabulary":      110,
 	"modules/presenceprojection/compose":              7,
 	"modules/requestreview/compose":                   1264,
 	"modules/schedulerruntime/compose":                83,

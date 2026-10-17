@@ -14,6 +14,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -26,7 +27,7 @@ import (
 type GroupsTestModule struct {
 	Education   schoolstructure.GroupManagement
 	Active      studentpresence.Presence
-	Users       *peopleCompose.PersonDirectory
+	Users       peoplePorts.PersonDirectory
 	People      peopleCompose.GroupRoutePeople
 	UserContext *CallerRows
 }
@@ -54,11 +55,11 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		NewEducationRooms(tt.Facilities), NewEducationTeachers(tt.Teacher), NewEducationStaff(tt.Staff),
 		tt.Student, r.Substitutions, education.NewLegacyRepositoryRuntime(db.Pool()), education.GroupServiceOptions{Broadcaster: NewGroupEvents(publisher, nil)})
 
-	persons := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	persons := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       tt.Person, StudentRepo: tt.Student, TeacherRepo: tt.Teacher, AccountExists: identityaccessCompose.AccountExists(r.Profile),
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: tt.Person, Staff: tt.Staff, Teachers: tt.Teacher, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	rooms, err := facilitiesCompose.NewUnobserved(db.Pool())
 	if err != nil {

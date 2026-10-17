@@ -514,13 +514,13 @@ func composePeople(b graphBuild) (graphBuild, error) {
 	// The staff and teacher lookups and the staff writes are School
 	// Membership and Workforce territory (#3752); the person service takes
 	// them through the StaffDirectory port.
-	staffDirectory := peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{
+	staffDirectory := peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{
 		Runtime: peopleCompose.NewLegacyRepositoryRuntime(b.DB.Pool()), Persons: people.Persons, Staff: people.Staff,
 		Teachers: people.Teachers, LehrkraftRoles: b.identityAccess, MayManageStaff: staffAdministrationPermitted,
 	})
 	// Care Plan is composed later and reads the person directory, so the
 	// directory reaches its participation decision at call time.
-	b.graph.Users = peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	b.graph.Users = peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(b.Persons),
 		StudentDirectory: peopleCompose.NewStudentDirectory(b.Persons),
 		PersonRepo:       people.Persons, RFIDRepo: people.Identity,

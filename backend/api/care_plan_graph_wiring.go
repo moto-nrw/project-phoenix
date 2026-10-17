@@ -16,7 +16,6 @@ import (
 	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -58,7 +57,7 @@ type CarePlanWiring struct {
 	ExcusedRequestRows   ExcusedRequestReads
 
 	// Bindings over the values this graph composes.
-	CareParticipation      func(current func() careplan.CareParticipation) peopleCompose.CareParticipationResolver
+	CareParticipation      func(current func() careplan.CareParticipation) peoplePorts.CareParticipationResolver
 	ArrivalBaselines       func(approved careplan.ApprovedBookingReader, bookingsAuthoritative func(context.Context) (bool, error)) (careplan.ArrivalBaselineReader, error)
 	OfferingCatalog        func(CareOfferingCatalogSources) (careplan.CareOfferingCatalogCapability, error)
 	OfferingPhaseGuard     func(careplan.CareOfferingGuards) func(context.Context, int64, *enrollmentOwner.Phase) error
