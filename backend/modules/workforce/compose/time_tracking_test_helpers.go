@@ -27,13 +27,12 @@ type TimeTrackingTestRows struct {
 
 // NewTimeTrackingTestRows binds the row contracts to capability.
 func NewTimeTrackingTestRows(capability workforce.Capability) TimeTrackingTestRows {
-	shapes := legacyRowErrors()
 	return TimeTrackingTestRows{
-		Sessions:         timetracking.NewWorkSessionRows(capability, shapes),
-		Breaks:           timetracking.NewWorkSessionBreakRows(capability, shapes),
-		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability, shapes),
-		VacationQuotas:   timetracking.NewVacationQuotaRows(capability, shapes),
-		VacationOpenings: timetracking.NewVacationOpeningRows(capability, shapes),
+		Sessions:         timetracking.NewWorkSessionRows(capability),
+		Breaks:           timetracking.NewWorkSessionBreakRows(capability),
+		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability),
+		VacationQuotas:   timetracking.NewVacationQuotaRows(capability),
+		VacationOpenings: timetracking.NewVacationOpeningRows(capability),
 	}
 }
 

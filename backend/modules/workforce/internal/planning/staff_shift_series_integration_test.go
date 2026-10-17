@@ -22,9 +22,9 @@ type seriesTestEnv struct {
 	scope          testpkg.TenantScope
 	staff          *testpkg.Staff
 	repos          *api.RepositoryTestFactory
-	shiftRows      *workforceCompose.ShiftRows
-	seriesRows     *workforceCompose.ShiftSeriesRows
-	exceptionRows  *workforceCompose.ShiftSeriesExceptionRows
+	shiftRows      *planning.ShiftRows
+	seriesRows     *planning.ShiftSeriesRows
+	exceptionRows  *planning.ShiftSeriesExceptionRows
 	series         planning.StaffShiftSeriesService
 	shifts         planning.StaffShiftService
 	capStaffSeries func(context.Context, int64, string) (int64, error)
@@ -43,10 +43,10 @@ func setupSeriesTest(t *testing.T) *seriesTestEnv {
 	today := calendar.CalendarDateClock(func() time.Time {
 		return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 	})
-	shiftRows := workforceCompose.NewShiftRows(dependencies.Workforce)
-	seriesRows := workforceCompose.NewShiftSeriesRows(dependencies.Workforce)
-	exceptionRows := workforceCompose.NewShiftSeriesExceptionRows(dependencies.Workforce)
-	shiftTypes := planning.NewShiftTypeService(workforceCompose.NewShiftTypeRows(dependencies.Workforce), slog.Default())
+	shiftRows := planning.NewShiftRows(dependencies.Workforce)
+	seriesRows := planning.NewShiftSeriesRows(dependencies.Workforce)
+	exceptionRows := planning.NewShiftSeriesExceptionRows(dependencies.Workforce)
+	shiftTypes := planning.NewShiftTypeService(planning.NewShiftTypeRows(dependencies.Workforce), slog.Default())
 	lockStaffShifts := workforceCompose.NewStaffShiftLock(db)
 	shifts := planning.NewStaffShiftService(shiftRows, api.NewPlanStaffDirectory(repoFactory.Staff), shiftTypes, lockStaffShifts, slog.Default(),
 		planning.WithStaffShiftSeriesExceptions(exceptionRows),
@@ -818,7 +818,7 @@ func TestStaffScheduleOverview_SeriesFieldsRideExistingReads(t *testing.T) {
 	countedDependencies := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, countedDB))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, countedDB), countedDependencies)
 	timetableRepos := api.NewTimetableRepositories(testpkg.MustDatabase(countedDB), countedDependencies)
-	countedShifts := workforceCompose.NewShiftRows(countedDependencies.Workforce)
+	countedShifts := planning.NewShiftRows(countedDependencies.Workforce)
 	service := planning.NewStaffScheduleOverviewService(planning.StaffScheduleOverviewDependencies{
 		Shifts: countedShifts, ShiftWeeks: countedShifts,
 		Instances: timetableRepos.InstanceReads(), InstanceStaff: timetableRepos.InstanceStaffReads(),

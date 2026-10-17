@@ -1,4 +1,4 @@
-package compose
+package planning_test
 
 import (
 	"context"
@@ -6,15 +6,18 @@ import (
 	"errors"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/api"
+	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 // The Dienstplan row adapters over the Workforce capability keep the
 // repository error shapes the planning services classify on (#3418). The
 // composition of the planning services themselves is pinned by the
-// behaviour suite in shift_planning_behaviour_test.go.
+// behaviour suite in compose/shift_planning_behaviour_test.go.
 
 // zeroRow returns a zero row of the type a row write accepts. The rows are
 // Workforce's planning vocabulary, which this suite reaches only through the
@@ -27,7 +30,7 @@ func TestShiftRowsKeepTheRepositoryErrorShapes(t *testing.T) {
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	rows := NewShiftRows(buildWorkforce(t, db))
+	rows := planning.NewShiftRows(api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)).Workforce)
 	ctx := testpkg.Ctx(t)
 
 	_, err := rows.FindByID(ctx, int64(987654321))

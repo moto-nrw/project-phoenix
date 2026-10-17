@@ -1763,8 +1763,10 @@ outside `modules/workforce` implements them.
 `modules/workforce/compose.NewTimeTracking` builds every service over the
 capability and the consumer-owned ports the root binds in
 `services/time_tracking_ports.go`. The work-session repository shim, its five
-constructors and their root bindings are deleted; the row mapping is private
-to the composition (`compose/worksession_rows.go`).
+constructors and their root bindings are deleted. #4084 moved the row
+mapping into the time-tracking package (`capability_*_rows.go`) and the
+Dienstplan rows into `internal/planning/capability_shift_rows.go`; both build
+the retained error shape through `transactionruntime.RecordErrors`.
 
 #3996 retired the row vocabulary of `modules/workforce/adapters/timerecords`.
 The rows and their repository contracts are declared in the time-tracking

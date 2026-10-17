@@ -3,21 +3,21 @@ package timetracking
 import (
 	"errors"
 	"fmt"
+
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
-// RowErrorShapes restores the error shapes of the retained generic
-// repositories for the capability row adapters: Database wraps a failed
-// operation, Missing is the cause of a missing row. The composition binds
-// them, so the callers that still classify on those shapes keep seeing them.
-type RowErrorShapes struct {
-	Database func(op string, err error) error
-	Missing  error
+// recordErrors builds the retained repository error shape of the capability
+// row adapters through the transaction runtime: every failure wraps its
+// operation, a missing row is both a repository and an SQL not-found error.
+type recordErrors struct {
+	transactionruntime.RecordErrors
 }
 
 // rowsAffected is the legacy repository result for an update that matched no
 // row: the same error the generic repository produced.
-func (s RowErrorShapes) rowsAffected(op string) error {
-	return s.Database(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
+func (errs recordErrors) rowsAffected(op string) error {
+	return errs.WrapRecordError(op, fmt.Errorf("expected %d rows affected, got %d", 1, 0))
 }
 
 // legacyID accepts the integer shapes the generic repository's untyped id
@@ -42,11 +42,11 @@ func legacyID(id any) (int64, error) {
 }
 
 // read restores the legacy read error shape: a missing row is the
-// persistence-neutral not-found cause wrapped like a failed operation, every
-// other failure keeps its cause behind the operation.
-func (s RowErrorShapes) read(op string, err error, notFound error) error {
+// retained not-found error, every other failure keeps its cause behind the
+// operation.
+func (errs recordErrors) read(op string, err error, notFound error) error {
 	if notFound != nil && errors.Is(err, notFound) {
-		return s.Database(op, s.Missing)
+		return errs.MissingRecordError(op)
 	}
-	return s.Database(op, err)
+	return errs.WrapRecordError(op, err)
 }

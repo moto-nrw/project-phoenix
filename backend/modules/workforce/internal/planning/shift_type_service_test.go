@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 
 	"github.com/stretchr/testify/assert"
@@ -184,11 +183,11 @@ func TestShiftTypeService_CreateInactivePersists(t *testing.T) {
 // shiftTypeTestRows serves the retained shift and shift-type rows over the
 // Workforce capability, as the composition root does (#3418).
 type shiftTypeTestRows struct {
-	StaffShift *workforceCompose.ShiftRows
-	ShiftType  *workforceCompose.ShiftTypeRows
+	StaffShift *planning.ShiftRows
+	ShiftType  *planning.ShiftTypeRows
 }
 
 func newShiftTypeTestRows(db *bun.DB) shiftTypeTestRows {
 	workforce := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db)).Workforce
-	return shiftTypeTestRows{StaffShift: workforceCompose.NewShiftRows(workforce), ShiftType: workforceCompose.NewShiftTypeRows(workforce)}
+	return shiftTypeTestRows{StaffShift: planning.NewShiftRows(workforce), ShiftType: planning.NewShiftTypeRows(workforce)}
 }
