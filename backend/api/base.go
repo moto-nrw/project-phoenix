@@ -929,9 +929,7 @@ func newServeGraph(config ServeConfig) (result *serveGraph, reads workerReads, t
 		apiCommon.RenderStatus(w, r, http.StatusNotFound, "")
 	})
 	graph.router.Use(apiCommon.TenantRuntimeMiddleware(tenantRuntime))
-	graph.router.Use(apiCommon.AuthorizationObserverMiddleware(func(event apiCommon.AuthorizationEvent) {
-		observability.RecordAuthorizationEvent(event.Outcome, event.Reason, event.Elapsed)
-	}))
+	graph.router.Use(AuthorizationObserverMiddleware(recordAuthorizationEvent))
 	graph.router.Use(apiCommon.TenantRuntimeObserverMiddleware(func(observation apiCommon.TenantRuntimeObservation) {
 		recordHTTPRuntimeEvent(tracer, observation)
 	}))
