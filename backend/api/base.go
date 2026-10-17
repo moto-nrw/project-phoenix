@@ -54,7 +54,6 @@ import (
 	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
 	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
-	notificationsAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
 	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
@@ -1670,7 +1669,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 		Logger: in.logger.With("service", "staffnotice"),
 	}), func(ctx context.Context) int64 { return timeTrackingIdentity(ctx).AccountID })
 	// Notification abstraction (#1624).
-	notifications := notificationsAPI.NewResource(svc.Notifications, svc.PushSubscriptions, svc.NotificationPreferences)
+	notifications := NewNotificationHTTP(svc.Notifications, svc.PushSubscriptions, svc.NotificationPreferences)
 	// The class-day surface reads the class-day projection (#2701): the day
 	// report over Enrollment's day roster and the arrival-exception write
 	// seam (#2970) behind its one public capability.
