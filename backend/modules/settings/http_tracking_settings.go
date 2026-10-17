@@ -1,10 +1,8 @@
-package common
+package settings
 
 import (
 	"context"
 	"strings"
-
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // TrackingIndicatorLabels reads the enabled labels from one settings snapshot.
@@ -13,9 +11,9 @@ func TrackingIndicatorLabels(ctx context.Context, settings interface {
 	ResolveBool(context.Context, string) (bool, error)
 	ResolveString(context.Context, string) (string, error)
 }) (context.Context, []string, error) {
-	keys := []string{configModel.KeyTrackingIndicator1, configModel.KeyTrackingIndicator2, configModel.KeyTrackingIndicator3}
-	ctx = PrefetchSettings(ctx, settings, append([]string{configModel.KeyTrackingIndicatorsEnabled}, keys...)...)
-	enabled, err := settings.ResolveBool(ctx, configModel.KeyTrackingIndicatorsEnabled)
+	keys := []string{KeyTrackingIndicator1, KeyTrackingIndicator2, KeyTrackingIndicator3}
+	ctx = PrefetchSettings(ctx, settings, append([]string{KeyTrackingIndicatorsEnabled}, keys...)...)
+	enabled, err := settings.ResolveBool(ctx, KeyTrackingIndicatorsEnabled)
 	if err != nil || !enabled {
 		return ctx, nil, err
 	}

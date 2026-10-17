@@ -32,7 +32,7 @@ func (rs *Resource) getTrackingIndicators(w http.ResponseWriter, r *http.Request
 		}
 	}
 
-	ctx, labels, err := common.TrackingIndicatorLabels(r.Context(), rs.SettingsService)
+	ctx, labels, err := rs.displaySettings.TrackingIndicatorLabels(r.Context())
 	if err != nil {
 		rs.getLogger().Warn("tracking_indicators_settings_error",
 			"error", err.Error(),
