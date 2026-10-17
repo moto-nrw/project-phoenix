@@ -120,10 +120,7 @@ type MessagingRepositories struct {
 	ParentAnnouncement  ParentAnnouncementRepository
 	ParentMessageThread ParentMessageThreadRepository
 	ParentMessageRead   ParentMessageReadRepository
-	StaffMessageRead    interface {
-		usersModels.StaffMessageReadRepository
-		communication.StaffReadRecords
-	}
+	StaffMessageRead    communication.StaffReadRecords
 }
 
 // WithSchoolNames returns the repositories with the announcement and inbox

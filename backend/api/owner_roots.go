@@ -78,7 +78,7 @@ func NewParentPortalRepositories(db transactionruntime.Database, owners ParentPo
 			ParentMessageThread: parentStore.NewParentMessageThreadRepository(pool, peopleCompose.NewMessageableGuardians(pool, guardianLinkView.NewReader(), identity.FindActiveSchoolMemberships)),
 			ParentMessageRead: parentStore.WithInboxGroupNames(
 				parentStore.NewStaffParentMessageReadRepository(pool, guardianLinkView.NewReader(), members, persons), groupNames),
-			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, peopleCompose.NewMessageableStaff(pool,
+			StaffMessageRead: staffStore.NewStaffMessageReadRepository(pool, NewCommunicationStaffColleagues(db,
 				parentStore.CurrentTenantStaffAccounts(members, persons), StaffMessageIdentity(identity))),
 		},
 	}

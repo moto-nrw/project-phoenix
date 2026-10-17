@@ -7,9 +7,8 @@
 // build repositories. This package depends only on the owner's own adapters,
 // so that seam stays acyclic.
 //
-// It preserves the existing models/users repository contracts while the SQL
-// lives with its owner. Once every caller reads Communication through the
-// module facade, the contracts and this package go with them.
+// It binds native public records to the same owner SQL stores and inbox.
+// People Directory supplies the colleague relation through a root-bound port.
 package staffstore
 
 import (
