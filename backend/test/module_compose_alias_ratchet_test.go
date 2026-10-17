@@ -61,7 +61,7 @@ var moduleComposeAliasBudgets = map[string]int{
 }
 
 // moduleComposeAliasBudgetTotal is the sum of moduleComposeAliasBudgets.
-const moduleComposeAliasBudgetTotal = 522
+const moduleComposeAliasBudgetTotal = 518
 
 const backendModulePath = "github.com/moto-nrw/project-phoenix/"
 
