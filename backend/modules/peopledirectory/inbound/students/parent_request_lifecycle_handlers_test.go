@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // lifecycleExcusedFake records the arguments the route forwards and returns a
@@ -83,7 +84,8 @@ func TestMarkParentRequestDone_ForwardsVersionAndReviewer(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
+	rs := NewResource(ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
 	rs.markParentRequestDone(rr, lifecycleRequest(t, "excused", "42",
 		`{"expected_version":"v1","reason":"Tage sind vorbei"}`))
@@ -104,7 +106,8 @@ func TestMarkParentRequestDone_MasterDataIsNeverPast(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
+	rs := NewResource(ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
 	rs.markParentRequestDone(rr, lifecycleRequest(t, "master_data", "42", `{}`))
 
@@ -116,7 +119,8 @@ func TestMarkParentRequestDone_MasterDataIsNeverPast(t *testing.T) {
 func TestMarkParentRequestDone_RejectsUnknownKind(t *testing.T) {
 	t.Parallel()
 
-	rs := NewResource(ResourceConfig{ExcusedRequestService: &lifecycleExcusedFake{}})
+	rs := NewResource(ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: &lifecycleExcusedFake{}})
 	rr := httptest.NewRecorder()
 	rs.markParentRequestDone(rr, lifecycleRequest(t, "invented", "42", `{}`))
 
@@ -138,7 +142,8 @@ func TestMarkParentRequestDone_MapsLifecycleSentinels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fake := &lifecycleExcusedFake{markDoneErr: tc.err}
-			rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
+			rs := NewResource(ResourceConfig{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: fake})
 			rr := httptest.NewRecorder()
 			rs.markParentRequestDone(rr, lifecycleRequest(t, "excused", "42", `{}`))
 			assert.Equal(t, tc.want, rr.Code)
@@ -151,7 +156,8 @@ func TestCorrectParentRequestDecision_ForwardsTheVerdict(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
+	rs := NewResource(ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
 	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7",
 		`{"approve":false,"reason":"Falsch entschieden","expected_version":"v2"}`))
@@ -168,7 +174,8 @@ func TestCorrectParentRequestDecision_RequiresAVerdict(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
+	rs := NewResource(ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
 	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7", `{"reason":"x"}`))
 
@@ -184,7 +191,8 @@ func TestCorrectParentRequestDecision_UnsupportedKindsNameTheReason(t *testing.T
 	for _, kind := range []string{"offering"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
-			rs := NewResource(ResourceConfig{ExcusedRequestService: &lifecycleExcusedFake{}})
+			rs := NewResource(ResourceConfig{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: &lifecycleExcusedFake{}})
 			rr := httptest.NewRecorder()
 			rs.correctParentRequestDecision(rr, lifecycleRequest(t, kind, "7", `{"approve":true}`))
 
@@ -203,7 +211,8 @@ func TestCorrectParentRequestDecision_MapsNotDecided(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{correctErr: parentrequests.ErrNotDecided}
-	rs := NewResource(ResourceConfig{ExcusedRequestService: fake})
+	rs := NewResource(ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
 	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7", `{"approve":true}`))
 

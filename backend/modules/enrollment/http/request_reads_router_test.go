@@ -21,6 +21,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -92,8 +93,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requests, nil, nil, decisions, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
-		nativeUploads.UploadFiles{},
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 	return &unreadEnv{
 		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
 		tenantID: tenantID, phaseID: phase.ID, repos: repos, requests: requests,

@@ -13,6 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -29,7 +30,8 @@ func (s *bulkServiceStub) BulkApprove(_ context.Context, input parentrequests.Bu
 func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 	t.Parallel()
 	svc := &bulkServiceStub{}
-	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestBulkService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentRequestBulkService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"12","expected_version":"v1"},{"kind":"excused","id":"13","expected_version":"v2"}],"reason":"Geprüft"}`))
 	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
@@ -50,7 +52,8 @@ func TestBulkApproveParentRequestsForwardsCompleteSelection(t *testing.T) {
 func TestBulkApproveParentRequestsReturnsConflictAndMarksRollback(t *testing.T) {
 	t.Parallel()
 	svc := &bulkServiceStub{err: parentrequests.ErrStale}
-	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestBulkService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentRequestBulkService: svc}}
 	ctx := tenant.WithRollbackMarker(context.WithValue(t.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, []string{"users:update"})
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"12","expected_version":"v1"},{"kind":"excused","id":"13","expected_version":"v2"}],"reason":"Geprüft"}`)).WithContext(ctx)
@@ -65,7 +68,8 @@ func TestBulkApproveParentRequestsReturnsConflictAndMarksRollback(t *testing.T) 
 func TestBulkApproveParentRequestsRejectsMalformedID(t *testing.T) {
 	t.Parallel()
 	svc := &bulkServiceStub{err: errors.New("must not be called")}
-	rs := &Resource{ResourceConfig: ResourceConfig{ParentRequestBulkService: svc}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, ParentRequestBulkService: svc}}
 	req := httptest.NewRequest(http.MethodPost, "/students/change-requests/bulk-approve", strings.NewReader(`{"requests":[{"kind":"master_data","id":"no","expected_version":"v1"}],"reason":"Geprüft"}`))
 	w := httptest.NewRecorder()
 

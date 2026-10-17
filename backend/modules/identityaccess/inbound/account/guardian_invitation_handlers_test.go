@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 
@@ -19,7 +20,7 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	t.Helper()
 
 	db, authRoute := setupAuthDependenciesRoute(t)
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
