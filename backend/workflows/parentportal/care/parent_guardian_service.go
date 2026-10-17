@@ -7,8 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"unicode/utf8"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Field length bounds for guardian contact edits. Generous but finite so a
@@ -288,12 +286,12 @@ func validateRelationshipInput(input *GuardianRelationshipInput) error {
 	return nil
 }
 
-func validateCreateGuardianContactInput(input *CreateGuardianContactInput) error {
+func validateCreateGuardianContactInput(input *CreateGuardianContactInput, validRelationship func(string) bool) error {
 	if err := validateContactInput(&input.Contact); err != nil {
 		return err
 	}
 	input.RelationshipType = strings.ToLower(strings.TrimSpace(input.RelationshipType))
-	if !usersModels.IsValidRelationshipType(input.RelationshipType) {
+	if !validRelationship(input.RelationshipType) {
 		return fmt.Errorf("%w: invalid relationship type", ErrGuardianRelationshipInvalid)
 	}
 	return validateRelationshipInput(&GuardianRelationshipInput{PickupNotes: input.PickupNotes})

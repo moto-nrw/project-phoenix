@@ -300,7 +300,7 @@ func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale
 		}
 	}
 	if updated == 0 {
-		return ErrGuardianProfileNotFound
+		return s.GuardianPolicy.MissingProfileError()
 	}
 	return nil
 }

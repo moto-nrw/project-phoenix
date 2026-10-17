@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
@@ -10,40 +11,42 @@ import (
 // BindParentGuardianProfiles binds the workflow's own snapshot callbacks to
 // People Directory's public, complete-profile facet.
 func BindParentGuardianProfiles(source peopledirectory.GuardianProfileReads) parentportal.GuardianProfiles {
-	c := parentportal.GuardianProfileReadCallbacks{LockByIDForUpdate: func(ctx context.Context, id int64) error { return source.LockGuardianProfile(ctx, id) }}
+	c := parentportal.GuardianProfileReadCallbacks{LockByIDForUpdate: func(ctx context.Context, id int64) error {
+		return parentGuardianProfileError(source.LockGuardianProfile(ctx, id))
+	}}
 	c.FindByID = func(ctx context.Context, id int64) (*parentportal.GuardianProfile, error) {
 		value, err := source.GuardianProfileByID(ctx, id)
-		return parentGuardianProfile(value), err
+		return parentGuardianProfile(value), parentGuardianProfileError(err)
 	}
 	c.FindByIDs = func(ctx context.Context, ids []int64) (map[int64]*parentportal.GuardianProfile, error) {
 		value, err := source.GuardianProfilesByIDs(ctx, ids)
 		if value == nil {
-			return nil, err
+			return nil, parentGuardianProfileError(err)
 		}
 		result := make(map[int64]*parentportal.GuardianProfile, len(value))
 		for id, row := range value {
 			result[id] = parentGuardianProfile(row)
 		}
-		return result, err
+		return result, parentGuardianProfileError(err)
 	}
 	c.FindByEmail = func(ctx context.Context, email string) (*parentportal.GuardianProfile, error) {
 		value, err := source.GuardianProfileByEmail(ctx, email)
-		return parentGuardianProfile(value), err
+		return parentGuardianProfile(value), parentGuardianProfileError(err)
 	}
 	c.FindByAccountID = func(ctx context.Context, id int64) (*parentportal.GuardianProfile, error) {
 		value, err := source.GuardianProfileByAccount(ctx, id)
-		return parentGuardianProfile(value), err
+		return parentGuardianProfile(value), parentGuardianProfileError(err)
 	}
 	c.FindActivePortalProfilesByIDs = func(ctx context.Context, ids []int64) (map[int64]*parentportal.GuardianProfile, error) {
 		value, err := source.ActiveGuardianPortalProfiles(ctx, ids)
 		if value == nil {
-			return nil, err
+			return nil, parentGuardianProfileError(err)
 		}
 		result := make(map[int64]*parentportal.GuardianProfile, len(value))
 		for id, row := range value {
 			result[id] = parentGuardianProfile(row)
 		}
-		return result, err
+		return result, parentGuardianProfileError(err)
 	}
 	c.Normalize = func(value *parentportal.GuardianProfile) error {
 		row := directoryGuardianProfile(value)
@@ -88,4 +91,11 @@ func directoryGuardianProfile(value *parentportal.GuardianProfile) *peopledirect
 // NewParentGuardianProfileReads constructs the owner facade over retained reads.
 func NewParentGuardianProfileReads(source peopledirectory.GuardianProfileReads) parentportal.GuardianProfiles {
 	return BindParentGuardianProfiles(source)
+}
+
+func parentGuardianProfileError(err error) error {
+	if errors.Is(err, peopledirectory.ErrGuardianProfileNotFound) {
+		return parentportal.WithGuardianProfileMissingCause(err)
+	}
+	return err
 }

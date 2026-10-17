@@ -2,6 +2,7 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -194,13 +195,15 @@ func (s *Service) createRequestShare(ctx context.Context, accountID, studentID i
 	// The ledger records WHETHER a request was shared and with how many
 	// co-guardians. The recipient account ids stay in the share event itself,
 	// which is the row the visibility rules read.
+	// The count is an integer, so this typed JSON object cannot fail encoding.
+	payload, _ := json.Marshal(map[string]int{"recipient_count": len(recipients)})
 	return care.RecordRequestEvent(ctx, s.ParentRequestEvents, care.RequestLedgerEntry{
 		StudentID:      studentID,
 		RequestType:    requestType,
 		RequestID:      requestID,
 		EventType:      userModels.ParentRequestEventShared,
 		ActorAccountID: accountID,
-		Payload:        map[string]any{"recipient_count": len(recipients)},
+		Payload:        payload,
 	})
 }
 
@@ -282,7 +285,7 @@ func (s *Service) shareRecipients(
 	if err != nil {
 		return nil, nil, err
 	}
-	profiles := portalGuardianProfileIDs(links, s.GuardianPolicy.PermissionGranted)
+	profiles := portalGuardianProfileIDs(links, s.GuardianPolicy.PermissionGrantedJSON)
 	profileRows, err := s.GuardianProfileRepo.FindActivePortalProfilesByIDs(ctx, profiles)
 	if err != nil {
 		return nil, nil, err
@@ -299,10 +302,10 @@ func (s *Service) shareRecipients(
 	return recipients, accountIDs, nil
 }
 
-func portalGuardianProfileIDs(links []*userModels.StudentGuardian, granted func(any) bool) []int64 {
+func portalGuardianProfileIDs(links []*care.GuardianRelationship, granted func(json.RawMessage, string) bool) []int64 {
 	profiles := make([]int64, 0, len(links))
 	for _, link := range links {
-		if link != nil && granted(link.Permissions[care.GuardianPermissionPortalAccess]) {
+		if link != nil && granted(link.Permissions, care.GuardianPermissionPortalAccess) {
 			profiles = append(profiles, link.GuardianProfileID)
 		}
 	}

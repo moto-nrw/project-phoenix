@@ -34,7 +34,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -55,6 +55,8 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 		},
 		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:         slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return careTestService{Portal: svc}, db
 }

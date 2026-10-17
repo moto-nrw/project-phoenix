@@ -78,7 +78,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -93,6 +93,8 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 		Settings:        settings,
 		ExcusedRequests: repos.ExcusedRequests,
 		Logger:          slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
 	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
@@ -233,7 +235,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -245,6 +247,8 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
 		Settings:        disabledSettings{},
 		Logger:          slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CareExceptions),
 	})
 	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc}).Router(api.ParentSessionChain))
 }

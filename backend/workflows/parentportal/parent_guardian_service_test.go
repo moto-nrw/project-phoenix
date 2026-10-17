@@ -35,7 +35,7 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -51,10 +51,12 @@ func buildGuardianServiceFeature(t *testing.T, mgmtEnabled bool) (*parentService
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: repos.StudentGuardian,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return svc, db
 }
@@ -1432,7 +1434,7 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 	lookupErr := fmt.Errorf("simulated guardian email lookup failure")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -1448,10 +1450,12 @@ func TestUpdateGuardianContact_PropagatesEmailLookupError(t *testing.T) {
 		},
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
-		StudentGuardianRepo: repos.StudentGuardian,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		GuardianProfileRepo: newEmailLookupFailingGuardianRepo(api.NewParentGuardianProfileReads(repos.GuardianProfile), lookupErr),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

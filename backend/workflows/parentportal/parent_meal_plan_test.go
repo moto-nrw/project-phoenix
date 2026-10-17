@@ -47,7 +47,7 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -63,6 +63,8 @@ func buildMealPlanService(t *testing.T, db *bun.DB, settings parentSettingsStub,
 		StudentUpdates:  api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:          slog.Default(),
 		Now:             func() time.Time { return time.Date(2026, 8, 24, 12, 0, 0, 0, calendar.Berlin) },
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 }
 

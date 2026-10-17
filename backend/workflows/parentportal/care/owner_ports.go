@@ -199,6 +199,6 @@ type StudentRecords interface {
 // StudentDataRequestCommands is the Care Plan command surface for the
 // child's Stammdaten change requests.
 type StudentDataRequestCommands interface {
-	CreateStudentDataRequest(context.Context, careplan.StudentDataChangeRequest) (careplan.StudentDataChangeRequest, error)
+	CreateStudentDataRequest(context.Context, StudentDataChangeRequest) (StudentDataChangeRequest, error)
 	UpdatePendingStudentDataRequest(context.Context, int64, json.RawMessage) error
 }

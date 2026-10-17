@@ -85,7 +85,7 @@ func newSvcWithChild(t *testing.T, child *stubChildRepo) *parentService.Portal {
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -100,7 +100,7 @@ func newSvcWithEnrollable(t *testing.T, enroll *stubEnrollableRepo) *parentServi
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -136,7 +136,7 @@ func TestService_ListEnrollableForAccount_FiltersDisabledTenantsThroughTypedSett
 	}}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -158,7 +158,7 @@ func TestService_ListEnrollableForAccount_PropagatesTypedSettingsFailure(t *test
 	want := errors.New("settings unavailable")
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -316,7 +316,7 @@ func TestNewService_NilLoggerFallsBackToDefault(t *testing.T) {
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),

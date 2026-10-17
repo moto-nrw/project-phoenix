@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // UpdateGuardianRelationship edits the per-child pickup/relationship fields of a
@@ -144,7 +142,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 }
 
 // refuseRelationshipEdit applies the eligibility of each field group.
-func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) error {
+func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents map[int64]bool) error {
 	isSelf := profile.AccountID != nil && *profile.AccountID == edit.accountID
 	if edit.editsFlags {
 		if err := refusePickupFlagEdit(profile, link); err != nil {
@@ -192,7 +190,7 @@ func (s *Service) refuseSharedContactNote(ctx context.Context, profileID int64, 
 
 // refusePickupFlagEdit guards the safety-critical can_pickup /
 // is_emergency_contact flags.
-func refusePickupFlagEdit(profile *GuardianProfile, link *usersModels.StudentGuardian) error {
+func refusePickupFlagEdit(profile *GuardianProfile, link *GuardianRelationship) error {
 	// can_pickup / is_emergency_contact grant safety-critical pickup/emergency
 	// AUTHORITY. A parent may set them only for guardians WITHOUT their own
 	// portal account (helpers like grandma). A guardian who holds their own
@@ -215,7 +213,7 @@ func refusePickupFlagEdit(profile *GuardianProfile, link *usersModels.StudentGua
 }
 
 // refusePickupNoteEdit guards another guardian's per-child pickup note.
-func refusePickupNoteEdit(profile *GuardianProfile, link *usersModels.StudentGuardian) error {
+func refusePickupNoteEdit(profile *GuardianProfile, link *GuardianRelationship) error {
 	// The per-child pickup note follows CONTACT-edit eligibility (#1667 review):
 	// a parent may edit it only for a guardian whose contact data they may also
 	// edit/see — their own profile, or an account-less helper that is not a
@@ -245,7 +243,7 @@ func refusePickupNoteEdit(profile *GuardianProfile, link *usersModels.StudentGua
 // edits the student-guardian relationship without taking it). Building the patch from
 // exactly the supplied fields makes the write-set equal the touched-set, so an
 // untouched flag is never written.
-func (s *Service) writeRelationshipEdit(ctx context.Context, link *usersModels.StudentGuardian, input GuardianRelationshipInput) error {
+func (s *Service) writeRelationshipEdit(ctx context.Context, link *GuardianRelationship, input GuardianRelationshipInput) error {
 	patch := GuardianLinkPickupPatch{LinkID: link.ID}
 	if input.CanPickup != nil {
 		link.CanPickup = *input.CanPickup
@@ -282,7 +280,7 @@ func (s *Service) writeRelationshipEdit(ctx context.Context, link *usersModels.S
 
 // projectEditedRelationship reads the phones and family reach for the response
 // and refreshes the child's live view after the commit.
-func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
+func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *GuardianProfile, link *GuardianRelationship, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
 	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, err
@@ -332,10 +330,10 @@ func (s *Service) requireGuardianManagementEnabled(ctx context.Context, tenantID
 // guardian profile) so a concurrent staff edit/delete of the relationship row
 // cannot change role, account, or existence between the authorization checks and
 // the write.
-func (s *Service) findChildGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*usersModels.StudentGuardian, error) {
+func (s *Service) findChildGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*GuardianRelationship, error) {
 	link, err := s.StudentGuardianRepo.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
-		if errors.Is(err, usersModels.ErrStudentGuardianNotFound) {
+		if errors.Is(err, ErrStudentGuardianNotFound) {
 			return nil, ErrGuardianNotLinked
 		}
 		return nil, err

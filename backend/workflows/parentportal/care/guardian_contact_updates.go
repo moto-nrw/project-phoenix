@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // UpdateGuardianContact replaces the contact data (name, email, address,
@@ -116,8 +114,8 @@ func (s *Service) updateGuardianContactInTx(ctx context.Context, child *Child, a
 // together with its relationship to the child.
 type editableGuardianContact struct {
 	profile      *GuardianProfile
-	link         *usersModels.StudentGuardian
-	profileLinks []*usersModels.StudentGuardian
+	link         *GuardianRelationship
+	profileLinks []*GuardianRelationship
 }
 
 // lockEditableGuardianContact locks the profile, then its relationship row,
@@ -176,7 +174,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 
 // profileStaysInFamily reports whether every child the profile serves belongs
 // to the caller's family.
-func profileStaysInFamily(profileLinks []*usersModels.StudentGuardian, callerStudents map[int64]bool) bool {
+func profileStaysInFamily(profileLinks []*GuardianRelationship, callerStudents map[int64]bool) bool {
 	for _, pl := range profileLinks {
 		if !callerStudents[pl.StudentID] {
 			return false
@@ -187,7 +185,7 @@ func profileStaysInFamily(profileLinks []*usersModels.StudentGuardian, callerStu
 
 // refuseContactEdit applies the contact-edit eligibility: only contact-only
 // helpers or the caller's own profile are editable.
-func refuseContactEdit(profile *GuardianProfile, link *usersModels.StudentGuardian, isSelf bool, fullGuardianRole func(string) bool) error {
+func refuseContactEdit(profile *GuardianProfile, link *GuardianRelationship, isSelf bool, fullGuardianRole func(string) bool) error {
 	// Editing another account holder's personal data is forbidden — the UI is
 	// not the boundary, the backend is. "Account holder" is derived from
 	// has_account OR account_id (HasPortalAccount): isSelf already keys off
@@ -216,7 +214,7 @@ func refuseContactEdit(profile *GuardianProfile, link *usersModels.StudentGuardi
 
 // broadcastProfileChildrenAfterCommit refreshes the live view of every child
 // the edited profile serves, once the edit has committed.
-func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenantID int64, profileLinks []*usersModels.StudentGuardian) {
+func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenantID int64, profileLinks []*GuardianRelationship) {
 	affectedStudents := make([]int64, 0, len(profileLinks))
 	for _, pl := range profileLinks {
 		affectedStudents = append(affectedStudents, pl.StudentID)
@@ -230,7 +228,7 @@ func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenan
 
 // guardianContactLink is the relationship as People Directory stores it. The
 // permissions travel as their stored JSON object.
-func guardianContactLink(link *usersModels.StudentGuardian) (GuardianContactLink, error) {
+func guardianContactLink(link *GuardianRelationship) (GuardianContactLink, error) {
 	var permissions json.RawMessage
 	if link.Permissions != nil {
 		encoded, err := json.Marshal(link.Permissions)

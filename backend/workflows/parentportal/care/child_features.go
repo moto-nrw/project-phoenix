@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -126,7 +125,7 @@ func (s *Service) hasOpenMasterDataRequest(txCtx context.Context, visibility Req
 	if s.ChangeRequestRepo == nil {
 		return false
 	}
-	pending, err := s.ChangeRequestRepo.ListByStudent(txCtx, studentID, []string{usersModels.DataChangeStatusPending}, 0)
+	pending, err := s.ChangeRequestRepo.ListByStudent(txCtx, studentID, []string{DataChangeStatusPending}, 0)
 	if err != nil {
 		s.Logger.Warn("parent: pending master-data check failed",
 			slog.Int64("student_id", studentID),

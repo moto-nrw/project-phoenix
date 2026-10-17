@@ -29,7 +29,7 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.ParentGuardianPolicy{},
+		GuardianPolicy: api.NewParentGuardianPolicy(),
 
 		Runtime:        api.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
@@ -41,6 +41,8 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},
+
+		DeparturePolicy: api.ParentDeparturePolicy(),
 	}), db
 }
 
@@ -60,7 +62,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 		nil, pickupStudents, slog.Default())
 	require.NoError(t, err)
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.ParentGuardianPolicy{},
+		GuardianPolicy: api.NewParentGuardianPolicy(),
 
 		Runtime:          api.ParentPortalRuntime{},
 		RequestSharing:   unconfiguredRequestSharer{},
@@ -74,6 +76,8 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
 		},
+
+		DeparturePolicy: api.ParentDeparturePolicy(),
 	}), db
 }
 

@@ -1,10 +1,15 @@
 package api
 
 import (
+	"bytes"
+	"encoding/json"
+
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // ParentGuardianPolicy binds the workflow to Security's canonical guardian rules.
@@ -44,4 +49,39 @@ func BindParentStudentUpdates(broadcaster realtime.Broadcaster) interface{ Stude
 // ParentDeclarationPolicy binds the workflow port to Communication's value policy.
 func ParentDeclarationPolicy() communication.DeclarationPolicy {
 	return communication.DeclarationPolicy{}
+}
+
+// NewParentGuardianPolicy binds canonical role, relationship and permission
+// policies without leaking the directory model into the workflow.
+func NewParentGuardianPolicy() parentportal.GuardianPolicy {
+	return parentportal.NewGuardianPolicy(ParentGuardianPolicy{}, parentportal.GuardianPolicyCallbacks{
+		RelationshipTypeValid: peopledirectory.GuardianRelationshipTypeValid,
+		NormalizeRelationship: func(value *parentportal.GuardianRelationship) error {
+			row := directoryGuardianRelationship(value)
+			err := peopledirectory.NormalizeGuardianRelationship(row)
+			value.RelationshipType, value.GuardianRole, value.Permissions = row.RelationshipType, row.GuardianRole, row.Permissions
+			return err
+		},
+		PermissionGrantedJSON: parentGuardianPermissionJSON,
+		MissingProfileError: func() error {
+			return parentportal.WithGuardianProfileMissingCause(peopledirectory.ErrGuardianProfileNotFound)
+		},
+	})
+}
+func parentGuardianPermissionJSON(raw json.RawMessage, permission string) bool {
+	var values map[string]json.RawMessage
+	if json.Unmarshal(raw, &values) != nil {
+		return false
+	}
+	value, exists := values[permission]
+	if !exists {
+		return false
+	}
+	decoder := json.NewDecoder(bytes.NewReader(value))
+	decoder.UseNumber()
+	var stored any
+	if decoder.Decode(&stored) != nil {
+		return false
+	}
+	return securityruntime.GuardianPermissionGranted(stored)
 }

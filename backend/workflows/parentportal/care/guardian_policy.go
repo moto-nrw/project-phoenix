@@ -1,6 +1,6 @@
 package care
 
-import usersModels "github.com/moto-nrw/project-phoenix/models/users"
+import "encoding/json"
 
 // GuardianPolicy is the workflow's boundary to the canonical relationship
 // role presets and stored permission-value semantics. Membership is not a grant.
@@ -8,6 +8,10 @@ type GuardianPolicy interface {
 	IsFullRole(string) bool
 	PermissionGranted(any) bool
 	DefaultRole(relationship string, primary, emergency, pickup bool) (string, []string)
+	RelationshipTypeValid(string) bool
+	NormalizeRelationship(*GuardianRelationship) error
+	PermissionGrantedJSON(json.RawMessage, string) bool
+	MissingProfileError() error
 }
 
 // Relationship permission names are the workflow's action protocol, not grants.
@@ -28,24 +32,25 @@ const (
 	GuardianRoleSocialWorker                  = "social_worker"
 )
 
-func (s *Service) applyDefaultGuardianRole(link *usersModels.StudentGuardian) {
+func (s *Service) applyDefaultGuardianRole(link *GuardianRelationship) {
 	if link == nil {
 		return
 	}
-	relationship, _, primary, emergency, pickup, _ := link.GuardianAuthorizationData()
-	role, granted := s.GuardianPolicy.DefaultRole(relationship, primary, emergency, pickup)
-	permissions := make(map[string]interface{}, len(granted))
+	role, granted := s.GuardianPolicy.DefaultRole(link.RelationshipType, link.IsPrimary, link.IsEmergencyContact, link.CanPickup)
+	permissions := make(map[string]bool, len(granted))
 	for _, permission := range granted {
 		permissions[permission] = true
 	}
-	link.SetGuardianAuthorizationData(role, permissions)
+	link.GuardianRole = role
+	link.Permissions, _ = json.Marshal(permissions)
 }
-
-func (s *Service) guardianHasPermission(link *usersModels.StudentGuardian, permission string) bool {
+func (s *Service) guardianHasPermission(link *GuardianRelationship, permission string) bool {
 	if link == nil {
 		return false
 	}
-	_, _, _, _, _, permissions := link.GuardianAuthorizationData()
-	value, exists := permissions[permission]
-	return exists && s.GuardianPolicy.PermissionGranted(value)
+	// The retained authorization getter materializes a nil permission object.
+	if link.Permissions == nil {
+		link.Permissions = json.RawMessage(`{}`)
+	}
+	return s.GuardianPolicy.PermissionGrantedJSON(link.Permissions, permission)
 }

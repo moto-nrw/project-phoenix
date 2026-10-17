@@ -53,7 +53,7 @@ type PeopleRepositorySuiteFactory struct {
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
 	FamilyProtection      usersModels.FamilyProtectionEventRepository
 	ParentRequestShare    usersModels.ParentRequestShareEventRepository
-	ParentRequestEvent    usersModels.ParentRequestEventRepository
+	ParentRequestEvent    peoplePorts.ParentRequestEventRecords
 	GroupSubstitution     GroupSubstitutionRepository
 	CaregiverBindingLock  peoplePorts.CaregiverBindingLocker
 	// RFIDCard and Profile are the Identity & Access cards and account

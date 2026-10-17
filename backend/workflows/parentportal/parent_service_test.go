@@ -56,7 +56,7 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:       api.ParentDeparturePolicy(),
-		GuardianPolicy:        api.ParentGuardianPolicy{},
+		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},
 		Declarations:          api.ParentDeclarationPolicy(),
 		Locales:               api.ParentPortalLocales(),
@@ -125,7 +125,7 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:       api.ParentDeparturePolicy(),
-		GuardianPolicy:        api.ParentGuardianPolicy{},
+		GuardianPolicy:        api.NewParentGuardianPolicy(),
 		Fingerprints:          api.SecurityFingerprints{},
 		Declarations:          api.ParentDeclarationPolicy(),
 		Locales:               api.ParentPortalLocales(),
@@ -270,7 +270,7 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -394,7 +394,7 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -435,7 +435,7 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	repo := &stubGuardianProfileRepo{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -482,7 +482,7 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),

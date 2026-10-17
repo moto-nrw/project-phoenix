@@ -7,8 +7,6 @@ import (
 	"net/mail"
 	"strings"
 	"time"
-
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // Sentinel errors mapped to stable HTTP codes by the parent handlers.
@@ -105,7 +103,7 @@ func (s *Service) ListRelatedAccounts(ctx context.Context, accountID, studentID 
 
 // relatedAccountForLink projects one guardian link into a RelatedAccount. It
 // returns nil when the link's guardian profile no longer exists.
-func (s *Service) relatedAccountForLink(txCtx context.Context, link *userModels.StudentGuardian, accountID, studentID int64) (*RelatedAccount, error) {
+func (s *Service) relatedAccountForLink(txCtx context.Context, link *GuardianRelationship, accountID, studentID int64) (*RelatedAccount, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(txCtx, link.GuardianProfileID)
 	if err != nil {
 		return nil, err
@@ -155,7 +153,7 @@ type GuardianInvitationReads interface {
 	ListByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitationRecord, error)
 }
 
-func (s *Service) relatedAccountStatus(ctx context.Context, profile *GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
+func (s *Service) relatedAccountStatus(ctx context.Context, profile *GuardianProfile, link *GuardianRelationship, studentID int64) RelatedAccountStatus {
 	hasAccess := s.guardianHasPermission(link, GuardianPermissionPortalAccess)
 	if profile.HasAccount && hasAccess {
 		return RelatedAccountActive

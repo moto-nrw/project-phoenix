@@ -31,16 +31,16 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 		Status: parentportal.DataChangeStatusPending,
 	}
 	request.TenantID = author.TenantID
-	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
+	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		GuardianPolicy: api.ParentGuardianPolicy{},
+		GuardianPolicy: api.NewParentGuardianPolicy(),
 		Fingerprints:   api.SecurityFingerprints{},
 		Declarations:   api.ParentDeclarationPolicy(),
 		Runtime:        api.ParentPortalRuntime{},
 		Children:       childResolver(db, repos),
 		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
-		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: api.NewParentStudentReads(repos.Student),
-		ChangeRequestRepo:      repos.StudentDataChangeRequest,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
+		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
 		Logger: slog.Default(),
 	})

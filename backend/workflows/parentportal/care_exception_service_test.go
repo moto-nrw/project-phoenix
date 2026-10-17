@@ -97,7 +97,7 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -118,6 +118,8 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return careTestService{Portal: svc}, db
 }
@@ -135,7 +137,7 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -156,6 +158,8 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return careTestService{Portal: svc}, bc, db
 }
@@ -837,7 +841,7 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -855,6 +859,8 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:         slog.Default(),
 		Now:            careFixtureNow,
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))

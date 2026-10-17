@@ -38,7 +38,7 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 	} {
 		svc := parentportalcompose.New(parentportalcompose.Dependencies{
 			DeparturePolicy: api.ParentDeparturePolicy(),
-			GuardianPolicy:  api.ParentGuardianPolicy{},
+			GuardianPolicy:  api.NewParentGuardianPolicy(),
 			Fingerprints:    api.SecurityFingerprints{},
 			Declarations:    api.ParentDeclarationPolicy(),
 			Locales:         api.ParentPortalLocales(),
@@ -58,6 +58,8 @@ func TestChildFeaturesReasonRequiredFollowsPolicy(t *testing.T) {
 			},
 			MealPlan: availableMealPlan(false),
 			Logger:   slog.Default(),
+
+			DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 		})
 
 		flags, err := svc.ChildFeatures(ctx, chain.AccountID, chain.StudentID)

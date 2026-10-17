@@ -44,7 +44,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -57,11 +57,13 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          api.NewParentPersonReads(repos.Person),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
 		StudentAudit:        api.NewParentStudentAudit(api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db)))),
 		Settings:            masterDataSettings(editEnabled, false, true),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return svc, db
 }
@@ -111,7 +113,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -124,10 +126,12 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          api.NewParentPersonReads(repos.Person),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            masterDataSettings(true, false, false),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
@@ -156,7 +160,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
