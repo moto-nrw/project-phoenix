@@ -101,7 +101,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 
 	router := chi.NewRouter()
 	router.Use(testpkg.TenantRuntimeMiddleware(t, db))
-	router.Mount("/staff", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGates())))
+	router.Mount("/staff", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache))))
 
 	return &testContext{
 		db:       db,
