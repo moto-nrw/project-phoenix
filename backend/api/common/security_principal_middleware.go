@@ -7,26 +7,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
-
-type AuthorizationEvent struct {
-	Outcome string
-	Reason  string
-	Elapsed time.Duration
-}
-
-type AuthorizationObserver func(AuthorizationEvent)
-
-type authorizationObserverContextKey struct{}
-
-func AuthorizationObserverMiddleware(observer AuthorizationObserver) Middleware {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			ctx := context.WithValue(r.Context(), authorizationObserverContextKey{}, observer)
-			next.ServeHTTP(w, r.WithContext(ctx))
-		})
-	}
-}
 
 // SecurityPrincipalMiddleware translates authenticated JWT claims into the
 // security contract consumed below the inbound adapter. JWT parsing remains in
@@ -46,12 +28,12 @@ func SecurityPrincipalMiddleware(next http.Handler) http.Handler {
 			FamilyID:       claims.FamilyID,
 		})
 		if err != nil {
-			observeAuthorization(r.Context(), AuthorizationEvent{Outcome: "invalid", Reason: "invalid_principal", Elapsed: time.Since(started)})
+			securityruntime.ObserveAuthorization(r.Context(), securityruntime.AuthorizationEvent{Outcome: "invalid", Reason: "invalid_principal", Elapsed: time.Since(started)})
 			RenderError(w, r, ErrorUnauthorized(permissions.ErrPrincipalRequired))
 			return
 		}
 
-		observeAuthorization(r.Context(), AuthorizationEvent{Outcome: "resolved", Elapsed: time.Since(started)})
+		securityruntime.ObserveAuthorization(r.Context(), securityruntime.AuthorizationEvent{Outcome: "resolved", Elapsed: time.Since(started)})
 		ctx := permissions.WithPrincipal(r.Context(), principal)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
@@ -113,23 +95,16 @@ func requirePermissions(allowed func(permissions.Principal) bool) Middleware {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			principal, err := permissions.PrincipalFromContext(r.Context())
 			if err != nil {
-				observeAuthorization(r.Context(), AuthorizationEvent{Reason: "missing_principal"})
+				securityruntime.ObserveAuthorization(r.Context(), securityruntime.AuthorizationEvent{Reason: "missing_principal"})
 				RenderError(w, r, ErrorUnauthorized(permissions.ErrPrincipalRequired))
 				return
 			}
 			if !allowed(principal) {
-				observeAuthorization(r.Context(), AuthorizationEvent{Reason: "permission_denied"})
+				securityruntime.ObserveAuthorization(r.Context(), securityruntime.AuthorizationEvent{Reason: "permission_denied"})
 				RenderError(w, r, AuthorizationForbidden())
 				return
 			}
 			next.ServeHTTP(w, r)
 		})
-	}
-}
-
-func observeAuthorization(ctx context.Context, event AuthorizationEvent) {
-	observer, _ := ctx.Value(authorizationObserverContextKey{}).(AuthorizationObserver)
-	if observer != nil {
-		observer(event)
 	}
 }
