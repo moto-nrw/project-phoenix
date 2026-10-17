@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"strings"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
 
 	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
@@ -110,6 +111,7 @@ func newStaffAdminResource(capabilities WorkforceAdminCapabilities, schedules wo
 		panic(err)
 	}
 	return timeTrackingHTTP.NewStaffAdminResource(timeTrackingHTTP.StaffAdminDependencies{
+		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,

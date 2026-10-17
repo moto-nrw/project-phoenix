@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -119,29 +120,6 @@ func TestValidateFilename(t *testing.T) {
 	assert.Error(t, ValidateFilename(""))
 	assert.Error(t, ValidateFilename(".."))
 	assert.Error(t, ValidateFilename("../etc/passwd"))
-}
-
-func TestResolveStoredPath_Valid(t *testing.T) {
-	t.Parallel()
-
-	path, err := ResolveStoredPath("public", "/uploads/avatars/global/test.jpg", "/uploads/avatars/")
-	assert.NoError(t, err)
-	assert.NotEmpty(t, path)
-}
-
-func TestResolveStoredPath_InvalidPrefix(t *testing.T) {
-	t.Parallel()
-
-	_, err := ResolveStoredPath("public", "/uploads/not-avatars/test.jpg", "/uploads/avatars/")
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid path")
-}
-
-func TestResolveStoredPath_Traversal(t *testing.T) {
-	t.Parallel()
-
-	_, err := ResolveStoredPath("public", "/uploads/avatars/../../etc/passwd", "/uploads/avatars/")
-	assert.Error(t, err)
 }
 
 func TestCloseFile_Success(t *testing.T) {
@@ -356,7 +334,7 @@ func TestSaveImage_CreatesFileWithCorrectExtension(t *testing.T) {
 	dir := t.TempDir()
 	content := bytes.NewReader([]byte("fake image data"))
 
-	path, err := SaveImage(content, dir, "avatar", "image/jpeg")
+	path, err := SaveImage(content, dir, "avatar", "image/jpeg", nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 
 	assert.True(t, strings.HasSuffix(path, ".jpg"), "expected .jpg extension, got %s", path)
@@ -370,10 +348,10 @@ func TestSaveImage_GeneratesUniqueFilenames(t *testing.T) {
 
 	dir := t.TempDir()
 
-	path1, err := SaveImage(bytes.NewReader([]byte("data1")), dir, "img", "image/png")
+	path1, err := SaveImage(bytes.NewReader([]byte("data1")), dir, "img", "image/png", nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 
-	path2, err := SaveImage(bytes.NewReader([]byte("data2")), dir, "img", "image/png")
+	path2, err := SaveImage(bytes.NewReader([]byte("data2")), dir, "img", "image/png", nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 
 	assert.NotEqual(t, path1, path2)
@@ -385,7 +363,7 @@ func TestSaveImage_UnknownContentType(t *testing.T) {
 	dir := t.TempDir()
 	content := bytes.NewReader([]byte("pdf content"))
 
-	path, err := SaveImage(content, dir, "doc", "application/pdf")
+	path, err := SaveImage(content, dir, "doc", "application/pdf", nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 
 	// No extension for unknown content type
@@ -402,7 +380,7 @@ func TestSavePDF_CreatesFileWithPDFExtension(t *testing.T) {
 	dir := t.TempDir()
 	content := makePDFBytes()
 
-	path, err := SavePDF(bytes.NewReader(content), dir, "agb")
+	path, err := SavePDF(bytes.NewReader(content), dir, "agb", nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 
 	assert.True(t, strings.HasSuffix(path, ".pdf"), "expected .pdf extension, got %s", path)
@@ -417,7 +395,7 @@ func TestSavePrivateNamedFile_UsesOwnerOnlyPermissions(t *testing.T) {
 	t.Parallel()
 
 	dir := filepath.Join(t.TempDir(), "staff-documents")
-	path, err := SavePrivateNamedFile(bytes.NewReader([]byte("sensitive")), dir, "document.pdf")
+	path, err := SavePrivateNamedFile(bytes.NewReader([]byte("sensitive")), dir, "document.pdf", nativeUploads.UploadFiles{})
 	require.NoError(t, err)
 
 	dirInfo, err := os.Stat(dir)
@@ -438,7 +416,7 @@ func TestServeImage_ValidFile(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/images/test.jpg", nil)
 	w := httptest.NewRecorder()
 
-	ServeImage(w, req, dir, "test.jpg", "public, max-age=86400")
+	ServeImage(w, req, dir, "test.jpg", "public, max-age=86400", nativeUploads.UploadFiles{})
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -453,7 +431,7 @@ func TestServeImage_PathTraversal(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/images/../../../etc/passwd", nil)
 	w := httptest.NewRecorder()
 
-	ServeImage(w, req, dir, "../../../etc/passwd", "public, max-age=86400")
+	ServeImage(w, req, dir, "../../../etc/passwd", "public, max-age=86400", nativeUploads.UploadFiles{})
 
 	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
 }
@@ -468,7 +446,7 @@ func TestServeFile_ValidPDF(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/documents/terms.pdf", nil)
 	w := httptest.NewRecorder()
 
-	ServeFile(w, req, dir, "terms.pdf", "public, max-age=3600")
+	ServeFile(w, req, dir, "terms.pdf", "public, max-age=3600", nativeUploads.UploadFiles{})
 
 	resp := w.Result()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
@@ -484,7 +462,7 @@ func TestServeFile_PathTraversal(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/documents/../../../etc/passwd", nil)
 	w := httptest.NewRecorder()
 
-	ServeFile(w, req, dir, "../../../etc/passwd", "public, max-age=3600")
+	ServeFile(w, req, dir, "../../../etc/passwd", "public, max-age=3600", nativeUploads.UploadFiles{})
 
 	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
 }
@@ -497,58 +475,9 @@ func TestServeImage_NonExistent(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/images/doesnotexist.jpg", nil)
 	w := httptest.NewRecorder()
 
-	ServeImage(w, req, dir, "doesnotexist.jpg", "public, max-age=86400")
+	ServeImage(w, req, dir, "doesnotexist.jpg", "public, max-age=86400", nativeUploads.UploadFiles{})
 
 	assert.Equal(t, http.StatusNotFound, w.Result().StatusCode)
-}
-
-func TestRemoveImage_ExistingFile(t *testing.T) {
-	t.Parallel()
-
-	dir := t.TempDir()
-	filePath := filepath.Join(dir, "to_delete.jpg")
-	require.NoError(t, os.WriteFile(filePath, []byte("data"), 0644))
-
-	RemoveImage(filePath)
-
-	_, err := os.Stat(filePath)
-	assert.True(t, os.IsNotExist(err), "file should be deleted")
-}
-
-func TestRemoveImage_NonExistent(t *testing.T) {
-	t.Parallel()
-
-	// Should not panic when file does not exist
-	assert.NotPanics(t, func() {
-		RemoveImage("/tmp/nonexistent_file_abc123.jpg")
-	})
-}
-
-func TestRemoveImage_EmptyPath(t *testing.T) {
-	t.Parallel()
-
-	// Should be a no-op, no panic
-	assert.NotPanics(t, func() {
-		RemoveImage("")
-	})
-}
-
-func TestPublicDirCandidates(t *testing.T) {
-	t.Parallel()
-
-	base := "/some/project/backend"
-	candidates := publicDirCandidates(base)
-
-	assert.NotEmpty(t, candidates)
-
-	// Should contain "public" and "backend/public" relative to base and parents
-	assert.Contains(t, candidates, filepath.Join(base, "public"))
-	assert.Contains(t, candidates, filepath.Join(base, "backend", "public"))
-
-	// Should also walk up to parent
-	parent := filepath.Dir(base)
-	assert.Contains(t, candidates, filepath.Join(parent, "public"))
-	assert.Contains(t, candidates, filepath.Join(parent, "backend", "public"))
 }
 
 // A refused upload carries its code (#2517); the size refusal names the limit.

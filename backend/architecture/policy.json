@@ -13082,17 +13082,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-common.http.delivery-platform-public",
-      "description": "The standing shared HTTP runtime consumes the native byte storage capability without implementation imports (ADR 0046, #2738, #3898).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "delivery-platform",
-      "target_role": "public"
-    },
-    {
       "id": "inbound-common.http.transaction-runtime-public",
       "description": "The standing shared HTTP runtime consumes driver-free database failure classification (ADR 0046, #2738, #3898).",
       "scopes": [
