@@ -9,7 +9,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/documents"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -29,20 +28,13 @@ const (
 	studentDocumentKind = "student-documents"
 )
 
-// studentDocumentCoordinator builds the storage coordinator for child
-// documents. It is constructed per request rather than stored on the Resource
-// so a bare test Resource stays usable.
-func (rs *Resource) studentDocumentCoordinator() (*apiDocuments.Coordinator, error) {
-	backend, err := common.PrivateUploadsBackend()
-	if err != nil {
-		return nil, err
+// studentDocumentCoordinator asks Root for the native byte coordinator per
+// request. Tests can supply that same binding without a production bootstrap.
+func (rs *Resource) studentDocumentCoordinator() (StudentDocumentFiles, error) {
+	if rs.DocumentStorage == nil {
+		return nil, errors.New("student document storage is not configured")
 	}
-	return &apiDocuments.Coordinator{
-		Kind:    studentDocumentKind,
-		Backend: backend,
-		Store:   rs.StudentDocumentService,
-		Logger:  rs.getLogger(),
-	}, nil
+	return rs.DocumentStorage(studentDocumentKind, rs.StudentDocumentService, rs.getLogger())
 }
 
 // studentDocumentActor builds the service actor from the JWT: account id for
@@ -238,7 +230,7 @@ type studentDocumentUpload struct {
 	studentID   int64
 	actor       careplan.StudentDocumentActor
 	tenantID    int64
-	coordinator *apiDocuments.Coordinator
+	coordinator StudentDocumentFiles
 	uploaded    *common.UploadedFile
 	category    string
 	storedName  string
@@ -294,7 +286,7 @@ func (rs *Resource) queueStudentDocumentUpload(w http.ResponseWriter, r *http.Re
 		return false
 	}
 
-	storedName, err := apiDocuments.NewStoredName(common.DocumentFileExtension(upload.uploaded.ContentType))
+	storedName, err := upload.coordinator.NewStoredName(common.DocumentFileExtension(upload.uploaded.ContentType))
 	if err != nil {
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return false

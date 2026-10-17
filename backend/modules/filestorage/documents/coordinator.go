@@ -230,3 +230,6 @@ func (c *Coordinator) ReleaseFailedUpload(ctx context.Context, tenantID, ownerID
 		)
 	}
 }
+
+// NewStoredName exposes the same native filename generator on the coordinator.
+func (*Coordinator) NewStoredName(extension string) (string, error) { return NewStoredName(extension) }

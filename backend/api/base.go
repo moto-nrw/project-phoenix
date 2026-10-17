@@ -1517,6 +1517,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		StudentConsents:              svc.StudentConsents,
 		PrivacyConsents:              presence,
 		StudentDocumentService:       svc.StudentDocuments,
+		DocumentStorage:              NewStudentDocumentStorage(),
 		ListExportService:            lists.NewRenderer(),
 		Logger:                       in.logger.With("handler", "students"),
 	})
