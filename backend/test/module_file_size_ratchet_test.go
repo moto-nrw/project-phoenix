@@ -65,7 +65,6 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/timetable/timetable.go":                                                 1771,
 	"modules/workforce/http/timetracking/api.go":                                     804,
 	"modules/workforce/internal/adapters/postgres/shift_store.go":                    845,
-	"modules/workforce/internal/adapters/postgres/worksession_store.go":              1147,
 	"modules/workforce/internal/application/timetracking/work_time_month_service.go": 1767,
 	"modules/workforce/timetracking.go":                                              808,
 	"workflows/reminderdelivery/internal/application/service.go":                     864,
