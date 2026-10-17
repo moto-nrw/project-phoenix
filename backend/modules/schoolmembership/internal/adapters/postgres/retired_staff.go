@@ -46,9 +46,27 @@ func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time
 	return rows[0], true, stats, nil
 }
 
+// DeleteGroupAssignmentsByStaff explicitly deletes the group assignments of
+// the staff member's teacher records before the teachers themselves go. This
+// keeps the retention deletion log's row count accurate instead of relying on
+// the foreign-key cascade.
+func (s *Store) DeleteGroupAssignmentsByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	teachers := withTenant(db.NewSelect().Model((*teacherRow)(nil)).
+		ModelTableExpr(`users.teachers AS "teacher"`).
+		ColumnExpr(`"teacher".id`).
+		Where(`"teacher".staff_id = ?`, staffID), "teacher", tenantID)
+	query := withTenant(db.NewDelete().Model((*groupAssignmentRow)(nil)).
+		ModelTableExpr(`education.group_teacher AS "group_assignment"`).
+		Where(`"group_assignment".teacher_id IN (?)`, teachers), "group_assignment", tenantID)
+	return execDelete(ctx, query, "delete group assignments by staff")
+}
+
 // DeleteTeachersByStaff hard-deletes the teacher records of a staff member,
-// including the one the retirement soft-deleted. Their group assignments go
-// with them.
+// including the one the retirement soft-deleted.
 func (s *Store) DeleteTeachersByStaff(ctx context.Context, staffID int64) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {

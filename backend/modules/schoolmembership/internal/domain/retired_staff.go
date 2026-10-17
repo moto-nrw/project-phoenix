@@ -7,6 +7,7 @@ type RetiredStaffErasure struct {
 	StaffID          int64
 	PersonID         int64
 	Teachers         int64
+	GroupAssignments int64
 	Guests           int64
 	ClassAssignments int64
 }

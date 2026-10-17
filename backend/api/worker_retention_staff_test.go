@@ -20,8 +20,8 @@ type retiredStaff struct {
 }
 
 // staffWithRecords stages a staff member of the school with master,
-// financial and employment data, a qualification, a teacher record, a
-// document, a work session and a supervision record.
+// financial and employment data, a qualification, a teacher record with a
+// group assignment, a document, a work session and a supervision record.
 func (s retentionSuite) staffWithRecords(t *testing.T, tenantID int64, name string) retiredStaff {
 	t.Helper()
 	staff := testpkg.CreateTestStaffForTenant(t, s.admin, tenantID, name, "Personal")
@@ -37,8 +37,13 @@ func (s retentionSuite) staffWithRecords(t *testing.T, tenantID int64, name stri
 		_, err := s.admin.ExecContext(ctx, query, tenantID, staff.ID)
 		require.NoError(t, err)
 	}
+	var teacherID int64
+	require.NoError(t, s.admin.NewRaw(`SELECT id FROM users.teachers WHERE tenant_id = ? AND staff_id = ?`, tenantID, staff.ID).Scan(ctx, &teacherID))
+	educationGroup := testpkg.CreateTestEducationGroupForTenant(t, s.admin, tenantID, name+" Lehrkraftgruppe")
+	_, err := s.admin.ExecContext(ctx, `INSERT INTO education.group_teacher (tenant_id, group_id, teacher_id) VALUES (?, ?, ?)`, tenantID, educationGroup.ID, teacherID)
+	require.NoError(t, err)
 	group := testpkg.CreateTestActiveGroupForTenant(t, s.admin, tenantID)
-	_, err := s.admin.ExecContext(ctx, `INSERT INTO active.group_supervisors (tenant_id, staff_id, group_id, role, start_date)
+	_, err = s.admin.ExecContext(ctx, `INSERT INTO active.group_supervisors (tenant_id, staff_id, group_id, role, start_date)
 		VALUES (?, ?, ?, 'supervisor', DATE '2020-01-06')`, tenantID, staff.ID, group.ID)
 	require.NoError(t, err)
 	var document string
@@ -50,7 +55,7 @@ func (s retentionSuite) staffWithRecords(t *testing.T, tenantID int64, name stri
 }
 
 // stagedStaffRecords is the number of rows staffWithRecords stages.
-const stagedStaffRecords = 8
+const stagedStaffRecords = 9
 
 // retire records the exit of a staff member at noon daysAgo Berlin days back,
 // as the offboarding does when it retires the membership.
@@ -72,6 +77,7 @@ func (s retentionSuite) staffRecords(t *testing.T, staffID int64) int {
 		+ (SELECT COUNT(*) FROM users.staff_documents WHERE staff_id = ?0)
 		+ (SELECT COUNT(*) FROM users.staff_employment_profiles WHERE membership_id = ?0)
 		+ (SELECT COUNT(*) FROM users.teachers WHERE staff_id = ?0)
+		+ (SELECT COUNT(*) FROM education.group_teacher WHERE teacher_id IN (SELECT id FROM users.teachers WHERE staff_id = ?0))
 		+ (SELECT COUNT(*) FROM active.work_sessions WHERE staff_id = ?0)
 		+ (SELECT COUNT(*) FROM active.group_supervisors WHERE staff_id = ?0)`, staffID)
 }
@@ -94,10 +100,12 @@ func (s retentionSuite) staffPerson(t *testing.T, personID int64) staffPerson {
 // deleted staff member.
 type staffDeletionLog struct {
 	DeletionType     string `bun:"deletion_type"`
+	RecordsDeleted   int    `bun:"records_deleted"`
 	DeletedBy        string `bun:"deleted_by"`
 	Reason           string `bun:"deletion_reason"`
 	MasterData       int    `bun:"master_data"`
 	Documents        int    `bun:"documents"`
+	GroupTeachers    int    `bun:"group_teacher"`
 	PersonAnonymized bool   `bun:"person_anonymized"`
 }
 
@@ -105,9 +113,10 @@ func (s retentionSuite) staffDeletionLog(t *testing.T, tenantID, staffID int64) 
 	t.Helper()
 	var rows []staffDeletionLog
 	require.NoError(t, s.admin.NewRaw(`
-		SELECT deletion_type, deleted_by, deletion_reason,
+		SELECT deletion_type, records_deleted, deleted_by, deletion_reason,
 			(metadata->>'master_data')::integer AS master_data,
 			(metadata->>'documents')::integer AS documents,
+			(metadata->>'group_teacher')::integer AS group_teacher,
 			(metadata->>'person_anonymized')::boolean AS person_anonymized
 		FROM audit.data_deletions
 		WHERE tenant_id = ? AND staff_id = ? AND deletion_type = 'staff_retention'
@@ -155,8 +164,8 @@ func TestNightlyRetentionDeletesStaffAfterTheTimeTrackingWindow(t *testing.T) {
 	assert.True(t, suite.exists(t, "schedule.student_pickup_notes", note), "records of other people keep their actor")
 	assert.True(t, suite.exists(t, "audit.data_deletions", offboardingLog), "the deletion log of the staff member is kept")
 	assert.Equal(t, []staffDeletionLog{{
-		DeletionType: "staff_retention", DeletedBy: "system", Reason: "retention_expired",
-		MasterData: 1, Documents: 1, PersonAnonymized: true,
+		DeletionType: "staff_retention", RecordsDeleted: 10, DeletedBy: "system", Reason: "retention_expired",
+		MasterData: 1, Documents: 1, GroupTeachers: 1, PersonAnonymized: true,
 	}}, suite.staffDeletionLog(t, school, expired.staffID), "the deletion is logged per staff member, attributed to the system")
 	assert.Empty(t, suite.loggedDeletions(t, school, retentionStaff), "each staff member is logged on its own, not as a data kind")
 

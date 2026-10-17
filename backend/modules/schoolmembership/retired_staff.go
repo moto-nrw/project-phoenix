@@ -14,15 +14,16 @@ type RetiredStaffErasure struct {
 	StaffID          int64
 	PersonID         int64
 	Teachers         int64
+	GroupAssignments int64
 	Guests           int64
 	ClassAssignments int64
 }
 
 // EraseNextRetiredStaff erases the next staff member above afterID, in ID
 // order, who left before retiredBefore and is not erased yet: it marks the
-// tombstone erased and deletes the teacher record, the guest profile and
-// the class assignments. found is false when none is due. It joins the
-// caller's tenant transaction.
+// tombstone erased and deletes the teacher record with its group assignments,
+// the guest profile and the class assignments. found is false when none is
+// due. It joins the caller's tenant transaction.
 func (o *Offboarding) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.Time, afterID int64) (RetiredStaffErasure, bool, error) {
 	if o.eraseNext == nil {
 		return RetiredStaffErasure{}, false, errors.New("school membership: retired staff erasure is not bound")

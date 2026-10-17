@@ -72,7 +72,8 @@ type Erasure struct {
 // log entry.
 func (e Erasure) Counts() map[string]int64 {
 	counts := map[string]int64{
-		"teachers": e.Membership.Teachers, "guests": e.Membership.Guests,
+		"teachers": e.Membership.Teachers, "group_teacher": e.Membership.GroupAssignments,
+		"guests":         e.Membership.Guests,
 		"class_teachers": e.Membership.ClassAssignments, "group_supervisors": e.Supervisions,
 	}
 	for kind, count := range e.Workforce {

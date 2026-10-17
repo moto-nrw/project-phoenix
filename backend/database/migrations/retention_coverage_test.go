@@ -184,7 +184,7 @@ var tableRetentions = map[string]tableRetention{
 	"education.grade_transition_mappings":                   notPersonal("class-to-class mapping"),
 	"education.grade_transitions":                           undecided("creator account (FK NO ACTION) and free-text notes; manual delete only"),
 	"education.group_substitution":                          staffRetention("Workforce SQL users.erase_retired_staff_records"),
-	"education.group_teacher":                               parent("users.teachers"),
+	"education.group_teacher":                               staffRetention("School Membership EraseNextRetiredStaff"),
 	"education.groups":                                      notPersonal("class/group catalog"),
 	"enrollment.care_offering_auto_triggers":                notPersonal("offering trigger configuration"),
 	"enrollment.care_offering_bookings":                     parent("enrollment.request_children"),

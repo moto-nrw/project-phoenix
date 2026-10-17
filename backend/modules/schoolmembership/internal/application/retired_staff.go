@@ -10,10 +10,10 @@ import (
 
 // EraseNextRetiredStaff takes the next staff member above afterID who left
 // before the cutoff (#3963): it marks the tombstone erased and deletes the
-// Membership records that still name them, the teacher record with its
-// group assignments, the guest profile and the class assignments. The
-// marking comes first and locks the tombstone, so a concurrent run never
-// takes the same staff member. found is false when none is due.
+// Membership records that still name them, the teacher record and its group
+// assignments, the guest profile and the class assignments. The marking
+// comes first and locks the tombstone, so a concurrent run never takes the
+// same staff member. found is false when none is due.
 func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.Time, afterID int64) (result domain.RetiredStaffErasure, found bool, err error) {
 	if retiredBefore.IsZero() || afterID < 0 {
 		return domain.RetiredStaffErasure{}, false, errors.New("school membership: cutoff and cursor are required")
@@ -29,6 +29,7 @@ func (s *Service) EraseNextRetiredStaff(ctx context.Context, retiredBefore time.
 			count *int64
 			run   func(context.Context, int64) (domain.OperationStats, error)
 		}{
+			{&result.GroupAssignments, s.store.DeleteGroupAssignmentsByStaff},
 			{&result.Teachers, s.store.DeleteTeachersByStaff},
 			{&result.Guests, s.store.DeleteGuestsByStaff},
 			{&result.ClassAssignments, s.store.DeleteClassAssignmentsByStaff},

@@ -116,16 +116,16 @@ func TestStaffRetentionCountsTheRecordsOfOneErasure(t *testing.T) {
 	t.Parallel()
 	erasure := staffoffboarding.Erasure{
 		StaffID:          3,
-		Membership:       schoolmembership.RetiredStaffErasure{Teachers: 1, ClassAssignments: 2},
+		Membership:       schoolmembership.RetiredStaffErasure{Teachers: 1, GroupAssignments: 2, ClassAssignments: 2},
 		Workforce:        map[string]int64{"master_data": 1, "documents": 4},
 		Supervisions:     3,
 		PersonAnonymized: true,
 	}
 
 	assert.Equal(t, map[string]int64{
-		"teachers": 1, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "master_data": 1, "documents": 4,
+		"teachers": 1, "group_teacher": 2, "guests": 0, "class_teachers": 2, "group_supervisors": 3, "master_data": 1, "documents": 4,
 	}, erasure.Counts())
-	assert.Equal(t, 12, erasure.Records(), "every deleted row and the anonymized person")
+	assert.Equal(t, 14, erasure.Records(), "every deleted row and the anonymized person")
 }
 
 func TestStaffRetentionStopsWhenTheSavepointFails(t *testing.T) {
