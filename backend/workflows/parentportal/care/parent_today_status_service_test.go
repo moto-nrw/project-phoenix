@@ -29,6 +29,8 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+
 		Runtime:        api.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      repos.ParentChildReads(),
@@ -58,6 +60,8 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 		nil, pickupStudents, slog.Default())
 	require.NoError(t, err)
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+
 		Runtime:          api.ParentPortalRuntime{},
 		RequestSharing:   unconfiguredRequestSharer{},
 		ChildRepo:        repos.ParentChildReads(),

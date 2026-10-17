@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
@@ -52,9 +51,11 @@ type MessagingGate func(context.Context, int64) bool
 
 // Config is the dependency bundle of the retained messaging portal services.
 type Config struct {
-	Runtime care.Runtime
-	Logger  *slog.Logger
-	Now     func() time.Time
+	GuardianPolicy PermissionValues
+	Fingerprints   ContentFingerprints
+	Runtime        care.Runtime
+	Logger         *slog.Logger
+	Now            func() time.Time
 
 	Children ChildResolver
 
@@ -90,10 +91,16 @@ type Service struct {
 	Config
 }
 
-// New wires the retained messaging portal services. Runtime is required.
+// New wires messaging with its required runtime, guardian policy and fingerprints.
 func New(cfg Config) *Service {
 	if cfg.Runtime == nil {
 		panic("messaging: runtime is required")
+	}
+	if cfg.GuardianPolicy == nil {
+		panic("messaging: guardian policy is required")
+	}
+	if cfg.Fingerprints == nil {
+		panic("messaging: fingerprints are required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
@@ -116,7 +123,7 @@ func (s *Service) todayDate() calendar.Date {
 }
 
 func (s *Service) resolveOwnedChild(ctx context.Context, accountID, studentID int64) (*Child, error) {
-	return s.resolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	return s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionPortalAccess)
 }
 
 func (s *Service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error) {

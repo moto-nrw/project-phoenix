@@ -34,9 +34,11 @@ func TestRequestSharingRejectsUnlinkedRecipientAndNonOwner(t *testing.T) {
 	request.SetTenantID(author.TenantID)
 	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
-		Runtime:   api.ParentPortalRuntime{},
-		Children:  childResolver(db, repos),
-		ChildRepo: repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Runtime:        api.ParentPortalRuntime{},
+		Children:       childResolver(db, repos),
+		ChildRepo:      repos.ParentChildReads(), GuardianProfileRepo: repos.GuardianProfile,
 		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: repos.Student,
 		ChangeRequestRepo:      repos.StudentDataChangeRequest,
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,

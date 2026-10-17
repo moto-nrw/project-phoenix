@@ -98,6 +98,9 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		records = w.arrival(records)
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -110,8 +113,8 @@ func buildCareServiceWithRepos(t *testing.T, w careRepoWrap) (careTestService, *
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
-		Broadcaster: testpkg.NewRecordingBroadcaster(),
-		Logger:      slog.Default(),
+		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
@@ -131,6 +134,9 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -143,8 +149,8 @@ func buildCareService(t *testing.T, pickupChangeEnabled bool) (careTestService, 
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled},
 		},
-		Broadcaster: bc,
-		Logger:      slog.Default(),
+		StudentUpdates: api.BindParentStudentUpdates(bc),
+		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
@@ -828,6 +834,9 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 	// Delete via a service whose arrival reads fail.
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy: api.ParentGuardianPolicy{},
+		Fingerprints:   api.SecurityFingerprints{},
+		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
 		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -839,9 +848,9 @@ func TestDeleteCareException_DoesNotReadArrival(t *testing.T) {
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{parentService.KeyParentPickupChangeEnabled: true},
 		},
-		Broadcaster: testpkg.NewRecordingBroadcaster(),
-		Logger:      slog.Default(),
-		Now:         careFixtureNow,
+		StudentUpdates: api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		Logger:         slog.Default(),
+		Now:            careFixtureNow,
 	})
 
 	require.NoError(t, svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, date))

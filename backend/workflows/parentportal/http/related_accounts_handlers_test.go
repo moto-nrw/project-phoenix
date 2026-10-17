@@ -74,6 +74,9 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CareExceptions,
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
@@ -184,6 +187,9 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), api.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, db)))
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CareExceptions,
 		People:              api.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),

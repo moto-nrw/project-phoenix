@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 185 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
+Stand 17.10.2026 · Ratchet 180 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-54.050 in `compose`
+54.032 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 21 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 18 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
@@ -24,6 +24,18 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | Summe = `wc -l backend/architecture/legacy.jsonl` | 185 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Rollenregeln, gespeicherte Permission-Werte und Deklarationshashes laufen über
+eigene Workflow-Ports zur öffentlichen Security Runtime. Die Root bindet den bestehenden
+Live-Event-Trigger und Deliverys öffentlichen Sprachkatalog; eine eigene Delivery-Anwendung
+nutzt dafür denselben Locale-Adapter. Beziehungsgates, Rollen-Defaults, kanonische Bytes,
+Sprachprüfung, Fehler, Routen und Antworten bleiben gleich. Drei Keys fallen: 183 → 180,
+#4073 21 → 18. Eine Compose-Regel entfällt ersatzlos: 837 → 836; keine neue Freigabe.
+Composition bleibt 1.657; Parent-Compose 505 → 487 LOC, Compose-Summe 54.050 → 54.032.
+Der Delegations-Ratchet sinkt gemessen von 22 auf 21, seine Summe von 3.091 auf 3.090.
+Ein Anwendungspaket wird klassifiziert;
+keine neuen Aliase, Ausnahmen oder höheren Budgets.
+Der zuvor veraltete globale Stand 185 wird mit der gemessenen Baseline abgeglichen.
 
 #4073: Parent-HTTP deklariert eigene Push-, Benachrichtigungs- und PWA-Ports.
 Die Root übersetzt Deliverys öffentlichen Geräte- und Einwilligungsvertrag; dieselben

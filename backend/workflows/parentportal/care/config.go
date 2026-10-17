@@ -21,9 +21,10 @@ type StudentChangeRecorder interface {
 // Config is the dependency bundle of the guardian portal's child flows. The
 // unit of work comes from the request context; the package holds no database.
 type Config struct {
-	Runtime Runtime
-	Logger  *slog.Logger
-	Now     func() time.Time
+	GuardianPolicy GuardianPolicy
+	Runtime        Runtime
+	Logger         *slog.Logger
+	Now            func() time.Time
 
 	// Reads of the child, its school and its guardians.
 	ChildRepo             ChildReads
@@ -133,13 +134,16 @@ type Service struct {
 	Config
 }
 
-// New wires the child flows. Runtime and RequestSharing are required.
+// New wires the child flows. Runtime, GuardianPolicy and RequestSharing are required.
 func New(cfg Config) *Service {
 	if cfg.Runtime == nil {
 		panic("care: runtime is required")
 	}
 	if cfg.RequestSharing == nil {
 		panic("care: request sharing is required")
+	}
+	if cfg.GuardianPolicy == nil {
+		panic("care: guardian policy is required")
 	}
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()

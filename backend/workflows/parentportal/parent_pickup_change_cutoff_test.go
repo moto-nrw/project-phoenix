@@ -62,7 +62,7 @@ func (d cutoffServiceDeps) service(t *testing.T, settings parentService.Settings
 	cfg.CareExceptions = d.repos.CarePlan()
 	cfg.Settings = settings
 	cfg.MealPlan = availableMealPlan(false)
-	cfg.Broadcaster = testpkg.NewRecordingBroadcaster()
+	cfg.StudentUpdates = api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster())
 	cfg.Now = now
 	return parentportalcompose.New(cfg)
 }

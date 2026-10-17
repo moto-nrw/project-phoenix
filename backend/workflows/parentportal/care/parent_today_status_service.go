@@ -4,7 +4,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -32,7 +31,7 @@ const attendanceCultureLookbackDays = 14
 // einem 500er: fuer Eltern ist "Status derzeit nicht verfuegbar" die richtige
 // Aussage, ein Serverfehler waere nur verwirrend.
 func (s *Service) GetChildTodayStatus(ctx context.Context, accountID, studentID int64) (*TodayStatus, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}

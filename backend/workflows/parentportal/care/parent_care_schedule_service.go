@@ -13,8 +13,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -129,7 +127,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 		return nil, err
 	}
 	view.RequestCapabilities = capabilities
-	view.CanRequest = child.HasPermission(authorize.GuardianPermissionRequestSubmit) && capabilities.Any()
+	view.CanRequest = child.HasPermission(GuardianPermissionRequestSubmit) && capabilities.Any()
 	return view, nil
 }
 
@@ -138,7 +136,7 @@ func (s *Service) GetChildCareSchedule(ctx context.Context, accountID, studentID
 // parent_portal.request.submit and the field-level school settings. Messaging
 // is independent: notification pills are best-effort when messages are on.
 func (s *Service) CreateCareScheduleRequest(ctx context.Context, accountID, studentID int64, payload map[string]any) (*ChildCareSchedule, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionRequestSubmit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
 	}

@@ -8,8 +8,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -21,7 +19,7 @@ func (s *Service) EditPickupChangeRequest(
 	ctx context.Context, accountID, studentID, requestID int64,
 	date calendar.Date, pickupTime time.Time, departureMode, reason, expectedVersion string,
 ) (*carerequests.Request, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
 	}
@@ -81,7 +79,7 @@ func (s *Service) SubmitPickupChangeRequest(ctx context.Context, accountID, stud
 	if err := validatePickupChangeShape(pickupTime, departureMode, reason); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPickupManage)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPickupManage)
 	if err != nil {
 		return nil, err
 	}

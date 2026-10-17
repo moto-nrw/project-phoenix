@@ -29,6 +29,9 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersM
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	events := repos.ParentRequestEvent
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianPolicy:      api.ParentGuardianPolicy{},
+		Fingerprints:        api.SecurityFingerprints{},
+		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
@@ -41,7 +44,7 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, usersM
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
 		ParentRequestEvents: events,
 		Settings:            masterDataSettings(false, true, false),
-		Broadcaster:         testpkg.NewRecordingBroadcaster(),
+		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
 	})
 	return svc, events, db

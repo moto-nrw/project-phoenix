@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -16,7 +15,7 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	if err := validateCreateGuardianContactInput(&input); err != nil {
 		return nil, err
 	}
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionGuardianEdit)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionGuardianEdit)
 	if err != nil {
 		return nil, err
 	}
@@ -28,7 +27,7 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	if err := s.requireGuardianManagementEnabled(ctx, child.TenantID); err != nil {
 		return nil, err
 	}
-	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(authorize.GuardianPermissionPickupManage) {
+	if (input.CanPickup || input.IsEmergencyContact) && !child.HasPermission(GuardianPermissionPickupManage) {
 		return nil, ErrGuardianPermissionDenied
 	}
 	if s.Guardians == nil {
@@ -103,7 +102,7 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	}
 
 	result := projectChildGuardian(profile, link, phones, accountID, true,
-		child.HasPermission(authorize.GuardianPermissionPickupManage), false)
+		child.HasPermission(GuardianPermissionPickupManage), false, s.GuardianPolicy.IsFullRole)
 	capturedTenant := child.TenantID
 	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(capturedTenant, studentID)
@@ -179,7 +178,7 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 		PickupNotes:        trimGuardianText(input.PickupNotes),
 		EmergencyPriority:  1,
 	}
-	authorize.ApplyDefaultStudentGuardianRole(link)
+	s.applyDefaultGuardianRole(link)
 	link.SetTenantID(tenantID)
 	if err := link.Validate(); err != nil {
 		return nil, err
@@ -203,12 +202,12 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 // pickup detail and the caller's per-guardian edit capabilities. Authorization
 // only (parent_portal.access).
 func (s *Service) ListChildGuardians(ctx context.Context, accountID, studentID int64) ([]*ChildGuardian, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
-	canEdit := child.HasPermission(authorize.GuardianPermissionGuardianEdit)
-	canManage := child.HasPermission(authorize.GuardianPermissionPickupManage)
+	canEdit := child.HasPermission(GuardianPermissionGuardianEdit)
+	canManage := child.HasPermission(GuardianPermissionPickupManage)
 	// A school can disable the whole feature: when off, the list still shows
 	// guardians (read) but advertises no edit affordances, so the UI hides them.
 	if canEdit || canManage {
@@ -278,7 +277,7 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 			)
 			return nil, fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 		}
-		out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID]))
+		out = append(out, projectChildGuardian(profile, link, phonesByProfile[profile.ID], accountID, canEdit, canManage, escapesByProfile[profile.ID], s.GuardianPolicy.IsFullRole))
 	}
 	return out, nil
 }

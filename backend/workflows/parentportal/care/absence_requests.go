@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -154,7 +153,7 @@ func (s *Service) EditExcusedRequest(
 // nor manages here, so they are NOT surfaced. Class-trip days stay excluded for
 // the same reason.
 func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, from, to calendar.Date) ([]*absencerecords.StudentStatusDay, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, authorize.GuardianPermissionPortalAccess)
+	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess)
 	if err != nil {
 		return nil, err
 	}
