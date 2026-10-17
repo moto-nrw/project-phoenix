@@ -11,14 +11,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // seedPublishedPoll creates a school-wide poll with the given options, publishes
@@ -26,43 +27,43 @@ import (
 func seedPublishedPoll(
 	t *testing.T,
 	ctx context.Context,
-	repo usersModels.ParentAnnouncementRepository,
+	repo api.ParentAnnouncementFixtures,
 	createdBy, tenantID int64,
 	deadline *time.Time,
 	labels ...string,
-) *usersModels.ParentAnnouncement {
+) *communication.ParentAnnouncementFixture {
 	t.Helper()
 	return seedPublishedPollWithTargets(t, ctx, repo, createdBy, tenantID, deadline,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}},
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
 		labels...)
 }
 
 func seedPublishedPollWithTargets(
 	t *testing.T,
 	ctx context.Context,
-	repo usersModels.ParentAnnouncementRepository,
+	repo api.ParentAnnouncementFixtures,
 	createdBy, tenantID int64,
 	deadline *time.Time,
-	targets []*usersModels.ParentAnnouncementTarget,
+	targets []*communication.ParentAnnouncementTargetFixture,
 	labels ...string,
-) *usersModels.ParentAnnouncement {
+) *communication.ParentAnnouncementFixture {
 	t.Helper()
-	a := &usersModels.ParentAnnouncement{
+	a := &communication.ParentAnnouncementFixture{
 		Title:            "Murmelparty",
 		Body:             "Kommt Ihr Kind zur Murmelparty?",
-		Priority:         usersModels.ParentAnnouncementPriorityInfo,
-		ResponseType:     usersModels.ParentAnnouncementResponseSingleChoice,
+		Priority:         "info",
+		ResponseType:     "single_choice",
 		ResponseDeadline: deadline,
 		Active:           true,
 		CreatedBy:        createdBy,
 	}
-	a.SetTenantID(tenantID)
+	a.TenantID = tenantID
 	require.NoError(t, repo.Create(ctx, a))
 	require.NoError(t, repo.ReplaceTargets(ctx, tenantID, a.ID, targets))
 
-	options := make([]*usersModels.ParentAnnouncementOption, 0, len(labels))
+	options := make([]*communication.ParentAnnouncementOptionFixture, 0, len(labels))
 	for i, label := range labels {
-		options = append(options, &usersModels.ParentAnnouncementOption{Label: label, Position: i})
+		options = append(options, &communication.ParentAnnouncementOptionFixture{Label: label, Position: i})
 	}
 	require.NoError(t, repo.ReplaceOptions(ctx, tenantID, a.ID, options))
 
@@ -90,9 +91,9 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	poll := seedPublishedPollWithTargets(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil,
-		[]*usersModels.ParentAnnouncementTarget{{
-			TargetType:  usersModels.AnnouncementTargetStudent,
+	poll := seedPublishedPollWithTargets(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil,
+		[]*communication.ParentAnnouncementTargetFixture{{
+			TargetType:  "student",
 			TargetRefID: &chain.StudentID,
 		}},
 		"Ja", "Nein")
@@ -105,7 +106,7 @@ func TestAnnouncementPoll_AnswerAppearsInFeedAndResults(t *testing.T) {
 	feed, err := svc.ListAnnouncements(ctx, chain.AccountID)
 	require.NoError(t, err)
 	item := findFeedItem(t, feed, poll.ID)
-	assert.Equal(t, usersModels.ParentAnnouncementResponseSingleChoice, item.ResponseType)
+	assert.Equal(t, "single_choice", item.ResponseType)
 	require.Len(t, item.Options, 2)
 	require.Len(t, item.Children, 1)
 	assert.Equal(t, chain.StudentID, item.Children[0].StudentID)
@@ -148,7 +149,7 @@ func TestAnnouncementPoll_CareEndedChildCannotRespond(t *testing.T) {
 	svc, db, repos := buildAnnouncementService(t, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	poll := seedPublishedPoll(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 
 	endCareFor(t, db, chain.StudentID)
 	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, chain.StudentID,
@@ -166,9 +167,9 @@ func TestAnnouncementPoll_IneligibleChildIsNotOutstanding(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	poll := seedPublishedPollWithTargets(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil,
-		[]*usersModels.ParentAnnouncementTarget{{
-			TargetType:  usersModels.AnnouncementTargetStudent,
+	poll := seedPublishedPollWithTargets(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil,
+		[]*communication.ParentAnnouncementTargetFixture{{
+			TargetType:  "student",
 			TargetRefID: &chain.StudentID,
 		}},
 		"Ja", "Nein")
@@ -205,7 +206,7 @@ func TestAnnouncementPoll_ReAnswerReplacesSelection(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	poll := seedPublishedPoll(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	require.NoError(t, svc.RespondToAnnouncement(ctx, chain.AccountID, poll.ID, chain.StudentID, []int64{poll.Options[0].ID}, *poll.PublishedAt))
@@ -235,7 +236,7 @@ func TestAnnouncementPoll_ClosedPollRejectsAnswer(t *testing.T) {
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
 	future := time.Now().Add(time.Hour)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, &future, "Ja", "Nein")
+	poll := seedPublishedPoll(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, &future, "Ja", "Nein")
 
 	// Move the deadline into the past with a direct write: the service refuses to
 	// SET one there, but a poll closing while a parent has the page open is
@@ -262,7 +263,7 @@ func TestAnnouncementPoll_ForeignChildIsRejected(t *testing.T) {
 	other := testpkg.CreateTestStudent(t, db, "Mila", "Fremd", "2b")
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	poll := seedPublishedPoll(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 
 	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, poll.ID, other.ID, []int64{poll.Options[0].ID}, *poll.PublishedAt)
 	assert.ErrorIs(t, err, parentportal.ErrChildNotAnswerable)
@@ -277,7 +278,7 @@ func TestAnnouncementPoll_PlainAnnouncementRejectsAnswer(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	err := svc.RespondToAnnouncement(testpkg.WithTestTenantRuntime(t, context.Background()), chain.AccountID, ann.ID, chain.StudentID, nil, *ann.PublishedAt)
 	assert.ErrorIs(t, err, parentportal.ErrAnnouncementNotAPoll)
@@ -293,7 +294,7 @@ func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	poll := seedPublishedPoll(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
+	poll := seedPublishedPoll(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, nil, "Ja", "Nein")
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
 	require.NoError(t, svc.MarkAnnouncementRead(ctx, chain.AccountID, poll.ID, *poll.PublishedAt))
@@ -307,7 +308,7 @@ func TestAnnouncementPoll_UnansweredPollStaysInUnreadCount(t *testing.T) {
 	assert.Equal(t, 0, count, "answering clears the outstanding state")
 }
 
-func findFeedItem(t *testing.T, feed []*usersModels.AnnouncementFeedItem, id int64) *usersModels.AnnouncementFeedItem {
+func findFeedItem(t *testing.T, feed []*parentportal.AnnouncementFeedItem, id int64) *parentportal.AnnouncementFeedItem {
 	t.Helper()
 	for _, item := range feed {
 		if item.ID == id {

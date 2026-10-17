@@ -19,8 +19,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -94,11 +92,11 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, 
 	ctx := testpkg.Ctx(t)
 	thread, err := repos.ParentMessageThread.GetOrCreate(ctx, chain.TenantID, chain.StudentID, chain.AccountID)
 	require.NoError(t, err)
-	m := &usersModels.ParentMessage{
+	m := &parentportal.ParentMessage{
 		ThreadID:        thread.ID,
 		StudentID:       chain.StudentID,
 		SenderAccountID: staffAccount.ID,
-		SenderKind:      usersModels.ParentMessageSenderStaff,
+		SenderKind:      parentportal.ParentMessageSenderStaff,
 		SenderName:      "Olivia Berg",
 		Body:            body,
 	}
