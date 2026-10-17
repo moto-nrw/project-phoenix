@@ -40,7 +40,7 @@ func buildSharingAtCreationServices(t *testing.T) (*parentService.Portal, parent
 		ChildRepo:              repos.ParentChildReads(),
 		StatusDayRepo:          repos.StudentStatusDay,
 		StudentRepo:            repos.Student,
-		PersonRepo:             repos.Person,
+		PersonRepo:             api.NewParentPersonReads(repos.Person),
 		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		StudentGuardianRepo:    repos.StudentGuardian,
 		FamilyProtectionEvents: repos.FamilyProtection,

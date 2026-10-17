@@ -290,10 +290,7 @@ func (s *Service) replaceGuardianPhones(ctx context.Context, profile *GuardianPr
 	submittedPrimary := hasSubmittedPrimaryPhone(phones)
 	primarySeen := false
 	for i, p := range phones {
-		phoneType := usersModels.PhoneType(strings.TrimSpace(p.PhoneType))
-		if !usersModels.ValidPhoneTypes[phoneType] {
-			phoneType = usersModels.PhoneTypeMobile
-		}
+		phoneType := s.GuardianPhoneRepo.PhoneTypeOrMobile(strings.TrimSpace(p.PhoneType))
 		isPrimary := p.IsPrimary
 		if i == 0 && !submittedPrimary {
 			isPrimary = true
@@ -305,7 +302,7 @@ func (s *Service) replaceGuardianPhones(ctx context.Context, profile *GuardianPr
 				primarySeen = true
 			}
 		}
-		entity := &usersModels.GuardianPhoneNumber{
+		entity := &GuardianPhoneNumber{
 			GuardianProfileID: profile.ID,
 			PhoneNumber:       strings.TrimSpace(p.PhoneNumber),
 			PhoneType:         phoneType,
@@ -316,7 +313,7 @@ func (s *Service) replaceGuardianPhones(ctx context.Context, profile *GuardianPr
 		// The directory stores the phone the way its validator normalises it
 		// (trimmed number, empty label as none); a refused row aborts the whole
 		// replace.
-		if err := entity.Validate(); err != nil {
+		if err := s.GuardianPhoneRepo.NormalizePhone(entity); err != nil {
 			return fmt.Errorf("validation failed: %w", err)
 		}
 		records = append(records, GuardianPhoneRecord{
