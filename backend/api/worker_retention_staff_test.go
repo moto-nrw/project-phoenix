@@ -146,10 +146,8 @@ func TestNightlyRetentionDeletesStaffAfterTheTimeTrackingWindow(t *testing.T) {
 
 	expired := suite.staffWithRecords(t, school, "Abgelaufen")
 	suite.retire(t, expired.staffID, 731)
-	boundary := suite.staffWithRecords(t, school, "Frist")
-	suite.retire(t, boundary.staffID, 730)
-	kept := suite.staffWithRecords(t, school, "Frist davor")
-	suite.retire(t, kept.staffID, 729)
+	kept := suite.staffWithRecords(t, school, "Frist")
+	suite.retire(t, kept.staffID, 730)
 	active := suite.staffWithRecords(t, school, "Aktiv")
 	otherExpired := suite.staffWithRecords(t, otherSchool, "Andere")
 	suite.retire(t, otherExpired.staffID, 900)
@@ -179,8 +177,7 @@ func TestNightlyRetentionDeletesStaffAfterTheTimeTrackingWindow(t *testing.T) {
 	}}, suite.staffDeletionLog(t, school, expired.staffID), "the deletion is logged per staff member, attributed to the system")
 	assert.Empty(t, suite.loggedDeletions(t, school, retentionStaff), "each staff member is logged on its own, not as a data kind")
 
-	assert.Zero(t, suite.staffRecords(t, boundary.staffID), "a staff member who left on the retention boundary is deleted")
-	for name, member := range map[string]retiredStaff{"the day before the retention boundary": kept, "a staff member without an exit": active} {
+	for name, member := range map[string]retiredStaff{"the last day of the window": kept, "a staff member without an exit": active} {
 		assert.Equal(t, stagedStaffRecords, suite.staffRecords(t, member.staffID), "%s keeps every record", name)
 		assert.Equal(t, "Personal", suite.staffPerson(t, member.personID).LastName, "%s keeps the name", name)
 		assert.Empty(t, suite.staffDeletionLog(t, school, member.staffID), name)

@@ -160,9 +160,9 @@ func NewRetention(deps RetentionDependencies) (*Retention, error) {
 }
 
 // DeleteExpiredStaff erases, in ID order, the staff members of the school in
-// ctx whose Berlin exit day is at least one complete retention window ago. A
-// staff member whose person was edited meanwhile is skipped and logged; it
-// stays for the next run.
+// ctx who left before the first Berlin day the window keeps. A staff member
+// whose person was edited meanwhile is skipped and logged; it stays for the
+// next run.
 func (r *Retention) DeleteExpiredStaff(ctx context.Context) (RetentionResult, error) {
 	days, err := r.deps.Window(ctx)
 	if err != nil {
@@ -175,10 +175,12 @@ func (r *Retention) DeleteExpiredStaff(ctx context.Context) (RetentionResult, er
 	if tenantID <= 0 {
 		return RetentionResult{}, ErrUnauthorized
 	}
-	// The stores use a strict before comparison. Advance the cutoff to the
-	// following Berlin midnight so staff who left on the retention boundary are
-	// eligible for this run, regardless of their exit time on that day.
-	retiredBefore := r.deps.Today().AddDays(-days + 1).BerlinMidnight()
+	// The window counts whole Berlin days from the day after the exit
+	// (docs/reference/loeschfristen.md), as the student retention does: with
+	// 730 days, staff who left on 1 June 2026 go in the run on 1 June 2028,
+	// whose cutoff is 2 June 2026 00:00 because 2028 has a 29 February. A
+	// later cutoff would delete time tracking before the window has passed.
+	retiredBefore := r.deps.Today().AddDays(-days).BerlinMidnight()
 	result := RetentionResult{RetentionDays: days}
 	// The cursor moves past every staff member taken, so a refused one,
 	// whose savepoint rolled the marking back, is not taken again.

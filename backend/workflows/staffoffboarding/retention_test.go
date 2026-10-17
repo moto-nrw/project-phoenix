@@ -120,7 +120,7 @@ func TestStaffRetentionDoesNotAnonymizeAPersonRehiredBeforeTheFinalMembershipChe
 	assert.Zero(t, doubles.anonymizationCalls, "the locked membership check keeps a rehired person's identity")
 }
 
-func TestStaffRetentionUsesTheMidnightAfterTheBerlinRetentionBoundary(t *testing.T) {
+func TestStaffRetentionCountsTheWindowFromTheDayAfterTheExit(t *testing.T) {
 	t.Parallel()
 	doubles := &retiredDoubles{due: []int64{3}}
 
@@ -128,7 +128,8 @@ func TestStaffRetentionUsesTheMidnightAfterTheBerlinRetentionBoundary(t *testing
 
 	require.NoError(t, err)
 	require.NotEmpty(t, doubles.retiredBefore)
-	assert.Equal(t, calendar.NewDate(2028, time.June, 1).AddDays(-729).BerlinMidnight(), doubles.retiredBefore[0])
+	assert.Equal(t, calendar.NewDate(2026, time.June, 2).BerlinMidnight(), doubles.retiredBefore[0],
+		"an exit on 1 June 2026 is due in the run on 1 June 2028, an exit on 2 June 2026 is not")
 }
 
 func TestStaffRetentionCountsTheRecordsOfOneErasure(t *testing.T) {
