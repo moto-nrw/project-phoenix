@@ -3,6 +3,7 @@ package parentstore
 import (
 	models "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
+	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 func portalFromRetainedAnnouncementFeedItem(v models.AnnouncementFeedItem) communication.PortalAnnouncementFeedItem {
@@ -53,7 +54,7 @@ func portalFromRetainedAnnouncementPollChild(v models.AnnouncementPollChild) com
 }
 
 func portalFromRetainedParentAnnouncement(v models.ParentAnnouncement) communication.PortalParentAnnouncement {
-	return communication.PortalParentAnnouncement{
+	result := communication.PortalParentAnnouncement{
 		ID:                      v.ID,
 		CreatedAt:               v.CreatedAt,
 		UpdatedAt:               v.UpdatedAt,
@@ -82,10 +83,11 @@ func portalFromRetainedParentAnnouncement(v models.ParentAnnouncement) communica
 		Options: portalRecordSlice(v.Options, func(row *models.ParentAnnouncementOption) *communication.PortalParentAnnouncementOption {
 			return portalRecordPointer(row, portalFromRetainedParentAnnouncementOption)
 		}),
-		Declaration:     portalFromRetainedAnnouncementDeclarationSettings(v.Declaration),
-		Poll:            v.IsPoll(),
-		DeclarationMode: v.IsDeclaration(),
+		Declaration: portalFromRetainedAnnouncementDeclarationSettings(v.Declaration),
 	}
+	result.Poll = values.AnnouncementIsPoll((*values.ParentAnnouncement)(&result))
+	result.DeclarationMode = values.AnnouncementIsDeclaration((*values.ParentAnnouncement)(&result))
+	return result
 }
 
 func portalFromRetainedParentAnnouncementOption(v models.ParentAnnouncementOption) communication.PortalParentAnnouncementOption {

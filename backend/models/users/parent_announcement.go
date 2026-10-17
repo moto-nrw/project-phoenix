@@ -33,18 +33,6 @@ const (
 	ParentAnnouncementResponseMultiChoice  = "multi_choice"
 )
 
-// ValidAnnouncementResponseType reports whether t is a known response type.
-func ValidAnnouncementResponseType(t string) bool {
-	switch t {
-	case ParentAnnouncementResponseNone,
-		ParentAnnouncementResponseSingleChoice,
-		ParentAnnouncementResponseMultiChoice:
-		return true
-	default:
-		return false
-	}
-}
-
 // Delivery modes (mirrors the chk_parent_announcements_delivery_mode
 // constraint). "standard" is the Mitteilung every pre-#2384 row is: e-mail and
 // acknowledgement are independent opt-ins and the mail carries only a title and
@@ -74,17 +62,6 @@ const (
 	EmailAudienceAllContacts = "all_contacts"
 )
 
-// ValidAnnouncementDeliveryMode reports whether m is a known delivery mode.
-func ValidAnnouncementDeliveryMode(m string) bool {
-	return m == ParentAnnouncementDeliveryStandard || m == ParentAnnouncementDeliveryLetter ||
-		m == ParentAnnouncementDeliveryDeclaration
-}
-
-// ValidAnnouncementEmailAudience reports whether a is a known e-mail audience.
-func ValidAnnouncementEmailAudience(a string) bool {
-	return a == EmailAudiencePortalOnly || a == EmailAudienceAllContacts
-}
-
 // Audience target types (mirrors the chk_parent_announcement_targets_type
 // constraint). An announcement's reach is the OR-union of its target rows.
 const (
@@ -103,22 +80,6 @@ const (
 const (
 	ParentAnnouncementSystemKindCareCancellation = "care_cancellation"
 )
-
-// ValidAnnouncementPriority reports whether p is a known priority.
-func ValidAnnouncementPriority(p string) bool {
-	return p == ParentAnnouncementPriorityInfo || p == ParentAnnouncementPriorityImportant
-}
-
-// ValidAnnouncementTargetType reports whether t is a known target type.
-func ValidAnnouncementTargetType(t string) bool {
-	switch t {
-	case AnnouncementTargetSchoolAll, AnnouncementTargetClass, AnnouncementTargetGroup,
-		AnnouncementTargetActivityGroup, AnnouncementTargetStudent, AnnouncementTargetPendingEnrollment:
-		return true
-	default:
-		return false
-	}
-}
 
 // ParentAnnouncement is a tenant-authored broadcast to guardians. It is a DRAFT
 // while PublishedAt is nil, becomes visible to its targeted guardians once
@@ -184,64 +145,6 @@ type ParentAnnouncement struct {
 	Options []*ParentAnnouncementOption `bun:"-" json:"options,omitempty"`
 	// Declaration carries the Erklärung settings (#3430); zero for other modes.
 	Declaration AnnouncementDeclarationSettings `bun:"embed:declaration_" json:"-"`
-}
-
-// IsPublished reports whether the announcement has been published (vs draft).
-func (a *ParentAnnouncement) IsPublished() bool {
-	return a.PublishedAt != nil
-}
-
-// IsLetter reports whether the announcement is an Elternbrief — the mode in
-// which both channels are mandatory and the mail carries the full body.
-func (a *ParentAnnouncement) IsLetter() bool {
-	return a.DeliveryMode == ParentAnnouncementDeliveryLetter
-}
-
-// ReachesContactsWithoutPortal reports whether the e-mail goes beyond the portal
-// audience to guardians that have an address but no portal access.
-func (a *ParentAnnouncement) ReachesContactsWithoutPortal() bool {
-	return a.EmailAudience == EmailAudienceAllContacts
-}
-
-// IsSystem reports whether the system authored the announcement.
-func (a *ParentAnnouncement) IsSystem() bool {
-	return a.SystemKind != nil && *a.SystemKind != ""
-}
-
-// IsPoll reports whether the announcement asks guardians a question.
-func (a *ParentAnnouncement) IsPoll() bool {
-	return a.ResponseType == ParentAnnouncementResponseSingleChoice ||
-		a.ResponseType == ParentAnnouncementResponseMultiChoice
-}
-
-// HasReminder reports whether a scheduled reminder is set (sent or not).
-func (a *ParentAnnouncement) HasReminder() bool {
-	return a.ReminderAt != nil
-}
-
-// ReminderSent reports whether the scheduled reminder already went out.
-func (a *ParentAnnouncement) ReminderSent() bool {
-	return a.ReminderSentAt != nil
-}
-
-// ReminderBody is the wording the reminder carries: the school's own short
-// text when it wrote one, otherwise the announcement text.
-func (a *ParentAnnouncement) ReminderBody() string {
-	if a.ReminderText != nil && *a.ReminderText != "" {
-		return *a.ReminderText
-	}
-	return a.Body
-}
-
-// AcceptsResponsesAt reports whether the poll still accepts answers at t: it
-// must be a poll and either have no deadline or one that has not passed.
-// Visibility (active/published/expires_at) is checked separately — a closed poll
-// stays readable.
-func (a *ParentAnnouncement) AcceptsResponsesAt(t time.Time) bool {
-	if !a.IsPoll() {
-		return false
-	}
-	return a.ResponseDeadline == nil || a.ResponseDeadline.After(t)
 }
 
 // ParentAnnouncementTarget is one audience selector on an announcement. The ref

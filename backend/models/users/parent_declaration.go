@@ -2,10 +2,7 @@ package users
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"sort"
 	"time"
 )
 
@@ -66,11 +63,6 @@ type AnnouncementDeclarationSettings struct {
 	Signers          string `bun:"signers,nullzero"`
 	Revocable        bool   `bun:"revocable,notnull"`
 	RequiresPassword bool   `bun:"requires_password,notnull"`
-}
-
-// IsDeclaration reports whether the announcement is an Erklärung.
-func (a *ParentAnnouncement) IsDeclaration() bool {
-	return a.DeliveryMode == ParentAnnouncementDeliveryDeclaration
 }
 
 // DeclarationAttachmentDigest identifies one attachment of a frozen version by
@@ -231,75 +223,4 @@ type DeclarationSignerState struct {
 	LastName    string
 	Action      *string
 	SubmittedAt *time.Time
-}
-
-// The format values version the canonical encodings below. A change to one
-// encoding must bump only its format, never reinterpret stored hashes.
-const (
-	declarationContentHashFormat = 1
-	declarationRecordHashFormat  = 2
-)
-
-type canonicalDeclarationVersion struct {
-	Format      int                           `json:"format"`
-	Title       string                        `json:"title"`
-	Body        string                        `json:"body"`
-	Kind        string                        `json:"kind"`
-	Attachments []DeclarationAttachmentDigest `json:"attachments"`
-}
-
-// CanonicalContent is the canonical JSON of what the guardian is shown:
-// title, body, kind and every attachment's name, type, size and content
-// digest, in attachment-id order. Its SHA-256 is the version's content hash;
-// two versions with the same hash showed the same content.
-func (v *DeclarationVersion) CanonicalContent() []byte {
-	attachments := append([]DeclarationAttachmentDigest(nil), v.Attachments...)
-	sort.Slice(attachments, func(i, j int) bool { return attachments[i].AttachmentID < attachments[j].AttachmentID })
-	if attachments == nil {
-		attachments = []DeclarationAttachmentDigest{}
-	}
-	return canonicalJSON(canonicalDeclarationVersion{
-		Format: declarationContentHashFormat, Title: v.Title, Body: v.Body, Kind: v.Kind, Attachments: attachments,
-	})
-}
-
-type canonicalDeclarationSubmission struct {
-	Format            int    `json:"format"`
-	TenantID          int64  `json:"tenant_id"`
-	AnnouncementID    int64  `json:"announcement_id"`
-	VersionID         int64  `json:"version_id"`
-	ContentHash       string `json:"content_hash"`
-	StudentID         int64  `json:"student_id"`
-	GuardianProfileID *int64 `json:"guardian_profile_id"`
-	SignerName        string `json:"signer_name"`
-	GuardianRole      string `json:"guardian_role"`
-	Action            string `json:"action"`
-	Method            string `json:"method"`
-	PasswordConfirmed bool   `json:"password_confirmed"`
-	SubmittedAt       string `json:"submitted_at"`
-}
-
-// CanonicalRecord is the canonical JSON of the submission, including the
-// content hash of the version it refers to. Its SHA-256 is the record hash,
-// which makes a later change to a stored row detectable; it proves neither
-// the signer's identity nor a trusted time on its own. AccountID is excluded:
-// account deletion clears that nullable foreign key, while the frozen signer
-// identity remains in this record.
-func (s *DeclarationSubmission) CanonicalRecord() []byte {
-	return canonicalJSON(canonicalDeclarationSubmission{
-		Format: declarationRecordHashFormat, TenantID: s.TenantID, AnnouncementID: s.AnnouncementID,
-		VersionID: s.VersionID, ContentHash: s.ContentHash, StudentID: s.StudentID,
-		GuardianProfileID: s.GuardianProfileID, SignerName: s.SignerName, GuardianRole: s.GuardianRole,
-		Action: s.Action, Method: s.Method, PasswordConfirmed: s.PasswordConfirmed,
-		SubmittedAt: s.SubmittedAt.UTC().Format(time.RFC3339Nano),
-	})
-}
-
-func canonicalJSON(value any) []byte {
-	encoded, err := json.Marshal(value)
-	if err != nil {
-		// The canonical structs hold only strings, numbers and booleans.
-		panic(fmt.Sprintf("users: encode declaration canonical form: %v", err))
-	}
-	return encoded
 }

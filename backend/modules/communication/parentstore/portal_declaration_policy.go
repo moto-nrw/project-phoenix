@@ -1,6 +1,9 @@
 package parentstore
 
-import "github.com/moto-nrw/project-phoenix/modules/communication"
+import (
+	"github.com/moto-nrw/project-phoenix/modules/communication"
+	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+)
 
 func NewPortalDeclarationPolicy() communication.PortalDeclarationPolicy {
 	return portalDeclarationPolicy{}
@@ -11,10 +14,8 @@ type portalDeclarationPolicy struct {
 }
 
 func (portalDeclarationPolicy) PortalCanonicalRecord(value communication.PortalDeclarationSubmission) []byte {
-	row := portalToRetainedDeclarationSubmission(value)
-	return row.CanonicalRecord()
+	return values.CanonicalDeclarationRecord((*values.DeclarationSubmission)(&value))
 }
 func (portalDeclarationPolicy) PortalCanonicalContent(value communication.PortalDeclarationVersion) []byte {
-	row := portalToRetainedDeclarationVersion(value)
-	return row.CanonicalContent()
+	return values.CanonicalDeclarationContent((*values.DeclarationVersion)(&value))
 }

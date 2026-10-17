@@ -7,6 +7,7 @@ import (
 
 // The existing bound stores advertise native public facets beside retained callers.
 type ParentAnnouncementRepository interface {
+	communication.StaffAnnouncementRecords
 	models.ParentAnnouncementRepository
 	communication.PortalAnnouncementAccess
 }
