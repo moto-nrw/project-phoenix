@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -50,7 +50,7 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	// Pin the chat on explicitly so the test does not hang on the registry
 	// default (opt-out since #3254).
 	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
 	unique := time.Now().UnixNano()
@@ -170,7 +170,7 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 
 	// The school switches it off.
 	require.NoError(t, serviceFactory.Settings.SetValue(
-		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, false, nil, nil,
+		testpkg.TenantContext(tenantID), settings.KeyStaffMessagingEnabled, false, nil, nil,
 	))
 
 	req = httptest.NewRequest(http.MethodGet, "/staff-messages/", nil)
