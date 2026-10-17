@@ -20,14 +20,7 @@ var _ StudentLocationReader = Presence(nil)
 // In binary-mode tenants it skips the visit/group queries as a perf win — those
 // fields become irrelevant because the resolver won't read them anyway.
 func LoadStudentLocationSnapshot(ctx context.Context, svc StudentLocationReader, studentIDs []int64) (*StudentLocationSnapshot, error) {
-	uniqueIDs := make([]int64, 0, len(studentIDs))
-	seen := make(map[int64]struct{}, len(studentIDs))
-	for _, id := range studentIDs {
-		if _, found := seen[id]; !found {
-			seen[id] = struct{}{}
-			uniqueIDs = append(uniqueIDs, id)
-		}
-	}
+	uniqueIDs := uniqueStudentLocationIDs(studentIDs)
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {
 		return nil, err
@@ -99,4 +92,17 @@ func coalesce[K comparable, V any](m, fallback map[K]V) map[K]V {
 		return m
 	}
 	return fallback
+}
+
+// uniqueStudentLocationIDs preserves the first occurrence of each requested student.
+func uniqueStudentLocationIDs(studentIDs []int64) []int64 {
+	uniqueIDs := make([]int64, 0, len(studentIDs))
+	seen := make(map[int64]struct{}, len(studentIDs))
+	for _, id := range studentIDs {
+		if _, found := seen[id]; !found {
+			seen[id] = struct{}{}
+			uniqueIDs = append(uniqueIDs, id)
+		}
+	}
+	return uniqueIDs
 }
