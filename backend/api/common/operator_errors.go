@@ -6,7 +6,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Operator error bodies. The operator router in api/operator and the operator
@@ -112,11 +111,9 @@ func OperatorServiceUnavailable(message string) render.Renderer {
 }
 
 // OperatorAuditedIDAction parses one int64 id parameter and invokes an
-// operator-audited action (operator ID from the JWT claims plus the client
+// operator-audited action (the authenticated operator ID plus the client
 // IP), responding 200 with no payload on success.
-func OperatorAuditedIDAction(w http.ResponseWriter, r *http.Request, param, invalidMsg string, fn func(ctx context.Context, id, operatorID int64, clientIP net.IP) error, renderErr func(error) render.Renderer, successMsg string) {
-	operatorID := int64(sessiontoken.ClaimsFromCtx(r.Context()).ID)
-
+func OperatorAuditedIDAction(w http.ResponseWriter, r *http.Request, operatorID int64, param, invalidMsg string, fn func(ctx context.Context, id, operatorID int64, clientIP net.IP) error, renderErr func(error) render.Renderer, successMsg string) {
 	id, ok := ParseInt64IDWithError(w, r, param, invalidMsg)
 	if !ok {
 		return
