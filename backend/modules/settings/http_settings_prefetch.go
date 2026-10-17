@@ -1,9 +1,7 @@
-package common
+package settings
 
 import (
 	"context"
-
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
 )
 
 // PrefetchSettings batch-resolves keys and attaches the resulting snapshot to
@@ -18,7 +16,7 @@ import (
 // settings must not prefetch the keys they write.
 func PrefetchSettings(ctx context.Context, settings any, keys ...string) context.Context {
 	batch, ok := settings.(interface {
-		ResolveMany(context.Context, []string) (*configSvc.Snapshot, error)
+		ResolveMany(context.Context, []string) (*Snapshot, error)
 	})
 	if !ok {
 		return ctx
@@ -27,7 +25,7 @@ func PrefetchSettings(ctx context.Context, settings any, keys ...string) context
 	if err != nil {
 		return ctx
 	}
-	return configSvc.WithSettingsSnapshot(ctx, snapshot)
+	return WithSettingsSnapshot(ctx, snapshot)
 }
 
 // PrefetchSettingsOrError is PrefetchSettings for a read path that must not
@@ -36,7 +34,7 @@ func PrefetchSettings(ctx context.Context, settings any, keys ...string) context
 // original context and no error.
 func PrefetchSettingsOrError(ctx context.Context, settings any, keys ...string) (context.Context, error) {
 	batch, ok := settings.(interface {
-		ResolveMany(context.Context, []string) (*configSvc.Snapshot, error)
+		ResolveMany(context.Context, []string) (*Snapshot, error)
 	})
 	if !ok {
 		return ctx, nil
@@ -45,5 +43,5 @@ func PrefetchSettingsOrError(ctx context.Context, settings any, keys ...string) 
 	if err != nil {
 		return nil, err
 	}
-	return configSvc.WithSettingsSnapshot(ctx, snapshot), nil
+	return WithSettingsSnapshot(ctx, snapshot), nil
 }

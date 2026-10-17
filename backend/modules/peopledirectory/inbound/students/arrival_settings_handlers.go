@@ -5,6 +5,8 @@ import (
 	"net/http"
 	"strings"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/moto-nrw/project-phoenix/api/common"
 )
 
@@ -40,7 +42,7 @@ func (rs *Resource) getArrivalSettings(w http.ResponseWriter, r *http.Request) {
 	for period := 1; period <= schoolPeriodCount; period++ {
 		keys = append(keys, schoolPeriodEndSetting(period))
 	}
-	ctx := common.PrefetchSettings(r.Context(), rs.SettingsService, keys...)
+	ctx := settingsFacts.PrefetchSettings(r.Context(), rs.SettingsService, keys...)
 
 	bookingsAuthoritative, err := rs.SettingsService.ResolveBool(
 		ctx,
