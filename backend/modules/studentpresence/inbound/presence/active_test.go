@@ -53,7 +53,7 @@ func setupActiveRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, svc := setupActiveModule(t)
-	resource := presenceAPI.NewResource(svc.PresenceOperations(), activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest(), nil)
+	resource := presenceAPI.NewResource(svc.PresenceOperations(), activePeople{source: svc.AttendancePeople()}, svc.TeacherGroupIDs, svc.Schulhof, activeStaffAccess{source: svc.AttendanceStaff()}, svc.Settings, rootAPI.ProtectedTenantRoutes, slog.Default(), testPresenceQueries(t, db), requestRuntimeForTest(svc.WithAttendanceStaff), authorizationForTest(), nil, tenantsettings.NewDisplaySettings(svc.Settings))
 	resource.SupervisionDashboardService = svc.SupervisionDashboard
 
 	return &testContext{
@@ -287,8 +287,7 @@ func TestEndActiveGroup(t *testing.T) {
 			tc.resource.Presence,
 			requestRuntimeForTest(func(context.Context, int64, int64) context.Context { panic("disabled attendance must not bind staff") }),
 			authorizationForTest(),
-			nil,
-		)
+			nil, tenantsettings.NewDisplaySettings(disabledSettings))
 		disabledRouter := testutil.NewRouter()
 		disabledRouter.Mount("/active", disabledResource.Router())
 		settingCtx := testpkg.Ctx(t)

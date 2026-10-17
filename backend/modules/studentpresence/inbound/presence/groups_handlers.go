@@ -228,7 +228,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 
 	// One batch query for every setting this handler and its downstream
 	// helpers (DetermineStudentAccess included) resolve (issue #2065).
-	r = r.WithContext(common.PrefetchStudentDisplaySettings(r.Context(), rs.SettingsService))
+	r = r.WithContext(rs.displaySettings.PrefetchStudentDisplaySettings(r.Context()))
 
 	// The school-wide overview scope broadens the operational room scope.
 	// Per-student GDPR fields below still use DetermineStudentAccess and are
@@ -268,7 +268,7 @@ func (rs *Resource) getActiveGroupVisitsWithDisplay(w http.ResponseWriter, r *ht
 		return
 	}
 
-	photosEnabled := common.StudentPhotosEnabled(r.Context(), rs.SettingsService, rs.getLogger())
+	photosEnabled := rs.displaySettings.StudentPhotosEnabled(r.Context(), rs.getLogger())
 	responses := rs.buildVisitDisplayResponses(results, attendanceStatuses, access, photosEnabled)
 	common.Respond(w, r, http.StatusOK, responses, "Active group visits with display data retrieved successfully")
 }

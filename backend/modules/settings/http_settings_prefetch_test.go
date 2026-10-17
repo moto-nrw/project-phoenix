@@ -1,19 +1,18 @@
-package common
+package settings
 
 import (
 	"context"
 	"errors"
 	"testing"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/require"
 )
 
 type snapshotOnlySettings struct {
-	resolve func(context.Context, []string) (*configSvc.Snapshot, error)
+	resolve func(context.Context, []string) (*Snapshot, error)
 }
 
-func (s snapshotOnlySettings) ResolveMany(ctx context.Context, keys []string) (*configSvc.Snapshot, error) {
+func (s snapshotOnlySettings) ResolveMany(ctx context.Context, keys []string) (*Snapshot, error) {
 	return s.resolve(ctx, keys)
 }
 
@@ -23,17 +22,17 @@ func TestPrefetchSettingsNeedsOnlySnapshotCapability(t *testing.T) {
 	defer cancel()
 	for _, tc := range []struct {
 		name     string
-		snapshot *configSvc.Snapshot
+		snapshot *Snapshot
 		err      error
 		attached bool
 	}{
-		{name: "success", snapshot: &configSvc.Snapshot{}, attached: true},
+		{name: "success", snapshot: &Snapshot{}, attached: true},
 		{name: "nil snapshot"},
 		{name: "read failure", err: errors.New("snapshot unavailable")},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			calls := 0
-			settings := snapshotOnlySettings{resolve: func(gotCtx context.Context, keys []string) (*configSvc.Snapshot, error) {
+			settings := snapshotOnlySettings{resolve: func(gotCtx context.Context, keys []string) (*Snapshot, error) {
 				calls++
 				require.Equal(t, ctx, gotCtx)
 				require.Equal(t, []string{"first", "second"}, keys)
