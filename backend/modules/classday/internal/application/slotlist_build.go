@@ -262,27 +262,7 @@ func slotHeadingDisambiguation(rows []classday.Row, groupBy classday.GroupBy) ma
 	if groupBy != classday.GroupBySlot {
 		return nil
 	}
-	// Per label: the distinct instance IDs (ascending, for stable ordinals) and
-	// each instance's room.
-	type labelInfo struct {
-		ids   []int64
-		room  map[int64]string
-		known map[int64]struct{}
-	}
-	byLabel := map[string]*labelInfo{}
-	for _, r := range rows {
-		li := byLabel[r.Slot]
-		if li == nil {
-			li = &labelInfo{room: map[int64]string{}, known: map[int64]struct{}{}}
-			byLabel[r.Slot] = li
-		}
-		if _, ok := li.known[r.InstanceID]; ok {
-			continue
-		}
-		li.known[r.InstanceID] = struct{}{}
-		li.ids = append(li.ids, r.InstanceID)
-		li.room[r.InstanceID] = r.RoomName
-	}
+	byLabel := slotLabelInfos(rows)
 	suffix := map[int64]string{}
 	for _, li := range byLabel {
 		if len(li.ids) < 2 {
@@ -303,32 +283,66 @@ func slotHeadingDisambiguation(rows []classday.Row, groupBy classday.GroupBy) ma
 		// room suffix already claimed. This keeps both forms clean (no verbose prefix,
 		// no leaked IDs) while guaranteeing distinct, deterministic headings
 		// (#1565 review pass 2 follow-up).
-		used := map[string]struct{}{}
-		for _, id := range li.ids {
-			if room := li.room[id]; room != "" && roomCount[room] == 1 {
-				s := " (" + room + ")"
-				suffix[id] = s
-				used[s] = struct{}{}
-			}
+		used := uniqueRoomSuffixes(suffix, li.ids, li.room, roomCount)
+		addOrdinalSuffixes(suffix, li.ids, used)
+	}
+	return suffix
+}
+
+// slotLabelInfo holds each label's distinct instance IDs and first room names.
+type slotLabelInfo struct {
+	ids   []int64
+	room  map[int64]string
+	known map[int64]struct{}
+}
+
+func slotLabelInfos(rows []classday.Row) map[string]*slotLabelInfo {
+	byLabel := map[string]*slotLabelInfo{}
+	for _, r := range rows {
+		li := byLabel[r.Slot]
+		if li == nil {
+			li = &slotLabelInfo{room: map[int64]string{}, known: map[int64]struct{}{}}
+			byLabel[r.Slot] = li
 		}
-		ordinal := 0
-		for _, id := range li.ids {
-			if _, done := suffix[id]; done {
-				continue
-			}
-			var s string
-			for {
-				ordinal++
-				s = fmt.Sprintf(" (%d)", ordinal)
-				if _, taken := used[s]; !taken {
-					break
-				}
-			}
+		if _, ok := li.known[r.InstanceID]; ok {
+			continue
+		}
+		li.known[r.InstanceID] = struct{}{}
+		li.ids = append(li.ids, r.InstanceID)
+		li.room[r.InstanceID] = r.RoomName
+	}
+	return byLabel
+}
+
+func uniqueRoomSuffixes(suffix map[int64]string, ids []int64, rooms map[int64]string, roomCount map[string]int) map[string]struct{} {
+	used := map[string]struct{}{}
+	for _, id := range ids {
+		if room := rooms[id]; room != "" && roomCount[room] == 1 {
+			s := " (" + room + ")"
 			suffix[id] = s
 			used[s] = struct{}{}
 		}
 	}
-	return suffix
+	return used
+}
+
+func addOrdinalSuffixes(suffix map[int64]string, ids []int64, used map[string]struct{}) {
+	ordinal := 0
+	for _, id := range ids {
+		if _, done := suffix[id]; done {
+			continue
+		}
+		var s string
+		for {
+			ordinal++
+			s = fmt.Sprintf(" (%d)", ordinal)
+			if _, taken := used[s]; !taken {
+				break
+			}
+		}
+		suffix[id] = s
+		used[s] = struct{}{}
+	}
 }
 
 // availableOptions derives the distinct education groups and school classes
