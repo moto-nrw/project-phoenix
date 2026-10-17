@@ -46,8 +46,8 @@ The same kind of gap exists for the owners' ports packages: #4174, #4182 and
 3. The entries take the measured values: Workforce 336 to 414 (the 46 hidden
    row delegations and planning's 32, of which 18 are the moved rows and 14
    planning methods the scan never reached), Timetable 490 to 491, People
-   Directory 307 to 308. `modulePassthroughOwnerBudgetTotal` rises from 3,019
-   to 3,099. Every number keeps falling from there.
+   Directory 307 to 308. `modulePassthroughOwnerBudgetTotal` rises from 3,015
+   to 3,095. Every number keeps falling from there.
 
 ## Consequences
 

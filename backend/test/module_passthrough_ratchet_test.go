@@ -195,7 +195,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughOwnerBudgets: 3109 under ADR 0061, the 717 of
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
-// by ADR 0063 and by ADR 0064 (3,019 to 3,099).
+// by ADR 0063 and by ADR 0064 (3,015 to 3,095).
 const modulePassthroughOwnerBudgetTotal = 3095
 
 // modulePassthroughOwnerBudgets is the register: module directory →
