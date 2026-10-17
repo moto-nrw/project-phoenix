@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -9,11 +9,11 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// allowanceUses spreads an absence over the weekdays it covers. Half-day
+// AllowanceUses spreads an absence over the weekdays it covers. Half-day
 // flags apply only at the original boundaries; weekends never consume
 // allowance. The booking's entry day decides whether an expired rest may
 // still be drawn on.
-func allowanceUses(absence domain.StaffAbsence) ([]domain.AllowanceUse, error) {
+func AllowanceUses(absence domain.StaffAbsence) ([]domain.AllowanceUse, error) {
 	start, err := calendar.ParseDate(absence.DateStart)
 	if err != nil {
 		return nil, err
@@ -58,7 +58,7 @@ func allowanceSummaryToPublic(value domain.AbsenceTypeAllowanceSummary) workforc
 	return result
 }
 
-func (e engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
+func (e Engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTypeID int64, start, end string, halfDay bool) ([]workforce.AbsenceTypeAllowanceSummary, error) {
 	from, err := calendar.ParseDate(start)
 	if err != nil || from.IsZero() {
 		return nil, workforce.ErrAbsenceTypeAllowanceInvalid
@@ -73,17 +73,17 @@ func (e engine) PreviewAllowanceBooking(ctx context.Context, staffID, absenceTyp
 	return allowancePreviewsToPublic(values, err)
 }
 
-func (e engine) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]workforce.AbsenceTypeAllowanceSummary, error) {
+func (e Engine) PreviewAllowanceRebooking(ctx context.Context, staffID, absenceTypeID int64, absenceIDs []int64) ([]workforce.AbsenceTypeAllowanceSummary, error) {
 	return allowancePreviewsToPublic(e.service.PreviewAllowanceRebooking(ctx, staffID, absenceTypeID, absenceIDs))
 }
 
 func allowancePreviewsToPublic(values []domain.AbsenceTypeAllowanceSummary, err error) ([]workforce.AbsenceTypeAllowanceSummary, error) {
 	if values == nil {
-		return nil, mapError(err)
+		return nil, MapError(err)
 	}
 	result := make([]workforce.AbsenceTypeAllowanceSummary, 0, len(values))
 	for _, value := range values {
 		result = append(result, allowanceSummaryToPublic(value))
 	}
-	return result, mapError(err)
+	return result, MapError(err)
 }

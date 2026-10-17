@@ -5,6 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -26,16 +27,12 @@ func NewOffboarding(dependencies Dependencies, appendDeletion func(context.Conte
 		},
 		func(ctx context.Context, staffID int64, from string) (workforce.OffboardingPreview, error) {
 			result, err := service.PreviewStaffOffboarding(ctx, staffID, from)
-			return workforce.OffboardingPreview{Counts: offboardingCountsToPublic(result.Counts), Revision: result.Revision, Blocked: result.Blocked}, mapError(err)
+			return workforce.OffboardingPreview{Counts: application.OffboardingCountsToPublic(result.Counts), Revision: result.Revision, Blocked: result.Blocked}, application.MapError(err)
 		},
 		func(ctx context.Context, staffID, actorID int64, from, revision string) (workforce.OffboardingCounts, error) {
 			result, err := service.ExecuteStaffOffboarding(ctx, staffID, actorID, from, revision, func(txCtx context.Context, absence domain.StaffAbsence, actorID int64) error {
-				return appendDeletion(txCtx, absenceToPublic(absence), actorID)
+				return appendDeletion(txCtx, application.AbsenceToPublic(absence), actorID)
 			})
-			return offboardingCountsToPublic(result), mapError(err)
+			return application.OffboardingCountsToPublic(result), application.MapError(err)
 		}), nil
-}
-
-func offboardingCountsToPublic(value domain.OffboardingCounts) workforce.OffboardingCounts {
-	return workforce.OffboardingCounts{Absences: value.Absences, Shifts: value.Shifts, Series: value.Series, Substitutions: value.Substitutions}
 }
