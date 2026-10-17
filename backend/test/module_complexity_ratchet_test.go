@@ -59,8 +59,6 @@ const moduleComplexityThreshold = 15
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
 var moduleComplexityAllowlist = map[string]int{
-	"modules/appointments/recurrence.go:matchesRule": 17,
-
 	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                      39,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":       16,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).replaceCareOfferingBookings":      17,
@@ -69,7 +67,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/careplan/internal/adapters/postgres/withdrawal_completions.go:(*DirectoryStore).ListWithdrawals":    20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Correct":                       18,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).Decide":                        34,
-	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListHistory":                   20,
 	"modules/careplan/internal/application/excused_requests.go:(*ExcusedRequests).ListPending":                   21,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingFacts":           28,
 	"modules/careplan/internal/application/offering_review_pending.go:(*OfferingReviews).pendingReviews":         56,
