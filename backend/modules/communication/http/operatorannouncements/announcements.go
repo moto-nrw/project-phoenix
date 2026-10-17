@@ -259,12 +259,12 @@ func (rs *AnnouncementsResource) UpdateAnnouncement(w http.ResponseWriter, r *ht
 
 // DeleteAnnouncement handles deleting an announcement
 func (rs *AnnouncementsResource) DeleteAnnouncement(w http.ResponseWriter, r *http.Request) {
-	common.OperatorAuditedIDAction(w, r, "id", "invalid announcement ID", rs.announcementService.DeleteAnnouncement, AnnouncementErrorRenderer, "Announcement deleted successfully")
+	common.OperatorAuditedIDAction(w, r, int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), "id", "invalid announcement ID", rs.announcementService.DeleteAnnouncement, AnnouncementErrorRenderer, "Announcement deleted successfully")
 }
 
 // PublishAnnouncement handles publishing an announcement
 func (rs *AnnouncementsResource) PublishAnnouncement(w http.ResponseWriter, r *http.Request) {
-	common.OperatorAuditedIDAction(w, r, "id", "invalid announcement ID", rs.announcementService.PublishAnnouncement, AnnouncementErrorRenderer, "Announcement published successfully")
+	common.OperatorAuditedIDAction(w, r, int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), "id", "invalid announcement ID", rs.announcementService.PublishAnnouncement, AnnouncementErrorRenderer, "Announcement published successfully")
 }
 
 // GetStats handles getting view statistics for an announcement
