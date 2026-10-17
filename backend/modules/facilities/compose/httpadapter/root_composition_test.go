@@ -1,6 +1,7 @@
 package httpadapter_test
 
 import (
+	"context"
 	"net/http"
 	"testing"
 
@@ -17,7 +18,7 @@ import (
 // The typed root composes the owners the internal route tests run over. It
 // imports this package, so the binding lives in the external test package.
 func init() {
-	httpadapter.ComposeRooms = func(t *testing.T) (*bun.DB, httpadapter.RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler))) {
+	httpadapter.ComposeRooms = func(t *testing.T) (*bun.DB, httpadapter.RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler)), func(context.Context, any, ...string) context.Context) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
 		svc, err := api.NewRoomsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -28,6 +29,6 @@ func init() {
 				Active: svc.Active, Users: api.NewRoomSnapshotPeople(svc.Users), Education: svc.Education, ListExport: svc.ListExport,
 			},
 			Usage: svc.RoomUsage,
-		}, api.ProtectedTenantRoutes
+		}, api.ProtectedTenantRoutes, api.SettingsPrefetchForTest()
 	}
 }
