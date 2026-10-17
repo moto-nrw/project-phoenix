@@ -57,15 +57,6 @@ func requestClaims(ctx context.Context) (RequestClaims, bool) {
 	}, true
 }
 
-// requestIdentityMemo resolves the request identity memo the request
-// middleware attached (#2099).
-func requestIdentityMemo(ctx context.Context) RequestMemo {
-	if cache := sessiontoken.RequestIdentityCacheFrom(ctx); cache != nil {
-		return cache
-	}
-	return nil
-}
-
 // actingAccountID reads the acting account of the request.
 func actingAccountID(ctx context.Context) int64 {
 	claims, _ := requestClaims(ctx)

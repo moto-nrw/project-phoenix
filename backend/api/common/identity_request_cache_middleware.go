@@ -3,7 +3,7 @@ package common
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 )
 
 // RequestIdentityCacheMiddleware attaches the request-scoped identity memo
@@ -15,6 +15,6 @@ import (
 // callerEntry in modules/identityaccess/internal/application/caller_memo.go.
 func RequestIdentityCacheMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		next.ServeHTTP(w, r.WithContext(sessiontoken.WithRequestIdentityCache(r.Context())))
+		next.ServeHTTP(w, r.WithContext(securityruntime.WithRequestIdentityCache(r.Context())))
 	})
 }
