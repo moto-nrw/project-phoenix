@@ -10,7 +10,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // UpdateGuardianRelationship edits the per-child pickup/relationship fields of a
@@ -62,7 +61,7 @@ func (s *Service) UpdateGuardianRelationship(ctx context.Context, accountID, stu
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		updated, err := s.updateGuardianRelationshipInTx(txCtx, child, edit)
 		result = updated
 		return err
@@ -299,7 +298,7 @@ func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, p
 		child.HasPermission(authorize.GuardianPermissionPickupManage), escapes)
 
 	capturedTenant := child.TenantID
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.broadcastStudentUpdated(capturedTenant, edit.studentID)
 	})
 	return result, nil

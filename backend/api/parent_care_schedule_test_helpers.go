@@ -24,6 +24,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		return nil, err
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:   ParentPortalRuntime{},
 		ChildRepo: parents.ParentChildReads(), StudentRepo: repos.Student, PersonRepo: repos.Person,
 		StudentGuardianRepo: parents.StudentGuardian, GuardianProfileRepo: parents.GuardianProfile,
 		Settings: BindParentSettings(module.Settings), ArrivalSchedules: module.ArrivalSchedule, PickupSchedules: module.PickupSchedule,

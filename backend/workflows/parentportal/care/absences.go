@@ -16,7 +16,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // SickNoteResult is the outcome of a parent absence submission. Exactly one of
@@ -137,7 +136,7 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 		notePtr = &report.note
 	}
 	var result []*absencerecords.StudentStatusDay
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.writeAbsence(txCtx, child.TenantID, report, notePtr)
 		result = rows
 		return err
@@ -212,7 +211,7 @@ func (s *Service) writeAbsence(ctx context.Context, tenantID int64, report absen
 func (s *Service) afterAbsenceCommit(ctx context.Context, tenantID int64, report absenceReport, rows []*absencerecords.StudentStatusDay) {
 	pillBody := SickNoteEventBody(report.status, report.dates)
 	pillRefID := firstStatusID(rows)
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		s.SelfService.EmitSelfServicePill(tenantID, report.studentID, report.accountID, "sick_note", pillBody, "active.student_status_days", pillRefID)
 		s.broadcastStudentUpdated(tenantID, report.studentID)
 		// broadcastStudentUpdated is staff-only and emitSelfServicePill wakes
@@ -256,7 +255,7 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 		return nil, fmt.Errorf("parent: absence request service not configured")
 	}
 	var req *careplan.ExcusedAbsenceRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
 		// Lock and re-read the child before creating a pending request so both
 		// absence paths obey the same read-only boundary.

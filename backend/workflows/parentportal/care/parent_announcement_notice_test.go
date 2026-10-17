@@ -27,6 +27,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Messa
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
+		Runtime:               api.ParentPortalRuntime{},
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),

@@ -20,7 +20,7 @@ func (s *Service) ListPickupChangeRequests(ctx context.Context, accountID, stude
 		return nil, errors.New("parent: pickup change request service not configured")
 	}
 	var rows []carerequests.Request
-	err = InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		var listErr error
 		rows, listErr = s.CareRequests.ListPickupChangeRequests(txCtx, studentID, time.Now().AddDate(0, -2, 0))
 		if listErr != nil {

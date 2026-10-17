@@ -9,7 +9,6 @@ import (
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // StudentChangeRecorder appends the per-child change history for a field the
@@ -22,8 +21,9 @@ type StudentChangeRecorder interface {
 // Config is the dependency bundle of the guardian portal's child flows. The
 // unit of work comes from the request context; the package holds no database.
 type Config struct {
-	Logger *slog.Logger
-	Now    func() time.Time
+	Runtime Runtime
+	Logger  *slog.Logger
+	Now     func() time.Time
 
 	// Reads of the child, its school and its guardians.
 	ChildRepo             ChildReads
@@ -133,8 +133,11 @@ type Service struct {
 	Config
 }
 
-// New wires the child flows. RequestSharing is required.
+// New wires the child flows. Runtime and RequestSharing are required.
 func New(cfg Config) *Service {
+	if cfg.Runtime == nil {
+		panic("care: runtime is required")
+	}
 	if cfg.RequestSharing == nil {
 		panic("care: request sharing is required")
 	}
@@ -158,13 +161,12 @@ func (s *Service) todayDate() calendar.Date {
 	return calendar.DateFromTime(s.now())
 }
 
-// InTenant runs fn in the tenant unit of work of the child's school. Nested
-// calls join the ambient transaction; after-commit work runs once, after the
-// outermost commit.
-func InTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {
-	id, err := tenant.NewTenantID(tenantID)
-	if err != nil {
-		return err
-	}
-	return tenant.WithinTenant(ctx, id, fn)
+// Runtime is the workflow-owned transaction and after-commit boundary.
+// Implementations retain the caller's context and the platform's nested
+// transaction, tenant validation and callback lifecycle semantics.
+type Runtime interface {
+	WithinTenant(context.Context, int64, func(context.Context) error) error
+	WithinAdmin(context.Context, func(context.Context) error) error
+	RegisterAfterCommit(context.Context, func())
+	WithTenantID(context.Context, int64) context.Context
 }

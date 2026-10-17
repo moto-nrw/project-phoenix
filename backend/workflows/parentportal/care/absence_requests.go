@@ -28,7 +28,7 @@ func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID 
 	// outcome, while pending ones show regardless of age.
 	recentSince := time.Now().AddDate(0, 0, -14)
 	var out []*careplan.ExcusedAbsenceRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.ExcusedRequests.ListForStudent(txCtx, studentID, recentSince)
 		if err != nil {
 			return err
@@ -118,7 +118,7 @@ func (s *Service) EditExcusedRequest(
 		return nil, ErrExcusedRequestNotFound
 	}
 	var out *careplan.ExcusedAbsenceRequest
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -160,7 +160,7 @@ func (s *Service) ListSickDays(ctx context.Context, accountID, studentID int64, 
 	}
 
 	var out []*absencerecords.StudentStatusDay
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		rows, err := s.StatusDayRepo.FindActiveByStudentAndDateRange(txCtx, studentID, from, to)
 		if err != nil {
 			return err

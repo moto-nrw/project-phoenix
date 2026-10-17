@@ -47,6 +47,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:                api.ParentPortalRuntime{},
 		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
 		CarePlan:               repos.CarePlan(),
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
