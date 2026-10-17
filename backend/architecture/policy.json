@@ -11970,17 +11970,6 @@
       "target_role": "contract"
     },
     {
-      "id": "inbound-common.http.student-presence-public",
-      "description": "api/common builds the student location snapshot from the public presence facades and location types (#3422).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "student-presence",
-      "target_role": "public"
-    },
-    {
       "id": "school-structure.http.student-presence-public",
       "description": "The group routes read room sessions and attendance through the public presence facades (#3422, #2742).",
       "scopes": [
