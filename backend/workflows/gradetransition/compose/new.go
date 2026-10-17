@@ -11,8 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	structurecompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -20,13 +18,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// Dependencies name the owner capabilities the composition does not build
-// itself: the bound People Directory and School Membership of the running
-// graph, the Timetable roster reconciliation, the recurrence gate and the
-// offering-roster resync, plus the runtime hooks. School Structure and
-// Student Presence are composed here over the shared database.
+// Dependencies name the owner capabilities the root binds: School Structure,
+// Student Presence, the bound People Directory and School Membership of the
+// running graph, the Timetable roster reconciliation, the recurrence gate and
+// the offering-roster resync, plus the runtime hooks. The composition builds
+// no other owner (#4004, ADR 0059 point 6).
 type Dependencies struct {
 	DB         *bun.DB
+	Structure  gradetransition.Structure
+	Presence   gradetransition.Presence
 	Directory  gradetransition.Directory
 	Membership gradetransition.Membership
 	Rosters    gradetransition.Rosters
@@ -95,7 +95,8 @@ func New(deps Dependencies) (*gradetransition.Workflow, error) {
 // run every other owner for real.
 func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 	for name, missing := range map[string]bool{
-		"database": deps.DB == nil, "people directory": deps.Directory == nil, "school membership": deps.Membership == nil,
+		"database": deps.DB == nil, "school structure": deps.Structure == nil, "student presence": deps.Presence == nil,
+		"people directory": deps.Directory == nil, "school membership": deps.Membership == nil,
 		"roster reconciliation": deps.Rosters == nil, "recurrence lock": deps.LockRecurrenceWrites == nil,
 		"offering roster resync": deps.ResyncOfferingRosters == nil,
 	} {
@@ -126,14 +127,6 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 		}
 		audit = command
 	}
-	structure, err := structurecompose.New(structurecompose.Dependencies{DB: deps.DB, Observe: func(structurecompose.Observation) {}})
-	if err != nil {
-		return gradetransition.Dependencies{}, err
-	}
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: deps.DB, Observe: func(presencecompose.Observation) {}})
-	if err != nil {
-		return gradetransition.Dependencies{}, err
-	}
 	runner := tenant.NewTransactionRunner()
 	return gradetransition.Dependencies{
 		// Joining an ambient request transaction hands the commit to the route
@@ -151,7 +144,7 @@ func Assemble(deps Dependencies) (gradetransition.Dependencies, error) {
 		Authorize: Authorize,
 		Today:     func() string { return calendar.DateFromTime(clock()).String() },
 		Now:       clock,
-		Structure: structure, Directory: deps.Directory, Membership: deps.Membership, Presence: presence, Rosters: deps.Rosters,
+		Structure: deps.Structure, Directory: deps.Directory, Membership: deps.Membership, Presence: deps.Presence, Rosters: deps.Rosters,
 		LockRecurrenceWrites: deps.LockRecurrenceWrites,
 		ResyncOfferingRosters: func(ctx context.Context, effectiveFrom string) error {
 			day, err := calendar.ParseDate(effectiveFrom)
