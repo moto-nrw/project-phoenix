@@ -1,4 +1,4 @@
-package common_test
+package studentpresence_test
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,7 +23,7 @@ func (s failedPresenceMode) GetPresenceMode(context.Context) (string, error) { r
 func TestLoadStudentLocationSnapshotPropagatesModeFailure(t *testing.T) {
 	t.Parallel()
 	injected := errors.New("presence mode unavailable")
-	snapshot, err := common.LoadStudentLocationSnapshot(context.Background(), failedPresenceMode{err: injected}, nil)
+	snapshot, err := studentpresence.LoadStudentLocationSnapshot(context.Background(), failedPresenceMode{err: injected}, nil)
 	require.ErrorIs(t, err, injected)
 	assert.Nil(t, snapshot)
 }
@@ -37,7 +36,7 @@ func TestStudentLocationInfo_Fields(t *testing.T) {
 	t.Parallel()
 
 	now := time.Now()
-	info := common.StudentLocationInfo{
+	info := studentpresence.StudentLocationInfo{
 		Location: "Anwesend - Room 101",
 		Since:    &now,
 	}
@@ -50,7 +49,7 @@ func TestStudentLocationInfo_Fields(t *testing.T) {
 func TestStudentLocationInfo_NilSince(t *testing.T) {
 	t.Parallel()
 
-	info := common.StudentLocationInfo{
+	info := studentpresence.StudentLocationInfo{
 		Location: "Abwesend",
 		Since:    nil,
 	}
@@ -66,7 +65,7 @@ func TestStudentLocationInfo_NilSince(t *testing.T) {
 func TestStudentLocationSnapshot_ResolveStudentLocation_NilSnapshot(t *testing.T) {
 	t.Parallel()
 
-	var snapshot *common.StudentLocationSnapshot = nil
+	var snapshot *studentpresence.StudentLocationSnapshot = nil
 
 	location := snapshot.ResolveStudentLocation(123, true)
 
@@ -76,7 +75,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_NilSnapshot(t *testing.T
 func TestStudentLocationSnapshot_ResolveStudentLocation_EmptySnapshot(t *testing.T) {
 	t.Parallel()
 
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: make(map[int64]*studentpresence.DailyAttendanceStatus),
 		Visits:      make(map[int64]*studentpresence.Visit),
 		Groups:      make(map[int64]*studentpresence.SessionDetail),
@@ -90,7 +89,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_EmptySnapshot(t *testing
 func TestStudentLocationSnapshot_ResolveStudentLocation_NotCheckedIn(t *testing.T) {
 	t.Parallel()
 
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID: 123,
@@ -110,7 +109,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedOut(t *testing.T)
 	t.Parallel()
 
 	checkoutTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:    123,
@@ -131,7 +130,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedOut_NoFullAccess(
 	t.Parallel()
 
 	checkoutTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:    123,
@@ -152,7 +151,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NoFullAccess(t
 	t.Parallel()
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -173,7 +172,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NoVisit(t *tes
 	t.Parallel()
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -194,7 +193,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NilVisit(t *te
 	t.Parallel()
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -218,7 +217,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_VisitNoGroupID
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -246,7 +245,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupNotFound(
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -274,7 +273,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_NilGroup(t *te
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -305,7 +304,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupNoRoom(t 
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -341,7 +340,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_GroupEmptyRoom
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -379,7 +378,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_CheckedIn_WithRoom(t *te
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -425,8 +424,8 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 	roomColor := "#A3D977"
 
 	t.Run("populates RoomColor when room has color set", func(t *testing.T) {
-		snapshot := &common.StudentLocationSnapshot{
-			Mode: common.PresenceModeDetailed,
+		snapshot := &studentpresence.StudentLocationSnapshot{
+			Mode: studentpresence.PresenceModeDetailed,
 			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
 			},
@@ -454,8 +453,8 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 	})
 
 	t.Run("RoomColor is nil when room has no color (fallback to blue)", func(t *testing.T) {
-		snapshot := &common.StudentLocationSnapshot{
-			Mode: common.PresenceModeDetailed,
+		snapshot := &studentpresence.StudentLocationSnapshot{
+			Mode: studentpresence.PresenceModeDetailed,
 			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 				123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
 			},
@@ -486,7 +485,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocation_RoomColor(t *testing.T) 
 func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_NilSnapshot(t *testing.T) {
 	t.Parallel()
 
-	var snapshot *common.StudentLocationSnapshot = nil
+	var snapshot *studentpresence.StudentLocationSnapshot = nil
 
 	info := snapshot.ResolveStudentLocationWithTime(123, true)
 
@@ -498,7 +497,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedOut_FullA
 	t.Parallel()
 
 	checkoutTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:    123,
@@ -521,7 +520,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedOut_NoFul
 	t.Parallel()
 
 	checkoutTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:    123,
@@ -545,7 +544,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_CheckedIn_WithRo
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -583,7 +582,7 @@ func TestStudentLocationSnapshot_ResolveStudentLocationWithTime_Unterwegs(t *tes
 	t.Parallel()
 
 	checkinTime := time.Now().Add(-1 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID:   123,
@@ -605,8 +604,8 @@ func TestDetailedMode_OpenVisitWithoutAttendanceRemainsVisible(t *testing.T) {
 	t.Parallel()
 
 	entryTime := time.Date(2026, time.August, 26, 9, 15, 0, 0, time.UTC)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode:        common.PresenceModeDetailed,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode:        studentpresence.PresenceModeDetailed,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{},
 		Visits: map[int64]*studentpresence.Visit{
 			42: {StudentID: 42, ActiveGroupID: 99, EntryTime: entryTime},
@@ -638,7 +637,7 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 	entryTime := time.Now().Add(-15 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
 
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			1: {StudentID: 1, Status: "not_checked_in"},
 			2: {StudentID: 2, Status: "checked_out", CheckOutTime: &checkoutTime},
@@ -692,7 +691,7 @@ func TestStudentLocationSnapshot_MultipleStudents(t *testing.T) {
 func TestStudentLocationSnapshot_NilAttendanceInMap(t *testing.T) {
 	t.Parallel()
 
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: nil, // Explicit nil value
 		},
@@ -708,7 +707,7 @@ func TestStudentLocationSnapshot_NilAttendanceInMap(t *testing.T) {
 func TestStudentLocationSnapshot_UnknownStatus(t *testing.T) {
 	t.Parallel()
 
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {
 				StudentID: 123,
@@ -733,8 +732,8 @@ func TestBinaryMode_CheckedIn_ReturnsAnwesend(t *testing.T) {
 	t.Parallel()
 
 	checkinTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeBinary,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeBinary,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {
 				StudentID:   42,
@@ -755,8 +754,8 @@ func TestBinaryMode_CheckedIn_NoFullAccess_OmitsTimestamp(t *testing.T) {
 	t.Parallel()
 
 	checkinTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeBinary,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeBinary,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {
 				StudentID:   42,
@@ -777,8 +776,8 @@ func TestBinaryMode_OnYard_ReturnsSchulhof(t *testing.T) {
 
 	checkinTime := time.Now().Add(-3 * time.Hour)
 	yardSince := time.Now().Add(-15 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeBinary,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeBinary,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {
 				StudentID:   42,
@@ -800,8 +799,8 @@ func TestBinaryMode_CheckedOut_ReturnsAbwesend(t *testing.T) {
 	t.Parallel()
 
 	checkoutTime := time.Now().Add(-10 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeBinary,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeBinary,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {
 				StudentID:    42,
@@ -821,8 +820,8 @@ func TestBinaryMode_CheckedOut_ReturnsAbwesend(t *testing.T) {
 func TestBinaryMode_NotCheckedIn_ReturnsAbwesend(t *testing.T) {
 	t.Parallel()
 
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeBinary,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeBinary,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {StudentID: 42, Status: "not_checked_in"},
 		},
@@ -841,8 +840,8 @@ func TestBinaryMode_IgnoresVisitsAndGroups(t *testing.T) {
 	// resolver must not consult them — binary semantics are attendance-only.
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeBinary,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeBinary,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {
 				StudentID:   42,
@@ -870,8 +869,8 @@ func TestDetailedMode_OnYardStatusFallsThroughToAbwesend(t *testing.T) {
 	// if the status somehow derives to "on_yard", the resolver treats it as
 	// not-checked-in — detailed mode has no Schulhof label path.
 	yardSince := time.Now().Add(-15 * time.Minute)
-	snapshot := &common.StudentLocationSnapshot{
-		Mode: common.PresenceModeDetailed,
+	snapshot := &studentpresence.StudentLocationSnapshot{
+		Mode: studentpresence.PresenceModeDetailed,
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {StudentID: 42, Status: "on_yard", YardSince: &yardSince},
 		},
@@ -889,7 +888,7 @@ func TestDefaultMode_EmptyModeBehavesAsDetailed(t *testing.T) {
 	// resolver must keep treating those as detailed-mode for backwards
 	// compatibility.
 	checkinTime := time.Now().Add(-1 * time.Hour)
-	snapshot := &common.StudentLocationSnapshot{
+	snapshot := &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			42: {StudentID: 42, Status: "checked_in", CheckInTime: &checkinTime},
 		},

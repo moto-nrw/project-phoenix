@@ -111,7 +111,7 @@ type PlannedStudents interface {
 // commands. The composition root binds the public capability to it; handlers
 // never see kiosk sessions, student moves or maintenance.
 type StudentPresence interface {
-	common.StudentLocationReader
+	studentpresence.StudentLocationReader
 	GetStudentAttendanceStatus(ctx context.Context, studentID int64) (*studentpresence.DailyAttendanceStatus, error)
 	GetStudentCurrentVisit(ctx context.Context, studentID int64) (*studentpresence.Visit, error)
 	FindVisitsByStudentID(ctx context.Context, studentID int64) ([]studentpresence.Visit, error)

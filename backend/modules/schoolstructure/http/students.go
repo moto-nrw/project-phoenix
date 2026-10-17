@@ -46,7 +46,7 @@ func (rs *Resource) buildStudentResponse(
 	student peopledirectory.StudentRecord,
 	group *education.Group,
 	hasFullAccess bool,
-	locationSnapshot *common.StudentLocationSnapshot,
+	locationSnapshot *studentpresence.StudentLocationSnapshot,
 ) *GroupStudentResponse {
 	person, err := rs.People.FindPerson(ctx, student.PersonID)
 	if err != nil {
@@ -79,7 +79,7 @@ func (rs *Resource) resolveLocationForStudent(
 	ctx context.Context,
 	studentID int64,
 	hasFullAccess bool,
-	snapshot *common.StudentLocationSnapshot,
+	snapshot *studentpresence.StudentLocationSnapshot,
 ) string {
 	if snapshot != nil {
 		return snapshot.ResolveStudentLocation(studentID, hasFullAccess)
@@ -88,7 +88,7 @@ func (rs *Resource) resolveLocationForStudent(
 }
 
 // getStudentVisitGroupID reads the student's current group ID from the snapshot or service.
-func (rs *Resource) getStudentVisitGroupID(ctx context.Context, studentID int64, snapshot *common.StudentLocationSnapshot) *int64 {
+func (rs *Resource) getStudentVisitGroupID(ctx context.Context, studentID int64, snapshot *studentpresence.StudentLocationSnapshot) *int64 {
 	if snapshot != nil {
 		if visit := snapshot.Visits[studentID]; visit != nil {
 			return &visit.ActiveGroupID
@@ -103,7 +103,7 @@ func (rs *Resource) getStudentVisitGroupID(ctx context.Context, studentID int64,
 }
 
 // getVisitActiveGroup retrieves the active group for a visit from snapshot or service
-func (rs *Resource) getVisitActiveGroup(ctx context.Context, activeGroupID int64, snapshot *common.StudentLocationSnapshot) *studentpresence.SessionDetail {
+func (rs *Resource) getVisitActiveGroup(ctx context.Context, activeGroupID int64, snapshot *studentpresence.StudentLocationSnapshot) *studentpresence.SessionDetail {
 	if snapshot != nil {
 		return snapshot.Groups[activeGroupID]
 	}
@@ -119,7 +119,7 @@ func (rs *Resource) buildStudentRoomStatus(
 	ctx context.Context,
 	student peopledirectory.StudentRecord,
 	groupRoomID int64,
-	snapshot *common.StudentLocationSnapshot,
+	snapshot *studentpresence.StudentLocationSnapshot,
 	personMap map[int64]peopledirectory.Person,
 ) map[string]interface{} {
 	status := map[string]interface{}{
@@ -203,7 +203,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		studentIDs = append(studentIDs, student.ID)
 	}
 
-	locationSnapshot, snapshotErr := common.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
+	locationSnapshot, snapshotErr := studentpresence.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
 		slog.Default().Warn("failed to batch load group student locations",
 			slog.String("error", snapshotErr.Error()))
@@ -269,7 +269,7 @@ func (rs *Resource) buildRoomStatusResponse(ctx context.Context, students []peop
 		studentIDs = append(studentIDs, student.ID)
 	}
 
-	snapshot, snapshotErr := common.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
+	snapshot, snapshotErr := studentpresence.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
 	if snapshotErr != nil {
 		slog.Default().Warn("failed to batch load student room locations",
 			slog.String("error", snapshotErr.Error()))

@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -92,7 +91,7 @@ func TestApplyActualTimesFromSnapshot_NilGuards(t *testing.T) {
 	applyActualTimesFromSnapshot(response, &studentDataSnapshot{})
 
 	applyActualTimesFromSnapshot(response, &studentDataSnapshot{
-		LocationSnapshot: &common.StudentLocationSnapshot{
+		LocationSnapshot: &studentpresence.StudentLocationSnapshot{
 			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{},
 		},
 	})
@@ -111,7 +110,7 @@ func TestApplyActualTimesFromSnapshot_LooksUpByResponseID(t *testing.T) {
 	checkOut := time.Date(2026, 4, 27, 14, 0, 0, 0, time.UTC) // 16:00 Berlin
 
 	snapshot := &studentDataSnapshot{
-		LocationSnapshot: &common.StudentLocationSnapshot{
+		LocationSnapshot: &studentpresence.StudentLocationSnapshot{
 			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 				studentID: {
 					Status:       "checked_out",
@@ -142,7 +141,7 @@ func TestApplyActualTimesFromSnapshot_StudentMissingFromSnapshot(t *testing.T) {
 	t.Parallel()
 
 	snapshot := &studentDataSnapshot{
-		LocationSnapshot: &common.StudentLocationSnapshot{
+		LocationSnapshot: &studentpresence.StudentLocationSnapshot{
 			Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 				99: {Status: "checked_in"},
 			},
