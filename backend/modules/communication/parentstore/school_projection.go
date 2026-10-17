@@ -35,6 +35,10 @@ type schoolParentAnnouncementRepository struct {
 	schools SchoolDirectory
 }
 
+func (r schoolParentAnnouncementRepository) AnnouncementSchoolName(ctx context.Context, tenantID int64) (string, error) {
+	return r.SchoolName(ctx, tenantID)
+}
+
 func (r schoolParentAnnouncementRepository) SchoolName(ctx context.Context, tenantID int64) (string, error) {
 	name, err := r.schools.SchoolName(ctx, tenantID)
 	if err != nil {
