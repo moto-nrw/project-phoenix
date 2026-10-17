@@ -85,7 +85,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"modules/classday/internal/application/slotlist_build.go:(*service).buildList":           28,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).collectSlotContexts": 20,
-	"modules/classday/internal/application/slotlist_rows.go:(*service).enrichEntries":        56,
 	"modules/classday/internal/application/slotlist_build.go:filterRows":                     16,
 	"modules/classday/internal/application/slotlist_build.go:slotHeadingDisambiguation":      29,
 
