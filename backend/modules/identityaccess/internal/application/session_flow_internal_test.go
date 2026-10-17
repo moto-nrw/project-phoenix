@@ -2,7 +2,9 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
@@ -80,4 +82,70 @@ func TestLoginWithAudit_GuardianOnlyAccountMustUseParentPortal(t *testing.T) {
 	_, _, err := f.auth.LoginWithAudit(context.Background(), "user1@example.com", "secret", "192.0.2.1", "tests", "")
 	require.ErrorIs(t, err, domain.ErrParentMustUseParentPortal, "wrong-portal rejection")
 	assert.Empty(t, f.store.sessionsOf(1))
+}
+
+// A rejected refresh commits its family revocation, but never continues into
+// successor creation, login recording, or token minting.
+func TestRefreshToken_RejectionsRevokeFamilyWithoutIssuingTokens(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name    string
+		want    error
+		prepare func(*authFixture, *domain.AccountSession)
+	}{
+		{
+			name: "claim_mismatch", want: domain.ErrInvalidToken,
+			prepare: func(_ *authFixture, session *domain.AccountSession) { session.TenantID++ },
+		},
+		{
+			name: "token_expired", want: domain.ErrTokenExpired,
+			prepare: func(_ *authFixture, session *domain.AccountSession) { session.Expiry = time.Now().Add(-time.Minute) },
+		},
+		{
+			name: "replay_detected", want: domain.ErrInvalidToken,
+			prepare: func(_ *authFixture, session *domain.AccountSession) {
+				rotatedAt := time.Now().Add(-fakeRotation{}.RecoveryGrace() - time.Minute)
+				session.RotatedAt = &rotatedAt
+			},
+		},
+		{
+			name: "lineage_mismatch", want: domain.ErrInvalidToken,
+			prepare: func(f *authFixture, session *domain.AccountSession) {
+				successor := *session
+				successor.ID++
+				successor.Token += "-successor"
+				successor.Generation++
+				f.store.sessions[successor.ID] = successor
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			f := newAuthFixture(t)
+			f.seedStaff(1, 10, "user")
+			ctx := context.Background()
+			_, refresh, err := f.auth.LoginWithAudit(ctx, "user1@example.com", "secret", "", "tests", "")
+			require.NoError(t, err)
+			sessions := f.store.sessionsOf(1)
+			require.Len(t, sessions, 1)
+			presented := sessions[0]
+			tt.prepare(f, &presented)
+			f.store.sessions[presented.ID] = presented
+			f.store.calls = nil
+
+			access, rotated, err := f.auth.RefreshTokenWithAudit(ctx, refresh, "", "tests")
+
+			require.ErrorIs(t, err, tt.want)
+			assert.Empty(t, access)
+			assert.Empty(t, rotated)
+			assert.Empty(t, f.store.sessionsOf(1))
+			events := f.audit.eventsOfType(domain.AuthEventTokenRevoked)
+			require.Len(t, events, 1)
+			assert.Equal(t, tt.name, events[0].RevokedSessions.Reason)
+			assert.Contains(t, f.push.calls, fmt.Sprintf("family:1:%s", presented.FamilyID))
+			assert.NotContains(t, f.store.recorded(), "RecordAccountLogin")
+			assert.NotContains(t, f.store.recorded(), "InsertAccountSession")
+		})
+	}
 }

@@ -7,6 +7,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -169,4 +170,10 @@ func OpaqueCapabilityFingerprint(token string) string {
 // without the test naming the token package (#2736).
 func WithRefreshToken(ctx context.Context, token string) context.Context {
 	return context.WithValue(ctx, sessiontoken.CtxRefreshToken, token)
+}
+
+// WithRequestIdentityCache attaches the native request identity memo for
+// behavior tests; entry contents and cache lifetime remain with their owners.
+func WithRequestIdentityCache(ctx context.Context) context.Context {
+	return securityruntime.WithRequestIdentityCache(ctx)
 }

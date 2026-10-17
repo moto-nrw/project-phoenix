@@ -151,134 +151,169 @@ func (s *AccountAuthentication) refreshClaimsGuard(scope string, tenantID int64,
 // the presented session is locked, validated, and either recovered from a
 // committed hand-off or rotated.
 func (s *AccountAuthentication) refreshSessionInTransaction(ctx context.Context, claims domain.RefreshClaims, ipAddress, userAgent string, tenantID int64, guard mintGuard) (domain.LoginAccount, domain.AccountSession, bool, error) {
-	var (
-		account           domain.LoginAccount
-		newSession        domain.AccountSession
-		recovered         bool
-		rejectAfterCommit error
-		revokedForPush    *domain.AccountSession
-	)
-	err := s.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		now := time.Now()
-		unlocked, err := s.sessions.FindAccountSession(txCtx, claims.Token)
-		if err != nil {
-			if errors.Is(err, domain.ErrAccountSessionNotFound) {
-				s.logRefreshDecision("refresh_session_rejected", "token_not_found", claims.AccountID, claims.TenantID)
-				return failed("get token", domain.ErrTokenNotFound)
-			}
-			return fmt.Errorf("find refresh token owner: %w", err)
-		}
-		account, err = s.fetchAndValidateAccountForUpdate(txCtx, unlocked.AccountID)
-		if err != nil {
-			reason := "account_lookup_failed"
-			if errors.Is(err, domain.ErrAccountInactive) {
-				reason = "account_inactive"
-			} else if errors.Is(err, domain.ErrAccountNotFound) {
-				reason = "account_not_found"
-			}
-			s.logRefreshDecision("refresh_session_rejected", reason, claims.AccountID, claims.TenantID)
-			return err
-		}
-		if guard != nil {
-			if err := guard(txCtx, account); err != nil {
-				return err
-			}
-		}
-		presented, err := s.sessions.FindAccountSessionForUpdate(txCtx, claims.Token)
-		if err != nil {
-			if errors.Is(err, domain.ErrAccountSessionNotFound) {
-				s.logRefreshDecision("refresh_session_rejected", "token_not_found", claims.AccountID, claims.TenantID)
-				return failed("get token", domain.ErrTokenNotFound)
-			}
-			return fmt.Errorf("find refresh token: %w", err)
-		}
-		if presented.AccountID != claims.AccountID || (claims.TenantID > 0 && presented.TenantID != claims.TenantID) {
-			if err := s.deleteFamilyWithAudit(txCtx, presented, "claim_mismatch", ipAddress, userAgent); err != nil {
-				return fmt.Errorf("revoke mismatched refresh-token family: %w", err)
-			}
-			revokedForPush = &presented
-			rejectAfterCommit = domain.ErrInvalidToken
-			s.logRefreshDecision("refresh_session_rejected", "claim_mismatch", claims.AccountID, claims.TenantID)
-			return nil
-		}
-		if now.After(presented.Expiry) {
-			if err := s.deleteFamilyWithAudit(txCtx, presented, "token_expired", ipAddress, userAgent); err != nil {
-				return fmt.Errorf("delete expired refresh-token family: %w", err)
-			}
-			revokedForPush = &presented
-			rejectAfterCommit = domain.ErrTokenExpired
-			s.logRefreshDecision("refresh_session_rejected", "token_expired", claims.AccountID, claims.TenantID)
-			return nil
-		}
-		current, wasRecovered, err := s.resolveRefreshHandoff(txCtx, presented, now)
-		if err != nil {
-			if errors.Is(err, domain.ErrInvalidToken) {
-				if revokeErr := s.deleteFamilyWithAudit(txCtx, current, "replay_detected", ipAddress, userAgent); revokeErr != nil {
-					return fmt.Errorf("revoke replayed refresh-token family: %w", revokeErr)
-				}
-				revokedForPush = &current
-				rejectAfterCommit = domain.ErrInvalidToken
-				s.logRefreshDecision("refresh_session_rejected", "replay_detected", claims.AccountID, claims.TenantID)
-				return nil
-			}
-			return err
-		}
-		if current.FamilyID != "" {
-			latest, latestErr := s.sessions.LatestAccountSessionInFamily(txCtx, current.FamilyID)
-			if latestErr != nil {
-				return fmt.Errorf("inspect refresh-token family: %w", latestErr)
-			}
-			if latest.Generation > current.Generation {
-				if revokeErr := s.deleteFamilyWithAudit(txCtx, current, "lineage_mismatch", ipAddress, userAgent); revokeErr != nil {
-					return fmt.Errorf("revoke inconsistent refresh-token family: %w", revokeErr)
-				}
-				revokedForPush = &current
-				rejectAfterCommit = domain.ErrInvalidToken
-				s.logRefreshDecision("refresh_session_rejected", "lineage_mismatch", claims.AccountID, claims.TenantID)
-				return nil
-			}
-		}
-		// Pre-tenant-claim tokens carry tenant 0; the successor gets the
-		// account's default mapping.
-		effectiveTenantID := tenantID
-		if effectiveTenantID == 0 {
-			resolved, _, resolveErr := s.resolveAccountTenant(txCtx, account.ID, "")
-			if resolveErr != nil {
-				return resolveErr
-			}
-			effectiveTenantID = resolved
-		}
-		recovered = wasRecovered
-		if recovered {
-			newSession = current
-		} else {
-			newSession, err = s.createAndPersistSuccessor(txCtx, current, account.ID, effectiveTenantID, claims.Scope, now)
-			if err != nil {
-				return err
-			}
-		}
-		if _, err := s.store.RecordAccountLogin(txCtx, account.ID, time.Now()); err != nil {
-			return err
-		}
-		return nil
-	})
-	if err != nil {
-		if errors.Is(err, domain.ErrAccountInactive) && ipAddress != "" {
-			if auditErr := s.logAuthEvent(ctx, claims.AccountID, domain.AuthEventTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
-				s.logger.Error("failed to audit rejected refresh",
-					slog.Int64("account_id", claims.AccountID),
-					slog.Any("error", auditErr))
-			}
-		}
+	rotation := refreshRotation{service: s, claims: claims, ipAddress: ipAddress, userAgent: userAgent, tenantID: tenantID, guard: guard}
+	if err := s.runtime.WithAdminTx(ctx, rotation.run); err != nil {
+		s.auditRejectedRefresh(ctx, claims.AccountID, ipAddress, userAgent, err)
 		return domain.LoginAccount{}, domain.AccountSession{}, false, failed("refresh transaction", err)
 	}
-	if revokedForPush != nil {
-		s.queuePushCleanup(ctx, revokedForPush.AccountID, []domain.AccountSession{*revokedForPush}, "family")
+	if rotation.revokedForPush != nil {
+		s.queuePushCleanup(ctx, rotation.revokedForPush.AccountID, []domain.AccountSession{*rotation.revokedForPush}, "family")
 	}
-	if rejectAfterCommit != nil {
-		return domain.LoginAccount{}, domain.AccountSession{}, false, failed("refresh transaction", rejectAfterCommit)
+	if rotation.rejectAfterCommit != nil {
+		return domain.LoginAccount{}, domain.AccountSession{}, false, failed("refresh transaction", rotation.rejectAfterCommit)
 	}
-	return account, newSession, recovered, nil
+	return rotation.account, rotation.newSession, rotation.recovered, nil
+}
+
+// refreshRotation keeps the transaction's provisional result separate from a
+// rejection whose family revocation must commit before it reaches the caller.
+type refreshRotation struct {
+	service           *AccountAuthentication
+	claims            domain.RefreshClaims
+	ipAddress         string
+	userAgent         string
+	tenantID          int64
+	guard             mintGuard
+	account           domain.LoginAccount
+	newSession        domain.AccountSession
+	recovered         bool
+	rejectAfterCommit error
+	revokedForPush    *domain.AccountSession
+}
+
+func (r *refreshRotation) run(ctx context.Context) error {
+	now := time.Now()
+	if err := r.lockAccount(ctx); err != nil {
+		return err
+	}
+	presented, err := r.presentedSession(ctx)
+	if err != nil {
+		return err
+	}
+	if err := r.validatePresented(ctx, presented, now); err != nil || r.rejectAfterCommit != nil {
+		return err
+	}
+	current, wasRecovered, err := r.service.resolveRefreshHandoff(ctx, presented, now)
+	if err != nil {
+		if errors.Is(err, domain.ErrInvalidToken) {
+			return r.reject(ctx, current, "replay_detected", "revoke replayed refresh-token family", domain.ErrInvalidToken)
+		}
+		return err
+	}
+	if err := r.validateLineage(ctx, current); err != nil || r.rejectAfterCommit != nil {
+		return err
+	}
+	return r.persist(ctx, current, wasRecovered, now)
+}
+
+func (r *refreshRotation) lockAccount(ctx context.Context) error {
+	unlocked, err := r.service.sessions.FindAccountSession(ctx, r.claims.Token)
+	if err != nil {
+		if errors.Is(err, domain.ErrAccountSessionNotFound) {
+			r.service.logRefreshDecision("refresh_session_rejected", "token_not_found", r.claims.AccountID, r.claims.TenantID)
+			return failed("get token", domain.ErrTokenNotFound)
+		}
+		return fmt.Errorf("find refresh token owner: %w", err)
+	}
+	r.account, err = r.service.fetchAndValidateAccountForUpdate(ctx, unlocked.AccountID)
+	if err != nil {
+		reason := "account_lookup_failed"
+		if errors.Is(err, domain.ErrAccountInactive) {
+			reason = "account_inactive"
+		} else if errors.Is(err, domain.ErrAccountNotFound) {
+			reason = "account_not_found"
+		}
+		r.service.logRefreshDecision("refresh_session_rejected", reason, r.claims.AccountID, r.claims.TenantID)
+		return err
+	}
+	if r.guard != nil {
+		return r.guard(ctx, r.account)
+	}
+	return nil
+}
+
+func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountSession, error) {
+	presented, err := r.service.sessions.FindAccountSessionForUpdate(ctx, r.claims.Token)
+	if err != nil {
+		if errors.Is(err, domain.ErrAccountSessionNotFound) {
+			r.service.logRefreshDecision("refresh_session_rejected", "token_not_found", r.claims.AccountID, r.claims.TenantID)
+			return domain.AccountSession{}, failed("get token", domain.ErrTokenNotFound)
+		}
+		return domain.AccountSession{}, fmt.Errorf("find refresh token: %w", err)
+	}
+	return presented, nil
+}
+
+func (r *refreshRotation) validatePresented(ctx context.Context, presented domain.AccountSession, now time.Time) error {
+	if presented.AccountID != r.claims.AccountID || (r.claims.TenantID > 0 && presented.TenantID != r.claims.TenantID) {
+		return r.reject(ctx, presented, "claim_mismatch", "revoke mismatched refresh-token family", domain.ErrInvalidToken)
+	}
+	if now.After(presented.Expiry) {
+		return r.reject(ctx, presented, "token_expired", "delete expired refresh-token family", domain.ErrTokenExpired)
+	}
+	return nil
+}
+
+func (r *refreshRotation) validateLineage(ctx context.Context, current domain.AccountSession) error {
+	if current.FamilyID == "" {
+		return nil
+	}
+	latest, err := r.service.sessions.LatestAccountSessionInFamily(ctx, current.FamilyID)
+	if err != nil {
+		return fmt.Errorf("inspect refresh-token family: %w", err)
+	}
+	if latest.Generation > current.Generation {
+		return r.reject(ctx, current, "lineage_mismatch", "revoke inconsistent refresh-token family", domain.ErrInvalidToken)
+	}
+	return nil
+}
+
+func (r *refreshRotation) reject(ctx context.Context, session domain.AccountSession, reason, operation string, cause error) error {
+	if err := r.service.deleteFamilyWithAudit(ctx, session, reason, r.ipAddress, r.userAgent); err != nil {
+		return fmt.Errorf("%s: %w", operation, err)
+	}
+	r.revokedForPush = &session
+	r.rejectAfterCommit = cause
+	r.service.logRefreshDecision("refresh_session_rejected", reason, r.claims.AccountID, r.claims.TenantID)
+	return nil
+}
+
+func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSession, wasRecovered bool, now time.Time) error {
+	// Pre-tenant-claim tokens carry tenant 0; the successor gets the
+	// account's default mapping.
+	effectiveTenantID := r.tenantID
+	if effectiveTenantID == 0 {
+		resolved, _, err := r.service.resolveAccountTenant(ctx, r.account.ID, "")
+		if err != nil {
+			return err
+		}
+		effectiveTenantID = resolved
+	}
+	r.recovered = wasRecovered
+	if r.recovered {
+		r.newSession = current
+	} else {
+		var err error
+		r.newSession, err = r.service.createAndPersistSuccessor(ctx, current, r.account.ID, effectiveTenantID, r.claims.Scope, now)
+		if err != nil {
+			return err
+		}
+	}
+	if _, err := r.service.store.RecordAccountLogin(ctx, r.account.ID, time.Now()); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *AccountAuthentication) auditRejectedRefresh(ctx context.Context, accountID int64, ipAddress, userAgent string, err error) {
+	if !errors.Is(err, domain.ErrAccountInactive) || ipAddress == "" {
+		return
+	}
+	if auditErr := s.logAuthEvent(ctx, accountID, domain.AuthEventTokenRefresh, false, ipAddress, userAgent, "Account inactive"); auditErr != nil {
+		s.logger.Error("failed to audit rejected refresh",
+			slog.Int64("account_id", accountID),
+			slog.Any("error", auditErr))
+	}
 }
 
 // fetchAndValidateAccountForUpdate locks the account before refresh locks

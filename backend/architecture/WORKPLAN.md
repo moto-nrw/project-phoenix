@@ -548,3 +548,10 @@ Methoden bleiben unverändert; der identische doppelte Dateinamen-Generator
 entfällt aus Compose. Ein #4076-Key fällt; keine Regel, Owner- oder Policy-Änderung.
 File Storage Compose 642 → 636, Gesamtkappe 55.887 → 55.881; Composition 1.657
 bleibt gleich. Routen, Responses und gesamte Golden-Dateien bleiben unverändert.
+
+#4078: Der Request-Identity-Memo liegt bei Security Runtime/Public statt im
+Session-Token-Adapter. Identity behält die Einträge; Root bindet weiter denselben
+Memo-Port. Middleware, Note-Eviction und Verhaltenstests nutzen dieselbe Implementierung.
+Paketklassifikation, Regeln, Keys und Composition ändern sich nicht. Die bestehende
+Memo-Port-Bindung liegt nun in einer nativen Root-Datei: Der Legacy-File-Budgeteintrag
+sinkt von 73 auf 64 LOC, die Summe von 3.795 auf 3786 LOC.
