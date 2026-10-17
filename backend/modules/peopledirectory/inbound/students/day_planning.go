@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -245,14 +244,14 @@ func (rs *Resource) CountAtSchoolToday(ctx context.Context, studentIDs []int64) 
 
 	responses := make([]StudentResponse, len(studentIDs))
 	for i, id := range studentIDs {
-		responses[i] = StudentResponse{ID: id, HasFullAccess: true, Location: common.AbsentLocationLabel}
+		responses[i] = StudentResponse{ID: id, HasFullAccess: true, Location: studentpresence.AbsentLocationLabel}
 	}
 	applyDayPlanning(responses, arrivals, pickups, attendances, timetableIDs, true)
 	applyAtSchoolLocation(responses, pickups, attendances, careDayEnd, rs.Now())
 
 	count := 0
 	for i := range responses {
-		if responses[i].Location == common.AtSchoolLocationLabel {
+		if responses[i].Location == studentpresence.AtSchoolLocationLabel {
 			count++
 		}
 	}
@@ -299,7 +298,7 @@ func applyAtSchoolLocation(
 ) {
 	for i := range responses {
 		response := &responses[i]
-		if !response.HasFullAccess || response.Location != common.AbsentLocationLabel {
+		if !response.HasFullAccess || response.Location != studentpresence.AbsentLocationLabel {
 			continue
 		}
 		var pickupTime *time.Time
@@ -318,7 +317,7 @@ func applyAtSchoolLocation(
 		}) {
 			continue
 		}
-		response.Location = common.AtSchoolLocationLabel
+		response.Location = studentpresence.AtSchoolLocationLabel
 		response.LocationSince = nil
 	}
 }

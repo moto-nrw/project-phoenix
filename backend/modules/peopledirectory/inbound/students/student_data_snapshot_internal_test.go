@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -69,7 +68,7 @@ func TestStudentDataSnapshotResolveLocationWithTime(t *testing.T) {
 	checkinTime := time.Now().Add(-1 * time.Hour)
 	entryTime := time.Now().Add(-30 * time.Minute)
 	startTime := time.Now().Add(-2 * time.Hour)
-	snapshot := &studentDataSnapshot{LocationSnapshot: &common.StudentLocationSnapshot{
+	snapshot := &studentDataSnapshot{LocationSnapshot: &studentpresence.StudentLocationSnapshot{
 		Attendances: map[int64]*studentpresence.DailyAttendanceStatus{
 			123: {StudentID: 123, Status: "checked_in", CheckInTime: &checkinTime},
 		},

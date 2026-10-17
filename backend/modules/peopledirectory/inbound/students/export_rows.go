@@ -11,10 +11,10 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/internal/collation"
 	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
@@ -630,9 +630,9 @@ func exportStatus(student StudentResponse) string {
 	// The resolver emits "Abwesend"; "Zuhause" and "" cover dated exports and
 	// older callers. Without the "Abwesend" case every child at home fell
 	// through to "anwesend".
-	case common.AbsentLocationLabel, "Zuhause", "":
+	case studentpresence.AbsentLocationLabel, "Zuhause", "":
 		return "abwesend"
-	case common.AtSchoolLocationLabel:
+	case studentpresence.AtSchoolLocationLabel:
 		return "schule"
 	case "Unterwegs":
 		return "unterwegs"
