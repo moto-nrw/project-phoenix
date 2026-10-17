@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 169 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 168 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-35.380 in `compose`
+35.379 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 7 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 6 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
@@ -21,9 +21,18 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 169 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 168 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Die Workflow-Komposition nimmt schmale, verbraucherseitige Ports statt
+breiter `models/users`-Repository-Verträge. Messaging bekommt nur Feed-/Deklarationsaktionen,
+Guardian-Inbox-Reads, Thread-Auflösung und Sharing; Care schreibt das Request-Ledger nur.
+Die bisherigen Owner-Werte, Bindungen, Aufrufe und alle Testkörper bleiben unverändert.
+Die privaten DTO-Abhängigkeiten von Care und Messaging bleiben offen und sichtbar.
+Ein Produktionskey fällt: 169 → 168, #4073 7 → 6. Keine Regel, Freigabe, Alias,
+Klassifizierung, Ausnahme oder höhere Budgets; Composition bleibt 1.657.
+Parent-Compose sinkt 486 → 485 LOC, die Compose-Summe 35.380 → 35.379.
 
 #4073: Die letzten privaten Schedule-Fixtures verwenden native Care-Plan-Werte.
 Root-Testhelfer nutzen dieselbe Owner-Capability, vorhandene Record-Codecs und Fehlerabbildung;
