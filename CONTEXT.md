@@ -438,10 +438,16 @@ Ein Eintrag kann zum dauerhaften Hinweis werden; sein Datum entfällt dabei.
 
 Der **Bezug** einer Kindnotiz ist das, worum es außer dem Kind geht: nichts,
 ein Angebot oder eine Gruppe. Ein einzelner Termin ist das Angebot zusammen
-mit dem Tag und kein eigener Bezug.
+mit dem Tag und kein eigener Bezug. Wählbar sind die OGS-Gruppe des Kindes
+und die Angebote, in denen es heute angemeldet ist.
+
+Die kurze Notiz an der Anwesenheit eines Kurstermins ist keine Kindnotiz: sie
+gehört zur Anwesenheit. Beobachtungen zum Kind in einem Angebot, etwa
+Verhalten oder ein Vorfall, sind Kindnotizen mit dem Angebot als Bezug.
 
 Die **Reichweite** einer Kindnotiz legt fest, wer sie liest: das ganze Team,
-das **Betreuungsteam** des Kindes oder die Leitung der bezogenen Gruppe. Das
+das **Betreuungsteam** des Kindes oder die Leitung des Bezugs: die Leitung
+der OGS-Gruppe oder des Angebots. Das
 Betreuungsteam eines Kindes sind die Betreuungskräfte, die es tatsächlich
 haben — über seine Gruppe, seine Klasse oder ein Angebot, in dem es
 angemeldet ist. Die Reichweite gilt je Notiz und erteilt keine weiteren
