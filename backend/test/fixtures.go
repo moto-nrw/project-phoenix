@@ -1574,27 +1574,6 @@ func GetTestTokenAuth(tb testing.TB) *sessiontoken.TokenAuth {
 	return tokenAuth
 }
 
-// CreateTestJWT creates a valid JWT access token for the given account ID.
-// This token can be used in the Authorization header for authenticated API requests.
-func CreateTestJWT(tb testing.TB, accountID int64, permissions []string) string {
-	tb.Helper()
-
-	tokenAuth := GetTestTokenAuth(tb)
-
-	claims := sessiontoken.AppClaims{
-		ID:          int(accountID),
-		Sub:         fmt.Sprintf("%d", accountID), // Required claim - subject identifier
-		Roles:       []string{"user"},
-		Permissions: permissions,
-		TenantID:    fixtureTenantID(tb),
-	}
-
-	token, err := tokenAuth.CreateJWT(claims)
-	require.NoError(tb, err, "Failed to create test JWT")
-
-	return token
-}
-
 // ============================================================================
 // Grade Transition Domain Fixtures
 // ============================================================================
