@@ -9,7 +9,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -88,8 +87,7 @@ func TestExistingCareScheduleRequestCanBeDecidedAfterAuthorityChange(t *testing.
 
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Rita", "Review")
 	staffCtx := tenant.WithTenantID(testpkg.WithPackageTenantRuntime(context.Background()), chain.TenantID)
-	staffCtx = context.WithValue(staffCtx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: int(staffAccount.ID)})
-	staffCtx = context.WithValue(staffCtx, sessiontoken.CtxPermissions, []string{"admin:*"})
+	staffCtx = testpkg.WithAuthenticatedContext(staffCtx, testpkg.Claims{ID: int(staffAccount.ID)}, []string{"admin:*"})
 	var decided *carerequests.ReviewItem
 	err = testpkg.WithTenantTx(t, staffCtx, db, chain.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var decideErr error

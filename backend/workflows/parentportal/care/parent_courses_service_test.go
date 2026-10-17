@@ -9,7 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -42,7 +41,7 @@ func TestCourseWritesRequireCatalogPermissionBeforeMutation(t *testing.T) {
 		StudentID: 22,
 		TenantID:  testpkg.Tenant(t),
 		GuardianPermissions: map[string]bool{
-			authorize.GuardianPermissionEnrollmentSubmit: true,
+			GuardianPermissionEnrollmentSubmit: true,
 		},
 	}
 	changes := &courseWriteChangesStub{}
