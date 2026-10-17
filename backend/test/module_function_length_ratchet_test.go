@@ -233,7 +233,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/parentportal/messaging/parent_messaging_service.go:(*Service).PostChildMessage":                                                  104,
 	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":                                                          121,
 	"workflows/reminderdelivery/internal/application/delivery.go:(*preparation).dispatchReminderPushes":                                         104,
-	"workflows/reminderdelivery/internal/application/delivery.go:(*preparation).prepareReminderPushDispatch":                                    101,
 	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":                                                             92,
 	"workflows/reminderdelivery/internal/application/service.go:(*service).pickupReminders":                                                     64,
 	"workflows/reminderdelivery/internal/application/service.go:buildActivityReminders":                                                         61,
