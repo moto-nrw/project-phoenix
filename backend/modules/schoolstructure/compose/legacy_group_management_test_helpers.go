@@ -20,11 +20,11 @@ func LegacyGroupManagement(capability schoolstructure.GroupManagement) Service {
 
 func (s *legacyGroupManagement) GetGroup(ctx context.Context, id int64) (*domain.Group, error) {
 	value, err := s.capability.GetGroup(ctx, id)
-	return legacyGroup(value), legacyGroupError(err)
+	return groups.LegacyGroup(value), legacyGroupError(err)
 }
 func (s *legacyGroupManagement) FindGroupWithRoom(ctx context.Context, id int64) (*domain.Group, error) {
 	value, err := s.capability.FindGroupWithRoom(ctx, id)
-	return legacyGroup(value), legacyGroupError(err)
+	return groups.LegacyGroup(value), legacyGroupError(err)
 }
 func (s *legacyGroupManagement) GetGroupsByIDs(ctx context.Context, ids []int64) (map[int64]*domain.Group, error) {
 	values, err := s.capability.GetGroupsByIDs(ctx, ids)
@@ -33,7 +33,7 @@ func (s *legacyGroupManagement) GetGroupsByIDs(ctx context.Context, ids []int64)
 	}
 	result := make(map[int64]*domain.Group, len(values))
 	for id, value := range values {
-		result[id] = legacyGroup(value)
+		result[id] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
@@ -44,23 +44,23 @@ func (s *legacyGroupManagement) GetGroupsWithRoomsByIDs(ctx context.Context, ids
 	}
 	result := make(map[int64]*domain.Group, len(values))
 	for id, value := range values {
-		result[id] = legacyGroup(value)
+		result[id] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
 func (s *legacyGroupManagement) CreateGroup(ctx context.Context, row *domain.Group) error {
-	value := publicGroup(row)
+	value := groups.PublicGroup(row)
 	err := s.capability.CreateGroup(ctx, value)
 	if row != nil && value != nil {
-		*row = *legacyGroup(value)
+		*row = *groups.LegacyGroup(value)
 	}
 	return legacyGroupError(err)
 }
 func (s *legacyGroupManagement) UpdateGroup(ctx context.Context, row *domain.Group) error {
-	value := publicGroup(row)
+	value := groups.PublicGroup(row)
 	err := s.capability.UpdateGroup(ctx, value)
 	if row != nil && value != nil {
-		*row = *legacyGroup(value)
+		*row = *groups.LegacyGroup(value)
 	}
 	return legacyGroupError(err)
 }
@@ -74,7 +74,7 @@ func (s *legacyGroupManagement) ListGroups(ctx context.Context, query *domain.Gr
 	}
 	result := make([]*domain.Group, len(values))
 	for i, value := range values {
-		result[i] = legacyGroup(value)
+		result[i] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
@@ -89,7 +89,7 @@ func (s *legacyGroupManagement) GetTeacherGroups(ctx context.Context, id int64) 
 	}
 	result := make([]*domain.Group, len(values))
 	for i, value := range values {
-		result[i] = legacyGroup(value)
+		result[i] = groups.LegacyGroup(value)
 	}
 	return result, legacyGroupError(err)
 }
