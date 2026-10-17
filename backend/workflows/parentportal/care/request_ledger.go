@@ -29,12 +29,18 @@ type RequestLedgerEntry struct {
 	Payload   map[string]any
 }
 
+// RequestEventWriter appends a request-history entry in the caller's tenant
+// unit of work. The child flows do not read or replace the event ledger.
+type RequestEventWriter interface {
+	Create(context.Context, *usersModels.ParentRequestEvent) error
+}
+
 // RecordRequestEvent appends one entry to the People Directory ledger inside
 // the ambient transaction of the write it describes, so an event can never
 // survive a rolled-back write. A flow composed without a ledger records
 // nothing; a ledger that IS composed must not fail silently, so its error
 // propagates.
-func RecordRequestEvent(ctx context.Context, ledger usersModels.ParentRequestEventRepository, entry RequestLedgerEntry) error {
+func RecordRequestEvent(ctx context.Context, ledger RequestEventWriter, entry RequestLedgerEntry) error {
 	if ledger == nil {
 		return nil
 	}

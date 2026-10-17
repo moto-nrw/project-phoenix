@@ -68,7 +68,7 @@ type Config struct {
 	// photo lifecycle, and the parent-request ledger.
 	StudentAudit        StudentChangeRecorder
 	StudentConsents     StudentConsentService
-	ParentRequestEvents usersModels.ParentRequestEventRepository
+	ParentRequestEvents RequestEventWriter
 	// StudentPhotos resolves the photo lifecycle when a withdrawal needs it.
 	// The API bootstrap builds that service after this one, so the
 	// composition passes a resolver instead of setting it afterwards.
