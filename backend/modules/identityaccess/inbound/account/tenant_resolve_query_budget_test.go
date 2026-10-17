@@ -34,7 +34,7 @@ func TestResolveTenant_IssuesOneSettingValuesQuery(t *testing.T) {
 	// through; mirror it here so the request cache is present.
 	router := chi.NewRouter()
 	router.Use(api.SettingsRequestCacheMiddleware)
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(api.TenantSessionChain))
 
 	counter := testpkg.CaptureQueries(t, db)
 

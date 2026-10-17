@@ -3,6 +3,8 @@ package account_test
 import (
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -20,7 +22,7 @@ func setupGuardianInvitationRouter(t *testing.T) chi.Router {
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, nil, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 
 	router := testutil.NewTenantRouter(db)
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 	return router
 }
 

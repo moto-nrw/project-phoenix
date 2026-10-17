@@ -213,7 +213,7 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 		nil, nil, requests, nil, nil, decision, nil, nil, nil,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
 	)
-	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router())
+	router := testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain))
 
 	testpkg.CreateTestStudent(t, db, "Schon", "Da", "1a")
 	testpkg.SetTestChildQuota(t, db, 1, 1)

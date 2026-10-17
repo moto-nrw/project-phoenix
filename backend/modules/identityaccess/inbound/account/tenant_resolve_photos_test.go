@@ -22,6 +22,8 @@ import (
 	"strconv"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -75,7 +77,7 @@ func TestResolveTenant_StudentPhotosEnabled_DefaultFalse(t *testing.T) {
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -113,7 +115,7 @@ func TestResolveTenant_StudentPhotosEnabled_OverrideTrue(t *testing.T) {
 	resource.SettingsService = authRoute.SettingsService
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -145,7 +147,7 @@ func TestResolveTenant_GradeLevelMax_Override(t *testing.T) {
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 	resource.SettingsService = authRoute.SettingsService
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -172,7 +174,7 @@ func TestResolveTenant_NilSettingsServiceFailsGradeMetadata(t *testing.T) {
 	// Deliberately do NOT set SettingsService — exercises the nil branch.
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -196,7 +198,7 @@ func TestResolveTenant_GradeLevelSettingsFailureIsGeneric500(t *testing.T) {
 		},
 	}
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -226,7 +228,7 @@ func TestResolveTenant_StaffMessagingSettingsFailureIsGeneric500(t *testing.T) {
 		},
 	}
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 	rr := httptest.NewRecorder()
@@ -252,7 +254,7 @@ func TestResolveTenant_OutOfRangeGradeLevelIsGeneric500(t *testing.T) {
 				},
 			}
 			router := chi.NewRouter()
-			router.Mount("/auth", resource.Router())
+			router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 			req := httptest.NewRequest("GET", "/auth/tenant/resolve?slug="+slug, nil)
 			rr := httptest.NewRecorder()
@@ -276,7 +278,7 @@ func TestResolveTenant_MissingSlug_400(t *testing.T) {
 	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 
 	router := chi.NewRouter()
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 	req := httptest.NewRequest("GET", "/auth/tenant/resolve", nil)
 	rr := httptest.NewRecorder()

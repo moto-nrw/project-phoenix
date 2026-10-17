@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -580,7 +582,7 @@ func TestRouterWithAuthRateLimiter(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 	}
-	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil).RouterWithAuthRateLimiter(throttled)
+	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
 
 	for _, path := range []string{
 		"/login",

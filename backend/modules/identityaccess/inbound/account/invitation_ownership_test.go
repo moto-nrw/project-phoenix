@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -23,7 +25,7 @@ func TestInvitationHTTPRequiresVerifiedOwner(t *testing.T) {
 	// account-lifecycle capability.
 	resource := authAPI.NewResource(module.Auth, service, nil, nil, identityaccessCompose.TenantUnitOfWork{})
 	router := testutil.NewTenantRouter(db)
-	router.Mount("/auth", resource.Router())
+	router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 	owner := testpkg.CreateTestAccountWithPassword(t, db, fmt.Sprintf("http-owner-%d@example.com", testpkg.Tenant(t)), "OwnerPass123!")
 	other := testpkg.CreateTestAccount(t, db, "wrong-http-owner")
 	schoolA := testpkg.UniqueTestTenantID(t)

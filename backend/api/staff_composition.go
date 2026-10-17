@@ -167,7 +167,7 @@ func newStaffResource(module schoolMembershipModule.Capability, people peopleMod
 		// routes register first, then the workforce admin routes from
 		// the Workforce module, both inside one protected tenant group.
 		Protected: func(router chi.Router, register func(chi.Router, staffHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 				staffAdmin.RegisterStaffRoutes(protected, withTx)
 			})

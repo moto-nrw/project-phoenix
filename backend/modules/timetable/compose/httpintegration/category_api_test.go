@@ -1,6 +1,6 @@
 // Category Stammdaten endpoint tests (#2131).
 //
-// Driven through Resource.Router() so the production middleware chain and the
+// Driven through Resource.Router(rootAPI.ProtectedTenantRoutes) so the production middleware chain and the
 // activities:manage_categories permission gate are exercised, not bypassed.
 package httpintegration_test
 

@@ -87,11 +87,11 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
-	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
 }
 
 func TestRelatedAccountsEndpoint_List(t *testing.T) {
@@ -201,11 +201,11 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
-	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
 }
 
 func TestRelatedAccountsEndpoint_ConfirmRoleUpgradePassthrough(t *testing.T) {

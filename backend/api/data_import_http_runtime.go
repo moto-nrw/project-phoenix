@@ -34,7 +34,7 @@ func dataImportHTTPRuntime(people peopledirectory.Capability, membership schoolm
 	runtime := importapi.Runtime{
 		Middleware: []importapi.Middleware{
 			sessiontoken.Authenticator,
-			common.ReadOnlyPreviewMiddleware, common.TenantScopeMiddleware,
+			common.ReadOnlyPreviewMiddleware, TenantScopeMiddleware,
 			common.SecurityPrincipalMiddleware, common.TenantOperationMiddleware,
 		},
 		RequireAnyPermission: common.RequiresAnyPermission,

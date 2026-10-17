@@ -30,7 +30,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		Locales:        ParentPortalLocales(),
 		Runtime:        ParentPortalRuntime{},
 		ChildRepo:      parents.ParentChildReads(), StudentRepo: repos.Student, PersonRepo: repos.Person,
-		StudentGuardianRepo: parents.StudentGuardian, GuardianProfileRepo: parents.GuardianProfile,
+		StudentGuardianRepo: parents.StudentGuardian, GuardianProfileRepo: NewParentGuardianProfileReads(parents.GuardianProfile),
 		Settings: BindParentSettings(module.Settings), ArrivalSchedules: module.ArrivalSchedule, PickupSchedules: module.PickupSchedule,
 		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(repos.CarePlan),
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,

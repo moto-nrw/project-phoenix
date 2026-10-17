@@ -22,8 +22,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
@@ -108,7 +106,7 @@ func NewResource(cfg ResourceConfig) *Resource {
 // given rate limiter middleware on the public parent auth endpoints. Mirrors
 // the tenant and operator wiring in api/base.go so brute-force attempts return
 // 429; nil mounts the routes unthrottled.
-func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler) chi.Router {
+func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler) http.Handler, configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
@@ -128,10 +126,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	// Authenticated parent routes — all require scope=parent.
 	// sessiontoken.ParentMiddleware rejects tenant + operator tokens.
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(common.ParentScopeMiddleware)
-		r.Use(common.SecurityPrincipalMiddleware)
+		configureSession(r)
 
 		rs.mountAccountRoutes(r)
 		rs.mountCalendarRoutes(r)

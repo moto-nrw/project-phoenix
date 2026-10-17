@@ -324,7 +324,7 @@ func selectedGuardianProfiles(profileIDs []int64) (map[int64]struct{}, error) {
 }
 
 func buildSharingRecipients(
-	profiles map[int64]*userModels.GuardianProfile, authorAccountID int64, selected map[int64]struct{},
+	profiles map[int64]*care.GuardianProfile, authorAccountID int64, selected map[int64]struct{},
 ) ([]RequestSharingRecipient, []int64) {
 	recipients := make([]RequestSharingRecipient, 0, len(profiles))
 	accountIDs := make([]int64, 0, len(selected))

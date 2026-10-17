@@ -18,7 +18,6 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -35,13 +34,10 @@ func NewResource(service calendarService.FullService, logger *slog.Logger) *Reso
 	return resource
 }
 
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 	r := chi.NewRouter()
 	r.Group(func(r chi.Router) {
-		r.Use(sessiontoken.Authenticator)
-		r.Use(common.ReadOnlyPreviewMiddleware)
-		r.Use(common.TenantScopeMiddleware)
-		r.Use(common.SecurityPrincipalMiddleware)
+		configureSession(r)
 		withTx := common.TenantTxMiddleware
 
 		own := common.RequiresPermission(permissions.CalendarOwn)

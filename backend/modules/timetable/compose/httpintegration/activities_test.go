@@ -2,7 +2,7 @@
 //
 // These tests verify HTTP request/response handling, status codes, and error responses.
 // They use real services with a test database (no mocks). Requests run through the
-// production middleware chain by mounting Resource.Router() (Verifier → Authenticator →
+// production middleware chain by mounting Resource.Router(rootAPI.ProtectedTenantRoutes) (Verifier → Authenticator →
 // TenantMiddleware → TenantTxMiddleware) — the same code path the real server uses.
 package httpintegration_test
 
@@ -13,6 +13,8 @@ import (
 	"net/http"
 	"testing"
 	"time"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -66,7 +68,7 @@ func setupActivitiesRoute(t *testing.T) *testContext {
 	)
 
 	router := chi.NewRouter()
-	router.Mount("/activities", resource.Router())
+	router.Mount("/activities", resource.Router(rootAPI.ProtectedTenantRoutes))
 
 	return &testContext{
 		db:       db,

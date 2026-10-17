@@ -178,7 +178,7 @@ type CreateGuardianContactInput struct {
 
 // applyContactInput overwrites the profile's editable contact fields from the
 // validated input. Phones are handled separately (replaceGuardianPhones).
-func applyContactInput(profile *usersModels.GuardianProfile, input *GuardianContactInput) {
+func applyContactInput(profile *GuardianProfile, input *GuardianContactInput) {
 	profile.FirstName = strings.TrimSpace(input.FirstName)
 	profile.LastName = strings.TrimSpace(input.LastName)
 	profile.Email = trimGuardianText(input.Email)

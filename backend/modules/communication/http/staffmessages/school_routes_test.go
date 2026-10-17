@@ -13,6 +13,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,8 +43,8 @@ func TestSchoolStaffMessagesCrossPortal(t *testing.T) {
 	db, serviceFactory := setupStaffMessagingModule(t)
 	staffMessages := staffmessaging.NewResource(serviceFactory.StaffMessaging)
 	schoolRouter := chi.NewRouter()
-	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter())
-	tenantRouter := staffMessages.Router()
+	schoolRouter.Mount("/staff-messages", staffMessages.SchoolRouter(rootAPI.ProtectedSchoolRoutes))
+	tenantRouter := staffMessages.Router(rootAPI.ProtectedTenantRoutes)
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	// Pin the chat on explicitly so the test does not hang on the registry
@@ -148,7 +150,7 @@ func TestSchoolStaffMessagesDisabledSchool(t *testing.T) {
 	t.Parallel()
 	db, serviceFactory := setupStaffMessagingModule(t)
 	schoolRouter := chi.NewRouter()
-	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter())
+	schoolRouter.Mount("/staff-messages", staffmessaging.NewResource(serviceFactory.StaffMessaging).SchoolRouter(rootAPI.ProtectedSchoolRoutes))
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
 
 	_, teacherAccount := testpkg.CreateTestStaffWithAccountForTenant(t, db, tenantID, "Off", fmt.Sprintf("Lehrkraft-%d", time.Now().UnixNano()))

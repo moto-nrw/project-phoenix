@@ -102,7 +102,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	// same guardian so independent field writes can't clobber each other in a
 	// lost update under read-committed.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, edit.guardianProfileID); err != nil {
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return nil, ErrGuardianNotLinked
 		}
 		return nil, err
@@ -124,7 +124,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 	}
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, edit.guardianProfileID)
 	if err != nil {
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return nil, ErrGuardianNotLinked
 		}
 		return nil, err
@@ -144,7 +144,7 @@ func (s *Service) updateGuardianRelationshipInTx(ctx context.Context, child *Chi
 }
 
 // refuseRelationshipEdit applies the eligibility of each field group.
-func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) error {
+func (s *Service) refuseRelationshipEdit(ctx context.Context, profile *GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) error {
 	isSelf := profile.AccountID != nil && *profile.AccountID == edit.accountID
 	if edit.editsFlags {
 		if err := refusePickupFlagEdit(profile, link); err != nil {
@@ -192,7 +192,7 @@ func (s *Service) refuseSharedContactNote(ctx context.Context, profileID int64, 
 
 // refusePickupFlagEdit guards the safety-critical can_pickup /
 // is_emergency_contact flags.
-func refusePickupFlagEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian) error {
+func refusePickupFlagEdit(profile *GuardianProfile, link *usersModels.StudentGuardian) error {
 	// can_pickup / is_emergency_contact grant safety-critical pickup/emergency
 	// AUTHORITY. A parent may set them only for guardians WITHOUT their own
 	// portal account (helpers like grandma). A guardian who holds their own
@@ -215,7 +215,7 @@ func refusePickupFlagEdit(profile *usersModels.GuardianProfile, link *usersModel
 }
 
 // refusePickupNoteEdit guards another guardian's per-child pickup note.
-func refusePickupNoteEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian) error {
+func refusePickupNoteEdit(profile *GuardianProfile, link *usersModels.StudentGuardian) error {
 	// The per-child pickup note follows CONTACT-edit eligibility (#1667 review):
 	// a parent may edit it only for a guardian whose contact data they may also
 	// edit/see — their own profile, or an account-less helper that is not a
@@ -282,7 +282,7 @@ func (s *Service) writeRelationshipEdit(ctx context.Context, link *usersModels.S
 
 // projectEditedRelationship reads the phones and family reach for the response
 // and refreshes the child's live view after the commit.
-func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
+func (s *Service) projectEditedRelationship(ctx context.Context, child *Child, profile *GuardianProfile, link *usersModels.StudentGuardian, edit relationshipEdit, callerStudents map[int64]bool) (*ChildGuardian, error) {
 	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, err

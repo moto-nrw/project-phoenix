@@ -50,11 +50,11 @@ func NewStaffNoticeResource(service timetable.StaffNotices, accountID func(conte
 
 // Router liefert den Router unter /api/staff-notices: die Sicht der Betreuung
 // plus die Verwaltung der Leitung.
-func (rs *StaffNoticeResource) Router() chi.Router {
+func (rs *StaffNoticeResource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.UsersRead)
 		// Schreiben ist adminexklusiv: die Zielgruppe wählt die Leitung beim
 		// Anlegen, sie ist kein Recht, das jemand anderes halten könnte.
@@ -76,11 +76,11 @@ func (rs *StaffNoticeResource) Router() chi.Router {
 // SchoolRouter liefert den Router unter /school/staff-notices (#2208): die
 // Sicht einer Lehrkraft in moto schule — lesen und zur Kenntnis nehmen, mehr
 // nicht. Gleiche Handler, andere Leserart, eigenes Recht.
-func (rs *StaffNoticeResource) SchoolRouter() chi.Router {
+func (rs *StaffNoticeResource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		read := common.RequiresPermission(permissions.StaffNoticesRead)
 
 		r.With(read, withTx).Get("/today", rs.todayFor(timetable.StaffNoticeAudienceLehrkraft))

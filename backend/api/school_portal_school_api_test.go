@@ -69,18 +69,20 @@ func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoo
 
 type emptySchoolMessagingRouter struct{}
 
-func (emptySchoolMessagingRouter) SchoolRouter() chi.Router { return chi.NewRouter() }
+func (emptySchoolMessagingRouter) SchoolRouter(_ func(chi.Router, func(chi.Router, func(http.Handler) http.Handler))) chi.Router {
+	return chi.NewRouter()
+}
 
 // newSchoolRouter builds the school portal router with a stubbed second
 // factor; the composed one stays on the resource.
 func newSchoolRouter(resource *schoolportal.Resource, mfa schoolportal.MFARuntime) http.Handler {
-	return testpkg.SessionVerifier(schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications, resource.TenantContext).Router())
+	return testpkg.SessionVerifier(schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications, resource.TenantContext).Router(SchoolSessionChain, ProtectedSchoolRoutes))
 }
 
 // newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
 // the testutil helpers that want a chi.Router.
 func newSchoolChiRouter(resource *schoolportal.Resource) chi.Router {
-	return resource.Router()
+	return resource.Router(SchoolSessionChain, ProtectedSchoolRoutes)
 }
 
 // schoolPortalSettingsWriter is the write side of the settings service the school test
@@ -146,7 +148,7 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 	})
 
 	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
-	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
+	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router(SchoolSessionChain, ProtectedSchoolRoutes)
 
 	schoolClaims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email,

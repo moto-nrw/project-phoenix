@@ -9,11 +9,11 @@ import (
 )
 
 // Router returns a configured router for timetable endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		rs.mountCalendarRoutes(r, withTx)
 
 		// WP-B8: manual materialization. Admin-only — reuses SchedulesManage

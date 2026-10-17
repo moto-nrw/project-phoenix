@@ -52,12 +52,12 @@ func NewGradeTransitionResource(workflow *gradetransition.Workflow) *GradeTransi
 }
 
 // Router returns a configured router for grade transition endpoints
-func (rs *GradeTransitionResource) Router() chi.Router {
+func (rs *GradeTransitionResource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// All routes require authentication
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations
 		r.With(common.RequiresPermission(permissions.GradeTransitionsRead), withTx).
