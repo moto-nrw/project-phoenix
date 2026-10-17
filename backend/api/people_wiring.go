@@ -101,10 +101,10 @@ func NewPeopleWiring(owners PeopleWiringOwners) (PeopleWiring, error) {
 		SupervisionRecords: func(records studentpresence.SupervisionRecords) studentpresence.SupervisionRecords {
 			return NewGroupSupervisionRecords(records, groups)
 		},
-		SupervisionBlockers: func(records studentpresence.SupervisionRecords) peopleCompose.SupervisionBlockers {
+		SupervisionBlockers: func(records studentpresence.SupervisionRecords) peoplePorts.SupervisionBlockers {
 			return CaregiverSupervisionBlockers{Records: records}
 		},
-		CaregiverIdentity: func(module *identityaccess.Module) peopleCompose.CaregiverIdentity {
+		CaregiverIdentity: func(module *identityaccess.Module) peoplePorts.CaregiverIdentity {
 			return caregiverIdentity{module}
 		},
 		CaregiverCapabilityAudit: newCaregiverCapabilityAudit,

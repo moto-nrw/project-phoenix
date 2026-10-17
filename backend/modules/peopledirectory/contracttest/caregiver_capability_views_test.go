@@ -9,6 +9,7 @@ import (
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
@@ -16,7 +17,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-var _ peopleCompose.CaregiverCapabilityService = (*stubCaregiverCapabilityService)(nil)
+var _ peoplePorts.CaregiverCapabilityService = (*stubCaregiverCapabilityService)(nil)
 
 // stubCaregiverCapabilityService is a func-field double of People
 // Directory's caregiver capability; nil fields answer the zero value.

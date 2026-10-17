@@ -4,15 +4,15 @@ import (
 	"context"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 type caregiverIdentity struct{ *identityaccess.Module }
 
-func (c caregiverIdentity) FindCaregiverAccount(ctx context.Context, accountID int64) (*peopleCompose.CaregiverAccount, error) {
+func (c caregiverIdentity) FindCaregiverAccount(ctx context.Context, accountID int64) (*peoplePorts.CaregiverAccount, error) {
 	account, err := c.FindAccountMetadata(ctx, accountID)
 	if err != nil {
 		return nil, err
 	}
-	return &peopleCompose.CaregiverAccount{ID: account.ID, Email: account.Email}, nil
+	return &peoplePorts.CaregiverAccount{ID: account.ID, Email: account.Email}, nil
 }

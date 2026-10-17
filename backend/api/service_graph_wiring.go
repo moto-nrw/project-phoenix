@@ -178,9 +178,9 @@ type PeopleWiring struct {
 
 	// Constructors over the values this graph composes.
 	SupervisionRecords       func(studentpresence.SupervisionRecords) studentpresence.SupervisionRecords
-	SupervisionBlockers      func(studentpresence.SupervisionRecords) peopleCompose.SupervisionBlockers
-	CaregiverIdentity        func(*identityaccess.Module) peopleCompose.CaregiverIdentity
-	CaregiverCapabilityAudit func(AuthEventAppender) peopleCompose.CaregiverCapabilityAudit
+	SupervisionBlockers      func(studentpresence.SupervisionRecords) peoplePorts.SupervisionBlockers
+	CaregiverIdentity        func(*identityaccess.Module) peoplePorts.CaregiverIdentity
+	CaregiverCapabilityAudit func(AuthEventAppender) peoplePorts.CaregiverCapabilityAudit
 	GuardianFinancialAudit   func(auditModels.GuardianFinancialChangeCreator) peoplePorts.GuardianFinancialAudit
 	GuardianDataAccessLog    func(DataAccessAppender) peoplePorts.GuardianDataAccessLog
 	ClassAssignmentAudit     func(auditModels.StaffMasterDataChangeCreator) education.ClassAssignmentAudit

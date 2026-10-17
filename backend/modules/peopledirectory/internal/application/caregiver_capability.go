@@ -1,8 +1,7 @@
-package compose
+package application
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"strings"
@@ -10,93 +9,28 @@ import (
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
-// CaregiverCapabilityService manages the operational caregiver capability of an
-// existing account inside a tenant.
-type CaregiverCapabilityService interface {
-	GetCaregiverCapability(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error)
-	EnableCaregiverCapability(ctx context.Context, accountID int64, input userModels.EnableCaregiverCapabilityInput) (*userModels.CaregiverCapabilityState, error)
-	DisableCaregiverCapability(ctx context.Context, accountID int64) (*userModels.CaregiverCapabilityState, error)
-}
-
-// CaregiverCapabilityServiceDependencies contains the repositories and ports
-// required to manage caregiver capability on existing accounts. The bindings
-// that keep an account a caregiver live in tables of other owners; each is
-// reached through a port the composition root binds to that owner.
-type CaregiverCapabilityServiceDependencies struct {
-	RequestActorScope      func(context.Context) (accountID int64, scope string)
-	Identity               CaregiverIdentity
-	Audit                  CaregiverCapabilityAudit
-	PersonRepo             peoplePorts.PersonRepository
-	StaffRepo              peoplePorts.StaffRepository
-	CaregiverBindingLock   peoplePorts.CaregiverBindingLocker
-	TeacherRepo            peoplePorts.TeacherRepository
-	GroupTeacherRepo       GroupTeacherBlockers
-	GroupSubstitutionRepo  SubstitutionBlockers
-	GroupSupervisorRepo    SupervisionBlockers
-	ActivitySupervisorRepo PlannedSupervisionBlockers
-	// RoleAssignments assigns and removes the caregiver role through the
-	// Identity & Access role administration (#3314).
-	RoleAssignments CaregiverRoleAssignments
-}
-
-// CaregiverCapabilityAudit records a caregiver capability change in the
-// authentication audit trail (Audit Platform) inside the caller's transaction.
-type CaregiverCapabilityAudit interface {
-	RecordCaregiverCapabilityChange(ctx context.Context, accountID int64, enabled bool, metadata map[string]any) error
-}
-
-// GroupTeacherBlockers lists the group assignments a teacher still holds, as
-// caregiver-capability blocker rows.
-type GroupTeacherBlockers interface {
-	ListGroupTeacherBlockers(ctx context.Context, teacherID, tenantID int64) ([]userModels.BlockerGroup, error)
-}
-
-// SubstitutionBlockers lists the current and upcoming group handovers a staff
-// member holds, as caregiver-capability blocker rows.
-type SubstitutionBlockers interface {
-	ListActiveSubstitutionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerSubstitution, error)
-}
-
-// SupervisionBlockers lists the Student Presence supervision a staff member
-// still holds today, as caregiver-capability blocker rows.
-type SupervisionBlockers interface {
-	ListActiveSupervisionBlockers(ctx context.Context, staffID int64) ([]userModels.BlockerSupervision, error)
-}
-
-// PlannedSupervisionBlockers lists the planned activity supervisions
-// (Timetable & Activities) a staff member holds, as caregiver-capability
-// blocker rows.
-type PlannedSupervisionBlockers interface {
-	ListPlannedSupervisionBlockers(ctx context.Context, staffID, tenantID int64) ([]userModels.BlockerActivity, error)
-}
-
-// CaregiverRoleAssignments is the consumer-owned port over the Identity &
-// Access role administration. Both commands join the caller's transaction
-// and revoke the account's sessions at the school.
-type CaregiverRoleAssignments interface {
-	AssignRoleToAccount(ctx context.Context, accountID, roleID int64) error
-	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
-}
-
 type caregiverCapabilityService struct {
-	CaregiverCapabilityServiceDependencies
-	txHandler *tenant.TransactionRunner
+	peoplePorts.CaregiverCapabilityServiceDependencies
+	txHandler          *tenant.TransactionRunner
+	requireTransaction func(context.Context) error
 }
 
 // NewCaregiverCapabilityService creates a tenant-scoped caregiver capability service.
 func NewCaregiverCapabilityService(
-	deps CaregiverCapabilityServiceDependencies,
-) CaregiverCapabilityService {
+	deps peoplePorts.CaregiverCapabilityServiceDependencies,
+	requireTransaction func(context.Context) error,
+) peoplePorts.CaregiverCapabilityService {
 	if deps.RequestActorScope == nil {
 		panic("request actor scope is required")
 	}
 	return &caregiverCapabilityService{
 		CaregiverCapabilityServiceDependencies: deps,
 		txHandler:                              tenant.NewTransactionRunner(),
+		requireTransaction:                     requireTransaction,
 	}
 }
 
@@ -312,7 +246,7 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	var result *userModels.CaregiverCapabilityState
 	retryCtx := tenant.ContextWithoutAfterCommitHooks(tenant.ContextWithoutTransaction(ctx))
 	err = tenant.WithinTenantRetry(retryCtx, tenantID, func(txCtx context.Context) error {
-		if err := requireBunTransaction(txCtx); err != nil {
+		if err := s.requireTransaction(txCtx); err != nil {
 			return err
 		}
 		var disableErr error
@@ -324,17 +258,6 @@ func (s *caregiverCapabilityService) DisableCaregiverCapability(
 	}
 
 	return result, nil
-}
-
-func requireBunTransaction(ctx context.Context) error {
-	raw, ok := tenant.TransactionFromContext(ctx)
-	if !ok {
-		return fmt.Errorf("disable caregiver capability: unit of work did not provide a transaction")
-	}
-	if _, ok := raw.(bun.Tx); !ok {
-		return fmt.Errorf("disable caregiver capability: unsupported transaction type %T", raw)
-	}
-	return nil
 }
 
 func (s *caregiverCapabilityService) disableInTx(
@@ -503,7 +426,7 @@ func (s *caregiverCapabilityService) findStaffByPersonID(
 ) (*userModels.Staff, error) {
 	staff, err := s.StaffRepo.FindByPersonID(ctx, personID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, transactionruntime.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, err

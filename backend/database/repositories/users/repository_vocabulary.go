@@ -33,19 +33,3 @@ func guardianWriteError(message string, err error) error {
 	}
 	return fmt.Errorf("%s: %w", message, err)
 }
-
-// IsConstraintViolation reports whether err carries PostgreSQL error code
-// 23503 (foreign_key_violation) or 23502 (not_null_violation), such as the
-// refusal of a guardian delete that still has links.
-func IsConstraintViolation(err error) bool {
-	var pgErr postgresError
-	if errors.As(err, &pgErr) {
-		code := pgErr.Field('C')
-		return code == "23503" || code == "23502"
-	}
-	return hasTextualSQLState(err, "23503") || hasTextualSQLState(err, "23502")
-}
-
-func hasTextualSQLState(err error, sqlState string) bool {
-	return err != nil && strings.Contains(err.Error(), "SQLSTATE="+sqlState)
-}

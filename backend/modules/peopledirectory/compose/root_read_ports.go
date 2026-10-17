@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
 )
 
 // The People Directory read ports the root binds for the room snapshot
@@ -45,7 +46,7 @@ func (p RoomSnapshotPeople) StudentsByIDs(ctx context.Context, ids []int64) (map
 	result := make(map[int64]peopledirectory.Student, len(students))
 	for id, student := range students {
 		if student != nil {
-			result[id] = toDirectoryStudent(student)
+			result[id] = application.ToDirectoryStudent(student)
 		}
 	}
 	return result, nil

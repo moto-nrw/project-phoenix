@@ -106,7 +106,7 @@ func (b *graphBuild) outbox() OutboxEnqueuer { return OutboxEnqueuer{Outbox: b.l
 // the presence cleanup.
 func composeCaregivers(b graphBuild) (graphBuild, error) {
 	people, repos := b.People, b.TimetableWiring.Repositories
-	b.graph.CaregiverCapability = peopleCompose.NewCaregiverCapabilityService(peopleCompose.CaregiverCapabilityServiceDependencies{
+	b.graph.CaregiverCapability = peopleCompose.NewCaregiverCapabilityService(peoplePorts.CaregiverCapabilityServiceDependencies{
 		RequestActorScope: b.Identity.ActorScope, Identity: people.CaregiverIdentity(b.identityAccess),
 		Audit: people.CaregiverCapabilityAudit(b.audits.AuthEvent), PersonRepo: people.Persons, StaffRepo: people.Staff,
 		CaregiverBindingLock: people.CaregiverBindingLock, TeacherRepo: people.Teachers, GroupTeacherRepo: people.GroupTeachers,
