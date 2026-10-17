@@ -20,16 +20,16 @@ func NewCleanupRetention(store ports.CleanupRetentionStore) *CleanupRetention {
 	return &CleanupRetention{store: store}
 }
 
-// DeleteFinished removes the staff document file cleanups and offboarding
+// DeleteFinishedStaffCleanups removes the staff document file cleanups and offboarding
 // jobs that finished before the window.
-func (r *CleanupRetention) DeleteFinished(ctx context.Context) (int, error) {
+func (r *CleanupRetention) DeleteFinishedStaffCleanups(ctx context.Context) (int, int, error) {
 	files, err := r.store.DeleteFinishedStaffDocumentFileCleanups(ctx, domain.CleanupRetentionWindow)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
 	offboardings, err := r.store.DeleteCompletedOffboardingCleanups(ctx, domain.CleanupRetentionWindow)
 	if err != nil {
-		return 0, err
+		return 0, 0, err
 	}
-	return files + offboardings, nil
+	return files + offboardings, int(domain.CleanupRetentionWindow.Hours() / 24), nil
 }
