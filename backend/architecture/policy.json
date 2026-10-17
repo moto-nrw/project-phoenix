@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 69,
+  "policy_epoch": 70,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5847,6 +5847,17 @@
       "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-structure.application.tenant-runtime",
+      "description": "School Structure application code reads the caller's tenant from context for the group, transition and ledger commands (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-structure",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
