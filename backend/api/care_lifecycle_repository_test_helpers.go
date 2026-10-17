@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
@@ -91,7 +92,7 @@ func (r CareLifecycleTestRepositories) NewCareLifecycle(config CareLifecycleTest
 // MustNewStudentCompanions composes the companion capability over a test
 // graph's Care Plan records, student repository and People Directory. audit
 // may be nil when the suite never widens a plan.
-func MustNewStudentCompanions(records careplan.Capability, students usersModels.StudentRepository, people CompanionStudentLock, audit StudentChangeAudit) careplan.StudentCompanions {
+func MustNewStudentCompanions(records careplan.Capability, students peoplePorts.StudentRepository, people CompanionStudentLock, audit StudentChangeAudit) careplan.StudentCompanions {
 	companions, err := carePlanCompose.NewCompanions(records, NewCompanionStudents(students, people, audit))
 	if err != nil {
 		panic(err)
@@ -104,7 +105,7 @@ func MustNewStudentCompanions(records careplan.Capability, students usersModels.
 // NewStudentCompanionRepository. It stages departure-companion fixtures for
 // suites that may not name Care Plan's edge type; production writes go
 // through the companion capability's rules instead.
-func ReplaceStudentCompanions(ctx context.Context, links usersModels.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
+func ReplaceStudentCompanions(ctx context.Context, links peoplePorts.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
 	repository, ok := links.(CompanionRepository)
 	if !ok {
 		return errors.New("companion links are not served by the Care Plan owner")

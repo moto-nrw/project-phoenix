@@ -3,9 +3,9 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 169 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 64 ·
+Stand 17.10.2026 · Ratchet 169 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 65 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
-52.845 in `compose`
+52.513 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
@@ -31,7 +31,7 @@ Validierung, Filter und zurückgeschriebene IDs/Zeitstempel bleiben gleich. Der 
 Arrival-Insert verwendet den bestehenden typisierten BUN-Fixture-Record; Kalender- und
 Protokollwerte ändern sich nicht. Der doppelte Auto-Excusal-Testadapter entfällt zugunsten
 des bestehenden Root-Bindings mit derselben Implementierung. Alle Assertions bleiben bestehen.
-Zwei Test-Keys fallen: 171 → 169, #4073 9 → 7. Produktionscode, Regeln 836, Composition
+Zwei Test-Keys fallen: 171 → 169, #4073 9 → 7. Produktionscode, Regeln 838, Composition
 und alle Budgets bleiben unverändert; keine neue Freigabe, Alias oder Ausnahme.
 
 #4073: Der Deklarationsworkflow nutzt einen eigenen Policy-Port; die Root bindet

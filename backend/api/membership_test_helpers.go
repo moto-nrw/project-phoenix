@@ -8,10 +8,10 @@ import (
 
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -122,13 +122,13 @@ func NewEducationGroupRepository(db transactionruntime.Database, options ...educ
 type MembershipTestRepositories struct {
 	// People is the People Directory owner the student rows translate to.
 	People          peopledirectory.Capability
-	Person          userModels.PersonRepository
-	Student         userModels.StudentRepository
-	GuardianProfile userModels.GuardianProfileRepository
-	StudentGuardian userModels.StudentGuardianRepository
-	Staff           userModels.StaffRepository
-	Teacher         userModels.TeacherRepository
-	Guest           userModels.GuestRepository
+	Person          peoplePorts.PersonRepository
+	Student         peoplePorts.StudentRepository
+	GuardianProfile peoplePorts.GuardianProfileRepository
+	StudentGuardian peoplePorts.StudentGuardianRepository
+	Staff           peoplePorts.StaffRepository
+	Teacher         peoplePorts.TeacherRepository
+	Guest           peoplePorts.GuestRepository
 	Group           EducationGroupRepository
 	GroupTeacher    GroupTeacherRepository
 	ClassTeacher    ClassTeacherRepository
@@ -144,7 +144,7 @@ type MembershipTestRepositories struct {
 // over membership, with the group store and the teaching assignments they
 // resolve through. members.People, Person, Student and the guardian fields
 // stay unset; the caller composes them.
-func NewMembershipRepositories(db transactionruntime.Database, persons userModels.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
+func NewMembershipRepositories(db transactionruntime.Database, persons peoplePorts.PersonRepository, identity staffIdentityQuery, membership schoolmembership.Capability, rooms facilitiesModule.Query, workTime workforce.Capability) MembershipTestRepositories {
 	adapters := newMembershipAdapters(db, persons, identity, membership, rooms, workTime)
 	return MembershipTestRepositories{
 		Person: persons, Staff: adapters.Staff, Teacher: adapters.Teacher, Guest: adapters.Guest,

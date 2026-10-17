@@ -7,8 +7,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -27,7 +29,7 @@ func (r *personRepository) unlinkField(ctx context.Context, personID int64, fiel
 
 	result, err := query.Exec(ctx)
 	if err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  opName,
 			Err: translateNotFound(err),
 		}
@@ -35,14 +37,14 @@ func (r *personRepository) unlinkField(ctx context.Context, personID int64, fiel
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  opName + " - check rows affected",
 			Err: translateNotFound(err),
 		}
 	}
 
 	if rowsAffected == 0 {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  opName,
 			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
@@ -69,7 +71,7 @@ func WithAccountLookup(lookup AccountLookup) PersonOption {
 }
 
 // NewPersonRepository creates a new PersonRepository
-func NewPersonRepository(runtime Runtime, options ...PersonOption) PersonRepository {
+func NewPersonRepository(runtime Runtime, options ...PersonOption) ports.PersonRepository {
 	repository := &personRepository{runtime: requireRuntime(runtime)}
 	for _, option := range options {
 		option(repository)
@@ -97,7 +99,7 @@ func (r *personRepository) FindByTagID(ctx context.Context, tagID string) (*user
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, &DatabaseError{
+		return nil, &ports.DatabaseError{
 			Op:  "find by tag ID",
 			Err: translateNotFound(err),
 		}
@@ -123,7 +125,7 @@ func (r *personRepository) FindByAccountID(ctx context.Context, accountID int64)
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
-		return nil, &DatabaseError{
+		return nil, &ports.DatabaseError{
 			Op:  "find by account ID",
 			Err: translateNotFound(err),
 		}
@@ -148,7 +150,7 @@ func (r *personRepository) FindByAccountIDs(ctx context.Context, accountIDs []in
 	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{
+		return nil, &ports.DatabaseError{
 			Op:  "find by account IDs",
 			Err: translateNotFound(err),
 		}
@@ -178,7 +180,7 @@ func (r *personRepository) FindByIDForUpdate(ctx context.Context, id int64) (*us
 	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find person for update", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find person for update", Err: translateNotFound(err)}
 	}
 	return person, nil
 }
@@ -200,7 +202,7 @@ func (r *personRepository) FindByIDs(ctx context.Context, ids []int64) (map[int6
 	err := query.Scan(ctx)
 
 	if err != nil {
-		return nil, &DatabaseError{
+		return nil, &ports.DatabaseError{
 			Op:  "find by IDs",
 			Err: translateNotFound(err),
 		}
@@ -228,7 +230,7 @@ func (r *personRepository) LinkToAccount(ctx context.Context, personID int64, ac
 	result, err := query.Exec(ctx)
 
 	if err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "link to account",
 			Err: translateNotFound(err),
 		}
@@ -236,14 +238,14 @@ func (r *personRepository) LinkToAccount(ctx context.Context, personID int64, ac
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "link to account - check rows affected",
 			Err: translateNotFound(err),
 		}
 	}
 
 	if rowsAffected == 0 {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "link to account",
 			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
@@ -273,7 +275,7 @@ func (r *personRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 	result, err := query.Exec(ctx)
 
 	if err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "link to RFID card",
 			Err: translateNotFound(err),
 		}
@@ -281,14 +283,14 @@ func (r *personRepository) LinkToRFIDCard(ctx context.Context, personID int64, t
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "link to RFID card - check rows affected",
 			Err: translateNotFound(err),
 		}
 	}
 
 	if rowsAffected == 0 {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "link to RFID card",
 			Err: fmt.Errorf(errPersonNotFound, personID),
 		}
@@ -340,7 +342,7 @@ type AccountLookup func(ctx context.Context, accountID int64) (*users.PersonAcco
 // owner through the bound lookup and is attached when the person has one.
 func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*users.Person, error) {
 	if r.accounts == nil {
-		return nil, &DatabaseError{Op: "find with account", Err: errors.New("account lookup is required")}
+		return nil, &ports.DatabaseError{Op: "find with account", Err: errors.New("account lookup is required")}
 	}
 
 	person := new(users.Person)
@@ -353,7 +355,7 @@ func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{
+		return nil, &ports.DatabaseError{
 			Op:  "find with account",
 			Err: translateNotFound(err),
 		}
@@ -364,7 +366,7 @@ func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*user
 	}
 	account, err := r.accounts(ctx, *person.AccountID)
 	if err != nil {
-		return nil, &DatabaseError{Op: "find with account", Err: err}
+		return nil, &ports.DatabaseError{Op: "find with account", Err: err}
 	}
 	if account != nil && account.ID != 0 {
 		person.Account = account
@@ -375,8 +377,8 @@ func (r *personRepository) FindWithAccount(ctx context.Context, id int64) (*user
 
 // Legacy method to maintain compatibility with old interface
 func (r *personRepository) List(ctx context.Context, filters map[string]interface{}) ([]*users.Person, error) {
-	options := NewQueryOptions()
-	filter := NewQueryFilter()
+	options := ports.NewQueryOptions()
+	filter := ports.NewQueryFilter()
 
 	for field, value := range filters {
 		if value != nil {
@@ -389,7 +391,7 @@ func (r *personRepository) List(ctx context.Context, filters map[string]interfac
 }
 
 // applyPersonFilter applies a single filter based on field name
-func applyPersonFilter(filter *QueryFilter, field string, value interface{}) {
+func applyPersonFilter(filter *ports.QueryFilter, field string, value interface{}) {
 	switch field {
 	case "first_name_like":
 		applyPersonStringLikeFilter(filter, "first_name", value)
@@ -405,14 +407,14 @@ func applyPersonFilter(filter *QueryFilter, field string, value interface{}) {
 }
 
 // applyPersonStringLikeFilter applies LIKE filter for string fields
-func applyPersonStringLikeFilter(filter *QueryFilter, column string, value interface{}) {
+func applyPersonStringLikeFilter(filter *ports.QueryFilter, column string, value interface{}) {
 	if strValue, ok := value.(string); ok {
 		filter.Like(column, "%"+strValue+"%")
 	}
 }
 
 // applyNullableFieldFilter applies NULL/NOT NULL filter based on boolean value
-func applyNullableFieldFilter(filter *QueryFilter, column string, value interface{}) {
+func applyNullableFieldFilter(filter *ports.QueryFilter, column string, value interface{}) {
 	if boolValue, ok := value.(bool); ok {
 		if boolValue {
 			filter.IsNotNull(column)
@@ -440,7 +442,7 @@ func (r *personRepository) AnonymizeAndSoftDelete(ctx context.Context, personID 
 	query = withTenantFilter(ctx, r.runtime, query, "person")
 
 	if _, err := query.Exec(ctx); err != nil {
-		return &DatabaseError{
+		return &ports.DatabaseError{
 			Op:  "anonymize and soft delete person",
 			Err: translateNotFound(err),
 		}
@@ -459,7 +461,7 @@ func (r *personRepository) Create(ctx context.Context, person *users.Person) err
 	}
 	ensureTenantID(ctx, r.runtime, person)
 	if _, err := r.runtime.DB(ctx).NewInsert().Model(person).ModelTableExpr(`users.persons`).Exec(ctx); err != nil {
-		return &DatabaseError{Op: "create", Err: err}
+		return &ports.DatabaseError{Op: "create", Err: err}
 	}
 	return nil
 }
@@ -473,7 +475,7 @@ func (r *personRepository) FindByID(ctx context.Context, id any) (*users.Person,
 		Where(`"person".id = ?`, id)
 	query = withTenantFilter(ctx, r.runtime, query, "person")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find by id", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find by id", Err: translateNotFound(err)}
 	}
 	return person, nil
 }
@@ -486,14 +488,14 @@ func (r *personRepository) Delete(ctx context.Context, id any) error {
 		Where(`"person".id = ?`, id)
 	query = withTenantFilter(ctx, r.runtime, query, "person")
 	if _, err := query.Exec(ctx); err != nil {
-		return &DatabaseError{Op: "delete", Err: err}
+		return &ports.DatabaseError{Op: "delete", Err: err}
 	}
 	return nil
 }
 
 // ListWithOptions retrieves the persons matching the query options; no match
 // is an empty list, not nil.
-func (r *personRepository) ListWithOptions(ctx context.Context, options *QueryOptions) ([]*users.Person, error) {
+func (r *personRepository) ListWithOptions(ctx context.Context, options *ports.QueryOptions) ([]*users.Person, error) {
 	persons := make([]*users.Person, 0)
 	query := r.runtime.DB(ctx).NewSelect().
 		Model(&persons).
@@ -504,7 +506,7 @@ func (r *personRepository) ListWithOptions(ctx context.Context, options *QueryOp
 	}
 	query = applyQueryOptions(query, options)
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list with options", Err: err}
+		return nil, &ports.DatabaseError{Op: "list with options", Err: err}
 	}
 	return persons, nil
 }

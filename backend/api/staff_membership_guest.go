@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -16,7 +17,7 @@ type guestMembershipRepository struct {
 	membership schoolmembership.Capability
 }
 
-var _ userModels.GuestRepository = guestMembershipRepository{}
+var _ peoplePorts.GuestRepository = guestMembershipRepository{}
 
 func guestFieldsFromLegacy(guest *userModels.Guest) schoolmembership.GuestFields {
 	return schoolmembership.GuestFields{

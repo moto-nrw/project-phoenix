@@ -1,18 +1,11 @@
-package compose
+package ports
 
 import (
 	"context"
 	"time"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
-
-// The contracts below are what the retained services and handlers call for the
-// child's photo; they left services/users with the person and student services
-// (#3753). The lifecycle behind them — the feature gate, the consent it
-// depends on, the row lock and the purge — belongs to the People Directory
-// owner; #3349 moved it there. The composition root binds an implementation
-// (api.NewStudentPhotos).
 
 // PhotoSettings is the narrow settings surface the photo feature gate needs.
 type PhotoSettings interface {
@@ -43,7 +36,7 @@ type StudentPhotoService interface {
 	// ApplyConsentTransition reconciles a requested photo consent against the
 	// row the caller holds, mutating it in place; the caller persists it. The
 	// file a withdrawal detaches is removed after the caller's commit.
-	ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *userModels.Student)
+	ApplyConsentTransition(ctx context.Context, requestedConsent *bool, fresh *users.Student)
 	ScheduleUnlinkAfterCommit(ctx context.Context, storedURL string)
 }
 
@@ -53,7 +46,7 @@ type StudentPhotoService interface {
 type StudentConsentRecorder interface {
 	RecordTransitions(
 		ctx context.Context,
-		before, after *userModels.Student,
+		before, after *users.Student,
 		source string,
 		actorAccountID *int64,
 		changedAt time.Time,

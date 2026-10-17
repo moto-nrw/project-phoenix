@@ -6,7 +6,7 @@ import (
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -24,7 +24,7 @@ import (
 // teacher assignments of School Membership and the group names of School
 // Structure. repository carries the database, the directory and the
 // enrollment owner the caller composed.
-func BindStudentRepository(repository peopleCompose.StudentRepositoryDependencies, membership groupAssignmentLister, groups schoolstructure.Query) userModels.StudentRepository {
+func BindStudentRepository(repository peopleCompose.StudentRepositoryDependencies, membership groupAssignmentLister, groups schoolstructure.Query) peoplePorts.StudentRepository {
 	repository.TeacherGroupIDs = assignedTeacherGroupIDs(membership)
 	repository.TeacherStaffGroupIDs = assignedTeacherStaffGroupIDs(membership)
 	repository.Students = studentDirectoryView.NewReader()
@@ -75,7 +75,7 @@ func assignedTeacherStaffGroupIDs(membership groupAssignmentLister) func(context
 // NewCaregiverBindingLocker serializes the caregiver capability re-check over
 // the four owners whose tables can retain caregiver capability: School
 // Membership, Workforce, Student Presence and Timetable & Activities.
-func NewCaregiverBindingLocker(membership schoolmembership.Capability, workTime workforce.Capability, presence studentpresence.Capability, timetableCapability timetable.Capability) userModels.CaregiverBindingLocker {
+func NewCaregiverBindingLocker(membership schoolmembership.Capability, workTime workforce.Capability, presence studentpresence.Capability, timetableCapability timetable.Capability) peoplePorts.CaregiverBindingLocker {
 	return peopleCompose.NewCaregiverBindingLocker(caregiverBindingOwners{
 		membership: membership, workforce: workTime, presence: presence, timetable: timetableCapability,
 	})

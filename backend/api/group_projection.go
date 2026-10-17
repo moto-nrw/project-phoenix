@@ -6,6 +6,7 @@ import (
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -14,7 +15,7 @@ import (
 // the student roster and birthday reads through the School Structure owner, so
 // no student read joins education.groups itself.
 type OverlappingRosterGroupNames struct {
-	userModels.StudentRepository
+	peoplePorts.StudentRepository
 	Groups schoolstructure.Query
 }
 
@@ -29,7 +30,7 @@ func (r OverlappingRosterGroupNames) FindOverlappingWithGroups(ctx context.Conte
 }
 
 type groupStudentRepository struct {
-	userModels.StudentRepository
+	peoplePorts.StudentRepository
 	groups schoolstructure.Query
 }
 

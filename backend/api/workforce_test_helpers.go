@@ -14,7 +14,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -133,8 +133,8 @@ func MustNewStaffEmployment(db transactionruntime.Database) workforce.StaffEmplo
 // may not name the Workforce composition.
 type StaffAdminDependencies struct {
 	DB         transactionruntime.Database
-	Staff      userModels.StaffRepository
-	Persons    userModels.PersonRepository
+	Staff      peoplePorts.StaffRepository
+	Persons    peoplePorts.PersonRepository
 	Membership schoolmembership.Capability
 
 	MasterDataAudit auditModels.StaffMasterDataChangeCreator

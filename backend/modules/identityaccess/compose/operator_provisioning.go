@@ -153,7 +153,7 @@ func (e engine) ListPendingOperatorInvitations(ctx context.Context) ([]identitya
 	if e.operatorProvisioning == nil {
 		return nil, errOperatorProvisioningUnavailable
 	}
-	invitations, err := e.operatorProvisioning.ListPendingOperatorInvitations(e.attach(ctx))
+	invitations, err := e.tokens.ListRedeemableInvitations(e.attach(ctx))
 	if err != nil {
 		return nil, operatorProvisioningError(err)
 	}

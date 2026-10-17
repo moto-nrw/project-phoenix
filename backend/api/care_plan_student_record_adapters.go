@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
@@ -14,11 +15,11 @@ import (
 
 type CompanionRepository struct{ Capability careplan.Capability }
 
-var _ userModels.StudentCompanionRepository = CompanionRepository{}
+var _ peoplePorts.StudentCompanionRepository = CompanionRepository{}
 
 // NewStudentCompanionRepository serves the companion edge contract over the
 // Care Plan owner capability.
-func NewStudentCompanionRepository(capability careplan.Capability) userModels.StudentCompanionRepository {
+func NewStudentCompanionRepository(capability careplan.Capability) peoplePorts.StudentCompanionRepository {
 	return CompanionRepository{Capability: capability}
 }
 

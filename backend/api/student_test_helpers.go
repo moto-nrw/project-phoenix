@@ -23,7 +23,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -43,7 +43,7 @@ type StudentTestModule struct {
 	Audit              auditModels.Command
 	Schools            organizationtenancy.Capability
 	CareLifecycle      careplan.CareLifecycle
-	StudentAudit       peopleCompose.StudentAuditService
+	StudentAudit       peoplePorts.StudentAuditService
 	PartialAbsence     careplan.PartialAbsenceService
 	EnrollmentDecision enrollmentOwner.Decisions
 	CareRequests       carerequests.Service
@@ -53,11 +53,11 @@ type StudentTestModule struct {
 	MasterDataReview   masterdatarequests.Decisions
 	ParentRequests     parentrequests.Coordinator
 	OGSGroupLive       grouplive.Query
-	StudentPhotos      peopleCompose.StudentPhotoService
+	StudentPhotos      peoplePorts.StudentPhotoService
 	// NewStudentPhotos rebinds the photo lifecycle to the caller's broadcaster
 	// and file cleanup. Adapter tests assert on both, and the stored files are
 	// an api-layer concern this graph cannot supply.
-	NewStudentPhotos func(PhotoBroadcaster, peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService
+	NewStudentPhotos func(PhotoBroadcaster, peoplePorts.PhotoUnlinker) peoplePorts.StudentPhotoService
 	// NewPickupAdjustments rebinds the pickup adjustment to the caller's
 	// offering adjustments, so a route test can fail an apply after the
 	// offering write.
@@ -148,7 +148,7 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	studentConsentService := NewStudentConsents(db)
 	// The stored files live in the API layer, so a services-only graph binds
 	// no unlinker: the runtime skips the cleanup instead of guessing a path.
-	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peopleCompose.PhotoUnlinker) peopleCompose.StudentPhotoService {
+	newStudentPhotos := func(broadcaster PhotoBroadcaster, unlinker peoplePorts.PhotoUnlinker) peoplePorts.StudentPhotoService {
 		return NewStudentPhotos(persons, guardian.PhotoRuntime, StudentPhotoRuntimeDependencies{
 			Settings: settingsService, Broadcaster: broadcaster, Unlinker: unlinker,
 			Consents: studentConsentService, Logger: logger,

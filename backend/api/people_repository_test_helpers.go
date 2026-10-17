@@ -21,6 +21,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -48,20 +49,20 @@ type PeopleRepositorySuiteFactory struct {
 	CareScheduleRepositories
 	timetableCompose.SchoolCalendarRepositories
 	ParentPortalRepositories
-	GuardianPhoneNumber   usersModels.GuardianPhoneNumberRepository
+	GuardianPhoneNumber   peoplePorts.GuardianPhoneNumberRepository
 	GuardianFinancialData usersModels.GuardianFinancialDataRepository
 	FamilyProtection      usersModels.FamilyProtectionEventRepository
 	ParentRequestShare    usersModels.ParentRequestShareEventRepository
 	ParentRequestEvent    usersModels.ParentRequestEventRepository
 	GroupSubstitution     GroupSubstitutionRepository
-	CaregiverBindingLock  usersModels.CaregiverBindingLocker
+	CaregiverBindingLock  peoplePorts.CaregiverBindingLocker
 	// RFIDCard and Profile are the Identity & Access cards and account
 	// profiles the repository factory used to hand out.
 	RFIDCard identityaccess.RFIDCards
 	Profile  identityaccess.AccountProfiles
 
 	CareWithdrawal           usersModels.CareWithdrawalCompletionRepository
-	StudentDataChangeRequest usersModels.StudentDataChangeRequestRepository
+	StudentDataChangeRequest peoplePorts.StudentDataChangeRequestRepository
 	StudentStatusDay         *StudentStatusDayRepository
 	ExcusedAbsenceRequest    *ExcusedAbsenceRequestRepository
 	ActiveGroup              studentpresence.SessionRecords
@@ -201,13 +202,13 @@ func NewPeopleRepositorySuiteAnnouncements(db transactionruntime.Database, audie
 
 // NewPeopleRepositorySuiteCaregiverBindingLocker is the caregiver binding
 // lock over the four owners that hold caregiver capability.
-func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Database) usersModels.CaregiverBindingLocker {
+func NewPeopleRepositorySuiteCaregiverBindingLocker(db transactionruntime.Database) peoplePorts.CaregiverBindingLocker {
 	deps := NewUnobservedTimetableDependencies(db)
 	return NewCaregiverBindingLocker(deps.Membership, deps.Workforce, NewStudentPresenceForTests(db), deps.Capability)
 }
 
 // NewPeopleRepositorySuiteCompanions is the companion store over Care Plan.
-func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) usersModels.StudentCompanionRepository {
+func NewPeopleRepositorySuiteCompanions(capability careplan.Capability) peoplePorts.StudentCompanionRepository {
 	return NewStudentCompanionRepository(capability)
 }
 
@@ -217,19 +218,19 @@ func NewPeopleRepositorySuiteCompanionEdge(studentID, companionID int64, weekday
 }
 
 // ReplacePeopleRepositorySuiteCompanions replaces a child's companion edges.
-func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links usersModels.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
+func ReplacePeopleRepositorySuiteCompanions(ctx context.Context, links peoplePorts.StudentCompanionRepository, studentID int64, edges []*usersModels.StudentCompanion) error {
 	return ReplaceStudentCompanions(ctx, links, studentID, edges)
 }
 
 // NewPeopleRepositorySuiteRelationships is the relationship store with its
 // owners bound, as the composition root binds it.
-func NewPeopleRepositorySuiteRelationships(db transactionruntime.Database) usersModels.StudentGuardianRepository {
+func NewPeopleRepositorySuiteRelationships(db transactionruntime.Database) peoplePorts.StudentGuardianRepository {
 	return NewStudentGuardianRepository(db)
 }
 
 // NewPeopleRepositorySuiteGuardianProfiles is the guardian profile store as
 // the composition root binds it.
-func NewPeopleRepositorySuiteGuardianProfiles(db transactionruntime.Database) usersModels.GuardianProfileRepository {
+func NewPeopleRepositorySuiteGuardianProfiles(db transactionruntime.Database) peoplePorts.GuardianProfileRepository {
 	return NewGuardianProfileRepository(db)
 }
 
@@ -288,7 +289,7 @@ func NewRepositoryTestFactoryWithPeopleDirectory(db transactionruntime.Database,
 // School Membership teacher assignments and the School Structure group names:
 // the teacher-scoped roster reads fail closed. Repository suites that only
 // read and write the child's row use it.
-func NewUnboundStudentRepository(db transactionruntime.Database) usersModels.StudentRepository {
+func NewUnboundStudentRepository(db transactionruntime.Database) peoplePorts.StudentRepository {
 	enrollment, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))

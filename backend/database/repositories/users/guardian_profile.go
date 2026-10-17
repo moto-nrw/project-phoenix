@@ -8,8 +8,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -49,7 +51,7 @@ func WithPortalLoginMemberships(query PortalLoginMembershipQuery) GuardianProfil
 }
 
 // NewGuardianProfileRepository creates a new GuardianProfileRepository instance
-func NewGuardianProfileRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianProfileOption) GuardianProfileRepository {
+func NewGuardianProfileRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianProfileOption) ports.GuardianProfileRepository {
 	repository := &guardianProfileRepository{
 		runtime:  requireRuntime(runtime),
 		students: requireStudentRows(students),
@@ -319,25 +321,25 @@ func (r *guardianProfileRepository) FindInvitable(ctx context.Context) ([]*users
 // FindByEmails retrieves the tenant's guardian profiles whose trimmed email
 // is one of the given addresses, through the generic list filter.
 func (r *guardianProfileRepository) FindByEmails(ctx context.Context, emails []string) ([]*users.GuardianProfile, error) {
-	return r.ListWithOptions(ctx, &QueryOptions{
-		Filter: NewQueryFilter().TrimIn("email", emails...),
+	return r.ListWithOptions(ctx, &ports.QueryOptions{
+		Filter: ports.NewQueryFilter().TrimIn("email", emails...),
 	})
 }
 
-func (r *guardianProfileRepository) ListWithOptions(ctx context.Context, options *QueryOptions) ([]*users.GuardianProfile, error) {
-	listOptions := &QueryOptions{}
+func (r *guardianProfileRepository) ListWithOptions(ctx context.Context, options *ports.QueryOptions) ([]*users.GuardianProfile, error) {
+	listOptions := &ports.QueryOptions{}
 	if options != nil {
 		*listOptions = *options
 	}
-	fields := make([]QuerySortField, 0, 2)
+	fields := make([]ports.QuerySortField, 0, 2)
 	if options != nil && options.Sorting != nil {
 		fields = append(fields, options.Sorting.Fields...)
 	}
 	fields = append(fields,
-		QuerySortField{Field: "last_name", Direction: SortAsc},
-		QuerySortField{Field: "first_name", Direction: SortAsc},
+		ports.QuerySortField{Field: "last_name", Direction: ports.SortAsc},
+		ports.QuerySortField{Field: "first_name", Direction: ports.SortAsc},
 	)
-	listOptions.Sorting = &QuerySorting{Fields: fields}
+	listOptions.Sorting = &ports.QuerySorting{Fields: fields}
 
 	profiles := make([]*users.GuardianProfile, 0)
 	if listOptions.Filter != nil {

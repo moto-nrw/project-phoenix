@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -32,7 +33,7 @@ type carePlanWiringOwners struct {
 	// People are the retained People Directory repositories the root built
 	// for the graph; AuditActor names the actor of a child's change history.
 	People     PeopleWiring
-	AuditActor peopleCompose.RequestAuditActor
+	AuditActor peoplePorts.RequestAuditActor
 	// ObserveCarePlan records the excused-absence workflow as Care Plan
 	// operations; nil leaves it unobserved.
 	ObserveCarePlan func(carePlanCompose.Observation)

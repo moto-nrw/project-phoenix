@@ -8,6 +8,7 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -39,19 +40,19 @@ const (
 type PersonDirectoryDependencies struct {
 	// PersonDirectory is the owner's person write path (#3349); the
 	// composition root binds NewPersonWrites.
-	PersonDirectory PersonWriter
+	PersonDirectory peoplePorts.PersonWriter
 	// StudentDirectory is the owner's locked child read (#3349); the
 	// composition root binds NewStudentDirectory.
-	StudentDirectory StudentLocker
+	StudentDirectory peoplePorts.StudentLocker
 	// Repository dependencies
-	PersonRepo    usersRepo.PersonRepository
-	RFIDRepo      RFIDCards
+	PersonRepo    peoplePorts.PersonRepository
+	RFIDRepo      peoplePorts.RFIDCards
 	AccountExists func(context.Context, int64) (bool, error)
-	StudentRepo   usersRepo.StudentRepository
-	TeacherRepo   usersRepo.TeacherRepository
+	StudentRepo   peoplePorts.StudentRepository
+	TeacherRepo   peoplePorts.TeacherRepository
 	// StaffDirectory serves the staff and teacher lookups and the two staff
 	// writes (#3752); the composition root binds NewStaffDirectory.
-	StaffDirectory StaffDirectory
+	StaffDirectory peoplePorts.StaffDirectory
 	// CareParticipation is the Care Plan seam behind the dated roster read.
 	// Care Plan is composed after this directory, so the root binds a resolver
 	// that reaches it at call time.
@@ -80,7 +81,7 @@ type PersonDirectory struct {
 	deps PersonDirectoryDependencies
 	// StaffDirectory is embedded so its lookups and writes are the person
 	// directory's own; the deps field of the same name feeds it.
-	StaffDirectory
+	peoplePorts.StaffDirectory
 }
 
 // NewPersonDirectory creates the retained person directory.

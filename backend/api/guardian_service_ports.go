@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The guardian service's ports (#3755). It moved from services/users into
@@ -15,19 +15,19 @@ import (
 
 // guardianPaymentFields maps the port's field values to the audit trail's
 // field names.
-var guardianPaymentFields = map[peopleCompose.GuardianPaymentField]string{
-	peopleCompose.GuardianPaymentFieldIBAN:          auditModels.GuardianPaymentFieldIBAN,
-	peopleCompose.GuardianPaymentFieldAccountHolder: auditModels.GuardianPaymentFieldAccountHolder,
-	peopleCompose.GuardianPaymentFieldIsPayer:       auditModels.GuardianPaymentFieldIsPayer,
+var guardianPaymentFields = map[peoplePorts.GuardianPaymentField]string{
+	peoplePorts.GuardianPaymentFieldIBAN:          auditModels.GuardianPaymentFieldIBAN,
+	peoplePorts.GuardianPaymentFieldAccountHolder: auditModels.GuardianPaymentFieldAccountHolder,
+	peoplePorts.GuardianPaymentFieldIsPayer:       auditModels.GuardianPaymentFieldIsPayer,
 }
 
 // guardianPaymentAccesses maps the port's read kinds to the data-access log's
 // resource types.
-var guardianPaymentAccesses = map[peopleCompose.GuardianPaymentAccess]string{
-	peopleCompose.GuardianPaymentAccessView:     auditModels.ResourceTypeGuardianFinancialView,
-	peopleCompose.GuardianPaymentAccessReveal:   auditModels.ResourceTypeGuardianFinancialReveal,
-	peopleCompose.GuardianPaymentAccessOverview: auditModels.ResourceTypeGuardianPaymentOverview,
-	peopleCompose.GuardianPaymentAccessExport:   auditModels.ResourceTypeGuardianPaymentExport,
+var guardianPaymentAccesses = map[peoplePorts.GuardianPaymentAccess]string{
+	peoplePorts.GuardianPaymentAccessView:     auditModels.ResourceTypeGuardianFinancialView,
+	peoplePorts.GuardianPaymentAccessReveal:   auditModels.ResourceTypeGuardianFinancialReveal,
+	peoplePorts.GuardianPaymentAccessOverview: auditModels.ResourceTypeGuardianPaymentOverview,
+	peoplePorts.GuardianPaymentAccessExport:   auditModels.ResourceTypeGuardianPaymentExport,
 }
 
 // guardianFinancialAudit writes the guardian bank-data changes to
@@ -39,14 +39,14 @@ type guardianFinancialAudit struct {
 // NewGuardianFinancialAudit binds the change-trail port. A nil repository
 // leaves the port unbound, so the service refuses the change instead of
 // committing it without an audit row.
-func NewGuardianFinancialAudit(changes auditModels.GuardianFinancialChangeCreator) peopleCompose.GuardianFinancialAudit {
+func NewGuardianFinancialAudit(changes auditModels.GuardianFinancialChangeCreator) peoplePorts.GuardianFinancialAudit {
 	if changes == nil {
 		return nil
 	}
 	return guardianFinancialAudit{changes: changes}
 }
 
-func (a guardianFinancialAudit) RecordGuardianFinancialChange(ctx context.Context, change peopleCompose.GuardianFinancialChange) error {
+func (a guardianFinancialAudit) RecordGuardianFinancialChange(ctx context.Context, change peoplePorts.GuardianFinancialChange) error {
 	field, ok := guardianPaymentFields[change.Field]
 	if !ok {
 		return fmt.Errorf("unknown guardian payment field %d", change.Field)
@@ -70,14 +70,14 @@ type guardianDataAccessLog struct {
 
 // NewGuardianDataAccessLog binds the read-trail port. A nil repository leaves
 // the port unbound, so the service serves no bank value.
-func NewGuardianDataAccessLog(log DataAccessAppender) peopleCompose.GuardianDataAccessLog {
+func NewGuardianDataAccessLog(log DataAccessAppender) peoplePorts.GuardianDataAccessLog {
 	if log == nil {
 		return nil
 	}
 	return guardianDataAccessLog{log: log}
 }
 
-func (l guardianDataAccessLog) RecordGuardianDataAccess(ctx context.Context, access peopleCompose.GuardianDataAccess) error {
+func (l guardianDataAccessLog) RecordGuardianDataAccess(ctx context.Context, access peoplePorts.GuardianDataAccess) error {
 	resourceType, ok := guardianPaymentAccesses[access.Access]
 	if !ok {
 		return fmt.Errorf("unknown guardian payment access %d", access.Access)

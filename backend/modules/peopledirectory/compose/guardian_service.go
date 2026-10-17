@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/userscontract"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
@@ -88,20 +88,20 @@ type GuardianInvitations interface {
 // GuardianServiceDependencies contains all dependencies required by the guardian service
 type GuardianServiceDependencies struct {
 	// Repository dependencies
-	GuardianProfileRepo     usersRepo.GuardianProfileRepository
-	GuardianPhoneNumberRepo usersRepo.GuardianPhoneNumberRepository
-	StudentGuardianRepo     usersRepo.StudentGuardianRepository
+	GuardianProfileRepo     peoplePorts.GuardianProfileRepository
+	GuardianPhoneNumberRepo peoplePorts.GuardianPhoneNumberRepository
+	StudentGuardianRepo     peoplePorts.StudentGuardianRepository
 	GuardianInvitations     GuardianInvitations
-	StudentRepo             usersRepo.StudentRepository
-	PersonRepo              usersRepo.PersonRepository
+	StudentRepo             peoplePorts.StudentRepository
+	PersonRepo              peoplePorts.PersonRepository
 
 	// Payment data (#2608). Kept as separate, narrow dependencies so the
 	// guardians:financial code path is the only one holding a reference to
 	// the bank rows. Both audit writers are mandatory for that path: it
 	// refuses to serve or change an IBAN when it cannot write the trail.
 	GuardianFinancialRepo  users.GuardianFinancialDataRepository
-	GuardianFinancialAudit GuardianFinancialAudit
-	DataAccessLog          GuardianDataAccessLog
+	GuardianFinancialAudit peoplePorts.GuardianFinancialAudit
+	DataAccessLog          peoplePorts.GuardianDataAccessLog
 
 	// RolePresets assigns a relationship's role and the parent-portal
 	// permissions it grants.
@@ -182,7 +182,7 @@ func (s *GuardianService) CreateGuardian(ctx context.Context, req GuardianCreate
 		// pre-check above and then race on the UNIQUE(tenant_id, email) index.
 		// The loser gets a raw 23505 — classify it as the same bad-input
 		// ValidationError (HTTP 400) the pre-check produces, never a 500.
-		if errors.Is(err, usersRepo.ErrGuardianEmailTaken) && profile.Email != nil {
+		if errors.Is(err, peoplePorts.ErrGuardianEmailTaken) && profile.Email != nil {
 			return nil, newEmailInUseError(*profile.Email)
 		}
 		return nil, fmt.Errorf("failed to create guardian profile: %w", err)
@@ -280,7 +280,7 @@ func (s *GuardianService) UpdateGuardian(ctx context.Context, id int64, req Guar
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
 		// the email between the check above and this Update.
-		if errors.Is(err, usersRepo.ErrGuardianEmailTaken) && profile.Email != nil {
+		if errors.Is(err, peoplePorts.ErrGuardianEmailTaken) && profile.Email != nil {
 			return newEmailInUseError(*profile.Email)
 		}
 		return err
@@ -406,14 +406,14 @@ func (s *GuardianService) auditGuardianFinancialDataDeletion(ctx context.Context
 
 	changes := []stammdatenChange{}
 	if data.IBAN != nil && *data.IBAN != "" {
-		changes = append(changes, maskedChange(GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
 	}
 	if data.AccountHolder != nil && *data.AccountHolder != "" {
-		changes = append(changes, maskedChange(GuardianPaymentFieldAccountHolder,
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldAccountHolder,
 			maskAllPtr(data.AccountHolder), nil))
 	}
 	for _, change := range changes {
-		if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, GuardianFinancialChange{
+		if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, peoplePorts.GuardianFinancialChange{
 			GuardianProfileID: guardianProfileID,
 			ChangedBy:         changedByAccountID,
 			Field:             change.field,
@@ -527,7 +527,7 @@ func (s *GuardianService) getGuardianDeleteImpact(ctx context.Context, guardianP
 }
 
 // ListGuardians retrieves guardians with pagination and filters, including phone numbers
-func (s *GuardianService) ListGuardians(ctx context.Context, options *usersRepo.QueryOptions) ([]*users.GuardianProfile, error) {
+func (s *GuardianService) ListGuardians(ctx context.Context, options *peoplePorts.QueryOptions) ([]*users.GuardianProfile, error) {
 	profiles, err := s.GuardianProfileRepo.ListWithOptions(ctx, options)
 	if err != nil {
 		return nil, err

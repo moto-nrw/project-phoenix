@@ -3,11 +3,10 @@ package api
 import (
 	"context"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -22,7 +21,7 @@ type PickupAdjustmentInputs struct {
 	Baselines        careplan.PickupBaselineReader
 	Offerings        careplan.DirectOfferingAdjustments
 	Settings         OfferingChangeSettingsReads
-	Audit            peopleCompose.StudentPickupPlanRecorder
+	Audit            peoplePorts.StudentPickupPlanRecorder
 	Students         PickupAdjustmentStudentRows
 	Today            func() calendar.Date
 }

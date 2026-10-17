@@ -11,6 +11,7 @@ import (
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Guardian directory composition (#2663). The People Directory facade owns
@@ -68,7 +69,7 @@ func (p *GuardianDirectoryProvider) FindGuardianByEmail(ctx context.Context, ema
 }
 
 func (p *GuardianDirectoryProvider) ListGuardians(ctx context.Context, page, pageSize int) ([]peopledirectory.Guardian, error) {
-	profiles, err := p.Guardians.ListGuardians(ctx, usersRepo.NewQueryOptions().WithPagination(page, pageSize))
+	profiles, err := p.Guardians.ListGuardians(ctx, peoplePorts.NewQueryOptions().WithPagination(page, pageSize))
 	if err != nil {
 		return nil, mapGuardianError(err)
 	}

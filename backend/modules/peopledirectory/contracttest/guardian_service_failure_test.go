@@ -13,7 +13,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -31,7 +31,7 @@ func guardianAmbientTxContext() context.Context {
 // one would mean the code under test took an unexpected path.
 
 type fakeProfileRepo struct {
-	userModels.GuardianProfileRepository
+	peoplePorts.GuardianProfileRepository
 	findByEmailFn func(ctx context.Context, email string) (*users.GuardianProfile, error)
 	createFn      func(ctx context.Context, p *users.GuardianProfile) error
 	findByIDFn    func(ctx context.Context, id int64) (*users.GuardianProfile, error)
@@ -60,7 +60,7 @@ func (f *fakeProfileRepo) Delete(ctx context.Context, id int64) error {
 }
 
 type fakeStudentGuardianRepo struct {
-	userModels.StudentGuardianRepository
+	peoplePorts.StudentGuardianRepository
 	findByGuardianFn func(ctx context.Context, guardianProfileID int64) ([]*users.StudentGuardian, error)
 	deleteFn         func(ctx context.Context, id interface{}) error
 }
@@ -73,7 +73,7 @@ func (f *fakeStudentGuardianRepo) Delete(ctx context.Context, id interface{}) er
 }
 
 type fakeStudentRepo struct {
-	userModels.StudentRepository
+	peoplePorts.StudentRepository
 	findByIDFn           func(ctx context.Context, id interface{}) (*users.Student, error)
 	findByIDsFn          func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
 	findByIDsForUpdateFn func(ctx context.Context, ids []int64) (map[int64]*users.Student, error)
@@ -112,7 +112,7 @@ func (f *fakeStudentRepo) FindByIDForUpdate(ctx context.Context, id int64) (*use
 }
 
 type fakePersonRepo struct {
-	userModels.PersonRepository
+	peoplePorts.PersonRepository
 	findByIDFn  func(ctx context.Context, id interface{}) (*users.Person, error)
 	findByIDsFn func(ctx context.Context, ids []int64) (map[int64]*users.Person, error)
 }

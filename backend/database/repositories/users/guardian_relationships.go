@@ -10,8 +10,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The student-guardian relationship after Cutover #2756. People Directory
@@ -83,7 +85,7 @@ func WithGuardianDefaultRole(apply func(*users.StudentGuardian)) GuardianRelatio
 
 // NewGuardianRelationshipRepository creates the relationship store. Reads work
 // without the owner commands; a write fails closed until they are bound.
-func NewGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) StudentGuardianRepository {
+func NewGuardianRelationshipRepository(runtime Runtime, students StudentDirectoryRows, links GuardianLinkRows, options ...GuardianRelationshipOption) ports.StudentGuardianRepository {
 	repository := &GuardianRelationshipRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students), links: requireGuardianLinkRows(links)}
 	for _, option := range options {
 		option(repository)
@@ -287,7 +289,7 @@ func (r *GuardianRelationshipRepository) Create(ctx context.Context, rel *users.
 		return r.createOwnerHalves(ctx, rel, accountID, permissions)
 	})
 	if err != nil {
-		return &DatabaseError{Op: "create", Err: err}
+		return &ports.DatabaseError{Op: "create", Err: err}
 	}
 	return nil
 }
@@ -337,7 +339,7 @@ func (r *GuardianRelationshipRepository) LinkIfNotExists(ctx context.Context, re
 		return r.createOwnerHalves(ctx, rel, accountID, permissions)
 	})
 	if err != nil {
-		return false, &DatabaseError{Op: "link guardian if not exists", Err: translateNotFound(err)}
+		return false, &ports.DatabaseError{Op: "link guardian if not exists", Err: translateNotFound(err)}
 	}
 	return inserted, nil
 }
@@ -357,7 +359,7 @@ func (r *GuardianRelationshipRepository) Update(ctx context.Context, rel *users.
 		return err
 	})
 	if err != nil {
-		return &DatabaseError{Op: "update", Err: err}
+		return &ports.DatabaseError{Op: "update", Err: err}
 	}
 	if !found {
 		return assertRowsAffectedCount(0, 1, "update StudentGuardian")
@@ -405,7 +407,7 @@ func (r *GuardianRelationshipRepository) UpdateColumns(ctx context.Context, rel 
 		return err
 	})
 	if err != nil {
-		return 0, &DatabaseError{Op: "update columns", Err: err}
+		return 0, &ports.DatabaseError{Op: "update columns", Err: err}
 	}
 	if !found {
 		return 0, nil
@@ -493,7 +495,7 @@ func (r *GuardianRelationshipRepository) Delete(ctx context.Context, id any) err
 		Where(`"relationship".id = ?`, id)
 	query = withTenantFilter(ctx, r.runtime, query, "relationship")
 	if _, err := query.Exec(ctx); err != nil {
-		return &DatabaseError{Op: "delete", Err: err}
+		return &ports.DatabaseError{Op: "delete", Err: err}
 	}
 	return nil
 }
@@ -520,11 +522,11 @@ func (r *GuardianRelationshipRepository) SetPrimary(ctx context.Context, id int6
 		return err
 	})
 	if err != nil {
-		var databaseErr *DatabaseError
+		var databaseErr *ports.DatabaseError
 		if errors.As(err, &databaseErr) {
 			return err
 		}
-		return &DatabaseError{Op: "set primary", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "set primary", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -552,7 +554,7 @@ func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID
 	clear = withTenantFilter(ctx, r.runtime, clear, "relationship")
 
 	if _, err := clear.Exec(ctx); err != nil {
-		return &DatabaseError{Op: "clear student payer", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "clear student payer", Err: translateNotFound(err)}
 	}
 
 	if guardianProfileID == nil {
@@ -568,11 +570,11 @@ func (r *GuardianRelationshipRepository) SetPayer(ctx context.Context, studentID
 
 	result, err := set.Exec(ctx)
 	if err != nil {
-		return &DatabaseError{Op: "set student payer", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "set student payer", Err: translateNotFound(err)}
 	}
 	affected, err := result.RowsAffected()
 	if err != nil {
-		return &DatabaseError{Op: "set student payer", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "set student payer", Err: translateNotFound(err)}
 	}
 	if affected == 0 {
 		return users.ErrStudentGuardianNotFound
@@ -591,7 +593,7 @@ func (r *GuardianRelationshipRepository) FindByID(ctx context.Context, id any) (
 	relationship := new(users.StudentGuardian)
 	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, relationship).Where(`"student_guardian".id = ?`, id), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find by id", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find by id", Err: translateNotFound(err)}
 	}
 	return relationship, nil
 }
@@ -618,7 +620,7 @@ func (r *GuardianRelationshipRepository) List(ctx context.Context, filters map[s
 	}
 	query = withTenantFilter(ctx, r.runtime, query, "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -629,7 +631,7 @@ func (r *GuardianRelationshipRepository) FindByStudentID(ctx context.Context, st
 	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
 		Where(`"student_guardian".student_id = ?`, studentID), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find by student ID", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find by student ID", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -643,7 +645,7 @@ func (r *GuardianRelationshipRepository) FindByStudentIDs(ctx context.Context, s
 	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
 		Where(`"student_guardian".student_id IN (?)`, bun.List(studentIDs)), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find by student IDs", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find by student IDs", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -654,7 +656,7 @@ func (r *GuardianRelationshipRepository) FindByGuardianProfileID(ctx context.Con
 	query := withTenantFilter(ctx, r.runtime, r.linkQuery(ctx, &relationships).
 		Where(`"student_guardian".guardian_profile_id = ?`, guardianProfileID), "student_guardian")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find by guardian profile ID", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find by guardian profile ID", Err: translateNotFound(err)}
 	}
 	return relationships, nil
 }
@@ -675,14 +677,14 @@ func (r *GuardianRelationshipRepository) FindByStudentAndGuardianForUpdate(ctx c
 		For("UPDATE")
 	lock = withTenantFilter(ctx, r.runtime, lock, "relationship")
 	if err := lock.Scan(ctx, &locked); err != nil {
-		return nil, &DatabaseError{Op: "find by student and guardian for update", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find by student and guardian for update", Err: translateNotFound(err)}
 	}
 	if len(locked) == 0 {
 		return nil, users.ErrStudentGuardianNotFound
 	}
 	relationship, err := r.FindByID(ctx, locked[0])
 	if err != nil {
-		if errors.Is(err, ErrRepositoryNotFound) || errors.Is(err, sql.ErrNoRows) {
+		if errors.Is(err, ports.ErrRepositoryNotFound) || errors.Is(err, sql.ErrNoRows) {
 			return nil, users.ErrStudentGuardianNotFound
 		}
 		return nil, err
@@ -714,7 +716,7 @@ func (r *GuardianRelationshipRepository) ListLinkedChildrenForGuardians(ctx cont
 	var rows []*users.GuardianLinkedChild
 	db := r.runtime.DB(ctx)
 	if err := db.NewRaw(query, r.students.StudentRows(db, r.runtime.TenantID(ctx)), bun.List(guardianProfileIDs)).Scan(ctx, &rows); err != nil {
-		return nil, &DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list linked children for guardians", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }
@@ -961,7 +963,7 @@ func (r *GuardianRelationshipRepository) ListEmergencyContactRows(ctx context.Co
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &DatabaseError{
+		return nil, &ports.DatabaseError{
 			Op:  "list emergency contact rows",
 			Err: translateNotFound(err),
 		}
@@ -1002,7 +1004,7 @@ func (r *GuardianRelationshipRepository) ListPaymentAssignments(ctx context.Cont
 	}
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &DatabaseError{Op: "list guardian payment assignments", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list guardian payment assignments", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }

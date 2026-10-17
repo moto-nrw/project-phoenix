@@ -7,8 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
@@ -40,7 +40,7 @@ func newCareScheduleTestRouter(db transactionruntime.Database, module StudentTes
 	return router, nil
 }
 
-func newStudentPhotoTestUnlinker() peopleCompose.PhotoUnlinker {
+func newStudentPhotoTestUnlinker() peoplePorts.PhotoUnlinker {
 	return studentsAPI.NewPhotoUnlinker(slog.Default(), "public")
 }
 

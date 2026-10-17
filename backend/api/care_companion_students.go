@@ -11,6 +11,7 @@ import (
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentChangeAudit appends the tracked-field history of a child row,
@@ -93,7 +94,7 @@ func (s CompanionStudents) LockCompanionStudent(ctx context.Context, studentID i
 		_, err = s.students.FindByIDForUpdate(ctx, studentID)
 	}
 	switch {
-	case err == nil, users.IsRepositoryNoRows(err), errors.Is(err, peopledirectory.ErrStudentNotFound):
+	case err == nil, peoplePorts.IsRepositoryNoRows(err), errors.Is(err, peopledirectory.ErrStudentNotFound):
 		return nil
 	case errors.Is(err, peopledirectory.ErrStudentLockBusy):
 		return careplan.ErrCompanionLockBusy
@@ -112,7 +113,7 @@ func (s CompanionStudents) LockCompanionStudent(ctx context.Context, studentID i
 func (s CompanionStudents) ExtendAccompaniedDays(ctx context.Context, studentID int64, days []string, actorAccountID int64) error {
 	companion, err := s.students.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
-		if users.IsRepositoryNoRows(err) {
+		if peoplePorts.IsRepositoryNoRows(err) {
 			return careplan.ErrCompanionNotFound
 		}
 		return err

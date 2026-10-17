@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
-	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -108,12 +108,12 @@ func TestStudentDataChangeRequestRepository_CoveragePendingQueueTenantIsolation(
 		userModels.DataChangeTargetPerson, "first_name", userModels.DataChangeStatusPending, `"Lena"`)
 	require.NoError(t, repo.Create(ctxB, rowB))
 
-	pendingA, err := repo.ListPendingForTenant(ctxA, peopleVocabulary.RequestQueueFilters{})
+	pendingA, err := repo.ListPendingForTenant(ctxA, peoplePorts.RequestQueueFilters{})
 	require.NoError(t, err)
 	assert.True(t, coverageContainsChangeRequest(pendingA, rowA.ID))
 	assert.False(t, coverageContainsChangeRequest(pendingA, rowB.ID))
 
-	pendingB, err := repo.ListPendingForTenant(ctxB, peopleVocabulary.RequestQueueFilters{})
+	pendingB, err := repo.ListPendingForTenant(ctxB, peoplePorts.RequestQueueFilters{})
 	require.NoError(t, err)
 	require.Len(t, pendingB, 1)
 	assert.Equal(t, rowB.ID, pendingB[0].ID)

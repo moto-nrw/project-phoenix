@@ -11,8 +11,8 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -22,9 +22,9 @@ import (
 type MasterDataDecisionTestOptions struct {
 	CarePlan    careplan.Capability
 	People      peopledirectory.StudentFieldReviewQuery
-	Students    usersModels.StudentRepository
-	Persons     usersModels.PersonRepository
-	Audit       peopleCompose.StudentChangeRecorder
+	Students    peoplePorts.StudentRepository
+	Persons     peoplePorts.PersonRepository
+	Audit       peoplePorts.StudentChangeRecorder
 	Scope       carePlanCompose.ReviewScopeResolver
 	Emitter     *communicationCompose.ParentEventEmitter
 	Broadcaster realtime.Broadcaster

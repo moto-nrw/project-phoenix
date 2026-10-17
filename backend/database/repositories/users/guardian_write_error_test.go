@@ -3,6 +3,8 @@ package users
 import (
 	"errors"
 	"testing"
+
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 type fakePostgresError struct{ fields map[byte]string }
@@ -27,7 +29,7 @@ func TestGuardianWriteErrorMarksOnlyTheEmailIndex(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			err := guardianWriteError("failed to create guardian profile", tt.err)
-			if got := errors.Is(err, ErrGuardianEmailTaken); got != tt.taken {
+			if got := errors.Is(err, ports.ErrGuardianEmailTaken); got != tt.taken {
 				t.Fatalf("errors.Is(err, ErrGuardianEmailTaken) = %v, want %v", got, tt.taken)
 			}
 			if !errors.Is(err, tt.err) {

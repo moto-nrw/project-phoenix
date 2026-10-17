@@ -22,6 +22,7 @@ import (
 	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
 	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
 	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -566,7 +567,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 
 // studentPhotoUnlinker hands the parents portal the photo lifecycle; a graph
 // without one hands it none.
-func studentPhotoUnlinker(photos peopleCompose.StudentPhotoService) func() parentportal.StudentPhotoUnlinker {
+func studentPhotoUnlinker(photos peoplePorts.StudentPhotoService) func() parentportal.StudentPhotoUnlinker {
 	return func() parentportal.StudentPhotoUnlinker {
 		if photos == nil {
 			return nil

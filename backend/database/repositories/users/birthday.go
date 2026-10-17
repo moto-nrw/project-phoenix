@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // birthdayRow is the ad-hoc scan target for both birthday queries. Its Birthday
@@ -89,7 +91,7 @@ func (r *studentRepository) FindBirthdaysOn(ctx context.Context, days []users.Mo
 	query = withTenantFilter(ctx, r.runtime, query, "student")
 
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "find student birthdays", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "find student birthdays", Err: translateNotFound(err)}
 	}
 
 	return mapBirthdayRows(rows, users.BirthdayKindStudent), nil

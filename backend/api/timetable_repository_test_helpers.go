@@ -14,7 +14,7 @@ import (
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
@@ -41,12 +41,12 @@ type TimetableTestRepositories struct {
 	// CalendarRows are the School Calendar rows and the class arrival
 	// exceptions.
 	timetableCompose.CalendarRows
-	Staff           usersModels.StaffRepository
-	Teacher         usersModels.TeacherRepository
+	Staff           peoplePorts.StaffRepository
+	Teacher         peoplePorts.TeacherRepository
 	ClassTeacher    ClassTeacherRepository
 	GroupTeacher    GroupTeacherRepository
-	Person          usersModels.PersonRepository
-	Student         usersModels.StudentRepository
+	Person          peoplePorts.PersonRepository
+	Student         peoplePorts.StudentRepository
 	Group           EducationGroupRepository
 	ActiveGroup     studentpresence.SessionRecords
 	GroupSupervisor studentpresence.SupervisionRecords

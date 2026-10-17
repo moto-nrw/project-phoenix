@@ -8,6 +8,7 @@ import (
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"golang.org/x/text/collate"
 	"golang.org/x/text/language"
@@ -20,7 +21,7 @@ type TeacherMembershipRepository struct {
 	Deps       *staffMembershipDeps
 }
 
-var _ userModels.TeacherRepository = TeacherMembershipRepository{}
+var _ peoplePorts.TeacherRepository = TeacherMembershipRepository{}
 
 func teacherFieldsFromLegacy(teacher *userModels.Teacher) schoolmembership.TeacherFields {
 	return schoolmembership.TeacherFields{

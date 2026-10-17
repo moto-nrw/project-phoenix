@@ -8,9 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // Guardian payment data (#2608). Two hard rules, carried over from the staff
@@ -118,7 +120,7 @@ func (r GuardianPaymentRow) HasIBAN() bool {
 // GetGuardianPaymentMasked serves the masked bank details and logs the read.
 // No data leaves without a successful audit row.
 func (s *GuardianService) GetGuardianPaymentMasked(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string) (*GuardianPaymentMasked, error) {
-	data, err := s.loadPaymentAudited(ctx, guardianProfileID, actorAccountID, actorRole, GuardianPaymentAccessView)
+	data, err := s.loadPaymentAudited(ctx, guardianProfileID, actorAccountID, actorRole, peoplePorts.GuardianPaymentAccessView)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +135,7 @@ func (s *GuardianService) GetGuardianPaymentMasked(ctx context.Context, guardian
 // RevealGuardianPayment serves the full IBAN after the explicit "Anzeigen"
 // toggle and logs the reveal.
 func (s *GuardianService) RevealGuardianPayment(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string) (*GuardianPaymentPlain, error) {
-	data, err := s.loadPaymentAudited(ctx, guardianProfileID, actorAccountID, actorRole, GuardianPaymentAccessReveal)
+	data, err := s.loadPaymentAudited(ctx, guardianProfileID, actorAccountID, actorRole, peoplePorts.GuardianPaymentAccessReveal)
 	if err != nil {
 		return nil, err
 	}
@@ -195,7 +197,7 @@ func (s *GuardianService) updateGuardianPaymentInTx(ctx context.Context, guardia
 
 	trimmedNote := strings.TrimSpace(note)
 	for _, change := range changes {
-		if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, GuardianFinancialChange{
+		if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, peoplePorts.GuardianFinancialChange{
 			GuardianProfileID: guardianProfileID,
 			ChangedBy:         changedByAccountID,
 			Field:             change.field,
@@ -226,11 +228,11 @@ func (s *GuardianService) updateGuardianPaymentInTx(ctx context.Context, guardia
 func guardianPaymentChanges(current users.GuardianFinancialData, normalized GuardianPaymentInput) []stammdatenChange {
 	var changes []stammdatenChange
 	if strPtrAuditValue(current.IBAN) != strPtrAuditValue(normalized.IBAN) {
-		changes = append(changes, maskedChange(GuardianPaymentFieldIBAN,
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN,
 			maskTailPtr(current.IBAN, 4), maskTailPtr(normalized.IBAN, 4)))
 	}
 	if strPtrAuditValue(current.AccountHolder) != strPtrAuditValue(normalized.AccountHolder) {
-		changes = append(changes, maskedChange(GuardianPaymentFieldAccountHolder,
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldAccountHolder,
 			maskAllPtr(current.AccountHolder), maskAllPtr(normalized.AccountHolder)))
 	}
 	return changes
@@ -316,14 +318,14 @@ func studentPayerState(relationships []*users.StudentGuardian, guardianProfileID
 // ListPaymentOverview serves the school-wide Bankverbindungen list with MASKED
 // IBANs and logs the read.
 func (s *GuardianService) ListPaymentOverview(ctx context.Context, actorAccountID int64, actorRole string) ([]GuardianPaymentRow, error) {
-	return s.buildPaymentRows(ctx, actorAccountID, actorRole, false, GuardianPaymentAccessOverview, nil)
+	return s.buildPaymentRows(ctx, actorAccountID, actorRole, false, peoplePorts.GuardianPaymentAccessOverview, nil)
 }
 
 // ListPaymentExportRows serves the same list with UNMASKED IBANs for the file
 // export and logs it as its own resource type — a bulk export of bank data is
 // a materially different event from viewing the masked list.
 func (s *GuardianService) ListPaymentExportRows(ctx context.Context, actorAccountID int64, actorRole string, format string) ([]GuardianPaymentRow, error) {
-	return s.buildPaymentRows(ctx, actorAccountID, actorRole, true, GuardianPaymentAccessExport, map[string]interface{}{
+	return s.buildPaymentRows(ctx, actorAccountID, actorRole, true, peoplePorts.GuardianPaymentAccessExport, map[string]interface{}{
 		"format": format,
 	})
 }
@@ -337,7 +339,7 @@ func (s *GuardianService) buildPaymentRows(
 	actorAccountID int64,
 	actorRole string,
 	unmasked bool,
-	access GuardianPaymentAccess,
+	access peoplePorts.GuardianPaymentAccess,
 	extraMetadata map[string]interface{},
 ) ([]GuardianPaymentRow, error) {
 	var result []GuardianPaymentRow
@@ -354,7 +356,7 @@ func (s *GuardianService) buildPaymentRowsInTx(
 	actorAccountID int64,
 	actorRole string,
 	unmasked bool,
-	access GuardianPaymentAccess,
+	access peoplePorts.GuardianPaymentAccess,
 	extraMetadata map[string]interface{},
 ) ([]GuardianPaymentRow, error) {
 	if s.DataAccessLog == nil {
@@ -383,7 +385,7 @@ func (s *GuardianService) buildPaymentRowsInTx(
 	for k, v := range extraMetadata {
 		metadata[k] = v
 	}
-	if err := s.DataAccessLog.RecordGuardianDataAccess(ctx, GuardianDataAccess{
+	if err := s.DataAccessLog.RecordGuardianDataAccess(ctx, peoplePorts.GuardianDataAccess{
 		ActorAccountID: actorAccountID,
 		ActorRole:      fallbackActorRole(actorRole),
 		Access:         access,
@@ -449,7 +451,7 @@ func guardianPaymentRow(a users.GuardianPaymentAssignment, financial map[int64]*
 // loadPaymentAudited resolves the guardian, loads the bank row (nil when none
 // exists) and writes the data-access log entry. Callers must not serve any
 // value when the returned error is non-nil.
-func (s *GuardianService) loadPaymentAudited(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access GuardianPaymentAccess) (*users.GuardianFinancialData, error) {
+func (s *GuardianService) loadPaymentAudited(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access peoplePorts.GuardianPaymentAccess) (*users.GuardianFinancialData, error) {
 	var result *users.GuardianFinancialData
 	err := s.txHandler.RunInTx(ctx, func(txCtx context.Context) error {
 		var err error
@@ -459,7 +461,7 @@ func (s *GuardianService) loadPaymentAudited(ctx context.Context, guardianProfil
 	return result, err
 }
 
-func (s *GuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access GuardianPaymentAccess) (*users.GuardianFinancialData, error) {
+func (s *GuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianProfileID int64, actorAccountID int64, actorRole string, access peoplePorts.GuardianPaymentAccess) (*users.GuardianFinancialData, error) {
 	if s.DataAccessLog == nil {
 		return nil, fmt.Errorf("data access log repository is not wired; refusing unaudited payment read")
 	}
@@ -477,7 +479,7 @@ func (s *GuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianPr
 		return nil, err
 	}
 
-	if err := s.DataAccessLog.RecordGuardianDataAccess(ctx, GuardianDataAccess{
+	if err := s.DataAccessLog.RecordGuardianDataAccess(ctx, peoplePorts.GuardianDataAccess{
 		ActorAccountID: actorAccountID,
 		ActorRole:      fallbackActorRole(actorRole),
 		Access:         access,
@@ -494,11 +496,11 @@ func (s *GuardianService) loadPaymentAuditedInTx(ctx context.Context, guardianPr
 // recordPayerChange writes one is_payer audit row.
 func (s *GuardianService) recordPayerChange(ctx context.Context, guardianProfileID, studentID, changedBy int64, oldValue, newValue string) error {
 	student := studentID
-	if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, GuardianFinancialChange{
+	if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, peoplePorts.GuardianFinancialChange{
 		GuardianProfileID: guardianProfileID,
 		StudentID:         &student,
 		ChangedBy:         changedBy,
-		Field:             GuardianPaymentFieldIsPayer,
+		Field:             peoplePorts.GuardianPaymentFieldIsPayer,
 		OldValue:          oldValue,
 		NewValue:          newValue,
 	}); err != nil {

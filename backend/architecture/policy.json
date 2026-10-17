@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 64,
+  "policy_epoch": 65,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -9050,6 +9050,28 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
+    },
+    {
+      "id": "people-directory.port.legacy-model",
+      "description": "People Directory ports name the person, student, staff and guardian rows of the owner's legacy model in the repository contracts (ADR 0058 addendum point 5, #4084); #4004 dissolves models/users and with it this rule. The models/* packages carry the legacy-model role (ADR 0057).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_owner": "people-directory",
+      "target_role": "legacy-model"
+    },
+    {
+      "id": "people-directory.postgres.port",
+      "description": "The retained People Directory repositories implement the repository contracts and read the query vocabulary of the owner's ports (#4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "postgres",
+      "target_owner": "people-directory",
+      "target_role": "port"
     },
     {
       "id": "people-directory.postgres.calendar-adapter",

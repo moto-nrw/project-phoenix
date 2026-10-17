@@ -5,6 +5,7 @@ import (
 
 	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/uptrace/bun"
 )
 
@@ -35,7 +36,7 @@ type CaregiverBindingOwners = usersRepo.CaregiverBindingOwners
 
 // NewPersonRepository is the person repository with the account lookup
 // FindWithAccount attaches (#2720).
-func NewPersonRepository(db *bun.DB, accounts AccountLookup) usersRepo.PersonRepository {
+func NewPersonRepository(db *bun.DB, accounts AccountLookup) peoplePorts.PersonRepository {
 	return usersRepo.NewPersonRepository(NewLegacyRepositoryRuntime(db), usersRepo.WithAccountLookup(accounts))
 }
 
@@ -43,7 +44,7 @@ func NewPersonRepository(db *bun.DB, accounts AccountLookup) usersRepo.PersonRep
 // portal reachability queries its check joins: the schools in which an account
 // holds an active guardian membership, and those in which it can also log in
 // with a password (#2720, #2721).
-func NewGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, portal, loginReady func(context.Context, []int64) (map[int64][]int64, error)) usersRepo.GuardianProfileRepository {
+func NewGuardianProfileRepository(db *bun.DB, students usersRepo.StudentDirectoryRows, links usersRepo.GuardianLinkRows, portal, loginReady func(context.Context, []int64) (map[int64][]int64, error)) peoplePorts.GuardianProfileRepository {
 	return usersRepo.NewGuardianProfileRepository(NewLegacyRepositoryRuntime(db), students, links,
 		usersRepo.WithPortalMemberships(portal),
 		usersRepo.WithPortalLoginMemberships(loginReady),
@@ -67,7 +68,7 @@ type GuardianRelationshipDependencies struct {
 
 // NewGuardianRelationshipRepository is the relationship store with its
 // membership lookup, both owner halves and the default role bound.
-func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelationshipDependencies) usersRepo.StudentGuardianRepository {
+func NewGuardianRelationshipRepository(db *bun.DB, dependencies GuardianRelationshipDependencies) peoplePorts.StudentGuardianRepository {
 	return usersRepo.NewGuardianRelationshipRepository(NewLegacyRepositoryRuntime(db), dependencies.Students, dependencies.Links,
 		usersRepo.WithGuardianRelationshipMemberships(dependencies.Memberships),
 		usersRepo.WithGuardianRelationshipOwners(dependencies.Pickup, dependencies.Access),
@@ -84,7 +85,7 @@ func defaultGuardianRole(presets GuardianRolePresets) func(*userModels.StudentGu
 }
 
 // NewGuardianPhoneNumberRepository is the guardian phone number repository.
-func NewGuardianPhoneNumberRepository(db *bun.DB) usersRepo.GuardianPhoneNumberRepository {
+func NewGuardianPhoneNumberRepository(db *bun.DB) peoplePorts.GuardianPhoneNumberRepository {
 	return usersRepo.NewGuardianPhoneNumberRepository(NewLegacyRepositoryRuntime(db))
 }
 
@@ -112,6 +113,6 @@ func NewGuardianFinancialDataRepository(db *bun.DB) userModels.GuardianFinancial
 
 // NewCaregiverBindingLocker serializes the caregiver capability re-check over
 // the four binding owners' table locks.
-func NewCaregiverBindingLocker(owners CaregiverBindingOwners) usersRepo.CaregiverBindingLocker {
+func NewCaregiverBindingLocker(owners CaregiverBindingOwners) peoplePorts.CaregiverBindingLocker {
 	return usersRepo.NewCaregiverBindingLocker(owners)
 }
