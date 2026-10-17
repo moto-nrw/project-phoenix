@@ -1,59 +1,58 @@
-package compose
+package timetracking
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The adapters in this file and in time_tracking_work_sessions.go and
-// time_tracking_absences.go serve the public Workforce time-tracking contracts from
-// the work session, absence, month, ledger, month-close, overview, audit-log
-// and export services (#2690, #3413). Every wire shape is copied field by
-// field; every sentinel failure of a service is reported as the matching
-// public kind with its wording intact.
+// The adapters in this file and in public_work_sessions.go,
+// public_absences.go, public_time_clock.go and public_month_snapshots.go
+// serve the public Workforce time-tracking contracts from the work session,
+// absence, month, ledger, month-close, overview, audit-log and export
+// services (#2690, #3413). Every wire shape is copied field by field; every
+// sentinel failure of a service is reported as the matching public kind with
+// its wording intact.
 
 // timeTrackingSentinels pairs each retained sentinel with its public kind.
 var timeTrackingSentinels = []struct {
 	legacy error
 	kind   error
 }{
-	{timetracking.ErrManagerControlledAbsence, workforce.ErrManagerControlledAbsence},
-	{timetracking.ErrAllowanceBookingOverlap, workforce.ErrAllowanceBookingOverlap},
-	{timetracking.ErrAbsenceRebookingBlocked, workforce.ErrAbsenceRebookingBlocked},
-	{timetracking.ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
-	{timetracking.ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
-	{timetracking.ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
-	{timetracking.ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
-	{timetracking.ErrVacationQuotaInvalid, workforce.ErrVacationQuotaInvalid},
-	{timetracking.ErrVacationQuotaExceeded, workforce.ErrVacationQuotaExceeded},
-	{timetracking.ErrAdjustmentInvalid, workforce.ErrAdjustmentInvalid},
-	{timetracking.ErrAdjustmentNotFound, workforce.ErrAdjustmentNotFound},
-	{timetracking.ErrAdjustmentExceedsBalance, workforce.ErrAdjustmentExceedsBalance},
-	{timetracking.ErrAdjustmentInClosedMonth, workforce.ErrAdjustmentInClosedMonth},
-	{timetracking.ErrAdjustmentHasDependentReset, workforce.ErrAdjustmentHasDependentReset},
-	{timetracking.ErrBalanceAlreadyReset, workforce.ErrBalanceAlreadyReset},
-	{timetracking.ErrOpeningAlreadyExists, workforce.ErrOpeningAlreadyExists},
-	{timetracking.ErrMonthCloseInvalid, workforce.ErrMonthCloseInvalid},
-	{timetracking.ErrMonthNotClosable, workforce.ErrMonthNotClosable},
-	{timetracking.ErrMonthNotClosed, workforce.ErrMonthNotClosed},
-	{timetracking.ErrLaterMonthClosed, workforce.ErrLaterMonthClosed},
-	{timetracking.ErrMonthOutOfRange, workforce.ErrMonthOutOfRange},
-	{timetracking.ErrVacationOpeningInvalid, workforce.ErrVacationOpeningInvalid},
-	{timetracking.ErrVacationOpeningNotFound, workforce.ErrVacationOpeningNotFound},
-	{timetracking.ErrVacationOpeningExists, workforce.ErrVacationOpeningExists},
-	{timetracking.ErrVacationOpeningAbsencesBeforeCutoff, workforce.ErrVacationOpeningAbsencesBeforeCutoff},
-	{timetracking.ErrInvalidTargetRange, workforce.ErrInvalidTargetRange},
-	{timetracking.ErrOverviewInvalid, workforce.ErrOverviewInvalid},
-	{timetracking.ErrAuditLogInvalid, workforce.ErrAuditLogInvalid},
-	{timetracking.ErrTimeExportInvalid, workforce.ErrTimeExportInvalid},
-	{timetracking.ErrPayrollConfigIncomplete, workforce.ErrPayrollConfigIncomplete},
-	{timetracking.ErrScheduleValidation, workforce.ErrScheduleValidation},
+	{ErrManagerControlledAbsence, workforce.ErrManagerControlledAbsence},
+	{ErrAllowanceBookingOverlap, workforce.ErrAllowanceBookingOverlap},
+	{ErrAbsenceRebookingBlocked, workforce.ErrAbsenceRebookingBlocked},
+	{ErrAbsenceTypeInactive, workforce.ErrAbsenceTypeInactive},
+	{ErrAbsenceTypeNotFound, workforce.ErrAbsenceTypeNotFound},
+	{ErrAbsenceTypeAllowanceExceeded, workforce.ErrAbsenceTypeAllowanceExceeded},
+	{ErrAbsenceTypeAllowanceInvalid, workforce.ErrAbsenceTypeAllowanceInvalid},
+	{ErrVacationQuotaInvalid, workforce.ErrVacationQuotaInvalid},
+	{ErrVacationQuotaExceeded, workforce.ErrVacationQuotaExceeded},
+	{ErrAdjustmentInvalid, workforce.ErrAdjustmentInvalid},
+	{ErrAdjustmentNotFound, workforce.ErrAdjustmentNotFound},
+	{ErrAdjustmentExceedsBalance, workforce.ErrAdjustmentExceedsBalance},
+	{ErrAdjustmentInClosedMonth, workforce.ErrAdjustmentInClosedMonth},
+	{ErrAdjustmentHasDependentReset, workforce.ErrAdjustmentHasDependentReset},
+	{ErrBalanceAlreadyReset, workforce.ErrBalanceAlreadyReset},
+	{ErrOpeningAlreadyExists, workforce.ErrOpeningAlreadyExists},
+	{ErrMonthCloseInvalid, workforce.ErrMonthCloseInvalid},
+	{ErrMonthNotClosable, workforce.ErrMonthNotClosable},
+	{ErrMonthNotClosed, workforce.ErrMonthNotClosed},
+	{ErrLaterMonthClosed, workforce.ErrLaterMonthClosed},
+	{ErrMonthOutOfRange, workforce.ErrMonthOutOfRange},
+	{ErrVacationOpeningInvalid, workforce.ErrVacationOpeningInvalid},
+	{ErrVacationOpeningNotFound, workforce.ErrVacationOpeningNotFound},
+	{ErrVacationOpeningExists, workforce.ErrVacationOpeningExists},
+	{ErrVacationOpeningAbsencesBeforeCutoff, workforce.ErrVacationOpeningAbsencesBeforeCutoff},
+	{ErrInvalidTargetRange, workforce.ErrInvalidTargetRange},
+	{ErrOverviewInvalid, workforce.ErrOverviewInvalid},
+	{ErrAuditLogInvalid, workforce.ErrAuditLogInvalid},
+	{ErrTimeExportInvalid, workforce.ErrTimeExportInvalid},
+	{ErrPayrollConfigIncomplete, workforce.ErrPayrollConfigIncomplete},
+	{ErrScheduleValidation, workforce.ErrScheduleValidation},
 }
 
 // mapTimeTrackingFailure reports a retained sentinel as its public kind and
@@ -78,28 +77,28 @@ func mapTimeTrackingFailure(err error) error {
 
 // parseCapabilityDate turns a public YYYY-MM-DD day into the calendar type
 // the retained services take; a malformed day is an invalid request.
-func parseCapabilityDate(value, field string) (timezone.Date, error) {
-	date, err := timezone.ParseDate(value)
+func parseCapabilityDate(value, field string) (calendar.Date, error) {
+	date, err := calendar.ParseDate(value)
 	if err != nil {
-		return timezone.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: fmt.Errorf("%s must be YYYY-MM-DD", field)}
+		return calendar.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: fmt.Errorf("%s must be YYYY-MM-DD", field)}
 	}
 	return date, nil
 }
 
 // parseCapabilityRange parses the from/to pair every range read takes.
-func parseCapabilityRange(from, to string) (timezone.Date, timezone.Date, error) {
+func parseCapabilityRange(from, to string) (calendar.Date, calendar.Date, error) {
 	fromDate, err := parseCapabilityDate(from, "from")
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), err
+		return calendar.Date(""), calendar.Date(""), err
 	}
 	toDate, err := parseCapabilityDate(to, "to")
 	if err != nil {
-		return timezone.Date(""), timezone.Date(""), err
+		return calendar.Date(""), calendar.Date(""), err
 	}
 	return fromDate, toDate, nil
 }
 
-func parseOptionalCapabilityDate(value, field string) (*timezone.Date, error) {
+func parseOptionalCapabilityDate(value, field string) (*calendar.Date, error) {
 	if value == "" {
 		return nil, nil
 	}
@@ -110,15 +109,13 @@ func parseOptionalCapabilityDate(value, field string) (*timezone.Date, error) {
 	return &date, nil
 }
 
-// --- months -----------------------------------------------------------------
-
 type workTimeMonthCapability struct {
-	months timetracking.WorkTimeMonthService
+	months WorkTimeMonthService
 }
 
 // WorkTimeMonthCapability serves workforce.WorkTimeMonths from the retained
 // month service.
-func WorkTimeMonthCapability(months timetracking.WorkTimeMonthService) workforce.WorkTimeMonths {
+func WorkTimeMonthCapability(months WorkTimeMonthService) workforce.WorkTimeMonths {
 	if months == nil {
 		panic("work time month capability: month service is required")
 	}
@@ -198,22 +195,20 @@ func (c workTimeMonthCapability) DailyProjection(ctx context.Context, staffID in
 	return result, nil
 }
 
-// --- balance ledger ---------------------------------------------------------
-
 type balanceAdjustmentCapability struct {
-	ledger timetracking.StaffBalanceAdjustmentService
+	ledger StaffBalanceAdjustmentService
 }
 
 // BalanceAdjustmentCapability serves workforce.BalanceAdjustments from the
 // retained ledger service.
-func BalanceAdjustmentCapability(ledger timetracking.StaffBalanceAdjustmentService) workforce.BalanceAdjustments {
+func BalanceAdjustmentCapability(ledger StaffBalanceAdjustmentService) workforce.BalanceAdjustments {
 	if ledger == nil {
 		panic("balance adjustment capability: ledger service is required")
 	}
 	return balanceAdjustmentCapability{ledger: ledger}
 }
 
-func publicBalanceAdjustment(entity *timetracking.StaffBalanceAdjustment) *workforce.StaffBalanceAdjustment {
+func publicBalanceAdjustment(entity *StaffBalanceAdjustment) *workforce.StaffBalanceAdjustment {
 	if entity == nil {
 		return nil
 	}
@@ -224,7 +219,7 @@ func publicBalanceAdjustment(entity *timetracking.StaffBalanceAdjustment) *workf
 	}
 }
 
-func (c balanceAdjustmentCapability) adjustment(entity *timetracking.StaffBalanceAdjustment, err error) (*workforce.StaffBalanceAdjustment, error) {
+func (c balanceAdjustmentCapability) adjustment(entity *StaffBalanceAdjustment, err error) (*workforce.StaffBalanceAdjustment, error) {
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -255,7 +250,7 @@ func (c balanceAdjustmentCapability) CreateAdjustment(ctx context.Context, staff
 	if err != nil {
 		return nil, err
 	}
-	return c.adjustment(c.ledger.CreateAdjustment(ctx, staffID, decidedBy, timetracking.CreateBalanceAdjustmentRequest{
+	return c.adjustment(c.ledger.CreateAdjustment(ctx, staffID, decidedBy, CreateBalanceAdjustmentRequest{
 		Type: request.Type, MinutesDelta: request.MinutesDelta, EffectiveDate: effective, Note: request.Note,
 	}))
 }
@@ -282,7 +277,7 @@ func (c balanceAdjustmentCapability) CreateOpeningBalance(ctx context.Context, s
 
 // OpeningBalanceBookingCapability exposes preview and booking through one
 // Workforce boundary without widening the general ledger administration port.
-func OpeningBalanceBookingCapability(ledger timetracking.StaffBalanceAdjustmentService) workforce.OpeningBalanceBookings {
+func OpeningBalanceBookingCapability(ledger StaffBalanceAdjustmentService) workforce.OpeningBalanceBookings {
 	if ledger == nil {
 		return nil
 	}
@@ -297,15 +292,13 @@ func (c balanceAdjustmentCapability) ValidateOpeningBalance(ctx context.Context,
 	return mapTimeTrackingFailure(c.ledger.ValidateOpeningBalance(ctx, staffID, decidedBy, effective, balanceMinutes, note))
 }
 
-// --- month close ------------------------------------------------------------
-
 type monthClosingCapability struct {
-	closing timetracking.StaffMonthCloseService
+	closing StaffMonthCloseService
 }
 
 // MonthClosingCapability serves workforce.MonthClosing from the retained
 // month-close service.
-func MonthClosingCapability(closing timetracking.StaffMonthCloseService) workforce.MonthClosing {
+func MonthClosingCapability(closing StaffMonthCloseService) workforce.MonthClosing {
 	if closing == nil {
 		panic("month closing capability: month close service is required")
 	}
@@ -338,15 +331,13 @@ func (c monthClosingCapability) ListMonthStatus(ctx context.Context, year, month
 	return publicMonthSnapshots(snapshots), nil
 }
 
-// --- overview ---------------------------------------------------------------
-
 type staffOverviewCapability struct {
-	overview timetracking.StaffOverviewService
+	overview StaffOverviewService
 }
 
 // StaffOverviewCapability serves workforce.StaffOverview from the retained
 // overview service.
-func StaffOverviewCapability(overview timetracking.StaffOverviewService) workforce.StaffOverview {
+func StaffOverviewCapability(overview StaffOverviewService) workforce.StaffOverview {
 	if overview == nil {
 		panic("staff overview capability: overview service is required")
 	}
@@ -370,7 +361,7 @@ func (c staffOverviewCapability) DashboardSummary(ctx context.Context, period st
 }
 
 func (c staffOverviewCapability) TimeTrackingOverview(ctx context.Context, filters workforce.OverviewFilters) (*workforce.TimeTrackingOverview, error) {
-	overview, err := c.overview.GetTimeTrackingOverview(ctx, timetracking.OverviewFilters(filters))
+	overview, err := c.overview.GetTimeTrackingOverview(ctx, OverviewFilters(filters))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -384,15 +375,13 @@ func (c staffOverviewCapability) TimeTrackingOverview(ctx context.Context, filte
 	return result, nil
 }
 
-// --- audit log --------------------------------------------------------------
-
 type timeTrackingAuditLogCapability struct {
-	log timetracking.TimeTrackingAuditLogService
+	log TimeTrackingAuditLogService
 }
 
 // TimeTrackingAuditLogCapability serves workforce.TimeTrackingAuditLog from
 // the retained audit-log service.
-func TimeTrackingAuditLogCapability(log timetracking.TimeTrackingAuditLogService) workforce.TimeTrackingAuditLog {
+func TimeTrackingAuditLogCapability(log TimeTrackingAuditLogService) workforce.TimeTrackingAuditLog {
 	if log == nil {
 		panic("time tracking audit log capability: audit log service is required")
 	}
@@ -408,7 +397,7 @@ func (c timeTrackingAuditLogCapability) ListAuditLog(ctx context.Context, reques
 	if err != nil {
 		return nil, err
 	}
-	page, err := c.log.ListAuditLog(ctx, timetracking.AuditLogListRequest{
+	page, err := c.log.ListAuditLog(ctx, AuditLogListRequest{
 		From: from, To: to, StaffID: request.StaffID, ActorStaffID: request.ActorStaffID, Sources: request.Sources,
 		Cursor: request.Cursor, Limit: request.Limit,
 	})
@@ -439,15 +428,13 @@ func (c timeTrackingAuditLogCapability) ListAuditLog(ctx context.Context, reques
 	return result, nil
 }
 
-// --- export -----------------------------------------------------------------
-
 type staffTimeExportCapability struct {
-	export timetracking.StaffTimeExportService
+	export StaffTimeExportService
 }
 
 // StaffTimeExportCapability serves workforce.StaffTimeExport from the retained
 // export service.
-func StaffTimeExportCapability(export timetracking.StaffTimeExportService) workforce.StaffTimeExport {
+func StaffTimeExportCapability(export StaffTimeExportService) workforce.StaffTimeExport {
 	if export == nil {
 		panic("staff time export capability: export service is required")
 	}
@@ -455,7 +442,7 @@ func StaffTimeExportCapability(export timetracking.StaffTimeExportService) workf
 }
 
 func (c staffTimeExportCapability) ExportStaffTime(ctx context.Context, request workforce.TimeExportRequest, actorAccountID int64, actorRole string) (*workforce.ExportFile, error) {
-	file, err := c.export.Export(ctx, timetracking.TimeExportRequest(request), actorAccountID, actorRole)
+	file, err := c.export.Export(ctx, TimeExportRequest(request), actorAccountID, actorRole)
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -463,7 +450,7 @@ func (c staffTimeExportCapability) ExportStaffTime(ctx context.Context, request 
 }
 
 func (c staffTimeExportCapability) DatevReport(ctx context.Context, request workforce.TimeExportRequest) (*workforce.DatevExportReport, error) {
-	report, err := c.export.DatevReport(ctx, timetracking.TimeExportRequest(request))
+	report, err := c.export.DatevReport(ctx, TimeExportRequest(request))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}

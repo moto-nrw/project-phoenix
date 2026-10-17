@@ -1,9 +1,7 @@
-package compose
+package timetracking
 
 import (
 	"context"
-
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
@@ -11,50 +9,50 @@ import (
 type monthSnapshotCapability struct{ workforce.MonthSnapshots }
 
 // MonthSnapshotCapability maps Workforce records onto the month consumers' port.
-func MonthSnapshotCapability(snapshots workforce.MonthSnapshots) timetracking.MonthSnapshots {
+func MonthSnapshotCapability(snapshots workforce.MonthSnapshots) MonthSnapshots {
 	if snapshots == nil {
 		panic("month snapshots: Workforce is required")
 	}
 	return monthSnapshotCapability{snapshots}
 }
 
-func (c monthSnapshotCapability) LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*timetracking.MonthSnapshot, error) {
+func (c monthSnapshotCapability) LatestClosedMonth(ctx context.Context, staffID int64, year, month int) (*MonthSnapshot, error) {
 	value, err := c.MonthSnapshots.LatestClosedMonth(ctx, staffID, year, month)
 	if value == nil {
 		return nil, err
 	}
-	result := timetracking.MonthSnapshot(*value)
+	result := MonthSnapshot(*value)
 	return &result, err
 }
 
-func (c monthSnapshotCapability) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*timetracking.MonthSnapshot, error) {
+func (c monthSnapshotCapability) ClosedMonthSnapshots(ctx context.Context, year, month int) ([]*MonthSnapshot, error) {
 	values, err := c.MonthSnapshots.ClosedMonthSnapshots(ctx, year, month)
 	return consumerMonthSnapshots(values), err
 }
 
-func (c monthSnapshotCapability) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int64) ([]*timetracking.MonthSnapshot, error) {
+func (c monthSnapshotCapability) ClosedMonthSnapshotsForStaff(ctx context.Context, staffIDs []int64) ([]*MonthSnapshot, error) {
 	values, err := c.MonthSnapshots.ClosedMonthSnapshotsForStaff(ctx, staffIDs)
 	return consumerMonthSnapshots(values), err
 }
 
-func (c monthSnapshotCapability) RecordClosedMonth(ctx context.Context, value timetracking.MonthSnapshot) (timetracking.MonthSnapshot, error) {
+func (c monthSnapshotCapability) RecordClosedMonth(ctx context.Context, value MonthSnapshot) (MonthSnapshot, error) {
 	result, err := c.MonthSnapshots.RecordClosedMonth(ctx, workforce.StaffMonthBalanceSnapshot(value))
-	return timetracking.MonthSnapshot(result), err
+	return MonthSnapshot(result), err
 }
 
-func consumerMonthSnapshots(values []*workforce.StaffMonthBalanceSnapshot) []*timetracking.MonthSnapshot {
+func consumerMonthSnapshots(values []*workforce.StaffMonthBalanceSnapshot) []*MonthSnapshot {
 	if values == nil {
 		return nil
 	}
-	result := make([]*timetracking.MonthSnapshot, 0, len(values))
+	result := make([]*MonthSnapshot, 0, len(values))
 	for _, value := range values {
-		converted := timetracking.MonthSnapshot(*value)
+		converted := MonthSnapshot(*value)
 		result = append(result, &converted)
 	}
 	return result
 }
 
-func publicMonthSnapshots(values []*timetracking.MonthSnapshot) []*workforce.StaffMonthBalanceSnapshot {
+func publicMonthSnapshots(values []*MonthSnapshot) []*workforce.StaffMonthBalanceSnapshot {
 	if values == nil {
 		return nil
 	}

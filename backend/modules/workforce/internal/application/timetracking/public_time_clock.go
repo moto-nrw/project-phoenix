@@ -1,4 +1,4 @@
-package compose
+package timetracking
 
 import (
 	"context"
@@ -6,21 +6,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // timeClock serves workforce.TimeClock from the work session service.
 type timeClock struct {
-	sessions timetracking.WorkSessionService
+	sessions WorkSessionService
 }
 
 // TimeClockCapability binds the stamp contract of the web app and the kiosk
 // to the work session service.
-func TimeClockCapability(sessions timetracking.WorkSessionService) workforce.TimeClock {
+func TimeClockCapability(sessions WorkSessionService) workforce.TimeClock {
 	if sessions == nil {
 		panic("time clock capability: work session service is required")
 	}
@@ -29,7 +27,7 @@ func TimeClockCapability(sessions timetracking.WorkSessionService) workforce.Tim
 
 func (c timeClock) CheckIn(ctx context.Context, stamp workforce.CheckInStamp) (workforce.WorkSession, error) {
 	var (
-		session *timetracking.WorkSession
+		session *WorkSession
 		err     error
 	)
 	if stamp.Day == "" {
@@ -44,7 +42,7 @@ func (c timeClock) CheckIn(ctx context.Context, stamp workforce.CheckInStamp) (w
 	if err != nil {
 		return workforce.WorkSession{}, classifyCheckInError(ctx, err)
 	}
-	return timetracking.WorkSessionToCapability(session), nil
+	return WorkSessionToCapability(session), nil
 }
 
 func (c timeClock) CheckOut(ctx context.Context, staffID int64, reason string) (workforce.WorkSession, error) {
@@ -52,7 +50,7 @@ func (c timeClock) CheckOut(ctx context.Context, staffID int64, reason string) (
 	if err != nil {
 		return workforce.WorkSession{}, MapTimeTrackingError(err)
 	}
-	return timetracking.WorkSessionToCapability(session), nil
+	return WorkSessionToCapability(session), nil
 }
 
 func (c timeClock) StartBreak(ctx context.Context, staffID int64, plannedDurationMinutes *int) (workforce.WorkSessionBreak, error) {
@@ -60,7 +58,7 @@ func (c timeClock) StartBreak(ctx context.Context, staffID int64, plannedDuratio
 	if err != nil {
 		return workforce.WorkSessionBreak{}, MapTimeTrackingError(err)
 	}
-	return timetracking.WorkSessionBreakToCapability(workBreak), nil
+	return WorkSessionBreakToCapability(workBreak), nil
 }
 
 func (c timeClock) EndBreak(ctx context.Context, staffID int64) (workforce.WorkSession, error) {
@@ -68,7 +66,7 @@ func (c timeClock) EndBreak(ctx context.Context, staffID int64) (workforce.WorkS
 	if err != nil {
 		return workforce.WorkSession{}, MapTimeTrackingError(err)
 	}
-	return timetracking.WorkSessionToCapability(session), nil
+	return WorkSessionToCapability(session), nil
 }
 
 func (c timeClock) CheckOutOn(ctx context.Context, staffID int64, day, reason string) (workforce.WorkSession, error) {
@@ -80,7 +78,7 @@ func (c timeClock) CheckOutOn(ctx context.Context, staffID int64, day, reason st
 	if err != nil {
 		return workforce.WorkSession{}, MapTimeTrackingError(err)
 	}
-	return timetracking.WorkSessionToCapability(session), nil
+	return WorkSessionToCapability(session), nil
 }
 
 func (c timeClock) StartBreakOn(ctx context.Context, staffID int64, day string, plannedDurationMinutes *int) (workforce.WorkSessionBreak, error) {
@@ -92,7 +90,7 @@ func (c timeClock) StartBreakOn(ctx context.Context, staffID int64, day string, 
 	if err != nil {
 		return workforce.WorkSessionBreak{}, MapTimeTrackingError(err)
 	}
-	return timetracking.WorkSessionBreakToCapability(workBreak), nil
+	return WorkSessionBreakToCapability(workBreak), nil
 }
 
 func (c timeClock) EndBreakOn(ctx context.Context, staffID int64, day string) (workforce.WorkSession, error) {
@@ -104,7 +102,7 @@ func (c timeClock) EndBreakOn(ctx context.Context, staffID int64, day string) (w
 	if err != nil {
 		return workforce.WorkSession{}, MapTimeTrackingError(err)
 	}
-	return timetracking.WorkSessionToCapability(session), nil
+	return WorkSessionToCapability(session), nil
 }
 
 func (c timeClock) LatestOpenSession(ctx context.Context, staffID int64) (workforce.WorkSession, bool, error) {
@@ -115,12 +113,12 @@ func (c timeClock) LatestOpenSession(ctx context.Context, staffID int64) (workfo
 	if session == nil {
 		return workforce.WorkSession{}, false, nil
 	}
-	return timetracking.WorkSessionToCapability(session), true, nil
+	return WorkSessionToCapability(session), true, nil
 }
 
 // Workday reads the blocks intersecting the day. An open block that passed its
 // live limit is cut at the instant it stopped counting as work everywhere else
-// (timetracking.ExpireStaleOpenBlock) and drops out entirely once that instant lies before
+// (ExpireStaleOpenBlock) and drops out entirely once that instant lies before
 // the day begins; the stored row is repaired on the next check-in, not here.
 func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now time.Time) (workforce.Workday, error) {
 	date, err := timeClockDay(day)
@@ -136,8 +134,8 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 		return result, nil
 	}
 	dayStart := date.BerlinMidnight()
-	sessions := make([]*timetracking.WorkSession, 0, len(history.Sessions))
-	breaksBySession := make(map[int64][]*timetracking.WorkSessionBreak, len(history.Sessions))
+	sessions := make([]*WorkSession, 0, len(history.Sessions))
+	breaksBySession := make(map[int64][]*WorkSessionBreak, len(history.Sessions))
 	for _, daySession := range history.Sessions {
 		if daySession == nil || daySession.WorkSession == nil {
 			continue
@@ -148,10 +146,10 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 		}
 		sessions = append(sessions, session)
 		breaksBySession[daySession.ID] = daySession.Breaks
-		result.Sessions = append(result.Sessions, timetracking.WorkSessionToCapability(session))
+		result.Sessions = append(result.Sessions, WorkSessionToCapability(session))
 		result.Breaks[daySession.ID] = workdayBreaks(daySession.Breaks)
 	}
-	evaluation := timetracking.EvaluateWorkSessionsLaborTime(sessions, breaksBySession, now)
+	evaluation := EvaluateWorkSessionsLaborTime(sessions, breaksBySession, now)
 	result.LaborTime = workforce.LaborTimeEvaluation{
 		NetMinutes: evaluation.NetMinutes, BreakMinutes: evaluation.BreakMinutes,
 		RequiredBreakMinutes: evaluation.RequiredBreakMinutes, IsBreakCompliant: evaluation.IsBreakCompliant,
@@ -162,28 +160,28 @@ func (c timeClock) Workday(ctx context.Context, staffID int64, day string, now t
 // workdaySession is the block as the day sees it: an open block past its live
 // limit counts as closed at that limit and not at all once the limit lies
 // before the day begins.
-func workdaySession(session *timetracking.WorkSession, dayStart, now time.Time) (*timetracking.WorkSession, bool) {
-	expired, stale := timetracking.ExpireStaleOpenBlock(session, now)
+func workdaySession(session *WorkSession, dayStart, now time.Time) (*WorkSession, bool) {
+	expired, stale := ExpireStaleOpenBlock(session, now)
 	if !stale {
 		return session, true
 	}
 	return expired, expired.CheckOutTime.After(dayStart)
 }
 
-func workdayBreaks(values []*timetracking.WorkSessionBreak) []workforce.WorkSessionBreak {
+func workdayBreaks(values []*WorkSessionBreak) []workforce.WorkSessionBreak {
 	breaks := make([]workforce.WorkSessionBreak, 0, len(values))
 	for _, workBreak := range values {
 		if workBreak != nil {
-			breaks = append(breaks, timetracking.WorkSessionBreakToCapability(workBreak))
+			breaks = append(breaks, WorkSessionBreakToCapability(workBreak))
 		}
 	}
 	return breaks
 }
 
-func timeClockDay(day string) (timezone.Date, error) {
-	date, err := timezone.ParseDate(day)
+func timeClockDay(day string) (calendar.Date, error) {
+	date, err := calendar.ParseDate(day)
 	if err != nil {
-		return timezone.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: errors.New("day must be YYYY-MM-DD")}
+		return calendar.Date(""), &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: errors.New("day must be YYYY-MM-DD")}
 	}
 	return date, nil
 }
@@ -219,10 +217,10 @@ func MapTimeTrackingError(err error) error {
 	if err == nil {
 		return nil
 	}
-	if plannedStart, ok := errors.AsType[*timetracking.PlannedStartNotReachedError](err); ok {
+	if plannedStart, ok := errors.AsType[*PlannedStartNotReachedError](err); ok {
 		return &workforce.PlannedStartNotReachedError{PlannedStartTime: plannedStart.PlannedStartTime, CurrentTime: plannedStart.CurrentTime}
 	}
-	if deviation, ok := errors.AsType[*timetracking.DeviationReasonRequiredError](err); ok {
+	if deviation, ok := errors.AsType[*DeviationReasonRequiredError](err); ok {
 		return &workforce.DeviationReasonRequiredError{
 			Action: deviation.Action, PlannedTime: deviation.PlannedTime, ActualTime: deviation.ActualTime, DeviationMinutes: deviation.DeviationMinutes,
 		}

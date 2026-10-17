@@ -157,7 +157,7 @@ func newAuditLogFixture(t *testing.T) *auditLogFixture {
 		{StaffID: staffA.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: 30, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin", ReopenedAt: &reopenedAt, ReopenedBy: &admin.ID, ReopenReason: reopenReason},
 		{StaffID: staffB.ID, Year: 2025, Month: 8, ClosingBalanceMinutes: -15, ClosedAt: closedAt, ClosedBy: admin.ID, CloseReason: "Monatsabschluss August", Source: "admin"},
 	} {
-		_, err := workforceCompose.MonthSnapshotCapability(owners.Workforce).RecordClosedMonth(ctx, *snap)
+		_, err := timetracking.MonthSnapshotCapability(owners.Workforce).RecordClosedMonth(ctx, *snap)
 		require.NoError(t, err)
 	}
 
