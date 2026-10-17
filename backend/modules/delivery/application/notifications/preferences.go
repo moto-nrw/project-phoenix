@@ -42,6 +42,7 @@ type PreferenceOverview struct {
 
 // PreferenceService owns per-account notification consent.
 type PreferenceService interface {
+	StaffPreferences() devices.StaffNotificationPreferences
 	SupportedLocale(string) bool
 	ParentPreferences() devices.NotificationPreferences
 	// GetForAccount returns the full catalogue of one portal with the account's

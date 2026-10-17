@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 188 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
+Stand 17.10.2026 · Ratchet 186 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 63 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.862 in `legacy_*.go`,
 54.056 in `compose`
 
@@ -16,12 +16,12 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 23 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
-| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 3 |
+| [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 188 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 186 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
 
@@ -496,3 +496,14 @@ Schedule-Fixtures kommen aus vorhandenen öffentlichen Settings-/Test-Fassaden.
 Zwei #4078-Keys entfallen; dreizehn Regeln werden durch sechs engere Crypto-
 Rollen-/Scope-Regeln ersetzt. HTTP und Adapter-Tests erhalten keine Crypto-Freigabe.
 Keine Selektoren, neuen Graph-Felder, Routen-, Response- oder Golden-Änderungen.
+
+#4078: Notification-HTTP gehört Delivery Platform; `inbound-notifications` entfällt.
+Root bindet native Middleware, Caller-Fakten, Rendering und Fehler, während der
+Adapter nur eigene typisierte Ports und DTOs nennt. Öffentliche Staff-Capabilities
+begrenzen Push und Präferenzen auf Staff/School; Parent-Capabilities bleiben getrennt.
+Native Methoden und Fehlerwerte bleiben erhalten, auch Nil-/Leer-Slices und
+unabhängige Fehlerfamilien. Die echten E-Mail-Permission- und JWT-/Tenant-Routertests
+bauen über Root; alle 44 bisherigen Assertions bleiben semantisch und nach
+Namespace-Normalisierung AST-identisch. Fünf Regeln und zwei #4078-Keys entfallen,
+keine Nachfolger, Selektoren, neuen Freigaben oder Root-Graph-Felder. Composition
+1.657 und Budget-Caps bleiben unverändert. Routen, Responses und Goldens bleiben gleich.

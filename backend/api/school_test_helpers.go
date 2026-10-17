@@ -96,5 +96,5 @@ type SchoolMFAResendResponse = common.MFAResendResponse
 // newSchoolNotificationsForTests binds the native resource from the existing
 // single-owner Delivery fixture, as the production school mount does.
 func newSchoolNotificationsForTests(module DeliveryTestModule) *notificationsHTTP.Resource {
-	return notificationsHTTP.NewResource(module.Notifications, module.PushSubscriptions, module.NotificationPreferences)
+	return NewNotificationHTTP(module.Notifications, module.PushSubscriptions, module.NotificationPreferences)
 }

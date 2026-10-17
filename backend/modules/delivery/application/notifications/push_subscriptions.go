@@ -36,6 +36,7 @@ type PushSubscriptionInput struct {
 // span every active tenant mapping in one admin transaction so mapping reads
 // and device-row changes share the same RLS context and commit atomically.
 type PushSubscriptionService interface {
+	StaffDevices() devices.StaffPushSubscriptions
 	ParentDevices() devices.PushSubscriptions
 	// PublicKey returns the VAPID public key the browser subscribes with.
 	PublicKey() (string, error)
