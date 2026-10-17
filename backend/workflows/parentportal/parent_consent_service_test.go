@@ -38,6 +38,7 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Rep
 	unlinker := &consentRecordingUnlinker{}
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges:     api.ParentGuardianChanges(),
 		DeparturePolicy:     api.ParentDeparturePolicy(),
 		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},

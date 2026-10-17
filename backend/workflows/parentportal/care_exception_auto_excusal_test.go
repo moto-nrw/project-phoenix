@@ -33,6 +33,7 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	timetableDeps := api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db))
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), timetableDeps)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: api.ParentGuardianChanges(),
 		DeparturePolicy: api.ParentDeparturePolicy(),
 		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},

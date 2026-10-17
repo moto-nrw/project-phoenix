@@ -537,6 +537,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	people, portal := b.People, b.Platform.ParentPortal
 	messages := parentStore.NewParentMessageRepository(b.DB.Pool())
 	return parentportalcompose.Dependencies{
+		GuardianChanges: ParentGuardianChanges(),
 		DeparturePolicy: ParentDeparturePolicy(),
 		GuardianPolicy:  NewParentGuardianPolicy(),
 		Fingerprints:    SecurityFingerprints{},

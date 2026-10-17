@@ -24,6 +24,7 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		return nil, err
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		GuardianChanges: ParentGuardianChanges(),
 		DeparturePolicy: ParentDeparturePolicy(),
 		GuardianPolicy:  NewParentGuardianPolicy(),
 		Fingerprints:    SecurityFingerprints{},

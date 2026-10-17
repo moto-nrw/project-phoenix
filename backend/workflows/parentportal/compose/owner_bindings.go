@@ -132,9 +132,6 @@ func (s studentRecords) SetStudentPhotoConsent(ctx context.Context, photo care.S
 type guardianChanges struct{ log auditlog.GuardianChangeLog }
 
 func (g guardianChanges) RecordGuardianChanges(ctx context.Context, changes []care.GuardianChange) error {
-	if len(changes) == 0 {
-		return nil
-	}
 	rows := make([]auditlog.GuardianChange, 0, len(changes))
 	for _, change := range changes {
 		rows = append(rows, auditlog.GuardianChange(change))
