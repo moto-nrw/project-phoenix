@@ -13,12 +13,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	auditpostgres "github.com/moto-nrw/project-phoenix/database/repositories/audit"
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
-	appointmentscompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	enrollmentcompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	identitycompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	structurecompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetableprojection"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	auditSvc "github.com/moto-nrw/project-phoenix/services/audit"
@@ -55,6 +49,22 @@ type Dependencies struct {
 	Audit       auditModels.Command
 	Today       func() string
 	Now         func() time.Time
+	// Owners are the owners the root builds for the deletion; the composition
+	// builds no other owner's composition (#4004, ADR 0059 point 6).
+	Owners Owners
+}
+
+// Owners are the School Structure, Communication, Enrollment, Student
+// Presence, Appointments and Identity & Access capabilities the deletion
+// counts in and deletes through.
+type Owners struct {
+	Structure     studentdeletion.Structure
+	Conversations studentdeletion.Conversations
+	Enrollment    studentdeletion.Enrollment
+	// The counters read the child's Student Presence attendance, visits and
+	// consents, appointment recipients and pending guardian invitations.
+	Attendance, Visits, Consents      studentdeletion.Counter
+	Appointments, GuardianInvitations studentdeletion.Counter
 }
 
 // Authorize applies the tenant-portal permission boundary: a tenant principal
@@ -104,6 +114,10 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		"database": deps.DB == nil, "people directory": deps.Directory == nil, "care plan": deps.CarePlan == nil,
 		"timetable": deps.Timetable == nil, "feedback": deps.Feedback == nil,
 		"staff verification": deps.IsVerifiedStaff == nil, "care booking lock": deps.LockCareBookingWrites == nil,
+		"school structure": deps.Owners.Structure == nil, "conversations": deps.Owners.Conversations == nil,
+		"enrollment": deps.Owners.Enrollment == nil, "attendance": deps.Owners.Attendance == nil,
+		"visits": deps.Owners.Visits == nil, "consents": deps.Owners.Consents == nil,
+		"appointments": deps.Owners.Appointments == nil, "guardian invitations": deps.Owners.GuardianInvitations == nil,
 	} {
 		if missing {
 			return studentdeletion.Dependencies{}, fmt.Errorf("student deletion composition: %s is required", name)
@@ -136,22 +150,7 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 		}
 		audit = command
 	}
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: deps.DB, Observe: func(presencecompose.Observation) {}})
-	if err != nil {
-		return studentdeletion.Dependencies{}, err
-	}
-	appointments, err := appointmentscompose.New(appointmentscompose.Dependencies{DB: deps.DB, Observe: func(appointmentscompose.Observation) {}})
-	if err != nil {
-		return studentdeletion.Dependencies{}, err
-	}
-	structure, err := structurecompose.New(structurecompose.Dependencies{DB: deps.DB, Observe: func(structurecompose.Observation) {}})
-	if err != nil {
-		return studentdeletion.Dependencies{}, err
-	}
-	identity, err := identitycompose.New(identitycompose.Dependencies{DB: deps.DB, Observe: func(identitycompose.Observation) {}})
-	if err != nil {
-		return studentdeletion.Dependencies{}, err
-	}
+	owners := deps.Owners
 	auditReferences := auditpostgres.NewStudentDeletionRepository(ambientTransaction)
 	return studentdeletion.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx,
@@ -159,14 +158,11 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 			return Authorize(ctx, deps.IsVerifiedStaff)
 		},
 		Today: today, Now: now,
-		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: structure,
-		Conversations: parentstore.NewStudentConversations(deps.DB), Enrollment: enrollmentcompose.New(),
-		CountAttendance: presence.CountAttendanceRecords,
-		CountVisits:     presence.CountStudentVisitsForDeletion,
-		CountConsents: func(ctx context.Context, studentID int64) (int, error) {
-			consents, err := presence.ListPrivacyConsents(ctx, studentID)
-			return len(consents), err
-		},
+		Directory: deps.Directory, CarePlan: deps.CarePlan, Timetable: deps.Timetable, Structure: owners.Structure,
+		Conversations: owners.Conversations, Enrollment: owners.Enrollment,
+		CountAttendance: owners.Attendance,
+		CountVisits:     owners.Visits,
+		CountConsents:   owners.Consents,
 		CountActivityEnrollments: func(ctx context.Context, studentID int64) (int, error) {
 			db, tenantID := ambientTransaction(ctx)
 			if db == nil {
@@ -174,10 +170,10 @@ func Assemble(deps Dependencies) (studentdeletion.Dependencies, error) {
 			}
 			return timetableprojection.CountStudentEnrollments(ctx, db, tenantID, studentID)
 		},
-		CountAppointments:        appointments.CountAppointmentRecipientStudents,
+		CountAppointments:        owners.Appointments,
 		CountFeedback:            deps.Feedback.CountForStudent,
 		CountAuditReferences:     auditReferences.CountStudentReferences,
-		CountGuardianInvitations: identity.CountStudentGuardianInvitations,
+		CountGuardianInvitations: owners.GuardianInvitations,
 		LockCareBookingWrites:    deps.LockCareBookingWrites,
 		AppendAudit:              appendDeletionAudit(audit),
 		PhotoRemoved: func(ctx context.Context, _ studentdeletion.Actor, path string) {

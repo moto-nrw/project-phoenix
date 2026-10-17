@@ -327,7 +327,7 @@ var moduleComplexityAllowlist = map[string]int{
 	"workflows/staffoffboarding/compose/new.go:New":                  28,
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot": 17,
 
-	"workflows/studentdeletion/compose/new.go:Assemble":                         25,
+	"workflows/studentdeletion/compose/new.go:Assemble":                         21,
 	"workflows/studentdeletion/deletion.go:(*Workflow).checkCompanionStranding": 19,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":              17,
 	"workflows/studentdeletion/deletion.go:(*Workflow).lockCompanionGraph":      19,

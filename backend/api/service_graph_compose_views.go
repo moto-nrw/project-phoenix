@@ -273,8 +273,12 @@ func composeLateWorkflows(b graphBuild) (graphBuild, error) {
 		Guardians: b.graph.Guardian, Runtime: peopleCompose.NewLegacyRepositoryRuntime(b.DB.Pool()),
 		PermissionGranted: securityruntime.GuardianPermissionGranted,
 	})
+	deletionOwners, err := NewStudentDeletionOwners(b.DB)
+	if err != nil {
+		return b, fmt.Errorf("compose student deletion owners: %w", err)
+	}
 	deletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
-		DB: b.DB.Pool(), Directory: b.Persons, CarePlan: b.CarePlan, Timetable: b.Timetable,
+		DB: b.DB.Pool(), Owners: deletionOwners, Directory: b.Persons, CarePlan: b.CarePlan, Timetable: b.Timetable,
 		Feedback: feedbackCounterOrUnconfigured(b.FeedbackCounter), IsVerifiedStaff: b.userContext.HasCurrentStaff,
 		LockCareBookingWrites: b.TimetableWiring.RecurrenceLock.LockRecurrenceWrites,
 		UnlinkPhoto:           unlinkStudentPhoto(b.graph.StudentPhotos),
