@@ -255,6 +255,7 @@ func checkIoTAuthMatrixGolden(t *testing.T, apiInstance *serveGraph) {
 func compareGolden(t *testing.T, path, got, hint string, normalizers ...func(string) string) {
 	t.Helper()
 	if *updateGoldens {
+		got = preserveGoldenMiddlewareProvenance(t, path, got, normalizers...)
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), 0o750))
 		require.NoError(t, os.WriteFile(path, []byte(got), 0o600))
 		t.Logf("golden rewritten: %s", path)
