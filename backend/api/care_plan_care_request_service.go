@@ -13,13 +13,13 @@ import (
 	"time"
 
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/realtime"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -149,7 +149,7 @@ type careScheduleRequestService struct {
 	userContext       CareRequestStaff
 	emitter           *communicationCompose.ParentEventEmitter
 	broadcaster       realtime.Broadcaster
-	studentAudit      peopleCompose.StudentChangeRecorder
+	studentAudit      peoplePorts.StudentChangeRecorder
 	logger            *slog.Logger
 	reviewPolicy      RequestReviewPolicy
 	// permissions reads the permissions of the request claims the review
@@ -208,7 +208,7 @@ func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
 	permissions func(context.Context) []string,
 	events ParentRequestEvents,
 	logger *slog.Logger,
-	studentAudit peopleCompose.StudentChangeRecorder,
+	studentAudit peoplePorts.StudentChangeRecorder,
 	options ...CareRequestOption,
 ) carerequests.Service {
 	if reviewPolicy == nil || permissions == nil {
@@ -283,7 +283,7 @@ func newCareScheduleRequestService(
 	reviewPolicy RequestReviewPolicy,
 	events *ParentRequestLedger,
 	logger *slog.Logger,
-	studentAudit peopleCompose.StudentChangeRecorder,
+	studentAudit peoplePorts.StudentChangeRecorder,
 ) *careScheduleRequestService {
 	if requestRecords == nil {
 		panic("care schedule request records are required")

@@ -4,7 +4,7 @@ package api
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 )
@@ -12,10 +12,10 @@ import (
 // InvitationPersistence is the real persistence surface for invitation behavior
 // tests. It excludes the unrelated capabilities built by the legacy factory.
 type InvitationPersistence struct {
-	Person  userModels.PersonRepository
-	Staff   userModels.StaffRepository
-	Teacher userModels.TeacherRepository
-	Student userModels.StudentRepository
+	Person  peoplePorts.PersonRepository
+	Staff   peoplePorts.StaffRepository
+	Teacher peoplePorts.TeacherRepository
+	Student peoplePorts.StudentRepository
 	School  organizationtenancy.Capability
 }
 
@@ -40,7 +40,7 @@ func NewInvitationPersistence(db transactionruntime.Database) (*InvitationPersis
 
 // newInvitationMembershipRepositories composes only the staff and teacher adapters
 // over School Membership, without constructing the legacy repository graph.
-func newInvitationMembershipRepositories(db transactionruntime.Database) (userModels.StaffRepository, userModels.TeacherRepository, error) {
+func newInvitationMembershipRepositories(db transactionruntime.Database) (peoplePorts.StaffRepository, peoplePorts.TeacherRepository, error) {
 	membership, err := NewSchoolMembership(db)
 	if err != nil {
 		return nil, nil, err

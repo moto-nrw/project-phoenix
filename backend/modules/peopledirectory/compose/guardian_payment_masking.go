@@ -2,6 +2,8 @@ package compose
 
 import (
 	"strings"
+
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The masking and diff helpers of the guardian payment audit (#2608). They
@@ -11,7 +13,7 @@ import (
 
 // stammdatenChange is one field diff destined for the audit trail.
 type stammdatenChange struct {
-	field    GuardianPaymentField
+	field    peoplePorts.GuardianPaymentField
 	oldValue string
 	newValue string
 }
@@ -45,7 +47,7 @@ func maskedAuditValue(v *string) string {
 // plaintext changed but both masks render identically (same last-4, or the
 // fixed full mask), the new value is suffixed so the audit row still shows a
 // change and passes the old!=new validation.
-func maskedChange(field GuardianPaymentField, oldMasked, newMasked *string) stammdatenChange {
+func maskedChange(field peoplePorts.GuardianPaymentField, oldMasked, newMasked *string) stammdatenChange {
 	oldValue := maskedAuditValue(oldMasked)
 	newValue := maskedAuditValue(newMasked)
 	if oldValue == newValue {

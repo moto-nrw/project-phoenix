@@ -1,4 +1,4 @@
-package users
+package ports
 
 import (
 	"context"
@@ -9,10 +9,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
-// The repository contracts of the retained People Directory persistence. They
-// moved here from models/users with their query and error vocabulary (#3990);
-// the row package keeps the rows.
-
+// The repository contracts of the retained People Directory persistence
+// (#3990). They are ports: the composition, the application services and
+// the postgres repositories in database/repositories/users name them here,
+// with their query and error vocabulary (#4084).
 // CRUDRepository is the generic five-method contract the retained repository
 // interfaces embed. Its List takes plain equality filters.
 type CRUDRepository[T any] interface {

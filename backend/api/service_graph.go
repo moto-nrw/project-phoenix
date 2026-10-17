@@ -166,7 +166,7 @@ type serviceGraph struct {
 	OperatorProvisioning organizationtenancy.Provisioning
 	StudentDeletion      *studentdeletion.Workflow
 	CareLifecycle        careplan.CareLifecycle
-	StudentAudit         peopleCompose.StudentAuditService
+	StudentAudit         peoplePorts.StudentAuditService
 	MasterDataReview     masterdatarequests.Decisions
 	CareRequests         carerequests.Service
 	ExcusedRequests      careplan.ExcusedAbsenceRequests
@@ -231,7 +231,7 @@ type serviceGraph struct {
 	SettingsSideEffects *settingsCompose.SideEffectRegistry
 	// StudentPhotos is the photo lifecycle; nil in a graph composed without
 	// the photo slot and the file unlinker.
-	StudentPhotos   peopleCompose.StudentPhotoService
+	StudentPhotos   peoplePorts.StudentPhotoService
 	StudentConsents StudentConsentRecords
 }
 

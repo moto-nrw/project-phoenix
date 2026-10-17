@@ -27,6 +27,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
@@ -106,7 +107,7 @@ func NewDeviceFleet(db transactionruntime.Database, onlineWindows ...func(contex
 
 // NewPersonRepository is the person repository with the Identity & Access
 // account lookup FindWithAccount attaches (#2720).
-func NewPersonRepository(db transactionruntime.Database) userModels.PersonRepository {
+func NewPersonRepository(db transactionruntime.Database) peoplePorts.PersonRepository {
 	identity, err := identityaccessCompose.New(identityaccessCompose.Dependencies{DB: db.Pool(), Observe: func(identityaccessCompose.Observation) {}})
 	if err != nil {
 		panic(fmt.Sprintf("compose identity access: %v", err))

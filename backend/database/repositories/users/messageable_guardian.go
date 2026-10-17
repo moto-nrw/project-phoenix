@@ -6,6 +6,7 @@ import (
 	"slices"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // MessageableGuardianRepository answers which guardians of a child may receive
@@ -50,7 +51,7 @@ func NewMessageableGuardianRepository(runtime Runtime, links GuardianLinkRows, a
 // owner's facts keeps this check scoped to the relationship's school.
 func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Context, studentID int64) ([]*users.MessageableGuardian, error) {
 	if r.activeMemberships == nil {
-		return nil, &DatabaseError{Op: "list guardians for student", Err: errors.New("active membership query is required")}
+		return nil, &ports.DatabaseError{Op: "list guardians for student", Err: errors.New("active membership query is required")}
 	}
 	var rows []struct {
 		users.MessageableGuardian
@@ -73,7 +74,7 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 	query = withTenantFilter(ctx, r.runtime, query, "student_guardian")
 
 	if err := query.Scan(ctx, &rows); err != nil {
-		return nil, &DatabaseError{Op: "list guardians for student", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list guardians for student", Err: translateNotFound(err)}
 	}
 	if len(rows) == 0 {
 		return []*users.MessageableGuardian{}, nil
@@ -86,7 +87,7 @@ func (r *MessageableGuardianRepository) ListGuardiansForStudent(ctx context.Cont
 	}
 	memberships, err := r.activeMemberships(ctx, accountIDs, schoolIDs)
 	if err != nil {
-		return nil, &DatabaseError{Op: "list guardians for student", Err: err}
+		return nil, &ports.DatabaseError{Op: "list guardians for student", Err: err}
 	}
 	result := make([]*users.MessageableGuardian, 0, len(rows))
 	for _, row := range rows {

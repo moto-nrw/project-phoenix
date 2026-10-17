@@ -14,7 +14,7 @@ import (
 	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -147,7 +147,7 @@ func newGuardianLinkOwners(db transactionruntime.Database) guardianLinkOwners {
 // NewGuardianProfileRepository is the guardian profile repository with the
 // Identity & Access active-membership and login-ready-membership queries its
 // portal reachability check joins (#2720, #2721).
-func NewGuardianProfileRepository(db transactionruntime.Database) userModels.GuardianProfileRepository {
+func NewGuardianProfileRepository(db transactionruntime.Database) peoplePorts.GuardianProfileRepository {
 	identity := NewPeopleIdentityAccess(db, nil)
 	profiles := peopleCompose.NewGuardianProfileRepository(db.Pool(), studentDirectoryView.NewReader(), guardianLinkView.NewReader(),
 		identity.FindActiveGuardianMemberships, identity.FindLoginReadyGuardianMemberships)
@@ -157,13 +157,13 @@ func NewGuardianProfileRepository(db transactionruntime.Database) userModels.Gua
 // NewStudentGuardianRepository is the relationship store over native Identity
 // membership facts, unobserved, for graphs that do not compose the serving
 // root.
-func NewStudentGuardianRepository(db transactionruntime.Database) userModels.StudentGuardianRepository {
+func NewStudentGuardianRepository(db transactionruntime.Database) peoplePorts.StudentGuardianRepository {
 	return newStudentGuardianRepository(db, NewPeopleIdentityAccess(db, nil), nil)
 }
 
 // newStudentGuardianRepository is the relationship store with its membership
 // lookup, both owner halves and the default role preset bound.
-func newStudentGuardianRepository(db transactionruntime.Database, memberships activeSchoolMemberships, observe IdentityAccessObserver) userModels.StudentGuardianRepository {
+func newStudentGuardianRepository(db transactionruntime.Database, memberships activeSchoolMemberships, observe IdentityAccessObserver) peoplePorts.StudentGuardianRepository {
 	pickup, access := newGuardianRelationshipOwners(db, observe)
 	relationships := peopleCompose.NewGuardianRelationshipRepository(db.Pool(), peopleCompose.GuardianRelationshipDependencies{
 		Students: studentDirectoryView.NewReader(), Links: guardianLinkView.NewReader(),
@@ -178,7 +178,7 @@ func newStudentGuardianRepository(db transactionruntime.Database, memberships ac
 // writes translate to (#3349). The teacher-scoped roster reads resolve their
 // groups through the given membership; the roster and birthday reads name the
 // groups through School Structure.
-func NewStudentRepository(db transactionruntime.Database, membership groupAssignmentLister, groups schoolstructure.Query) userModels.StudentRepository {
+func NewStudentRepository(db transactionruntime.Database, membership groupAssignmentLister, groups schoolstructure.Query) peoplePorts.StudentRepository {
 	enrollment, err := NewSchoolMembership(db)
 	if err != nil {
 		panic(fmt.Sprintf("student repository: compose membership: %v", err))

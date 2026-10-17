@@ -9,6 +9,7 @@ import (
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
@@ -288,7 +289,7 @@ func composeLateWorkflows(b graphBuild) (graphBuild, error) {
 
 // unlinkStudentPhoto schedules a deleted child's photo file for removal after
 // the deletion commits; a graph without the photo lifecycle unlinks nothing.
-func unlinkStudentPhoto(photos peopleCompose.StudentPhotoService) func(context.Context, string) {
+func unlinkStudentPhoto(photos peoplePorts.StudentPhotoService) func(context.Context, string) {
 	return func(ctx context.Context, path string) {
 		if photos != nil {
 			photos.ScheduleUnlinkAfterCommit(ctx, path)

@@ -6,9 +6,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // studentRepository implements the StudentRepository interface.
@@ -18,7 +20,7 @@ type studentRepository struct {
 }
 
 // NewStudentRepository creates a new StudentRepository
-func NewStudentRepository(runtime Runtime, students StudentDirectoryRows) StudentRepository {
+func NewStudentRepository(runtime Runtime, students StudentDirectoryRows) ports.StudentRepository {
 	return &studentRepository{runtime: requireRuntime(runtime), students: requireStudentRows(students)}
 }
 
@@ -34,12 +36,12 @@ func (r *studentRepository) List(ctx context.Context, filters map[string]any) ([
 		}
 	}
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list", Err: err}
+		return nil, &ports.DatabaseError{Op: "list", Err: err}
 	}
 	return rows, nil
 }
 
-func (r *studentRepository) CountWithOptions(ctx context.Context, options *QueryOptions) (int, error) {
+func (r *studentRepository) CountWithOptions(ctx context.Context, options *ports.QueryOptions) (int, error) {
 	db := r.runtime.DB(ctx)
 	query := r.students.StudentRows(db, r.runtime.TenantID(ctx)).Column("student.id")
 	if options != nil && options.Filter != nil {
@@ -48,7 +50,7 @@ func (r *studentRepository) CountWithOptions(ctx context.Context, options *Query
 	}
 	count, err := query.Count(ctx)
 	if err != nil {
-		return 0, &DatabaseError{Op: "count with options", Err: err}
+		return 0, &ports.DatabaseError{Op: "count with options", Err: err}
 	}
 	return int(count), nil
 }

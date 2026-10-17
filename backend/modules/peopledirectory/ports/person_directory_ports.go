@@ -1,22 +1,18 @@
-package compose
+package ports
 
 import (
 	"context"
 
-	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/models/users"
 )
-
-// The ports below are what the retained person directory (PersonDirectory)
-// reaches the rows through. They left services/users with it (#3753); the
-// composition root binds every one of them.
 
 // PersonWriter is the owner's person write path (#3349); the composition root
 // binds NewPersonWrites. Each call reflects the
 // stored row back onto the caller's struct, so a handler that renders the
 // person it just wrote renders what was actually persisted.
 type PersonWriter interface {
-	CreatePerson(ctx context.Context, person *userModels.Person) error
-	UpdatePerson(ctx context.Context, person *userModels.Person) error
+	CreatePerson(ctx context.Context, person *users.Person) error
+	UpdatePerson(ctx context.Context, person *users.Person) error
 	// DeletePerson soft-deletes the row; the person keeps existing for every
 	// record that references them.
 	DeletePerson(ctx context.Context, id int64) error
@@ -35,7 +31,7 @@ type RFIDCards interface {
 type StudentLocker interface {
 	// LockStudent re-reads one owned row and holds its lock for the caller's
 	// transaction. A child that is not there is userModels.ErrStudentRowMissing.
-	LockStudent(ctx context.Context, id int64) (*userModels.Student, error)
+	LockStudent(ctx context.Context, id int64) (*users.Student, error)
 }
 
 // StaffDirectory serves the staff and teacher lookups and the two staff writes
@@ -46,27 +42,27 @@ type StudentLocker interface {
 // wrapping or sentinel mapping: callers (IoT device flows, PyrePortal) branch
 // on sql.ErrNoRows and render err.Error() into response bodies.
 type StaffDirectory interface {
-	GetStaffByID(ctx context.Context, id int64) (*userModels.Staff, error)
-	GetStaffByPersonID(ctx context.Context, personID int64) (*userModels.Staff, error)
-	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*userModels.Staff, error)
-	ListStaffWithPerson(ctx context.Context) ([]*userModels.Staff, error)
-	ListStaffByRoles(ctx context.Context, roles []string) ([]*userModels.StaffWithRoleInfo, error)
-	GetTeacherByStaffID(ctx context.Context, staffID int64) (*userModels.Teacher, error)
-	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*userModels.Teacher, error)
-	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*userModels.Teacher, error)
-	GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*userModels.Teacher, error)
-	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*userModels.Teacher, error)
+	GetStaffByID(ctx context.Context, id int64) (*users.Staff, error)
+	GetStaffByPersonID(ctx context.Context, personID int64) (*users.Staff, error)
+	GetStaffWithPersonByIDs(ctx context.Context, ids []int64) (map[int64]*users.Staff, error)
+	ListStaffWithPerson(ctx context.Context) ([]*users.Staff, error)
+	ListStaffByRoles(ctx context.Context, roles []string) ([]*users.StaffWithRoleInfo, error)
+	GetTeacherByStaffID(ctx context.Context, staffID int64) (*users.Teacher, error)
+	GetTeachersByStaffIDs(ctx context.Context, staffIDs []int64) (map[int64]*users.Teacher, error)
+	GetTeachersBySpecialization(ctx context.Context, specialization string) ([]*users.Teacher, error)
+	GetTeacherWithStaffAndPerson(ctx context.Context, id int64) (*users.Teacher, error)
+	ListTeachersWithStaffAndPerson(ctx context.Context) ([]*users.Teacher, error)
 
 	// CreateStaffWithTeacher creates a staff record and, when requested, a
 	// teacher record in one tenant transaction. A failed teacher creation is
 	// deliberately non-fatal (teacherCreationFailed=true, teacher=nil): the
 	// staff row still persists, mirroring the historical api/staff behaviour.
-	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *userModels.Staff, teacher *userModels.Teacher, teacherCreationFailed bool, err error)
+	CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (staff *users.Staff, teacher *users.Teacher, teacherCreationFailed bool, err error)
 	// UpdateStaffWithTeacher applies the already-mutated directory fields to a
 	// freshly locked staff row, reloads it with person data, and applies the
 	// requested teacher-record change. Teacher-record failures are non-fatal
 	// and reported through the returned TeacherAction.
-	UpdateStaffWithTeacher(ctx context.Context, staff *userModels.Staff, isTeacher bool, specialization, role, qualifications string) (*userModels.Teacher, TeacherAction, error)
+	UpdateStaffWithTeacher(ctx context.Context, staff *users.Staff, isTeacher bool, specialization, role, qualifications string) (*users.Teacher, TeacherAction, error)
 }
 
 // CreateStaffInput carries the payload for CreateStaffWithTeacher.

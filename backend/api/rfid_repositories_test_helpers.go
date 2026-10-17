@@ -4,14 +4,14 @@ package api
 
 import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
 type RFIDTestRepositories struct {
 	Membership MembershipTestRepositories
 	RFID       identityaccess.RFIDCards
-	Student    usersModels.StudentRepository
+	Student    peoplePorts.StudentRepository
 }
 
 func NewRFIDTestRepositories(db transactionruntime.Database) (RFIDTestRepositories, error) {
@@ -24,12 +24,12 @@ func NewRFIDTestRepositories(db transactionruntime.Database) (RFIDTestRepositori
 
 // NewStudentLookupTestRepository is the retained student repository for suites
 // that only look children up.
-func NewStudentLookupTestRepository(db transactionruntime.Database) usersModels.StudentRepository {
+func NewStudentLookupTestRepository(db transactionruntime.Database) peoplePorts.StudentRepository {
 	return NewUnboundStudentRepository(db)
 }
 
 // NewGuardianProfileTestRepository is the guardian profile repository with the
 // Identity & Access reachability queries bound.
-func NewGuardianProfileTestRepository(db transactionruntime.Database) usersModels.GuardianProfileRepository {
+func NewGuardianProfileTestRepository(db transactionruntime.Database) peoplePorts.GuardianProfileRepository {
 	return NewGuardianProfileRepository(db)
 }

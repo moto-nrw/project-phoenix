@@ -9,6 +9,7 @@ import (
 
 	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/compose/vocabulary"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 )
 
@@ -37,7 +38,7 @@ func NewEducationStaff(staff educationStaffRows) EducationStaff {
 // other failure.
 func (s EducationStaff) StaffExists(ctx context.Context, id int64) (bool, error) {
 	if _, err := s.staff.FindByID(ctx, id); err != nil {
-		if userModels.IsRepositoryNoRows(err) {
+		if peoplePorts.IsRepositoryNoRows(err) {
 			return false, nil
 		}
 		return false, err

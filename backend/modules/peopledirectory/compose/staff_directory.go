@@ -6,8 +6,8 @@ import (
 	"errors"
 	"strings"
 
-	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	"github.com/moto-nrw/project-phoenix/models/users"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The staff and teacher half of the person service left services/users in
@@ -58,9 +58,9 @@ type LehrkraftRoleQuery interface {
 type StaffDirectoryDependencies struct {
 	// Runtime runs the staff writes in the request's tenant transaction.
 	Runtime        LegacyRepositoryRuntime
-	Persons        usersRepo.PersonRepository
-	Staff          usersRepo.StaffRepository
-	Teachers       usersRepo.TeacherRepository
+	Persons        peoplePorts.PersonRepository
+	Staff          peoplePorts.StaffRepository
+	Teachers       peoplePorts.TeacherRepository
 	LehrkraftRoles LehrkraftRoleQuery
 	// MayManageStaff reports whether the actor's permissions carry the
 	// staff administration authority (staff:manage), under the Security
@@ -70,15 +70,15 @@ type StaffDirectoryDependencies struct {
 
 type staffMembershipDirectory struct {
 	runtime        LegacyRepositoryRuntime
-	persons        usersRepo.PersonRepository
-	staff          usersRepo.StaffRepository
-	teachers       usersRepo.TeacherRepository
+	persons        peoplePorts.PersonRepository
+	staff          peoplePorts.StaffRepository
+	teachers       peoplePorts.TeacherRepository
 	lehrkraftRoles LehrkraftRoleQuery
 	mayManageStaff func([]string) bool
 }
 
 // NewStaffDirectory binds the staff directory over the retained repositories.
-func NewStaffDirectory(deps StaffDirectoryDependencies) StaffDirectory {
+func NewStaffDirectory(deps StaffDirectoryDependencies) peoplePorts.StaffDirectory {
 	if deps.Staff == nil {
 		panic("staff directory: the staff repository is required")
 	}
@@ -145,7 +145,7 @@ func (s *staffMembershipDirectory) ListTeachersWithStaffAndPerson(ctx context.Co
 // in, not the state the request asked for: an adopted staff row can already
 // carry a live caregiver profile, and a request that did not ask for one does
 // not remove it (see liveTeacherForStaff).
-func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, input CreateStaffInput) (*users.Staff, *users.Teacher, bool, error) {
+func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, input peoplePorts.CreateStaffInput) (*users.Staff, *users.Teacher, bool, error) {
 	var staff *users.Staff
 	var teacher *users.Teacher
 	teacherCreationFailed := false
@@ -176,7 +176,7 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 
 // adoptOrCreateStaff adopts the live staff record of the person or creates
 // one, inside the caller's transaction.
-func (s *staffMembershipDirectory) adoptOrCreateStaff(ctx context.Context, input CreateStaffInput) (*users.Staff, error) {
+func (s *staffMembershipDirectory) adoptOrCreateStaff(ctx context.Context, input peoplePorts.CreateStaffInput) (*users.Staff, error) {
 	existing, err := s.staff.FindByPersonID(ctx, input.PersonID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
@@ -279,7 +279,7 @@ func (s *staffMembershipDirectory) liveTeacherForStaff(ctx context.Context, staf
 
 // ensureTeacherForStaff creates the caregiver profile or updates the live one.
 // Failures are non-fatal by design (see CreateStaffWithTeacher).
-func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, staffID int64, input CreateStaffInput) (*users.Teacher, bool) {
+func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, staffID int64, input peoplePorts.CreateStaffInput) (*users.Teacher, bool) {
 	existing, err := s.teachers.FindByStaffID(ctx, staffID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, true
@@ -310,9 +310,9 @@ func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, st
 // locked staff row, reloads it with person data, and applies the requested
 // teacher-record change. Teacher-record failures are non-fatal; the staff
 // update always persists.
-func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, staff *users.Staff, isTeacher bool, specialization, role, qualifications string) (*users.Teacher, TeacherAction, error) {
+func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, staff *users.Staff, isTeacher bool, specialization, role, qualifications string) (*users.Teacher, peoplePorts.TeacherAction, error) {
 	var teacher *users.Teacher
-	action := TeacherActionNone
+	action := peoplePorts.TeacherActionNone
 
 	if err := s.runtime.InTenantTx(ctx, func(ctx context.Context) error {
 		if err := s.updateStaffRecord(ctx, staff, isTeacher); err != nil {
@@ -321,7 +321,7 @@ func (s *staffMembershipDirectory) UpdateStaffWithTeacher(ctx context.Context, s
 		teacher, action = s.applyTeacherChange(ctx, staff.ID, isTeacher, specialization, role, qualifications)
 		return nil
 	}); err != nil {
-		return nil, TeacherActionNone, err
+		return nil, peoplePorts.TeacherActionNone, err
 	}
 
 	return teacher, action, nil
@@ -361,15 +361,15 @@ func (s *staffMembershipDirectory) updateStaffRecord(ctx context.Context, staff 
 
 // applyTeacherChange applies the requested teacher-record change after the
 // staff update. Its failures are non-fatal and reported as the action.
-func (s *staffMembershipDirectory) applyTeacherChange(ctx context.Context, staffID int64, isTeacher bool, specialization, role, qualifications string) (*users.Teacher, TeacherAction) {
+func (s *staffMembershipDirectory) applyTeacherChange(ctx context.Context, staffID int64, isTeacher bool, specialization, role, qualifications string) (*users.Teacher, peoplePorts.TeacherAction) {
 	// Existing teacher record, if any (lookup errors intentionally ignored).
 	existingTeacher, _ := s.teachers.FindByStaffID(ctx, staffID)
 
 	if !isTeacher {
 		if existingTeacher != nil {
-			return existingTeacher, TeacherActionExisting
+			return existingTeacher, peoplePorts.TeacherActionExisting
 		}
-		return nil, TeacherActionNone
+		return nil, peoplePorts.TeacherActionNone
 	}
 
 	if existingTeacher != nil {
@@ -377,9 +377,9 @@ func (s *staffMembershipDirectory) applyTeacherChange(ctx context.Context, staff
 		existingTeacher.Role = role
 		existingTeacher.Qualifications = qualifications
 		if s.teachers.Update(ctx, existingTeacher) != nil {
-			return nil, TeacherActionUpdateFailed
+			return nil, peoplePorts.TeacherActionUpdateFailed
 		}
-		return existingTeacher, TeacherActionUpdated
+		return existingTeacher, peoplePorts.TeacherActionUpdated
 	}
 
 	newTeacher := &users.Teacher{
@@ -389,7 +389,7 @@ func (s *staffMembershipDirectory) applyTeacherChange(ctx context.Context, staff
 		Qualifications: qualifications,
 	}
 	if s.teachers.Create(ctx, newTeacher) != nil {
-		return nil, TeacherActionCreateFailed
+		return nil, peoplePorts.TeacherActionCreateFailed
 	}
-	return newTeacher, TeacherActionCreated
+	return newTeacher, peoplePorts.TeacherActionCreated
 }

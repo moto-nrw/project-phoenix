@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -82,7 +83,7 @@ type StaffUpdateInput struct {
 	Qualifications string
 }
 
-// StaffTeacherAction mirrors peopleCompose.TeacherAction as a stable string.
+// StaffTeacherAction mirrors peoplePorts.TeacherAction as a stable string.
 type StaffTeacherAction string
 
 const (
@@ -394,8 +395,8 @@ func toStaffDirectoryPerson(id int64, firstName, lastName string, tagID *string,
 
 // StaffDirectoryCreateInput is the staff directory's spelling of a create
 // request.
-func StaffDirectoryCreateInput(input StaffCreateInput) peopleCompose.CreateStaffInput {
-	return peopleCompose.CreateStaffInput{
+func StaffDirectoryCreateInput(input StaffCreateInput) peoplePorts.CreateStaffInput {
+	return peoplePorts.CreateStaffInput{
 		PersonID: input.PersonID, StaffNotes: input.StaffNotes, IsTeacher: input.IsTeacher,
 		Specialization: input.Specialization, Role: input.Role, Qualifications: input.Qualifications,
 		ActorPermissions: input.ActorPermissions,
@@ -403,17 +404,17 @@ func StaffDirectoryCreateInput(input StaffCreateInput) peopleCompose.CreateStaff
 }
 
 // StaffTeacherActionFor names the teacher-record outcome of a staff update.
-func StaffTeacherActionFor(action peopleCompose.TeacherAction) StaffTeacherAction {
+func StaffTeacherActionFor(action peoplePorts.TeacherAction) StaffTeacherAction {
 	switch action {
-	case peopleCompose.TeacherActionExisting:
+	case peoplePorts.TeacherActionExisting:
 		return StaffTeacherActionExisting
-	case peopleCompose.TeacherActionUpdated:
+	case peoplePorts.TeacherActionUpdated:
 		return StaffTeacherActionUpdated
-	case peopleCompose.TeacherActionUpdateFailed:
+	case peoplePorts.TeacherActionUpdateFailed:
 		return StaffTeacherActionUpdateFailed
-	case peopleCompose.TeacherActionCreated:
+	case peoplePorts.TeacherActionCreated:
 		return StaffTeacherActionCreated
-	case peopleCompose.TeacherActionCreateFailed:
+	case peoplePorts.TeacherActionCreateFailed:
 		return StaffTeacherActionCreateFailed
 	default:
 		return StaffTeacherActionNone

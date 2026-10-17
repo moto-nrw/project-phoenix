@@ -8,7 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 )
 
@@ -16,11 +16,11 @@ import (
 // directory reads. A suite leaves unset what its scenarios never reach; without
 // Staff the directory has no staff half.
 type TestPersonDirectorySources struct {
-	Persons       userModels.PersonRepository
-	Students      userModels.StudentRepository
-	Teachers      userModels.TeacherRepository
-	Staff         userModels.StaffRepository
-	RFIDCards     peopleCompose.RFIDCards
+	Persons       peoplePorts.PersonRepository
+	Students      peoplePorts.StudentRepository
+	Teachers      peoplePorts.TeacherRepository
+	Staff         peoplePorts.StaffRepository
+	RFIDCards     peoplePorts.RFIDCards
 	AccountExists func(context.Context, int64) (bool, error)
 }
 
@@ -51,7 +51,7 @@ func NewTestPersonDirectory(db transactionruntime.Database, sources TestPersonDi
 
 // NewPeopleDirectorySuiteStudentAudit is the request-actor audit service over
 // recorder, the way the root composes it.
-func NewPeopleDirectorySuiteStudentAudit(actor peopleCompose.RequestAuditActor, recorder peopleCompose.StudentAuditRecorder) peopleCompose.StudentAuditService {
+func NewPeopleDirectorySuiteStudentAudit(actor peoplePorts.RequestAuditActor, recorder peoplePorts.StudentAuditRecorder) peoplePorts.StudentAuditService {
 	return peopleCompose.NewStudentAuditService(actor, recorder)
 }
 

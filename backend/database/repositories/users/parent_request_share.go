@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
+	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 const parentRequestShareTable = "users.parent_request_share_events"
@@ -33,7 +34,7 @@ func (r *ParentRequestShareEventRepository) Create(ctx context.Context, event *u
 		Value("created_at", "clock_timestamp()").
 		Value("updated_at", "clock_timestamp()").
 		Exec(ctx); err != nil {
-		return &DatabaseError{Op: "create parent request share event", Err: translateNotFound(err)}
+		return &ports.DatabaseError{Op: "create parent request share event", Err: translateNotFound(err)}
 	}
 	return nil
 }
@@ -50,7 +51,7 @@ func (r *ParentRequestShareEventRepository) CurrentForStudent(ctx context.Contex
 		OrderExpr(`"parent_request_share_event".request_type, "parent_request_share_event".request_id, "parent_request_share_event".id DESC`)
 	query = withTenantFilter(ctx, r.runtime, query, "parent_request_share_event")
 	if err := query.Scan(ctx); err != nil {
-		return nil, &DatabaseError{Op: "list current parent request shares", Err: translateNotFound(err)}
+		return nil, &ports.DatabaseError{Op: "list current parent request shares", Err: translateNotFound(err)}
 	}
 	return rows, nil
 }

@@ -10,6 +10,7 @@ import (
 	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -126,7 +127,7 @@ func staffMember(staff *userModels.Staff) identityaccessCompose.StaffMember {
 func (d staffDirectory) FindStaff(ctx context.Context, staffID int64) (identityaccessCompose.StaffMember, bool, error) {
 	staff, err := d.repos.Staff.FindByID(ctx, staffID)
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return identityaccessCompose.StaffMember{}, false, nil
 		}
 		return identityaccessCompose.StaffMember{}, false, err
@@ -139,7 +140,7 @@ func (d staffDirectory) FindStaff(ctx context.Context, staffID int64) (identitya
 
 func (d staffDirectory) findPerson(person *userModels.Person, err error) (identityaccessCompose.PersonRecord, bool, error) {
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return identityaccessCompose.PersonRecord{}, false, nil
 		}
 		return identityaccessCompose.PersonRecord{}, false, err
@@ -201,7 +202,7 @@ func (d staffDirectory) LinkPersonToRFIDCard(ctx context.Context, personID int64
 func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bool, error) {
 	student, err := d.repos.Students.FindByPersonID(ctx, personID)
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return false, nil
 		}
 		return false, err
@@ -212,7 +213,7 @@ func (d staffDirectory) IsStudentPerson(ctx context.Context, personID int64) (bo
 func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (identityaccessCompose.StaffMember, bool, error) {
 	staff, err := d.repos.Staff.FindByPersonID(ctx, personID)
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return identityaccessCompose.StaffMember{}, false, nil
 		}
 		return identityaccessCompose.StaffMember{}, false, err
@@ -236,7 +237,7 @@ func (d staffDirectory) CreateStaff(ctx context.Context, _, personID int64) (int
 func (d staffDirectory) FindCaregiverProfile(ctx context.Context, staffID int64) (identityaccessCompose.CaregiverProfile, bool, error) {
 	teacher, err := d.repos.Teachers.FindByStaffID(ctx, staffID)
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return identityaccessCompose.CaregiverProfile{}, false, nil
 		}
 		return identityaccessCompose.CaregiverProfile{}, false, err
@@ -335,7 +336,7 @@ func studentGuardianLink(link *userModels.StudentGuardian) identityaccessCompose
 
 func (d guardianDirectory) findProfile(profile *userModels.GuardianProfile, err error) (identityaccessCompose.GuardianProfile, bool, error) {
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return identityaccessCompose.GuardianProfile{}, false, nil
 		}
 		return identityaccessCompose.GuardianProfile{}, false, err
@@ -387,7 +388,7 @@ func (d guardianDirectory) LinkGuardianProfileToAccount(ctx context.Context, pro
 func (d guardianDirectory) FindStudentGuardianLinkForUpdate(ctx context.Context, studentID, guardianProfileID int64) (identityaccessCompose.StudentGuardianLink, bool, error) {
 	link, err := d.repos.StudentGuardians.FindByStudentAndGuardianForUpdate(ctx, studentID, guardianProfileID)
 	if err != nil {
-		if userModels.RowMissing(err) {
+		if peoplePorts.RowMissing(err) {
 			return identityaccessCompose.StudentGuardianLink{}, false, nil
 		}
 		return identityaccessCompose.StudentGuardianLink{}, false, err

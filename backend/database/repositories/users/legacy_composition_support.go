@@ -18,7 +18,7 @@ import (
 // MissingStudentError is the not-found shape of a child that is not there,
 // with the no-rows sentinel the retained callers match (#3349).
 func MissingStudentError(op string) error {
-	return &DatabaseError{Op: op, Err: errors.Join(ErrRepositoryNotFound, sql.ErrNoRows, usersModels.ErrStudentRowMissing)}
+	return repositoryError(op, errors.Join(translateNotFound(sql.ErrNoRows), usersModels.ErrStudentRowMissing))
 }
 
 // ParseCalendarDate parses a YYYY-MM-DD value; an empty or malformed value
