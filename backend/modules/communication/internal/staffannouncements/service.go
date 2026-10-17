@@ -7,6 +7,7 @@ package announcement
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,21 +15,15 @@ import (
 	"strings"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // OutboxEnqueuer is the slice of the email outbox service this package needs:
 // queue e-mail rows inside the current tenant transaction, and cancel not-yet-
 // sent rows when an announcement is retracted before the worker drains them.
 type OutboxEnqueuer interface {
-	Enqueue(ctx context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
-	// CancelPendingByRelatedEntity cancels the still-pending outbox rows queued
-	// for an announcement when it is unpublished or deleted, so a retracted or
-	// corrected announcement can never deliver its stale title + portal link.
-	CancelPendingByRelatedEntity(ctx context.Context, relatedType string, relatedID int64, reason string) (int64, error)
+	deliveryPorts.MailOutbox
 }
 
 // PushOutboxCanceller is the narrow durable-push operation needed when an
@@ -823,24 +818,24 @@ func (s *service) enqueueAnnouncementEmailsAs(ctx context.Context, a *usersModel
 		// Deliberately NO announcement body here: e-mail is the least trusted
 		// channel, so the mail carries only the title plus a link into the
 		// parent portal, where reading also counts for the read stats.
-		request := emailoutbox.EnqueueRequest{
-			Kind: platformModels.EmailKindParentAnnouncement,
-			Payload: map[string]any{
-				emailPayloadRecipient:     rcpt.Email,
-				emailPayloadFirstName:     rcpt.FirstName,
-				emailPayloadLastName:      rcpt.LastName,
-				emailPayloadTitle:         spec.title,
-				emailPayloadSchoolName:    schoolName,
-				emailPayloadPortalURL:     s.parentsURL,
-				emailPayloadLogoURL:       logoURL,
-				emailPayloadMotoLogoURL:   motoLogoURL,
-				emailPayloadKicker:        kicker,
-				emailPayloadIntro:         intro,
-				emailPayloadHasAttachment: hasAttachment,
+		request := deliveryPorts.MailEnqueueInput{
+			Kind: deliveryPorts.MailKindParentAnnouncement,
+			Payload: map[string]json.RawMessage{
+				emailPayloadRecipient:     deliveryPorts.JSONString(rcpt.Email),
+				emailPayloadFirstName:     deliveryPorts.JSONString(rcpt.FirstName),
+				emailPayloadLastName:      deliveryPorts.JSONString(rcpt.LastName),
+				emailPayloadTitle:         deliveryPorts.JSONString(spec.title),
+				emailPayloadSchoolName:    deliveryPorts.JSONString(schoolName),
+				emailPayloadPortalURL:     deliveryPorts.JSONString(s.parentsURL),
+				emailPayloadLogoURL:       deliveryPorts.JSONString(logoURL),
+				emailPayloadMotoLogoURL:   deliveryPorts.JSONString(motoLogoURL),
+				emailPayloadKicker:        deliveryPorts.JSONString(kicker),
+				emailPayloadIntro:         deliveryPorts.JSONString(intro),
+				emailPayloadHasAttachment: deliveryPorts.JSONBool(hasAttachment),
 			},
 			RelatedEntityType: spec.relatedType,
 			RelatedEntityID:   a.ID,
-		}
+		}.Public()
 		if spec.idempotencyKey != nil {
 			request.IdempotencyKey = spec.idempotencyKey(rcpt.Email)
 		}

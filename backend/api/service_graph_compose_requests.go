@@ -8,6 +8,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
@@ -50,10 +51,10 @@ func composeDelivery(b graphBuild) (graphBuild, error) {
 	defaultFrom := b.graph.DefaultFrom
 	appointments := b.TimetableWiring.AppointmentRenderer(defaultFrom)
 	renderers := map[string]deliveryCompose.MailRenderer{
-		platformModels.EmailKindParentAnnouncement: deliveryCompose.MailRendererFunc(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
-			DefaultFrom: defaultFrom,
-		})),
-		platformModels.EmailKindParentMessage:        deliveryCompose.MailRendererFunc(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: defaultFrom}, deliveryPolicy.ParentDeliveryPolicy{})),
+		platformModels.EmailKindParentAnnouncement: deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentAnnouncementRenderer(communicationCompose.ParentAnnouncementEmailConfig{
+			DefaultFrom: communication.MailAddress(defaultFrom),
+		}))),
+		platformModels.EmailKindParentMessage:        deliveryCompose.MailRendererFunc(BindCommunicationMailRenderer(communicationCompose.NewParentMessageRenderer(communicationCompose.ParentMessageRendererConfig{DefaultFrom: communication.MailAddress(defaultFrom)}, deliveryPolicy.ParentDeliveryPolicy{}))),
 		platformModels.EmailKindAppointmentPublished: appointments,
 		platformModels.EmailKindAppointmentUpdated:   appointments,
 		platformModels.EmailKindAppointmentCancelled: appointments,
@@ -515,7 +516,7 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.Parent = parentportalcompose.New(b.parentPortalDependencies(profiles))
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: b.late.emailOutbox,
+		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: OutboxEnqueuer{Outbox: b.late.emailOutbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: BindCommunicationNotificationSender(b.graph.Notifications),
 		ReminderNotifier: BindCommunicationDurableNotificationSender(b.graph.Notifications), Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,

@@ -4,8 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
 // Outbox payload keys for the parent_announcement e-mail. The announcement
@@ -55,41 +54,39 @@ const (
 )
 
 // EmailConfig is the static config for the announcement e-mail renderer.
-type EmailConfig struct {
-	DefaultFrom email.Email
-}
+type EmailConfig deliveryPorts.MailRendererConfig
 
 // NewAnnouncementRenderer renders a parent_announcement outbox row into an
 // e-mail. Registered in the email template registry (kind
 // platform.EmailKindParentAnnouncement) and drained by the outbox worker.
-func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
-	return func(_ context.Context, row *emailoutbox.Intent) (*email.Message, error) {
-		recipient, _ := row.Payload[emailPayloadRecipient].(string)
+func NewAnnouncementRenderer(cfg EmailConfig) deliveryPorts.MailRenderer {
+	return deliveryPorts.NewMailRenderer(func(_ context.Context, row *deliveryPorts.MailIntent) (*deliveryPorts.MailMessage, error) {
+		recipient := row.Payload.String(emailPayloadRecipient)
 		if recipient == "" {
 			return nil, fmt.Errorf("%s payload missing recipient_email", row.Kind)
 		}
-		title, _ := row.Payload[emailPayloadTitle].(string)
-		schoolName, _ := row.Payload[emailPayloadSchoolName].(string)
-		first, _ := row.Payload[emailPayloadFirstName].(string)
-		last, _ := row.Payload[emailPayloadLastName].(string)
-		portalURL, _ := row.Payload[emailPayloadPortalURL].(string)
-		logoURL, _ := row.Payload[emailPayloadLogoURL].(string)
-		motoLogoURL, _ := row.Payload[emailPayloadMotoLogoURL].(string)
+		title := row.Payload.String(emailPayloadTitle)
+		schoolName := row.Payload.String(emailPayloadSchoolName)
+		first := row.Payload.String(emailPayloadFirstName)
+		last := row.Payload.String(emailPayloadLastName)
+		portalURL := row.Payload.String(emailPayloadPortalURL)
+		logoURL := row.Payload.String(emailPayloadLogoURL)
+		motoLogoURL := row.Payload.String(emailPayloadMotoLogoURL)
 
-		kicker, _ := row.Payload[emailPayloadKicker].(string)
+		kicker := row.Payload.String(emailPayloadKicker)
 		if kicker == "" {
 			kicker = defaultEmailKicker
 		}
-		intro, _ := row.Payload[emailPayloadIntro].(string)
-		body, _ := row.Payload[emailPayloadBody].(string)
-		ackRequired, _ := row.Payload[emailPayloadAckRequired].(bool)
+		intro := row.Payload.String(emailPayloadIntro)
+		body := row.Payload.String(emailPayloadBody)
+		ackRequired := row.Payload.Bool(emailPayloadAckRequired)
 
 		subject := title
 		if schoolName != "" {
 			subject = fmt.Sprintf("%s: %s", schoolName, title)
 		}
 
-		content := map[string]any{
+		content := deliveryPorts.NewMailContent(map[string]string{
 			"Title":             title,
 			"Intro":             intro,
 			"BrandKicker":       kicker,
@@ -99,27 +96,27 @@ func NewAnnouncementRenderer(cfg EmailConfig) func(context.Context, *emailoutbox
 			"PortalURL":         portalURL,
 			"LogoURL":           logoURL,
 			"MotoLogoURL":       motoLogoURL,
-		}
+		}, map[string]bool{})
 		// The body and the acknowledgement notice are added ONLY for an
 		// Elternbrief. A Mitteilung mail stays title + link, and the rendered
 		// content must not even carry the keys — the mail is the least trusted
 		// channel, and that rule is pinned by TestAnnouncementRenderer_TitleAndLinkOnly.
 		if body != "" {
-			content["Body"] = body
+			content.Strings["Body"] = body
 		}
 		if ackRequired {
-			content["AckRequired"] = true
+			content.Flags["AckRequired"] = true
 		}
-		if hasAttachment, _ := row.Payload[emailPayloadHasAttachment].(bool); hasAttachment {
-			content["HasAttachment"] = true
+		if hasAttachment := row.Payload.Bool(emailPayloadHasAttachment); hasAttachment {
+			content.Flags["HasAttachment"] = true
 		}
 
-		return &email.Message{
+		return &deliveryPorts.MailMessage{
 			From:     cfg.DefaultFrom,
-			To:       email.NewEmail("", recipient),
+			To:       deliveryPorts.NewMailAddress("", recipient),
 			Subject:  subject,
 			Template: "announcement-published.html",
 			Content:  content,
 		}, nil
-	}
+	})
 }

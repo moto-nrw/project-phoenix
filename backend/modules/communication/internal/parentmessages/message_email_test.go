@@ -24,7 +24,6 @@ import (
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -76,7 +75,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 
 		Logger:           slog.Default(),
 		Preferences:      preferences,
-		Outbox:           outbox,
+		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
 		GuardianProfiles: repos.GuardianProfile,
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
@@ -101,7 +100,7 @@ type renderedMail struct {
 func renderMessageRow(t *testing.T, kind string, payload map[string]any) renderedMail {
 	t.Helper()
 	renderer := messaging.NewParentMessageRenderer(messaging.ParentMessageRendererConfig{}, deliveryPolicy.ParentDeliveryPolicy{})
-	msg, err := renderer(context.Background(), &emailoutbox.Intent{Kind: kind, Payload: payload})
+	msg, err := api.RenderCommunicationMailFixture(context.Background(), communication.MailRenderer(renderer), kind, payload)
 	require.NoError(t, err)
 	content, ok := msg.Content.(map[string]any)
 	require.True(t, ok, "Template-Daten sind eine Map")

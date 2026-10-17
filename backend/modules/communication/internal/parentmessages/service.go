@@ -18,7 +18,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -99,7 +98,7 @@ type Config struct {
 	// Outbox, GuardianProfiles, Schools and ParentsURL queue the guardian e-mail
 	// for a new OGS message (#2307). All are optional so bare-constructed unit
 	// test services remain silent. LoginImages only decorates the mail header.
-	Outbox           platformModels.OutboxEnqueuer
+	Outbox           deliveryPorts.MailEnqueuer
 	GuardianProfiles GuardianProfileFinder
 	Schools          SchoolFinder
 	LoginImages      LoginImageResolver

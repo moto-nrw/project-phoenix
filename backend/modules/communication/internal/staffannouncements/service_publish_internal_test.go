@@ -8,10 +8,8 @@ import (
 	"testing"
 	"time"
 
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -129,7 +127,7 @@ func (f *fakeSettings) GetLoginImageURL(_ context.Context, _ int64) (string, err
 
 // fakeOutbox captures enqueued e-mails.
 type fakeOutbox struct {
-	requests           []emailoutbox.EnqueueRequest
+	requests           []recordedMailRequest
 	cancelRelatedTypes []string
 	enqueueErr         error
 }
@@ -159,12 +157,12 @@ func (f *fakeNotifier) NotifyDurably(_ context.Context, event communication.Noti
 	return len(event.Audience.GuardianAccountIDs), nil
 }
 
-func (f *fakeOutbox) Enqueue(_ context.Context, req emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
+func (f *fakeOutbox) Enqueue(_ context.Context, req communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
 	if f.enqueueErr != nil {
 		return nil, f.enqueueErr
 	}
-	f.requests = append(f.requests, req)
-	return &emailoutbox.Enqueued{}, nil
+	f.requests = append(f.requests, recordMailRequest(req))
+	return &communication.MailEnqueued{}, nil
 }
 
 func (f *fakeOutbox) CancelPendingByRelatedEntity(_ context.Context, relatedType string, _ int64, _ string) (int64, error) {
@@ -424,7 +422,7 @@ func TestPublish_EnqueuesTitleOnlyEmails(t *testing.T) {
 		t.Fatalf("expected one e-mail per recipient, got %d", len(outbox.requests))
 	}
 	for _, req := range outbox.requests {
-		if req.Kind != platformModels.EmailKindParentAnnouncement {
+		if req.Kind != communication.MailKindParentAnnouncement {
 			t.Fatalf("unexpected outbox kind %q", req.Kind)
 		}
 		if _, hasBody := req.Payload["body"]; hasBody {
@@ -754,7 +752,7 @@ func TestPublish_ConcurrentEditInvalidatesReminder_RollsBack(t *testing.T) {
 // insert (which, inside the publish tenant tx, aborts the whole transaction).
 type failingOutbox struct{}
 
-func (failingOutbox) Enqueue(_ context.Context, _ emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error) {
+func (failingOutbox) Enqueue(_ context.Context, _ communication.MailEnqueueInput) (*communication.MailEnqueued, error) {
 	return nil, errors.New("outbox insert failed")
 }
 
@@ -791,9 +789,9 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 	t.Parallel()
 
-	render := NewAnnouncementRenderer(EmailConfig{})
-	msg, err := render(context.Background(), &emailoutbox.Intent{
-		Kind: platformModels.EmailKindParentAnnouncement,
+	render := announcementRendererFixture(EmailConfig{})
+	msg, err := render(context.Background(), &recordedMailIntent{
+		Kind: communication.MailKindParentAnnouncement,
 		Payload: map[string]any{
 			emailPayloadRecipient:  "a@example.test",
 			emailPayloadFirstName:  "Anna",
@@ -826,9 +824,9 @@ func TestAnnouncementRenderer_TitleAndLinkOnly(t *testing.T) {
 func TestAnnouncementRenderer_PassesBranding(t *testing.T) {
 	t.Parallel()
 
-	render := NewAnnouncementRenderer(EmailConfig{})
-	msg, err := render(context.Background(), &emailoutbox.Intent{
-		Kind: platformModels.EmailKindParentAnnouncement,
+	render := announcementRendererFixture(EmailConfig{})
+	msg, err := render(context.Background(), &recordedMailIntent{
+		Kind: communication.MailKindParentAnnouncement,
 		Payload: map[string]any{
 			emailPayloadRecipient:   "a@example.test",
 			emailPayloadTitle:       "Sommerfest",

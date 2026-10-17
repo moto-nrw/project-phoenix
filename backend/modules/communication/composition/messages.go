@@ -8,8 +8,6 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
-	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
@@ -17,7 +15,6 @@ import (
 	parentMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
 	staffMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/uptrace/bun"
 )
@@ -36,7 +33,7 @@ type ParentMessagingConfig struct {
 	Logger           *slog.Logger
 	Notifier         func(context.Context, communication.NotificationEvent) error
 	Preferences      deliveryPorts.NotificationPreferences
-	Outbox           platformModels.OutboxEnqueuer
+	Outbox           deliveryPorts.MailEnqueuer
 	GuardianProfiles parentMessages.GuardianProfileFinder
 	Schools          parentMessages.SchoolFinder
 	LoginImages      parentMessages.LoginImageResolver
@@ -66,10 +63,10 @@ func newCountPreferences(db *bun.DB) *parentpostgres.CountPreferenceStore {
 	return parentpostgres.NewCountPreferenceStore(parentDatabase(db))
 }
 
-type ParentMessageRendererConfig struct{ DefaultFrom email.Email }
+type ParentMessageRendererConfig communication.MailRendererConfig
 
-func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPorts.LocaleNormalizer) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
-	return parentMessages.NewParentMessageRenderer(parentMessages.ParentMessageRendererConfig{DefaultFrom: cfg.DefaultFrom}, policy)
+func NewParentMessageRenderer(cfg ParentMessageRendererConfig, policy deliveryPorts.LocaleNormalizer) communication.MailRenderer {
+	return communication.MailRenderer(parentMessages.NewParentMessageRenderer(parentMessages.ParentMessageRendererConfig(cfg), policy))
 }
 
 type parentMessaging struct {

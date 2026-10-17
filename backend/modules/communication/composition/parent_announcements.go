@@ -6,21 +6,16 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/email"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 )
 
 // ParentAnnouncementConfig is the compatibility composition seam for the
 // users.parent_* persistence that moves in #2675. Callers receive only the
 // Communication public capability.
-type ParentAnnouncementOutbox interface {
-	Enqueue(context.Context, emailoutbox.EnqueueRequest) (*emailoutbox.Enqueued, error)
-	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
-}
+type ParentAnnouncementOutbox interface{ deliveryPorts.MailOutbox }
 
 type ParentAnnouncementPushOutbox interface {
 	CancelPendingByRelatedEntity(context.Context, string, int64, string) (int64, error)
@@ -48,7 +43,7 @@ type ParentAnnouncementConfig struct {
 	Logger           *slog.Logger
 }
 
-type ParentAnnouncementEmailConfig struct{ DefaultFrom email.Email }
+type ParentAnnouncementEmailConfig communication.MailRendererConfig
 
 func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime, policy deliveryPorts.ParentDeliveryPolicy) communication.ParentAnnouncementCapability {
 	var deliveries staff.DeliveryRecorder
@@ -63,8 +58,8 @@ func NewParentAnnouncements(cfg ParentAnnouncementConfig, runtime staff.Runtime,
 	}, runtime, policy)}
 }
 
-func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) func(context.Context, *emailoutbox.Intent) (*email.Message, error) {
-	return staff.NewAnnouncementRenderer(staff.EmailConfig{DefaultFrom: cfg.DefaultFrom})
+func NewParentAnnouncementRenderer(cfg ParentAnnouncementEmailConfig) communication.MailRenderer {
+	return communication.MailRenderer(staff.NewAnnouncementRenderer(staff.EmailConfig(cfg)))
 }
 
 type parentAnnouncementDeliveryAdapter struct {
