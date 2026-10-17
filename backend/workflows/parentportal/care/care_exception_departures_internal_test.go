@@ -4,7 +4,6 @@ import (
 	"testing"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
@@ -20,7 +19,7 @@ func TestMergeDepartureExceptions(t *testing.T) {
 	pickup := time.Date(2000, 1, 1, 13, 0, 0, 0, time.UTC)
 	days := []*CareException{{
 		Date: calendar.NewDate(2026, time.September, 10), PickupTime: &pickup,
-		Source: scheduleModels.ExceptionSourceGuardian, PickupSource: scheduleModels.ExceptionSourceGuardian,
+		Source: careplan.ExceptionSourceGuardian, PickupSource: careplan.ExceptionSourceGuardian,
 	}}
 	merged := mergeDepartureExceptions(days, []careplan.DepartureException{
 		{ExceptionDate: careplan.Date(calendar.NewDate(2026, time.September, 10)), DepartureMode: careplan.DepartureModePickup},
@@ -32,12 +31,12 @@ func TestMergeDepartureExceptions(t *testing.T) {
 	require.NotNil(t, merged[0].DepartureMode)
 	assert.Equal(t, "bus", *merged[0].DepartureMode)
 	assert.Nil(t, merged[0].PickupTime)
-	assert.Equal(t, scheduleModels.ExceptionSourceStaff, merged[0].Source)
+	assert.Equal(t, careplan.ExceptionSourceStaff, merged[0].Source)
 	assert.Empty(t, merged[0].PickupSource, "an Abholart alone owns no Gehzeit")
 
 	require.NotNil(t, merged[1].DepartureMode)
 	assert.Equal(t, "pickup", *merged[1].DepartureMode)
-	assert.Equal(t, scheduleModels.ExceptionSourceGuardian, merged[1].PickupSource,
+	assert.Equal(t, careplan.ExceptionSourceGuardian, merged[1].PickupSource,
 		"the Gehzeit of the day keeps its own author")
 
 	assert.Same(t, days[0], mergeDepartureExceptions(days, nil)[0])

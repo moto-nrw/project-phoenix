@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
@@ -574,7 +573,7 @@ func TestListRelatedAccounts_AccountWithoutAccessIsActiveNoAccess(t *testing.T) 
 		RelationshipType:  "other",
 		EmergencyPriority: 1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixture("emergency_contact")
 	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 
@@ -613,7 +612,7 @@ func TestListRelatedAccounts_AccountWithoutAccessWithOpenInviteIsPending(t *test
 		RelationshipType:  "other",
 		EmergencyPriority: 1,
 	}
-	authorize.ApplyStudentGuardianRole(link, authorize.GuardianRoleEmergency)
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixture("emergency_contact")
 	link.SetTenantID(testpkg.Tenant(t))
 	require.NoError(t, repos.StudentGuardian.Create(ctx, link))
 	studentID := chain.StudentID

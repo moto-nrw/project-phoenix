@@ -13,8 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -247,8 +245,8 @@ func permittedCareOfferingsChild(tb testing.TB) *ChildSummary {
 		StudentID: 22,
 		TenantID:  testpkg.Tenant(tb),
 		GuardianPermissions: map[string]bool{
-			authorize.GuardianPermissionPortalAccess:  true,
-			authorize.GuardianPermissionRequestSubmit: true,
+			GuardianPermissionPortalAccess:  true,
+			GuardianPermissionRequestSubmit: true,
 		},
 	}
 }
@@ -572,7 +570,7 @@ func TestOfferingChangeAvailabilityReasonsAndSettingFailures(t *testing.T) {
 	permitted := &Child{
 		TenantID: testpkg.Tenant(t),
 		GuardianPermissions: map[string]bool{
-			authorize.GuardianPermissionRequestSubmit: true,
+			GuardianPermissionRequestSubmit: true,
 		},
 	}
 	notPermitted := &Child{TenantID: testpkg.Tenant(t)}
