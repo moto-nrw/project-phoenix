@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
@@ -15,8 +14,8 @@ import (
 // shell, which adds the pure audience and decision rules on top.
 type EventEmitter struct {
 	runtime     EventRuntime
-	threadRepo  usersModels.ParentMessageThreadRepository
-	messageRepo usersModels.ParentMessageRepository
+	threadRepo  ParentMessageThreadRepository
+	messageRepo ParentMessageRepository
 	settings    EventSettings
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
@@ -29,8 +28,8 @@ type EventEmitter struct {
 // no-op for the same reason.
 func NewEventEmitter(
 	runtime EventRuntime,
-	threadRepo usersModels.ParentMessageThreadRepository,
-	messageRepo usersModels.ParentMessageRepository,
+	threadRepo ParentMessageThreadRepository,
+	messageRepo ParentMessageRepository,
 	settings EventSettings,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
@@ -146,7 +145,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 		// parent APIs now hide. Guardian-triggered pills (submit / withdraw) are the
 		// guardian acting live under their own permission, so they are not gated.
 		revoked := false
-		if ev.ActorKind == usersModels.ParentMessageSenderStaff {
+		if ev.ActorKind == ParentMessageSenderStaff {
 			hasAccess, herr := e.guardianHasChildAccess(txCtx, studentID, guardianAccountID)
 			if herr != nil {
 				return herr
@@ -161,7 +160,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 		// won't be woken for it (skipGuardianBroadcast below).
 		reconcileOnly := messagingOff || revoked
 
-		var thread *usersModels.ParentMessageThread
+		var thread *ParentMessageThread
 		if reconcileOnly {
 			if !isTerminal {
 				// Non-terminal pills (request_created, self-service mirrors) carry no
@@ -182,7 +181,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 				suppressReason = "no existing thread to reconcile"
 				return nil
 			}
-			created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, usersModels.ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
+			created, cerr := e.messageRepo.FindEventByRef(txCtx, existing.ID, ParentMessageEventRequestCreated, ev.RefTable, *ev.RefID)
 			if cerr != nil {
 				return cerr
 			}
@@ -203,14 +202,14 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 			thread = created
 		}
 		threadID = thread.ID
-		msg := &usersModels.ParentMessage{
+		msg := &ParentMessage{
 			ThreadID:        thread.ID,
 			StudentID:       thread.StudentID,
 			SenderAccountID: ev.ActorAccountID,
-			SenderKind:      usersModels.ParentMessageSenderSystem,
+			SenderKind:      ParentMessageSenderSystem,
 			SenderName:      "System",
 			Body:            ev.Body,
-			Kind:            usersModels.ParentMessageKindEvent,
+			Kind:            ParentMessageKindEvent,
 			EventType:       ev.EventType,
 			EventActorKind:  ev.ActorKind,
 			RequestType:     ev.RequestType,
@@ -238,7 +237,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 		// whose only pill is request_created keeps NULL last_message_at and renders the
 		// empty-preview fallback (never a broken row). Every OTHER pill (decision,
 		// withdrawal, self-service mirror) advances the preview as before.
-		if ev.EventType == usersModels.ParentMessageEventRequestCreated {
+		if ev.EventType == ParentMessageEventRequestCreated {
 			return nil
 		}
 		// Touch the thread with the row's own DB-stamped created_at (one clock —
@@ -301,7 +300,7 @@ func (e *EventEmitter) WakeChildGuardians(tenantID, studentID int64) {
 	// originating transaction. Reading the guardian list is RLS-scoped, so it runs
 	// inside its own tenant transaction like EmitChildEvent's work.
 	bgCtx := e.backgroundContext()
-	var guardians []*usersModels.MessageableGuardian
+	var guardians []*MessageableGuardian
 	if err := e.runtime.WithinTenant(bgCtx, tenantID, func(txCtx context.Context) error {
 		gs, gerr := e.threadRepo.ListGuardiansForStudent(txCtx, studentID)
 		if gerr != nil {

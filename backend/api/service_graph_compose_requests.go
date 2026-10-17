@@ -461,12 +461,12 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	portal := b.Platform.ParentPortal
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
-		ReadRepo: portal.ParentMessageRead, Persons: b.graph.Users, UserContext: StaffStudentReads{Caller: b.callerContext},
+		ReadRepo: portal.ParentMessageRead, Persons: BindParentMessagePeople(b.graph.Users), UserContext: StaffStudentReads{Caller: b.callerContext},
 		Settings: settingsValues.NewParentMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
 		Logger: b.Logger.With("service", "messaging"), Notifier: BindCommunicationNotificationSender(b.graph.Notifications), Preferences: b.graph.NotificationPreferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
-		Outbox: b.outbox(), GuardianProfiles: b.People.GuardianProfiles, Schools: b.People.SchoolNames,
+		Outbox: b.outbox(), GuardianProfiles: BindParentMessageGuardianProfiles(b.People.GuardianProfiles), Schools: b.People.SchoolNames,
 		LoginImages: b.settingsService, ParentsURL: b.parentsURL, Observe: b.ObserveCommunication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
@@ -551,10 +551,10 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		ParentRequestShares:       BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool())),
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(b.DB.Pool())), StudentAudit: NewParentStudentAudit(b.graph.StudentAudit),
 		MessageThreadRepo: BindParentMessageThreadAccess(portal.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(portal.ParentMessageRead),
-		Conversations: BindParentConversationCore(parentStore.NewPortalConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+		Conversations: BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: portal.ParentMessageThread, MessageRepo: messages, ReadRepo: portal.ParentMessageRead,
 			Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent"),
-		}))),
+		})),
 		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(b.graph.ArrivalSchedule),
 		PickupSchedules: NewParentPickupSchedules(b.graph.PickupSchedule), CareRequests: b.graph.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(b.excusedRequests),
 		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(portal.ParentAnnouncement),

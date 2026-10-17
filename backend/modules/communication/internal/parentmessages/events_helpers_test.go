@@ -7,7 +7,6 @@ import (
 	"log/slog"
 	"testing"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -18,8 +17,8 @@ import (
 func newMockEmitter(
 	t testing.TB,
 	db *bun.DB,
-	threadRepo usersModels.ParentMessageThreadRepository,
-	messageRepo usersModels.ParentMessageRepository,
+	threadRepo messaging.ParentMessageThreadRepository,
+	messageRepo messaging.ParentMessageRepository,
 	settings parentmessaging.TenantSettingsResolver,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,

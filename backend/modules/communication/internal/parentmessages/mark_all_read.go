@@ -3,8 +3,6 @@ package messaging
 import (
 	"context"
 	"fmt"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // MarkAllRead clears the caller's own unread numbers for every conversation
@@ -31,10 +29,10 @@ func (s *Service) MarkAllRead(ctx context.Context) (int, error) {
 	if err != nil {
 		return 0, fmt.Errorf("messaging: list unread inbox: %w", err)
 	}
-	boundsByTenant := map[int64][]usersModels.ReadCursorBound{}
+	boundsByTenant := map[int64][]ReadCursorBound{}
 	for _, row := range rows {
 		if row.ReadBound != nil {
-			boundsByTenant[row.TenantID] = append(boundsByTenant[row.TenantID], *row.ReadBound)
+			boundsByTenant[row.TenantID] = append(boundsByTenant[row.TenantID], ReadCursorBound(*row.ReadBound))
 		}
 	}
 	for tenantID, bounds := range boundsByTenant {

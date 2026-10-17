@@ -8,10 +8,8 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
 	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -27,8 +25,8 @@ import (
 func NewParentEventEmitter(
 	db transactionruntime.Database,
 	runtime tenant.UnitOfWork,
-	threadRepo userModels.ParentMessageThreadRepository,
-	messageRepo userModels.ParentMessageRepository,
+	threadRepo communication.ParentThreadRecords,
+	messageRepo communication.ParentMessageRecords,
 	settings interface {
 		ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
 	},
@@ -44,15 +42,15 @@ func NewParentEventEmitter(
 // NewParentConversationCore binds Communication's shared conversation rules
 // to the given stores for the parent-side service under test.
 func NewParentConversationCore(
-	threadRepo userModels.ParentMessageThreadRepository,
-	messageRepo userModels.ParentMessageRepository,
-	readRepo userModels.ParentMessageReadRepository,
+	threadRepo communication.ParentThreadRecords,
+	messageRepo communication.ParentMessageRecords,
+	readRepo communication.ParentReadRecords,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) parentportal.ConversationCore {
-	return BindParentConversationCore(parentStore.NewPortalConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+	return BindParentConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo, Broadcaster: broadcaster, Logger: logger,
-	})))
+	}))
 }
 
 // ParentConversationMessagesFixture reads the same message snapshot through
