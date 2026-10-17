@@ -27,39 +27,8 @@ func (s *service) BuildList(ctx context.Context, params classday.Params) (*class
 }
 
 func (s *service) buildList(ctx context.Context, params listRequest) (*classday.Result, error) {
-	if !params.Target.Valid() {
-		return nil, fmt.Errorf("unknown list target %q", params.Target)
-	}
-	if !params.Source.Valid() {
-		return nil, fmt.Errorf("unknown source %q", params.Source)
-	}
-	if params.Target == classday.TargetPickupCohort && !params.PickupCohort.Valid() {
-		return nil, fmt.Errorf("unknown pickup cohort %q", params.PickupCohort)
-	}
-	if !params.ListKind.Valid() {
-		return nil, fmt.Errorf("unknown list kind %q", params.ListKind)
-	}
-	if params.Target != classday.TargetSlots && params.ListKind != classday.ListKindNone {
-		return nil, fmt.Errorf("list kind %q is not valid for target %q", params.ListKind, params.Target)
-	}
-	if !params.GroupBy.ValidFor(params.Target) {
-		return nil, fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
-	}
-	// A Ganztag pickup plan cannot be reconstructed for a past date (the pickup
-	// schedule has no history) — refuse rather than project the current schedule
-	// backwards. Slot-based lists stay available for any date (#1565 review).
-	if params.Target == classday.TargetPickupCohort && params.date.Before(s.todayDate()) {
-		return nil, classday.ErrPickupCohortPastDate
-	}
-	// A reconciliation on a strictly-future date has no presence evidence to merge
-	// against, so every planned child would be labelled "Fehlt". Refuse it rather
-	// than emit a list that reports the whole group missing before the day starts
-	// (#1565 review). Today is fine — evidence accrues through the day; Plan/Ist
-	// stay available for any date. Slots that have not started yet *on today* are
-	// handled per-slot in collectSlotEntries (a not-yet-begun occurrence is
-	// excluded from the merge, not reported as a group of missing children).
-	if params.Source == classday.SourceReconciliation && params.date.After(s.todayDate()) {
-		return nil, classday.ErrReconciliationFutureDate
+	if err := s.validateListRequest(params); err != nil {
+		return nil, err
 	}
 	access, err := s.resolveStudentReadAccess(ctx)
 	if err != nil {
@@ -112,33 +81,58 @@ func (s *service) buildList(ctx context.Context, params listRequest) (*classday.
 	if err != nil {
 		return nil, err
 	}
+	completeListResult(params, result, allRows)
+	return result, nil
+}
+
+// validateListRequest keeps date restrictions before any access or data lookup.
+func (s *service) validateListRequest(params listRequest) error {
+	if !params.Target.Valid() {
+		return fmt.Errorf("unknown list target %q", params.Target)
+	}
+	if !params.Source.Valid() {
+		return fmt.Errorf("unknown source %q", params.Source)
+	}
+	if params.Target == classday.TargetPickupCohort && !params.PickupCohort.Valid() {
+		return fmt.Errorf("unknown pickup cohort %q", params.PickupCohort)
+	}
+	if !params.ListKind.Valid() {
+		return fmt.Errorf("unknown list kind %q", params.ListKind)
+	}
+	if params.Target != classday.TargetSlots && params.ListKind != classday.ListKindNone {
+		return fmt.Errorf("list kind %q is not valid for target %q", params.ListKind, params.Target)
+	}
+	if !params.GroupBy.ValidFor(params.Target) {
+		return fmt.Errorf("grouping %q is not valid for target %q", params.GroupBy, params.Target)
+	}
+	// A Ganztag pickup plan cannot be reconstructed for a past date (the pickup
+	// schedule has no history) — refuse rather than project the current schedule
+	// backwards. Slot-based lists stay available for any date (#1565 review).
+	if params.Target == classday.TargetPickupCohort && params.date.Before(s.todayDate()) {
+		return classday.ErrPickupCohortPastDate
+	}
+	// A reconciliation on a strictly-future date has no presence evidence to merge
+	// against, so every planned child would be labelled "Fehlt". Refuse it rather
+	// than emit a list that reports the whole group missing before the day starts
+	// (#1565 review). Today is fine — evidence accrues through the day; Plan/Ist
+	// stay available for any date. Slots that have not started yet *on today* are
+	// handled per-slot in collectSlotEntries (a not-yet-begun occurrence is
+	// excluded from the merge, not reported as a group of missing children).
+	if params.Source == classday.SourceReconciliation && params.date.After(s.todayDate()) {
+		return classday.ErrReconciliationFutureDate
+	}
+	return nil
+}
+
+// completeListResult derives filter options, ordered rows, counters and hashes
+// from the same unfiltered source rows.
+func completeListResult(params listRequest, result *classday.Result, allRows []classday.Row) {
 	result.Groups, result.Classes = availableOptions(allRows)
 
 	rows := filterRows(allRows, params)
 	applyGrouping(rows, params.GroupBy)
 	sort.SliceStable(rows, func(i, j int) bool {
-		// Keep grouped rows contiguous: section heading first, then the same
-		// slot/name order within each section.
-		if rows[i].GroupTitle != rows[j].GroupTitle {
-			return rows[i].GroupTitle < rows[j].GroupTitle
-		}
-		if rows[i].Slot != rows[j].Slot {
-			return rows[i].Slot < rows[j].Slot
-		}
-		if rows[i].Name != rows[j].Name {
-			return rows[i].Name < rows[j].Name
-		}
-		// Stable ID tie-breakers: two rows can share group title, slot and full
-		// name — e.g. two identically named unplanned attendees in one slot. Their
-		// input order comes from map iteration / an incompletely ordered query,
-		// while listSignature hashes InstanceID and StudentID positionally, so
-		// without a deterministic order unchanged data could produce different
-		// preview/export signatures and trigger false drift refusals (#1565 review
-		// pass 9).
-		if rows[i].InstanceID != rows[j].InstanceID {
-			return rows[i].InstanceID < rows[j].InstanceID
-		}
-		return rows[i].StudentID < rows[j].StudentID
+		return listRowLess(&rows[i], &rows[j])
 	})
 	result.Rows = rows
 	result.Counters = countRows(rows, params.Source)
@@ -151,7 +145,31 @@ func (s *service) buildList(ctx context.Context, params listRequest) (*classday.
 		"\x1f",
 	)
 	result.Signature = listSignature(result)
-	return result, nil
+}
+
+func listRowLess(left, right *classday.Row) bool {
+	// Keep grouped rows contiguous: section heading first, then the same
+	// slot/name order within each section.
+	if left.GroupTitle != right.GroupTitle {
+		return left.GroupTitle < right.GroupTitle
+	}
+	if left.Slot != right.Slot {
+		return left.Slot < right.Slot
+	}
+	if left.Name != right.Name {
+		return left.Name < right.Name
+	}
+	// Stable ID tie-breakers: two rows can share group title, slot and full
+	// name — e.g. two identically named unplanned attendees in one slot. Their
+	// input order comes from map iteration / an incompletely ordered query,
+	// while listSignature hashes InstanceID and StudentID positionally, so
+	// without a deterministic order unchanged data could produce different
+	// preview/export signatures and trigger false drift refusals (#1565 review
+	// pass 9).
+	if left.InstanceID != right.InstanceID {
+		return left.InstanceID < right.InstanceID
+	}
+	return left.StudentID < right.StudentID
 }
 
 // listSignature is a stable content hash of the rendered list: its label,

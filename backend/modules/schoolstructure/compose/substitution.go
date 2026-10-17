@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
+	groups "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
 )
 
 // NewSubstitutionModule exposes only neutral results and errors from the
