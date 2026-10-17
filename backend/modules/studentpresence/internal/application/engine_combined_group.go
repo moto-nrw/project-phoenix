@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -28,10 +28,12 @@ func (e engine) GetCombinedGroup(ctx context.Context, id int64) (studentpresence
 	}
 	return studentpresence.CombinedGroup(row), err
 }
+
 func (e engine) RecordCombination(ctx context.Context, start time.Time, end *time.Time) (studentpresence.CombinedGroup, error) {
 	row, err := e.Service.RecordCombination(ctx, start, end)
 	return studentpresence.CombinedGroup(row), err
 }
+
 func (e engine) ReviseCombination(ctx context.Context, id int64, start time.Time, end *time.Time) (studentpresence.CombinedGroup, error) {
 	row, err := e.Service.ReviseCombination(ctx, id, start, end)
 	return studentpresence.CombinedGroup(row), err

@@ -1,13 +1,13 @@
-package compose
+package application
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 func visitToPublic(row *ports.Visit) studentpresence.Visit {
@@ -36,7 +36,7 @@ func visitRowsToPublic(rows []*ports.Visit) []studentpresence.Visit {
 
 func (e engine) FindVisit(ctx context.Context, id int64) (*studentpresence.Visit, error) {
 	row, err := e.Service.FindVisit(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, studentpresence.ErrVisitNotFound
 	}
 	if err != nil {

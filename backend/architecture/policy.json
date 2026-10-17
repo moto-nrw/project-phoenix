@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 68,
+  "policy_epoch": 69,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -12187,6 +12187,17 @@
       "source_role": "application",
       "target_owner": "care-plan",
       "target_role": "contract"
+    },
+    {
+      "id": "student-presence.application.transaction-runtime",
+      "description": "Student Presence application code reports a missing attendance or visit row through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "student-presence",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
     },
     {
       "id": "student-presence.application.tenant-runtime-public",

@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -17,6 +17,7 @@ func (e engine) ListVisitRetentionCounts(ctx context.Context, defaultDays int) (
 	}
 	return result, nil
 }
+
 func (e engine) ListExpiredVisitMonths(ctx context.Context, defaultDays int) ([]studentpresence.VisitMonthCount, error) {
 	rows, err := e.Service.ListExpiredVisitMonths(ctx, defaultDays)
 	if err != nil {

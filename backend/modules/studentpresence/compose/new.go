@@ -7,12 +7,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
+	application "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/uptrace/bun"
 )
 
 type Observation = ports.Observation
@@ -41,7 +42,7 @@ func New(deps Dependencies) (*studentpresence.Module, error) {
 		now = time.Now
 	}
 	service := application.New(store, transaction{}, deps.Observe, sessionAttendancePorts(deps))
-	return studentpresence.NewModule(engine{Service: service, now: now}), nil
+	return studentpresence.NewModule(application.NewEngine(service, now)), nil
 }
 
 func sessionAttendancePorts(deps Dependencies) ports.AttendanceRulePorts {

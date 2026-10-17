@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -38,6 +38,7 @@ func (e engine) EnsureAttendanceBatch(ctx context.Context, values []studentprese
 	}
 	return e.Service.EnsureAttendanceBatch(ctx, rows)
 }
+
 func (e engine) HasAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) (bool, error) {
 	for _, date := range []string{filter.FromDate, filter.UntilDate, filter.BeforeDate} {
 		if date != "" {
@@ -48,12 +49,14 @@ func (e engine) HasAttendance(ctx context.Context, filter studentpresence.Attend
 	}
 	return e.Service.HasAttendance(ctx, ports.AttendanceFilter(filter))
 }
+
 func (e engine) ListOpenAttendanceStudentIDs(ctx context.Context, date string) ([]int64, error) {
 	if _, err := calendar.ParseDate(date); err != nil {
 		return nil, err
 	}
 	return e.Service.ListOpenAttendanceStudentIDs(ctx, date)
 }
+
 func (e engine) CloseStaleAttendance(ctx context.Context, id int64, at, updatedAt time.Time) (int64, error) {
 	return e.Service.CloseStaleAttendance(ctx, id, at, updatedAt)
 }

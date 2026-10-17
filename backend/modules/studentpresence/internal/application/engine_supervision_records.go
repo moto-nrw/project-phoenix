@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -22,7 +22,7 @@ func supervisionToPublic(row ports.GroupSupervision) studentpresence.GroupSuperv
 	return result
 }
 
-func supervisionToRecord(row studentpresence.GroupSupervision) (ports.GroupSupervision, error) {
+func SupervisionToRecord(row studentpresence.GroupSupervision) (ports.GroupSupervision, error) {
 	start, err := calendar.ParseDate(row.StartDate)
 	if err != nil {
 		return ports.GroupSupervision{}, err
@@ -42,7 +42,7 @@ func supervisionToRecord(row studentpresence.GroupSupervision) (ports.GroupSuper
 }
 
 func (e engine) RecordSupervision(ctx context.Context, value studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error) {
-	row, err := supervisionToRecord(value)
+	row, err := SupervisionToRecord(value)
 	if err != nil {
 		return studentpresence.GroupSupervision{}, err
 	}
@@ -54,7 +54,7 @@ func (e engine) RecordSupervision(ctx context.Context, value studentpresence.Gro
 }
 
 func (e engine) ReviseSupervision(ctx context.Context, value studentpresence.GroupSupervision) (studentpresence.GroupSupervision, error) {
-	row, err := supervisionToRecord(value)
+	row, err := SupervisionToRecord(value)
 	if err != nil {
 		return studentpresence.GroupSupervision{}, err
 	}

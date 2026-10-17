@@ -1,19 +1,24 @@
-package compose
+package application
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
+// NewEngine serves the Student Presence capability from the application
+// service; now is the clock of the day-bound reads.
+func NewEngine(service *Service, now func() time.Time) studentpresence.Capability {
+	return engine{Service: service, now: now}
+}
+
 type engine struct {
-	*application.Service
+	*Service
 	now func() time.Time
 }
 
@@ -29,6 +34,7 @@ func attendanceToPublic(row *ports.Attendance) studentpresence.Attendance {
 		CheckOutNote: row.CheckOutNote,
 	}
 }
+
 func attendanceFromPublic(value studentpresence.Attendance) (*ports.Attendance, error) {
 	date, err := calendar.ParseDate(value.Date)
 	if err != nil {
@@ -41,6 +47,7 @@ func attendanceFromPublic(value studentpresence.Attendance) (*ports.Attendance, 
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row, nil
 }
+
 func attendanceRowsToPublic(rows []*ports.Attendance) []studentpresence.Attendance {
 	result := make([]studentpresence.Attendance, 0, len(rows))
 	for _, row := range rows {
@@ -48,9 +55,10 @@ func attendanceRowsToPublic(rows []*ports.Attendance) []studentpresence.Attendan
 	}
 	return result
 }
+
 func (e engine) FindAttendance(ctx context.Context, id int64) (*studentpresence.Attendance, error) {
 	row, err := e.Service.FindAttendance(ctx, id)
-	if errors.Is(err, sql.ErrNoRows) {
+	if errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, studentpresence.ErrAttendanceNotFound
 	}
 	if err != nil {
@@ -59,6 +67,7 @@ func (e engine) FindAttendance(ctx context.Context, id int64) (*studentpresence.
 	result := attendanceToPublic(row)
 	return &result, nil
 }
+
 func (e engine) ListAttendance(ctx context.Context, filter studentpresence.AttendanceFilter) ([]studentpresence.Attendance, error) {
 	for _, date := range []string{filter.FromDate, filter.UntilDate, filter.BeforeDate} {
 		if date != "" {
@@ -73,6 +82,7 @@ func (e engine) ListAttendance(ctx context.Context, filter studentpresence.Atten
 	}
 	return attendanceRowsToPublic(rows), nil
 }
+
 func (e engine) EnsureAttendance(ctx context.Context, input studentpresence.Attendance) (studentpresence.Attendance, bool, error) {
 	row, err := attendanceFromPublic(input)
 	if err != nil {
@@ -81,6 +91,7 @@ func (e engine) EnsureAttendance(ctx context.Context, input studentpresence.Atte
 	inserted, err := e.Service.EnsureAttendance(ctx, row)
 	return attendanceToPublic(row), inserted, err
 }
+
 func (e engine) CloseAttendance(ctx context.Context, input studentpresence.AttendanceCheckout) ([]studentpresence.Attendance, error) {
 	if _, err := calendar.ParseDate(input.Date); err != nil {
 		return nil, err
