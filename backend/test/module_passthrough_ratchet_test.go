@@ -196,7 +196,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3091
+const modulePassthroughOwnerBudgetTotal = 3089
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -394,7 +394,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// ADR 0064: +78, the 46 time-tracking row delegations an injected error
 	// field had hidden (#4239) and internal/planning's 32 (18 Dienstplan rows
 	// moved there in #4240, 14 planning methods never scanned before).
-	"modules/workforce": 414,
+	"modules/workforce": 412,
 	// ADR 0061: application 0 + workflows/openroommove/compose 1.
 	"workflows/openroommove": 1,
 	// ADR 0061 adopted 22; the Root event binding leaves 21 compose delegations.
