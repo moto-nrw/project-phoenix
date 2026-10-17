@@ -183,8 +183,6 @@ func (w *Worker) finalizeFailure(ctx context.Context, intent domain.Intent, toke
 	w.observe(domain.Observation{Operation: "retry", Transport: string(intent.Transport), Template: intent.Template, Count: 1, Err: sendErr})
 }
 
-func (w *Worker) Backlog(ctx context.Context) (int, error) { return w.store.Backlog(ctx) }
-
 func leaseToken(intent domain.Intent) string {
 	if intent.LeaseToken == nil {
 		panic("delivery worker: claimed intent has no lease token")

@@ -57,8 +57,8 @@ func New(dependencies Dependencies) (*Runtime, error) {
 	service := application.NewService(store, guardianDirectoryAdapter{resolver: dependencies.People}, observe)
 	worker := application.NewWorker(store, providerAdapter{provider: dependencies.Provider}, observe)
 	return &Runtime{
-		Module: delivery.NewModule(moduleEngine{service: service}),
-		Worker: delivery.NewWorker(workerEngine{worker: worker}),
+		Module: delivery.NewModule(moduleEngine{service: service, store: store}),
+		Worker: delivery.NewWorker(workerEngine{worker: worker, store: store}),
 		store:  store,
 	}, nil
 }
@@ -95,7 +95,10 @@ func (a guardianDirectoryAdapter) Resolve(ctx context.Context, ids []int64) (map
 	return result, nil
 }
 
-type moduleEngine struct{ service *application.Service }
+type moduleEngine struct {
+	service *application.Service
+	store   *postgres.Store
+}
 
 func (e moduleEngine) EnqueueEmail(ctx context.Context, input delivery.EmailIntent) (delivery.Enqueued, error) {
 	recipient, err := json.Marshal(input.Recipient)
@@ -104,7 +107,7 @@ func (e moduleEngine) EnqueueEmail(ctx context.Context, input delivery.EmailInte
 	}
 	return e.enqueue(ctx, domain.EnqueueInput{
 		TenantID: input.TenantID, Transport: domain.TransportEmail, Template: input.Template,
-		IdempotencyKey: input.IdempotencyKey, Related: toDomainRelated(input.Related),
+		IdempotencyKey: input.IdempotencyKey, Related: domain.RelatedEntity(input.Related),
 		Recipient: recipient, Payload: input.Payload, DeliverAfter: input.DeliverAfter,
 	}, delivery.TransportEmail)
 }
@@ -120,7 +123,7 @@ func (e moduleEngine) EnqueuePush(ctx context.Context, input delivery.PushIntent
 	}
 	return e.enqueue(ctx, domain.EnqueueInput{
 		TenantID: input.TenantID, Transport: domain.TransportPush, Template: input.Template,
-		IdempotencyKey: input.IdempotencyKey, Related: toDomainRelated(input.Related),
+		IdempotencyKey: input.IdempotencyKey, Related: domain.RelatedEntity(input.Related),
 		Recipient: recipient, Payload: payload,
 	}, delivery.TransportPush)
 }
@@ -137,11 +140,11 @@ func (e moduleEngine) enqueue(ctx context.Context, input domain.EnqueueInput, tr
 }
 
 func (e moduleEngine) Cancel(ctx context.Context, tenantID int64, transport delivery.Transport, related delivery.RelatedEntity, reason string) (int64, error) {
-	return e.service.Cancel(ctx, tenantID, domain.Transport(transport), toDomainRelated(related), reason)
+	return e.service.Cancel(ctx, tenantID, domain.Transport(transport), domain.RelatedEntity(related), reason)
 }
 
 func (e moduleEngine) Statuses(ctx context.Context, tenantID int64, transport delivery.Transport, related delivery.RelatedEntity) ([]delivery.Status, error) {
-	rows, err := e.service.Statuses(ctx, tenantID, domain.Transport(transport), toDomainRelated(related))
+	rows, err := e.service.Statuses(ctx, tenantID, domain.Transport(transport), domain.RelatedEntity(related))
 	if err != nil {
 		return nil, err
 	}
@@ -171,15 +174,15 @@ func (e moduleEngine) ReplaceEmailDeliveries(ctx context.Context, tenantID int64
 			AccountID: row.AccountID, RecipientEmail: row.RecipientEmail, Reachability: row.Reachability,
 		})
 	}
-	return e.service.ReplaceEmailDeliveries(ctx, tenantID, toDomainRelated(related), values)
+	return e.store.ReplaceEmailDeliveries(ctx, tenantID, related.Type, related.ID, values)
 }
 
 func (e moduleEngine) DeleteEmailDeliveries(ctx context.Context, tenantID int64, related delivery.RelatedEntity) (int64, error) {
-	return e.service.DeleteEmailDeliveries(ctx, tenantID, toDomainRelated(related))
+	return e.store.DeleteEmailDeliveries(ctx, tenantID, related.Type, related.ID)
 }
 
 func (e moduleEngine) EmailDeliveryStatuses(ctx context.Context, tenantID int64, related delivery.RelatedEntity) ([]delivery.EmailDeliveryStatus, error) {
-	rows, err := e.service.EmailDeliveryStatuses(ctx, tenantID, toDomainRelated(related))
+	rows, err := e.service.EmailDeliveryStatuses(ctx, tenantID, domain.RelatedEntity(related))
 	if err != nil {
 		return nil, err
 	}
@@ -196,18 +199,17 @@ func (e moduleEngine) EmailDeliveryStatuses(ctx context.Context, tenantID int64,
 }
 
 func (e moduleEngine) AttachEmailOutbox(ctx context.Context, tenantID, deliveryID, outboxID int64) error {
-	return e.service.AttachEmailOutbox(ctx, tenantID, deliveryID, outboxID)
+	return e.store.AttachEmailOutbox(ctx, tenantID, deliveryID, outboxID)
 }
 
 func (e moduleEngine) ClaimFailedEmailDelivery(ctx context.Context, tenantID, deliveryID int64) (bool, error) {
-	return e.service.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
+	return e.store.ClaimFailedEmailDelivery(ctx, tenantID, deliveryID)
 }
 
-func toDomainRelated(value delivery.RelatedEntity) domain.RelatedEntity {
-	return domain.RelatedEntity{Type: value.Type, ID: value.ID}
+type workerEngine struct {
+	worker *application.Worker
+	store  *postgres.Store
 }
-
-type workerEngine struct{ worker *application.Worker }
 
 func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (delivery.WorkerStats, error) {
 	stats, err := e.worker.RunOnce(ctx, batchSize, maxAttempts)
@@ -217,7 +219,7 @@ func (e workerEngine) RunOnce(ctx context.Context, batchSize, maxAttempts int) (
 	}, err
 }
 
-func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.worker.Backlog(ctx) }
+func (e workerEngine) Backlog(ctx context.Context) (int, error) { return e.store.Backlog(ctx) }
 
 type providerAdapter struct{ provider Provider }
 
@@ -262,11 +264,7 @@ func providerResult(value delivery.ProviderResult, err error) (domain.ProviderRe
 	if errors.Is(err, delivery.ErrDeferred) {
 		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
-	return toDomainProviderResult(value), err
-}
-
-func toDomainProviderResult(value delivery.ProviderResult) domain.ProviderResult {
-	return domain.ProviderResult{MessageID: value.MessageID, StatusCode: value.StatusCode, Details: value.Details}
+	return domain.ProviderResult(value), err
 }
 
 // tenantDatabase is the transaction of the school in context; it refuses a
