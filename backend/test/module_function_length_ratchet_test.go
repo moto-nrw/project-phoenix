@@ -83,7 +83,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
 	"modules/classday/internal/application/slotlist_export.go:(*service).RenderList":                                                            71,
-	"modules/classday/internal/application/slotlist_build.go:(*service).buildList":                                                              127,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).classifyPlannedRow":                                                     128,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).loadSlotPresence":                                                       74,
 	"modules/classday/internal/application/slotlist_build.go:slotHeadingDisambiguation":                                                         72,
