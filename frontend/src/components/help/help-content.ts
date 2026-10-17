@@ -4593,7 +4593,8 @@ function removeStaffTopic(): HelpTopic {
     id: HELP_TOPICS.leadRemoveStaff,
     title: "Eine Person aus dem Team entfernen",
     question: "Wie entferne ich jemanden aus unserem Team?",
-    summary: "Der Zugang geht aus. Die bisherigen Einträge bleiben erhalten.",
+    summary:
+      "Der Zugang geht aus. Die bisherigen Einträge bleiben vorerst erhalten.",
     group: "personal",
     audience: "lead",
     icon: "Trash2",
@@ -4608,9 +4609,9 @@ function removeStaffTopic(): HelpTopic {
     result:
       "Der Zugang ist aus. Die Person steht in keiner Liste der OGS mehr.",
     notes: [
-      "Anwesenheiten und Zeiterfassung bleiben bis zum Ende der Frist erhalten. Ihre Auswertungen bleiben so lange vollständig.",
+      "Anwesenheiten und Zeiterfassung bleiben bis zum Ende der Frist für die Zeiterfassung erhalten. So lange bleiben Ihre Auswertungen vollständig.",
+      "Danach löscht moto die Angaben der Person. Statt des Namens steht dann „Gelöscht Benutzer“. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
       "Sie können dieselbe Person später wieder einladen.",
-      "Nach der Frist für die Zeiterfassung löscht moto die Angaben der Person. Statt des Namens steht dann `Gelöscht Benutzer`. Die Frist sehen Sie unter `Einstellungen` und `Datenschutz` bei `Zeiterfassung aufbewahren`.",
     ],
     differences: [
       "Der Knopf heißt `Endgültig löschen`. Die bisherigen Einträge löscht moto aber erst nach der Frist.",

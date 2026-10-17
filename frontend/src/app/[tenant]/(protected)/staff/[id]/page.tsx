@@ -580,8 +580,9 @@ export default function StaffDetailContent() {
                 <>
                   Der Zugang wird deaktiviert und die Person aus allen Listen
                   entfernt. Vorhandene Einträge wie Anwesenheiten und
-                  Zeiterfassung bleiben für die Historie erhalten. Die Person
-                  kann jederzeit erneut eingeladen werden.
+                  Zeiterfassung bleiben bis zum Ende der Frist für die
+                  Zeiterfassung erhalten. Danach löscht moto die Angaben der
+                  Person. Die Person kann jederzeit erneut eingeladen werden.
                 </>
               }
               gate={{
