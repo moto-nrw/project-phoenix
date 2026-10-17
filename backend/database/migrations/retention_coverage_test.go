@@ -52,11 +52,11 @@ func undecided(what string) tableRetention { return tableRetention{class: openGa
 // openSpecTickets are the tickets of spec #3949 that still add a deletion
 // path. When a ticket lands, its tables move to own retention or with
 // parent and the ticket leaves this list.
-var openSpecTickets = []string{"#3957", "#3962", "#3963"}
+var openSpecTickets = []string{"#3957", "#3963"}
 
 // The gap lists only shrink: closing a gap lowers its count, a new gap fails.
 const (
-	specGapTables = 5
+	specGapTables = 4
 	openGapTables = 9
 )
 
@@ -277,7 +277,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.parent_request_events":                           parent("users.student_profiles"),
 	"users.parent_request_rss_feeds":                        parent("auth.accounts"),
 	"users.parent_request_share_events":                     parent("users.student_profiles"),
-	"users.persons":                                         gap("#3962"),
+	"users.persons":                                         gap("#3963"), // A deleted child's person row is anonymized by the student deletion (#3962); staff persons remain until offboarding is deleted.
 	"users.persons_guardians":                               parent("users.persons"),
 	"users.privacy_consents":                                parent("users.student_profiles"),
 	"users.profiles":                                        parent("auth.accounts"),
@@ -308,7 +308,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.student_guardian_pickup_permissions":             parent("users.student_guardian_relationships"),
 	"users.student_guardian_relationships":                  parent("users.student_profiles"),
 	"users.student_notes":                                   parent("users.student_profiles"),
-	"users.student_profiles":                                gap("#3962"),
+	"users.student_profiles":                                own("nightly retention step student_retention, Retention.DeleteExpiredStudents -> student deletion workflow (school window after the last care day, #3962)"),
 	"users.student_school_memberships":                      parent("users.student_profiles"),
 	"users.teachers":                                        parent("users.staff_school_memberships"),
 }

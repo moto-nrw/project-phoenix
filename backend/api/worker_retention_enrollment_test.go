@@ -123,6 +123,14 @@ func (f enrollmentFixture) requestIn(t *testing.T, phaseID int64, label string, 
 	return request.ID, childIDs
 }
 
+func (f enrollmentFixture) matchChildToStudent(t *testing.T, childID, studentID int64) {
+	t.Helper()
+	_, err := f.suite.admin.ExecContext(context.Background(), `UPDATE enrollment.request_children
+		SET matched_student_id = ?
+		WHERE id = ?`, studentID, childID)
+	require.NoError(t, err)
+}
+
 // lateInvite stores an invitation to enroll late that expired daysAgo days
 // back, used by usedBy when that is set.
 func (f enrollmentFixture) lateInvite(t *testing.T, label string, daysAgo int, usedBy int64) int64 {

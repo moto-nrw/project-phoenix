@@ -231,6 +231,10 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 	if err != nil {
 		return nil, err
 	}
+	students, err := newStudentRetention(graph.services.StudentDeletion, graph.services.Settings, logger.With("service", "student_retention"))
+	if err != nil {
+		return nil, fmt.Errorf("compose worker student retention: %w", err)
+	}
 	retention, err := newWorkerRetention(retentionOwners{
 		deletionLog:          graph.services.Audit,
 		settings:             graph.services.Settings,
@@ -247,7 +251,7 @@ func newWorker(graph *serveGraph, reads workerReads, logger *slog.Logger) (sched
 		submissionLimits:     enrollmentCompose.New(),
 		settingAudit:         settingsCompose.NewAuditRetention(),
 		exportTransfers:      exportTransferCompose.NewJournalRetention(),
-	})
+	}, students)
 	if err != nil {
 		return nil, err
 	}

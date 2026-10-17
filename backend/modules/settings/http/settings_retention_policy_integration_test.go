@@ -25,6 +25,7 @@ var retentionWindowKeys = []string{
 	"gdpr.parent_message_retention_days",
 	"gdpr.withdrawn_enrollment_retention_days",
 	"gdpr.staff_sick_note_retention_days",
+	"gdpr.student_retention_days",
 }
 
 func schemaItems(t *testing.T, ctx *settingsTestContext) map[string]map[string]any {

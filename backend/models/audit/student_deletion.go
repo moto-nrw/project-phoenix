@@ -11,8 +11,10 @@ import (
 type StudentDeletion struct {
 	ID int64 `bun:"id,pk,autoincrement" json:"id"`
 	TenantModel
-	StudentID      int64                 `bun:"student_id,notnull" json:"student_id"`
-	ActorAccountID int64                 `bun:"actor_account_id,notnull" json:"actor_account_id"`
+	StudentID int64 `bun:"student_id,notnull" json:"student_id"`
+	// ActorAccountID is nil for the automatic deletion of the nightly
+	// retention run (#3962): nobody confirmed it.
+	ActorAccountID *int64                `bun:"actor_account_id" json:"actor_account_id"`
 	Reason         string                `bun:"reason,notnull" json:"reason"`
 	Counts         StudentDeletionCounts `bun:"counts,type:jsonb,notnull" json:"counts"`
 	DeletedAt      time.Time             `bun:"deleted_at,notnull,default:now()" json:"deleted_at"`

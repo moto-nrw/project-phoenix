@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
@@ -17,6 +19,8 @@ import (
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 )
 
 // workerRetention is the retention capability of the nightly cleanup (#3950):
@@ -36,10 +40,13 @@ const (
 	retentionParentMessages       = "parent_message_retention"
 	retentionSettledEnrollments   = "settled_enrollment_retention"
 	retentionStaffSickNotes       = "staff_sick_note_retention"
-	retentionAuthEvents           = "auth_event_retention"
-	retentionDataAccessLog        = "data_access_log_retention"
-	retentionDeletionLog          = "deletion_log_retention"
-	retentionDeliveries           = "delivery_retention"
+	// The automatic deletion of children (#3962) logs each child as
+	// student_retention, like a manual deletion; the step adds no entry.
+	retentionStudents      = "student_retention"
+	retentionAuthEvents    = "auth_event_retention"
+	retentionDataAccessLog = "data_access_log_retention"
+	retentionDeletionLog   = "deletion_log_retention"
+	retentionDeliveries    = "delivery_retention"
 	// The technical remains of #4046.
 	retentionFileCleanups           = "file_cleanup_retention"
 	retentionStaffCleanups          = "staff_cleanup_retention"
@@ -72,6 +79,7 @@ var retentionSettingKeys = []string{
 	settingsModule.KeyGDPRParentMessageRetentionDays,
 	settingsModule.KeyGDPRWithdrawnEnrollmentRetentionDays,
 	settingsModule.KeyGDPRStaffSickNoteRetentionDays,
+	settingsModule.KeyGDPRStudentRetentionDays,
 }
 
 // retentionOwners are the owner capabilities whose data the nightly cleanup
@@ -118,7 +126,14 @@ type retentionOwners struct {
 	exportTransfers exportTransferModule.JournalRetention
 }
 
-func newWorkerRetention(owners retentionOwners) (workerRetention, error) {
+// studentRetention deletes the children whose last care day lies more than
+// the school's window back, through the student deletion workflow (#3962).
+// It reaches the Worker beside the owners: the workflow composes it.
+type studentRetention interface {
+	DeleteExpiredStudents(ctx context.Context) (studentdeletion.RetentionResult, error)
+}
+
+func newWorkerRetention(owners retentionOwners, students studentRetention) (workerRetention, error) {
 	if owners.deletionLog == nil || owners.settings == nil {
 		return workerRetention{}, fmt.Errorf("compose worker retention: deletion log and settings are required")
 	}
@@ -127,7 +142,7 @@ func newWorkerRetention(owners retentionOwners) (workerRetention, error) {
 	}
 	deletions := owners.deletionLog
 	return workerRetention{
-		steps: retentionSteps(owners),
+		steps: append(studentRetentionSteps(students), retentionSteps(owners)...),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -193,6 +208,46 @@ func retentionSteps(owners retentionOwners) []schedulerPorts.RetentionStep {
 	}
 	steps = append(steps, protocolRetentionSteps(owners)...)
 	return append(steps, cleanupJobRetentionSteps(owners)...)
+}
+
+// studentRetentionSteps is the automatic deletion of children (#3962). It
+// runs first: the shorter windows of the other steps then apply to the rows
+// of the children that stay.
+func studentRetentionSteps(students studentRetention) []schedulerPorts.RetentionStep {
+	if students == nil {
+		return nil
+	}
+	return []schedulerPorts.RetentionStep{{
+		Kind:         retentionStudents,
+		LogsSubjects: true,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			result, err := students.DeleteExpiredStudents(ctx)
+			return schedulerPorts.RetentionOutcome{Deleted: result.Deleted, RetentionDays: result.RetentionDays}, err
+		},
+	}}
+}
+
+// newStudentRetention composes the automatic deletion of children over the
+// student deletion workflow (#3962): the school's window from the settings,
+// each child in a savepoint of the cleanup's tenant transaction.
+func newStudentRetention(workflow *studentdeletion.Workflow, settings interface {
+	ResolveInt(ctx context.Context, key string) (int, error)
+}, logger *slog.Logger) (*studentdeletion.Retention, error) {
+	return studentdeletion.NewRetention(studentdeletion.RetentionDependencies{
+		Workflow: workflow,
+		Window: func(ctx context.Context) (int, error) {
+			return settings.ResolveInt(ctx, settingsModule.KeyGDPRStudentRetentionDays)
+		},
+		Tenant: tenant.FromContext,
+		Isolate: func(ctx context.Context, fn func(context.Context) error) error {
+			err := tenant.WithSavepoint(ctx, fn)
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return errors.Join(studentdeletion.ErrIsolationFailed, err)
+			}
+			return err
+		},
+		Logger: logger,
+	})
 }
 
 // protocolRetentionSteps are the fixed-window deletions of the protocols of

@@ -76,6 +76,11 @@ const (
 	// users.staff_documents of category au_bescheinigung, #3961), counted
 	// from the upload.
 	KeyGDPRStaffSickNoteRetentionDays = "gdpr.staff_sick_note_retention_days"
+	// Retention window (days) for a child whose care ended (#3962), counted
+	// from the last care day
+	// (users.student_school_memberships.enrolled_until). After it the
+	// nightly run deletes the child through the student deletion workflow.
+	KeyGDPRStudentRetentionDays = "gdpr.student_retention_days"
 )
 
 // Attendance log / Raumverlauf (student attendance history) settings.

@@ -18,7 +18,8 @@ func TestStudentDeletionRepository_Create(t *testing.T) {
 
 	assert.ErrorContains(t, repo.Create(context.Background(), nil), "audit event is required")
 
-	event := &auditModels.StudentDeletion{StudentID: 99, ActorAccountID: 42, Reason: "test_data"}
+	actor := int64(42)
+	event := &auditModels.StudentDeletion{StudentID: 99, ActorAccountID: &actor, Reason: "test_data"}
 	ctx := testpkg.Ctx(t)
 	expectedTenantID := auditModels.TenantIDFromContext(ctx)
 	require.NoError(t, repo.Create(ctx, event))
