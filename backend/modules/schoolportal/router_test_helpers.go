@@ -1,3 +1,5 @@
+//go:build testhooks
+
 package schoolportal
 
 import "github.com/go-chi/chi/v5"
