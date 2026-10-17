@@ -10,7 +10,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -23,7 +22,7 @@ import (
 // absence-approval fixtures, but with the parent-request event recorder
 // attached on both sides, so the ledger written inside the domain
 // transactions is observable.
-func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, usersModels.ParentRequestEventRepository, *bun.DB) {
+func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedAbsenceRequests, api.ParentRequestEventFixtureReads, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
@@ -54,7 +53,7 @@ func buildLedgerServices(t *testing.T) (*parentService.Portal, careplan.ExcusedA
 		ParentRequestEvents: events,
 		Logger:              slog.Default(),
 	})
-	return svc, excused, events, db
+	return svc, excused, api.NewParentRequestEventFixtureReads(events), db
 }
 
 // TestParentRequestLedgerRecordsSubmitAndDecision pins the ledger wiring: a
@@ -76,8 +75,8 @@ func TestParentRequestLedgerRecordsSubmitAndDecision(t *testing.T) {
 
 	rows := listLedger(t, db, events, chain.TenantID, requestID)
 	require.Len(t, rows, 1, "the submission appends exactly one event")
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, rows[0].EventType)
-	assert.Equal(t, usersModels.ParentRequestTypeExcusedAbsence, rows[0].RequestType)
+	assert.Equal(t, "submitted", rows[0].EventType)
+	assert.Equal(t, "excused", rows[0].RequestType)
 	require.NotNil(t, rows[0].ActorAccountID)
 	assert.Equal(t, chain.AccountID, *rows[0].ActorAccountID, "the guardian is the actor of a submission")
 	assert.Equal(t, chain.StudentID, rows[0].StudentID)
@@ -96,7 +95,7 @@ func TestParentRequestLedgerRecordsSubmitAndDecision(t *testing.T) {
 	rows = listLedger(t, db, events, chain.TenantID, requestID)
 	require.Len(t, rows, 2, "the decision appends one further event, oldest first")
 	decided := rows[1]
-	assert.Equal(t, usersModels.ParentRequestEventDecided, decided.EventType)
+	assert.Equal(t, "decided", decided.EventType)
 	assert.Equal(t, true, decided.Payload["approve"])
 	assert.Equal(t, "Passt so", decided.Payload["reason"])
 	assert.NotEmpty(t, decided.Version, "the decision event carries the version it produced")
@@ -131,20 +130,20 @@ func TestParentRequestLedgerRollsBackWithItsWrite(t *testing.T) {
 
 	rows := listLedger(t, db, events, chain.TenantID, requestID)
 	require.Len(t, rows, 1, "a refused decision appends no event")
-	assert.Equal(t, usersModels.ParentRequestEventSubmitted, rows[0].EventType)
+	assert.Equal(t, "submitted", rows[0].EventType)
 }
 
 func listLedger(
 	t *testing.T,
 	db *bun.DB,
-	events usersModels.ParentRequestEventRepository,
+	events api.ParentRequestEventFixtureReads,
 	tenantID, requestID int64,
-) []*usersModels.ParentRequestEvent {
+) []*api.ParentRequestEventFixture {
 	t.Helper()
-	var rows []*usersModels.ParentRequestEvent
+	var rows []*api.ParentRequestEventFixture
 	require.NoError(t, testpkg.WithTenantTx(t, context.Background(), db, tenantID, func(txCtx context.Context, _ bun.Tx) error {
 		var err error
-		rows, err = events.ListForRequest(txCtx, usersModels.ParentRequestTypeExcusedAbsence, requestID)
+		rows, err = events.ListForRequest(txCtx, "excused", requestID)
 		return err
 	}))
 	return rows

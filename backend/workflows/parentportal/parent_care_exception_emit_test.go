@@ -13,8 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -162,10 +160,10 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 
 // loadThreadPills reads the (student, guardian) thread messages under the tenant
 // tx (RLS), returning an empty slice when no thread exists.
-func loadThreadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, c testpkg.ParentChain) (int64, []*usersModels.ParentMessage) {
+func loadThreadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, c testpkg.ParentChain) (int64, []*parentportal.ParentMessage) {
 	t.Helper()
 	var threadID int64
-	var msgs []*usersModels.ParentMessage
+	var msgs []*parentportal.ParentMessage
 	err := testpkg.WithTenantTx(t, testpkg.WithPackageTenantRuntime(context.Background()), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
 		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
@@ -180,7 +178,7 @@ func loadThreadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory,
 	return threadID, msgs
 }
 
-func countCareExceptionPills(msgs []*usersModels.ParentMessage) int {
+func countCareExceptionPills(msgs []*parentportal.ParentMessage) int {
 	n := 0
 	for _, m := range msgs {
 		if m.EventType == "care_exception" || m.EventType == "care_exception_correction" {

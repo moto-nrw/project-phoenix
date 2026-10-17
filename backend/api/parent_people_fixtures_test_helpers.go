@@ -1,0 +1,142 @@
+//go:build testhooks
+
+package api
+
+import (
+	"context"
+	"encoding/json"
+
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleVocabulary "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+)
+
+// These test-only bindings retain the exact stores the fixture graph already
+// holds. Native fixture values do not change the production reader DTO debt.
+func (f *PeopleRepositorySuiteFactory) CreateGuardianLinkFixture(ctx context.Context, value *peopledirectory.GuardianLinkFixture) error {
+	return f.StudentGuardian.(peopledirectory.GuardianLinkFixtureWriter).CreateGuardianLinkFixture(ctx, value)
+}
+func (f *PeopleRepositorySuiteFactory) CreateGuardianPhoneFixture(ctx context.Context, value *peopledirectory.GuardianPhoneFixture) error {
+	return f.GuardianPhoneNumber.(peopledirectory.GuardianPhoneFixtureWriter).CreateGuardianPhoneFixture(ctx, value)
+}
+func (f *PeopleRepositorySuiteFactory) CreateFamilyProtectionFixture(ctx context.Context, value *peopledirectory.FamilyProtectionFixture) error {
+	return f.FamilyProtection.(peopledirectory.FamilyProtectionFixtureWriter).CreateFamilyProtectionFixture(ctx, value)
+}
+
+// ParentRequestEventFixtureReads observes the same append-only ledger through
+// native values; workflow construction still receives its original writer.
+type ParentRequestEventFixtureReads struct {
+	source peopledirectory.ParentRequestEventFixtureSource
+}
+
+func NewParentRequestEventFixtureReads(source peopleVocabulary.ParentRequestEventRepository) ParentRequestEventFixtureReads {
+	return ParentRequestEventFixtureReads{source: source.(peopledirectory.ParentRequestEventFixtureSource)}
+}
+func (r ParentRequestEventFixtureReads) ListForRequest(ctx context.Context, kind string, id int64) ([]*ParentRequestEventFixture, error) {
+	values, err := r.source.ListParentRequestEventFixtures(ctx, kind, id)
+	if values == nil {
+		return nil, err
+	}
+	rows := make([]*ParentRequestEventFixture, len(values))
+	for i, value := range values {
+		if value == nil {
+			continue
+		}
+		var payload map[string]any
+		if decodeErr := json.Unmarshal(value.Payload, &payload); decodeErr != nil {
+			return nil, decodeErr
+		}
+		rows[i] = &ParentRequestEventFixture{ParentRequestEventFixture: *value, Payload: payload}
+	}
+	return rows, err
+}
+
+// ParentGuardianProfileReadFixture adapts a native locale-read fixture to the
+// retained workflow read contract. Other reads stay inert as in the old stub.
+type ParentGuardianProfileReadFixture struct {
+	find func(context.Context, int64) (*peopledirectory.GuardianProfileFixture, error)
+}
+
+func NewParentGuardianProfileReadFixture(find func(context.Context, int64) (*peopledirectory.GuardianProfileFixture, error)) *ParentGuardianProfileReadFixture {
+	return &ParentGuardianProfileReadFixture{find: find}
+}
+func (r *ParentGuardianProfileReadFixture) FindByAccountID(ctx context.Context, id int64) (*peopleVocabulary.GuardianProfile, error) {
+	value, err := r.find(ctx, id)
+	return parentGuardianProfileFixtureRow(value), err
+}
+func (*ParentGuardianProfileReadFixture) FindByID(context.Context, int64) (*peopleVocabulary.GuardianProfile, error) {
+	return nil, nil
+}
+func (*ParentGuardianProfileReadFixture) FindByIDs(context.Context, []int64) (map[int64]*peopleVocabulary.GuardianProfile, error) {
+	return nil, nil
+}
+func (*ParentGuardianProfileReadFixture) FindByEmail(context.Context, string) (*peopleVocabulary.GuardianProfile, error) {
+	return nil, nil
+}
+func (*ParentGuardianProfileReadFixture) LockByIDForUpdate(context.Context, int64) error { return nil }
+func (*ParentGuardianProfileReadFixture) FindActivePortalProfilesByIDs(context.Context, []int64) (map[int64]*peopleVocabulary.GuardianProfile, error) {
+	return nil, nil
+}
+
+func parentGuardianProfileFixtureRow(value *peopledirectory.GuardianProfileFixture) *peopleVocabulary.GuardianProfile {
+	if value == nil {
+		return nil
+	}
+	row := &peopleVocabulary.GuardianProfile{
+		FirstName:              value.FirstName,
+		LastName:               value.LastName,
+		Email:                  value.Email,
+		AddressStreet:          value.AddressStreet,
+		AddressCity:            value.AddressCity,
+		AddressPostalCode:      value.AddressPostalCode,
+		AccountID:              value.AccountID,
+		HasAccount:             value.HasAccount,
+		PreferredContactMethod: value.PreferredContactMethod,
+		LanguagePreference:     value.LanguagePreference,
+		PortalLocale:           value.PortalLocale,
+		Notes:                  value.Notes,
+	}
+	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
+	if value.PhoneNumbers != nil {
+		row.PhoneNumbers = make([]*peopleVocabulary.GuardianPhoneNumber, len(value.PhoneNumbers))
+		for i, phone := range value.PhoneNumbers {
+			if phone == nil {
+				continue
+			}
+			mapped := &peopleVocabulary.GuardianPhoneNumber{
+				GuardianProfileID: phone.GuardianProfileID,
+				PhoneNumber:       phone.PhoneNumber,
+				PhoneType:         peopleVocabulary.PhoneType(phone.PhoneType),
+				Label:             phone.Label,
+				IsPrimary:         phone.IsPrimary,
+				Priority:          phone.Priority,
+			}
+			mapped.ID, mapped.TenantID, mapped.CreatedAt, mapped.UpdatedAt = phone.ID, phone.TenantID, phone.CreatedAt, phone.UpdatedAt
+			row.PhoneNumbers[i] = mapped
+		}
+	}
+	return row
+}
+
+// ParentPersistedFixtureProtocol binds the composed owner scalar facet.
+func ParentPersistedFixtureProtocol(source peopledirectory.Capability) peopledirectory.ParentFixtureProtocol {
+	return source.(peopledirectory.ParentFixtureProtocols).ParentFixtureProtocol()
+}
+
+// ParentRequestEventFixture is the root test view of the owner's typed JSON
+// payload. It retains all metadata while decoding the same persisted JSON for
+// the existing ledger assertions.
+type ParentRequestEventFixture struct {
+	peopledirectory.ParentRequestEventFixture
+	Payload map[string]any
+}
+
+// ParentGuardianRoleFixtureJSON serializes the same canonical role preset for
+// the native owner's stored-JSON permission input. Presets contain JSON values.
+func ParentGuardianRoleFixtureJSON(role string) (string, json.RawMessage) {
+	canonical, permissions := ParentGuardianRoleFixture(role)
+	encoded, err := json.Marshal(permissions)
+	if err != nil {
+		panic(err)
+	}
+	return canonical, encoded
+}
