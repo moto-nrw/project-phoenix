@@ -1,4 +1,4 @@
-package schoolportal_test
+package api
 
 import (
 	"context"

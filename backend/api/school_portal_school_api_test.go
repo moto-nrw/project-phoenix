@@ -2,7 +2,7 @@
 // pins the scope isolation (school tokens work ONLY on /school/*, every
 // other scope is refused there), the school login handler's portal-role
 // gate, and the scope binding of the school MFA surface.
-package schoolportal_test
+package api
 
 import (
 	"context"
@@ -20,10 +20,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
@@ -31,15 +29,15 @@ import (
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
-const testPassword = "Test1234%" //nolint:gosec // test credential
+const schoolPortalTestPassword = "Test1234%" //nolint:gosec // test credential
 
-type responseEnvelope[T any] struct {
+type schoolPortalResponseEnvelope[T any] struct {
 	Data T `json:"data"`
 }
 
-func decodeData[T any](t *testing.T, body []byte) T {
+func decodeSchoolPortalData[T any](t *testing.T, body []byte) T {
 	t.Helper()
-	var envelope responseEnvelope[T]
+	var envelope schoolPortalResponseEnvelope[T]
 	require.NoError(t, json.Unmarshal(body, &envelope), string(body))
 	return envelope.Data
 }
@@ -49,19 +47,19 @@ func decodeData[T any](t *testing.T, body []byte) T {
 func setupSchoolRoute(t *testing.T, clocks ...func() time.Time) (*bun.DB, *schoolportal.Resource, int64, string) {
 	t.Helper()
 
-	db, services := setupSchoolModule(t, clocks...)
+	db, services := setupSchoolPortalModule(t, clocks...)
 	classDayResource := classdayhttp.NewResource(services.ClassDay, nil)
 	timetableResource := timetable.NewResource(timetable.Dependencies{
 		OperationsService: services.TimetableOperations,
 		SupervisionSheets: services.TimetableSupervisionSheets, SettingsService: services.Settings,
 		Now: firstSchoolClock(clocks),
 	})
-	resource := schoolportal.NewResource(
+	resource := NewSchoolPortalHTTP(
 		services.SchoolAuth, services.SchoolMFA,
 		schoolportal.PasswordResetRuntime{}, classDayResource, timetableResource,
 		emptySchoolMessagingRouter{},
 		nil,
-		notifications.NewResource(services.Notifications, services.PushSubscriptions, services.NotificationPreferences),
+		newSchoolNotificationsForTests(services.DeliveryTestModule),
 	)
 
 	tenantID, subdomain := testpkg.CreateTestTenant(t, db)
@@ -76,7 +74,7 @@ func (emptySchoolMessagingRouter) SchoolRouter() chi.Router { return chi.NewRout
 // newSchoolRouter builds the school portal router with a stubbed second
 // factor; the composed one stays on the resource.
 func newSchoolRouter(resource *schoolportal.Resource, mfa schoolportal.MFARuntime) http.Handler {
-	return testpkg.SessionVerifier(schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications).Router())
+	return testpkg.SessionVerifier(schoolportal.NewResource(resource.AuthService, mfa, resource.Resets, resource.ClassDay, resource.Timetable, resource.StaffMessaging, resource.StaffNotices, resource.Notifications, resource.TenantContext).Router())
 }
 
 // newSchoolChiRouter is newSchoolRouter without the http.Handler erasure, for
@@ -85,16 +83,16 @@ func newSchoolChiRouter(resource *schoolportal.Resource) chi.Router {
 	return resource.Router()
 }
 
-// settingsWriter is the write side of the settings service the school test
+// schoolPortalSettingsWriter is the write side of the settings service the school test
 // module binds; the timetable routes only read through it.
-type settingsWriter interface {
+type schoolPortalSettingsWriter interface {
 	SetValue(ctx context.Context, key string, value any, changedBy *int64, userPermissions []string) error
 }
 
 // newSchoolTimetableResource builds the timetable resource behind
 // /school/supervisions (#2527) with the deps that surface actually consumes.
 func newSchoolTimetableResource(db *bun.DB, resource *schoolportal.Resource, clocks ...func() time.Time) *timetable.Resource {
-	dependencies := resource.Timetable.Dependencies
+	dependencies := resource.Timetable.(*timetable.Resource).Dependencies
 	dependencies.Now = firstSchoolClock(clocks)
 	return timetable.NewResource(dependencies)
 }
@@ -129,7 +127,7 @@ func registerLehrkraft(t *testing.T, db *bun.DB, resource *schoolportal.Resource
 	// Account creation belongs to Identity & Access since #3332 and this
 	// portal may not name that contract; the shared fixture writes the same
 	// row the registration would.
-	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
+	account := testpkg.CreateTestAccountWithPassword(t, db, email, schoolPortalTestPassword)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 	testpkg.AssignLehrkraftSystemRole(t, db, account.ID, tenantID)
 	return email, account.ID
@@ -147,8 +145,8 @@ func TestSchoolPortalTokenMatrix(t *testing.T) {
 		_, _ = db.NewDelete().TableExpr("education.class_teachers").Where("id = ?", assignment.ID).Exec(tenantCtx)
 	})
 
-	classDayResource := classdayhttp.NewResource(resource.ClassDay.ClassDay, nil)
-	schoolRouter := schoolportal.NewResource(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
+	classDayResource := classdayhttp.NewResource(resource.ClassDay.(*classdayhttp.Resource).ClassDay, nil)
+	schoolRouter := NewSchoolPortalHTTP(resource.AuthService, resource.MFAService, resource.Resets, classDayResource, newSchoolTimetableResource(db, resource), resource.StaffMessaging, nil, nil).Router()
 
 	schoolClaims := sessiontoken.AppClaims{
 		ID: int(account.ID), Sub: account.Email,
@@ -202,10 +200,10 @@ func TestSchoolLoginHandler_PortalRoleGate(t *testing.T) {
 
 	unique := time.Now().UnixNano()
 	email := fmt.Sprintf("school-login-%d@test.local", unique)
-	account := testpkg.CreateTestAccountWithPassword(t, db, email, testPassword)
+	account := testpkg.CreateTestAccountWithPassword(t, db, email, schoolPortalTestPassword)
 	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
 
-	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, testPassword)
+	loginBody := fmt.Sprintf(`{"email":%q,"password":%q}`, email, schoolPortalTestPassword)
 
 	// Mapped, but no school-portal role → 403 with the stable portal code.
 	req := httptest.NewRequest(http.MethodPost, "/auth/login", strings.NewReader(loginBody))
@@ -396,7 +394,7 @@ func TestSchoolMFAResend_DrivesTheSchoolRuntime(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.True(t, resent, "the resend endpoint must drive the school-scoped runtime")
 
-	var renewed common.MFAResendResponse
+	var renewed SchoolMFAResendResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &renewed))
 	assert.Equal(t, "renewed-school-challenge", renewed.ChallengeToken)
 }

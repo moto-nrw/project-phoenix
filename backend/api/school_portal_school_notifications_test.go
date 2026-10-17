@@ -2,7 +2,7 @@
 // decisions and devices through /school/notifications with a school token,
 // sees only the catalogue the school portal offers, and her devices are
 // recorded as school-portal devices.
-package schoolportal_test
+package api
 
 import (
 	"bytes"
@@ -14,12 +14,14 @@ import (
 	"testing"
 	"time"
 
+	timetable "github.com/moto-nrw/project-phoenix/modules/timetable/http"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -39,7 +41,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	db, resource, tenantID, _ := setupSchoolRoute(t)
 	schoolRouter := newSchoolChiRouter(resource)
 
-	require.NoError(t, resource.Timetable.SettingsService.(settingsWriter).SetValue(
+	require.NoError(t, resource.Timetable.(*timetable.Resource).SettingsService.(schoolPortalSettingsWriter).SetValue(
 		testpkg.TenantContext(tenantID), configModel.KeyStaffMessagingEnabled, true, nil, nil,
 	))
 
@@ -56,7 +58,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec := testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	overview := decodeData[schoolNotificationPreferences](t, rec.Body.Bytes())
+	overview := decodeSchoolPortalData[schoolNotificationPreferences](t, rec.Body.Bytes())
 	keys := make([]string, 0, len(overview.Types))
 	for _, entry := range overview.Types {
 		keys = append(keys, entry.Key)
@@ -75,7 +77,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	overview = decodeData[schoolNotificationPreferences](t, rec.Body.Bytes())
+	overview = decodeSchoolPortalData[schoolNotificationPreferences](t, rec.Body.Bytes())
 	assert.True(t, overview.Types[0].Enabled)
 
 	// ... and only the offered types can be decided from here.
@@ -91,7 +93,7 @@ func TestSchoolNotificationPreferences(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rec.Code, rec.Body.String())
 	req = httptest.NewRequest(http.MethodGet, "/notifications/preferences/", nil)
 	rec = testutil.ExecuteWithAuth(t, schoolRouter, req, claims)
-	overview = decodeData[schoolNotificationPreferences](t, rec.Body.Bytes())
+	overview = decodeSchoolPortalData[schoolNotificationPreferences](t, rec.Body.Bytes())
 	assert.False(t, overview.Types[0].Enabled)
 
 	// Scope isolation, symmetric to every other school surface.

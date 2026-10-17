@@ -13,7 +13,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 const headerUserAgent = "User-Agent"
@@ -360,7 +359,10 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 	// Inject the tenant from the enrollment claims so the MFA audit
 	// events land in audit.auth_events instead of being dropped (mirrors
 	// the tenant enroll-confirm).
-	ctx := tenant.WithTenantID(r.Context(), claims.TenantID)
+	if !common.RequireDependency(w, r, rs.TenantContext != nil, errMFAServiceUnavailable) {
+		return
+	}
+	ctx := rs.TenantContext(r.Context(), claims.TenantID)
 
 	verified, err := rs.MFAService.VerifyChallengeForOwner(
 		ctx, req.ChallengeToken, req.Code, claims.AccountID, claims.TenantID,
