@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 )
 
 // ErrRetentionUnresolved means the school's parent-message retention window
@@ -22,7 +20,7 @@ type RetentionStore interface {
 
 // RetentionSettings resolves the school's retention window.
 type RetentionSettings interface {
-	ResolveInt(ctx context.Context, key string) (int, error)
+	ParentMessageRetentionDays(ctx context.Context) (int, error)
 }
 
 // RetentionResult reports one school's retention sweep.
@@ -48,7 +46,7 @@ func (r Retention) CleanupExpiredMessages(ctx context.Context) (RetentionResult,
 	if r.Store == nil || r.Settings == nil {
 		return RetentionResult{}, ErrRetentionUnresolved
 	}
-	days, err := r.Settings.ResolveInt(ctx, configModels.KeyGDPRParentMessageRetentionDays)
+	days, err := r.Settings.ParentMessageRetentionDays(ctx)
 	if err != nil {
 		return RetentionResult{}, fmt.Errorf("%w: %w", ErrRetentionUnresolved, err)
 	}

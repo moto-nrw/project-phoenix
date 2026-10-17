@@ -19,7 +19,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/uptrace/bun"
 )
 
@@ -31,7 +30,7 @@ type ParentMessagingConfig struct {
 	// UserContext is the caller: the student read rules gate the read scope,
 	// and its groups serve the "own groups" count scope (#3673).
 	UserContext      parentMessages.Caller
-	Settings         configService.SettingsService
+	Settings         parentMessages.Settings
 	Broadcaster      realtime.Broadcaster
 	DB               *bun.DB
 	Logger           *slog.Logger
@@ -196,7 +195,7 @@ type StaffMessagingConfig struct {
 	MessageRepo usersModels.StaffMessageRepository
 	ReadRepo    usersModels.StaffMessageReadRepository
 	Persons     staffMessages.PersonLookup
-	Settings    configService.SettingsService
+	Settings    staffMessages.Settings
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 	Notifier    notifications.Service

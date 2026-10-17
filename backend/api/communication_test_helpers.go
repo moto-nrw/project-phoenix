@@ -10,6 +10,7 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -34,7 +35,7 @@ func NewParentEventEmitter(
 ) *communicationCompose.ParentEventEmitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
-		Settings: settings, Broadcaster: broadcaster, Logger: logger,
+		Settings: settingsValues.NewParentEventValues(settings), Broadcaster: broadcaster, Logger: logger,
 	})
 }
 

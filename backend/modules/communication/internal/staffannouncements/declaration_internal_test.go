@@ -14,7 +14,6 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 func declarationTestInput() Input {
@@ -325,9 +324,9 @@ func TestDeclarationWithSubmissionsKeepsItsRules(t *testing.T) {
 	assert.Equal(t, deadline, *repo.announcement.ResponseDeadline)
 }
 
-type newsOn struct{ configService.SettingsService }
+type newsOn struct{ Settings }
 
-func (newsOn) ResolveBool(context.Context, string) (bool, error) { return true, nil }
+func (newsOn) ParentNewsEnabled(context.Context) (bool, error) { return true, nil }
 
 func TestDeclarationKeepsItsDeadlineThroughTheFullNormalisation(t *testing.T) {
 	t.Parallel()

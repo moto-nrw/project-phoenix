@@ -11,9 +11,9 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -68,7 +68,7 @@ func newServiceWithEnabled(t *testing.T, db *bun.DB, enabled bool, retentionDays
 		MessageRepo: repos.Message,
 		ReadRepo:    repos.Read,
 		Persons:     persons,
-		Settings:    settings,
+		Settings:    configModels.NewStaffMessagingValues(settings),
 	}, testpkg.TenantTransactionRuntime{})
 }
 
@@ -87,7 +87,7 @@ func newServiceWithBrokenRetention(t *testing.T, db *bun.DB) *staffmessaging.Ser
 		ThreadRepo:  repos.Thread,
 		MessageRepo: repos.Message,
 		ReadRepo:    repos.Read,
-		Settings:    settings,
+		Settings:    configModels.NewStaffMessagingValues(settings),
 	}, testpkg.TenantTransactionRuntime{})
 }
 

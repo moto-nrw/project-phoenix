@@ -19,7 +19,7 @@ type ParentEventEmitterConfig struct {
 	Runtime     parentMessages.EventRuntime
 	ThreadRepo  usersModels.ParentMessageThreadRepository
 	MessageRepo usersModels.ParentMessageRepository
-	Settings    parentmessaging.TenantSettingsResolver
+	Settings    parentMessages.EventSettings
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -461,7 +462,7 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
 		ReadRepo: portal.ParentMessageRead, Persons: b.graph.Users, UserContext: StaffStudentReads{Caller: b.callerContext},
-		Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
+		Settings: settingsValues.NewParentMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
 		Logger: b.Logger.With("service", "messaging"), Notifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
@@ -471,7 +472,7 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(b.DB.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(b.DB.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: b.graph.Users, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub,
+		Persons: b.graph.Users, Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "staffmessaging"), Notifier: b.graph.Notifications,
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
 	}, CommunicationRequestRuntime{})
@@ -515,7 +516,7 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.Parent = parentportalcompose.New(b.parentPortalDependencies(profiles))
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: b.settingsService, Outbox: b.late.emailOutbox,
+		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: b.late.emailOutbox,
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: b.graph.Notifications,
 		ReminderNotifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,

@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -66,7 +67,7 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 		MessageRepo: parentStore.NewParentMessageRepository(db),
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     newPersons(repos, db),
-		Settings:    stubSettings{messagingEnabled: true},
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 
 		Logger:           slog.Default(),

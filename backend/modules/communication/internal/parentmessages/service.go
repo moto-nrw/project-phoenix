@@ -18,7 +18,6 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
@@ -85,7 +84,7 @@ type Config struct {
 	ReadRepo    usersModels.ParentMessageReadRepository
 	Persons     PersonLookup
 	UserContext StudentReadAccess
-	Settings    parentmessaging.SettingsResolver
+	Settings    Settings
 	Broadcaster realtime.Broadcaster
 	Logger      *slog.Logger
 
@@ -656,7 +655,7 @@ func (s *Service) staffNameVisibleToParents(ctx context.Context) bool {
 	if s.Settings == nil {
 		return false
 	}
-	visible, err := s.Settings.ResolveBool(ctx, configModels.KeyParentMessageStaffNameVisible)
+	visible, err := s.Settings.ParentMessageStaffNameVisible(ctx)
 	if err != nil {
 		s.Logger.Warn("messaging: resolve staff-name visibility failed, defaulting to anonymous",
 			slog.String("error", err.Error()),

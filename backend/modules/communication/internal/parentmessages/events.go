@@ -4,7 +4,6 @@ import (
 	"context"
 	"log/slog"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
@@ -18,7 +17,7 @@ type EventEmitter struct {
 	runtime     EventRuntime
 	threadRepo  usersModels.ParentMessageThreadRepository
 	messageRepo usersModels.ParentMessageRepository
-	settings    parentmessaging.TenantSettingsResolver
+	settings    EventSettings
 	broadcaster realtime.Broadcaster
 	logger      *slog.Logger
 }
@@ -32,7 +31,7 @@ func NewEventEmitter(
 	runtime EventRuntime,
 	threadRepo usersModels.ParentMessageThreadRepository,
 	messageRepo usersModels.ParentMessageRepository,
-	settings parentmessaging.TenantSettingsResolver,
+	settings EventSettings,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
 ) *EventEmitter {
@@ -114,7 +113,7 @@ func (e *EventEmitter) EmitChildEvent(tenantID, studentID, guardianAccountID int
 	// Detached background context: the pill outlives the (already committed)
 	// request transaction and must not inherit its cancellation.
 	bgCtx := e.backgroundContext()
-	enabled, err := e.settings.ResolveBoolForTenant(bgCtx, tenantID, configModels.KeyParentNotesEnabled)
+	enabled, err := e.settings.ParentNotesEnabledForTenant(bgCtx, tenantID)
 	// Messaging OFF (or a settings-resolve blip, which fails CLOSED for this
 	// write path) normally drops the pill entirely so a disabled school never
 	// accumulates threads via GetOrCreate. The ONE exception is a TERMINAL

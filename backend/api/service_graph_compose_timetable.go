@@ -16,6 +16,7 @@ import (
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
 	facilitiesLegacy "github.com/moto-nrw/project-phoenix/modules/facilities/compose/legacy"
 	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
@@ -92,7 +93,7 @@ func composePresence(b graphBuild) (graphBuild, error) {
 	// enrollment writes that change a child's live care data.
 	emitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
 		Runtime: NewCommunicationEventRuntime(b.DB.Pool() != nil, b.TenantRuntime), ThreadRepo: b.Platform.ParentPortal.ParentMessageThread,
-		MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()), Settings: b.settingsService,
+		MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()), Settings: settingsValues.NewParentEventValues(b.settingsService),
 		Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent-events"),
 	})
 	b.graph.ParentEventEmitter = emitter
