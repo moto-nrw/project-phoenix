@@ -1,37 +1,28 @@
-package compose
+package timetracking
 
 import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// --- work sessions ----------------------------------------------------------
-
 type workSessionCapability struct {
-	sessions timetracking.WorkSessionService
-	staff    StaffScheduleBindingLookup
+	sessions WorkSessionService
+	staff    func(context.Context, int64) (StaffScheduleBinding, error)
 }
-
-// StaffScheduleBindingLookup resolves the staff record a schedule update is
-// written for: its current work time model and rotation anchor. The root
-// binds it to the People Directory's staff read.
-type StaffScheduleBindingLookup func(ctx context.Context, staffID int64) (StaffScheduleBinding, error)
 
 // WorkSessionCapability serves workforce.WorkSessions from the work session
 // service; the lookup resolves the staff record a schedule update is written
 // for.
-func WorkSessionCapability(sessions timetracking.WorkSessionService, staff StaffScheduleBindingLookup) workforce.WorkSessions {
+func WorkSessionCapability(sessions WorkSessionService, staff func(context.Context, int64) (StaffScheduleBinding, error)) workforce.WorkSessions {
 	if sessions == nil || staff == nil {
 		panic("work session capability: work session service and staff lookup are required")
 	}
 	return workSessionCapability{sessions: sessions, staff: staff}
 }
 
-func publicWorkSession(entity *timetracking.WorkSession) *workforce.WorkSession {
+func publicWorkSession(entity *WorkSession) *workforce.WorkSession {
 	if entity == nil {
 		return nil
 	}
@@ -43,7 +34,7 @@ func publicWorkSession(entity *timetracking.WorkSession) *workforce.WorkSession 
 	}
 }
 
-func publicWorkSessionBreak(entity *timetracking.WorkSessionBreak) *workforce.WorkSessionBreak {
+func publicWorkSessionBreak(entity *WorkSessionBreak) *workforce.WorkSessionBreak {
 	if entity == nil {
 		return nil
 	}
@@ -53,7 +44,7 @@ func publicWorkSessionBreak(entity *timetracking.WorkSessionBreak) *workforce.Wo
 	}
 }
 
-func publicWorkSessionBreaks(entities []*timetracking.WorkSessionBreak) []*workforce.WorkSessionBreak {
+func publicWorkSessionBreaks(entities []*WorkSessionBreak) []*workforce.WorkSessionBreak {
 	if entities == nil {
 		return nil
 	}
@@ -64,7 +55,7 @@ func publicWorkSessionBreaks(entities []*timetracking.WorkSessionBreak) []*workf
 	return result
 }
 
-func publicSessionResponse(value *timetracking.SessionResponse) *workforce.SessionResponse {
+func publicSessionResponse(value *SessionResponse) *workforce.SessionResponse {
 	if value == nil {
 		return nil
 	}
@@ -75,7 +66,7 @@ func publicSessionResponse(value *timetracking.SessionResponse) *workforce.Sessi
 	}
 }
 
-func publicHistory(value *timetracking.HistoryResponse) *workforce.HistoryResponse {
+func publicHistory(value *HistoryResponse) *workforce.HistoryResponse {
 	if value == nil {
 		return nil
 	}
@@ -105,7 +96,7 @@ func publicWorkSessionEdit(entity *WorkSessionEdit) *workforce.WorkSessionEdit {
 	}
 }
 
-func publicWorkSessionEdits(values []*timetracking.WorkSessionEditView) []*workforce.WorkSessionEditView {
+func publicWorkSessionEdits(values []*WorkSessionEditView) []*workforce.WorkSessionEditView {
 	if values == nil {
 		return nil
 	}
@@ -122,42 +113,44 @@ func publicWorkSessionEdits(values []*timetracking.WorkSessionEditView) []*workf
 	return result
 }
 
-func legacySessionUpdate(value workforce.SessionUpdateRequest) timetracking.SessionUpdateRequest {
-	result := timetracking.SessionUpdateRequest{
+func legacySessionUpdate(value workforce.SessionUpdateRequest) SessionUpdateRequest {
+	result := SessionUpdateRequest{
 		Date: value.Date, CheckInTime: value.CheckInTime, CheckOutTime: value.CheckOutTime, BreakMinutes: value.BreakMinutes,
 		Status: value.Status, Notes: value.Notes,
 	}
 	if value.Breaks != nil {
-		result.Breaks = make([]timetracking.BreakDurationUpdate, 0, len(value.Breaks))
+		result.Breaks = make([]BreakDurationUpdate, 0, len(value.Breaks))
 		for _, update := range value.Breaks {
-			result.Breaks = append(result.Breaks, timetracking.BreakDurationUpdate(update))
+			result.Breaks = append(result.Breaks, BreakDurationUpdate(update))
 		}
 	}
 	return result
 }
 
-func publicExportFile(value *timetracking.ExportFile) *workforce.ExportFile {
+func publicExportFile(value *ExportFile) *workforce.ExportFile {
 	if value == nil {
 		return nil
 	}
 	return &workforce.ExportFile{Data: value.Data, Filename: value.Filename, ContentType: value.ContentType}
 }
 
-type autoCheckIn struct {
-	sessions timetracking.WorkSessionService
+// AutoCheckIn serves Student Presence's auto-check-in from the work session
+// service.
+type AutoCheckIn struct {
+	sessions WorkSessionService
 }
 
 // AutoCheckInCapability serves Student Presence's auto-check-in from the work
 // session service. The error passes unchanged: Presence recognises the
 // planned-start refusal by its shape.
-func AutoCheckInCapability(sessions timetracking.WorkSessionService) AutoCheckIn {
+func AutoCheckInCapability(sessions WorkSessionService) AutoCheckIn {
 	if sessions == nil {
 		panic("auto check-in capability: work session service is required")
 	}
-	return autoCheckIn{sessions: sessions}
+	return AutoCheckIn{sessions: sessions}
 }
 
-func (a autoCheckIn) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error) {
+func (a AutoCheckIn) EnsureCheckedIn(ctx context.Context, staffID int64, source string) (*workforce.WorkSession, error) {
 	session, err := a.sessions.EnsureCheckedIn(ctx, staffID, source)
 	if err != nil {
 		return nil, err
@@ -230,7 +223,7 @@ func (c workSessionCapability) UpdateSessionAsAdmin(ctx context.Context, editorS
 }
 
 func (c workSessionCapability) CreateSessionAsAdmin(ctx context.Context, editorStaffID, targetStaffID int64, request workforce.AdminCreateSessionRequest) (*workforce.WorkSession, error) {
-	session, err := c.sessions.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, timetracking.AdminCreateSessionRequest(request))
+	session, err := c.sessions.CreateSessionAsAdmin(ctx, editorStaffID, targetStaffID, AdminCreateSessionRequest(request))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}

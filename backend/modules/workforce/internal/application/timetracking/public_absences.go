@@ -1,29 +1,25 @@
-package compose
+package timetracking
 
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 )
 
-// --- absences ---------------------------------------------------------------
-
 type staffAbsenceCapability struct {
-	absences timetracking.StaffAbsenceService
+	absences StaffAbsenceService
 }
 
 // StaffAbsenceCapability serves workforce.StaffAbsences from the retained
 // absence service.
-func StaffAbsenceCapability(absences timetracking.StaffAbsenceService) workforce.StaffAbsences {
+func StaffAbsenceCapability(absences StaffAbsenceService) workforce.StaffAbsences {
 	if absences == nil {
 		panic("staff absence capability: absence service is required")
 	}
 	return staffAbsenceCapability{absences: absences}
 }
 
-func publicStaffAbsence(entity *timetracking.StaffAbsence) *workforce.StaffAbsence {
+func publicStaffAbsence(entity *StaffAbsence) *workforce.StaffAbsence {
 	if entity == nil {
 		return nil
 	}
@@ -36,7 +32,7 @@ func publicStaffAbsence(entity *timetracking.StaffAbsence) *workforce.StaffAbsen
 	}
 }
 
-func publicAbsenceResponse(value *timetracking.StaffAbsenceResponse) *workforce.StaffAbsenceResponse {
+func publicAbsenceResponse(value *StaffAbsenceResponse) *workforce.StaffAbsenceResponse {
 	if value == nil {
 		return nil
 	}
@@ -45,7 +41,7 @@ func publicAbsenceResponse(value *timetracking.StaffAbsenceResponse) *workforce.
 	}
 }
 
-func publicAbsenceResponses(values []*timetracking.StaffAbsenceResponse) []*workforce.StaffAbsenceResponse {
+func publicAbsenceResponses(values []*StaffAbsenceResponse) []*workforce.StaffAbsenceResponse {
 	if values == nil {
 		return nil
 	}
@@ -56,7 +52,7 @@ func publicAbsenceResponses(values []*timetracking.StaffAbsenceResponse) []*work
 	return result
 }
 
-func publicVacationOpening(entity *timetracking.StaffVacationOpening) *workforce.StaffVacationOpening {
+func publicVacationOpening(entity *StaffVacationOpening) *workforce.StaffVacationOpening {
 	if entity == nil {
 		return nil
 	}
@@ -67,7 +63,7 @@ func publicVacationOpening(entity *timetracking.StaffVacationOpening) *workforce
 	}
 }
 
-func (c staffAbsenceCapability) absence(value *timetracking.StaffAbsenceResponse, err error) (*workforce.StaffAbsenceResponse, error) {
+func (c staffAbsenceCapability) absence(value *StaffAbsenceResponse, err error) (*workforce.StaffAbsenceResponse, error) {
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -83,7 +79,7 @@ func (c staffAbsenceCapability) ListAbsences(ctx context.Context, staffID int64,
 	if err != nil {
 		return nil, err
 	}
-	values, err := c.absences.ListAbsences(ctx, staffID, timetracking.StaffAbsenceListFilter{From: from, To: to, Status: filter.Status})
+	values, err := c.absences.ListAbsences(ctx, staffID, StaffAbsenceListFilter{From: from, To: to, Status: filter.Status})
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -103,15 +99,15 @@ func (c staffAbsenceCapability) AbsencesForRange(ctx context.Context, staffID in
 }
 
 func (c staffAbsenceCapability) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, timetracking.CreateAbsenceRequest(request)))
+	return c.absence(c.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, CreateAbsenceRequest(request)))
 }
 
 func (c staffAbsenceCapability) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, timetracking.CreateAbsenceRequest(request)))
+	return c.absence(c.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, CreateAbsenceRequest(request)))
 }
 
 func (c staffAbsenceCapability) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, timetracking.UpdateAbsenceRequest(request)))
+	return c.absence(c.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, UpdateAbsenceRequest(request)))
 }
 
 func (c staffAbsenceCapability) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
@@ -142,7 +138,7 @@ func (c staffAbsenceCapability) PreviewCompTimeBalance(ctx context.Context, staf
 }
 
 func (c staffAbsenceCapability) RebookAbsences(ctx context.Context, staffID, actorAccountID int64, request workforce.RebookAbsencesRequest) (*workforce.AbsenceRebookingResult, error) {
-	value, err := c.absences.RebookAbsences(ctx, timetracking.RebookAbsencesRequest{
+	value, err := c.absences.RebookAbsences(ctx, RebookAbsencesRequest{
 		StaffID: staffID, ActorAccountID: actorAccountID, AbsenceIDs: request.AbsenceIDs,
 		AbsenceType: request.AbsenceType, AbsenceTypeID: request.AbsenceTypeID,
 		Reason: request.Reason, DryRun: request.DryRun,
@@ -168,7 +164,7 @@ func (c staffAbsenceCapability) RebookAbsences(ctx context.Context, staffID, act
 }
 
 func (c staffAbsenceCapability) RequestVacation(ctx context.Context, staffID int64, request workforce.RequestVacationRequest) (*workforce.StaffAbsenceResponse, error) {
-	return c.absence(c.absences.RequestVacation(ctx, staffID, timetracking.RequestVacationRequest(request)))
+	return c.absence(c.absences.RequestVacation(ctx, staffID, RequestVacationRequest(request)))
 }
 
 func (c staffAbsenceCapability) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {
@@ -200,7 +196,7 @@ func (c staffAbsenceCapability) ListPendingRequests(ctx context.Context) ([]*wor
 }
 
 func (c staffAbsenceCapability) ListAbsenceRequests(ctx context.Context, query workforce.AbsenceRequestListQuery) ([]*workforce.StaffAbsenceRequestItem, error) {
-	values, err := c.absences.ListAbsenceRequests(ctx, timetracking.AbsenceRequestListQuery(query))
+	values, err := c.absences.ListAbsenceRequests(ctx, AbsenceRequestListQuery(query))
 	if err != nil {
 		return nil, mapTimeTrackingFailure(err)
 	}
@@ -240,11 +236,11 @@ func (c staffAbsenceCapability) UpsertVacationQuota(ctx context.Context, staffID
 }
 
 func (c staffAbsenceCapability) SetVacationQuota(ctx context.Context, change workforce.VacationQuotaChange) error {
-	return mapTimeTrackingFailure(c.absences.SetVacationQuota(ctx, timetracking.VacationQuotaChange(change)))
+	return mapTimeTrackingFailure(c.absences.SetVacationQuota(ctx, VacationQuotaChange(change)))
 }
 
 // VacationTakeoverCapability binds the import to the public Workforce contract.
-func VacationTakeoverCapability(absences timetracking.StaffAbsenceService) workforce.VacationTakeovers {
+func VacationTakeoverCapability(absences StaffAbsenceService) workforce.VacationTakeovers {
 	if absences == nil {
 		return nil
 	}
@@ -264,7 +260,7 @@ func (c staffAbsenceCapability) SetVacationOpening(ctx context.Context, staffID,
 	if err != nil {
 		return nil, err
 	}
-	opening, err := c.absences.SetVacationOpening(ctx, staffID, decidedBy, timetracking.SetVacationOpeningRequest{
+	opening, err := c.absences.SetVacationOpening(ctx, staffID, decidedBy, SetVacationOpeningRequest{
 		EffectiveDate: effective, RemainingDays: request.RemainingDays, Note: request.Note,
 	})
 	if err != nil {
