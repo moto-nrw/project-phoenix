@@ -109,7 +109,7 @@ func (rs *Resource) Router() chi.Router {
 			r.With(common.RequireActiveGroupCreate(), withTx).Post("/", rs.createActiveGroup)
 			r.With(common.RequireActiveGroupUpdate(), withTx).Put("/{id}", rs.updateActiveGroup)
 			r.With(common.RequireActiveGroupDelete(), withTx).Delete("/{id}", rs.deleteActiveGroup)
-			r.With(common.RequireActiveGroupUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post(routeEndByID, rs.endActiveGroup)
+			r.With(common.RequireActiveGroupUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post(routeEndByID, rs.endActiveGroup)
 			r.With(common.RequireActiveGroupUpdate(), withTx).Post("/{id}/claim", rs.claimGroup)
 		})
 
@@ -124,24 +124,24 @@ func (rs *Resource) Router() chi.Router {
 			r.With(common.RequireActiveGroupRead(), withTx).Get(routeGroupByGroupID, rs.getVisitsByGroup)
 
 			// Write operations
-			r.With(common.RequireActiveGroupCreate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/", rs.createVisit)
-			r.With(common.RequireActiveGroupUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Put("/{id}", rs.updateVisit)
-			r.With(common.RequireActiveGroupDelete(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Delete("/{id}", rs.deleteVisit)
-			r.With(common.RequireActiveGroupUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post(routeEndByID, rs.endVisit)
+			r.With(common.RequireActiveGroupCreate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/", rs.createVisit)
+			r.With(common.RequireActiveGroupUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Put("/{id}", rs.updateVisit)
+			r.With(common.RequireActiveGroupDelete(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Delete("/{id}", rs.deleteVisit)
+			r.With(common.RequireActiveGroupUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post(routeEndByID, rs.endVisit)
 
 			// Immediate checkout for students
-			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/student/{studentId}/checkout", rs.checkoutStudent)
+			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/student/{studentId}/checkout", rs.checkoutStudent)
 
 			// Immediate check-in for students (from home)
-			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/student/{studentId}/checkin", rs.checkinStudent)
+			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/student/{studentId}/checkin", rs.checkinStudent)
 
 			// Bulk assign checked-in students without a room visit to an active room session.
-			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/transit/assign", rs.assignTransitStudents)
-			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-group", rs.moveStudentsToActiveGroup)
+			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/transit/assign", rs.assignTransitStudents)
+			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/move-to-group", rs.moveStudentsToActiveGroup)
 			// Independent move into a released room (#3066): same permission,
 			// transaction and web-channel gate as the ordinary move.
-			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-room", rs.moveStudentsToOpenRoom)
-			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.SettingsService)).Post("/move-to-transit", rs.moveStudentsToTransit)
+			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/move-to-room", rs.moveStudentsToOpenRoom)
+			r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.displaySettings.WebAttendanceEnabledReader())).Post("/move-to-transit", rs.moveStudentsToTransit)
 		})
 
 		// Aggregated projection for the "Aktuelle Aufsicht" page (#2096):

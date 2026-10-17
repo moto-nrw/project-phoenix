@@ -1019,7 +1019,7 @@ func (graph *serveGraph) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if graph.services != nil && graph.services.Settings != nil {
 		// A weekend that follows Friday's plan reads the tenant setting only
 		// for Saturday and Sunday dates (#3921).
-		r = apiCommon.WithWeekendPlan(r, graph.services.Settings)
+		r = WithWeekendPlan(r, graph.services.Settings)
 	}
 	graph.router.ServeHTTP(w, r)
 }
