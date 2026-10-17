@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 66,
+  "policy_epoch": 67,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -10614,6 +10614,39 @@
       "source_role": "port",
       "target_role": "domain",
       "same_owner": true
+    },
+    {
+      "id": "identity-access.application.tenant-runtime",
+      "description": "Identity & Access application code scopes the operator's school-wide MFA writes to the school they name (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.application.transaction-runtime",
+      "description": "Identity & Access application code marks a store's missing row through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "identity-access.module-internal-test.tenant-runtime",
+      "description": "The internal tests of the Identity & Access application read the tenant the MFA writes ran under (ADR 0058 addendum point 4, #4084).",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "identity-access",
+      "source_role": "module-internal-test",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
     },
     {
       "id": "identity-access.compose.orm-sql",

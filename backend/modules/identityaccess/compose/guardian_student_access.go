@@ -6,9 +6,11 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
 )
 
 // NewGuardianStudentAccess composes the relationship-access commands (#2756)
@@ -30,7 +32,7 @@ type guardianStudentAccess struct {
 func (a guardianStudentAccess) GrantGuardianStudentAccess(ctx context.Context, grant identityaccess.GuardianStudentAccessGrant) error {
 	started := time.Now()
 	stats, err := a.store.GrantGuardianStudentAccess(ctx, postgres.GuardianStudentAccessRecord(grant))
-	err = mapError(err)
+	err = application.MapError(err)
 	a.observe(Observation{Operation: "grant_guardian_student_access", Duration: time.Since(started), Stats: stats, Err: err})
 	return err
 }
@@ -38,7 +40,7 @@ func (a guardianStudentAccess) GrantGuardianStudentAccess(ctx context.Context, g
 func (a guardianStudentAccess) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
 	started := time.Now()
 	found, stats, err := a.store.SetGuardianStudentPermissions(ctx, tenantID, relationshipID, permissions)
-	err = mapError(err)
+	err = application.MapError(err)
 	a.observe(Observation{Operation: "set_guardian_student_permissions", Duration: time.Since(started), Stats: stats, Err: err})
 	return found, err
 }
