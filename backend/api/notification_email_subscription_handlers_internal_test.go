@@ -1,4 +1,4 @@
-package notifications
+package api
 
 import (
 	"context"
@@ -9,7 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	notificationsService "github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
+	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -22,7 +22,7 @@ import (
 // so the routes are tested with the service's own permission check. Any other
 // consent call panics through the nil embedded interface.
 type emailConsentStub struct {
-	notificationsService.ConsentStore
+	deliveryCompose.NotificationConsentStore
 	stored   map[string]bool
 	readFor  []int64
 	recorded []emailDecision
@@ -45,10 +45,12 @@ func (s *emailConsentStub) RecordConsent(_ context.Context, accountID int64, not
 }
 
 func emailRouter(db *bun.DB, consent *emailConsentStub) chi.Router {
-	return NewResource(nil, nil, notificationsService.NewPreferenceService(consent, nil, nil, nil, securityruntime.HasPermission)).Router()
+	return NewNotificationHTTP(nil, nil, deliveryCompose.NewPreferenceService(consent, nil, nil, nil, securityruntime.HasPermission)).Router()
 }
 
-const enrollmentEmailPath = "/email-subscriptions/" + notificationsService.TypeEnrollmentSubmitted
+const notificationPickupUpcoming = "pickup_upcoming"
+
+const enrollmentEmailPath = "/email-subscriptions/" + deliveryCompose.NotificationEnrollmentSubmitted
 
 // The opt-in e-mail "Neue Anmeldung" (#3780) is decided by the caller for the
 // caller, and only while holding the type's permission.
@@ -68,7 +70,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 	on := map[string]any{"enabled": true}
 
 	t.Run("reads the caller's own decision", func(t *testing.T) {
-		prefs := &emailConsentStub{stored: map[string]bool{notificationsService.TypeEnrollmentSubmitted: true}}
+		prefs := &emailConsentStub{stored: map[string]bool{deliveryCompose.NotificationEnrollmentSubmitted: true}}
 		router := emailRouter(db, prefs)
 
 		code, body := do(t, router, manager, http.MethodGet, enrollmentEmailPath, nil)
@@ -85,7 +87,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 		code, body := do(t, router, manager, http.MethodPut, enrollmentEmailPath, on)
 
 		require.Equal(t, http.StatusNoContent, code, body)
-		assert.Equal(t, []emailDecision{{accountID: 73, notificationType: notificationsService.TypeEnrollmentSubmitted, enabled: true}}, prefs.recorded)
+		assert.Equal(t, []emailDecision{{accountID: 73, notificationType: deliveryCompose.NotificationEnrollmentSubmitted, enabled: true}}, prefs.recorded)
 	})
 
 	t.Run("without the type's permission nothing is read or written", func(t *testing.T) {
@@ -104,7 +106,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 		prefs := &emailConsentStub{}
 		router := emailRouter(db, prefs)
 
-		code, _ := do(t, router, manager, http.MethodPut, "/email-subscriptions/"+notificationsService.TypePickupUpcoming, on)
+		code, _ := do(t, router, manager, http.MethodPut, "/email-subscriptions/"+notificationPickupUpcoming, on)
 		assert.Equal(t, http.StatusNotFound, code, "push types are decided on the profile page")
 		code, _ = do(t, router, manager, http.MethodPut, enrollmentEmailPath, map[string]any{})
 		assert.Equal(t, http.StatusBadRequest, code, "switching off by omission is refused")
@@ -113,7 +115,7 @@ func TestEmailSubscriptionRoutes(t *testing.T) {
 
 	t.Run("the school portal does not offer it", func(t *testing.T) {
 		prefs := &emailConsentStub{}
-		router := NewResource(nil, nil, notificationsService.NewPreferenceService(prefs, nil, nil, nil, securityruntime.HasPermission)).SchoolRouter()
+		router := NewNotificationHTTP(nil, nil, deliveryCompose.NewPreferenceService(prefs, nil, nil, nil, securityruntime.HasPermission)).SchoolRouter()
 
 		code, _ := do(t, router, manager, http.MethodGet, enrollmentEmailPath, nil)
 		assert.NotEqual(t, http.StatusOK, code)

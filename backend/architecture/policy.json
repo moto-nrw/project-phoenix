@@ -154,10 +154,6 @@
       "kind": "inbound"
     },
     {
-      "id": "inbound-notifications",
-      "kind": "inbound"
-    },
-    {
       "id": "legacy-composition",
       "kind": "composition"
     },
@@ -802,7 +798,7 @@
     },
     {
       "path": "modules/delivery/http/notifications",
-      "owner": "inbound-notifications",
+      "owner": "delivery-platform",
       "role": "http",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
@@ -9232,50 +9228,6 @@
       "target_class": "orm-sql"
     },
     {
-      "id": "inbound-notifications.http-common",
-      "description": "Notification handlers reuse common HTTP rendering.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_owner": "inbound-common",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-notifications.identity-adapter",
-      "description": "Notification handlers read authenticated account claims.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
-      "id": "inbound-notifications.tenant-runtime",
-      "description": "Notification handlers join the request tenant transaction.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "http",
-      "target_owner": "tenant-runtime",
-      "target_role": "public"
-    },
-    {
-      "id": "inbound-notifications.adapter-test.identity-adapter",
-      "description": "Notification handler tests construct authenticated claims.",
-      "scopes": [
-        "internal_test"
-      ],
-      "source_owner": "inbound-notifications",
-      "source_role": "adapter-test",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "delivery-platform.workflow-integration-test.delivery-platform-application",
       "description": "Allows one dependency introduced by the Delivery package cutover.",
       "scopes": [
@@ -9318,17 +9270,6 @@
       "source_role": "workflow-integration-test",
       "target_owner": "test-support",
       "target_role": "test-support"
-    },
-    {
-      "id": "root-composition.compose.inbound-notifications-http",
-      "description": "Allows one dependency introduced by the Delivery package cutover.",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "root-composition",
-      "source_role": "compose",
-      "target_owner": "inbound-notifications",
-      "target_role": "http"
     },
     {
       "id": "delivery-platform.compose-observability",
