@@ -36,7 +36,7 @@ func buildTodayStatusService(t *testing.T) (*parentportal.ChildFlows, *bun.DB) {
 		ChildRepo:      repos.ParentChildReads(),
 		Attendance:     parentAttendance(t, db),
 		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
+		StudentRepo:    api.NewParentStudentReads(repos.Student),
 		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 13, 0, 0, 0, time.UTC)
@@ -67,7 +67,7 @@ func buildTodayStatusServiceWithSchedule(t *testing.T) (*parentportal.ChildFlows
 		ChildRepo:        repos.ParentChildReads(),
 		Attendance:       parentAttendance(t, db),
 		StatusDayRepo:    repos.StudentStatusDay,
-		StudentRepo:      repos.Student,
+		StudentRepo:      api.NewParentStudentReads(repos.Student),
 		ArrivalSchedules: arrivals,
 		PickupSchedules:  pickups,
 		Logger:           slog.Default(),

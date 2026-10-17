@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/compose/email"
@@ -13,7 +15,6 @@ import (
 	platformModels "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
 )
 
 // The bindings below connect Enrollment's application services (#3562) to
@@ -128,14 +129,14 @@ type parentCarePeriods struct {
 	}
 }
 
-func (p parentCarePeriods) CarePeriods(ctx context.Context, studentID int64) ([]*parentportalcompose.CarePeriod, error) {
+func (p parentCarePeriods) CarePeriods(ctx context.Context, studentID int64) ([]*parentportal.CarePeriod, error) {
 	periods, err := enrollmentOwner.StudentCarePeriodRecords(ctx, p.owner, studentID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*parentportalcompose.CarePeriod, 0, len(periods))
+	result := make([]*parentportal.CarePeriod, 0, len(periods))
 	for _, period := range periods {
-		result = append(result, &parentportalcompose.CarePeriod{
+		result = append(result, &parentportal.CarePeriod{
 			RequestChildID: period.RequestChildID, RequestID: period.RequestID, PhaseID: period.PhaseID,
 			PhaseName: period.PhaseName, ServiceStartDate: period.ServiceStartDate, ServiceEndDate: period.ServiceEndDate,
 		})
@@ -151,18 +152,18 @@ type parentOfferingHistory struct {
 	}
 }
 
-func (p parentOfferingHistory) OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportalcompose.OfferingBooking, error) {
+func (p parentOfferingHistory) OfferingHistory(ctx context.Context, requestChildID int64) ([]*parentportal.OfferingBooking, error) {
 	links, err := enrollmentOwner.OfferingHistoryRecords(ctx, p.owner, requestChildID)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]*parentportalcompose.OfferingBooking, 0, len(links))
+	result := make([]*parentportal.OfferingBooking, 0, len(links))
 	for _, link := range links {
 		if link == nil {
 			result = append(result, nil)
 			continue
 		}
-		result = append(result, &parentportalcompose.OfferingBooking{
+		result = append(result, &parentportal.OfferingBooking{
 			CareOfferingID: link.CareOfferingID, SelectedDays: link.SelectedDays,
 			ValidFrom: link.ValidFrom, ValidUntil: link.ValidUntil,
 		})

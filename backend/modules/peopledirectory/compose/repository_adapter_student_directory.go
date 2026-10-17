@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 )
@@ -47,7 +49,7 @@ func (d *StudentDirectory) ListStudents(
 	}
 	result := make([]*userModels.Student, 0, len(records))
 	for _, record := range records {
-		result = append(result, studentRecordToModel(record))
+		result = append(result, usersRepo.RetainedStudentModel(record))
 	}
 	return result, nil
 }
@@ -72,70 +74,6 @@ func toOwnerStudentDirectoryFilter(filter userModels.StudentDirectoryFilter) peo
 	return owner
 }
 
-// studentRecordToModel rebuilds the retained row from the owner's record. The
-// calendar dates travel as YYYY-MM-DD, so a malformed one would be a bug in
-// the owner rather than input: it becomes an unset date instead of a wrong day.
-func studentRecordToModel(record peopleModule.StudentRecord) *userModels.Student {
-	student := &userModels.Student{
-		PersonID: record.PersonID, SchoolClass: record.SchoolClass, GroupID: record.GroupID,
-		Status: userModels.StudentStatus(record.Status),
-
-		AddressStreet:     record.AddressStreet,
-		AddressCity:       record.AddressCity,
-		AddressPostalCode: record.AddressPostalCode,
-
-		ExtraInfo:       record.ExtraInfo,
-		SupervisorNotes: record.SupervisorNotes,
-		HealthInfo:      record.HealthInfo,
-		PickupStatus:    record.PickupStatus,
-
-		DepartureDays:          record.DepartureDays,
-		AllowedDepartureModes:  record.AllowedDepartureModes,
-		PickupDays:             record.PickupDays,
-		BusDays:                record.BusDays,
-		DepartureCompanionNote: record.DepartureCompanionNote,
-
-		Sick:         record.Sick,
-		SickSince:    record.SickSince,
-		Excused:      record.Excused,
-		ExcusedSince: record.ExcusedSince,
-
-		PhotoPath:           record.PhotoPath,
-		PhotoConsentGivenAt: record.PhotoConsentGivenAt,
-		PhotoConsentGivenBy: record.PhotoConsentGivenBy,
-
-		AGBAcceptedAt:            record.AGBAcceptedAt,
-		DataProcessingAcceptedAt: record.DataProcessingAcceptedAt,
-		EmailContactAcceptedAt:   record.EmailContactAcceptedAt,
-	}
-	student.ID, student.CreatedAt, student.UpdatedAt = record.ID, record.CreatedAt, record.UpdatedAt
-	student.SetTenantID(record.TenantID)
-	student.EnrolledFrom = userModels.OptionalCalendarDate(record.EnrolledFrom)
-	student.EnrolledUntil = userModels.OptionalCalendarDate(record.EnrolledUntil)
-	hydrateDeparturePlan(student)
-	return student
-}
-
-// hydrateDeparturePlan resolves the stored departure projections into the one
-// effective plan and records it as the update baseline. The precedence is the
-// owner's (departure.Plan.Effective); the snapshot is what lets a later Update
-// tell a plan the caller intentionally changed from one that merely rode along
-// on this read — without it, a caller that never touches the plan re-persists
-// its copy over a concurrent companion edit (#1694).
-func hydrateDeparturePlan(student *userModels.Student) {
-	effective := userModels.DeparturePlan{
-		AllowedDepartureModes: student.AllowedDepartureModes,
-		DepartureDays:         student.DepartureDays,
-		BusDays:               student.BusDays,
-		PickupDays:            student.PickupDays,
-	}.Effective()
-	student.AllowedDepartureModes = effective.AllowedDepartureModes
-	student.DepartureDays = effective.DepartureDays
-	student.BusDays = effective.BusDays
-	student.PickupDays = effective.PickupDays
-	student.SnapshotDeparturePlan()
-}
-
 // translateStudentDirectoryError restates a child the owner would not hand
 // over in the vocabulary the retained contract uses. A missing row and an
 // unusable id collapse to the same answer on purpose: both mean "no such child
@@ -158,7 +96,7 @@ func (d *StudentDirectory) GetStudentsByID(ctx context.Context, ids []int64) ([]
 	}
 	result := make([]*userModels.Student, 0, len(records))
 	for _, record := range records {
-		result = append(result, studentRecordToModel(record))
+		result = append(result, usersRepo.RetainedStudentModel(record))
 	}
 	return result, nil
 }
@@ -168,7 +106,7 @@ func (d *StudentDirectory) LockStudent(ctx context.Context, id int64) (*userMode
 	if err != nil {
 		return nil, translateStudentDirectoryError(err)
 	}
-	return studentRecordToModel(record), nil
+	return usersRepo.RetainedStudentModel(record), nil
 }
 
 func (d *StudentDirectory) LockPhotoFeature(ctx context.Context) error {

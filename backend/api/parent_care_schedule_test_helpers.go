@@ -24,12 +24,13 @@ func NewParentCareScheduleTestService(db transactionruntime.Database, module Stu
 		return nil, err
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianPolicy: ParentGuardianPolicy{},
-		Fingerprints:   SecurityFingerprints{},
-		Declarations:   ParentDeclarationPolicy(),
-		Locales:        ParentPortalLocales(),
-		Runtime:        ParentPortalRuntime{},
-		ChildRepo:      parents.ParentChildReads(), StudentRepo: repos.Student, PersonRepo: NewParentPersonReads(repos.Person),
+		DeparturePolicy: ParentDeparturePolicy(),
+		GuardianPolicy:  ParentGuardianPolicy{},
+		Fingerprints:    SecurityFingerprints{},
+		Declarations:    ParentDeclarationPolicy(),
+		Locales:         ParentPortalLocales(),
+		Runtime:         ParentPortalRuntime{},
+		ChildRepo:       parents.ParentChildReads(), StudentRepo: NewParentStudentReads(repos.Student), PersonRepo: NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: parents.StudentGuardian, GuardianProfileRepo: NewParentGuardianProfileReads(parents.GuardianProfile),
 		Settings: BindParentSettings(module.Settings), ArrivalSchedules: module.ArrivalSchedule, PickupSchedules: module.PickupSchedule,
 		CareRequests: module.CareRequests, CareRequestRepo: NewParentCareRequestReads(repos.CarePlan),

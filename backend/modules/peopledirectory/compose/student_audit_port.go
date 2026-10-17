@@ -3,6 +3,9 @@ package compose
 import (
 	"context"
 
+	usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
+	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
@@ -43,7 +46,7 @@ func (s *studentAuditActorPort) RecordChangesForActor(
 	before, after *userModels.Student,
 	editedBy int64,
 ) error {
-	return s.recorder.RecordChanges(ctx, before, after, editedBy, s.actorDisplayName(ctx, editedBy))
+	return s.RecordStudentChangesForActor(ctx, usersRepo.NativeStudentAuditSnapshot(before), usersRepo.NativeStudentAuditSnapshot(after), editedBy)
 }
 
 func (s *studentAuditActorPort) RecordPickupPlanForActor(
@@ -73,4 +76,17 @@ func (s *studentAuditActorPort) actorDisplayName(ctx context.Context, editedBy i
 		return ""
 	}
 	return name
+}
+
+// RecordStudentChangesForActor is the native actor-aware core; the retained
+// method above only translates its legacy values into this public contract.
+func (s *studentAuditActorPort) RecordStudentChangesForActor(ctx context.Context, before, after *directory.StudentAuditSnapshot, editedBy int64) error {
+	accountID, name := s.actor(ctx)
+	if before == nil || after == nil {
+		return nil
+	}
+	if accountID != editedBy {
+		name = ""
+	}
+	return s.recorder.RecordStudentChanges(ctx, *before, *after, editedBy, name)
 }

@@ -43,7 +43,7 @@ type recordingParentAbsenceNotifier struct {
 // studentReads is the student surface the portal reads; the test may not name
 // the portal's own port.
 type studentReads[T any] interface {
-	FindByID(ctx context.Context, id any) (*T, error)
+	FindByID(ctx context.Context, id int64) (*T, error)
 	FindByIDForUpdate(ctx context.Context, id int64) (*T, error)
 }
 
@@ -117,18 +117,19 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentportalcompose.Dependencies{
-		GuardianPolicy: api.ParentGuardianPolicy{},
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Locales:        api.ParentPortalLocales(),
-		Runtime:        api.ParentPortalRuntime{},
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChildReads(),
-		StatusDayRepo:  repos.StudentStatusDay,
-		StudentRepo:    repos.Student,
-		CareExceptions: repos.CarePlan(),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        repos.CarePlan(),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		StudentRepo:     api.NewParentStudentReads(repos.Student),
+		CareExceptions:  repos.CarePlan(),
 		Settings: parentSettingsStub{
 			boolValues: values,
 			stringValues: map[string]string{
@@ -157,6 +158,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		DeparturePolicy:   api.ParentDeparturePolicy(),
 		GuardianPolicy:    api.ParentGuardianPolicy{},
 		Fingerprints:      api.SecurityFingerprints{},
 		Declarations:      api.ParentDeclarationPolicy(),
@@ -168,7 +170,7 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool) (*
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       repos.Student,
+		StudentRepo:       api.NewParentStudentReads(repos.Student),
 		CareExceptions:    repos.CarePlan(),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(bc),
@@ -443,18 +445,19 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianPolicy: api.ParentGuardianPolicy{},
-		Fingerprints:   api.SecurityFingerprints{},
-		Declarations:   api.ParentDeclarationPolicy(),
-		Locales:        api.ParentPortalLocales(),
-		Runtime:        api.ParentPortalRuntime{},
-		CarePlan:       repos.CarePlan(),
-		People:         api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:   careProfiles(t, db),
-		ChildRepo:      repos.ParentChildReads(),
-		StatusDayRepo:  repos.StudentStatusDay,
-		CareExceptions: repos.CarePlan(),
-		StudentRepo:    newPausingStudentRepository(repos.Student, parentLocked, releaseParent),
+		DeparturePolicy: api.ParentDeparturePolicy(),
+		GuardianPolicy:  api.ParentGuardianPolicy{},
+		Fingerprints:    api.SecurityFingerprints{},
+		Declarations:    api.ParentDeclarationPolicy(),
+		Locales:         api.ParentPortalLocales(),
+		Runtime:         api.ParentPortalRuntime{},
+		CarePlan:        repos.CarePlan(),
+		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:    careProfiles(t, db),
+		ChildRepo:       repos.ParentChildReads(),
+		StatusDayRepo:   repos.StudentStatusDay,
+		CareExceptions:  repos.CarePlan(),
+		StudentRepo:     newPausingStudentRepository(api.NewParentStudentReads(repos.Student), parentLocked, releaseParent),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentSickNoteEnabled: true,

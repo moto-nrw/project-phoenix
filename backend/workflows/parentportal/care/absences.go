@@ -10,7 +10,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -235,7 +234,7 @@ func statusDaysFromCarePlan(days []careplan.StudentStatusDay) []*absencerecords.
 	return rows
 }
 
-func isNewParentReportableAbsence(student *usersModels.Student, status string) bool {
+func isNewParentReportableAbsence(student *PortalStudent, status string) bool {
 	switch status {
 	case absencerecords.StudentStatusDaySick:
 		return student.Sick == nil || !*student.Sick
@@ -308,7 +307,7 @@ func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accoun
 // (excused) sets NO live flag per issue #1735 — it only clears a stale live sick
 // flag so the row stays consistent with the now-cleared sick status day, and
 // leaves a staff-set excused flag untouched.
-func applyLiveStatusForParentToday(student *usersModels.Student, status string, now time.Time) {
+func applyLiveStatusForParentToday(student *PortalStudent, status string, now time.Time) {
 	trueVal := true
 	falseVal := false
 	switch status {
@@ -324,7 +323,7 @@ func applyLiveStatusForParentToday(student *usersModels.Student, status string, 
 }
 
 // studentLiveAbsence is the child's live absence flags after the change.
-func studentLiveAbsence(student *usersModels.Student) StudentLiveAbsence {
+func studentLiveAbsence(student *PortalStudent) StudentLiveAbsence {
 	return StudentLiveAbsence{
 		StudentID: student.ID, Sick: student.Sick, SickSince: student.SickSince,
 		Excused: student.Excused, ExcusedSince: student.ExcusedSince,

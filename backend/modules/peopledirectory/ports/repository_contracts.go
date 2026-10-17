@@ -79,6 +79,7 @@ type PersonRepository interface {
 
 // StudentRepository defines operations for managing students
 type StudentRepository interface {
+	peopledirectory.StudentSnapshotReads
 	CRUDRepository[*users.Student]
 
 	// FindByIDs retrieves multiple students by their IDs in a single query

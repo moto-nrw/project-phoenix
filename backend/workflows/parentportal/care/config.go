@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -15,16 +14,17 @@ import (
 // flow changed, attributed to the authenticated actor (People Directory, bound
 // by the composition root).
 type StudentChangeRecorder interface {
-	RecordChangesForActor(ctx context.Context, before, after *usersModels.Student, editedBy int64) error
+	RecordChangesForActor(ctx context.Context, before, after *PortalStudent, editedBy int64) error
 }
 
 // Config is the dependency bundle of the guardian portal's child flows. The
 // unit of work comes from the request context; the package holds no database.
 type Config struct {
-	GuardianPolicy GuardianPolicy
-	Runtime        Runtime
-	Logger         *slog.Logger
-	Now            func() time.Time
+	GuardianPolicy  GuardianPolicy
+	DeparturePolicy DeparturePolicy
+	Runtime         Runtime
+	Logger          *slog.Logger
+	Now             func() time.Time
 
 	// Reads of the child, its school and its guardians.
 	ChildRepo             ChildReads
