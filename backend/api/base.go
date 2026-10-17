@@ -96,7 +96,6 @@ import (
 	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
 	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
 	schoolStructureModule "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
@@ -1676,7 +1675,7 @@ func mountSchoolPortalRoutes(root, tenant chi.Router, in routeInputs, presence *
 	// report over Enrollment's day roster and the arrival-exception write
 	// seam (#2970) behind its one public capability.
 	classDay := classdayHTTP.NewResource(svc.ClassDayArrivalExceptions, in.logger.With("handler", "class-day"))
-	school := schoolPortal.NewResource(SchoolPortalAuth(in.modules.identity), SchoolPortalMFA(in.modules.identity), schoolPasswordResets(in.modules.identity), classDay, timetable, staffMessaging, staffNotices, notifications)
+	school := NewSchoolPortalHTTP(SchoolPortalAuth(in.modules.identity), SchoolPortalMFA(in.modules.identity), schoolPasswordResets(in.modules.identity), classDay, timetable, staffMessaging, staffNotices, notifications)
 	tenant.Mount("/staff-messages", staffMessaging.Router())
 	tenant.Mount("/staff-notices", staffNotices.Router())
 	tenant.Mount("/timetable", timetable.Router())
