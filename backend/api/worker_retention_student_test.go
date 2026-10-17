@@ -2,12 +2,10 @@ package api
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -131,10 +129,7 @@ func TestNightlyRetentionCountsOnlyDeletedApprovedEnrollments(t *testing.T) {
 
 	approved := enrollments.request(t, "angenommen", settledChild{status: enrollment.ChildStatusApproved, student: student})
 	retained, children := enrollments.requestIn(t, enrollments.phaseID, "offen", settledChild{status: enrollment.ChildStatusSubmitted})
-	_, err := suite.admin.ExecContext(context.Background(), `UPDATE enrollment.request_children
-		SET matched_student_id = ?
-		WHERE id = ?`, student, children[0])
-	require.NoError(t, err)
+	enrollments.matchChildToStudent(t, children[0], student)
 
 	suite.run(t, school)
 
@@ -142,16 +137,9 @@ func TestNightlyRetentionCountsOnlyDeletedApprovedEnrollments(t *testing.T) {
 	assert.True(t, suite.exists(t, "enrollment.requests", retained), "an open enrollment keeps its own retention path")
 	assert.True(t, suite.exists(t, "enrollment.request_children", children[0]))
 
-	var audit testpkg.DataDeletion
-	require.NoError(t, suite.admin.NewSelect().Model(&audit).
-		Where(`tenant_id = ? AND student_id = ? AND deletion_type = ?`, school, student, "student_retention").
-		Scan(context.Background()))
-	var counts studentdeletion.Counts
-	encoded, err := json.Marshal(audit.Metadata["counts"])
-	require.NoError(t, err)
-	require.NoError(t, json.Unmarshal(encoded, &counts))
-	assert.Equal(t, 1, counts.EnrollmentReferences)
-	assert.Equal(t, counts.Total()+1, audit.RecordsDeleted)
+	audit := suite.studentDeletionAudit(t, school, student)
+	assert.Equal(t, 1, audit.EnrollmentReferences)
+	assert.Equal(t, 2, audit.RecordsDeleted)
 }
 
 func TestNightlyRetentionRefusesAStudentWindowOutsideTheFrame(t *testing.T) {
