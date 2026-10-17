@@ -235,7 +235,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandAppointmentEvents":                  18,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).expandGuardianAppointmentEvents":          20,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).guardianRecipientStatusForStudents":       16,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).resolveTargets":                           86,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).staffShiftEventsWithCancelled":            19,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":                   29,
 
