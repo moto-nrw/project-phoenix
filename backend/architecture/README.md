@@ -4047,6 +4047,14 @@ attendance or visit row is recognised through the transaction runtime's no-rows
 sentinel. Epoch 69 adds `student-presence.application.transaction-runtime`.
 The composition goes from 1,805 to 621 LOC.
 
+School Structure follows: the engine that serves the capability over the
+application service, with the group, transition and ledger mapping and the
+error mapping (`application.NewEngine`, `application.Engine`,
+`application.MapError`), moves from `modules/schoolstructure/compose` into
+`internal/application`. Epoch 70 adds
+`school-structure.application.tenant-runtime`. The composition goes from 1,573
+to 1,258 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

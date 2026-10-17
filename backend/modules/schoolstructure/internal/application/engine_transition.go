@@ -1,4 +1,4 @@
-package compose
+package application
 
 import (
 	"context"
@@ -14,7 +14,7 @@ import (
 // transaction; they take the tenant from context like the ledger commands
 // and never open a transaction of their own.
 
-func (e engine) FindTransition(ctx context.Context, id int64, lock string) (schoolstructure.Transition, error) {
+func (e Engine) FindTransition(ctx context.Context, id int64, lock string) (schoolstructure.Transition, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return schoolstructure.Transition{}, err
@@ -23,7 +23,7 @@ func (e engine) FindTransition(ctx context.Context, id int64, lock string) (scho
 	return transitionToPublic(value), mapTransitionError(err)
 }
 
-func (e engine) ListTransitions(ctx context.Context, filter schoolstructure.TransitionFilter) ([]schoolstructure.Transition, int, error) {
+func (e Engine) ListTransitions(ctx context.Context, filter schoolstructure.TransitionFilter) ([]schoolstructure.Transition, int, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, 0, err
@@ -39,7 +39,7 @@ func (e engine) ListTransitions(ctx context.Context, filter schoolstructure.Tran
 	return result, total, nil
 }
 
-func (e engine) ListTransitionHistory(ctx context.Context, transitionID int64) ([]schoolstructure.TransitionHistoryEntry, error) {
+func (e Engine) ListTransitionHistory(ctx context.Context, transitionID int64) ([]schoolstructure.TransitionHistoryEntry, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -55,7 +55,7 @@ func (e engine) ListTransitionHistory(ctx context.Context, transitionID int64) (
 	return result, nil
 }
 
-func (e engine) ListTransitionClassTeacherLedger(ctx context.Context, transitionID int64) ([]schoolstructure.TransitionClassTeacherEntry, error) {
+func (e Engine) ListTransitionClassTeacherLedger(ctx context.Context, transitionID int64) ([]schoolstructure.TransitionClassTeacherEntry, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -71,7 +71,7 @@ func (e engine) ListTransitionClassTeacherLedger(ctx context.Context, transition
 	return result, nil
 }
 
-func (e engine) ListTransitionClassListLedger(ctx context.Context, transitionID int64) ([]schoolstructure.TransitionClassListEntry, error) {
+func (e Engine) ListTransitionClassListLedger(ctx context.Context, transitionID int64) ([]schoolstructure.TransitionClassListEntry, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return nil, err
@@ -87,7 +87,7 @@ func (e engine) ListTransitionClassListLedger(ctx context.Context, transitionID 
 	return result, nil
 }
 
-func (e engine) CreateTransition(ctx context.Context, draft schoolstructure.TransitionDraft) (schoolstructure.Transition, error) {
+func (e Engine) CreateTransition(ctx context.Context, draft schoolstructure.TransitionDraft) (schoolstructure.Transition, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return schoolstructure.Transition{}, err
@@ -98,7 +98,7 @@ func (e engine) CreateTransition(ctx context.Context, draft schoolstructure.Tran
 	return transitionToPublic(value), mapTransitionError(err)
 }
 
-func (e engine) UpdateTransition(ctx context.Context, update schoolstructure.TransitionUpdate) (schoolstructure.Transition, error) {
+func (e Engine) UpdateTransition(ctx context.Context, update schoolstructure.TransitionUpdate) (schoolstructure.Transition, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return schoolstructure.Transition{}, err
@@ -114,7 +114,7 @@ func (e engine) UpdateTransition(ctx context.Context, update schoolstructure.Tra
 	return transitionToPublic(value), mapTransitionError(err)
 }
 
-func (e engine) DeleteTransition(ctx context.Context, id int64) error {
+func (e Engine) DeleteTransition(ctx context.Context, id int64) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
@@ -122,7 +122,7 @@ func (e engine) DeleteTransition(ctx context.Context, id int64) error {
 	return mapTransitionError(e.service.DeleteTransition(ctx, tenantID.Int64(), id))
 }
 
-func (e engine) LockTransitions(ctx context.Context) error {
+func (e Engine) LockTransitions(ctx context.Context) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
@@ -133,7 +133,7 @@ func (e engine) LockTransitions(ctx context.Context) error {
 	return mapTransitionError(e.service.LockTransitions(ctx, tenantID.Int64()))
 }
 
-func (e engine) LockLatestAppliedTransition(ctx context.Context) (schoolstructure.Transition, bool, error) {
+func (e Engine) LockLatestAppliedTransition(ctx context.Context) (schoolstructure.Transition, bool, error) {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return schoolstructure.Transition{}, false, err
@@ -142,7 +142,7 @@ func (e engine) LockLatestAppliedTransition(ctx context.Context) (schoolstructur
 	return transitionToPublic(value), found, mapTransitionError(err)
 }
 
-func (e engine) MarkTransitionApplied(ctx context.Context, id, accountID int64, at time.Time, rosterBaselineInstanceID *int64) error {
+func (e Engine) MarkTransitionApplied(ctx context.Context, id, accountID int64, at time.Time, rosterBaselineInstanceID *int64) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
@@ -150,7 +150,7 @@ func (e engine) MarkTransitionApplied(ctx context.Context, id, accountID int64, 
 	return mapTransitionError(e.service.MarkApplied(ctx, tenantID.Int64(), id, accountID, at, rosterBaselineInstanceID))
 }
 
-func (e engine) MarkTransitionReverted(ctx context.Context, id, accountID int64, at time.Time) error {
+func (e Engine) MarkTransitionReverted(ctx context.Context, id, accountID int64, at time.Time) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
@@ -158,7 +158,7 @@ func (e engine) MarkTransitionReverted(ctx context.Context, id, accountID int64,
 	return mapTransitionError(e.service.MarkReverted(ctx, tenantID.Int64(), id, accountID, at))
 }
 
-func (e engine) AppendTransitionHistory(ctx context.Context, entries []schoolstructure.TransitionHistoryEntry) error {
+func (e Engine) AppendTransitionHistory(ctx context.Context, entries []schoolstructure.TransitionHistoryEntry) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
@@ -170,7 +170,7 @@ func (e engine) AppendTransitionHistory(ctx context.Context, entries []schoolstr
 	return mapTransitionError(e.service.AppendHistory(ctx, tenantID.Int64(), values))
 }
 
-func (e engine) AppendTransitionClassTeacherLedger(ctx context.Context, entries []schoolstructure.TransitionClassTeacherEntry) error {
+func (e Engine) AppendTransitionClassTeacherLedger(ctx context.Context, entries []schoolstructure.TransitionClassTeacherEntry) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
@@ -182,7 +182,7 @@ func (e engine) AppendTransitionClassTeacherLedger(ctx context.Context, entries 
 	return mapTransitionError(e.service.AppendClassTeacherLedger(ctx, tenantID.Int64(), values))
 }
 
-func (e engine) AppendTransitionClassListLedger(ctx context.Context, entries []schoolstructure.TransitionClassListEntry) error {
+func (e Engine) AppendTransitionClassListLedger(ctx context.Context, entries []schoolstructure.TransitionClassListEntry) error {
 	tenantID, err := tenant.TenantFromContext(ctx)
 	if err != nil {
 		return err
