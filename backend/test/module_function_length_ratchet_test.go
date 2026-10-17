@@ -67,7 +67,6 @@ const moduleFuncLenThreshold = 60
 // Seeded 2026-09-18 from merge commit ecf0003369. Shrink-only: lower or
 // delete entries, never add one and never raise a number.
 var moduleFuncLenAllowlist = map[string]int{
-	"modules/appointments/recurrence.go:boundedRecurrenceDates":                                               117,
 	"workflows/parentportal/http/child_write_handlers.go:(*Resource).submitSickNote":                          67,
 	"workflows/parentportal/http/child_write_handlers.go:renderParentWriteError":                              159,
 	"workflows/parentportal/http/enrollment_handlers.go:(*Resource).getEnrollmentBootstrap":                   83,
@@ -174,7 +173,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RecipientOptions":                                                 127,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RespondToParentInvitation":                                        69,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).createStaffAppointment":                                           91,
-	"modules/schoolcalendar/portal/internal/application/service.go:(*service).resolveTargets":                                                   170,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).updateStaffAppointment":                                           102,
 	"modules/schoolmembership/internal/application/offboarding.go:(*Service).retirementSnapshot":                                                64,
 	"modules/schoolportal/api.go:(*Resource).RouterWithAuthRateLimiter":                                                                         86,
