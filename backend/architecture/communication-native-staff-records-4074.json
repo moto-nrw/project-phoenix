@@ -36,7 +36,7 @@
       "backend/modules/communication/staff_records.go",
       "backend/modules/communication/internal/application/staff_records.go",
       "backend/modules/communication/internal/staffmessages/native_records.go",
-      "backend/modules/communication/staffstore/native_records.go",
+      "backend/modules/communication/staffstore/repositories.go",
       "backend/api/communication_staff_sender.go",
       "backend/api/communication_staff_records_test.go",
       "backend/modules/communication/internal/staffmessages/native_records_test.go"
