@@ -534,6 +534,7 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 	return parentportalcompose.Dependencies{
 		GuardianPolicy: ParentGuardianPolicy{},
 		Fingerprints:   SecurityFingerprints{},
+		Declarations:   ParentDeclarationPolicy(),
 		Locales:        ParentPortalLocales(),
 		Runtime:        ParentPortalRuntime{},
 		CareProfiles:   profiles, ChildRepo: NewParentChildReads(careplanCompose.NewParentChildQueries(portal.ParentChild, securityruntime.GuardianPermissionGranted)), EnrollablePhaseRepo: NewParentPhaseReads(careplanCompose.NewParentPhaseQueries(portal.ParentEnrollablePhase)),

@@ -166,7 +166,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/planexport/dienstplan.go:(*dienstplanData).rowsByArea":                                                                             91,
 	"modules/requestreview/compose/corrections.go:(correctionLog).History":                                                                      64,
 	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).ParentCalendarFeedByToken":                                           124,
-	"modules/schoolcalendar/portal/internal/application/feed.go:(*service).projectStaffCalendarEvents":                                          140,
 	"modules/schoolcalendar/portal/internal/application/ics.go:appointmentICSEvent":                                                             76,
 	"modules/schoolcalendar/portal/internal/application/notifications.go:(*service).notifyGuardians":                                            83,
 	"modules/schoolcalendar/portal/internal/application/service.go:(*service).RecipientOptions":                                                 127,

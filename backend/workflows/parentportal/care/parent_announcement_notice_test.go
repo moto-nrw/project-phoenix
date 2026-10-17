@@ -29,6 +29,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Messa
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
 		GuardianPolicy:        api.ParentGuardianPolicy{},
 		Fingerprints:          api.SecurityFingerprints{},
+		Declarations:          api.ParentDeclarationPolicy(),
 		Runtime:               api.ParentPortalRuntime{},
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),

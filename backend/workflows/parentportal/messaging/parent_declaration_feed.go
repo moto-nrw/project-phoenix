@@ -8,8 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-
-	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
 )
 
 // declarationFeedFacts are the batched reads behind the declaration items of
@@ -43,7 +41,7 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 	now := time.Now()
 	for _, item := range items {
 		if item.DeliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration {
-			item.Declaration = buildFeedDeclaration(accountID, item, facts, now)
+			item.Declaration = buildFeedDeclaration(s.Declarations, accountID, item, facts, now)
 		}
 	}
 	return nil
@@ -104,13 +102,13 @@ func (f *declarationFeedFacts) latestOnVersion(announcementID, versionID int64) 
 	return out
 }
 
-func buildFeedDeclaration(accountID int64, item *usersModels.AnnouncementFeedItem, facts *declarationFeedFacts, now time.Time) *usersModels.AnnouncementFeedDeclaration {
+func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *usersModels.AnnouncementFeedItem, facts *declarationFeedFacts, now time.Time) *usersModels.AnnouncementFeedDeclaration {
 	settings := facts.settings[item.ID]
 	rules := feedDeclarationRules(settings, item.ResponseDeadline)
 	out := &usersModels.AnnouncementFeedDeclaration{
 		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable,
 		RequiresPassword: settings.RequiresPassword, Deadline: item.ResponseDeadline,
-		Closed: rules.Closed(now), Version: facts.versions[item.ID],
+		Closed: policy.Closed(rules.Deadline, now), Version: facts.versions[item.ID],
 		Children: []*usersModels.AnnouncementFeedDeclarationChild{},
 	}
 	latest := map[int64]map[int64]*usersModels.DeclarationSubmission{}
@@ -118,12 +116,12 @@ func buildFeedDeclaration(accountID int64, item *usersModels.AnnouncementFeedIte
 		latest = facts.latestOnVersion(item.ID, out.Version.ID)
 	}
 	for _, c := range facts.children[item.ID] {
-		out.Children = append(out.Children, buildFeedDeclarationChild(accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now))
+		out.Children = append(out.Children, buildFeedDeclarationChild(policy, accountID, c, rules, facts.signers[c.StudentID], latest[c.StudentID], now))
 	}
 	return out
 }
 
-func buildFeedDeclarationChild(accountID int64, c *usersModels.DeclarationChild, rules declarations.DeclarationRules, signers []*usersModels.DeclarationSigner, latest map[int64]*usersModels.DeclarationSubmission, now time.Time) *usersModels.AnnouncementFeedDeclarationChild {
+func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *usersModels.DeclarationChild, rules declarationRules, signers []*usersModels.DeclarationSigner, latest map[int64]*usersModels.DeclarationSubmission, now time.Time) *usersModels.AnnouncementFeedDeclarationChild {
 	child := &usersModels.AnnouncementFeedDeclarationChild{
 		StudentID: c.StudentID, FirstName: c.FirstName, LastName: c.LastName,
 		OtherSigners: []usersModels.DeclarationSignerState{},
@@ -145,8 +143,8 @@ func buildFeedDeclarationChild(accountID int64, c *usersModels.DeclarationChild,
 		}
 		child.OtherSigners = append(child.OtherSigners, state)
 	}
-	child.State = declarations.DeclarationChildState(rules, eligible, actions, now)
-	child.AllowedActions = declarations.DeclarationAllowedActions(rules, child.CanSubmit, actions[accountID], now)
+	child.State = policy.ChildState(rules.Signers, rules.Deadline, eligible, actions, now)
+	child.AllowedActions = policy.AllowedActions(rules.Revocable, rules.Deadline, child.CanSubmit, actions[accountID], now)
 	return child
 }
 
@@ -254,7 +252,7 @@ func (s *Service) countOwedReadDeclarations(ctx context.Context, accountID int64
 	now := time.Now()
 	owed := 0
 	for _, item := range items {
-		if declarationOwed(buildFeedDeclaration(accountID, item, facts, now), now) {
+		if declarationOwed(s.Declarations, buildFeedDeclaration(s.Declarations, accountID, item, facts, now), now) {
 			owed++
 		}
 	}
@@ -263,14 +261,13 @@ func (s *Service) countOwedReadDeclarations(ctx context.Context, accountID int64
 
 // declarationOwed reports whether the account still owes an answer for one of
 // its children.
-func declarationOwed(d *usersModels.AnnouncementFeedDeclaration, now time.Time) bool {
-	rules := declarations.DeclarationRules{Kind: d.Kind, Signers: d.Signers, Revocable: d.Revocable, Deadline: d.Deadline}
+func declarationOwed(policy DeclarationPolicy, d *usersModels.AnnouncementFeedDeclaration, now time.Time) bool {
 	for _, c := range d.Children {
 		mine := ""
 		if c.MyAction != nil {
 			mine = *c.MyAction
 		}
-		if declarations.DeclarationOwesAction(rules, c.CanSubmit, mine, c.State, now) {
+		if policy.OwesAction(d.Deadline, c.CanSubmit, mine, c.State, now) {
 			return true
 		}
 	}
