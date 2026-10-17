@@ -4017,6 +4017,17 @@ handed in; the provider's constraint classification moves to the ports'
 error vocabulary (`IsConstraintViolation`). The composition goes to 2,779
 LOC.
 
+Identity & Access follows: the engine that serves the capability over the
+application services, with its error mapping, result mapping and the second
+factor's flow bundle (`application.NewEngine`, `application.EngineParts`,
+`application.MapError`, `application.MFAFlows`, `application.CalendarFeeds`),
+moves from `modules/identityaccess/compose` into `internal/application`; the
+refresh rotation's recovery-proof binding is handed in. Epoch 67 adds
+`identity-access.application.tenant-runtime`,
+`identity-access.application.transaction-runtime` and
+`identity-access.module-internal-test.tenant-runtime`. The composition goes
+from 7,356 to 4,075 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

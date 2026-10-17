@@ -32,7 +32,7 @@
     "source": "Local run on the PR branch after merging development at d154855b0e. The change relocates HTTP handlers and moves one tenant-context call into the module composition without touching a statement, so the evidence is the unchanged route, behaviour and compose suites plus the architecture check, not a benchmark rerun.",
     "sources": [
       "backend/modules/identityaccess/compose/mfa.go",
-      "backend/modules/identityaccess/compose/operator_mfa_admin_internal_test.go",
+      "backend/modules/identityaccess/internal/application/engine_operator_mfa_admin_internal_test.go",
       "backend/modules/identityaccess/inbound/operator/mfa_admin.go",
       "backend/api/testdata/middleware_table.golden",
       "https://github.com/moto-nrw/project-phoenix/pull/3514"
