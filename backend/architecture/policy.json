@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 70,
+  "policy_epoch": 71,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -5847,6 +5847,17 @@
       "source_owner": "timetable-activities",
       "source_role": "http",
       "target_owner": "student-presence",
+      "target_role": "public"
+    },
+    {
+      "id": "school-membership.application.tenant-runtime",
+      "description": "School Membership application code runs the staff identity read inside the caller's tenant transaction or opens one for the tenant in context (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "school-membership",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
       "target_role": "public"
     },
     {
