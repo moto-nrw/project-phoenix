@@ -1,14 +1,12 @@
-package compose
+package timetracking
 
 import (
 	"context"
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 type absenceTypeReader struct {
@@ -17,14 +15,14 @@ type absenceTypeReader struct {
 
 // AbsenceTypes binds the native owner to the remaining legacy absence and
 // work-session readers. It constructs no legacy service or repository.
-func AbsenceTypes(catalog workforce.AbsenceTypeQuery) timetracking.AbsenceTypeReader {
+func AbsenceTypes(catalog workforce.AbsenceTypeQuery) AbsenceTypeReader {
 	if catalog == nil {
 		panic("absence type reader: all dependencies are required")
 	}
 	return absenceTypeReader{catalog: catalog}
 }
 
-func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*timetracking.StaffAbsenceType, error) {
+func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*StaffAbsenceType, error) {
 	if id <= 0 {
 		return nil, mapNativeAbsenceTypeError(workforce.ErrAbsenceTypeNotFound)
 	}
@@ -38,7 +36,7 @@ func (r absenceTypeReader) GetAbsenceType(ctx context.Context, id int64) (*timet
 	return legacyAbsenceType(value), nil
 }
 
-func (r absenceTypeReader) ResolveForAbsence(ctx context.Context, id int64) (*timetracking.StaffAbsenceType, error) {
+func (r absenceTypeReader) ResolveForAbsence(ctx context.Context, id int64) (*StaffAbsenceType, error) {
 	if id <= 0 {
 		return nil, mapNativeAbsenceTypeError(workforce.ErrAbsenceTypeNotFound)
 	}
@@ -67,21 +65,21 @@ func (r absenceTypeReader) LabelsByID(ctx context.Context) (map[int64]string, er
 	return labels, nil
 }
 
-func (r absenceTypeReader) PreviewAllowanceBooking(ctx context.Context, staffID, typeID int64, start, end timezone.Date, halfDay bool) ([]*timetracking.AbsenceTypeAllowanceSummary, error) {
+func (r absenceTypeReader) PreviewAllowanceBooking(ctx context.Context, staffID, typeID int64, start, end calendar.Date, halfDay bool) ([]*AbsenceTypeAllowanceSummary, error) {
 	return legacyAllowancePreviews(r.catalog.PreviewAllowanceBooking(ctx, staffID, typeID, start.String(), end.String(), halfDay))
 }
 
-func (r absenceTypeReader) PreviewAllowanceRebooking(ctx context.Context, staffID, typeID int64, absenceIDs []int64) ([]*timetracking.AbsenceTypeAllowanceSummary, error) {
+func (r absenceTypeReader) PreviewAllowanceRebooking(ctx context.Context, staffID, typeID int64, absenceIDs []int64) ([]*AbsenceTypeAllowanceSummary, error) {
 	return legacyAllowancePreviews(r.catalog.PreviewAllowanceRebooking(ctx, staffID, typeID, absenceIDs))
 }
 
-func legacyAllowancePreviews(values []workforce.AbsenceTypeAllowanceSummary, err error) ([]*timetracking.AbsenceTypeAllowanceSummary, error) {
+func legacyAllowancePreviews(values []workforce.AbsenceTypeAllowanceSummary, err error) ([]*AbsenceTypeAllowanceSummary, error) {
 	if values == nil {
 		return nil, mapNativeAbsenceTypeError(err)
 	}
-	result := make([]*timetracking.AbsenceTypeAllowanceSummary, 0, len(values))
+	result := make([]*AbsenceTypeAllowanceSummary, 0, len(values))
 	for _, value := range values {
-		result = append(result, &timetracking.AbsenceTypeAllowanceSummary{
+		result = append(result, &AbsenceTypeAllowanceSummary{
 			StaffID: value.StaffID, AbsenceTypeID: value.AbsenceTypeID, Year: value.Year,
 			EntitledDays: value.EntitledDays, TakenDays: value.TakenDays, ReservedDays: value.ReservedDays, RemainingDays: value.RemainingDays,
 			BookingDays: value.BookingDays,
@@ -90,8 +88,8 @@ func legacyAllowancePreviews(values []workforce.AbsenceTypeAllowanceSummary, err
 	return result, mapNativeAbsenceTypeError(err)
 }
 
-func legacyAbsenceType(value workforce.StaffAbsenceType) *timetracking.StaffAbsenceType {
-	result := &timetracking.StaffAbsenceType{
+func legacyAbsenceType(value workforce.StaffAbsenceType) *StaffAbsenceType {
+	result := &StaffAbsenceType{
 		Name: value.Name, BaseType: value.BaseType, IsActive: value.IsActive,
 		AllowanceEnabled: value.AllowanceEnabled,
 	}
