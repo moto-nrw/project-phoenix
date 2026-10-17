@@ -4055,6 +4055,14 @@ error mapping (`application.NewEngine`, `application.Engine`,
 `school-structure.application.tenant-runtime`. The composition goes from 1,573
 to 1,258 LOC.
 
+Device Fleet, Organization & Tenancy and School Membership follow: each
+engine that serves the owner's capability over its application service, with
+the public and error mapping (`application.NewEngine`, `application.Engine`,
+`application.MapError`), moves from the owner's composition into
+`internal/application`. Epoch 71 adds
+`school-membership.application.tenant-runtime` for the staff identity read.
+The compositions go from 701 to 372, 708 to 479 and 869 to 354 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured
