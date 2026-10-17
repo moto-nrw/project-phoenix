@@ -76,10 +76,7 @@ func (s *service) collectSlotContexts(ctx context.Context, params listRequest, r
 		// Enforce the non-cancelled contract before list-kind matching, option
 		// publication and selection. This also neutralizes a caller passing a
 		// cancelled instance ID directly.
-		if inst.Status == ports.InstanceStatusCancelled {
-			continue
-		}
-		if !instanceMatchesListKind(inst, params.ListKind) {
+		if !selectableSlot(inst, params.ListKind) {
 			continue
 		}
 		sc, deferred, err := s.buildSlotContext(ctx, inst, params, roomCache, result)
@@ -95,14 +92,27 @@ func (s *service) collectSlotContexts(ctx context.Context, params listRequest, r
 			}
 			deferredInstances[inst.ID] = struct{}{}
 		}
-		if selected != nil {
-			if _, ok := selected[inst.ID]; !ok {
-				continue
-			}
+		if !slotSelected(selected, inst.ID) {
+			continue
 		}
 		process = append(process, sc)
 	}
 	return process, deferredInstances, nil
+}
+
+// selectableSlot excludes cancelled occurrences before matching the list kind.
+func selectableSlot(inst *slotInstance, listKind classday.ListKind) bool {
+	return inst.Status != ports.InstanceStatusCancelled && instanceMatchesListKind(inst, listKind)
+}
+
+// slotSelected distinguishes the default all-slots selection from an explicit
+// empty selection, without restricting the published slot options.
+func slotSelected(selected map[int64]struct{}, instanceID int64) bool {
+	if selected == nil {
+		return true
+	}
+	_, ok := selected[instanceID]
+	return ok
 }
 
 // buildSlotContext publishes one matching instance as selectable context on
