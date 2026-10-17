@@ -5,9 +5,12 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/uptrace/bun"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 )
 
 // CompanionRecords is the "läuft mit" slice of this owner, narrow enough to be
@@ -41,7 +44,7 @@ func (r companionRecords) ListCompanionEdges(ctx context.Context, studentID int6
 	values, stats, err := r.store.ListCompanionEdges(ctx, studentID)
 	r.observeCompanions("list_companion_edges", started, stats, err)
 	if err != nil {
-		return nil, mapError(err)
+		return nil, application.MapError(err)
 	}
 	result := make([]careplan.CompanionEdge, 0, len(values))
 	for _, value := range values {
@@ -58,19 +61,19 @@ func (r companionRecords) CompanionDaysCoveredExcluding(
 	started := time.Now()
 	covered, stats, err := r.store.CompanionDaysCoveredExcluding(ctx, studentIDs, excludeID)
 	r.observeCompanions("companion_days_covered_excluding", started, stats, err)
-	return covered, mapError(err)
+	return covered, application.MapError(err)
 }
 
 func (r companionRecords) DeleteCompanionEdges(ctx context.Context, edgeIDs []int64) error {
 	started := time.Now()
 	stats, err := r.store.DeleteCompanionEdges(ctx, edgeIDs)
 	r.observeCompanions("delete_companion_edges", started, stats, err)
-	return mapError(err)
+	return application.MapError(err)
 }
 
 func (r companionRecords) observeCompanions(operation string, started time.Time, stats any, err error) {
-	observation := Observation{Operation: operation, Duration: time.Since(started), Err: mapError(err)}
-	if typed, ok := stats.(RequestStoreStats); ok {
+	observation := Observation{Operation: operation, Duration: time.Since(started), Err: application.MapError(err)}
+	if typed, ok := stats.(domain.OperationStats); ok {
 		observation.Stats = typed
 	}
 	r.observe(observation)

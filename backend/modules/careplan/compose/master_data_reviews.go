@@ -5,11 +5,13 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uptrace/bun"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/uptrace/bun"
 )
 
 type MasterDataDirectory = ports.MasterDataDirectory
@@ -34,9 +36,9 @@ func NewStudentDataRequestQueries(db *bun.DB, directory StudentDirectory, observ
 
 type requestQueueQueries struct {
 	store interface {
-		FindCareScheduleRequest(context.Context, int64, bool) (careplan.CareScheduleChangeRequest, bool, RequestStoreStats, error)
-		ListStudentDataRequests(context.Context, careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, RequestStoreStats, error)
-		ListCareScheduleRequests(context.Context, careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, RequestStoreStats, error)
+		FindCareScheduleRequest(context.Context, int64, bool) (careplan.CareScheduleChangeRequest, bool, domain.OperationStats, error)
+		ListStudentDataRequests(context.Context, careplan.StudentDataRequestFilter) ([]careplan.StudentDataChangeRequest, domain.OperationStats, error)
+		ListCareScheduleRequests(context.Context, careplan.CareScheduleRequestFilter) ([]careplan.CareScheduleChangeRequest, domain.OperationStats, error)
 	}
 	observe func(Observation)
 }
