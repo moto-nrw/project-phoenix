@@ -8,7 +8,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
@@ -17,17 +16,7 @@ import (
 // cleanup (#4046). It runs on the tenant transaction of the school in
 // context and needs no object store.
 func NewCleanupRetention() workforce.CleanupRetention {
-	return cleanupRetention{retention: application.NewCleanupRetention(postgres.New(retentionDatabase))}
-}
-
-type cleanupRetention struct{ retention *application.CleanupRetention }
-
-func (r cleanupRetention) DeleteFinishedStaffCleanups(ctx context.Context) (int, int, error) {
-	deleted, err := r.retention.DeleteFinished(ctx)
-	if err != nil {
-		return 0, 0, err
-	}
-	return deleted, int(domain.CleanupRetentionWindow.Hours() / 24), nil
+	return application.NewCleanupRetention(postgres.New(retentionDatabase))
 }
 
 // retentionDatabase is the transaction of the school in context; without one

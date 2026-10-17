@@ -113,7 +113,7 @@ func (s *Service) submitMasterDataInTx(ctx context.Context, submission masterDat
 
 	var created []*usersModels.StudentDataChangeRequest
 	for _, c := range changes {
-		oldRaw, newRaw, changed, fieldErr := trackBFieldState(c.Target, c.FieldKey, person, student, c.Value)
+		oldRaw, newRaw, changed, fieldErr := trackBFieldState(c.Target, c.FieldKey, masterDataPersonValues(person), masterDataStudentValues(student), c.Value)
 		if fieldErr != nil {
 			return nil, fieldErr
 		}
@@ -310,7 +310,7 @@ func (s *Service) editMasterDataRequestInTx(
 	// Same validator the create path runs, against the CURRENT record: an edit
 	// may not propose a value the submit path would have refused, and one that
 	// meanwhile equals the live value is no request at all.
-	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, person, student, newValue)
+	_, newRaw, changed, err := trackBFieldState(req.Target, req.FieldKey, masterDataPersonValues(person), masterDataStudentValues(student), newValue)
 	if err != nil {
 		return nil, err
 	}
@@ -338,7 +338,7 @@ func (s *Service) editMasterDataRequestInTx(
 	return row, nil
 }
 
-func trackBFieldState(target, field string, person *usersModels.Person, student *usersModels.Student, value json.RawMessage) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
+func trackBFieldState(target, field string, person *masterDataPerson, student *masterDataStudent, value json.RawMessage) (oldRaw, newRaw json.RawMessage, changed bool, err error) {
 	switch target {
 	case usersModels.DataChangeTargetPerson:
 		return trackBPersonFieldState(field, person, value)
@@ -354,7 +354,7 @@ func trackBFieldState(target, field string, person *usersModels.Person, student 
 	}
 }
 
-func trackBStudentFieldState(field string, student *usersModels.Student, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBStudentFieldState(field string, student *masterDataStudent, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	if field != "school_class" {
 		return nil, nil, false, ErrMasterDataFieldNotEditable
 	}
@@ -365,7 +365,7 @@ func trackBStudentFieldState(field string, student *usersModels.Student, value j
 	return jsonString(student.SchoolClass), jsonString(newClass), newClass != student.SchoolClass, nil
 }
 
-func trackBPersonFieldState(field string, person *usersModels.Person, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBPersonFieldState(field string, person *masterDataPerson, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	newStr, decErr := decodeStringValue(value)
 	if decErr != nil {
 		return nil, nil, false, decErr
@@ -397,7 +397,7 @@ func trackBPersonFieldState(field string, person *usersModels.Person, value json
 	}
 }
 
-func birthdayPtr(person *usersModels.Person) *string {
+func birthdayPtr(person *masterDataPerson) *string {
 	if person.Birthday == nil {
 		return nil
 	}
@@ -405,7 +405,7 @@ func birthdayPtr(person *usersModels.Person) *string {
 	return &s
 }
 
-func trackBDepartureState(student *usersModels.Student, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
+func trackBDepartureState(student *masterDataStudent, value json.RawMessage) (json.RawMessage, json.RawMessage, bool, error) {
 	var modes usersModels.AllowedDepartureModes
 	if err := json.Unmarshal(value, &modes); err != nil {
 		return nil, nil, false, ErrMasterDataInvalidValue

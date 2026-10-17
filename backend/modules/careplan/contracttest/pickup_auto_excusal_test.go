@@ -12,6 +12,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -573,7 +574,7 @@ func TestAutoExcusal_FullDayStatusCoexistsAndReleaseReplays(t *testing.T) {
 
 // newPickupExcusal uses the same configured Timetable instance as the fixture's
 // repositories, including its Care Plan reads and student-before-day locks.
-func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
+func newPickupExcusal(t *testing.T, db *bun.DB, records carePlanPorts.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
 	adapter := pickupExcusalTimetable{partialAbsencePreview{reads: api.NewPartialAbsencePreview(testpkg.MustDatabase(db))}, tt, db}
 	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), Preview: adapter}

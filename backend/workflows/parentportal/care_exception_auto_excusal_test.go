@@ -147,7 +147,7 @@ func TestDeleteCareException_ReleasesAutoExcusedBlocks(t *testing.T) {
 
 // newPickupExcusal uses the same configured Timetable instance as the fixture's
 // repositories, including its Care Plan reads and student-before-day locks.
-func newPickupExcusal(t *testing.T, db *bun.DB, records compose.PickupExcusalRecords, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
+func newPickupExcusal(t *testing.T, db *bun.DB, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
 	t.Helper()
 	adapter := api.NewPickupExcusalTimetable(tt, api.NewPartialAbsencePreview(testpkg.MustDatabase(db)))
 	deps := compose.PickupExcusalDependencies{DB: db, Records: records, Baselines: baselines, Blocks: api.NewStudentPresenceForTests(testpkg.NewDatabase(t, db)), Preview: adapter}

@@ -4078,6 +4078,14 @@ compositions hand out without the import the architecture ratchet would see.
 It starts at 522 (366 of them in `compose/vocabulary` and `compose/retained`)
 and only falls; #4085 is done when it is empty.
 
+Care Plan's record capabilities the roots bind (`ArrivalBaselineRecords`,
+`PickupBaselineRecords`, `PickupApprovalRecords`, `PickupExcusalRecords`) are
+defined types in `modules/careplan/ports`; the baseline sources, the approval
+exceptions and the excusal rows over them move into `internal/application`
+(`application.NewArrivalBaselines`, `NewPickupBaselines`,
+`NewPickupApprovalExceptions`, `NewPickupExcusalRows`). The composition goes
+from 2,876 to 2,572 LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

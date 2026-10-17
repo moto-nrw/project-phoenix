@@ -1,8 +1,10 @@
-package compose
+package application
 
 import (
 	"context"
 	"testing"
+
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,7 +13,7 @@ import (
 )
 
 type excusalStoreSpy struct {
-	PickupExcusalRecords
+	carePlanPorts.PickupExcusalRecords
 	writes int
 }
 
@@ -37,7 +39,7 @@ func (s *excusalStoreSpy) UpdatePickupException(context.Context, careplan.Pickup
 func TestPickupExcusalRecordsRejectInvalidRowsBeforeStorage(t *testing.T) {
 	t.Parallel()
 	spy := &excusalStoreSpy{}
-	records := pickupExcusalRecords{spy}
+	records := PickupExcusalRows{spy}
 
 	require.EqualError(t, records.Create(context.Background(), &careplan.PickupException{}), "student_id is required")
 	require.EqualError(t, records.Update(context.Background(), &careplan.PickupException{}), "student_id is required")
@@ -47,7 +49,7 @@ func TestPickupExcusalRecordsRejectInvalidRowsBeforeStorage(t *testing.T) {
 func TestPickupApprovalExceptionsRejectInvalidRowsBeforeStorage(t *testing.T) {
 	t.Parallel()
 	spy := &excusalStoreSpy{}
-	approvals := pickupApprovalExceptions{spy}
+	approvals := pickupApprovalExceptions{records: spy}
 
 	_, err := approvals.Create(context.Background(), careplan.PickupException{})
 	require.EqualError(t, err, "student_id is required")

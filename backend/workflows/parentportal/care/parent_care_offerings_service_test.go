@@ -13,7 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -24,16 +23,23 @@ type careOfferingsChildRepoStub struct {
 	err   error
 }
 
-// careOfferingsStudentRepoStub supplies the locked, still-active child that
-// CreateOfferingChangeRequest now requires before it delegates the write.
-type careOfferingsStudentRepoStub struct {
-	StudentReads
+// The fixture infers the retained row from the workflow's own read port.
+// It creates the same fresh zero row without declaring a foreign model type.
+// The production read port's remaining DTO dependency stays in the baseline.
+type careOfferingsStudentRepoStub[T any] struct {
+	unlockedStudentRead[T]
 }
 
-func (careOfferingsStudentRepoStub) FindByIDForUpdate(
-	context.Context, int64,
-) (*usersModels.Student, error) {
-	return &usersModels.Student{}, nil
+type unlockedStudentRead[T any] interface {
+	FindByID(context.Context, any) (*T, error)
+}
+
+func (careOfferingsStudentRepoStub[T]) FindByIDForUpdate(context.Context, int64) (*T, error) {
+	return new(T), nil
+}
+
+func careOfferingsStudentReads[S, T any](_ func(S, context.Context, int64) (*T, error)) careOfferingsStudentRepoStub[T] {
+	return careOfferingsStudentRepoStub[T]{}
 }
 
 func (s careOfferingsChildRepoStub) FindForAccount(
@@ -259,7 +265,7 @@ func careOfferingsService(
 	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
-		StudentRepo:    careOfferingsStudentRepoStub{},
+		StudentRepo:    careOfferingsStudentReads(StudentReads.FindByIDForUpdate),
 		Logger:         slog.Default(),
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)

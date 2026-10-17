@@ -18,7 +18,6 @@ import (
 
 type staffBalanceAdjustmentRepository struct {
 	workforce workforce.Capability
-	errs      recordErrors
 }
 
 // NewBalanceAdjustmentRows serves
@@ -39,7 +38,7 @@ func (r staffBalanceAdjustmentRepository) Create(ctx context.Context, entity *St
 	}
 	created, err := r.workforce.CreateStaffBalanceAdjustment(ctx, adjustmentToCapability(entity))
 	if err != nil {
-		return r.errs.workSessionWrite("create", err)
+		return workSessionWriteError("create", err)
 	}
 	applyAdjustmentToLegacy(entity, created)
 	return nil
@@ -48,11 +47,11 @@ func (r staffBalanceAdjustmentRepository) Create(ctx context.Context, entity *St
 func (r staffBalanceAdjustmentRepository) FindByID(ctx context.Context, id any) (*StaffBalanceAdjustment, error) {
 	adjustmentID, err := legacyID(id)
 	if err != nil {
-		return nil, r.errs.WrapRecordError("find by id", err)
+		return nil, recordErrors.WrapRecordError("find by id", err)
 	}
 	value, err := r.workforce.FindStaffBalanceAdjustment(ctx, adjustmentID)
 	if err != nil {
-		return nil, r.errs.read("find by id", err, workforce.ErrStaffBalanceAdjustmentNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrStaffBalanceAdjustmentNotFound)
 	}
 	return adjustmentToLegacy(value), nil
 }
@@ -67,9 +66,9 @@ func (r staffBalanceAdjustmentRepository) Update(ctx context.Context, entity *St
 	updated, err := r.workforce.UpdateStaffBalanceAdjustment(ctx, adjustmentToCapability(entity))
 	if err != nil {
 		if errors.Is(err, workforce.ErrStaffBalanceAdjustmentNotFound) {
-			return r.errs.rowsAffected("update StaffBalanceAdjustment")
+			return rowsAffectedError("update StaffBalanceAdjustment")
 		}
-		return r.errs.workSessionWrite("update", err)
+		return workSessionWriteError("update", err)
 	}
 	applyAdjustmentToLegacy(entity, updated)
 	return nil
@@ -78,10 +77,10 @@ func (r staffBalanceAdjustmentRepository) Update(ctx context.Context, entity *St
 func (r staffBalanceAdjustmentRepository) Delete(ctx context.Context, id any) error {
 	adjustmentID, err := legacyID(id)
 	if err != nil {
-		return r.errs.WrapRecordError("delete", err)
+		return recordErrors.WrapRecordError("delete", err)
 	}
 	if err := r.workforce.DeleteStaffBalanceAdjustment(ctx, adjustmentID); err != nil {
-		return r.errs.workSessionWrite("delete", err)
+		return workSessionWriteError("delete", err)
 	}
 	return nil
 }
@@ -93,7 +92,7 @@ func (r staffBalanceAdjustmentRepository) ListWithFilter(ctx context.Context, fi
 func (r staffBalanceAdjustmentRepository) list(ctx context.Context, op string, filter workforce.StaffBalanceAdjustmentFilter) ([]*StaffBalanceAdjustment, error) {
 	values, err := r.workforce.ListStaffBalanceAdjustments(ctx, filter)
 	if err != nil {
-		return nil, r.errs.read(op, err, nil)
+		return nil, rowReadError(op, err, nil)
 	}
 	return adjustmentsToLegacy(values), nil
 }
@@ -117,7 +116,7 @@ func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.
 		StaffIDs: staffIDs, EffectiveFrom: from.String(), EffectiveTo: to.String(),
 	})
 	if err != nil {
-		return nil, r.errs.read("get balance adjustments by staff IDs+range", err, nil)
+		return nil, rowReadError("get balance adjustments by staff IDs+range", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = append(result[value.StaffID], adjustmentToLegacy(value))
@@ -129,7 +128,6 @@ func (r staffBalanceAdjustmentRepository) GetByStaffIDsAndDateRange(ctx context.
 
 type staffVacationOpeningRepository struct {
 	workforce workforce.Capability
-	errs      recordErrors
 }
 
 // NewVacationOpeningRows serves
@@ -150,7 +148,7 @@ func (r staffVacationOpeningRepository) Create(ctx context.Context, entity *Staf
 	}
 	created, err := r.workforce.CreateStaffVacationOpening(ctx, openingToCapability(entity))
 	if err != nil {
-		return r.errs.workSessionWrite("create", err)
+		return workSessionWriteError("create", err)
 	}
 	applyOpeningToLegacy(entity, created)
 	return nil
@@ -159,11 +157,11 @@ func (r staffVacationOpeningRepository) Create(ctx context.Context, entity *Staf
 func (r staffVacationOpeningRepository) FindByID(ctx context.Context, id any) (*StaffVacationOpening, error) {
 	openingID, err := legacyID(id)
 	if err != nil {
-		return nil, r.errs.WrapRecordError("find by id", err)
+		return nil, recordErrors.WrapRecordError("find by id", err)
 	}
 	value, err := r.workforce.FindStaffVacationOpening(ctx, openingID)
 	if err != nil {
-		return nil, r.errs.read("find by id", err, workforce.ErrStaffVacationOpeningNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrStaffVacationOpeningNotFound)
 	}
 	return openingToLegacy(value), nil
 }
@@ -178,9 +176,9 @@ func (r staffVacationOpeningRepository) Update(ctx context.Context, entity *Staf
 	updated, err := r.workforce.UpdateStaffVacationOpening(ctx, openingToCapability(entity))
 	if err != nil {
 		if errors.Is(err, workforce.ErrStaffVacationOpeningNotFound) {
-			return r.errs.rowsAffected("update StaffVacationOpening")
+			return rowsAffectedError("update StaffVacationOpening")
 		}
-		return r.errs.workSessionWrite("update", err)
+		return workSessionWriteError("update", err)
 	}
 	applyOpeningToLegacy(entity, updated)
 	return nil
@@ -189,10 +187,10 @@ func (r staffVacationOpeningRepository) Update(ctx context.Context, entity *Staf
 func (r staffVacationOpeningRepository) Delete(ctx context.Context, id any) error {
 	openingID, err := legacyID(id)
 	if err != nil {
-		return r.errs.WrapRecordError("delete", err)
+		return recordErrors.WrapRecordError("delete", err)
 	}
 	if err := r.workforce.DeleteStaffVacationOpening(ctx, openingID); err != nil {
-		return r.errs.workSessionWrite("delete", err)
+		return workSessionWriteError("delete", err)
 	}
 	return nil
 }
@@ -200,7 +198,7 @@ func (r staffVacationOpeningRepository) Delete(ctx context.Context, id any) erro
 func (r staffVacationOpeningRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationOpening, error) {
 	values, err := r.workforce.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
 	if err != nil {
-		return nil, r.errs.read("get vacation opening by staff+year", err, nil)
+		return nil, rowReadError("get vacation opening by staff+year", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -215,7 +213,7 @@ func (r staffVacationOpeningRepository) GetByStaffIDsAndYear(ctx context.Context
 	}
 	values, err := r.workforce.ListStaffVacationOpenings(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: year})
 	if err != nil {
-		return nil, r.errs.read("get vacation openings by staff IDs+year", err, nil)
+		return nil, rowReadError("get vacation openings by staff IDs+year", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = openingToLegacy(value)
@@ -227,7 +225,6 @@ func (r staffVacationOpeningRepository) GetByStaffIDsAndYear(ctx context.Context
 
 type staffVacationQuotaRepository struct {
 	workforce workforce.Capability
-	errs      recordErrors
 }
 
 // NewVacationQuotaRows serves
@@ -248,7 +245,7 @@ func (r staffVacationQuotaRepository) Create(ctx context.Context, entity *StaffV
 	}
 	created, err := r.workforce.CreateStaffVacationQuota(ctx, quotaToCapability(entity))
 	if err != nil {
-		return r.errs.workSessionWrite("create", err)
+		return workSessionWriteError("create", err)
 	}
 	applyQuotaToLegacy(entity, created)
 	return nil
@@ -257,11 +254,11 @@ func (r staffVacationQuotaRepository) Create(ctx context.Context, entity *StaffV
 func (r staffVacationQuotaRepository) FindByID(ctx context.Context, id any) (*StaffVacationQuota, error) {
 	quotaID, err := legacyID(id)
 	if err != nil {
-		return nil, r.errs.WrapRecordError("find by id", err)
+		return nil, recordErrors.WrapRecordError("find by id", err)
 	}
 	value, err := r.workforce.FindStaffVacationQuota(ctx, quotaID)
 	if err != nil {
-		return nil, r.errs.read("find by id", err, workforce.ErrStaffVacationQuotaNotFound)
+		return nil, rowReadError("find by id", err, workforce.ErrStaffVacationQuotaNotFound)
 	}
 	return quotaToLegacy(value), nil
 }
@@ -276,9 +273,9 @@ func (r staffVacationQuotaRepository) Update(ctx context.Context, entity *StaffV
 	updated, err := r.workforce.UpdateStaffVacationQuota(ctx, quotaToCapability(entity))
 	if err != nil {
 		if errors.Is(err, workforce.ErrStaffVacationQuotaNotFound) {
-			return r.errs.rowsAffected("update StaffVacationQuota")
+			return rowsAffectedError("update StaffVacationQuota")
 		}
-		return r.errs.workSessionWrite("update", err)
+		return workSessionWriteError("update", err)
 	}
 	applyQuotaToLegacy(entity, updated)
 	return nil
@@ -287,10 +284,10 @@ func (r staffVacationQuotaRepository) Update(ctx context.Context, entity *StaffV
 func (r staffVacationQuotaRepository) Delete(ctx context.Context, id any) error {
 	quotaID, err := legacyID(id)
 	if err != nil {
-		return r.errs.WrapRecordError("delete", err)
+		return recordErrors.WrapRecordError("delete", err)
 	}
 	if err := r.workforce.DeleteStaffVacationQuota(ctx, quotaID); err != nil {
-		return r.errs.workSessionWrite("delete", err)
+		return workSessionWriteError("delete", err)
 	}
 	return nil
 }
@@ -298,7 +295,7 @@ func (r staffVacationQuotaRepository) Delete(ctx context.Context, id any) error 
 func (r staffVacationQuotaRepository) GetByStaffAndYear(ctx context.Context, staffID int64, year int) (*StaffVacationQuota, error) {
 	values, err := r.workforce.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffID: staffID, Year: year, Limit: 1})
 	if err != nil {
-		return nil, r.errs.read("get vacation quota by staff+year", err, nil)
+		return nil, rowReadError("get vacation quota by staff+year", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -313,7 +310,7 @@ func (r staffVacationQuotaRepository) GetByStaffIDsAndYear(ctx context.Context, 
 	}
 	values, err := r.workforce.ListStaffVacationQuotas(ctx, workforce.StaffVacationFilter{StaffIDs: staffIDs, Year: year})
 	if err != nil {
-		return nil, r.errs.read("get vacation quotas by staff IDs+year", err, nil)
+		return nil, rowReadError("get vacation quotas by staff IDs+year", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = quotaToLegacy(value)
@@ -329,7 +326,7 @@ func (r staffVacationQuotaRepository) Upsert(ctx context.Context, entity *StaffV
 		return err
 	}
 	if err := r.workforce.UpsertStaffVacationQuota(ctx, quotaToCapability(entity)); err != nil {
-		return r.errs.workSessionWrite("upsert vacation quota", err)
+		return workSessionWriteError("upsert vacation quota", err)
 	}
 	return nil
 }
