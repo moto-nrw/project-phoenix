@@ -6,6 +6,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	usersModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 )
 
 // RequestPeople keeps request decisions on the directory's tenant-scoped
@@ -47,7 +48,7 @@ func requestStudentAuditSnapshot(student peopledirectory.StudentRecord) *usersMo
 
 func requestStudentReadError(err error) error {
 	if errors.Is(err, peopledirectory.ErrStudentNotFound) || errors.Is(err, peopledirectory.ErrInvalidStudent) {
-		return usersModels.MissingStudentError("care request student")
+		return peoplePorts.MissingStudentError("care request student")
 	}
 	return err
 }

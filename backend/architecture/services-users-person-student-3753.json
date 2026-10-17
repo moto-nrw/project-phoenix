@@ -54,7 +54,7 @@
   "runtime_evidence": {
     "source": "Local runs on the #3753 branch on 2026-10-10 against the local postgres-test server.",
     "sources": [
-      "backend/modules/peopledirectory/compose/person_directory.go",
+      "backend/modules/peopledirectory/internal/application/person_directory.go",
       "backend/modules/peopledirectory/compose/student_change_log_cleanup.go",
       "backend/api/student_change_log_cleanup_composition.go",
       "backend/api/service_graph_compose.go"

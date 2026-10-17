@@ -14,6 +14,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -310,9 +311,9 @@ func NewTimetableHTTPTestPeople(db transactionruntime.Database) (TimetablePeople
 	if err != nil {
 		return TimetablePeople{}, err
 	}
-	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	return NewTimetablePeople(peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonRepo: r.Person, StudentRepo: r.Student,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Persons: r.Person, Staff: r.Staff, MayManageStaff: StaffAdministrationPermitted}),
 	})), nil
 }
 

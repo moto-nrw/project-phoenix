@@ -5,7 +5,6 @@
 package vocabulary
 
 import (
-	repository "github.com/moto-nrw/project-phoenix/database/repositories/users"
 	upstream "github.com/moto-nrw/project-phoenix/models/users"
 )
 
@@ -103,7 +102,6 @@ var (
 	AccompaniedWeekdays                = upstream.AccompaniedWeekdays
 	ContextWithCompanionChangeRecorder = upstream.ContextWithCompanionChangeRecorder
 	EnrolledOn                         = upstream.EnrolledOn
-	MissingStudentError                = repository.MissingStudentError
 	MonthDayOf                         = upstream.MonthDayOf
 	OptionalCalendarDate               = upstream.OptionalCalendarDate
 	RecordCompanionChange              = upstream.RecordCompanionChange

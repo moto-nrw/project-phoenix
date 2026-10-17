@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -15,7 +15,7 @@ import (
 // answer, so only the resolved set crosses the seam. Care Plan is composed
 // after the person directory, so current reaches it at call time; a graph that
 // never bound it reports a configuration error.
-func CareParticipationResolver(current func() careplan.CareParticipation) peopleCompose.CareParticipationResolver {
+func CareParticipationResolver(current func() careplan.CareParticipation) peoplePorts.CareParticipationResolver {
 	return func(ctx context.Context, studentIDs []int64, on, today timezone.Date) (map[int64]bool, error) {
 		lifecycle := current()
 		if lifecycle == nil {

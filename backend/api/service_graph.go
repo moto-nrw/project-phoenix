@@ -137,7 +137,7 @@ type serviceGraph struct {
 	AutoStart               timetable.InstanceAutoStart
 	AutoEnd                 timetable.InstanceAutoEnd
 	TimetableOperations     timetable.OperationCapability
-	Users                   *peopleCompose.PersonDirectory
+	Users                   peoplePorts.PersonDirectory
 	// StaffDocuments is Workforce's personnel-record administration: the
 	// Dokumente tab, the Stammdaten sections and the payroll number (#3752).
 	StaffDocuments           *workforceModule.StaffAdmin

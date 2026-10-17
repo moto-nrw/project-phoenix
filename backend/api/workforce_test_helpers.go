@@ -29,7 +29,7 @@ import (
 )
 
 type WorkforceTestModule struct {
-	Users      *peopleCompose.PersonDirectory
+	Users      peoplePorts.PersonDirectory
 	StaffAdmin *workforce.StaffAdmin
 	// TimeTracking is the Workforce time-tracking side composed the way
 	// the service graph composes it (#3413).
@@ -57,12 +57,12 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	settingsService := settings.Settings
 	realtimeHub := deliveryCompose.NewRealtimeHub(logger)
-	usersService := peopleCompose.NewPersonDirectory(peopleCompose.PersonDirectoryDependencies{
+	usersService := peopleCompose.NewPersonDirectory(peoplePorts.PersonDirectoryDependencies{
 		PersonDirectory:  peopleCompose.NewPersonWrites(MustNewPeopleDirectory(db)),
 		StudentDirectory: peopleCompose.NewStudentDirectory(MustNewPeopleDirectory(db)),
 		PersonRepo:       repos.Person, RFIDRepo: NewPeopleIdentityAccess(db, nil), AccountExists: identityaccessCompose.AccountExists(identityAccess), StudentRepo: repos.Student,
 		TeacherRepo:    repos.Teacher,
-		StaffDirectory: peopleCompose.NewStaffDirectory(peopleCompose.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),
+		StaffDirectory: peopleCompose.NewStaffDirectory(peoplePorts.StaffDirectoryDependencies{Runtime: peopleCompose.NewLegacyRepositoryRuntime(db.Pool()), Persons: repos.Person, Staff: repos.Staff, Teachers: repos.Teacher, LehrkraftRoles: identityAccess, MayManageStaff: StaffAdministrationPermitted}),
 	})
 	staffAdmin, err := NewStaffAdmin(StaffAdminDependencies{
 		DB: db, Staff: repos.Staff, Persons: repos.Person, Membership: repos.Membership,

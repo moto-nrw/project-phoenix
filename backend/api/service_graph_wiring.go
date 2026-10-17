@@ -94,7 +94,7 @@ type WorkforceTimeTrackingSources struct {
 	Supervisions   studentpresence.SupervisionRecords
 	SessionRecords *presenceCompose.SessionRecords
 	Staff          timeTrackingStaffRows
-	People         *peopleCompose.PersonDirectory
+	People         peoplePorts.PersonDirectory
 	Holidays       workforceCompose.HolidayDatesReader
 	Settings       settingsCompose.SettingsService
 	Payroll        settingsCompose.PayrollStatusGetter
@@ -187,8 +187,8 @@ type PeopleWiring struct {
 	SubstitutionAudit        func(auditModels.SubstitutionChangeCreator) education.SubstitutionAudit
 	StudentConsents          func(StudentConsentAppender) StudentConsentRecords
 	StudentChangeLogCleanup  func(edits peoplePorts.StudentChangeLogStore, deletions DataDeletionAppender, settings RetentionSettings, logger *slog.Logger) peoplePorts.StudentChangeLogCleanupService
-	StatusDayPeople          func(*peopleCompose.PersonDirectory) presenceservice.StatusDayOverviewPeople
-	GroupRosterPeople        func(*peopleCompose.PersonDirectory) GroupRoster
+	StatusDayPeople          func(peoplePorts.PersonDirectory) presenceservice.StatusDayOverviewPeople
+	GroupRosterPeople        func(peoplePorts.PersonDirectory) GroupRoster
 	MasterDataDecisions      func(MasterDataDecisionWiring) (*careplanCompose.MasterDataDecisions, error)
 	ParentRequestCoordinator func(ParentRequestCoordinatorWiring) (parentrequests.Coordinator, error)
 	ParentRequestWriteScope  func(policy ParentRequestScopePolicy, permissions func(context.Context) []string) careplanCompose.ReviewScopeResolver
@@ -745,7 +745,7 @@ type PresenceWiring struct {
 	// Constructors over the values this graph composes.
 	BindClassListEntries func(auditModels.Command) error
 	SessionDevices       func(devicefleetLegacy.SettingsResolver) presenceservice.SessionDeviceDirectory
-	AttendanceStaffNames func(*peopleCompose.PersonDirectory) presenceservice.AttendanceStaffNames
+	AttendanceStaffNames func(peoplePorts.PersonDirectory) presenceservice.AttendanceStaffNames
 	ClassDay             func(ClassDaySources) classday.ClassDay
 	Statistics           func(StatisticsSources) studentpresence.StatisticsReports
 }

@@ -3999,6 +3999,17 @@ its transactions run through the `GuardianTransactions` port the composition
 binds to the tenant runtime (`compose/guardian_service.go`). The composition
 goes to 5,074 LOC.
 
+The retained person and staff directories follow as
+`application.RetainedPersonDirectory` and the staff directory behind
+`ports.StaffDirectory`; their dependencies, errors and the `PersonDirectory`
+port are values of `modules/peopledirectory/ports`, the staff writes run
+through `ports.TenantTxRunner`, and `MissingStudentError` leaves
+`legacy_composition_support.go` for the ports' error vocabulary. Epoch 66 adds
+`people-directory.application.tenant-runtime`,
+`people-directory.application.transaction-runtime` and
+`people-directory.port.transaction-runtime`. The composition goes to 4,033
+LOC.
+
 ### Enrollment wiring out of services (#4012)
 
 None of the 19 Enrollment files of #4012 remains in `services`. Measured

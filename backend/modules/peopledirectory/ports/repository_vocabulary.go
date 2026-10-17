@@ -6,6 +6,7 @@ import (
 	"time"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // FilterOperator is a comparison operator of a QueryFilter condition.
@@ -354,4 +355,10 @@ func IsRepositoryNoRows(err error) bool {
 func RowMissing(err error) bool {
 	return errors.Is(err, ErrRepositoryNotFound) ||
 		errors.Is(err, usersModels.ErrGuardianProfileNotFound) || errors.Is(err, usersModels.ErrStudentGuardianNotFound)
+}
+
+// MissingStudentError is the not-found shape of a child that is not there,
+// with the no-rows sentinel the retained callers match (#3349).
+func MissingStudentError(op string) error {
+	return &DatabaseError{Op: op, Err: errors.Join(ErrRepositoryNotFound, transactionruntime.ErrNoRows, usersModels.ErrStudentRowMissing)}
 }

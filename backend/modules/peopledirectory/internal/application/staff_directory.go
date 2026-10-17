@@ -1,13 +1,13 @@
-package compose
+package application
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 )
 
 // The staff and teacher half of the person service left services/users in
@@ -20,65 +20,17 @@ import (
 // flows, PyrePortal) branch on sql.ErrNoRows and render err.Error() into
 // response bodies.
 
-// The staff write refusals. The staff directory raises them and the root's
-// staff membership runtime classifies them (#3753, #4007). The messages are
-// rendered verbatim and must not change.
-var (
-	// ErrStaffAdoptionNotPermitted indicates a staff-creation request landed on
-	// a person who already carries a live staff record, from a caller that may
-	// only create. Adopting that record writes the notes and the caregiver
-	// fields of someone who is already in the directory, which is an edit — and
-	// POST /api/staff is gated on users:create alone.
-	//
-	// Since #2906 the required authority is staff:manage — the same one
-	// PUT /api/staff/{id} needs. Admins hold it through the admin:* wildcard,
-	// so this refuses the direct-API case, not the staff form.
-	ErrStaffAdoptionNotPermitted = errors.New("Für das Ändern eines vorhandenen Mitarbeiter-Datensatzes fehlt die Berechtigung") //nolint:staticcheck // ST1005: user-facing German message
-
-	// ErrStaffLehrkraftCaregiverProfile indicates a caregiver profile was
-	// requested for an account holding the Lehrkraft system role (#1772). That
-	// role is class_day:read only and is provisioned without a profile on
-	// purpose; the role-assignment paths refuse the same combination from the
-	// other direction (ErrRoleLehrkraftCaregiverProfile).
-	ErrStaffLehrkraftCaregiverProfile = errors.New("Ein Lehrkraft-Konto kann kein Betreuungsprofil erhalten") //nolint:staticcheck // ST1005: user-facing German message
-
-	// ErrStaffInUse indicates staff has attendance records or active supervisions
-	ErrStaffInUse = errors.New("Personal kann nicht gelöscht werden: Mitarbeiter/in hat aktive Aufsichten oder Anwesenheitseinträge") //nolint:staticcheck // ST1005: user-facing German message
-)
-
-// LehrkraftRoleQuery is the consumer-owned port over the Identity & Access
-// role administration: whether the account holds the Lehrkraft system role at
-// the tenant in context (#3314).
-type LehrkraftRoleQuery interface {
-	AccountHoldsLehrkraftRole(ctx context.Context, accountID int64) (bool, error)
-}
-
-// StaffDirectoryDependencies are the retained collaborators of the staff
-// directory.
-type StaffDirectoryDependencies struct {
-	// Runtime runs the staff writes in the request's tenant transaction.
-	Runtime        LegacyRepositoryRuntime
-	Persons        peoplePorts.PersonRepository
-	Staff          peoplePorts.StaffRepository
-	Teachers       peoplePorts.TeacherRepository
-	LehrkraftRoles LehrkraftRoleQuery
-	// MayManageStaff reports whether the actor's permissions carry the
-	// staff administration authority (staff:manage), under the Security
-	// Runtime's wildcard rule.
-	MayManageStaff func(actorPermissions []string) bool
-}
-
 type staffMembershipDirectory struct {
-	runtime        LegacyRepositoryRuntime
+	runtime        peoplePorts.TenantTxRunner
 	persons        peoplePorts.PersonRepository
 	staff          peoplePorts.StaffRepository
 	teachers       peoplePorts.TeacherRepository
-	lehrkraftRoles LehrkraftRoleQuery
+	lehrkraftRoles peoplePorts.LehrkraftRoleQuery
 	mayManageStaff func([]string) bool
 }
 
 // NewStaffDirectory binds the staff directory over the retained repositories.
-func NewStaffDirectory(deps StaffDirectoryDependencies) peoplePorts.StaffDirectory {
+func NewStaffDirectory(deps peoplePorts.StaffDirectoryDependencies) peoplePorts.StaffDirectory {
 	if deps.Staff == nil {
 		panic("staff directory: the staff repository is required")
 	}
@@ -178,7 +130,7 @@ func (s *staffMembershipDirectory) CreateStaffWithTeacher(ctx context.Context, i
 // one, inside the caller's transaction.
 func (s *staffMembershipDirectory) adoptOrCreateStaff(ctx context.Context, input peoplePorts.CreateStaffInput) (*users.Staff, error) {
 	existing, err := s.staff.FindByPersonID(ctx, input.PersonID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, err
 	}
 	if existing != nil && existing.DeletedAt == nil {
@@ -189,7 +141,7 @@ func (s *staffMembershipDirectory) adoptOrCreateStaff(ctx context.Context, input
 		// caregiver profile onto them, and neither does users:update,
 		// which the plain Betreuer role holds for the child-data surfaces.
 		if !s.mayManageStaff(input.ActorPermissions) {
-			return nil, ErrStaffAdoptionNotPermitted
+			return nil, peoplePorts.ErrStaffAdoptionNotPermitted
 		}
 		existing.StaffNotes = input.StaffNotes
 		if err := s.staff.Update(ctx, existing); err != nil {
@@ -245,7 +197,7 @@ func (s *staffMembershipDirectory) refuseCaregiverProfileForLehrkraft(ctx contex
 		return err
 	}
 	if isLehrkraft {
-		return ErrStaffLehrkraftCaregiverProfile
+		return peoplePorts.ErrStaffLehrkraftCaregiverProfile
 	}
 	return nil
 }
@@ -281,7 +233,7 @@ func (s *staffMembershipDirectory) liveTeacherForStaff(ctx context.Context, staf
 // Failures are non-fatal by design (see CreateStaffWithTeacher).
 func (s *staffMembershipDirectory) ensureTeacherForStaff(ctx context.Context, staffID int64, input peoplePorts.CreateStaffInput) (*users.Teacher, bool) {
 	existing, err := s.teachers.FindByStaffID(ctx, staffID)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	if err != nil && !errors.Is(err, transactionruntime.ErrNoRows) {
 		return nil, true
 	}
 	if existing != nil && existing.DeletedAt == nil {

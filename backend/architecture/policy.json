@@ -1,6 +1,6 @@
 {
   "schema_version": 4,
-  "policy_epoch": 65,
+  "policy_epoch": 66,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -9072,6 +9072,39 @@
       "source_role": "postgres",
       "target_owner": "people-directory",
       "target_role": "port"
+    },
+    {
+      "id": "people-directory.application.tenant-runtime",
+      "description": "People Directory application code stamps the caller's tenant on the rows the retained person directory writes (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.application.transaction-runtime",
+      "description": "People Directory application code classifies the retained repositories' missing rows through the transaction runtime's no-rows sentinel (ADR 0058 addendum point 2, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "application",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "people-directory.port.transaction-runtime",
+      "description": "The People Directory ports keep the no-rows sentinel in the not-found shape of a missing child through the transaction runtime (ADR 0058 addendum point 5, #4084).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "people-directory",
+      "source_role": "port",
+      "target_owner": "transaction-runtime",
+      "target_role": "public"
     },
     {
       "id": "people-directory.postgres.calendar-adapter",

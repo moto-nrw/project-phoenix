@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -20,7 +20,7 @@ import (
 
 // newStaffClockService composes the staff-clock workflow over the retained
 // person service, the card owner's capability and the Workforce time clock.
-func newStaffClockService(people *peopleCompose.PersonDirectory, cards identityaccess.RFIDCards, clock workforceModule.TimeClock) *staffclock.Service {
+func newStaffClockService(people peoplePorts.PersonDirectory, cards identityaccess.RFIDCards, clock workforceModule.TimeClock) *staffclock.Service {
 	return staffclock.NewService(staffclock.Dependencies{
 		Cards:     staffClockCards{cards: cards},
 		Staff:     newStaffClockStaffLookup(people),
@@ -54,10 +54,10 @@ func (l staffClockCards) FindCard(ctx context.Context, rawTag string) (*staffclo
 // through the retained person service. It answers the two stable kiosk
 // outcomes the workflow classifies on and lets every other failure through.
 type staffClockStaffLookup struct {
-	people *peopleCompose.PersonDirectory
+	people peoplePorts.PersonDirectory
 }
 
-func newStaffClockStaffLookup(people *peopleCompose.PersonDirectory) staffclock.StaffLookup {
+func newStaffClockStaffLookup(people peoplePorts.PersonDirectory) staffclock.StaffLookup {
 	if people == nil {
 		panic("staff clock staff lookup: person service is required")
 	}
@@ -67,7 +67,7 @@ func newStaffClockStaffLookup(people *peopleCompose.PersonDirectory) staffclock.
 func (l staffClockStaffLookup) ResolveStaffByTag(ctx context.Context, tag string) (staffclock.StaffIdentity, error) {
 	person, err := l.people.FindByTagID(ctx, tag)
 	if err != nil {
-		if peopleCompose.IsPersonNotFound(err) {
+		if peoplePorts.IsPersonNotFound(err) {
 			return staffclock.StaffIdentity{}, staffclock.ErrRFIDTagNotFound
 		}
 		return staffclock.StaffIdentity{}, fmt.Errorf("look up person by RFID tag: %w", err)

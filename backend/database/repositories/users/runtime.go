@@ -60,11 +60,6 @@ func translateNotFound(err error) error {
 	return errors.Join(ports.ErrRepositoryNotFound, err)
 }
 
-// repositoryError is the failure of one repository operation.
-func repositoryError(op string, err error) error {
-	return &ports.DatabaseError{Op: op, Err: err}
-}
-
 // assertRowsAffected checks that a DML statement affected exactly the
 // expected number of rows.
 func assertRowsAffected(result sql.Result, expected int64, op string) error {

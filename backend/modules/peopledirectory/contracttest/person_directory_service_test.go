@@ -9,9 +9,8 @@ package contracttest_test
 import (
 	"testing"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-
 	"github.com/moto-nrw/project-phoenix/api"
+	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -1254,7 +1253,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesAdoptionWithoutUpdatePermis
 	}))
 
 	// ASSERT — refused, and nothing written.
-	require.ErrorIs(t, err, peopleCompose.ErrStaffAdoptionNotPermitted)
+	require.ErrorIs(t, err, peoplePorts.ErrStaffAdoptionNotPermitted)
 	assert.Nil(t, staff)
 	assert.Nil(t, teacher)
 	assert.False(t, teacherCreationFailed)
@@ -1302,7 +1301,7 @@ func TestPersonService_CreateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	}))
 
 	// ASSERT — refused before anything is written.
-	require.ErrorIs(t, err, peopleCompose.ErrStaffLehrkraftCaregiverProfile)
+	require.ErrorIs(t, err, peoplePorts.ErrStaffLehrkraftCaregiverProfile)
 	assert.Nil(t, staff)
 	assert.Nil(t, teacher)
 	assert.False(t, teacherCreationFailed)
@@ -1334,7 +1333,7 @@ func TestPersonService_UpdateStaffWithTeacher_RefusesCaregiverProfileForLehrkraf
 	teacher, action, err := service.UpdateStaffWithTeacher(ctx, staffRecord, true, "Betreuung", "", "")
 
 	// ASSERT
-	require.ErrorIs(t, err, peopleCompose.ErrStaffLehrkraftCaregiverProfile)
+	require.ErrorIs(t, err, peoplePorts.ErrStaffLehrkraftCaregiverProfile)
 	assert.Nil(t, teacher)
 	assert.Equal(t, api.StaffTeacherActionNone, api.StaffTeacherActionFor(action))
 
