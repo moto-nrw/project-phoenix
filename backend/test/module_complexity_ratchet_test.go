@@ -329,7 +329,6 @@ var moduleComplexityAllowlist = map[string]int{
 
 	"workflows/reminderdelivery/internal/application/batch.go:(*service).ComputeBatch":                       20,
 	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchConfig":                    20,
-	"workflows/reminderdelivery/internal/application/batch.go:(*service).loadBatchInputs":                    95,
 	"workflows/reminderdelivery/internal/application/delivery.go:(*preparation).dispatchReminderPushes":      57,
 	"workflows/reminderdelivery/internal/application/delivery.go:(*preparation).prepareReminderPushDispatch": 58,
 	"workflows/reminderdelivery/internal/application/service.go:(*service).Compute":                          29,

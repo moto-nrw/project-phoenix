@@ -17,7 +17,6 @@ package application
 
 import (
 	"context"
-	"fmt"
 	"strconv"
 
 	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
@@ -318,14 +317,6 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		assignedInstances: map[int64]map[int64]struct{}{},
 	}
 
-	caregivers := hasCaregiver(recipients)
-	recipientStaffIDs := make(map[int64]struct{}, len(recipients))
-	for _, sc := range recipients {
-		if sc.StaffID > 0 {
-			recipientStaffIDs[sc.StaffID] = struct{}{}
-		}
-	}
-
 	// Seed an empty entry for every caregiver BEFORE the bulk reads. The readers
 	// only return rows for people who have something, and a missing key that is
 	// later read as "no restriction" is exactly how a room filter turns into
@@ -336,115 +327,23 @@ func (s *service) loadBatchInputs(ctx context.Context, cfg batchConfig, recipien
 		}
 	}
 
-	needsAttendance := cfg.anyPickup() && (!caregivers || cfg.binaryPresence || hasAdmin(recipients))
-	if needsAttendance {
-		ids, err := s.presentStudentIDsFromAttendance(ctx, in.today)
-		if err != nil {
+	caregivers := hasCaregiver(recipients)
+	if err := s.loadBatchPresence(ctx, cfg, recipients, caregivers, in); err != nil {
+		return nil, err
+	}
+	if err := s.loadBatchSupervision(ctx, cfg, caregivers, in); err != nil {
+		return nil, err
+	}
+	if cfg.anyPickup() {
+		if err := s.loadBatchPickups(ctx, cfg, recipients, in); err != nil {
 			return nil, err
 		}
-		in.attendanceIDs = ids
 	}
-
-	if caregivers && cfg.anyPickup() && !cfg.binaryPresence {
-		byRoom, err := s.Visits.ListOpenVisitStudentIDsByRoom(ctx)
-		if err != nil {
-			return nil, fmt.Errorf("load open visits by room: %w", err)
-		}
-		in.visitsByRoom = byRoom
-	}
-
-	if caregivers && (cfg.anyActivity() || (cfg.anyPickup() && !cfg.binaryPresence)) {
-		if s.BulkSupervision != nil {
-			rows, err := s.BulkSupervision.ListActiveSupervisedRooms(ctx)
-			if err != nil {
-				return nil, fmt.Errorf("load supervised rooms: %w", err)
-			}
-			for _, row := range rows {
-				if _, wanted := in.roomsByStaff[row.StaffID]; wanted {
-					in.roomsByStaff[row.StaffID] = append(in.roomsByStaff[row.StaffID], row.RoomID)
-				}
-			}
-		}
-	}
-
-	// Presence per person, reproducing pickupScopeStudentIDs branch for branch.
-	if cfg.anyPickup() {
-		for _, sc := range recipients {
-			in.presenceByStaff[sc.StaffID] = s.batchPresence(sc, cfg, in)
-		}
-	}
-
-	if cfg.anyPickup() {
-		union := unionOf(in.presenceByStaff)
-		if len(union) > 0 {
-			if s.Student != nil {
-				students, err := s.Student.FindReadScopeByIDs(ctx, union)
-				if err != nil {
-					return nil, fmt.Errorf("load students: %w", err)
-				}
-				in.students = students
-			}
-			if s.Pickup != nil {
-				times, err := s.Pickup.GetBulkEffectivePickupTimesForDate(ctx, union, in.today)
-				if err != nil {
-					return nil, err
-				}
-				in.pickupTimes = times
-			}
-		}
-	}
-
 	if cfg.anyActivity() && s.Instance != nil {
-		instances, err := s.Instance.FindByTenantAndDate(ctx, in.today)
-		if err != nil {
+		if err := s.loadBatchActivities(ctx, cfg, recipients, in); err != nil {
 			return nil, err
 		}
-		in.instances = instances
-
-		if cfg.activityOverdue {
-			if s.Room == nil {
-				return nil, errActivityRoomReaderMissing
-			}
-			wanted := plannedInstanceRoomIDs(instances)
-			rooms, roomErr := s.Room.FindByIDs(ctx, sortedIDs(wanted))
-			if roomErr != nil {
-				return nil, fmt.Errorf("load activity reminder rooms: %w", roomErr)
-			}
-			if resolveErr := resolveActivityRooms(rooms, wanted); resolveErr != nil {
-				return nil, resolveErr
-			}
-		}
-
-		// Planned assignments, one query for the whole day. Absent rows are
-		// skipped: someone who called in sick must not be pinged about the
-		// slot they were relieved of. Substitutes are kept — they are the ones
-		// who have to show up.
-		if s.BulkInstanceStaff != nil {
-			instanceIDs := make([]int64, 0, len(instances))
-			for _, inst := range instances {
-				if inst != nil && inst.Status == ports.InstanceStatusPlanned {
-					instanceIDs = append(instanceIDs, inst.ID)
-				}
-			}
-			rows, staffErr := s.BulkInstanceStaff.FindByInstanceIDs(ctx, instanceIDs)
-			if staffErr != nil {
-				return nil, fmt.Errorf("load planned activity staff: %w", staffErr)
-			}
-			for _, row := range rows {
-				if row == nil || row.IsAbsent {
-					continue
-				}
-				if _, wanted := recipientStaffIDs[row.StaffID]; !wanted {
-					continue
-				}
-				if in.assignedInstances[row.StaffID] == nil {
-					in.assignedInstances[row.StaffID] = map[int64]struct{}{}
-				}
-				in.assignedInstances[row.StaffID][row.InstanceID] = struct{}{}
-			}
-		}
 	}
-
 	return in, nil
 }
 
