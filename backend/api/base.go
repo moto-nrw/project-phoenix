@@ -43,6 +43,7 @@ import (
 	appointmentsCompose "github.com/moto-nrw/project-phoenix/modules/appointments/compose"
 	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
 	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
 	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
@@ -622,14 +623,14 @@ func composeCarePlan(db transactionruntime.Database, persons *peopleModule.Modul
 		StudentDirectory: studentDirectoryView.NewReader(),
 		DB:               db.Pool(), AmbientDB: carePlanCompose.TenantAmbientDatabase(db.Pool()),
 		StatusStudents: statusStudents, StatusSlots: slots,
-		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+		People: carePlanStudentNames(func(ctx context.Context, ids []int64) ([]carePlanPorts.StudentName, error) {
 			values, err := persons.ListStudentNamesByID(ctx, ids)
 			if err != nil {
 				return nil, err
 			}
-			result := make([]carePlanCompose.StudentName, 0, len(values))
+			result := make([]carePlanPorts.StudentName, 0, len(values))
 			for _, value := range values {
-				result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+				result = append(result, carePlanPorts.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
 			}
 			return result, nil
 		}),

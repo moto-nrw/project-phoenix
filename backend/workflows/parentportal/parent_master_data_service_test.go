@@ -14,8 +14,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
-	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -97,7 +95,7 @@ func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
 	require.NotEmpty(t, edits)
 	var healthEditFound bool
 	for _, edit := range edits {
-		if edit.FieldName == auditModels.StudentFieldHealthInfo {
+		if edit.FieldName == "health_info" {
 			healthEditFound = true
 			assert.Equal(t, chain.AccountID, edit.EditedBy)
 			assert.Equal(t, "Petra Parent", edit.EditedByName)
@@ -220,8 +218,7 @@ func TestMasterDataUsesSelectedChildGuardianProfile(t *testing.T) {
 		GuardianProfileID: secondProfile.ID,
 		RelationshipType:  "parent",
 	}
-	link.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRolePrimaryGuardian)
-	link.Permissions = authorize.StudentGuardianPermissionSet(link.GuardianRole)
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixture("primary_guardian")
 	link.TenantID = secondTenantID
 	err = testpkg.InsertTestStudentGuardian(ctx, db, link)
 	require.NoError(t, err)

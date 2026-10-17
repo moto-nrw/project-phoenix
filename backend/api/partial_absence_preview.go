@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 )
@@ -11,7 +11,7 @@ import (
 // newPartialAbsencePreview binds the Timetable partial-absence preview to the
 // People Directory (is the child still enrolled) and to the Care Plan pickup
 // exceptions.
-func newPartialAbsencePreview(reads timetableCompose.PresenceReads, students peopledirectory.StudentQuery, exceptions carePlanCompose.ExceptionQueries) timetableCompose.PartialAbsencePreview {
+func newPartialAbsencePreview(reads timetableCompose.PresenceReads, students peopledirectory.StudentQuery, exceptions carePlanPorts.ExceptionQueries) timetableCompose.PartialAbsencePreview {
 	enrolled := func(ctx context.Context, studentID int64) (bool, error) {
 		values, err := students.ListStudentsByID(ctx, []int64{studentID})
 		if err != nil {

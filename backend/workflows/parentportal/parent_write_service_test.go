@@ -13,7 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/auth/authorize"
 
 	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
@@ -674,8 +673,7 @@ func TestListSickDays_HidesAnotherGuardiansReason(t *testing.T) {
 	_, err := db.NewInsert().Model(otherProfile).ModelTableExpr(`users.guardian_profiles`).Exec(testpkg.Ctx(t))
 	require.NoError(t, err)
 	link := &testpkg.StudentGuardian{StudentID: chain.StudentID, GuardianProfileID: otherProfile.ID, RelationshipType: "parent"}
-	link.GuardianRole = authorize.NormalizeGuardianRole(authorize.GuardianRoleLegalGuardian)
-	link.Permissions = authorize.StudentGuardianPermissionSet(link.GuardianRole)
+	link.GuardianRole, link.Permissions = api.ParentGuardianRoleFixture("legal_guardian")
 	link.TenantID = chain.TenantID
 	err = testpkg.InsertTestStudentGuardian(testpkg.Ctx(t), db, link)
 	require.NoError(t, err)
@@ -988,7 +986,7 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	svc, _, db := buildWriteService(t, true, true)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	portalAndSick := `{"` + authorize.GuardianPermissionPortalAccess + `": true, "` + authorize.GuardianPermissionSickNoteSubmit + `": true}`
+	portalAndSick := `{"` + "parent_portal.access" + `": true, "` + "parent_portal.sick_note.submit" + `": true}`
 	_, err := db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb
@@ -1003,7 +1001,7 @@ func TestChildFeatures_RequiresActionPermissions(t *testing.T) {
 	assert.True(t, flags.SickNoteEnabled)
 	assert.False(t, flags.NotesEnabled)
 
-	portalOnly := `{"` + authorize.GuardianPermissionPortalAccess + `": true}`
+	portalOnly := `{"` + "parent_portal.access" + `": true}`
 	_, err = db.ExecContext(testpkg.WithPackageTenantRuntime(context.Background()), `
 		UPDATE auth.guardian_student_access AS a
 		SET permissions = ?::jsonb

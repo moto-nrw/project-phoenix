@@ -6,7 +6,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -19,7 +18,7 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 	rows := []careplan.PickupException{{
 		ExceptionDate:     careplan.Date(calendar.TodayDate()),
 		Reason:            &reason,
-		Source:            scheduleModels.ExceptionSourceGuardian,
+		Source:            careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &authorID,
 	}}
 

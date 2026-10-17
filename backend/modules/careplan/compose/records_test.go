@@ -8,20 +8,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type recordingStudentNames struct {
-	values []StudentName
+	values []careplanPorts.StudentName
 	calls  int
 }
 
-func (p *recordingStudentNames) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
+func (p *recordingStudentNames) ListStudentNamesByID(context.Context, []int64) ([]careplanPorts.StudentName, error) {
 	p.calls++
 	return p.values, nil
 }
@@ -32,7 +34,7 @@ func TestCompanionFacadePreservesNamesIsolationAndQueryCount(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 	first := testpkg.CreateTestStudent(t, db, "Erstes", "Kind", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Zweites", "Kind", "1a")
-	people := &recordingStudentNames{values: []StudentName{{
+	people := &recordingStudentNames{values: []careplanPorts.StudentName{{
 		StudentID: second.ID, FirstName: "Zweites", LastName: "Kind",
 	}}}
 	var observations []Observation
