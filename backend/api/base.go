@@ -2000,7 +2000,7 @@ func newPlatformRuntime() platformAnnouncementsHTTP.Runtime {
 				r.Use(sessiontoken.Authenticator)
 				r.Use(ReadOnlyPreviewMiddleware)
 				r.Use(TenantScopeMiddleware)
-				r.Use(apiCommon.SecurityPrincipalMiddleware)
+				r.Use(SecurityPrincipalMiddleware)
 				register(r)
 			})
 		},

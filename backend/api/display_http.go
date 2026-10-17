@@ -43,7 +43,7 @@ func displayProtectedRoutes(r chi.Router, register func(chi.Router, displayHTTP.
 		r.Use(sessiontoken.Authenticator)
 		r.Use(ReadOnlyPreviewMiddleware)
 		r.Use(TenantScopeMiddleware)
-		r.Use(apiCommon.SecurityPrincipalMiddleware)
+		r.Use(SecurityPrincipalMiddleware)
 		register(r, apiCommon.TenantTxMiddleware)
 	})
 }
