@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/localization"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
@@ -188,6 +187,7 @@ type Service interface {
 }
 
 type service struct {
+	runtime          Runtime
 	repo             usersModels.ParentAnnouncementRepository
 	settings         Settings
 	outbox           OutboxEnqueuer
@@ -204,34 +204,13 @@ type service struct {
 	logger      *slog.Logger
 }
 
-// NewService wires the staff announcement service.
-func NewService(cfg ServiceConfig) Service {
-	logger := cfg.Logger
-	if logger == nil {
-		logger = slog.Default()
-	}
-	return &service{
-		repo:             cfg.Repo,
-		settings:         cfg.Settings,
-		outbox:           cfg.Outbox,
-		pushOutbox:       cfg.PushOutbox,
-		notifier:         cfg.Notifier,
-		reminderNotifier: cfg.ReminderNotifier,
-		preferences:      cfg.Preferences,
-		deliveries:       cfg.Deliveries,
-		fingerprints:     cfg.Fingerprints,
-		parentsURL:       cfg.ParentsURL,
-		logger:           logger,
-	}
-}
-
 // newsEnabled reports whether the parent-news feature is on for the current
 // tenant. Runs inside the request tenant tx, so ResolveBool is correct.
 func (s *service) newsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
 		return false, nil
 	}
-	return s.settings.ResolveBool(ctx, configModel.KeyParentNewsEnabled)
+	return s.settings.ParentNewsEnabled(ctx)
 }
 
 func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {

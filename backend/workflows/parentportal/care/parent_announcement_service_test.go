@@ -28,13 +28,13 @@ import (
 
 // buildAnnouncementService wires the parent service with just the repositories
 // the announcement feed needs. newsEnabled controls the per-tenant feature gate.
-func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.MessagingFlows, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	return buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), newsEnabled)
 }
 
 // buildAnnouncementServiceOn wires the service on a database the caller set up.
-func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.MessagingFlows, *bun.DB, *api.RepositoryTestFactory) {
+func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportal.NewMessagingFlows(parentportal.MessagingConfig{
@@ -45,7 +45,7 @@ func buildAnnouncementServiceOn(t *testing.T, db *bun.DB, newsEnabled bool) (*pa
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
-		AnnouncementRepo:      repos.ParentAnnouncement,
+		AnnouncementRepo:      api.BindParentAnnouncementAccess(repos.ParentAnnouncement),
 		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{parentportal.KeyParentNewsEnabled: newsEnabled},

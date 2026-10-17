@@ -9,7 +9,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // notifyAfterCommit wakes the conversation's participants and pushes to the
@@ -48,7 +47,7 @@ func (s *Service) broadcastAfterCommit(ctx context.Context, thread *usersModels.
 		return
 	}
 
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.runtime.RegisterAfterCommit(ctx, func() {
 		event := realtime.NewStaffMessageEvent(senderAccountID, threadID)
 		if err := s.Broadcaster.BroadcastToStaffAccounts(tenantID, participants, event); err != nil {
 			s.Logger.Warn("staffmessaging: broadcast failed",

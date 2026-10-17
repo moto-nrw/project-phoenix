@@ -20,13 +20,13 @@ type StudentTestRepositories struct {
 	// CarePlan is the owner capability the legacy adapters below delegate to;
 	// Care Plan workflows composed by the test root share the same instance.
 	CarePlan           careplan.Capability
-	ParentRequestShare usersModels.ParentRequestShareEventRepository
+	ParentRequestShare peoplePorts.ParentRequestShareRecords
 	EnrollmentTestRepositories
 	CareScheduleChangeRequest    timetablePorts.CareScheduleRequestRows
 	ExcusedAbsenceRequest        *ExcusedAbsenceRequestRepository
 	ParentRequestEvent           usersModels.ParentRequestEventRepository
 	StudentDataChangeRequest     peoplePorts.StudentDataChangeRequestRepository
-	FamilyProtection             usersModels.FamilyProtectionEventRepository
+	FamilyProtection             peoplePorts.FamilyProtectionRecords
 	EnrollmentOfferingAdjustment auditModels.EnrollmentOfferingAdjustmentRepository
 	EnrollmentRestorationAudit   auditModels.EnrollmentRestorationRepository
 	GuardianFinancialChange      auditModels.GuardianFinancialChangeCreator
@@ -36,8 +36,8 @@ type StudentTestRepositories struct {
 	StudentFieldEdit             auditModels.StudentFieldEditRepository
 	StudentConsentChange         auditModels.StudentConsentChangeRepository
 	DataDeletion                 auditModels.DataDeletionRepository
-	ParentMessageThread          usersModels.ParentMessageThreadRepository
-	ParentMessage                usersModels.ParentMessageRepository
+	ParentMessageThread          parentStore.ParentMessageThreadRepository
+	ParentMessage                parentStore.ParentMessageRepository
 }
 
 func NewStudentTestRepositoriesWithMembers(db transactionruntime.Database, members MembershipTestRepositories) (StudentTestRepositories, error) {

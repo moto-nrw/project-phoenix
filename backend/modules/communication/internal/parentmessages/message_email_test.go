@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -61,21 +62,21 @@ func newEmailFixture(t *testing.T, preferences notifications.PreferenceService) 
 	require.NoError(t, err)
 	outbox := testpkg.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
-		UserContext:      api.StaffStudentReads{},
-		ThreadRepo:       repos.ParentMessageThread,
-		MessageRepo:      parentStore.NewParentMessageRepository(db),
-		ReadRepo:         repos.ParentMessageRead,
-		Persons:          newPersons(repos, db),
-		Settings:         stubSettings{messagingEnabled: true},
-		Broadcaster:      testpkg.NewRecordingBroadcaster(),
-		DB:               db,
+		UserContext: api.StaffStudentReads{},
+		ThreadRepo:  repos.ParentMessageThread,
+		MessageRepo: parentStore.NewParentMessageRepository(db),
+		ReadRepo:    repos.ParentMessageRead,
+		Persons:     newPersons(repos, db),
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
+		Broadcaster: testpkg.NewRecordingBroadcaster(),
+
 		Logger:           slog.Default(),
 		Preferences:      preferences,
 		Outbox:           outbox,
 		GuardianProfiles: repos.GuardianProfile,
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	_, staffAccount := testpkg.CreateTestStaffWithAccount(t, db, "Olivia", "Berg")

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
@@ -60,9 +61,9 @@ func NewFileStoreTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return FileStoreTestModule{}, err
 	}
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New()), guardianLinkView.NewReader()), Settings: settings.Settings, Logger: slog.Default(),
+		Repo: parentStore.NewParentAnnouncementRepository(db.Pool(), ParentAnnouncementApplicants(enrollmentAudience.New()), guardianLinkView.NewReader()), Settings: settingsValues.NewParentAnnouncementValues(settings.Settings), Logger: slog.Default(),
 		Fingerprints: SecurityFingerprints{},
-	})
+	}, CommunicationRequestRuntime{})
 	files, err := filestorageCompose.New(filestorageCompose.Dependencies{
 		DB:            db.Pool(),
 		Objects:       objects,

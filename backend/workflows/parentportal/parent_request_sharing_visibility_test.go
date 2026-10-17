@@ -61,7 +61,7 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		GuardianPhoneRepo: api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: api.NewParentPersonReads(repos.Person),
 		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
 		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
-		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
+		FamilyProtectionEvents: api.BindParentFamilyProtectionReads(repos.FamilyProtection), ParentRequestShares: api.BindParentRequestShareRecords(repos.ParentRequestShare),
 		Logger: slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),

@@ -19,6 +19,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/api"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -119,10 +120,10 @@ func errSvc(tr usersModels.ParentMessageThreadRepository, mr usersModels.ParentM
 		MessageRepo: mr,
 		ReadRepo:    rr,
 		Persons:     fakePersons{},
-		Settings:    stubSettings{messagingEnabled: true},
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
 		Logger:      slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 }
 
 // errCtx is an admin context (the read scope is satisfied without a userContext).
@@ -225,8 +226,8 @@ func TestPostMessage_NoBroadcastOnAppendFailure(t *testing.T) {
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  tr, MessageRepo: &fakeMessageRepo{createErr: errBoom}, ReadRepo: &fakeReadRepo{},
-		Persons: fakePersons{}, Settings: stubSettings{messagingEnabled: true}, Broadcaster: bc, Logger: slog.Default(),
-	})
+		Persons: fakePersons{}, Settings: settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}), Broadcaster: bc, Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{})
 	_, err := svc.PostMessage(errCtx(t), 5, "Hallo", 0)
 	require.Error(t, err)
 	assert.Equal(t, 0, parentEventCount(bc, realtime.EventParentMessage), "a failed append must not broadcast")

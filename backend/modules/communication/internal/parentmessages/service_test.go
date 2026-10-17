@@ -22,11 +22,11 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -108,11 +108,11 @@ func buildMessagingWithSettings(t *testing.T, settings stubSettings) (*messaging
 		MessageRepo: parentStore.NewParentMessageRepository(db),
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     newPersons(repos, db),
-		Settings:    settings,
+		Settings:    configModels.NewParentMessagingValues(settings),
 		Broadcaster: bc,
-		DB:          db,
-		Logger:      slog.Default(),
-	})
+
+		Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{})
 	return svc, bc, repos, db
 }
 
@@ -662,9 +662,9 @@ func TestMessaging_DisabledFeature(t *testing.T) {
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
-		Settings:    stubSettings{messagingEnabled: false},
-		Broadcaster: f.bc, DB: f.db, Logger: slog.Default(),
-	})
+		Settings:    configModels.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
+		Broadcaster: f.bc, Logger: slog.Default(),
+	}, testpkg.TenantTransactionRuntime{})
 
 	_, err = disabled.PostMessage(ctx, started.ThreadID, "Reply", 0)
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)

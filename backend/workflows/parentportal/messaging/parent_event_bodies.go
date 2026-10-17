@@ -1,7 +1,6 @@
 package messaging
 
 import (
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -16,7 +15,7 @@ func (s *Service) EmitSelfServicePill(tenantID, studentID, accountID int64, even
 	}
 	s.Emitter.EmitChildEvent(tenantID, studentID, accountID, care.ChildEvent{
 		EventType:      eventType,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorKind:      ParentMessageSenderGuardian,
 		ActorAccountID: accountID,
 		Body:           body,
 		RefTable:       refTable,

@@ -26,11 +26,11 @@ import (
 // buildReadService wires the full parent messaging stack including the guardian
 // profile repo (so resolveGuardianName resolves a real name) and returns the
 // service, broadcaster, db, and repo factory.
-func buildReadService(t *testing.T, enabled bool) (*parentportal.MessagingFlows, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
+func buildReadService(t *testing.T, enabled bool) (*parentportal.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	return buildReadServiceWithNotifier(t, enabled, nil)
 }
 
-func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier) (*parentportal.MessagingFlows, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
+func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentportal.StaffParentMessageNotifier) (*parentportal.Portal, *testpkg.RecordingBroadcaster, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	// Child names come from the People Directory composition (#2661); bind
@@ -63,9 +63,9 @@ func buildReadServiceWithNotifier(t *testing.T, enabled bool, notifier parentpor
 		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		GuardianProfileRepo:   api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Settings:              settings,
-		MessageThreadRepo:     repos.ParentMessageThread,
-		MessageRepo:           messageStores.Message,
-		MessageReadRepo:       repos.ParentMessageRead,
+		MessageThreadRepo:     api.BindParentMessageThreadAccess(repos.ParentMessageThread),
+		MessageRepo:           api.BindParentMessageReads(messageStores.Message),
+		MessageReadRepo:       api.BindParentMessageInboxReads(repos.ParentMessageRead),
 		Conversations:         api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, bc, slog.Default()),
 		ParentMessageNotifier: notifier,
 		Logger:                slog.Default(),
@@ -100,12 +100,12 @@ func seedStaffReply(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, 
 		SenderName:      "Olivia Berg",
 		Body:            body,
 	}
-	m.SetTenantID(chain.TenantID)
+	m.TenantID = chain.TenantID
 	messageStores, err := api.NewParentMessagingTestRepositories(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	// AppendMessage also touches the thread's last-activity, so it surfaces in the
 	// guardian's thread list (empty conversations stay hidden).
-	require.NoError(t, api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, nil, nil).AppendMessage(ctx, m))
+	require.NoError(t, parentportal.AppendConversationMessageFixture(ctx, api.NewParentConversationCore(repos.ParentMessageThread, messageStores.Message, repos.ParentMessageRead, nil, nil), m))
 	return thread.ID, staffAccount.ID
 }
 

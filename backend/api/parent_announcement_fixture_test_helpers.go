@@ -13,8 +13,7 @@ import (
 )
 
 // ParentAnnouncementFixtures constructs native test values through the actual
-// owner store. Declaration methods retain the workflow's existing vocabulary;
-// this fixture cutover does not remove its production DTO dependency.
+// owner store. Declaration values use the native public workflow vocabulary.
 type ParentAnnouncementFixtures interface {
 	Create(context.Context, *communication.ParentAnnouncementFixture) error
 	FindByID(context.Context, int64) (*communication.ParentAnnouncementFixture, error)
@@ -30,5 +29,30 @@ type ParentAnnouncementFixtures interface {
 // NewParentAnnouncementFixtures binds the test construction seam without a
 // second persistence implementation or a foreign row import in the root.
 func NewParentAnnouncementFixtures(repo peopleVocabulary.ParentAnnouncementRepository) ParentAnnouncementFixtures {
-	return parentstore.NewParentAnnouncementFixtures(repo)
+	return parentAnnouncementFixtures{parentstore.NewParentAnnouncementFixtures(repo)}
+}
+
+type parentAnnouncementFixtures struct {
+	parentstore.ParentAnnouncementFixtures
+}
+
+func (f parentAnnouncementFixtures) InsertDeclarationVersion(ctx context.Context, value *parentportal.DeclarationVersion) error {
+	row := parentMessagingPointer(value, parentMessagingToOwnerDeclarationVersion)
+	err := f.ParentAnnouncementFixtures.InsertDeclarationVersion(ctx, row)
+	if value != nil && row != nil {
+		*value = parentMessagingFromOwnerDeclarationVersion(*row)
+	}
+	return err
+}
+func (f parentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Context, tenantID, id int64) ([]*parentportal.DeclarationSubmission, error) {
+	rows, err := f.ParentAnnouncementFixtures.ListDeclarationSubmissions(ctx, tenantID, id)
+	return parentMessagingSlice(rows, func(row *communication.PortalDeclarationSubmission) *parentportal.DeclarationSubmission {
+		return parentMessagingPointer(row, parentMessagingFromOwnerDeclarationSubmission)
+	}), err
+}
+func ParentDeclarationCanonicalContent(value *parentportal.DeclarationVersion) []byte {
+	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalContent(parentMessagingToOwnerDeclarationVersion(*value))
+}
+func ParentDeclarationCanonicalRecord(value *parentportal.DeclarationSubmission) []byte {
+	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalRecord(parentMessagingToOwnerDeclarationSubmission(*value))
 }

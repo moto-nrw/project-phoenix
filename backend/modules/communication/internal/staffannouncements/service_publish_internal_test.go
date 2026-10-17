@@ -1,6 +1,8 @@
 package announcement
 
 import (
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"context"
 	"errors"
 	"log/slog"
@@ -12,7 +14,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // fakeAnnouncementRepo embeds the repository interface and overrides only what
@@ -114,12 +115,11 @@ func (f *fakeAnnouncementRepo) UnansweredReminderRecipients(_ context.Context, _
 
 // fakeSettings answers the parent-news feature flag; everything else panics.
 type fakeSettings struct {
-	configService.SettingsService
 	enabled bool
 	logoURL string
 }
 
-func (f *fakeSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
+func (f *fakeSettings) ParentNewsEnabled(_ context.Context) (bool, error) {
 	return f.enabled, nil
 }
 
@@ -185,7 +185,7 @@ func newTestService(repo *fakeAnnouncementRepo, outbox *fakeOutbox) Service {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 	// The file side of the attachments (#2890): Delete records the cleanup
 	// intents for the attachment bytes through it and refuses to run without
 	// one, so every service under test gets a stub.
@@ -292,7 +292,7 @@ func TestUnpublish_CancelsPendingReminderPushes(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: &fakeOutbox{},
 		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Unpublish(context.Background(), published.ID); err != nil {
 		t.Fatalf("unpublish failed: %v", err)
@@ -314,7 +314,7 @@ func TestDelete_CancelsPendingDeliveries(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Outbox: outbox,
 		PushOutbox: pushOutbox, Notifier: &fakeNotifier{}, Logger: slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 	svc.SetAttachmentPurger(&stubPurger{})
 
 	if err := svc.Delete(context.Background(), published.ID); err != nil {
@@ -352,7 +352,7 @@ func TestRemindUnanswered_KeepsNoEmailGuardianForPush(t *testing.T) {
 		Outbox:     &fakeOutbox{},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	delivered, err := svc.RemindUnanswered(context.Background(), poll.ID)
 	if err != nil {
@@ -390,7 +390,7 @@ func TestRemindUnanswered_DoesNotPushWhenEmailQueueingFails(t *testing.T) {
 		Outbox:     &fakeOutbox{enqueueErr: errors.New("outbox unavailable")},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	_, err := svc.RemindUnanswered(context.Background(), poll.ID)
 	if err == nil {
@@ -456,7 +456,7 @@ func TestPublish_NotifiesTargetedGuardiansWithoutAnnouncementContent(t *testing.
 		Notifier:   notifier,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -494,7 +494,7 @@ func TestPublish_GroupsGuardianPushesByPortalLocale(t *testing.T) {
 	svc := NewService(ServiceConfig{
 		Repo: repo, Settings: &fakeSettings{enabled: true}, Notifier: notifier,
 		ParentsURL: "https://parents.example.test", Logger: slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -541,7 +541,7 @@ func TestPublish_PollNotifiesAllTargetedGuardians(t *testing.T) {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), poll.ID); err != nil {
 		t.Fatalf("publish poll: %v", err)
@@ -574,7 +574,7 @@ func TestPublish_EnqueuesBrandingLogos(t *testing.T) {
 		Outbox:     outbox,
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err != nil {
 		t.Fatalf("publish failed: %v", err)
@@ -781,7 +781,7 @@ func TestPublish_EmailEnqueueFailureIsFatal(t *testing.T) {
 		Outbox:     failingOutbox{},
 		ParentsURL: "https://parents.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.Publish(context.Background(), repo.announcement.ID); err == nil {
 		t.Fatal("expected publish to fail when the e-mail enqueue fails")

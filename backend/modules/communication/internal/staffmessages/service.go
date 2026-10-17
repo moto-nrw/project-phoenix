@@ -18,12 +18,10 @@ import (
 	"log/slog"
 	"strings"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/uptrace/bun"
 )
 
 // maxMessageLen caps one message in runes. Mirrors the parent-OGS chat limit so
@@ -77,13 +75,16 @@ type PersonLookup interface {
 // Settings resolves the messaging feature flag and the retention period of the
 // current tenant.
 type Settings interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
+	StaffMessagingEnabled(ctx context.Context) (bool, error)
+	StaffMessagingEnabledKey() string
+	StaffMessageRetentionDays(ctx context.Context) (int, error)
+	StaffMessageRetentionDaysKey() string
 }
 
 // Service is the OGS-internal messaging service.
 type Service struct {
 	Config
+	runtime Runtime
 }
 
 // Config is the dependency-injection bundle.
@@ -94,7 +95,6 @@ type Config struct {
 	Persons     PersonLookup
 	Settings    Settings
 	Broadcaster realtime.Broadcaster
-	DB          *bun.DB
 	Logger      *slog.Logger
 
 	// Notifier and Preferences push a message to the recipient's devices. Both
@@ -106,11 +106,11 @@ type Config struct {
 }
 
 // NewService wires an internal messaging service.
-func NewService(cfg Config) *Service {
+func NewService(cfg Config, runtime Runtime) *Service {
 	if cfg.Logger == nil {
 		cfg.Logger = slog.Default()
 	}
-	return &Service{Config: cfg}
+	return &Service{Config: cfg, runtime: runtime}
 }
 
 // actor returns the authenticated account id for the request.
@@ -133,10 +133,10 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 	if s.Settings == nil {
 		return ErrMessagingDisabled
 	}
-	enabled, err := s.Settings.ResolveBool(ctx, configModels.KeyStaffMessagingEnabled)
+	enabled, err := s.Settings.StaffMessagingEnabled(ctx)
 	if err != nil {
 		s.Logger.Warn("staffmessaging: resolve enabled failed, failing closed",
-			slog.String("key", configModels.KeyStaffMessagingEnabled),
+			slog.String("key", s.Settings.StaffMessagingEnabledKey()),
 			slog.String("error", err.Error()),
 		)
 		return ErrMessagingDisabled

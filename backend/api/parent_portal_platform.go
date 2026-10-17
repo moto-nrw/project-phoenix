@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
@@ -47,8 +47,8 @@ func BindParentStudentUpdates(broadcaster realtime.Broadcaster) interface{ Stude
 }
 
 // ParentDeclarationPolicy binds the workflow port to Communication's value policy.
-func ParentDeclarationPolicy() communication.DeclarationPolicy {
-	return communication.DeclarationPolicy{}
+func ParentDeclarationPolicy() parentportal.DeclarationPolicy {
+	return BindParentDeclarationPolicy(parentStore.NewPortalDeclarationPolicy())
 }
 
 // NewParentGuardianPolicy binds canonical role, relationship and permission

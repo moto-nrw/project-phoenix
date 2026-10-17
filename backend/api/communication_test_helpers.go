@@ -6,11 +6,15 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose/vocabulary"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	"github.com/moto-nrw/project-phoenix/tenant"
+	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
 )
 
 // NewParentEventEmitter builds Communication's real parent-event emitter over
@@ -30,8 +34,8 @@ func NewParentEventEmitter(
 	logger *slog.Logger,
 ) *communicationCompose.ParentEventEmitter {
 	return communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB: db.Pool(), Runtime: runtime, ThreadRepo: threadRepo, MessageRepo: messageRepo,
-		Settings: settings, Broadcaster: broadcaster, Logger: logger,
+		Runtime: NewCommunicationEventRuntime(db.Pool() != nil, runtime), ThreadRepo: threadRepo, MessageRepo: messageRepo,
+		Settings: settingsValues.NewParentEventValues(settings), Broadcaster: broadcaster, Logger: logger,
 	})
 }
 
@@ -43,9 +47,17 @@ func NewParentConversationCore(
 	readRepo userModels.ParentMessageReadRepository,
 	broadcaster realtime.Broadcaster,
 	logger *slog.Logger,
-) communicationCompose.ParentConversationCore {
-	return communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
-		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo,
-		Broadcaster: broadcaster, Logger: logger,
-	})
+) parentportal.ConversationCore {
+	return BindParentConversationCore(parentStore.NewPortalConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+		ThreadRepo: threadRepo, MessageRepo: messageRepo, ReadRepo: readRepo, Broadcaster: broadcaster, Logger: logger,
+	})))
+}
+
+// ParentConversationMessagesFixture reads the same message snapshot through
+// the owner's native public facade, preserving nil/empty and the original error.
+func ParentConversationMessagesFixture(ctx context.Context, source communication.PortalMessageReads, threadID int64, limit int) ([]*parentportal.ParentMessage, error) {
+	rows, err := source.PortalListByThread(ctx, threadID, limit)
+	return parentMessagingSlice(rows, func(row *communication.PortalParentMessage) *parentportal.ParentMessage {
+		return parentMessagingPointer(row, parentMessagingFromOwnerParentMessage)
+	}), err
 }

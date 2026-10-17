@@ -1,6 +1,8 @@
 package announcement
 
 import (
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"context"
 	"log/slog"
 	"strings"
@@ -159,7 +161,7 @@ func newLetterService(repo *letterRepo, outbox *letterOutbox, deliveries *letter
 		Deliveries: deliveries,
 		ParentsURL: "https://eltern.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 }
 
 // --- tests -------------------------------------------------------------------
@@ -604,7 +606,7 @@ func TestRemindOutstandingLetterDoesNotUsePollPush(t *testing.T) {
 		Deliveries: &letterDeliveries{},
 		ParentsURL: "https://eltern.example.test",
 		Logger:     slog.Default(),
-	})
+	}, testpkg.TenantTransactionRuntime{})
 
 	if _, err := svc.RemindOutstanding(context.Background(), a.ID); err != nil {
 		t.Fatalf("RemindOutstanding: %v", err)

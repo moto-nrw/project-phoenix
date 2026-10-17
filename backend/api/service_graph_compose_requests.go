@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
@@ -461,20 +462,20 @@ func composeMessaging(b graphBuild) (graphBuild, error) {
 	b.graph.Messaging = communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: portal.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(b.DB.Pool()),
 		ReadRepo: portal.ParentMessageRead, Persons: b.graph.Users, UserContext: StaffStudentReads{Caller: b.callerContext},
-		Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
+		Settings: settingsValues.NewParentMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
 		Logger: b.Logger.With("service", "messaging"), Notifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		// E-Mail an den Sorgeberechtigten bei neuer OGS-Nachricht (#2307):
 		// der Rueckfall fuer alle, die Push nicht eingerichtet haben.
 		Outbox: b.outbox(), GuardianProfiles: b.People.GuardianProfiles, Schools: b.People.SchoolNames,
 		LoginImages: b.settingsService, ParentsURL: b.parentsURL, Observe: b.ObserveCommunication,
-	})
+	}, CommunicationRequestRuntime{})
 	b.graph.StaffMessaging = communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(b.DB.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(b.DB.Pool()), ReadRepo: portal.StaffMessageRead,
-		Persons: b.graph.Users, Settings: b.settingsService, Broadcaster: b.graph.RealtimeHub, DB: b.DB.Pool(),
+		Persons: b.graph.Users, Settings: settingsValues.NewStaffMessagingValues(b.settingsService), Broadcaster: b.graph.RealtimeHub,
 		Logger: b.Logger.With("service", "staffmessaging"), Notifier: b.graph.Notifications,
 		Preferences: b.graph.NotificationPreferences, Observe: b.ObserveCommunication,
-	})
+	}, CommunicationRequestRuntime{})
 	calendar := b.TimetableWiring.Calendar(b.calendarDependencies())
 	b.graph.Calendar, b.graph.CalendarFeedCleanup = calendar, calendar
 	return b, nil
@@ -515,12 +516,12 @@ func composeParentPortal(b graphBuild) (graphBuild, error) {
 	}
 	b.graph.Parent = parentportalcompose.New(b.parentPortalDependencies(profiles))
 	announcements := communicationCompose.NewParentAnnouncements(communicationCompose.ParentAnnouncementConfig{
-		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: b.settingsService, Outbox: b.late.emailOutbox,
+		Repo: b.Platform.ParentPortal.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(b.settingsService), Outbox: b.late.emailOutbox,
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(b.graph.Delivery), Notifier: b.graph.Notifications,
 		ReminderNotifier: b.graph.Notifications, Preferences: b.graph.NotificationPreferences,
 		Deliveries: b.Platform.AnnouncementDeliveries(b.graph.Delivery), ParentsURL: b.parentsURL,
 		Fingerprints: SecurityFingerprints{}, Logger: b.Logger.With("service", "announcement"),
-	})
+	}, CommunicationRequestRuntime{})
 	b.graph.ParentAnnouncement = announcements
 	b.late.guardianNoticePublisher = announcements
 	return b, nil
@@ -546,17 +547,17 @@ func (b *graphBuild) parentPortalDependencies(profiles careplan.StudentProfileCo
 		PersonRepo: NewParentPersonReads(people.Persons), ChangeRequestRepo: NewParentDataRequestReads(b.CarePlan),
 		CareRequestRepo: NewParentCareRequestReads(b.CarePlan), ExcusedRequestRepo: b.CarePlanWiring.ExcusedRequestRows,
 		OfferingChangeRequestRepo: NewParentOfferingChangeReads(enrollmentCompose.NewOfferingChangeRecords(b.CarePlan)),
-		FamilyProtectionEvents:    peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool()),
-		ParentRequestShares:       peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool()),
+		FamilyProtectionEvents:    BindParentFamilyProtectionReads(peopleCompose.NewFamilyProtectionEventRepository(b.DB.Pool())),
+		ParentRequestShares:       BindParentRequestShareRecords(peopleCompose.NewParentRequestShareEventRepository(b.DB.Pool())),
 		ParentRequestEvents:       NewParentRequestEvents(peopleCompose.NewParentRequestEventRepository(b.DB.Pool())), StudentAudit: NewParentStudentAudit(b.graph.StudentAudit),
-		MessageThreadRepo: portal.ParentMessageThread, MessageRepo: messages, MessageReadRepo: portal.ParentMessageRead,
-		Conversations: communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
+		MessageThreadRepo: BindParentMessageThreadAccess(portal.ParentMessageThread), MessageRepo: BindParentMessageReads(messages), MessageReadRepo: BindParentMessageInboxReads(portal.ParentMessageRead),
+		Conversations: BindParentConversationCore(parentStore.NewPortalConversationCore(communicationCompose.NewParentConversationCore(communicationCompose.ParentConversationConfig{
 			ThreadRepo: portal.ParentMessageThread, MessageRepo: messages, ReadRepo: portal.ParentMessageRead,
 			Broadcaster: b.graph.RealtimeHub, Logger: b.Logger.With("service", "parent"),
-		}),
+		}))),
 		ParentMessageNotifier: bindParentMessageNotifier(b.staffParentMessages), ArrivalSchedules: NewParentArrivalSchedules(b.graph.ArrivalSchedule),
 		PickupSchedules: NewParentPickupSchedules(b.graph.PickupSchedule), CareRequests: b.graph.CareRequests, ExcusedRequests: NewParentExcusedAbsenceRequests(b.excusedRequests),
-		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: portal.ParentAnnouncement,
+		Emitter: BindParentChildEvents(b.graph.ParentEventEmitter), MessagingEnabled: BindParentMessagingGate(b.settingsService, b.Logger.With("service", "parent")), AnnouncementRepo: BindParentAnnouncementAccess(portal.ParentAnnouncement),
 		GuardianInvites: b.identity.ParentGuardianAccess, GuardianInvitations: b.identity.GuardianInvitations,
 		StudentGuardianRepo: NewParentStudentGuardianReads(people.StudentGuardians), GuardianPhoneRepo: NewParentGuardianPhoneReads(peopleCompose.NewGuardianPhoneNumberRepository(b.DB.Pool())),
 		StudentConsents: NewParentStudentConsents(b.graph.StudentConsents), StudentPhotos: studentPhotoUnlinker(b.graph.StudentPhotos),

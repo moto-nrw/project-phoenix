@@ -25,6 +25,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
 	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	configModels "github.com/moto-nrw/project-phoenix/modules/settings/compose/vocabulary"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
 	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
@@ -176,11 +177,11 @@ func NewStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		return StudentTestModule{}, err
 	}
 	pillEmitter := communicationCompose.NewParentEventEmitter(communicationCompose.ParentEventEmitterConfig{
-		DB:          db.Pool(),
-		Runtime:     unit,
+
+		Runtime:     NewCommunicationEventRuntime(db.Pool() != nil, unit),
 		ThreadRepo:  repos.ParentMessageThread,
 		MessageRepo: repos.ParentMessage,
-		Settings:    settingsService,
+		Settings:    settingsValues.NewParentEventValues(settingsService),
 		Broadcaster: realtimeHub,
 		Logger:      logger.With("service", "parent-events"),
 	})
