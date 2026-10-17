@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -48,7 +49,7 @@ func setupUserContextRoute(t *testing.T) *testContext {
 	t.Helper()
 
 	db, module := setupUserContextModule(t)
-	resource := me.NewResource(module.UserContext.Caller(), module.UserContext, rootAPI.TenantSessionChain)
+	resource := me.NewResource(module.UserContext.Caller(), module.UserContext, rootAPI.TenantSessionChain, nativeUploads.UploadFiles{})
 
 	return &testContext{
 		db: db,

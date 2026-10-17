@@ -11,6 +11,7 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
@@ -81,6 +82,7 @@ func setupStaffRoute(t *testing.T, clocks ...func() time.Time) *testContext {
 	workforceCapability := newWorkforceCapability(t, db, clocks...)
 
 	resource := NewStaffAdminResource(StaffAdminDependencies{
+		Uploads:            nativeUploads.UploadFiles{},
 		OffboardingCleanup: cleanup,
 		Staff:              capabilities.Staff,
 		Documents:          capabilities.Documents,
