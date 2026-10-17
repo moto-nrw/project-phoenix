@@ -23,6 +23,7 @@ import (
 	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -124,8 +125,7 @@ func setupReviewListTest(t *testing.T) *reviewListEnv {
 	resource := enrollmentAPI.NewResource(
 		nil, nil, requestSvc, nil, nil, nil, nil, nil, changeRequestSvc,
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
-		nativeUploads.UploadFiles{},
-	)
+		nativeUploads.UploadFiles{}, enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation})
 
 	submitted, err := requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
 		TenantID:          tenantID,

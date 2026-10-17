@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
@@ -350,7 +351,7 @@ func TestNewResource_ReturnsResource(t *testing.T) {
 	t.Parallel()
 
 	// Create resource with nil services (just testing initialization)
-	resource := NewResource(nil, nil, nil, nil, nil)
+	resource := NewResource(nil, nil, nil, nil, nil, transactionFailures.IsConstraintViolation)
 
 	assert.NotNil(t, resource)
 }
@@ -582,7 +583,7 @@ func TestRouterWithAuthRateLimiter(t *testing.T) {
 			w.WriteHeader(http.StatusTooManyRequests)
 		})
 	}
-	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
+	router := NewResource(parentAccountRouteStub{}, nil, nil, nil, nil, transactionFailures.IsConstraintViolation).RouterWithAuthRateLimiter(throttled, scopeTestTenantSession(testpkg.TenantSessionGates()))
 
 	for _, path := range []string{
 		"/login",

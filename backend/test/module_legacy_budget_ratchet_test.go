@@ -190,7 +190,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/enrollment/compose":                    716,
 	"modules/exporttransfer/compose":                323,
 	"modules/facilities/compose":                    394,
-	"modules/facilities/compose/httpadapter":        486,
+	"modules/facilities/compose/httpadapter":        483,
 	"modules/facilities/compose/repositoryadapter":  242,
 	"modules/feedback/compose":                      219,
 	"modules/filestorage/compose":                   636,

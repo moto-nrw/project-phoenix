@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
@@ -125,7 +126,8 @@ func TestPasskeyLoginHandlers(t *testing.T) {
 		Active:    true,
 	}
 	rs := &Resource{
-		PasskeyService: svc,
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		PasskeyService:      svc,
 		SchoolService: passkeySchoolServiceStub{
 			bySubdomain: school,
 		},
@@ -164,7 +166,8 @@ func TestPasskeyAuthenticatedHandlers(t *testing.T) {
 		Active:    true,
 	}
 	rs := &Resource{
-		PasskeyService: svc,
+		ConstraintViolation: transactionFailures.IsConstraintViolation,
+		PasskeyService:      svc,
 		SchoolService: passkeySchoolServiceStub{
 			byID: school,
 		},
@@ -325,7 +328,8 @@ func TestPasskeyAuthenticatedHandlersRejectNonTenantAccountClaims(t *testing.T) 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			svc := &passkeyServiceStub{}
-			rs := &Resource{PasskeyService: svc}
+			rs := &Resource{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, PasskeyService: svc}
 			w := httptest.NewRecorder()
 
 			tt.call(rs, w, tt.claims)
@@ -339,7 +343,8 @@ func TestPasskeyAuthenticatedHandlersRejectNonTenantAccountClaims(t *testing.T) 
 func TestPasskeyHandlerErrors(t *testing.T) {
 	t.Parallel()
 
-	rs := &Resource{}
+	rs := &Resource{
+		ConstraintViolation: transactionFailures.IsConstraintViolation}
 	w := httptest.NewRecorder()
 	rs.passkeyLoginOptions(w, passkeyJSONRequest("/passkeys/login/options", `{"tenant_slug":"school-a"}`))
 	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
@@ -414,7 +419,8 @@ func TestPasskeyStoreFailuresAreNotClientErrors(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			tt.call(&Resource{PasskeyService: tt.svc}, w)
+			tt.call(&Resource{
+				ConstraintViolation: transactionFailures.IsConstraintViolation, PasskeyService: tt.svc}, w)
 			assert.Equal(t, tt.wantCode, w.Code)
 			assert.NotContains(t, w.Body.String(), "connection reset", "store details stay out of the response")
 		})

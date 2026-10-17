@@ -363,7 +363,7 @@ func (rs *Resource) previewWithdrawalDeletion(w http.ResponseWriter, r *http.Req
 	}
 	impact, err := rs.StudentDeletion.PreviewWithdrawal(r.Context(), id)
 	if err != nil {
-		renderError(w, r, withdrawalDeletionErrorRenderer(err))
+		renderError(w, r, rs.withdrawalDeletionErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, toStudentDeleteImpactResponse(impact), "Auswirkungen der Löschung geladen")
@@ -394,7 +394,7 @@ func (rs *Resource) deleteWithdrawalStudent(w http.ResponseWriter, r *http.Reque
 		// The route middleware owns the ambient transaction. The workflow
 		// cannot roll it back itself when the delete re-check fails.
 		tenant.MarkRollback(r.Context())
-		renderError(w, r, withdrawalDeletionErrorRenderer(err))
+		renderError(w, r, rs.withdrawalDeletionErrorRenderer(err))
 		return
 	}
 	common.Respond(w, r, http.StatusOK, nil, "Kind und verknüpfte Daten gelöscht")
@@ -407,7 +407,7 @@ func (rs *Resource) authorizeWithdrawalDeletion(
 ) (careplan.WithdrawalCompletion, bool) {
 	completion, err := rs.CareLifecycleService.GetPendingWithdrawal(r.Context(), completionID)
 	if err != nil {
-		renderError(w, r, withdrawalDeletionErrorRenderer(err))
+		renderError(w, r, rs.withdrawalDeletionErrorRenderer(err))
 		return careplan.WithdrawalCompletion{}, false
 	}
 	students, err := rs.studentsByIDs(r.Context(), []int64{*completion.StudentID})
@@ -624,12 +624,12 @@ var careExitErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	)
 })
 
-func withdrawalDeletionErrorRenderer(err error) render.Renderer {
+func (rs *Resource) withdrawalDeletionErrorRenderer(err error) render.Renderer {
 	if errors.Is(err, careplan.ErrCareWithdrawalNotFound) {
 		return common.ErrorNotFoundWithCode(err, common.CodeStudentsCareWithdrawalNotFound)
 	}
 	if errors.Is(err, careplan.ErrCareWithdrawalAlreadyResolved) {
 		return common.ErrorConflictWithCode(err, common.CodeStudentsCareWithdrawalAlreadyResolved)
 	}
-	return studentDeletionErrorRenderer(err)
+	return rs.studentDeletionErrorRenderer(err)
 }

@@ -11,6 +11,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -101,7 +102,8 @@ func TestDayLogClock_KeepsRequestDayAcrossMidnightRollover(t *testing.T) {
 	t.Parallel()
 
 	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, calendar.Berlin)
-	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Now: func() time.Time { return beforeMidnight }}}
 
 	clock := rs.dayLogClock()
 	date, err := parseDayLogDate(httptest.NewRequest("GET", "/day-log", nil), clock.today)
@@ -219,7 +221,8 @@ func TestLoadDayLogData_PassesFrozenDayToRosterEligibility(t *testing.T) {
 	t.Parallel()
 
 	beforeMidnight := time.Date(2026, time.July, 26, 23, 59, 59, 0, calendar.Berlin)
-	rs := &Resource{ResourceConfig: ResourceConfig{Now: func() time.Time { return beforeMidnight }}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, Now: func() time.Time { return beforeMidnight }}}
 	clock := rs.dayLogClock()
 
 	var gotDate, gotToday calendar.Date
@@ -249,7 +252,8 @@ func TestLoadDayLogSignOffs_UsesCarePlanOnlyForToday(t *testing.T) {
 	stub := &stubCareDayService{verdicts: map[int64]careplan.CareDayStatus{
 		10: careplan.CareDayNotScheduled,
 	}}
-	rs := &Resource{ResourceConfig: ResourceConfig{CareDayService: stub}}
+	rs := &Resource{ResourceConfig: ResourceConfig{
+		ConstraintViolation: transactionFailures.IsConstraintViolation, CareDayService: stub}}
 	pastData := &dayLogData{
 		statusByStudent: map[int64][]*absencerecords.StudentStatusDay{},
 		careDays:        map[int64]careplan.CareDayStatus{},

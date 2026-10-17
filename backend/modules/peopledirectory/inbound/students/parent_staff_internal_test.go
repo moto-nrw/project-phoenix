@@ -16,6 +16,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -40,6 +41,7 @@ func TestNormalizeSickReason(t *testing.T) {
 func newStaffNotesResource(db *bun.DB) *Resource {
 	rows := ComposeStudentRows(db)
 	return NewResource(ResourceConfig{
+		ConstraintViolation:     transactionFailures.IsConstraintViolation,
 		PeopleDirectory:         rows.PeopleDirectory,
 		CompanionService:        rows.Companions,
 		StudentStatusDayService: presenceservice.NewStatusDays(rows.StudentStatusDay, nil, nil, rows.LockExceptionDay),

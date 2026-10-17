@@ -13082,17 +13082,6 @@
       "target_role": "public"
     },
     {
-      "id": "inbound-common.http.transaction-runtime-public",
-      "description": "The standing shared HTTP runtime consumes driver-free database failure classification (ADR 0046, #2738, #3898).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "inbound-common",
-      "source_role": "http",
-      "target_owner": "transaction-runtime",
-      "target_role": "public"
-    },
-    {
       "id": "transaction-runtime.public.postgres-errors",
       "description": "The driver-free public failure classifier delegates SQL details to its private Postgres adapter (#2738).",
       "scopes": [

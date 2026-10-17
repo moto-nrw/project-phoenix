@@ -9,6 +9,7 @@ import (
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
@@ -237,7 +238,7 @@ func serveStaffAvatar(w http.ResponseWriter, r *http.Request, avatarPath string)
 // foreign-key violation on offboarding keeps its German conflict message,
 // everything else follows the service classification.
 func renderStaffWriteFailure(w http.ResponseWriter, r *http.Request, err error) {
-	if apiCommon.IsConstraintViolation(err) {
+	if transactionFailures.IsConstraintViolation(err) {
 		renderStaffFailure(w, r, staffHTTP.FailureConflict, errStaffStillReferenced)
 		return
 	}

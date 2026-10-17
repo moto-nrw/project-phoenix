@@ -8,7 +8,6 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -492,14 +491,6 @@ func ErrorBadGatewayWrap(clientMsg string, cause error) render.Renderer {
 		Detail:         clientMsg,
 	}
 }
-
-// IsTransientDatabaseError classifies connection failures through Transaction Runtime.
-func IsTransientDatabaseError(err error) bool {
-	return transactionruntime.IsTransientDatabaseError(err)
-}
-
-// IsConstraintViolation classifies dependency refusals through Transaction Runtime.
-func IsConstraintViolation(err error) bool { return transactionruntime.IsConstraintViolation(err) }
 
 // ErrorGone returns a 410 Gone error response
 func ErrorGone(err error) render.Renderer {

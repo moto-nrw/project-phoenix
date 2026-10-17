@@ -14,6 +14,7 @@ import (
 
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -1462,6 +1463,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		return nil, fmt.Errorf("request review projection: %w", err)
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		ConstraintViolation:          transactionFailures.IsConstraintViolation,
 		Uploads:                      nativeUploads.UploadFiles{},
 		PeopleDirectory:              svc.PeopleDirectory,
 		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
@@ -1724,8 +1726,8 @@ func mountSchoolRoutes(tenant chi.Router, in routeInputs) {
 		UserContext: modules.userContext, Active: svc.Active,
 		Users: peopleCompose.NewRoomSnapshotPeople(svc.Users), Education: svc.Education,
 		ListExport: modules.listExport,
-	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, settingsFacts.PrefetchSettings).Router())
-	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext).Router(ProtectedTenantRoutes))
+	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, settingsFacts.PrefetchSettings, transactionFailures.IsConstraintViolation).Router())
+	tenant.Mount("/groups", groupsHTTP.NewResource(svc.Education, svc.Active, peopleCompose.NewGroupRoutePeople(svc.Users), modules.userContext, transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(svc.Activities, modules.timetable, svc.Users, modules.userContext, pool).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", newEnrollmentResource(modules, logger).Router(TenantSessionChain))
@@ -1774,6 +1776,7 @@ func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollm
 		NewEnrollmentGuardianAutofill(modules.guardianProfiles),
 		enrollmentSchoolDirectory{schools: modules.organizations},
 		nativeUploads.UploadFiles{},
+		enrollmentAPI.DatabaseFailures{Transient: transactionFailures.IsTransientDatabaseError, Constraint: transactionFailures.IsConstraintViolation},
 		NewEnrollmentBookings(),
 	)
 	resource.ListExportService = modules.listExport
@@ -1893,7 +1896,7 @@ func caregiverCapabilityViews(in routeInputs) peopleCompose.CaregiverCapabilityV
 func newAccountResource(in routeInputs) *authAPI.Resource {
 	svc, identity := in.modules.services, in.modules.identity
 	authSchools := authSchoolDirectory{schools: in.modules.organizations, memberships: identity.ListActiveAccountSchoolIDs}
-	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(identity, identity, authSchools, identity, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.CaregiverCapabilityService = caregiverCapabilityViews(in)
 	resource.SettingsService = svc.Settings
 	resource.RoleGrants = RoleGrantPolicy{}

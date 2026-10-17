@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
@@ -45,7 +46,7 @@ func TestResolveTenant_ChildSearchOnlyNavigation_DefaultOff(t *testing.T) {
 	db, authRoute := setupAuthDependenciesRoute(t)
 	_, slug := newTenantResolveScope(t, db)
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.False(t, resolveChildSearchOnlyNavigation(t, resource, slug))
@@ -58,7 +59,7 @@ func TestResolveTenant_ChildSearchOnlyNavigation_SchoolOverride(t *testing.T) {
 	scope, slug := newTenantResolveScope(t, db)
 	require.NoError(t, tenantSettings.SetValue(scope.Context(), settings.KeyChildSearchOnlyNavigation, true, nil, nil))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.True(t, resolveChildSearchOnlyNavigation(t, resource, slug))
@@ -72,7 +73,7 @@ func TestResolveTenant_ChildSearchOnlyNavigation_UnreadableValueFailsClosed(t *t
 	scope, slug := newTenantResolveScope(t, db)
 	storeRawTenantSetting(t, db, scope.TenantID, settings.KeyChildSearchOnlyNavigation, json.RawMessage(`"ja"`))
 
-	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
+	resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, authRoute.SchoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{}, transactionFailures.IsConstraintViolation)
 	resource.SettingsService = authRoute.SettingsService
 
 	assert.False(t, resolveChildSearchOnlyNavigation(t, resource, slug))
