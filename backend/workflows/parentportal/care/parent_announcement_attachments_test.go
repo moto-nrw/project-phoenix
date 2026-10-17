@@ -12,12 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // Parallel is safe here, unlike for the feed tests above: every assertion
@@ -31,7 +32,7 @@ func TestGuardianAnnouncementTenant_OnlyForTheAudience(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 
@@ -68,17 +69,17 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 
 	// A draft is not live, so its attachments are not reachable either — an
 	// attachment must never become the back door to an unpublished message.
-	draft := &usersModels.ParentAnnouncement{
+	draft := &communication.ParentAnnouncementFixture{
 		Title:     "Noch nicht raus",
 		Body:      "Entwurf.",
-		Priority:  usersModels.ParentAnnouncementPriorityInfo,
+		Priority:  "info",
 		Active:    true,
 		CreatedBy: chain.AccountID,
 	}
-	draft.SetTenantID(chain.TenantID)
-	require.NoError(t, repos.ParentAnnouncement.Create(seedCtx, draft))
-	require.NoError(t, repos.ParentAnnouncement.ReplaceTargets(seedCtx, chain.TenantID, draft.ID,
-		[]*usersModels.ParentAnnouncementTarget{{TargetType: usersModels.AnnouncementTargetSchoolAll}}))
+	draft.TenantID = chain.TenantID
+	require.NoError(t, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).Create(seedCtx, draft))
+	require.NoError(t, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement).ReplaceTargets(seedCtx, chain.TenantID, draft.ID,
+		[]*communication.ParentAnnouncementTargetFixture{{TargetType: "school_all"}}))
 	t.Cleanup(func() { _ = repos.ParentAnnouncement.Delete(seedCtx, draft.ID) })
 
 	tenantID, err := svc.GuardianAnnouncementTenant(ctx, chain.AccountID, draft.ID)
@@ -87,7 +88,7 @@ func TestGuardianAnnouncementTenant_DraftAndDisabledFeatureHideTheFile(t *testin
 
 	// An announcement whose publication moment is still ahead is not live
 	// either, so its attachments stay out of reach until it actually goes out.
-	scheduled := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	scheduled := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 	future := time.Now().Add(time.Hour)
 	require.NoError(t, repos.ParentAnnouncement.SetPublished(seedCtx, scheduled.ID, &future))
 
@@ -106,7 +107,7 @@ func TestGuardianAnnouncementTenant_FeatureOffHidesTheFile(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	seedCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), chain.TenantID)
-	ann := seedPublishedAnnouncement(t, seedCtx, repos.ParentAnnouncement, chain.AccountID, chain.TenantID, false)
+	ann := seedPublishedAnnouncement(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID, false)
 
 	ctx := testpkg.WithTestTenantRuntime(t, context.Background())
 	tenantID, err := svc.GuardianAnnouncementTenant(ctx, chain.AccountID, ann.ID)
