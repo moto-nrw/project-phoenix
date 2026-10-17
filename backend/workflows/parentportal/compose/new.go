@@ -100,7 +100,7 @@ type Dependencies struct {
 // resolver reaches the child flows once both exist.
 func New(deps Dependencies) *parentportal.Portal {
 	var childFlows *care.Service
-	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows}))
+	messagingFlows := parentportal.NewMessagingFlows(messagingConfig(deps, children{flows: &childFlows})).MessagingFlows
 	childFlows = parentportal.NewChildFlows(careConfig(deps, bindOwners(deps), messagingFlows))
 	return &parentportal.Portal{ChildFlows: childFlows, MessagingFlows: messagingFlows}
 }

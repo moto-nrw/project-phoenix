@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
@@ -32,12 +31,12 @@ type ChildResolver interface {
 type ConversationCore interface {
 	// AppendMessage serializes the thread, persists the message, and advances
 	// the thread preview off the row's DB-stamped created_at.
-	AppendMessage(ctx context.Context, msg *usersModels.ParentMessage) error
+	AppendMessage(ctx context.Context, msg *ParentMessage) error
 	// MarkReadToNewest advances the reader's cursor to the newest counterpart
 	// message in the snapshot and reports whether it moved.
-	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*usersModels.ParentMessage) (bool, error)
+	MarkReadToNewest(ctx context.Context, tenantID, threadID, accountID int64, staffReader bool, messages []*ParentMessage) (bool, error)
 	// DecorateReadReceipts stamps the "OGS hat gelesen" indicator.
-	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*usersModels.ParentMessage)
+	DecorateReadReceipts(ctx context.Context, threadID, otherAccountID int64, messages []*ParentMessage)
 	// Broadcast wakes the guardian's tabs and the school's staff after a commit.
 	Broadcast(tenantID, guardianAccountID, threadID, studentID int64)
 	// BroadcastRead wakes the same fan-out for a read-receipt refresh.

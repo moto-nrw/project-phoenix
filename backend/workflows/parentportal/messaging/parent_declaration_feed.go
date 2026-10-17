@@ -6,28 +6,26 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // declarationFeedFacts are the batched reads behind the declaration items of
 // one feed page: five statements whatever the page size, none at all when the
 // page carries no Erklärung.
 type declarationFeedFacts struct {
-	settings    map[int64]usersModels.AnnouncementDeclarationSettings
-	versions    map[int64]*usersModels.DeclarationVersion
-	children    map[int64][]*usersModels.DeclarationChild
-	signers     map[int64][]*usersModels.DeclarationSigner
-	submissions []*usersModels.DeclarationSubmission
+	settings    map[int64]AnnouncementDeclarationSettings
+	versions    map[int64]*DeclarationVersion
+	children    map[int64][]*DeclarationChild
+	signers     map[int64][]*DeclarationSigner
+	submissions []*DeclarationSubmission
 }
 
 // attachDeclarationData builds the declaration part of each Erklärung item
 // for the reading account: its reached children, whether it may declare for
 // each, the child's state and the actions it may take next.
-func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, items []*usersModels.AnnouncementFeedItem) error {
+func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, items []*AnnouncementFeedItem) error {
 	ids := make([]int64, 0, len(items))
 	for _, item := range items {
-		if item.DeliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration {
+		if item.DeliveryMode == ParentAnnouncementDeliveryDeclaration {
 			ids = append(ids, item.ID)
 		}
 	}
@@ -40,7 +38,7 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 	}
 	now := time.Now()
 	for _, item := range items {
-		if item.DeliveryMode == usersModels.ParentAnnouncementDeliveryDeclaration {
+		if item.DeliveryMode == ParentAnnouncementDeliveryDeclaration {
 			item.Declaration = buildFeedDeclaration(s.Declarations, accountID, item, facts, now)
 		}
 	}
@@ -50,7 +48,7 @@ func (s *Service) attachDeclarationData(ctx context.Context, accountID int64, it
 func (s *Service) loadDeclarationFeedFacts(ctx context.Context, accountID int64, ids []int64) (*declarationFeedFacts, error) {
 	repo := s.AnnouncementRepo
 	facts := &declarationFeedFacts{
-		children: map[int64][]*usersModels.DeclarationChild{}, signers: map[int64][]*usersModels.DeclarationSigner{},
+		children: map[int64][]*DeclarationChild{}, signers: map[int64][]*DeclarationSigner{},
 	}
 	var err error
 	if facts.settings, err = repo.DeclarationSettings(ctx, ids); err != nil {
@@ -86,14 +84,14 @@ func (s *Service) loadDeclarationFeedFacts(ctx context.Context, accountID int64,
 }
 
 // latestOnVersion maps student → account → latest submission on a version.
-func (f *declarationFeedFacts) latestOnVersion(announcementID, versionID int64) map[int64]map[int64]*usersModels.DeclarationSubmission {
-	out := map[int64]map[int64]*usersModels.DeclarationSubmission{}
+func (f *declarationFeedFacts) latestOnVersion(announcementID, versionID int64) map[int64]map[int64]*DeclarationSubmission {
+	out := map[int64]map[int64]*DeclarationSubmission{}
 	for _, sub := range f.submissions { // newest first
 		if sub.AnnouncementID != announcementID || sub.VersionID != versionID || sub.AccountID == nil {
 			continue
 		}
 		if out[sub.StudentID] == nil {
-			out[sub.StudentID] = map[int64]*usersModels.DeclarationSubmission{}
+			out[sub.StudentID] = map[int64]*DeclarationSubmission{}
 		}
 		if _, ok := out[sub.StudentID][*sub.AccountID]; !ok {
 			out[sub.StudentID][*sub.AccountID] = sub
@@ -102,16 +100,16 @@ func (f *declarationFeedFacts) latestOnVersion(announcementID, versionID int64) 
 	return out
 }
 
-func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *usersModels.AnnouncementFeedItem, facts *declarationFeedFacts, now time.Time) *usersModels.AnnouncementFeedDeclaration {
+func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *AnnouncementFeedItem, facts *declarationFeedFacts, now time.Time) *AnnouncementFeedDeclaration {
 	settings := facts.settings[item.ID]
 	rules := feedDeclarationRules(settings, item.ResponseDeadline)
-	out := &usersModels.AnnouncementFeedDeclaration{
+	out := &AnnouncementFeedDeclaration{
 		Kind: settings.Kind, Signers: settings.Signers, Revocable: settings.Revocable,
 		RequiresPassword: settings.RequiresPassword, Deadline: item.ResponseDeadline,
 		Closed: policy.Closed(rules.Deadline, now), Version: facts.versions[item.ID],
-		Children: []*usersModels.AnnouncementFeedDeclarationChild{},
+		Children: []*AnnouncementFeedDeclarationChild{},
 	}
-	latest := map[int64]map[int64]*usersModels.DeclarationSubmission{}
+	latest := map[int64]map[int64]*DeclarationSubmission{}
 	if out.Version != nil {
 		latest = facts.latestOnVersion(item.ID, out.Version.ID)
 	}
@@ -121,16 +119,16 @@ func buildFeedDeclaration(policy DeclarationPolicy, accountID int64, item *users
 	return out
 }
 
-func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *usersModels.DeclarationChild, rules declarationRules, signers []*usersModels.DeclarationSigner, latest map[int64]*usersModels.DeclarationSubmission, now time.Time) *usersModels.AnnouncementFeedDeclarationChild {
-	child := &usersModels.AnnouncementFeedDeclarationChild{
+func buildFeedDeclarationChild(policy DeclarationPolicy, accountID int64, c *DeclarationChild, rules declarationRules, signers []*DeclarationSigner, latest map[int64]*DeclarationSubmission, now time.Time) *AnnouncementFeedDeclarationChild {
+	child := &AnnouncementFeedDeclarationChild{
 		StudentID: c.StudentID, FirstName: c.FirstName, LastName: c.LastName,
-		OtherSigners: []usersModels.DeclarationSignerState{},
+		OtherSigners: []DeclarationSignerState{},
 	}
 	eligible := make([]int64, 0, len(signers))
 	actions := map[int64]string{}
 	for _, signer := range signers {
 		eligible = append(eligible, signer.AccountID)
-		state := usersModels.DeclarationSignerState{AccountID: signer.AccountID, FirstName: signer.FirstName, LastName: signer.LastName}
+		state := DeclarationSignerState{AccountID: signer.AccountID, FirstName: signer.FirstName, LastName: signer.LastName}
 		if sub, ok := latest[signer.AccountID]; ok {
 			action, at := sub.Action, sub.SubmittedAt
 			state.Action, state.SubmittedAt = &action, &at
@@ -155,8 +153,8 @@ type DeclarationProof struct {
 	SchoolName  string
 	ChildName   string
 	Kind        string
-	Versions    map[int64]*usersModels.DeclarationVersion
-	Submissions []*usersModels.DeclarationSubmission
+	Versions    map[int64]*DeclarationVersion
+	Submissions []*DeclarationSubmission
 	// IntegrityOK is false when a shown version or answer no longer matches
 	// its stored checksum.
 	IntegrityOK bool
@@ -174,7 +172,7 @@ func (s *Service) DeclarationProof(ctx context.Context, accountID, announcementI
 	if err != nil {
 		return nil, ErrAnnouncementNotFound
 	}
-	proof := &DeclarationProof{SchoolName: child.SchoolName, ChildName: child.StudentName, Versions: map[int64]*usersModels.DeclarationVersion{}}
+	proof := &DeclarationProof{SchoolName: child.SchoolName, ChildName: child.StudentName, Versions: map[int64]*DeclarationVersion{}}
 	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		return s.loadDeclarationProof(adminCtx, proof, accountID, announcementID, studentID, child.TenantID)
 	})
@@ -212,19 +210,19 @@ func (s *Service) loadDeclarationProof(ctx context.Context, proof *DeclarationPr
 	for _, v := range versions {
 		proof.Versions[v.ID] = v
 	}
-	proof.IntegrityOK = declarationProofIntact(proof, s.Fingerprints.Content)
+	proof.IntegrityOK = s.declarationProofIntact(proof)
 	return nil
 }
 
 // declarationProofIntact recomputes the checksums of the guardian's answers
 // and of the versions they answered on.
-func declarationProofIntact(proof *DeclarationProof, fingerprint func([]byte) string) bool {
+func (s *Service) declarationProofIntact(proof *DeclarationProof) bool {
 	for _, sub := range proof.Submissions {
-		if DeclarationRecordHash(sub, fingerprint) != sub.RecordHash {
+		if s.declarationRecordHash(sub) != sub.RecordHash {
 			return false
 		}
 		v, ok := proof.Versions[sub.VersionID]
-		if !ok || DeclarationContentHash(v, fingerprint) != v.ContentHash || sub.ContentHash != v.ContentHash {
+		if !ok || s.declarationContentHash(v) != v.ContentHash || sub.ContentHash != v.ContentHash {
 			return false
 		}
 	}
@@ -239,10 +237,10 @@ func (s *Service) countOwedReadDeclarations(ctx context.Context, accountID int64
 	if err != nil || len(read) == 0 {
 		return 0, err
 	}
-	items := make([]*usersModels.AnnouncementFeedItem, 0, len(read))
+	items := make([]*AnnouncementFeedItem, 0, len(read))
 	ids := make([]int64, 0, len(read))
 	for id, deadline := range read {
-		items = append(items, &usersModels.AnnouncementFeedItem{ID: id, ResponseDeadline: deadline})
+		items = append(items, &AnnouncementFeedItem{ID: id, ResponseDeadline: deadline})
 		ids = append(ids, id)
 	}
 	facts, err := s.loadDeclarationFeedFacts(ctx, accountID, ids)
@@ -261,7 +259,7 @@ func (s *Service) countOwedReadDeclarations(ctx context.Context, accountID int64
 
 // declarationOwed reports whether the account still owes an answer for one of
 // its children.
-func declarationOwed(policy DeclarationPolicy, d *usersModels.AnnouncementFeedDeclaration, now time.Time) bool {
+func declarationOwed(policy DeclarationPolicy, d *AnnouncementFeedDeclaration, now time.Time) bool {
 	for _, c := range d.Children {
 		mine := ""
 		if c.MyAction != nil {

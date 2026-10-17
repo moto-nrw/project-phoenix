@@ -19,18 +19,18 @@ type SchoolDirectory interface {
 }
 
 // WithInboxSchoolNames names the school of every inbox row through schools.
-func WithInboxSchoolNames(reads usersModels.ParentMessageReadRepository, schools SchoolDirectory) usersModels.ParentMessageReadRepository {
+func WithInboxSchoolNames(reads ParentMessageReadRepository, schools SchoolDirectory) ParentMessageReadRepository {
 	return schoolParentMessageReadRepository{ParentMessageReadRepository: reads, schools: schools}
 }
 
 // WithAnnouncementSchoolNames serves the announcement repository's school
 // names through schools.
-func WithAnnouncementSchoolNames(announcements usersModels.ParentAnnouncementRepository, schools SchoolDirectory) usersModels.ParentAnnouncementRepository {
+func WithAnnouncementSchoolNames(announcements ParentAnnouncementRepository, schools SchoolDirectory) ParentAnnouncementRepository {
 	return schoolParentAnnouncementRepository{ParentAnnouncementRepository: announcements, schools: schools}
 }
 
 type schoolParentAnnouncementRepository struct {
-	usersModels.ParentAnnouncementRepository
+	ParentAnnouncementRepository
 	schools SchoolDirectory
 }
 
@@ -66,7 +66,7 @@ func (r schoolParentAnnouncementRepository) ListFeedForAccount(ctx context.Conte
 }
 
 type schoolParentMessageReadRepository struct {
-	usersModels.ParentMessageReadRepository
+	ParentMessageReadRepository
 	schools SchoolDirectory
 }
 
@@ -116,9 +116,9 @@ func enrichInboxSchools(ctx context.Context, schools SchoolDirectory, rows []*us
 // repositories a composition root hands to the retained services, next to
 // the staff-messaging read cursors.
 type MessagingRepositories struct {
-	ParentAnnouncement  usersModels.ParentAnnouncementRepository
-	ParentMessageThread usersModels.ParentMessageThreadRepository
-	ParentMessageRead   usersModels.ParentMessageReadRepository
+	ParentAnnouncement  ParentAnnouncementRepository
+	ParentMessageThread ParentMessageThreadRepository
+	ParentMessageRead   ParentMessageReadRepository
 	StaffMessageRead    usersModels.StaffMessageReadRepository
 }
 

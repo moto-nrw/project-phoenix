@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 162 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 161 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
 34.617 in `compose`
 
@@ -13,7 +13,6 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 81 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 1 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
@@ -21,9 +20,26 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 162 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 161 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4073: Messaging verwendet vollständige native Workflow-Werte für Feed,
+Deklarationen, Nachrichten, Inbox, Familienschutz und Request-Sharing. Die Root
+bindet schmale öffentliche Owner-Facetten und projiziert eigene Antwortwerte.
+Dieselben gebundenen Store-, Schul-, Gruppen- und Staff-Reads bleiben erhalten.
+Die gemeinsame Conversation-Implementierung besitzt weiterhin Append, Cursor
+und Receipts; Mutationen samt Fehlern werden zurückgegeben. Typisierte
+JSON-Objekte erhalten `nil`, leere Objekte, `omitempty` und Ganzzahlen.
+Die kanonischen Deklarations-Encoder berechnen Hash-Eingaben aus den aktuellen
+Werten; es gibt keine Kopie der Regeln und keinen Cache kanonischer Bytes.
+Familienschutz behält den Ereigniszeitpunkt, damit alte Shares nicht wieder gelten.
+Der letzte Produktionskey fällt: 162 → 161, #4073 1 → 0. #4074 bleibt bei 44;
+seine alten Adapterverträge bleiben sichtbar. Regeln 844, Epoche 72,
+Composition 1.657 und alle Budgets bleiben gleich. Keine neue Freigabe, Alias,
+Klassifizierung, Ausnahme oder höheren Limits. Routen, Antworten, Goldens,
+IoT, Beziehungsrechte, Sessions und falsches Portal bleiben unverändert.
+Nachweis: [native Messaging-Werte](parent-portal-native-messaging-4073.json).
 
 #4073: Care verwendet eigene Plan-, Ausnahme-, Abwesenheits- und Angebots-DTOs
 sowie schmale Ports. Die Root bindet die öffentlichen Care-Plan-Facetten;
@@ -479,7 +495,7 @@ Test-Hooks aus dem Produktions-Build: [#4094](https://github.com/moto-nrw/projec
 
 - [ ] Phase 0: [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) Übergangsregeln → Keys (erledigt), [#4071](https://github.com/moto-nrw/project-phoenix/issues/4071) Messlücken der Ratchets, danach #3417
 - [ ] Phase 1: #4063 (ADR 0056), #4064, #4067, #2750, #3990 → #2729
-- [ ] Phase 2, Carrier: [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach (erledigt), [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Kompatibilität, [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) Delivery-Cutover (erledigt), [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner, #4004 Owner-Kompositionen, [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone`
+- [ ] Phase 2, Carrier: [#4072](https://github.com/moto-nrw/project-phoenix/issues/4072) Plattform → Fach (erledigt), [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal (erledigt), [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Kompatibilität, [#4075](https://github.com/moto-nrw/project-phoenix/issues/4075) Delivery-Cutover (erledigt), [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner, #4004 Owner-Kompositionen, [#4081](https://github.com/moto-nrw/project-phoenix/issues/4081) `internal/timezone`
 - [ ] Phase 2, Struktur: [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP, [#4082](https://github.com/moto-nrw/project-phoenix/issues/4082) Fachlogik aus der Root, [#4080](https://github.com/moto-nrw/project-phoenix/issues/4080) `api.serviceGraph` auflösen, [#4083](https://github.com/moto-nrw/project-phoenix/issues/4083) Worker-Root, [#4084](https://github.com/moto-nrw/project-phoenix/issues/4084) `compose` konstruiert nur, [#4085](https://github.com/moto-nrw/project-phoenix/issues/4085) Vokabular-Aliase, [#4086](https://github.com/moto-nrw/project-phoenix/issues/4086) Altlayout, [#4091](https://github.com/moto-nrw/project-phoenix/issues/4091) Prinzipien-ADRs
 - [ ] Phase 3, Laufzeit (nach #2751): [#4087](https://github.com/moto-nrw/project-phoenix/issues/4087) Outbox, [#4088](https://github.com/moto-nrw/project-phoenix/issues/4088) Tenant- und Transaktionskontext, [#4089](https://github.com/moto-nrw/project-phoenix/issues/4089) Fehler per Sentinel, [#4090](https://github.com/moto-nrw/project-phoenix/issues/4090) Testlücken, dann #3021
 

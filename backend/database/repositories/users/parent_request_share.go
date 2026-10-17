@@ -14,7 +14,7 @@ type ParentRequestShareEventRepository struct {
 	runtime Runtime
 }
 
-func NewParentRequestShareEventRepository(runtime Runtime) userModels.ParentRequestShareEventRepository {
+func NewParentRequestShareEventRepository(runtime Runtime) ports.ParentRequestShareRecords {
 	return &ParentRequestShareEventRepository{runtime: requireRuntime(runtime)}
 }
 

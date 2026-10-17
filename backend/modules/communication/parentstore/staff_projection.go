@@ -34,12 +34,12 @@ type GroupNames func(ctx context.Context, ids []int64) (map[int64]string, error)
 // NewStaffParentMessageReadRepository completes the read store's repository
 // contract: the staff-gated projections read the live staff accounts of each
 // school through members, their login accounts through persons.
-func NewStaffParentMessageReadRepository(db *bun.DB, links GuardianLinkRows, members StaffMembers, persons StaffPersons) usersModels.ParentMessageReadRepository {
+func NewStaffParentMessageReadRepository(db *bun.DB, links GuardianLinkRows, members StaffMembers, persons StaffPersons) ParentMessageReadRepository {
 	return parentMessageStaffRepository{ParentMessageReads: NewParentMessageReadRepository(db, links), members: members, persons: persons}
 }
 
 // WithInboxGroupNames names the group of every inbox row through groups.
-func WithInboxGroupNames(reads usersModels.ParentMessageReadRepository, groups GroupNames) usersModels.ParentMessageReadRepository {
+func WithInboxGroupNames(reads ParentMessageReadRepository, groups GroupNames) ParentMessageReadRepository {
 	return groupParentMessageReadRepository{ParentMessageReadRepository: reads, groups: groups}
 }
 
@@ -105,7 +105,7 @@ type parentMessageStaffRepository struct {
 	persons StaffPersons
 }
 
-var _ usersModels.ParentMessageReadRepository = parentMessageStaffRepository{}
+var _ ParentMessageReadRepository = parentMessageStaffRepository{}
 
 func (r parentMessageStaffRepository) staffAccounts(ctx context.Context) (map[int64][]int64, error) {
 	return staffAccountsByTenant(ctx, r.members, r.persons, nil)
@@ -139,7 +139,7 @@ func (r parentMessageStaffRepository) LatestReadCursorByOther(ctx context.Contex
 }
 
 type groupParentMessageReadRepository struct {
-	usersModels.ParentMessageReadRepository
+	ParentMessageReadRepository
 	groups GroupNames
 }
 

@@ -22,7 +22,7 @@ import (
 // buildNoticeFeedService wires the parent service with the optional news feed
 // set explicitly. The cancellation notice (#2601) has no school switch since
 // #3731: a sent notice is always visible to the family.
-func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.MessagingFlows, *bun.DB, *api.RepositoryTestFactory) {
+func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Portal, *bun.DB, *api.RepositoryTestFactory) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
@@ -34,7 +34,7 @@ func buildNoticeFeedService(t *testing.T, newsEnabled bool) (*parentportal.Messa
 		Children:              childResolver(db, repos),
 		ChildRepo:             repos.ParentChildReads(),
 		EnrollmentRequestRepo: repos.ParentEnrollmentReads(),
-		AnnouncementRepo:      repos.ParentAnnouncement,
+		AnnouncementRepo:      api.BindParentAnnouncementAccess(repos.ParentAnnouncement),
 		StudentRepo:           api.NewParentStudentReads(repos.Student),
 		Settings: messagingSettingsStub{
 			boolValues: map[string]bool{
