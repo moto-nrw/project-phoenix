@@ -3,26 +3,43 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 123 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 119 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
-34.577 in `compose`
+34.570 in `compose`
 
 Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.jsonl | sort | uniq -c`):
 
 | Carrier | Keys |
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
-| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 79 |
+| [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 78 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 8 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 5 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 123 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 119 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4074: Elternnachrichten verwenden vollständige native Workflow-Werte und
+Ports. Die gebundenen Stores bieten native Facetten; Schul- und Gruppen-
+Dekoratoren führen ihre Listen weiterhin über dieselben angereicherten Reads.
+Die gemeinsamen Cursor- und Receipt-Regeln wandern einmalig und unverändert
+in die eigene Application. Root-Callbacks binden denselben Conversation-Core
+und dieselben Personen-, Schüler- und Kontakt-Reads. Unveränderte Payloads
+behalten ihre ursprünglichen Typen und Maps; Teil-Mutationen samt Fehlern,
+JSON-Ganzzahlen, nil/leere Werte und undurchsichtige Receipt-Payloads bleiben
+sichtbar. Die unveränderte Deklarationsprobe liegt beim Announcement-Baustein;
+dessen bestehender Carrier bleibt sichtbar. Drei Keys fallen: 123 → 120,
+#4074 8 → 5. Regeln 843, Epoche 72 und Composition 1.657 bleiben gleich.
+Communication-Compose sinkt 1.486 → 1.481 LOC, die Summe 34.577 → 34.572.
+Keine neue Freigabe, Go-Typalias, Klassifizierung, Ausnahme, Root-Graph-Felder
+oder höheren Budgets. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
+Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Elternnachrichten](communication-native-parent-messages-4074.json).
 
 #4074: Der Staff-Store bindet native Records direkt an dieselben SQL-Stores
 und dieselbe Inbox-Projektion. Die Root bindet Picker, Berechtigungsprüfung

@@ -5,12 +5,14 @@ import (
 	"log/slog"
 	"testing"
 
+	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/services/parentmessaging"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -33,17 +35,17 @@ func i64(v int64) *int64 { return &v }
 
 // threadPills loads the (student, guardian) thread and its messages, or nil when
 // no thread exists. Runs inside the tenant tx so RLS admits the rows.
-func threadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, c testpkg.ParentChain) (*usersModels.ParentMessageThread, []*usersModels.ParentMessage) {
+func threadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, c testpkg.ParentChain) (*messaging.ParentMessageThread, []*messaging.ParentMessage) {
 	t.Helper()
-	var thread *usersModels.ParentMessageThread
-	var msgs []*usersModels.ParentMessage
+	var thread *messaging.ParentMessageThread
+	var msgs []*messaging.ParentMessage
 	err := tenant.WithTenantTx(testpkg.WithTenantRuntime(t, context.Background(), db), db, c.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		th, ferr := repos.ParentMessageThread.FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
+		th, ferr := messaging.NewThreadRepository(repos.ParentMessageThread).FindByStudentGuardian(txCtx, c.StudentID, c.AccountID)
 		if ferr != nil || th == nil {
 			return ferr
 		}
 		thread = th
-		ms, merr := parentStore.NewParentMessageRepository(db).ListByThread(txCtx, th.ID, 100)
+		ms, merr := messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)).ListByThread(txCtx, th.ID, 100)
 		msgs = ms
 		return merr
 	})
@@ -51,7 +53,7 @@ func threadPills(t *testing.T, db *bun.DB, repos *api.RepositoryTestFactory, c t
 	return thread, msgs
 }
 
-func countEventType(msgs []*usersModels.ParentMessage, eventType string) int {
+func countEventType(msgs []*messaging.ParentMessage, eventType string) int {
 	n := 0
 	for _, m := range msgs {
 		if m.EventType == eventType {
@@ -76,27 +78,27 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 
 	settings := &toggleSettings{enabled: true}
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db), settings, bc, slog.Default())
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)), settings, bc, slog.Default())
 
 	// 1) Guardian files a request → request_created pill, thread born.
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestCreated,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		EventType:      messaging.ParentMessageEventRequestCreated,
+		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
 		Body:           "Anfrage gestellt",
-		RequestType:    usersModels.ParentMessageRequestMasterData,
-		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+		RequestType:    messaging.ParentMessageRequestMasterData,
+		RequestStatus:  messaging.ParentMessageRequestStatusOpen,
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(101),
 	})
 	thread, msgs := threadPills(t, db, repos, chain)
 	require.NotNil(t, thread, "a filed request lazily creates the thread")
-	require.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestCreated))
+	require.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestCreated))
 
 	// 2) Guardian self-service mirror pill advances the thread preview + wakes SSE.
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
 		EventType:      "sick_note",
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
 		Body:           "Krankmeldung eingereicht",
 	})
@@ -107,29 +109,29 @@ func TestEmitChildEvent_CreatesThreadThenReconcilesClose(t *testing.T) {
 	//    closing pill onto the existing thread (reconcile), no new thread.
 	settings.enabled = false
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderStaff,
+		EventType:      messaging.ParentMessageEventRequestStatus,
+		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
 		Body:           "Anfrage bestätigt",
-		RequestType:    usersModels.ParentMessageRequestMasterData,
-		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		RequestType:    messaging.ParentMessageRequestMasterData,
+		RequestStatus:  messaging.ParentMessageRequestStatusDone,
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(101),
 	})
 	_, msgs = threadPills(t, db, repos, chain)
-	assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
+	assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 		"the closing pill reconciles onto the existing thread even with messaging off")
 
 	// 4) Messaging OFF terminal for a DIFFERENT request with no request_created
 	//    pill to close is dropped — no dangling status pill appears.
 	before := len(msgs)
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderStaff,
+		EventType:      messaging.ParentMessageEventRequestStatus,
+		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
 		Body:           "Anfrage abgelehnt",
-		RequestType:    usersModels.ParentMessageRequestMasterData,
-		RequestStatus:  usersModels.ParentMessageRequestStatusRejected,
+		RequestType:    messaging.ParentMessageRequestMasterData,
+		RequestStatus:  messaging.ParentMessageRequestStatusRejected,
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(999),
 	})
@@ -146,16 +148,16 @@ func TestEmitChildEvent_DisabledSchoolNeverBornsThread(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderStaff,
+		EventType:      messaging.ParentMessageEventRequestStatus,
+		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
 		Body:           "Anfrage bestätigt",
-		RequestType:    usersModels.ParentMessageRequestMasterData,
-		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		RequestType:    messaging.ParentMessageRequestMasterData,
+		RequestStatus:  messaging.ParentMessageRequestStatusDone,
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(202),
 	})
@@ -173,12 +175,12 @@ func TestEmitChildEvent_DisabledDropsNonTerminal(t *testing.T) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: false}, testpkg.NewRecordingBroadcaster(), slog.Default())
 
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
 		EventType:      "sick_note",
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
 		Body:           "Krankmeldung",
 	})
@@ -200,17 +202,17 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	bc := testpkg.NewRecordingBroadcaster()
-	emitter := newMockEmitter(t, db, repos.ParentMessageThread, parentStore.NewParentMessageRepository(db),
+	emitter := newMockEmitter(t, db, messaging.NewThreadRepository(repos.ParentMessageThread), messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
 		&toggleSettings{enabled: true}, bc, slog.Default())
 
 	// A request_created pill exists (thread born while the guardian had access).
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestCreated,
-		ActorKind:      usersModels.ParentMessageSenderGuardian,
+		EventType:      messaging.ParentMessageEventRequestCreated,
+		ActorKind:      messaging.ParentMessageSenderGuardian,
 		ActorAccountID: chain.AccountID,
 		Body:           "Anfrage gestellt",
-		RequestType:    usersModels.ParentMessageRequestMasterData,
-		RequestStatus:  usersModels.ParentMessageRequestStatusOpen,
+		RequestType:    messaging.ParentMessageRequestMasterData,
+		RequestStatus:  messaging.ParentMessageRequestStatusOpen,
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(303),
 	})
@@ -229,18 +231,18 @@ func TestEmitChildEvent_RevokedGuardianClosesWithoutWaking(t *testing.T) {
 	// Staff decides the request: the closing pill must still land, but the
 	// guardian must NOT be woken (broadcast guardian id forced to 0).
 	emitter.EmitChildEvent(chain.TenantID, chain.StudentID, chain.AccountID, parentmessaging.ChildEvent{
-		EventType:      usersModels.ParentMessageEventRequestStatus,
-		ActorKind:      usersModels.ParentMessageSenderStaff,
+		EventType:      messaging.ParentMessageEventRequestStatus,
+		ActorKind:      messaging.ParentMessageSenderStaff,
 		ActorAccountID: chain.AccountID,
 		Body:           "Anfrage bestätigt",
-		RequestType:    usersModels.ParentMessageRequestMasterData,
-		RequestStatus:  usersModels.ParentMessageRequestStatusDone,
+		RequestType:    messaging.ParentMessageRequestMasterData,
+		RequestStatus:  messaging.ParentMessageRequestStatusDone,
 		RefTable:       "users.student_data_change_requests",
 		RefID:          i64(303),
 	})
 
 	_, msgs := threadPills(t, db, repos, chain)
-	assert.Equal(t, 1, countEventType(msgs, usersModels.ParentMessageEventRequestStatus),
+	assert.Equal(t, 1, countEventType(msgs, messaging.ParentMessageEventRequestStatus),
 		"the closing pill is still written for the staff timeline")
 	parentCalls := bc.CallsByMethod("parent")
 	require.NotEmpty(t, parentCalls, "the tenant-wide staff wake still fires")

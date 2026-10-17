@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"strings"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 )
 
@@ -45,7 +44,7 @@ type parentMessageEmailCopy struct {
 // GuardianProfileFinder resolves the guardian's e-mail address and name inside
 // the current tenant transaction.
 type GuardianProfileFinder interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
+	deliveryPorts.ParentMessageGuardianProfiles
 }
 
 // SchoolFinder resolves the name of the school that sends the mail.
@@ -73,7 +72,7 @@ type LoginImageResolver interface {
 //
 // Everything here runs in the request's tenant transaction. The message and
 // durable outbox row therefore commit or roll back together.
-func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.ParentMessageThread, messageID int64) error {
+func (s *Service) notifyGuardianEmail(ctx context.Context, thread *ParentMessageThread, messageID int64) error {
 	if thread == nil || thread.GuardianAccountID <= 0 {
 		return nil
 	}
@@ -90,7 +89,7 @@ func (s *Service) notifyGuardianEmail(ctx context.Context, thread *usersModels.P
 		return nil
 	}
 
-	profile, err := s.GuardianProfiles.FindByAccountID(ctx, thread.GuardianAccountID)
+	profile, err := s.GuardianProfiles.FindMessageGuardianProfile(ctx, thread.GuardianAccountID)
 	if err != nil {
 		s.Logger.Warn("messaging: load guardian profile for e-mail failed",
 			slog.Int64("thread_id", thread.ID),
@@ -291,7 +290,7 @@ func localizedMessageIntro(sender, school, action, childConnector, child string)
 // guardianAcceptsMessageMail reports whether the guardian has NOT declined the
 // new-message notification. Without a preference service nobody is filtered:
 // the address is one the school already writes to.
-func (s *Service) guardianAcceptsMessageMail(ctx context.Context, thread *usersModels.ParentMessageThread) bool {
+func (s *Service) guardianAcceptsMessageMail(ctx context.Context, thread *ParentMessageThread) bool {
 	if s.Preferences == nil {
 		return true
 	}

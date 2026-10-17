@@ -1,4 +1,4 @@
-package users
+package application
 
 // Pure-logic tests for the read-receipt stampers (parent_message.go). They pin
 // the composite (created_at, id) tie-break and the POSITIVE authorship gate that

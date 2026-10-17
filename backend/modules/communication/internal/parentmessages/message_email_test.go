@@ -66,9 +66,9 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 	outbox := testpkg.NewCapturingOutbox()
 	svc := messaging.NewService(messaging.Config{
 		UserContext: api.StaffStudentReads{},
-		ThreadRepo:  repos.ParentMessageThread,
-		MessageRepo: parentStore.NewParentMessageRepository(db),
-		ReadRepo:    repos.ParentMessageRead,
+		ThreadRepo:  messaging.NewThreadRepository(repos.ParentMessageThread),
+		MessageRepo: messaging.NewMessageRepository(parentStore.NewParentMessageRepository(db)),
+		ReadRepo:    messaging.NewReadRepository(repos.ParentMessageRead),
 		Persons:     newPersons(repos, db),
 		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: testpkg.NewRecordingBroadcaster(),
@@ -76,7 +76,7 @@ func newEmailFixture(t *testing.T, preferences communication.NotificationPrefere
 		Logger:           slog.Default(),
 		Preferences:      preferences,
 		Outbox:           api.BindCommunicationCapturingOutbox(outbox),
-		GuardianProfiles: repos.GuardianProfile,
+		GuardianProfiles: api.BindParentMessageGuardianProfiles(repos.GuardianProfile),
 		Schools:          schoolNames{schools: organizations},
 		ParentsURL:       testParentsURL,
 	}, testpkg.TenantTransactionRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

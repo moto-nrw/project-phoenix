@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log/slog"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -34,7 +33,7 @@ func (s *Service) MarkUnread(ctx context.Context, threadID int64) error {
 // or answers the conversation. It only removes the mark the thread row carried
 // when this request loaded it, so a colleague's newer mark survives. A cleared
 // mark wakes the other staff tabs so their badges drop right away.
-func (s *Service) clearStaffUnreadMark(ctx context.Context, thread *usersModels.ParentMessageThread) error {
+func (s *Service) clearStaffUnreadMark(ctx context.Context, thread *ParentMessageThread) error {
 	if thread == nil || thread.StaffMarkedUnreadAt == nil {
 		return nil
 	}
@@ -52,7 +51,7 @@ func (s *Service) clearStaffUnreadMark(ctx context.Context, thread *usersModels.
 // unread badges, inboxes and child cards refetch. It uses its own event type:
 // an open conversation must not reload on it, because loading would end the
 // mark at once. No guardian is addressed; parents see no change.
-func (s *Service) broadcastStaffUnreadAfterCommit(ctx context.Context, thread *usersModels.ParentMessageThread) {
+func (s *Service) broadcastStaffUnreadAfterCommit(ctx context.Context, thread *ParentMessageThread) {
 	if s.Broadcaster == nil || thread.TenantID <= 0 {
 		return
 	}
