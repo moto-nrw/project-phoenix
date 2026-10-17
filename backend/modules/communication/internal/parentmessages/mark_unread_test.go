@@ -18,6 +18,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -325,7 +326,7 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 		UserContext: api.StaffStudentReads{},
 		ThreadRepo:  repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(f.db), ReadRepo: repos.ParentMessageRead,
 		Persons:     newPersons(repos, f.db),
-		Settings:    stubSettings{messagingEnabled: false},
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false}),
 		Broadcaster: f.bc, Logger: slog.Default(),
 	}, testpkg.TenantTransactionRuntime{})
 	ctx := adminCtx(t, f.staffAccount)

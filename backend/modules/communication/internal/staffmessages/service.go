@@ -18,7 +18,6 @@ import (
 	"log/slog"
 	"strings"
 
-	configModels "github.com/moto-nrw/project-phoenix/models/config"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
@@ -76,8 +75,10 @@ type PersonLookup interface {
 // Settings resolves the messaging feature flag and the retention period of the
 // current tenant.
 type Settings interface {
-	ResolveBool(ctx context.Context, key string) (bool, error)
-	ResolveInt(ctx context.Context, key string) (int, error)
+	StaffMessagingEnabled(ctx context.Context) (bool, error)
+	StaffMessagingEnabledKey() string
+	StaffMessageRetentionDays(ctx context.Context) (int, error)
+	StaffMessageRetentionDaysKey() string
 }
 
 // Service is the OGS-internal messaging service.
@@ -132,10 +133,10 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 	if s.Settings == nil {
 		return ErrMessagingDisabled
 	}
-	enabled, err := s.Settings.ResolveBool(ctx, configModels.KeyStaffMessagingEnabled)
+	enabled, err := s.Settings.StaffMessagingEnabled(ctx)
 	if err != nil {
 		s.Logger.Warn("staffmessaging: resolve enabled failed, failing closed",
-			slog.String("key", configModels.KeyStaffMessagingEnabled),
+			slog.String("key", s.Settings.StaffMessagingEnabledKey()),
 			slog.String("error", err.Error()),
 		)
 		return ErrMessagingDisabled

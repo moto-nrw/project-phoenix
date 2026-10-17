@@ -19,6 +19,7 @@ import (
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -63,7 +64,7 @@ func newCountScopeFixture(t *testing.T, groups groupsByAccount) *fixture {
 		MessageRepo: parentStore.NewParentMessageRepository(db),
 		ReadRepo:    repos.ParentMessageRead,
 		Persons:     newPersons(repos, db),
-		Settings:    stubSettings{messagingEnabled: true},
+		Settings:    settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true}),
 		Broadcaster: bc,
 
 		Logger:           slog.Default(),
@@ -240,6 +241,6 @@ func TestCountScope_DisabledSchoolCountsNothing(t *testing.T) {
 	startThreadWithQuestions(t, f, f.chain, "Frage")
 	setCountScope(t, f, f.staffAccount, messaging.CountScopeAll)
 
-	f.svc.Settings = stubSettings{messagingEnabled: false}
+	f.svc.Settings = settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false})
 	assert.Zero(t, readUnreadView(t, f, f.staffAccount).badge)
 }

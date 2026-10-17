@@ -11,7 +11,6 @@ import (
 
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -198,18 +197,15 @@ func (m *mockRepo) Stats(ctx context.Context, tenantID, announcementID int64) (*
 	return m.statsFn(ctx, tenantID, announcementID)
 }
 
-// stubSettings satisfies configService.SettingsService via the embedded (nil)
-// interface; only the two methods the service touches are implemented. Any
-// other call panics — the service must not reach for settings it does not use.
+// stubSettings implements exactly the two settings operations the service uses.
 type stubSettings struct {
-	configService.SettingsService
 	newsEnabled   bool
 	newsErr       error
 	loginImageURL string
 	loginImageErr error
 }
 
-func (s stubSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
+func (s stubSettings) ParentNewsEnabled(_ context.Context) (bool, error) {
 	return s.newsEnabled, s.newsErr
 }
 func (s stubSettings) GetLoginImageURL(_ context.Context, _ int64) (string, error) {

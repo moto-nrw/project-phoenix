@@ -14,7 +14,6 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // fakeAnnouncementRepo embeds the repository interface and overrides only what
@@ -116,12 +115,11 @@ func (f *fakeAnnouncementRepo) UnansweredReminderRecipients(_ context.Context, _
 
 // fakeSettings answers the parent-news feature flag; everything else panics.
 type fakeSettings struct {
-	configService.SettingsService
 	enabled bool
 	logoURL string
 }
 
-func (f *fakeSettings) ResolveBool(_ context.Context, _ string) (bool, error) {
+func (f *fakeSettings) ParentNewsEnabled(_ context.Context) (bool, error) {
 	return f.enabled, nil
 }
 

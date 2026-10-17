@@ -15,7 +15,6 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/localization"
-	configModel "github.com/moto-nrw/project-phoenix/models/config"
 	platformModels "github.com/moto-nrw/project-phoenix/models/platform"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailbranding"
@@ -211,7 +210,7 @@ func (s *service) newsEnabled(ctx context.Context) (bool, error) {
 	if s.settings == nil {
 		return false, nil
 	}
-	return s.settings.ResolveBool(ctx, configModel.KeyParentNewsEnabled)
+	return s.settings.ParentNewsEnabled(ctx)
 }
 
 func (s *service) List(ctx context.Context, includeInactive bool) ([]*usersModels.ParentAnnouncement, error) {

@@ -8,6 +8,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/communication"
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	"github.com/moto-nrw/project-phoenix/tenant"
@@ -37,7 +38,7 @@ func NewStaffMessagingTestModule(db transactionruntime.Database, unit tenant.Uni
 	}
 	messaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo: repos.Thread, MessageRepo: repos.Message, ReadRepo: repos.Read,
-		Persons: people.Users, Settings: settings.Settings, Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
+		Persons: people.Users, Settings: settingsValues.NewStaffMessagingValues(settings.Settings), Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
 		Logger: slog.Default(), Notifier: delivery.Notifications,
 		Preferences: delivery.NotificationPreferences, Observe: func(communicationCompose.Observation) {},
 	}, CommunicationRequestRuntime{})

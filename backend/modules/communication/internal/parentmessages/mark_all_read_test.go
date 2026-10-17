@@ -19,6 +19,7 @@ import (
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
 	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
 	"github.com/moto-nrw/project-phoenix/realtime"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -285,7 +286,7 @@ func TestMarkAllRead_DisabledDoesNotAdvanceOrBroadcast(t *testing.T) {
 
 	f := newFixture(t, true)
 	threadID, _ := startThreadWithQuestions(t, f, f.chain, "Frage")
-	f.svc.Settings = stubSettings{messagingEnabled: false}
+	f.svc.Settings = settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: false})
 	f.svc.Logger = slog.Default()
 	f.bc.Reset()
 

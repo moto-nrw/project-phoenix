@@ -10,7 +10,9 @@ import (
 )
 
 // ParentMessageRetentionSettings resolves the school's retention window.
-type ParentMessageRetentionSettings = parentMessages.RetentionSettings
+type ParentMessageRetentionSettings interface {
+	ParentMessageRetentionDays(context.Context) (int, error)
+}
 
 // NewParentMessageRetention composes the nightly deletion of expired parent
 // messages (#3959) over the ambient tenant transaction of db.

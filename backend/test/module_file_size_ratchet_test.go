@@ -57,7 +57,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	"modules/careplan/internal/application/excused_requests.go":                      1567,
 	"modules/communication/internal/adapters/parentaudience/projection.go":           945,
 	"modules/communication/internal/adapters/parentpostgres/parent_announcements.go": 950,
-	"modules/communication/internal/staffannouncements/service.go":                   1189,
+	"modules/communication/internal/staffannouncements/service.go":                   1188,
 	"modules/enrollment/form_schema.go":                                              1015,
 	"modules/peopledirectory/http/guardian_handlers.go":                              1004,
 	"modules/schoolcalendar/portal/internal/application/service.go":                  1850,

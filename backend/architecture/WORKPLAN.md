@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 158 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 151 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
 34.612 in `compose`
 
@@ -14,15 +14,27 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 81 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 41 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 34 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 158 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 151 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4074: Communication besitzt eigene semantische Settings-Ports. Die Root
+bindet fünf schmale öffentliche Settings-Facetten an denselben Resolver.
+Schlüssel, Registry-Defaults, Overrides, Cache und Fehler bleiben beim Owner;
+`false`, `0`, Schul-ID und Kontext bleiben erhalten.
+Log-Schlüssel benötigen keinen weiteren Read. Fehlende Abhängigkeiten bleiben
+`nil`, breite Service-Typen und ein Retention-Typalias entfallen. Sieben Keys
+fallen: 158 → 151, #4074 41 → 34. Regeln 844, Epoche 72, Composition 1.657 und
+Compose 34.612 LOC bleiben gleich. Das Dateigrößenbudget sinkt 1.189 → 1.188.
+Keine neue Freigabe, Go-Typalias, Ausnahme oder höheren Budgets. Routen,
+Antworten, Goldens, IoT, Beziehungsrechte, Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Communication-Settings](communication-native-settings-4074.json).
 
 #4074: Communication besitzt schmale Ports für Schul-ID, After-Commit und
 Detached-Transaktionen. Die Root bindet dieselbe öffentliche Tenant Runtime.

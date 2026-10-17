@@ -12,7 +12,6 @@ import (
 	staff "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/emailoutbox"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/notifications"
-	configService "github.com/moto-nrw/project-phoenix/services/config"
 )
 
 // ParentAnnouncementConfig is the compatibility composition seam for the
@@ -37,7 +36,7 @@ type ParentAnnouncementDeliveryRecorder interface {
 
 type ParentAnnouncementConfig struct {
 	Repo             usersModels.ParentAnnouncementRepository
-	Settings         configService.SettingsService
+	Settings         staff.Settings
 	Outbox           ParentAnnouncementOutbox
 	PushOutbox       ParentAnnouncementPushOutbox
 	Notifier         notifications.Service
