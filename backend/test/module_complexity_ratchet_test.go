@@ -59,8 +59,7 @@ const moduleComplexityThreshold = 15
 // Sorted by key, with a blank line between owner modules so gofmt aligns each
 // block on its own and removing an entry reflows only that module's block.
 var moduleComplexityAllowlist = map[string]int{
-	"modules/appointments/recurrence.go:boundedRecurrenceDates": 77,
-	"modules/appointments/recurrence.go:matchesRule":            17,
+	"modules/appointments/recurrence.go:matchesRule": 17,
 
 	"modules/careplan/carerequests/weekly.go:weeklyEntries":                                                      39,
 	"modules/careplan/internal/adapters/postgres/offering_bookings.go:(*Store).RecordCareOfferingBookings":       16,
