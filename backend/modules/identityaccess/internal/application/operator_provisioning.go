@@ -206,11 +206,6 @@ func (p *OperatorProvisioning) AcceptOperatorInvitation(ctx context.Context, acc
 	return operator, nil
 }
 
-// ListPendingOperatorInvitations returns the links that can still be spent.
-func (p *OperatorProvisioning) ListPendingOperatorInvitations(ctx context.Context) ([]domain.OperatorInvitation, error) {
-	return p.tokens.ListRedeemableInvitations(ctx)
-}
-
 // RevokeOperatorInvitation spends a redeemable link without redeeming it.
 func (p *OperatorProvisioning) RevokeOperatorInvitation(ctx context.Context, invitationID, actorID int64, ipAddress string) error {
 	if err := p.tokens.RevokeInvitation(ctx, invitationID); err != nil {

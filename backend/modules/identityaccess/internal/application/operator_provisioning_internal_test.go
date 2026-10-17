@@ -356,7 +356,7 @@ func TestListPendingOperatorInvitationsSkipsTheSpentOnes(t *testing.T) {
 	spent := f.seedInvitation("spent@example.com", "spent-token", inviter.ID)
 	require.NoError(t, f.provisioning.RevokeOperatorInvitation(context.Background(), spent.ID, inviter.ID, ""))
 
-	pending, err := f.provisioning.ListPendingOperatorInvitations(context.Background())
+	pending, err := f.provisioning.tokens.ListRedeemableInvitations(context.Background())
 	require.NoError(t, err)
 	require.Len(t, pending, 1)
 	assert.Equal(t, live.ID, pending[0].ID)
