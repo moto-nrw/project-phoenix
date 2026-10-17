@@ -312,7 +312,7 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 	if err := profile.Validate(); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
-	newRaw := s.guardianProfileFieldJSON(profile, fieldKey)
+	newRaw := s.guardianProfileFieldJSON(guardianContactRecord(profile), fieldKey)
 	ref := profile.ID
 	if string(oldRaw) == string(newRaw) {
 		return oldRaw, newRaw, &ref, false, nil
@@ -372,7 +372,7 @@ func (s *Service) setGuardianProfileField(profile *usersModels.GuardianProfile, 
 
 // guardianProfileFieldJSON returns the post-update value of the named field as
 // JSON for the audit row.
-func (s *Service) guardianProfileFieldJSON(profile *usersModels.GuardianProfile, fieldKey string) json.RawMessage {
+func (s *Service) guardianProfileFieldJSON(profile GuardianContactRecord, fieldKey string) json.RawMessage {
 	switch fieldKey {
 	case "email":
 		return jsonStringPtr(profile.Email)
@@ -402,7 +402,7 @@ func (s *Service) applyGuardianPhoneEdit(ctx context.Context, guardianProfileID,
 	if err != nil {
 		return nil, nil, nil, false, err
 	}
-	existing := pickPrimaryPhone(phones)
+	existing := pickPrimaryPhone(phones, func(phone *usersModels.GuardianPhoneNumber) bool { return phone.IsPrimary })
 
 	oldRaw := json.RawMessage("null")
 	if existing != nil {
@@ -526,7 +526,7 @@ func (s *Service) loadMasterData(ctx context.Context, accountID, guardianProfile
 	if err != nil {
 		return nil, err
 	}
-	if primary := pickPrimaryPhone(phones); primary != nil {
+	if primary := pickPrimaryPhone(phones, func(phone *usersModels.GuardianPhoneNumber) bool { return phone.IsPrimary }); primary != nil {
 		out.PrimaryPhone = &primary.PhoneNumber
 		out.PrimaryPhoneID = &primary.ID
 	}
@@ -557,9 +557,9 @@ func (s *Service) visiblePendingDataRequests(ctx context.Context, accountID, stu
 	return visible, nil
 }
 
-func pickPrimaryPhone(phones []*usersModels.GuardianPhoneNumber) *usersModels.GuardianPhoneNumber {
+func pickPrimaryPhone[T any](phones []*T, isPrimary func(*T) bool) *T {
 	for _, p := range phones {
-		if p.IsPrimary {
+		if isPrimary(p) {
 			return p
 		}
 	}
