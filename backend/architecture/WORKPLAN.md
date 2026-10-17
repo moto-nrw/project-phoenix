@@ -3,7 +3,7 @@
 Offene Tickets, geordnet nach Vergebbarkeit statt nach Chronologie. Erledigtes steht nicht hier:
 `gh issue list --search "2580 in:body" --state closed`.
 
-Stand 17.10.2026 · Ratchet 127 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
+Stand 17.10.2026 · Ratchet 126 · Composition 1.657 (139 + Root-Structs mehrerer Owner, #4071) · Policy-Epoche 72 ·
 0 Regeln mit Übergangsmarker oder `issue` (ADR 0057) · 3.050 LOC unter `modules/*/legacy`, 3.776 in `legacy_*.go`,
 34.584 in `compose`
 
@@ -14,15 +14,29 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 81 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
-| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 10 |
+| [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 9 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |
 | [#4079](https://github.com/moto-nrw/project-phoenix/issues/4079) Mehr-Owner-HTTP der Fachmodule (zyklusschließende `http`-Regeln, #3417) | 15 |
 | [#2729](https://github.com/moto-nrw/project-phoenix/issues/2729) `models/users` | 0 |
 | [#2750](https://github.com/moto-nrw/project-phoenix/issues/2750) Root | 0 |
 | [#2751](https://github.com/moto-nrw/project-phoenix/issues/2751) Legacy-Composition | 3 |
-| Summe = `wc -l backend/architecture/legacy.jsonl` | 127 |
+| Summe = `wc -l backend/architecture/legacy.jsonl` | 126 |
 
 Geht sie nicht auf, ist eine Zeile hier veraltet.
+
+#4074: Staff-Messaging verwendet native Workflow-Records und eigene Ports für
+Threads, Nachrichten, Inbox und Empfänger. Dieselben gebundenen Stores bieten
+öffentliche native Facetten neben den verbliebenen Aufrufern. Alle Metadaten,
+Teil-Mutationen und Fehler, nil/leere Listen, Teilnehmer- und Read-Selektoren,
+Sperren, DB-Zeitstempel und Cursor bleiben erhalten. Die Root bindet denselben
+Personen-Read für die unveränderten Namensbestandteile; Trim und Fallback bleiben
+im Workflow. Ein Produktionskey fällt: 127 → 126, #4074 10 → 9.
+Regeln 844, Epoche 72, Composition 1.657, Communication-Compose 1.486 LOC und
+Compose-Summe 34.584 bleiben gleich. Keine neue Freigabe, Go-Typalias,
+Klassifizierung, Ausnahme, Root-Graph-Felder oder höheren Budgets. Die übrigen
+Store-Keys bleiben sichtbar. Routen, Antworten, Goldens, IoT, Beziehungsrechte,
+Sessions und Portal-Isolation bleiben unverändert.
+Nachweis: [native Staff-Records](communication-native-staff-records-4074.json).
 
 #4074: Communication besitzt native Mail-Werte und schmale Lese- und Schreibports.
 Die Root bindet dieselbe Outbox, denselben Mail-Transport und dieselbe Audit-Facette.

@@ -39,7 +39,7 @@ func NewStaffMessagingTestModule(db transactionruntime.Database, unit tenant.Uni
 	}
 	messaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
 		ThreadRepo: repos.Thread, MessageRepo: repos.Message, ReadRepo: repos.Read,
-		Persons: people.Users, Settings: settingsValues.NewStaffMessagingValues(settings.Settings), Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
+		Persons: BindStaffSenderNames(people.Users), Settings: settingsValues.NewStaffMessagingValues(settings.Settings), Broadcaster: deliveryCompose.NewRealtimeHub(slog.Default()),
 		Logger: slog.Default(), Notifier: BindCommunicationNotificationSender(delivery.Notifications),
 		Preferences: delivery.NotificationPreferences, Observe: func(communicationCompose.Observation) {},
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})

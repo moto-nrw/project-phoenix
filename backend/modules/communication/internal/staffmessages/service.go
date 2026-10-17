@@ -18,7 +18,6 @@ import (
 	"log/slog"
 	"strings"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -62,14 +61,14 @@ type ThreadDetail struct {
 	ThreadID             int64
 	CounterpartAccountID int64
 	CounterpartName      string
-	// CounterpartRoleKind: one of the usersModels.StaffRoleKind constants.
+	// CounterpartRoleKind: one of the existing coarse colleague-role values.
 	CounterpartRoleKind string
-	Messages            []*usersModels.StaffMessage
+	Messages            []*StaffMessage
 }
 
 // PersonLookup resolves the person behind a sender's account for display.
 type PersonLookup interface {
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.Person, error)
+	deliveryPorts.StaffSenderNames
 }
 
 // Settings resolves the messaging feature flag and the retention period of the
@@ -90,9 +89,9 @@ type Service struct {
 
 // Config is the dependency-injection bundle.
 type Config struct {
-	ThreadRepo  usersModels.StaffMessageThreadRepository
-	MessageRepo usersModels.StaffMessageRepository
-	ReadRepo    usersModels.StaffMessageReadRepository
+	ThreadRepo  StaffMessageThreadRepository
+	MessageRepo StaffMessageRepository
+	ReadRepo    StaffMessageReadRepository
 	Persons     PersonLookup
 	Settings    Settings
 	Broadcaster realtime.Broadcaster
@@ -149,7 +148,7 @@ func (s *Service) requireEnabled(ctx context.Context) error {
 }
 
 // ListInbox returns the caller's conversations, newest activity first.
-func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*usersModels.StaffInboxThread, error) {
+func (s *Service) ListInbox(ctx context.Context, onlyUnread bool) ([]*StaffInboxThread, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -188,7 +187,7 @@ func (s *Service) UnreadMessageCount(ctx context.Context) (int, error) {
 }
 
 // ListMessageableStaff returns the colleagues the caller may write to.
-func (s *Service) ListMessageableStaff(ctx context.Context) ([]*usersModels.MessageableStaff, error) {
+func (s *Service) ListMessageableStaff(ctx context.Context) ([]*MessageableStaff, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -216,7 +215,7 @@ func (s *Service) ListMessageableStaff(ctx context.Context) ([]*usersModels.Mess
 
 // authorizeThread loads a thread and verifies the caller takes part in it.
 // Both "no such thread" and "not yours" surface as the same 404 upstream.
-func (s *Service) authorizeThread(ctx context.Context, threadID, accountID int64) (*usersModels.StaffMessageThread, error) {
+func (s *Service) authorizeThread(ctx context.Context, threadID, accountID int64) (*StaffMessageThread, error) {
 	thread, err := s.ThreadRepo.FindByID(ctx, threadID)
 	if err != nil {
 		return nil, err
@@ -333,7 +332,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 }
 
 // PostMessage appends a message to a conversation the caller takes part in.
-func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*usersModels.StaffMessage, error) {
+func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) (*StaffMessage, error) {
 	if err := s.requireEnabled(ctx); err != nil {
 		return nil, err
 	}
@@ -377,7 +376,7 @@ func (s *Service) PostMessage(ctx context.Context, threadID int64, body string) 
 		return nil, err
 	}
 
-	message := &usersModels.StaffMessage{
+	message := &StaffMessage{
 		ThreadID:        threadID,
 		SenderAccountID: accountID,
 		SenderName:      s.resolveSenderName(ctx, accountID),
@@ -424,7 +423,7 @@ func (s *Service) resolveSenderName(ctx context.Context, accountID int64) string
 	if s.Persons == nil {
 		return fallback
 	}
-	person, err := s.Persons.FindByAccountID(ctx, accountID)
+	person, err := s.Persons.FindStaffSenderName(ctx, accountID)
 	if err != nil || person == nil {
 		return fallback
 	}
@@ -435,7 +434,7 @@ func (s *Service) resolveSenderName(ctx context.Context, accountID int64) string
 }
 
 // buildDetail assembles the chat window payload for one viewer.
-func (s *Service) buildDetail(ctx context.Context, thread *usersModels.StaffMessageThread, viewerAccountID int64) (*ThreadDetail, error) {
+func (s *Service) buildDetail(ctx context.Context, thread *StaffMessageThread, viewerAccountID int64) (*ThreadDetail, error) {
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID)
 	if err != nil {
 		return nil, err
