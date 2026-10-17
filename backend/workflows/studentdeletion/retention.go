@@ -100,16 +100,29 @@ func (r *Retention) DeleteExpiredStudents(ctx context.Context) (RetentionResult,
 			result.Deleted++
 		case errors.Is(err, ErrIsolationFailed) || ctx.Err() != nil:
 			return RetentionResult{}, err
-		default:
+		case isRetentionRefusal(err):
 			result.Refused++
 			r.deps.Logger.Warn("student retention skipped a child",
 				"tenant_id", tenantID,
 				"student_id", studentID,
 				"error", err.Error(),
 			)
+		default:
+			return RetentionResult{}, fmt.Errorf("student retention: delete child %d: %w", studentID, err)
 		}
 	}
 	return result, nil
+}
+
+// isRetentionRefusal identifies expected conflicts between candidate selection
+// and the locked deletion. They leave that child for a later run; every other
+// error aborts the step so the scheduler can retry it.
+func isRetentionRefusal(err error) bool {
+	return errors.Is(err, ErrStudentNotFound) ||
+		errors.Is(err, ErrRetentionNotEnded) ||
+		errors.Is(err, ErrPreviewChanged) ||
+		errors.Is(err, ErrCompanionWouldLoseDeparture) ||
+		errors.Is(err, ErrCompanionLockBusy)
 }
 
 // expiredLastCareDay is the latest last care day past a window of days: a

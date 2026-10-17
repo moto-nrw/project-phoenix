@@ -88,6 +88,28 @@ func TestStudentRetention_SkipsARefusedChildAndDeletesTheRest(t *testing.T) {
 	assert.Zero(t, rowCount(t, db, "users.student_profiles", refused.ID))
 }
 
+// An owner failure is not a refusal: the savepoint rolls its child back and
+// the failed cleanup run reaches the scheduler, which can retry it.
+func TestStudentRetention_AbortsOnAnUnexpectedDeletionFailure(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	f := newDeletionFixture(t, db)
+	student := testpkg.CreateTestStudent(t, db, "Retention", "Audit", "3a")
+	lastCareDay := calendar.NewDate(2026, 5, 29)
+	testpkg.SetStudentLifecycle(t, db, student.ID, "inactive", nil, &lastCareDay)
+
+	failure := errors.New("injected audit failure")
+	f.deps.AppendAudit = func(context.Context, studentdeletion.Actor, studentdeletion.Result) error { return failure }
+	retention := f.newRetention(t, "2027-05-31", 365)
+	err := testpkg.WithinTenantContext(t, testpkg.Ctx(t), db, testpkg.Tenant(t), func(ctx context.Context) error {
+		_, err := retention.DeleteExpiredStudents(ctx)
+		return err
+	})
+
+	require.ErrorIs(t, err, failure)
+	assert.Equal(t, 1, rowCount(t, db, "users.student_profiles", student.ID), "the savepoint rolls back the failed deletion")
+}
+
 // The retention refuses a window outside the frame of ADR 0048 before it
 // reads a child.
 func TestStudentRetention_RefusesAWindowOutsideTheFrame(t *testing.T) {
