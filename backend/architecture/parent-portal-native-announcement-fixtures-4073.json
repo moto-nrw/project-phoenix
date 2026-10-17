@@ -23,7 +23,8 @@
     "Compile-only Care check passes. Initial source attempts failed only on the corrected fixture binder type names; no expected behavior changed.",
     "Read-only AST proof:81 workflow test files,501 tests,2295 assertions and870 executable test/helper bodies preserved after declared native fixture/vocabulary/protocol substitutions.",
     "Complete NONFAST84508 EXIT0:all68 affected packages, including full Portal/Care/HTTP, API/router and module/hermetic guards. Lint14852 EXIT0:0issues. Architecture31599 EXIT0:167keys,1657compositiontargets,847rules,all11constants/29budgetregisters/2exceptionregisters flat. Inventory73105 EXIT0:1of1retirement covered,142files.",
-    "The first lint attempt hit another runner lock. Corrected invocation uses --allow-serial-runners under the shared heavy gate; it exits0 with0issues. Initial standalone goimports invocation was unavailable; corrected pinned go tool goimports format exits0."
+    "The first lint attempt hit another runner lock. Corrected invocation uses --allow-serial-runners under the shared heavy gate; it exits0 with0issues. Initial standalone goimports invocation was unavailable; corrected pinned go tool goimports format exits0.",
+    "Cleanly integrated development24600404c0f97034d47cdcbcf5d1958904088803 (#4253) after the complete source gate. No conflict or own source edits. Per the standing clean-merge rule, the integrated head uses an architecture-only pre-push recheck; the full test/lint results above precede this unrelated merge."
   ],
   "runtime_evidence": {
     "source": "Assigned localhost5547 test database; pinned Go toolchain with fresh /tmp/gocache-4073. Immutable source base9fe49e0a19f317adcf6aa022902364583706cb86.",
