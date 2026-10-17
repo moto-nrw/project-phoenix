@@ -238,8 +238,10 @@ func newStudentsRoute(t *testing.T, careLifecycleAuthoritative *bool, clocks ...
 	require.NoError(t, err)
 	// The permanent-deletion routes run the owner workflow (#2710) over the
 	// same capabilities the production root binds.
+	deletionOwners, err := api.NewStudentDeletionOwners(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	studentDeletion, err := studentdeletioncompose.New(studentdeletioncompose.Dependencies{
-		DB: db, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
+		DB: db, Owners: deletionOwners, Directory: svc.PeopleDirectory, CarePlan: repoFactory.CarePlan, Timetable: repoFactory.Timetable,
 		Feedback: &testpkg.FeedbackEntryCounterMock{}, IsVerifiedStaff: svc.UserContext.HasCurrentStaff,
 		LockCareBookingWrites: mustTimetableRecurrenceLock(t, db).LockRecurrenceWrites,
 		UnlinkPhoto:           studentPhotos.ScheduleUnlinkAfterCommit, Broadcaster: broadcaster, Audit: svc.Audit,

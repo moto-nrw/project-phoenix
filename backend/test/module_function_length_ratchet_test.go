@@ -232,7 +232,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/sessionend/internal/application/command.go:(*command).EndSession":                                                                76,
 	"workflows/staffoffboarding/compose/new.go:New":                                                                                             114,
 	"workflows/staffoffboarding/offboarding.go:(*Workflow).snapshot":                                                                            71,
-	"workflows/studentdeletion/compose/new.go:Assemble":                                                                                         113,
+	"workflows/studentdeletion/compose/new.go:Assemble":                                                                                         99,
 	"workflows/studentdeletion/deletion.go:(*Workflow).loadCounts":                                                                              69,
 }
 
