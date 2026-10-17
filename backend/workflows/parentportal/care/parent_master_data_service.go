@@ -309,7 +309,7 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 
 	// Validate() trims/lowercases the email and rejects bad emails / contact
 	// methods — turn its failure into the stable invalid-value sentinel.
-	if err := profile.Validate(); err != nil {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return nil, nil, nil, false, fmt.Errorf("%w: %s", ErrMasterDataInvalidValue, err.Error())
 	}
 	newRaw := s.guardianProfileFieldJSON(guardianContactRecord(profile), fieldKey)
@@ -328,7 +328,7 @@ func (s *Service) applyGuardianProfileEdit(ctx context.Context, guardianProfileI
 
 // setGuardianProfileField applies one Track A guardian field to the profile
 // and returns its previous value as JSON.
-func (s *Service) setGuardianProfileField(profile *usersModels.GuardianProfile, fieldKey, newStr string) (json.RawMessage, error) {
+func (s *Service) setGuardianProfileField(profile *GuardianProfile, fieldKey, newStr string) (json.RawMessage, error) {
 	var oldRaw json.RawMessage
 	switch fieldKey {
 	case "email":

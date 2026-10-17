@@ -70,7 +70,7 @@ type guardianContactSnapshot struct {
 	phones     string
 }
 
-func snapshotGuardianContact(profile *usersModels.GuardianProfile, phones []*usersModels.GuardianPhoneNumber) guardianContactSnapshot {
+func snapshotGuardianContact(profile *GuardianProfile, phones []*usersModels.GuardianPhoneNumber) guardianContactSnapshot {
 	return guardianContactSnapshot{
 		firstName:  profile.FirstName,
 		lastName:   profile.LastName,
@@ -94,7 +94,7 @@ func snapshotGuardianContact(profile *usersModels.GuardianProfile, phones []*use
 // decision (notes content is never logged). Because no values are stored, the
 // rows die with the child/guardian via the table's ON DELETE CASCADE and need
 // no separate retention window.
-func (s *Service) auditContactChanges(ctx context.Context, accountID, studentID, guardianProfileID int64, before guardianContactSnapshot, profile *usersModels.GuardianProfile, newPhones []*usersModels.GuardianPhoneNumber) error {
+func (s *Service) auditContactChanges(ctx context.Context, accountID, studentID, guardianProfileID int64, before guardianContactSnapshot, profile *GuardianProfile, newPhones []*usersModels.GuardianPhoneNumber) error {
 	var changes []guardianChangeEntry
 	add := func(field, oldVal, newVal string) {
 		if oldVal != newVal {

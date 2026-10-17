@@ -87,7 +87,7 @@ func newRelAcctRouter(t *testing.T, db *bun.DB, inviteMode string, canRemove boo
 		Settings:            relAcctHandlerSettings{inviteMode: inviteMode, canRemove: canRemove},
 		GuardianInvites:     relAcctStubInvites{},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
@@ -201,7 +201,7 @@ func newRelAcctRouterWithInvites(t *testing.T, db *bun.DB, invites parentService
 		Settings:            relAcctHandlerSettings{inviteMode: settings.ParentInviteModeDirect},
 		GuardianInvites:     invites,
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})

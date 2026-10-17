@@ -38,7 +38,7 @@ func buildEditableMasterDataService(t *testing.T) (*parentService.Portal, api.Pa
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         repos.Student,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          repos.Person,
 		GuardianPhoneRepo:   repos.GuardianPhoneNumber,
 		ChangeRequestRepo:   repos.StudentDataChangeRequest,
