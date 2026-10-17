@@ -33,6 +33,24 @@ func (s *service) RenderList(ctx context.Context, requested classday.Params, for
 	}
 
 	pickupBased := params.Target == classday.TargetPickupCohort
+	columns := slotListExportColumns(pickupBased)
+	docRows := slotListExportRows(result.Rows, pickupBased)
+
+	doc := classday.ExportDocument{
+		Title:       documentTitle(result),
+		Subtitle:    subtitle(result),
+		GeneratedAt: time.Now(),
+		Filters:     exportFilters(params, result),
+		Columns:     columns,
+		Rows:        docRows,
+		Footer:      confidentialityNote,
+	}
+
+	filename := exportFilename(params, result)
+	return s.listExport.Render(doc, format, filename)
+}
+
+func slotListExportColumns(pickupBased bool) []classday.ExportColumn {
 	columns := []classday.ExportColumn{
 		{ID: classday.ExportColumnName, Label: "Name"},
 		{ID: classday.ExportColumnSchoolClass, Label: "Klasse"},
@@ -44,14 +62,18 @@ func (s *service) RenderList(ctx context.Context, requested classday.Params, for
 	}
 	columns = append(columns, classday.ExportColumn{ID: classday.ExportColumnPresenceStatus, Label: "Status"})
 
-	// The PDF renderer treats a Row with GroupTitle as a pure section marker
-	// and drops its Values (pdf_design.go paginate). Emit one marker row per
-	// section followed by plain value rows — the same shape the grouped
-	// student exports produce. Rows arrive sorted by GroupTitle (sortRows),
-	// so sections are contiguous.
-	docRows := make([]classday.ExportRow, 0, len(result.Rows))
+	return columns
+}
+
+// The PDF renderer treats a Row with GroupTitle as a pure section marker
+// and drops its Values (pdf_design.go paginate). Emit one marker row per
+// section followed by plain value rows — the same shape the grouped
+// student exports produce. Rows arrive sorted by GroupTitle (sortRows),
+// so sections are contiguous.
+func slotListExportRows(rows []classday.Row, pickupBased bool) []classday.ExportRow {
+	docRows := make([]classday.ExportRow, 0, len(rows))
 	currentGroup := ""
-	for _, row := range result.Rows {
+	for _, row := range rows {
 		if row.GroupTitle != "" && row.GroupTitle != currentGroup {
 			currentGroup = row.GroupTitle
 			docRows = append(docRows, classday.ExportRow{GroupTitle: row.GroupTitle})
@@ -69,18 +91,7 @@ func (s *service) RenderList(ctx context.Context, requested classday.Params, for
 		docRows = append(docRows, classday.ExportRow{Values: values})
 	}
 
-	doc := classday.ExportDocument{
-		Title:       documentTitle(result),
-		Subtitle:    subtitle(result),
-		GeneratedAt: time.Now(),
-		Filters:     exportFilters(params, result),
-		Columns:     columns,
-		Rows:        docRows,
-		Footer:      confidentialityNote,
-	}
-
-	filename := exportFilename(params, result)
-	return s.listExport.Render(doc, format, filename)
+	return docRows
 }
 
 func documentTitle(result *classday.Result) string {
