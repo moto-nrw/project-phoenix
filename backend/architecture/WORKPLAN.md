@@ -70,6 +70,14 @@ auf die Kompatibilitätsschicht bleibt vorerst bestehen. Zwei Keys fallen: Care 
 nennen keinen konkreten Emitter mehr. Keys 230 → 228, #4073 42 → 40, Regeln 902 → 902,
 Composition 1.657 unverändert, Portal-Compose 507 LOC unverändert. Keine neue Freigabe.
 
+#4078: Common liest keine Presence-Daten mehr. Der Location-Batchloader
+liegt neben Snapshot und Resolver bei Student Presence; die unveränderte
+ID-Deduplizierung ist für das Funktionslimit als eigener Schritt benannt; die HTTP-Aufrufer nennen
+den bestehenden öffentlichen Vertrag direkt. Die 59 Tests ziehen mit unveränderten
+Assertions mit. Die Produktionsregel `inbound-common.http.student-presence-public`
+entfällt ohne Nachfolger: Regeln 837 → 836, Keys 183 → 183, Inbound-Owner 5 → 5.
+Routen, Responses, Goldens, Composition und Budgets bleiben unverändert.
+
 #4078: Der Meal-Plan-HTTP-Adapter liegt bereits unter `modules/mealplan/http` und gehört jetzt
 zu `meal-plan`; `inbound-mealplan` und seine zwei Regeln sind gelöscht. Eine gleich enge
 Eigen-HTTP-Regel ersetzt den Capability-Zugriff; die stehende Root-Reichweite ersetzt die andere.

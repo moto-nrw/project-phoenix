@@ -278,19 +278,19 @@ func populateSnapshotPublicFields(response *StudentResponse, student *Student) {
 
 // presentOrTransit returns the appropriate location for a checked-in student
 // without a specific room assignment, based on access level.
-func presentOrTransit(hasFullAccess bool) common.StudentLocationInfo {
+func presentOrTransit(hasFullAccess bool) studentpresence.StudentLocationInfo {
 	if hasFullAccess {
-		return common.StudentLocationInfo{Location: "Unterwegs"}
+		return studentpresence.StudentLocationInfo{Location: "Unterwegs"}
 	}
-	return common.StudentLocationInfo{Location: "Anwesend"}
+	return studentpresence.StudentLocationInfo{Location: "Anwesend"}
 }
 
 // absentInfo returns the "Abwesend" location, optionally with checkout time for full access users.
-func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocationInfo {
+func absentInfo(hasFullAccess bool, checkOutTime *time.Time) studentpresence.StudentLocationInfo {
 	if hasFullAccess && checkOutTime != nil {
-		return common.StudentLocationInfo{Location: "Abwesend", Since: checkOutTime}
+		return studentpresence.StudentLocationInfo{Location: "Abwesend", Since: checkOutTime}
 	}
-	return common.StudentLocationInfo{Location: "Abwesend"}
+	return studentpresence.StudentLocationInfo{Location: "Abwesend"}
 }
 
 // resolveStudentLocationWithTime determines a student's current location with timestamp.
@@ -299,23 +299,23 @@ func absentInfo(hasFullAccess bool, checkOutTime *time.Time) common.StudentLocat
 // write only attendance (no room visit), so falling through to
 // presentOrTransit() would always yield "Unterwegs", contradicting the
 // simplified Anwesend/Schulhof/Abwesend UX binary mode promises.
-func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc StudentPresence) (common.StudentLocationInfo, error) {
+func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFullAccess bool, svc StudentPresence) (studentpresence.StudentLocationInfo, error) {
 	mode, err := svc.GetPresenceMode(ctx)
 	if err != nil {
-		return common.StudentLocationInfo{}, err
+		return studentpresence.StudentLocationInfo{}, err
 	}
 	attendanceStatus, err := svc.GetStudentAttendanceStatus(ctx, studentID)
 	if err != nil {
-		return common.StudentLocationInfo{}, err
+		return studentpresence.StudentLocationInfo{}, err
 	}
 	if attendanceStatus == nil {
-		return common.StudentLocationInfo{Location: "Abwesend"}, nil
+		return studentpresence.StudentLocationInfo{Location: "Abwesend"}, nil
 	}
 
-	if mode == common.PresenceModeBinary {
-		info := common.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
-		if info.Location == common.YardLocationLabel {
-			info.RoomColor = common.ResolveYardRoomColor(ctx, svc)
+	if mode == studentpresence.PresenceModeBinary {
+		info := studentpresence.ResolveBinaryLocation(attendanceStatus, hasFullAccess)
+		if info.Location == studentpresence.YardLocationLabel {
+			info.RoomColor = studentpresence.ResolveYardRoomColor(ctx, svc)
 		}
 		return info, nil
 	}
@@ -328,7 +328,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 	// Student is checked in - get current visit to check room assignment
 	currentVisit, err := svc.GetStudentCurrentVisit(ctx, studentID)
 	if err != nil && !errors.Is(err, studentpresence.ErrVisitNotFound) {
-		return common.StudentLocationInfo{}, err
+		return studentpresence.StudentLocationInfo{}, err
 	}
 	if currentVisit == nil || currentVisit.ActiveGroupID <= 0 {
 		return presentOrTransit(hasFullAccess), nil
@@ -336,7 +336,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	activeGroup, err := svc.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
 	if err != nil {
-		return common.StudentLocationInfo{}, err
+		return studentpresence.StudentLocationInfo{}, err
 	}
 	if activeGroup == nil {
 		return presentOrTransit(hasFullAccess), nil
@@ -344,7 +344,7 @@ func resolveStudentLocationWithTime(ctx context.Context, studentID int64, hasFul
 
 	// Include room name for all authenticated staff (needed for supervised room checkout)
 	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
-		return common.StudentLocationInfo{
+		return studentpresence.StudentLocationInfo{
 			Location:  fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name),
 			Since:     &currentVisit.EntryTime,
 			RoomColor: activeGroup.Room.Color,

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
 	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // studentDataSnapshot caches what a student list renders besides the rows:
@@ -13,7 +13,7 @@ import (
 // page never reads per child.
 type studentDataSnapshot struct {
 	Persons          map[int64]*peopleModule.Person
-	LocationSnapshot *common.StudentLocationSnapshot
+	LocationSnapshot *studentpresence.StudentLocationSnapshot
 }
 
 // loadStudentDataSnapshot batches the persons (People Directory) and the
@@ -28,7 +28,7 @@ func (rs *Resource) loadStudentDataSnapshot(ctx context.Context, studentIDs, per
 		snapshot.Persons = persons
 	}
 	if len(studentIDs) > 0 {
-		locations, err := common.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
+		locations, err := studentpresence.LoadStudentLocationSnapshot(ctx, rs.ActiveService, studentIDs)
 		if err != nil {
 			return nil, fmt.Errorf("load student snapshot locations: %w", err)
 		}
@@ -46,9 +46,9 @@ func (s *studentDataSnapshot) GetPerson(personID int64) *peopleModule.Person {
 }
 
 // ResolveLocationWithTime retrieves location info including entry time.
-func (s *studentDataSnapshot) ResolveLocationWithTime(studentID int64, hasFullAccess bool) common.StudentLocationInfo {
+func (s *studentDataSnapshot) ResolveLocationWithTime(studentID int64, hasFullAccess bool) studentpresence.StudentLocationInfo {
 	if s == nil || s.LocationSnapshot == nil {
-		return common.StudentLocationInfo{Location: "Abwesend"}
+		return studentpresence.StudentLocationInfo{Location: "Abwesend"}
 	}
 	return s.LocationSnapshot.ResolveStudentLocationWithTime(studentID, hasFullAccess)
 }
