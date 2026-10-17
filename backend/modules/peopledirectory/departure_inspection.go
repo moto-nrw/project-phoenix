@@ -31,3 +31,6 @@ func InspectDepartureModesJSON(raw json.RawMessage, validate bool) (DepartureMod
 	}
 	return DepartureModesInspection{Normalized: normalized, Accompanied: modes.HasMode(departure.DepartureAccompanied)}, nil
 }
+
+// DepartureDayOrder is the canonical sequence used by the retained schedule view.
+func DepartureDayOrder() []string { return departure.PickupDayOrder }

@@ -6,13 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 )
 
 // CreateGuardianContact adds an accountless contact to the child.
 func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentID int64, input CreateGuardianContactInput) (*ChildGuardian, error) {
-	if err := validateCreateGuardianContactInput(&input); err != nil {
+	if err := validateCreateGuardianContactInput(&input, s.GuardianPolicy.RelationshipTypeValid); err != nil {
 		return nil, err
 	}
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionGuardianEdit)
@@ -168,8 +166,8 @@ func guardianContactRecord(profile *GuardianProfile) GuardianContactRecord {
 // linkGuardianContact links the new profile to the child with the default
 // role of its relationship. A fresh profile that is already linked is a data
 // fault, not a conflict.
-func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, profileID int64, input CreateGuardianContactInput) (*usersModels.StudentGuardian, error) {
-	link := &usersModels.StudentGuardian{
+func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, profileID int64, input CreateGuardianContactInput) (*GuardianRelationship, error) {
+	link := &GuardianRelationship{
 		StudentID:          studentID,
 		GuardianProfileID:  profileID,
 		RelationshipType:   strings.TrimSpace(input.RelationshipType),
@@ -179,8 +177,8 @@ func (s *Service) linkGuardianContact(ctx context.Context, tenantID, studentID, 
 		EmergencyPriority:  1,
 	}
 	s.applyDefaultGuardianRole(link)
-	link.SetTenantID(tenantID)
-	if err := link.Validate(); err != nil {
+	link.TenantID = tenantID
+	if err := s.GuardianPolicy.NormalizeRelationship(link); err != nil {
 		return nil, err
 	}
 	record, err := guardianContactLink(link)

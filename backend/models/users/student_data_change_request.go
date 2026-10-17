@@ -69,16 +69,3 @@ type StudentDataChangeRequest struct {
 	ReviewedAt   *time.Time      `bun:"reviewed_at" json:"reviewed_at,omitempty"`
 	AppliedAt    *time.Time      `bun:"applied_at" json:"applied_at,omitempty"`
 }
-
-// IsTerminal reports whether the row is in a final state — a Track A audit row
-// (auto_applied) or a decided Track B row (approved/rejected). Only pending
-// rows accept a staff decision.
-func (c *StudentDataChangeRequest) IsTerminal() bool {
-	switch c.Status {
-	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected,
-		DataChangeStatusCareEnded, DataChangeStatusDone:
-		return true
-	default:
-		return false
-	}
-}

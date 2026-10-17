@@ -25,7 +25,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -38,10 +38,12 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          api.NewParentPersonReads(repos.Person),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            masterDataSettings(false, true, false),
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	return svc, db
 }
@@ -144,7 +146,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 			Status:      "auto_applied",
 		}
 		privateAudit.TenantID = chain.TenantID
-		if createErr := repos.StudentDataChangeRequest.Create(txCtx, privateAudit); createErr != nil {
+		if createErr := api.CreateParentDataRequestFixture(repos.CarePlan(), txCtx, privateAudit); createErr != nil {
 			return createErr
 		}
 
@@ -158,7 +160,7 @@ func TestListMyMasterDataRequests_HidesGuardianContactAuditRows(t *testing.T) {
 			Status:      parentService.DataChangeStatusPending,
 		}
 		visibleRequest.TenantID = chain.TenantID
-		return repos.StudentDataChangeRequest.Create(txCtx, visibleRequest)
+		return api.CreateParentDataRequestFixture(repos.CarePlan(), txCtx, visibleRequest)
 	})
 	require.NoError(t, err)
 
@@ -290,7 +292,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -303,11 +305,13 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:          api.NewParentPersonReads(repos.Person),
 		GuardianPhoneRepo:   api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber),
-		ChangeRequestRepo:   repos.StudentDataChangeRequest,
+		ChangeRequestRepo:   api.NewParentDataRequestReads(repos.CarePlan()),
 		Settings:            settings,
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Emitter:             api.BindParentChildEvents(emitter),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

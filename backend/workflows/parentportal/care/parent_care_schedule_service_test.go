@@ -66,7 +66,7 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		*requestService[0] = sf.CareRequests
 	}
 	return parentportal.NewChildFlows(parentportal.ChildConfig{
-		GuardianPolicy: api.ParentGuardianPolicy{},
+		GuardianPolicy: api.NewParentGuardianPolicy(),
 
 		Runtime:        api.ParentPortalRuntime{},
 		RequestSharing: unconfiguredRequestSharer{},
@@ -86,6 +86,8 @@ func careScheduleServiceWithSettings(t *testing.T, db *bun.DB, repos *api.Reposi
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DeparturePolicy: api.ParentDeparturePolicy(),
 	})
 }
 

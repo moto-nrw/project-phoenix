@@ -39,7 +39,7 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Rep
 	photos := consentPhotoUnlinker{unlinker: unlinker}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:     api.ParentDeparturePolicy(),
-		GuardianPolicy:      api.ParentGuardianPolicy{},
+		GuardianPolicy:      api.NewParentGuardianPolicy(),
 		Fingerprints:        api.SecurityFingerprints{},
 		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
@@ -49,11 +49,13 @@ func buildConsentService(t *testing.T) (*parentService.Portal, *bun.DB, *api.Rep
 		CareProfiles:        careProfiles(t, db),
 		ChildRepo:           repos.ParentChildReads(),
 		StudentRepo:         api.NewParentStudentReads(repos.Student),
-		StudentGuardianRepo: repos.StudentGuardian,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		StudentConsents:     api.NewParentStudentConsents(api.NewStudentConsents(testpkg.NewDatabase(t, db))),
 		StudentPhotos:       func() parentService.StudentPhotoUnlinker { return photos },
 		StudentUpdates:      api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		Logger:              slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	}), db, repos, unlinker
 }
 

@@ -13,7 +13,6 @@ import (
 	"log/slog"
 	"time"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
@@ -260,8 +259,8 @@ func (s *Service) buildCareScheduleView(ctx context.Context, view *ChildCareSche
 	}
 	hasCarePlan := len(arrivals) > 0 || len(pickups) > 0
 
-	weekdays := make([]CareScheduleWeekday, 0, len(usersModels.PickupDayOrder))
-	for i, abbrev := range usersModels.PickupDayOrder {
+	weekdays := make([]CareScheduleWeekday, 0, len(s.DeparturePolicy.DayOrder()))
+	for i, abbrev := range s.DeparturePolicy.DayOrder() {
 		wd := i + 1
 		status := careDayStatus(hasCarePlan, arrivalCareDays[wd], arrivalByDay[wd], pickupByDay[wd])
 		modes := student.AllowedDepartureModes[abbrev]

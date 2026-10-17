@@ -343,6 +343,7 @@ type GuestRepository interface {
 // go to the owner of each column in one unit of work; reads join the three
 // through the tenant-safe guardian-link projection.
 type StudentGuardianRepository interface {
+	peopledirectory.GuardianRelationshipReads
 	// Create links a guardian to a child across the three owners.
 	Create(ctx context.Context, relationship *users.StudentGuardian) error
 	// FindByID retrieves one relationship with its three halves.

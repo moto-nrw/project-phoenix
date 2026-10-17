@@ -1,7 +1,8 @@
 package care
 
 import (
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
+	"errors"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -9,22 +10,18 @@ import (
 // renders, named by the flow that returns them. The composition matches them
 // through the workflow port instead of importing the owner models (#3421).
 type (
-	AllowedDepartureModes    = PortalAllowedDepartureModes
-	DepartureDays            = PortalDepartureDays
-	DepartureMode            = PortalDepartureMode
-	StudentDataChangeRequest = usersModels.StudentDataChangeRequest
+	AllowedDepartureModes = PortalAllowedDepartureModes
+	DepartureDays         = PortalDepartureDays
+	DepartureMode         = PortalDepartureMode
 )
 
 const (
-	DataChangeStatusPending = usersModels.DataChangeStatusPending
-	DataChangeTargetPerson  = usersModels.DataChangeTargetPerson
-	DataChangeTargetStudent = usersModels.DataChangeTargetStudent
-	DeparturePickup         = PortalDepartureMode("pickup")
+	DeparturePickup = PortalDepartureMode("pickup")
 )
 
 // ErrGuardianProfileNotFound is the profile flows' answer for an account
 // without a guardian profile.
-var ErrGuardianProfileNotFound = usersModels.ErrGuardianProfileNotFound
+var ErrGuardianProfileNotFound = errors.New("guardian profile not found")
 
 // CanonicalDayToISOWeekday translates a stored care-offering day ("mon")
 // into its ISO weekday number, the mapping the offering flow stores with.
@@ -36,3 +33,5 @@ const (
 	DepartureAlone       PortalDepartureMode = "alone"
 	DepartureAccompanied PortalDepartureMode = "accompanied"
 )
+
+var ErrStudentGuardianNotFound = errors.New("student guardian relationship not found")

@@ -27,3 +27,18 @@ func TestStudentDataChangeRequest_IsTerminal(t *testing.T) {
 		})
 	}
 }
+
+// The legacy status-constant contract retains its original predicate and cases.
+// No production consumer of this model method remains.
+// IsTerminal reports whether the row is in a final state — a Track A audit row
+// (auto_applied) or a decided Track B row (approved/rejected). Only pending
+// rows accept a staff decision.
+func (c *StudentDataChangeRequest) IsTerminal() bool {
+	switch c.Status {
+	case DataChangeStatusAutoApplied, DataChangeStatusApproved, DataChangeStatusRejected,
+		DataChangeStatusCareEnded, DataChangeStatusDone:
+		return true
+	default:
+		return false
+	}
+}

@@ -102,7 +102,7 @@ func NewParentRequestShareEventRepository(db *bun.DB) userModels.ParentRequestSh
 }
 
 // NewParentRequestEventRepository is the parent request event repository.
-func NewParentRequestEventRepository(db *bun.DB) userModels.ParentRequestEventRepository {
+func NewParentRequestEventRepository(db *bun.DB) peoplePorts.ParentRequestEventRecords {
 	return usersRepo.NewParentRequestEventRepository(NewLegacyRepositoryRuntime(db))
 }
 

@@ -48,7 +48,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	}
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy:        api.ParentDeparturePolicy(),
-		GuardianPolicy:         api.ParentGuardianPolicy{},
+		GuardianPolicy:         api.NewParentGuardianPolicy(),
 		Fingerprints:           api.SecurityFingerprints{},
 		Declarations:           api.ParentDeclarationPolicy(),
 		Locales:                api.ParentPortalLocales(),
@@ -59,7 +59,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		CareProfiles:           careProfiles(t, db),
 		ChildRepo:              repos.ParentChildReads(),
 		StudentRepo:            api.NewParentStudentReads(repos.Student),
-		StudentGuardianRepo:    repos.StudentGuardian,
+		StudentGuardianRepo:    api.NewParentStudentGuardianReads(repos.StudentGuardian),
 		GuardianProfileRepo:    api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		PersonRepo:             api.NewParentPersonReads(repos.Person),
 		Settings:               settings,
@@ -80,6 +80,8 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Now: func() time.Time {
 			return time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
 		},
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	}), db
 }
 

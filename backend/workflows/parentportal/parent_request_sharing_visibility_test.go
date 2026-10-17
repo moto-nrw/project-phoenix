@@ -45,11 +45,11 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		Status: parentService.DataChangeStatusPending,
 	}
 	request.TenantID = author.TenantID
-	require.NoError(t, repos.StudentDataChangeRequest.Create(ctx, request))
+	require.NoError(t, api.CreateParentDataRequestFixture(repos.CarePlan(), ctx, request))
 
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		DeparturePolicy: api.ParentDeparturePolicy(),
-		GuardianPolicy:  api.ParentGuardianPolicy{},
+		GuardianPolicy:  api.NewParentGuardianPolicy(),
 		Fingerprints:    api.SecurityFingerprints{},
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
@@ -59,10 +59,12 @@ func TestRequestSharingIsNamedAndFamilyProtectionDoesNotReviveOldShares(t *testi
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(), GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		GuardianPhoneRepo: api.NewParentGuardianPhoneReads(repos.GuardianPhoneNumber), PersonRepo: api.NewParentPersonReads(repos.Person),
-		StudentGuardianRepo: repos.StudentGuardian, StudentRepo: api.NewParentStudentReads(repos.Student),
-		ChangeRequestRepo:      repos.StudentDataChangeRequest,
+		StudentGuardianRepo: api.NewParentStudentGuardianReads(repos.StudentGuardian), StudentRepo: api.NewParentStudentReads(repos.Student),
+		ChangeRequestRepo:      api.NewParentDataRequestReads(repos.CarePlan()),
 		FamilyProtectionEvents: repos.FamilyProtection, ParentRequestShares: repos.ParentRequestShare,
 		Logger: slog.Default(),
+
+		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
 	})
 	var sharing parentService.RequestSharingService = svc
 	options, err := sharing.GetRequestSharingOptions(ctx, author.AccountID, author.StudentID)

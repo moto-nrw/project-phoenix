@@ -3,7 +3,6 @@ package care
 import (
 	"context"
 
-	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -59,20 +58,22 @@ type GuardianPhoneReads interface {
 
 // StudentGuardianReads reads and locks the guardian relationships.
 type StudentGuardianReads interface {
-	FindByStudentID(ctx context.Context, studentID int64) ([]*usersModels.StudentGuardian, error)
-	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*usersModels.StudentGuardian, error)
-	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*usersModels.StudentGuardian, error)
-	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*usersModels.GuardianLinkedChild, error)
+	FindByStudentID(ctx context.Context, studentID int64) ([]*GuardianRelationship, error)
+	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianRelationship, error)
+	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*GuardianRelationship, error)
+	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianLinkedChild, error)
 	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 }
 
 // DataRequestReads reads the child's Stammdaten change requests.
 type DataRequestReads interface {
-	FindByID(ctx context.Context, id any) (*usersModels.StudentDataChangeRequest, error)
-	FindByIDForUpdate(ctx context.Context, id int64) (*usersModels.StudentDataChangeRequest, error)
+	FindByID(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
+	FindByIDForUpdate(ctx context.Context, id int64) (*StudentDataChangeRequest, error)
 	HasPendingForField(ctx context.Context, studentID int64, target, fieldKey string) (bool, error)
-	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*usersModels.StudentDataChangeRequest, error)
-	ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*usersModels.StudentDataChangeRequest, error)
+	ListByStudent(ctx context.Context, studentID int64, statuses []string, limit int) ([]*StudentDataChangeRequest, error)
+	ListParentVisibleByStudent(ctx context.Context, studentID int64, limit int) ([]*StudentDataChangeRequest, error)
+	NotFoundError() error
+	NotPendingError() error
 }
 
 // StatusDayReads reads the child's active status days.

@@ -86,5 +86,5 @@ type RequestShareRecords interface {
 // atomically and read its history. Listing every event for a child is not needed.
 type RequestEvents interface {
 	care.RequestEventWriter
-	ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*usersModels.ParentRequestEvent, error)
+	ListForRequest(ctx context.Context, requestType string, requestID int64) ([]*care.RequestEvent, error)
 }
