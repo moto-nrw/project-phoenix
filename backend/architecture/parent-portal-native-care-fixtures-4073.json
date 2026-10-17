@@ -25,7 +25,7 @@
     "Initial focused compile found missing explicit calendar.Date -> careplan.Date conversions in native DTO literals. Fixed at the DTO boundary, no expected-result changes.",
     "Read-only AST proof: 7 fixture files, 92 existing tests, 439 complete existing assertion calls preserved after declared native fixture-call/protocol substitutions.",
     "Final focused35807 EXIT0:Portal3.117s,Care24.405s,HTTP cached. COMPLETE NONFAST67976 EXIT0/all59 affected packages, including Root/API, router/module/hermetic checks and full Portal/Care/HTTP. SourceLint13418 EXIT0/0issues. Finalarchitecture17802 EXIT0:169keys/1657targets/allbudgetsflat. Inventory96060 EXIT0:2of2/140files. Normal push hooks required without bypass.",
-    "Round1 quorum review and CI on0008aeac were clean, but host became CONFLICTING after #4227/#4228 merged. Integrate bcd467b1e3789aae9a02097abaaa82aeaf86fed1: preserve both WORKPLAN intents (169keys with epoch65) and upstream repository-contract/identity changes. Inherited policy838 and compose52513; own policy/budget deltas remain0. Full non-fast and fresh review required after integration, no relaxed exception."
+    "Round1 quorum review and CI on0008aeac were clean, but host became CONFLICTING after #4227/#4228 merged. Integrate bcd467b1e3789aae9a02097abaaa82aeaf86fed1: preserve both WORKPLAN intents (169keys with epoch65) and upstream repository-contract/identity changes. Inherited policy838 and compose52513; own policy/budget deltas remain0. Integrated COMPLETE NONFAST41144 EXIT0/all76 affected packages and architecture82206 EXIT0/169keys/1657targets/allbudgets, inventory60598 EXIT0/2of2/140files PASS. No relaxed exception. Fresh review required for the integrated head."
   ],
   "runtime_evidence": {
     "source": "Assigned localhost5547 test database, pinned toolchain and fresh /tmp/gocache-4073 after merged4226. Immutable source base693b4174c31a43d05ed0e48f1143fb5d65ed14ff.",
@@ -94,7 +94,7 @@
     },
     "smoke": {
       "state": "measured",
-      "result": "Final focused35807 EXIT0:Portal3.117s,Care24.405s,HTTP cached. COMPLETE NONFAST67976 EXIT0/all59 affected packages, including Root/API, router/module/hermetic checks and full Portal/Care/HTTP. SourceLint13418 EXIT0/0issues. Finalarchitecture17802 EXIT0:169keys/1657targets/allbudgetsflat. Inventory96060 EXIT0:2of2/140files. Normal push hooks required without bypass. No native server/browser smoke or benchmark."
+      "result": "Round1 quorum review and CI on0008aeac were clean, but host became CONFLICTING after #4227/#4228 merged. Integrate bcd467b1e3789aae9a02097abaaa82aeaf86fed1: preserve both WORKPLAN intents (169keys with epoch65) and upstream repository-contract/identity changes. Inherited policy838 and compose52513; own policy/budget deltas remain0. Integrated COMPLETE NONFAST41144 EXIT0/all76 affected packages and architecture82206 EXIT0/169keys/1657targets/allbudgets, inventory60598 EXIT0/2of2/140files PASS. No relaxed exception. Fresh review required for the integrated head. Prior sourceLint13418 zero issues, fixture assertion parity and focused tests pass; production source of this slice remains test-only. No native server/browser smoke or benchmark."
     }
   },
   "rollback_and_cleanup": "Revert the seven fixture substitutions, testhooks helpers, two baseline retirements and evidence/WORKPLAN together. No schema or data migration, no production rollback required.",
