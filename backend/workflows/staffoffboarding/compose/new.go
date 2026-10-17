@@ -11,9 +11,6 @@ import (
 	auditModels "github.com/moto-nrw/project-phoenix/models/audit"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/application/realtimeevents"
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -62,14 +59,18 @@ type Dependencies struct {
 	Access Access
 	// People is the People Directory the person is unlinked in.
 	People staffoffboarding.People
-	// Employment binds School Membership to Workforce's staff employment
-	// profile (#2753); the composition root supplies it.
-	Employment  membershipcompose.StaffEmployment
-	Authorize   func(context.Context) (staffoffboarding.Actor, error)
-	Cleanup     func(context.Context, int64) error
-	Broadcaster realtime.Broadcaster
-	Logger      *slog.Logger
-	Audit       auditModels.Command
+	// Membership, Retirement, Timetable and LockSupervision are the School
+	// Membership, Timetable and Student Presence owners the root builds; the
+	// composition builds no other owner's composition (#4004).
+	Membership      schoolmembership.Query
+	Retirement      staffoffboarding.Membership
+	Timetable       staffoffboarding.Timetable
+	LockSupervision func(context.Context, int64, string) ([]int64, error)
+	Authorize       func(context.Context) (staffoffboarding.Actor, error)
+	Cleanup         func(context.Context, int64) error
+	Broadcaster     realtime.Broadcaster
+	Logger          *slog.Logger
+	Audit           auditModels.Command
 }
 
 // Authorize applies the tenant-portal permission boundary before the workflow
@@ -90,7 +91,7 @@ func Authorize(ctx context.Context, resolveActor func(context.Context) (int64, e
 // New constructs only the required owner capabilities.
 // It does not build or retain a service/repository factory.
 func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
-	if deps.DB == nil || deps.Access == nil || deps.Employment == nil || deps.Authorize == nil || deps.Cleanup == nil {
+	if deps.DB == nil || deps.Access == nil || deps.Membership == nil || deps.Retirement == nil || deps.Timetable == nil || deps.LockSupervision == nil || deps.Authorize == nil || deps.Cleanup == nil {
 		return nil, errors.New("staff offboarding composition: required dependency is missing")
 	}
 	logger := deps.Logger
@@ -122,23 +123,7 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 		}
 		audit = command
 	}
-	memberDeps := membershipcompose.Dependencies{DB: deps.DB, Observe: func(membershipcompose.Observation) {}, Employment: deps.Employment}
-	membership, err := membershipcompose.New(memberDeps)
-	if err != nil {
-		return nil, err
-	}
-	retirement, err := membershipcompose.NewOffboarding(memberDeps)
-	if err != nil {
-		return nil, err
-	}
-	presence, err := presencecompose.New(presencecompose.Dependencies{DB: deps.DB, Observe: func(presencecompose.Observation) {}})
-	if err != nil {
-		return nil, err
-	}
-	timetable, err := timetablecompose.NewOffboarding(timetablecompose.OffboardingDependencies{DB: deps.DB, Sessions: timetablecompose.NewPresenceSessionFacts(presence), Observe: func(timetablecompose.Observation) {}})
-	if err != nil {
-		return nil, err
-	}
+	membership := deps.Membership
 	work, err := workforcecompose.NewOffboarding(workforcecompose.Dependencies{
 		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
 			_, err := membership.FindStaffForMutation(ctx, staffID)
@@ -169,8 +154,8 @@ func New(deps Dependencies) (*staffoffboarding.Workflow, error) {
 	return staffoffboarding.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
 		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
-		Membership: retirement, Workforce: work, Timetable: timetable, People: deps.People,
-		LockSupervision: presence.LockStaffSupervision,
+		Membership: deps.Retirement, Workforce: work, Timetable: deps.Timetable, People: deps.People,
+		LockSupervision: deps.LockSupervision,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
 			p, err := deps.Access.PreviewStaffOffboarding(ctx, id)
 			return staffoffboarding.AccessPreview{Revision: p.Revision, Roles: int64(len(p.RoleIDs)), Permissions: p.Permissions, Tokens: p.Tokens, PreserveGuardian: p.PreserveGuardian, DeactivateAccount: p.DeactivateAccount}, err
