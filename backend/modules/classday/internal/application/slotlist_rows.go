@@ -14,32 +14,58 @@ import (
 // enrichEntries filters by source/read access, resolves names/classes/groups,
 // and maps to display rows.
 func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, source classday.Source, access studentReadAccess, date calendar.Date) ([]classday.Row, error) {
-	// matchesSource is the per-source selection predicate. A Plan list selects
-	// rows that are planned, an Ist list rows that are present, an Abgleich keeps
-	// everything. It is applied once to build `filtered` and re-applied after the
-	// enrollment gate below mutates entries, so the two never diverge.
-	matchesSource := func(e mergedEntry) bool {
-		switch source {
-		case classday.SourcePlanned:
-			return e.Planned
-		case classday.SourceActual:
-			return e.Present
-		case classday.SourceReconciliation:
-			return true
-		default:
-			return false
-		}
+	filtered := entriesMatchingSource(entries, source)
+	if len(filtered) == 0 {
+		return []classday.Row{}, nil
 	}
-	filtered := make([]mergedEntry, 0, len(entries))
-	for _, entry := range entries {
-		if matchesSource(entry) {
-			filtered = append(filtered, entry)
-		}
+	students, err := s.entryStudents(ctx, filtered)
+	if err != nil {
+		return nil, err
+	}
+	filtered, err = s.entriesEnrolledOn(filtered, students, source, date)
+	if err != nil {
+		return nil, err
 	}
 	if len(filtered) == 0 {
 		return []classday.Row{}, nil
 	}
+	readableStudents, personIDs, groupIDs := readableEntryStudents(filtered, students, access)
+	if len(readableStudents) == 0 {
+		return []classday.Row{}, nil
+	}
+	persons, groups, err := s.entryDisplayFacts(ctx, personIDs, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	return entryDisplayRows(filtered, readableStudents, persons, groups, source), nil
+}
 
+// matchesEntrySource is shared by the initial selection and the enrollment
+// gate, which can clear an entry's planned classification.
+func matchesEntrySource(entry mergedEntry, source classday.Source) bool {
+	switch source {
+	case classday.SourcePlanned:
+		return entry.Planned
+	case classday.SourceActual:
+		return entry.Present
+	case classday.SourceReconciliation:
+		return true
+	default:
+		return false
+	}
+}
+
+func entriesMatchingSource(entries []mergedEntry, source classday.Source) []mergedEntry {
+	filtered := make([]mergedEntry, 0, len(entries))
+	for _, entry := range entries {
+		if matchesEntrySource(entry, source) {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
+}
+
+func (s *service) entryStudents(ctx context.Context, filtered []mergedEntry) (map[int64]*peopledirectory.Student, error) {
 	studentIDSet := map[int64]struct{}{}
 	studentIDs := []int64{}
 	for _, entry := range filtered {
@@ -57,55 +83,48 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 		students[studentRows[i].ID] = &studentRows[i]
 	}
 
-	// Date-effective enrollment gate: the lifecycle scheduler inactivates a
-	// student by flipping users.students.status only — already-materialized
-	// schedule.instance_students rows survive. A *planned* row for a child not
-	// enrolled on the requested date must be dropped, or it surfaces as an
-	// unexplained "Fehlt" (#1565 review). Documented presence is ground truth
-	// and always kept: a real visit/attendance record outranks the enrollment
-	// interval, so present rows pass regardless — but the enrollment check has
-	// established that the roster's *expectation* is invalid, so a present row
-	// for a non-enrolled child must shed its planned classification too, or the
-	// Abgleich reports it as planned-and-present and inflates the planned
-	// counter. Keep the presence, clear the plan, so it reads as "ungeplant
-	// anwesend" (#1565 review pass 2).
+	return students, nil
+}
+
+func (s *service) entriesEnrolledOn(entries []mergedEntry, students map[int64]*peopledirectory.Student, source classday.Source, date calendar.Date) ([]mergedEntry, error) {
 	today := s.todayDate()
-	enrolled := make([]mergedEntry, 0, len(filtered))
-	for _, entry := range filtered {
-		student := students[entry.StudentID]
-		if student == nil {
-			continue
-		}
-		enrolledOn, err := eligibleOn(s.rules, student, date, today, false)
+	enrolled := make([]mergedEntry, 0, len(entries))
+	for _, entry := range entries {
+		entry, keep, err := s.enrolledEntryOn(entry, students[entry.StudentID], source, date, today)
 		if err != nil {
 			return nil, err
 		}
-		if !enrolledOn {
-			if !entry.Present {
-				continue
-			}
-			entry.Planned = false
-			entry.PlannedStatus = ""
-			entry.PlannedSubstatus = nil
-			// Clearing the plan can drop the entry below the source predicate it
-			// originally satisfied. On a Plan list the row only reached `filtered`
-			// because it was planned; now de-planned, keeping it would leak an
-			// "ungeplant" row into the planned roster — rendered as Geplant yet
-			// excluded from the planned counter (a contradictory row). Re-apply the
-			// source filter so a de-planned present row survives only where the list
-			// actually selects on presence (Ist/Abgleich), not on a Plan list
-			// (#1565 review pass 2).
-			if !matchesSource(entry) {
-				continue
-			}
+		if keep {
+			enrolled = append(enrolled, entry)
 		}
-		enrolled = append(enrolled, entry)
 	}
-	filtered = enrolled
-	if len(filtered) == 0 {
-		return []classday.Row{}, nil
-	}
+	return enrolled, nil
+}
 
+// enrolledEntryOn drops unenrolled planned rows, but keeps documented presence.
+// A de-planned present row must pass its source filter again, so it cannot
+// leak into a planned roster or inflate the planned counter (#1565).
+func (s *service) enrolledEntryOn(entry mergedEntry, student *peopledirectory.Student, source classday.Source, date, today calendar.Date) (mergedEntry, bool, error) {
+	if student == nil {
+		return entry, false, nil
+	}
+	enrolledOn, err := eligibleOn(s.rules, student, date, today, false)
+	if err != nil {
+		return entry, false, err
+	}
+	if enrolledOn {
+		return entry, true, nil
+	}
+	if !entry.Present {
+		return entry, false, nil
+	}
+	entry.Planned = false
+	entry.PlannedStatus = ""
+	entry.PlannedSubstatus = nil
+	return entry, matchesEntrySource(entry, source), nil
+}
+
+func readableEntryStudents(filtered []mergedEntry, students map[int64]*peopledirectory.Student, access studentReadAccess) (map[int64]*peopledirectory.Student, []int64, []int64) {
 	readableStudents := make(map[int64]*peopledirectory.Student, len(students))
 	personIDs := make([]int64, 0, len(students))
 	groupIDSet := map[int64]struct{}{}
@@ -127,12 +146,13 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 			}
 		}
 	}
-	if len(readableStudents) == 0 {
-		return []classday.Row{}, nil
-	}
+	return readableStudents, personIDs, groupIDs
+}
+
+func (s *service) entryDisplayFacts(ctx context.Context, personIDs, groupIDs []int64) (map[int64]*peopledirectory.Person, map[int64]schoolstructure.Group, error) {
 	personRows, err := s.persons.ListPersonsByID(ctx, personIDs)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	persons := make(map[int64]*peopledirectory.Person, len(personRows))
 	for i := range personRows {
@@ -142,13 +162,17 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 	if len(groupIDs) > 0 {
 		groupRows, err := s.groups.ListGroupsByID(ctx, groupIDs)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		for _, group := range groupRows {
 			groups[group.ID] = group
 		}
 	}
 
+	return persons, groups, nil
+}
+
+func entryDisplayRows(filtered []mergedEntry, readableStudents map[int64]*peopledirectory.Student, persons map[int64]*peopledirectory.Person, groups map[int64]schoolstructure.Group, source classday.Source) []classday.Row {
 	rows := make([]classday.Row, 0, len(filtered))
 	for _, entry := range filtered {
 		student := readableStudents[entry.StudentID]
@@ -182,7 +206,7 @@ func (s *service) enrichEntries(ctx context.Context, entries []mergedEntry, sour
 			StatusLabel: statusLabel(entry, source),
 		})
 	}
-	return rows, nil
+	return rows
 }
 
 // signedOffAbsence reports whether an absent row carries explicit evidence

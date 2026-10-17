@@ -85,7 +85,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	"modules/classday/internal/application/slotlist_export.go:(*service).RenderList":                                                            71,
 	"modules/classday/internal/application/slotlist_build.go:(*service).buildList":                                                              127,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).classifyPlannedRow":                                                     128,
-	"modules/classday/internal/application/slotlist_rows.go:(*service).enrichEntries":                                                           171,
 	"modules/classday/internal/application/slotlist_slots.go:(*service).loadSlotPresence":                                                       74,
 	"modules/classday/internal/application/slotlist_build.go:slotHeadingDisambiguation":                                                         72,
 	"modules/communication/internal/adapters/staffinbox/projection.go:(*Projection).ListInbox":                                                  61,
