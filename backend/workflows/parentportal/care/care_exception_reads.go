@@ -82,7 +82,7 @@ func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID i
 	}
 
 	var out []*CareException
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
 		if err != nil {
 			return err

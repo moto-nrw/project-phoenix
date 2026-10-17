@@ -46,7 +46,7 @@ func TestCourseWritesRequireCatalogPermissionBeforeMutation(t *testing.T) {
 		},
 	}
 	changes := &courseWriteChangesStub{}
-	svc := &Service{Config: Config{
+	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
 		ChildRepo:       careOfferingsChildRepoStub{child: child},
 		StudentRepo:     careOfferingsStudentRepoStub{},
 		OfferingChanges: changes,

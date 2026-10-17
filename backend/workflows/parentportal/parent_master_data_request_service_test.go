@@ -25,6 +25,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db), api.NewUnobservedTimetableDependencies(testpkg.NewDatabase(t, db)))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),
@@ -284,6 +285,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 		settings, nil, slog.Default(),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
 		People:              api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:        careProfiles(t, db),

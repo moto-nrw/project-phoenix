@@ -13,7 +13,7 @@ Summenprobe, eine Zeile je Carrier (`jq -r .issue backend/architecture/legacy.js
 |---|---:|
 | [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) Fachmodule, Workflows, Plattformen, Test-Support in fremden privaten Rollen, `models/*` | 14 |
 | [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004) Owner-Kompositionen in fremden privaten, `compose`- und `http`-Rollen | 82 |
-| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 23 |
+| [#4073](https://github.com/moto-nrw/project-phoenix/issues/4073) Parent Portal, `inbound-parent` | 21 |
 | [#4077](https://github.com/moto-nrw/project-phoenix/issues/4077) Projektionen, Kompatibilitätsadapter | 3 |
 | [#4074](https://github.com/moto-nrw/project-phoenix/issues/4074) Communication-Elternkompatibilität | 44 |
 | [#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) `inbound-*`-Owner | 1 |

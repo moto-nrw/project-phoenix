@@ -11,7 +11,6 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
 	declarations "github.com/moto-nrw/project-phoenix/services/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/care"
 )
 
@@ -84,7 +83,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 	}
 	var result *usersModels.DeclarationSubmission
 	created := false
-	err = tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	err = s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		result, created, err = s.writeDeclaration(adminCtx, accountID, announcementID, target, in, passwordConfirmed)
 		return err
 	})
@@ -109,7 +108,7 @@ func (s *Service) SubmitDeclaration(ctx context.Context, accountID, announcement
 // useful child error.
 func (s *Service) resolveDeclarationTarget(ctx context.Context, accountID, announcementID, studentID int64, action string) (*declarationTarget, error) {
 	var target *declarationTarget
-	if err := tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
+	if err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		a, err := s.AnnouncementRepo.FindByID(adminCtx, announcementID)
 		if err != nil {
 			return fmt.Errorf("parent: load declaration: %w", err)
@@ -284,7 +283,7 @@ func checkDeclarationAction(rules declarations.DeclarationRules, mine *usersMode
 // A revocation stays possible: withdrawing consent must never be harder than
 // giving it.
 func (s *Service) requireCareRunning(ctx context.Context, tenantID, studentID int64) error {
-	student, err := s.StudentRepo.FindByIDForUpdate(tenant.WithTenantID(ctx, tenantID), studentID)
+	student, err := s.StudentRepo.FindByIDForUpdate(s.Runtime.WithTenantID(ctx, tenantID), studentID)
 	if err != nil {
 		return err
 	}

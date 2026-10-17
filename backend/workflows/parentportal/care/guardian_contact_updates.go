@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/auth/authorize"
 	usersModels "github.com/moto-nrw/project-phoenix/models/users"
-	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // UpdateGuardianContact replaces the contact data (name, email, address,
@@ -35,7 +34,7 @@ func (s *Service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := InTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		updated, err := s.updateGuardianContactInTx(txCtx, child, accountID, studentID, guardianProfileID, input)
 		result = updated
 		return err
@@ -223,7 +222,7 @@ func (s *Service) broadcastProfileChildrenAfterCommit(ctx context.Context, tenan
 	for _, pl := range profileLinks {
 		affectedStudents = append(affectedStudents, pl.StudentID)
 	}
-	tenant.RegisterAfterCommit(ctx, func() {
+	s.Runtime.RegisterAfterCommit(ctx, func() {
 		for _, sid := range affectedStudents {
 			s.broadcastStudentUpdated(tenantID, sid)
 		}

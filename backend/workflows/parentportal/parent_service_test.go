@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -56,6 +58,7 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: repo,
 		Logger:                slog.Default(),
 	})
@@ -119,6 +122,7 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: nil,
 		Logger:                slog.Default(),
 	})
@@ -307,6 +311,7 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 	t.Helper()
 	testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
 		GuardianProfileRepo: repo,
 		Logger:              slog.Default(),
@@ -425,6 +430,7 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
 	})
@@ -460,6 +466,7 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	repo := &stubGuardianProfileRepo{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
 		GuardianProfileRepo: repo,
 		Logger:              slog.Default(),
@@ -501,6 +508,7 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 
 	testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
 		Logger:              slog.Default(),
 	})
