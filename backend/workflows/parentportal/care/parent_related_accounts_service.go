@@ -155,7 +155,7 @@ type GuardianInvitationReads interface {
 	ListByProfile(ctx context.Context, guardianProfileID int64) ([]GuardianInvitationRecord, error)
 }
 
-func (s *Service) relatedAccountStatus(ctx context.Context, profile *userModels.GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
+func (s *Service) relatedAccountStatus(ctx context.Context, profile *GuardianProfile, link *userModels.StudentGuardian, studentID int64) RelatedAccountStatus {
 	hasAccess := s.guardianHasPermission(link, GuardianPermissionPortalAccess)
 	if profile.HasAccount && hasAccess {
 		return RelatedAccountActive

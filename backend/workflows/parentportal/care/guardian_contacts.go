@@ -66,11 +66,11 @@ func (s *Service) createGuardianContactInTx(ctx context.Context, child *Child, a
 	if err := s.requireGuardianEmailFree(ctx, input.Contact.Email, 0); err != nil {
 		return nil, err
 	}
-	profile := &usersModels.GuardianProfile{
+	profile := &GuardianProfile{
 		PreferredContactMethod: "phone",
 		LanguagePreference:     "de",
 	}
-	profile.SetTenantID(child.TenantID)
+	profile.TenantID = child.TenantID
 	applyContactInput(profile, &input.Contact)
 	if profile.Email != nil {
 		profile.PreferredContactMethod = "email"
@@ -124,7 +124,7 @@ func (s *Service) requireGuardianEmailFree(ctx context.Context, email *string, o
 		return nil
 	}
 	existing, err := s.GuardianProfileRepo.FindByEmail(ctx, trimmed)
-	if err != nil && !errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+	if err != nil && !errors.Is(err, ErrGuardianProfileNotFound) {
 		return err
 	}
 	if existing != nil && existing.ID != ownProfileID {
@@ -136,8 +136,8 @@ func (s *Service) requireGuardianEmailFree(ctx context.Context, email *string, o
 // createGuardianProfile validates and normalises the profile the way the
 // directory stores it (trimmed names, lower-case e-mail) and inserts it
 // through People Directory.
-func (s *Service) createGuardianProfile(ctx context.Context, profile *usersModels.GuardianProfile) error {
-	if err := profile.Validate(); err != nil {
+func (s *Service) createGuardianProfile(ctx context.Context, profile *GuardianProfile) error {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	id, err := s.Guardians.CreateGuardianContact(ctx, guardianContactRecord(profile))
@@ -150,14 +150,14 @@ func (s *Service) createGuardianProfile(ctx context.Context, profile *usersModel
 
 // updateGuardianProfile validates the edited profile and rewrites its contact
 // slice through People Directory.
-func (s *Service) updateGuardianProfile(ctx context.Context, profile *usersModels.GuardianProfile) error {
-	if err := profile.Validate(); err != nil {
+func (s *Service) updateGuardianProfile(ctx context.Context, profile *GuardianProfile) error {
+	if err := s.GuardianProfileRepo.NormalizeProfile(profile); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 	return s.Guardians.UpdateGuardianContact(ctx, profile.ID, guardianContactRecord(profile))
 }
 
-func guardianContactRecord(profile *usersModels.GuardianProfile) GuardianContactRecord {
+func guardianContactRecord(profile *GuardianProfile) GuardianContactRecord {
 	return GuardianContactRecord{
 		FirstName: profile.FirstName, LastName: profile.LastName, Email: profile.Email,
 		AddressStreet: profile.AddressStreet, AddressCity: profile.AddressCity, AddressPostalCode: profile.AddressPostalCode,
@@ -285,7 +285,7 @@ func (s *Service) loadChildGuardians(ctx context.Context, tenantID, accountID, s
 // replaceGuardianPhones replaces the guardian's entire phone list with the
 // submitted set. A wholesale replace keeps the edit atomic and avoids per-row
 // diffing the portal would otherwise have to drive.
-func (s *Service) replaceGuardianPhones(ctx context.Context, profile *usersModels.GuardianProfile, phones []GuardianPhoneInput) error {
+func (s *Service) replaceGuardianPhones(ctx context.Context, profile *GuardianProfile, phones []GuardianPhoneInput) error {
 	records := make([]GuardianPhoneRecord, 0, len(phones))
 	submittedPrimary := hasSubmittedPrimaryPhone(phones)
 	primarySeen := false

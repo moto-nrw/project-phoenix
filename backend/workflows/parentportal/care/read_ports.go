@@ -41,10 +41,11 @@ type PersonReads interface {
 
 // GuardianProfileReads reads and locks guardian profiles.
 type GuardianProfileReads interface {
-	FindByID(ctx context.Context, id int64) (*usersModels.GuardianProfile, error)
-	FindByIDs(ctx context.Context, ids []int64) (map[int64]*usersModels.GuardianProfile, error)
-	FindByEmail(ctx context.Context, email string) (*usersModels.GuardianProfile, error)
-	FindByAccountID(ctx context.Context, accountID int64) (*usersModels.GuardianProfile, error)
+	NormalizeProfile(*GuardianProfile) error
+	FindByID(ctx context.Context, id int64) (*GuardianProfile, error)
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*GuardianProfile, error)
+	FindByEmail(ctx context.Context, email string) (*GuardianProfile, error)
+	FindByAccountID(ctx context.Context, accountID int64) (*GuardianProfile, error)
 	LockByIDForUpdate(ctx context.Context, id int64) error
 }
 

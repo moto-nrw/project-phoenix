@@ -96,7 +96,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	return svc, invites, db
@@ -435,7 +435,7 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 		MealPlan:            availableMealPlan(false),
 		GuardianInvites:     &stubInvites{},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	return svc, db
@@ -515,7 +515,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 		GuardianInvites:     invites,
 		GuardianInvitations: guardianInvitationReads{db: db},
 		StudentGuardianRepo: repos.StudentGuardian,
-		GuardianProfileRepo: repos.GuardianProfile,
+		GuardianProfileRepo: api.NewParentGuardianProfileReads(repos.GuardianProfile),
 		Logger:              slog.Default(),
 	})
 	return svc, db

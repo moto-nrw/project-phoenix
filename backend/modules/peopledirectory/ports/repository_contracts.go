@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/models/users"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -479,6 +480,10 @@ type StudentCompanionRepository interface {
 
 // GuardianProfileRepository defines operations for managing guardian profiles
 type GuardianProfileRepository interface {
+	// The retained store also serves the native profile capability. New
+	// consumers bind that facade, not the legacy row contract below.
+	peopledirectory.GuardianProfileReads
+
 	// Create inserts a new guardian profile into the database
 	Create(ctx context.Context, profile *users.GuardianProfile) error
 

@@ -115,7 +115,7 @@ func (s *Service) updateGuardianContactInTx(ctx context.Context, child *Child, a
 // editableGuardianContact is a guardian profile the caller may edit, locked
 // together with its relationship to the child.
 type editableGuardianContact struct {
-	profile      *usersModels.GuardianProfile
+	profile      *GuardianProfile
 	link         *usersModels.StudentGuardian
 	profileLinks []*usersModels.StudentGuardian
 }
@@ -128,7 +128,7 @@ func (s *Service) lockEditableGuardianContact(ctx context.Context, accountID, st
 	// replace (delete-all then re-insert) would otherwise race under
 	// read-committed and could lose an update or duplicate phone rows.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, guardianProfileID); err != nil {
-		if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+		if errors.Is(err, ErrGuardianProfileNotFound) {
 			return editableGuardianContact{}, ErrGuardianNotLinked
 		}
 		return editableGuardianContact{}, err
@@ -187,7 +187,7 @@ func profileStaysInFamily(profileLinks []*usersModels.StudentGuardian, callerStu
 
 // refuseContactEdit applies the contact-edit eligibility: only contact-only
 // helpers or the caller's own profile are editable.
-func refuseContactEdit(profile *usersModels.GuardianProfile, link *usersModels.StudentGuardian, isSelf bool, fullGuardianRole func(string) bool) error {
+func refuseContactEdit(profile *GuardianProfile, link *usersModels.StudentGuardian, isSelf bool, fullGuardianRole func(string) bool) error {
 	// Editing another account holder's personal data is forbidden — the UI is
 	// not the boundary, the backend is. "Account holder" is derived from
 	// has_account OR account_id (HasPortalAccount): isSelf already keys off
@@ -250,9 +250,9 @@ func guardianContactLink(link *usersModels.StudentGuardian) (GuardianContactLink
 
 // findLinkedGuardianProfile reads the locked profile; a missing one is
 // reported as not linked.
-func (s *Service) findLinkedGuardianProfile(ctx context.Context, guardianProfileID int64) (*usersModels.GuardianProfile, error) {
+func (s *Service) findLinkedGuardianProfile(ctx context.Context, guardianProfileID int64) (*GuardianProfile, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
-	if errors.Is(err, usersModels.ErrGuardianProfileNotFound) {
+	if errors.Is(err, ErrGuardianProfileNotFound) {
 		return nil, ErrGuardianNotLinked
 	}
 	return profile, err
