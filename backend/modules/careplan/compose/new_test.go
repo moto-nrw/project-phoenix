@@ -8,12 +8,14 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+
+	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-nrw/project-phoenix/tenant"
+	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
 type observationLog struct {
@@ -23,7 +25,7 @@ type observationLog struct {
 
 type emptyPeopleDirectory struct{}
 
-func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]StudentName, error) {
+func (emptyPeopleDirectory) ListStudentNamesByID(context.Context, []int64) ([]careplanPorts.StudentName, error) {
 	return nil, nil
 }
 

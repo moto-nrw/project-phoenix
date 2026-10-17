@@ -42,15 +42,10 @@ func NewScheduleReviews(db *bun.DB, observe func(Observation), deps ScheduleRevi
 	if err != nil {
 		return nil, err
 	}
-	queries := newExceptionQueries(postgres.New(carePlanDatabase(db)), observe)
+	queries := application.NewExceptionQueryService(postgres.New(carePlanDatabase(db)), observe)
 	return application.NewScheduleReviews(application.ScheduleReviewDependencies{
-		Requests: requests, Schedules: scheduleReviewQueries{queries, queries.service},
+		Requests: requests, Schedules: application.NewScheduleReviewSchedules(queries),
 		People: deps.People, Bookings: deps.Bookings, Classes: deps.Classes, Scope: deps.Scope,
 		BookingsAuthoritative: deps.BookingsAuthoritative, Today: deps.Today, Blocks: deps.Blocks, Fingerprint: deps.Fingerprint, Logger: deps.Logger,
 	}), nil
-}
-
-type scheduleReviewQueries struct {
-	*exceptionQueries
-	*application.Service
 }

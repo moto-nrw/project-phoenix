@@ -3966,6 +3966,18 @@ adapters (`application.Engine`, `application.StaffAdminEngine`,
 2): the staff administration keeps its not-found shape through
 `transactionruntime.ErrNoRows` instead of `database/sql`.
 
+Care Plan follows: the engine that serves the capability over the Care Plan
+stores, the exception queries and the offering change reads
+(`application.Engine`, `application.ExceptionQueryService`,
+`application.MapError`) move from `modules/careplan/compose` into
+`internal/application`. The engine reaches the tenant runtime and the
+student and exception-day locks through the `EngineRuntime` port the
+composition binds; the student name projection and the exception query seam
+the roots name are values of `modules/careplan/ports`. Epoch 64 adds
+`own-test-support.domain.port` (ADR 0053 point 7.1, next to
+`own-test-support.domain.compose`): the Care Plan test support names the
+student name projection. The composition goes from 4,333 to 3,147 LOC.
+
 The People Directory's retained legacy services (guardians, payment data,
 caregiver capability, the person and staff directories) stay in the
 composition for now: they run on the repository contracts and the query

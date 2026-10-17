@@ -5,6 +5,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/uptrace/bun"
@@ -150,20 +151,20 @@ func newStudentDirectory(tb TB, db *bun.DB, directory StudentDirectory) *peopled
 	return students
 }
 
-func studentNameFinder(students peopledirectory.Capability) carePlanCompose.StudentNameFinder {
+func studentNameFinder(students peopledirectory.Capability) carePlanPorts.StudentNameFinder {
 	return studentNames{students: students}
 }
 
 type studentNames struct{ students peopledirectory.Capability }
 
-func (n studentNames) ListStudentNamesByID(ctx context.Context, ids []int64) ([]carePlanCompose.StudentName, error) {
+func (n studentNames) ListStudentNamesByID(ctx context.Context, ids []int64) ([]carePlanPorts.StudentName, error) {
 	values, err := n.students.ListStudentNamesByID(ctx, ids)
 	if err != nil {
 		return nil, err
 	}
-	result := make([]carePlanCompose.StudentName, 0, len(values))
+	result := make([]carePlanPorts.StudentName, 0, len(values))
 	for _, value := range values {
-		result = append(result, carePlanCompose.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
+		result = append(result, carePlanPorts.StudentName{StudentID: value.StudentID, FirstName: value.FirstName, LastName: value.LastName})
 	}
 	return result, nil
 }

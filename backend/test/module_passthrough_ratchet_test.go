@@ -178,7 +178,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063.
-const modulePassthroughOwnerBudgetTotal = 3090
+const modulePassthroughOwnerBudgetTotal = 3089
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -219,7 +219,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Shrink-only from here like every other entry.
 	//
 	// ADR 0061: application 110 + modules/careplan/compose 186 + modules/careplan/requestfeed/compose 4.
-	"modules/careplan": 300,
+	"modules/careplan": 299,
 	// The caller and arrival-exception ports reached straight through, most
 	// of them behind a nil-port guard and a date parse. 9 → 6 with #3563: the
 	// day report is built in the projection instead of forwarded to the
