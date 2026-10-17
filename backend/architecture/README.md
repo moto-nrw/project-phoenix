@@ -4037,7 +4037,7 @@ student profile commands (`application.NewStudentProfiles` over
 `ports.StudentProfileStore`) move from `modules/careplan/compose` into
 `internal/application`; the composition binds the store and the record
 functions. Epoch 68 adds `care-plan.application.tenant-runtime`. The
-composition goes from 3,147 to 2,875 LOC.
+composition goes from 3,147 to 2,876 LOC.
 
 ### Enrollment wiring out of services (#4012)
 
