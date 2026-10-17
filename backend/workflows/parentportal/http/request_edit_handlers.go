@@ -271,7 +271,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 			errors.New("effective_from must be a date in YYYY-MM-DD form"), common.CodeCareOfferingChangeInvalid))
 		return
 	}
-	selections := make([]careplan.OfferingChangeSelection, 0, len(body.Offerings))
+	selections := make([]parentService.OfferingChangeSelectionSnapshot, 0, len(body.Offerings))
 	for _, entry := range body.Offerings {
 		offeringID, convErr := strconv.ParseInt(strings.TrimSpace(entry.OfferingID), 10, 64)
 		if convErr != nil || offeringID <= 0 {
@@ -279,7 +279,7 @@ func (rs *Resource) editOfferingChangeRequest(w http.ResponseWriter, r *http.Req
 				errors.New("offering_id must be a numeric id"), common.CodeCareOfferingChangeInvalid))
 			return
 		}
-		selections = append(selections, careplan.OfferingChangeSelection{
+		selections = append(selections, parentService.OfferingChangeSelectionSnapshot{
 			OfferingID:   offeringID,
 			SelectedDays: entry.SelectedDays,
 		})

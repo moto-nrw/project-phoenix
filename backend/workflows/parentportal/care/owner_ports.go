@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -13,10 +12,6 @@ import (
 // the portal drives: a child's booking catalog, the change requests and the
 // course requests (#3561). Every call runs in the tenant unit of work the
 // caller opened.
-type OfferingChangeRequests interface {
-	careplan.OfferingChangeRequests
-	careplan.CourseRequests
-}
 
 // MealPlan is the consumer-owned port over the Meal Plan capability of the
 // child's school. Every call runs in the tenant unit of work the caller opened.

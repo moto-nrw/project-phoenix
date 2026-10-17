@@ -15,8 +15,8 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 
 	authorID := int64(41)
 	reason := "Vertraulicher Grund"
-	rows := []careplan.PickupException{{
-		ExceptionDate:     careplan.Date(calendar.TodayDate()),
+	rows := []PickupException{{
+		ExceptionDate:     calendar.Date(calendar.TodayDate()),
 		Reason:            &reason,
 		Source:            careplan.ExceptionSourceGuardian,
 		CreatedByGuardian: &authorID,
@@ -35,7 +35,7 @@ func TestMergeCareExceptions_HidesAnotherGuardiansReason(t *testing.T) {
 func TestOwnExcusedRequests_HidesAnotherGuardiansRequest(t *testing.T) {
 	t.Parallel()
 
-	requests := []*careplan.ExcusedAbsenceRequest{
+	requests := []*ExcusedAbsenceRequest{
 		{SubmittedBy: 41, Note: "private"},
 		{SubmittedBy: 42, Note: "mine"},
 	}

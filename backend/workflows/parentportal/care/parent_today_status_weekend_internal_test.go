@@ -5,28 +5,27 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // weekdayArrivals answers the weekly arrival of one weekday and records the
 // weekdays it was asked for.
 type weekdayArrivals struct {
-	careplan.ArrivalScheduleService
+	ArrivalSchedules
 	weekday int
 	asked   []int
 }
 
-func (w *weekdayArrivals) GetStudentArrivalExceptionForDate(context.Context, int64, calendar.Date) (*careplan.ArrivalException, error) {
+func (w *weekdayArrivals) GetStudentArrivalExceptionForDate(context.Context, int64, calendar.Date) (*ArrivalException, error) {
 	return nil, nil
 }
 
-func (w *weekdayArrivals) GetStudentArrivalScheduleForWeekday(_ context.Context, studentID int64, weekday int) (*careplan.ArrivalSchedule, error) {
+func (w *weekdayArrivals) GetStudentArrivalScheduleForWeekday(_ context.Context, studentID int64, weekday int) (*ArrivalSchedule, error) {
 	w.asked = append(w.asked, weekday)
 	if weekday != w.weekday {
 		return nil, nil
 	}
-	return &careplan.ArrivalSchedule{StudentID: studentID, Weekday: weekday, ExpectedArrival: time.Date(0, 1, 1, 11, 45, 0, 0, time.UTC)}, nil
+	return &ArrivalSchedule{StudentID: studentID, Weekday: weekday, ExpectedArrival: time.Date(0, 1, 1, 11, 45, 0, 0, time.UTC)}, nil
 }
 
 // Parents see a weekend that follows Friday's plan (#3921) as Friday's care

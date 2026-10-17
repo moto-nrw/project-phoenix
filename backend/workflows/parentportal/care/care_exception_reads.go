@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -17,11 +16,11 @@ const (
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
 func (s *Service) loadCareException(ctx context.Context, studentID int64, date calendar.Date) (*CareException, error) {
-	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
+	pickup, err := s.pickupExceptionForDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
-	arrival, err := s.arrivalExceptionForDate(ctx, studentID, careplan.Date(date))
+	arrival, err := s.arrivalExceptionForDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +40,7 @@ func (s *Service) loadCareException(ctx context.Context, studentID int64, date c
 
 // applyDatePickupLeg copies the pickup leg of one date into out and reports
 // whether the leg is staff-authored. A nil leg changes nothing.
-func applyDatePickupLeg(out *CareException, pickup *careplan.PickupException) bool {
+func applyDatePickupLeg(out *CareException, pickup *PickupException) bool {
 	if pickup == nil {
 		return false
 	}
@@ -56,7 +55,7 @@ func applyDatePickupLeg(out *CareException, pickup *careplan.PickupException) bo
 
 // applyDateArrivalLeg copies the arrival leg of one date into out and reports
 // whether the leg is staff-authored. A nil leg changes nothing.
-func applyDateArrivalLeg(out *CareException, arrival *careplan.ArrivalException) bool {
+func applyDateArrivalLeg(out *CareException, arrival *ArrivalException) bool {
 	if arrival == nil {
 		return false
 	}
@@ -83,15 +82,15 @@ func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID i
 
 	var out []*CareException
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
+		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
 		if err != nil {
 			return err
 		}
-		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
+		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
 		if err != nil {
 			return err
 		}
-		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, careplan.StudentScheduleFilter{StudentIDs: []int64{studentID}, From: careplan.Date(from), To: careplan.Date(to)})
+		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
 		if err != nil {
 			return err
 		}
@@ -107,7 +106,7 @@ func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID i
 
 // mergeCareExceptions joins pickup and arrival exception rows by date into the
 // parent-facing projection, sorted ascending by date.
-func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan.ArrivalException, accountID int64) []*CareException {
+func mergeCareExceptions(pickups []PickupException, arrivals []ArrivalException, accountID int64) []*CareException {
 	byDate := make(map[calendar.Date]*CareException)
 	order := make([]calendar.Date, 0, len(pickups)+len(arrivals))
 	get := func(date calendar.Date) *CareException {
@@ -135,7 +134,7 @@ func mergeCareExceptions(pickups []careplan.PickupException, arrivals []careplan
 
 // applyPickupException folds one pickup exception row into its date's
 // parent-facing projection.
-func applyPickupException(ce *CareException, p careplan.PickupException, accountID int64) {
+func applyPickupException(ce *CareException, p PickupException, accountID int64) {
 	ce.PickupTime = p.PickupTime
 	ce.PickupSource = p.Source
 	if p.Source == exceptionSourceGuardian && guardianAuthoredBy(p.CreatedByGuardian, accountID) {
@@ -155,7 +154,7 @@ func applyPickupException(ce *CareException, p careplan.PickupException, account
 
 // applyArrivalException folds one arrival exception row into its date's
 // parent-facing projection.
-func applyArrivalException(ce *CareException, a careplan.ArrivalException, accountID int64) {
+func applyArrivalException(ce *CareException, a ArrivalException, accountID int64) {
 	ce.ArrivalTime = a.ExpectedArrival
 	if ce.Reason == nil && a.Source == exceptionSourceGuardian && guardianAuthoredBy(a.CreatedByGuardian, accountID) {
 		ce.Reason = a.Reason
@@ -177,7 +176,7 @@ func applyArrivalException(ce *CareException, a careplan.ArrivalException, accou
 // mergeDepartureExceptions adds the day Abholart (#3945) to the merged days.
 // A day with only an Abholart becomes its own entry; its Source is staff,
 // because only the OGS writes the value.
-func mergeDepartureExceptions(days []*CareException, departures []careplan.DepartureException) []*CareException {
+func mergeDepartureExceptions(days []*CareException, departures []DepartureException) []*CareException {
 	if len(departures) == 0 {
 		return days
 	}

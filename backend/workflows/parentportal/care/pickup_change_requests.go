@@ -8,7 +8,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -253,7 +252,7 @@ func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, da
 		}
 	}
 	if legs.departureMode {
-		set, checkErr := s.departureExceptionForDate(txCtx, studentID, careplan.Date(date))
+		set, checkErr := s.departureExceptionForDate(txCtx, studentID, calendar.Date(date))
 		if checkErr != nil {
 			return checkErr
 		}

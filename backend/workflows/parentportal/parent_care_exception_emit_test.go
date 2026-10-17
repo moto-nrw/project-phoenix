@@ -47,13 +47,13 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		Locales:           api.ParentPortalLocales(),
 		Runtime:           api.ParentPortalRuntime{},
 		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:          repos.CarePlan(),
+		CarePlan:          api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
 		StudentRepo:       api.NewParentStudentReads(repos.Student),
-		CareExceptions:    repos.CarePlan(),
+		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		MessageThreadRepo: repos.ParentMessageThread,
@@ -64,6 +64,8 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		Logger:            slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
@@ -121,13 +123,13 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		Locales:           api.ParentPortalLocales(),
 		Runtime:           api.ParentPortalRuntime{},
 		MessagingEnabled:  api.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:          repos.CarePlan(),
+		CarePlan:          api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:            api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:      careProfiles(t, db),
 		ChildRepo:         repos.ParentChildReads(),
 		StatusDayRepo:     repos.StudentStatusDay,
 		StudentRepo:       api.NewParentStudentReads(repos.Student),
-		CareExceptions:    repos.CarePlan(),
+		CareExceptions:    api.NewParentCareExceptions(repos.CarePlan()),
 		Settings:          settings,
 		StudentUpdates:    api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
 		MessageThreadRepo: repos.ParentMessageThread,
@@ -138,6 +140,8 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		Logger:            slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 
 	chain := testpkg.CreateTestParentGuardianChain(t, db)

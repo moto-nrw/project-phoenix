@@ -9,7 +9,6 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -84,7 +83,7 @@ func (s *Service) submitCareException(ctx context.Context, accountID, studentID 
 		// reports it as a race. Classify it as its own conflict (409) instead of
 		// leaking a 500 — and distinct from the staff-override conflict, since the
 		// fix differs (reload and retry vs. nothing the parent can do).
-		if errors.Is(txErr, careplan.ErrGuardianPickupExceptionRaced) {
+		if errors.Is(txErr, s.CarePlanPolicy.Error(CarePlanGuardianPickupExceptionRaced)) {
 			return nil, ErrCareExceptionRaced
 		}
 		return nil, fmt.Errorf("parent: submit care exception: %w", txErr)
@@ -139,11 +138,11 @@ func (s *Service) writeCareException(ctx context.Context, tenantID int64, change
 	// way staff-set ones do (#2360): a pull-forward against the weekly
 	// baseline excuses the blocks after the new time; moving it back releases
 	// them again. Care Plan does both in the same unit of work.
-	err := s.GuardianPickups.ApplyGuardianPickupException(ctx, careplan.GuardianPickupChange{
+	err := s.GuardianPickups.ApplyGuardianPickupException(ctx, GuardianPickupChange{
 		TenantID: tenantID, StudentID: change.studentID, GuardianAccountID: change.accountID,
-		Date: careplan.Date(change.date), PickupTime: change.pickupTime, Reason: change.reason,
+		Date: calendar.Date(change.date), PickupTime: change.pickupTime, Reason: change.reason,
 	})
-	if errors.Is(err, careplan.ErrPickupExceptionStaffOwned) {
+	if errors.Is(err, s.CarePlanPolicy.Error(CarePlanPickupExceptionStaffOwned)) {
 		return nil, ErrCareExceptionConflict
 	}
 	if err != nil {
@@ -226,7 +225,7 @@ func (s *Service) childAlreadyLeftToday(ctx context.Context, studentID int64, da
 // An AUTO-derived partial absence is the school's own bookkeeping, not a
 // decision, so only a manual one counts (#2360).
 func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, date calendar.Date) (bool, error) {
-	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
+	pickup, err := s.pickupExceptionForDate(ctx, studentID, calendar.Date(date))
 	if err != nil {
 		return false, err
 	}
@@ -278,7 +277,7 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 	if alreadyLeft {
 		return ErrCareExceptionAlreadyLeft
 	}
-	pickup, err := s.pickupExceptionForDate(ctx, change.studentID, careplan.Date(change.date))
+	pickup, err := s.pickupExceptionForDate(ctx, change.studentID, calendar.Date(change.date))
 	if err != nil || pickup == nil {
 		return err
 	}
@@ -331,12 +330,12 @@ func (s *Service) broadcastStudentUpdated(tenantID, studentID int64) {
 // submission wrote (pickup preferred, else arrival). Best-effort: a lookup
 // failure just leaves the pill without a ref.
 func (s *Service) careExceptionRef(ctx context.Context, studentID int64, date calendar.Date) (string, *int64) {
-	pickup, err := s.pickupExceptionForDate(ctx, studentID, careplan.Date(date))
+	pickup, err := s.pickupExceptionForDate(ctx, studentID, calendar.Date(date))
 	if err == nil && pickup != nil {
 		id := pickup.ID
 		return "schedule.student_pickup_exceptions", &id
 	}
-	arrival, err := s.arrivalExceptionForDate(ctx, studentID, careplan.Date(date))
+	arrival, err := s.arrivalExceptionForDate(ctx, studentID, calendar.Date(date))
 	if err == nil && arrival != nil {
 		id := arrival.ID
 		return "schedule.student_arrival_exceptions", &id

@@ -35,13 +35,13 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CarePlan(),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentPickupChangeEnabled: pickupChangeEnabled,
@@ -53,6 +53,8 @@ func buildPickupChangeService(t *testing.T, pickupChangeEnabled bool) (*parentSe
 		Logger: slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -106,13 +108,13 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		Declarations:    api.ParentDeclarationPolicy(),
 		Locales:         api.ParentPortalLocales(),
 		Runtime:         api.ParentPortalRuntime{},
-		CarePlan:        repos.CarePlan(),
+		CarePlan:        api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:          api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:    careProfiles(t, db),
 		ChildRepo:       repos.ParentChildReads(),
 		StatusDayRepo:   repos.StudentStatusDay,
 		StudentRepo:     api.NewParentStudentReads(repos.Student),
-		CareExceptions:  repos.CarePlan(),
+		CareExceptions:  api.NewParentCareExceptions(repos.CarePlan()),
 		Attendance:      parentAttendance(t, db),
 		CareRequests:    careRequests,
 		Settings: parentSettingsStub{
@@ -126,6 +128,8 @@ func buildPickupChangeServiceWithRequestOptions(t *testing.T, requestOptions []a
 		Logger: slog.Default(),
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}
 	for _, apply := range configure {
 		apply(&cfg)

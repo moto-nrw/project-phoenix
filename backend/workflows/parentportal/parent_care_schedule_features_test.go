@@ -54,7 +54,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Locales:                api.ParentPortalLocales(),
 		Runtime:                api.ParentPortalRuntime{},
 		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:               repos.CarePlan(),
+		CarePlan:               api.NewParentCarePlanCommands(repos.CarePlan(), nil),
 		People:                 api.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
 		CareProfiles:           careProfiles(t, db),
 		ChildRepo:              repos.ParentChildReads(),
@@ -65,8 +65,8 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		Settings:               settings,
 		MealPlan:               availableMealPlan(false),
 		StudentUpdates:         api.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		ArrivalSchedules:       sf.ArrivalSchedule,
-		PickupSchedules:        sf.PickupSchedule,
+		ArrivalSchedules:       api.NewParentArrivalSchedules(sf.ArrivalSchedule),
+		PickupSchedules:        api.NewParentPickupSchedules(sf.PickupSchedule),
 		CareRequests:           sf.CareRequests,
 		CareRequestRepo:        api.NewParentCareRequestReads(repos.CarePlan()),
 		FamilyProtectionEvents: repos.FamilyProtection,
@@ -82,6 +82,8 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 		},
 
 		DataRequests: api.NewParentDataRequestCommands(repos.CarePlan()),
+
+		CarePlanPolicy: api.NewParentCarePlanPolicy(),
 	}), db
 }
 

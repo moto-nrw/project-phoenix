@@ -8,7 +8,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+
 	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -153,7 +154,7 @@ func (s *Service) submitMasterDataField(ctx context.Context, submission masterDa
 	}
 	row.TenantID = submission.tenantID
 	if err := s.createDataRequest(ctx, row); err != nil {
-		if isPendingChangeRequestUniqueViolation(err) {
+		if s.isPendingChangeRequestUniqueViolation(err) {
 			return nil, ErrMasterDataDuplicatePending
 		}
 		return nil, err
@@ -292,7 +293,7 @@ func (s *Service) editMasterDataRequestInTx(
 	if req.Status != DataChangeStatusPending {
 		return nil, s.ChangeRequestRepo.NotPendingError()
 	}
-	if expectedVersion != "" && careplan.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
+	if expectedVersion != "" && excusedrequests.ParentRequestVersion(req.UpdatedAt) != expectedVersion {
 		return nil, parentrequests.ErrStale
 	}
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
@@ -426,6 +427,6 @@ func trackBDepartureState(student *MasterDataStudent, value json.RawMessage, pol
 // isPendingChangeRequestUniqueViolation reports Care Plan's refusal of a
 // second pending request for the same field (the partial unique index on
 // users.student_data_change_requests).
-func isPendingChangeRequestUniqueViolation(err error) bool {
-	return errors.Is(err, careplan.ErrStudentDataRequestFieldPending)
+func (s *Service) isPendingChangeRequestUniqueViolation(err error) bool {
+	return errors.Is(err, s.CarePlanPolicy.Error(CarePlanStudentDataRequestFieldPending))
 }

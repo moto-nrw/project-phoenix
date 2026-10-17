@@ -9,7 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -44,7 +45,7 @@ type PendingOfferingChange struct {
 	CreatedAt       time.Time
 	EffectiveFrom   calendar.Date
 	Note            string
-	Diff            []careplan.OfferingChangeDiffEntry
+	Diff            []OfferingChangeDiffEntry
 	SubmittedBySelf bool
 }
 
@@ -67,7 +68,7 @@ type ChildCareOfferings struct {
 	PendingRequest *PendingOfferingChange
 	// LastDecision is the most recent decided request inside the recency window,
 	// so the outcome of a request is visible where it was submitted.
-	LastDecision *careplan.OfferingChangeDecision
+	LastDecision *OfferingChangeDecision
 	// EarliestEffectiveFrom is the first date a new request may take effect
 	// under the school's notice period — the date picker's lower bound. Zero
 	// when requesting is not possible anyway.
@@ -135,7 +136,7 @@ func (s *Service) loadChildCareOfferings(
 		view.PeriodEnd = period.ServiceEndDate
 		// Shared with the staff views so both sides answer "what is booked,
 		// what starts later" from the same day (#2185).
-		offeringDate := careplan.BookingViewDate(today, period.ServiceEndDate)
+		offeringDate := s.CarePlanPolicy.BookingViewDate(today, period.ServiceEndDate)
 		view.Offerings, err = s.carePeriodOfferings(ctx, period.RequestChildID, offeringDate)
 		if err != nil {
 			return nil, err
@@ -174,10 +175,10 @@ func (s *Service) loadOfferingChangeState(
 }
 
 func visibleOfferingDecision(
-	decision *careplan.OfferingChangeDecision,
+	decision *OfferingChangeDecision,
 	accountID int64,
 	visibility RequestShareVisibility,
-) *careplan.OfferingChangeDecision {
+) *OfferingChangeDecision {
 	if decision == nil || !visibility.Allows(RequestShareOffering, decision.ID, accountID, decision.SubmittedBy) {
 		return nil
 	}
@@ -185,7 +186,7 @@ func visibleOfferingDecision(
 	return decision
 }
 
-func pendingOfferingChange(view *careplan.OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
+func pendingOfferingChange(view *OfferingChangeView, accountID int64, visible bool) *PendingOfferingChange {
 	if view.Request == nil || !visible {
 		return nil
 	}
@@ -208,7 +209,7 @@ func pendingOfferingChange(view *careplan.OfferingChangeView, accountID int64, v
 func (s *Service) GetChildOfferingCatalog(
 	ctx context.Context,
 	accountID, studentID int64,
-) (*careplan.OfferingChangeCatalog, error) {
+) (*OfferingChangeCatalog, error) {
 	return s.GetChildOfferingCatalogAt(ctx, accountID, studentID, calendar.Date(""))
 }
 
@@ -216,7 +217,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 	ctx context.Context,
 	accountID, studentID int64,
 	effectiveFrom calendar.Date,
-) (*careplan.OfferingChangeCatalog, error) {
+) (*OfferingChangeCatalog, error) {
 	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
 	if err != nil {
 		return nil, err
@@ -225,9 +226,9 @@ func (s *Service) GetChildOfferingCatalogAt(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, careplan.ErrOfferingChangeDisabled
+		return nil, s.CarePlanPolicy.Error(CarePlanOfferingChangeDisabled)
 	}
-	var catalog *careplan.OfferingChangeCatalog
+	var catalog *OfferingChangeCatalog
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
 		if resolveErr != nil {
@@ -247,7 +248,7 @@ func (s *Service) GetChildOfferingCatalogAt(
 func (s *Service) CreateOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID int64,
-	selections []careplan.OfferingChangeSelection,
+	selections []OfferingChangeSelection,
 	effectiveFrom calendar.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
@@ -263,12 +264,12 @@ func (s *Service) CreateOfferingChangeRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, careplan.ErrOfferingChangeDisabled
+		return nil, s.CarePlanPolicy.Error(CarePlanOfferingChangeDisabled)
 	}
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
-		return nil, careplan.ErrParentRequestReasonRequired
+		return nil, excusedrequests.ErrParentRequestReasonRequired
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -278,7 +279,7 @@ func (s *Service) CreateOfferingChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		created, createErr := s.OfferingChanges.SubmitOfferingChange(txCtx, careplan.CreateOfferingChangeInput{
+		created, createErr := s.OfferingChanges.SubmitOfferingChange(txCtx, CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,
@@ -312,7 +313,7 @@ func (s *Service) CreateOfferingChangeRequest(
 func (s *Service) EditOfferingChangeRequest(
 	ctx context.Context,
 	accountID, studentID, requestID int64,
-	selections []careplan.OfferingChangeSelection,
+	selections []OfferingChangeSelection,
 	effectiveFrom calendar.Date,
 	note string,
 	completeWithdrawalConfirmed bool,
@@ -326,12 +327,12 @@ func (s *Service) EditOfferingChangeRequest(
 		return nil, err
 	}
 	if s.OfferingChanges == nil {
-		return nil, careplan.ErrOfferingChangeDisabled
+		return nil, s.CarePlanPolicy.Error(CarePlanOfferingChangeDisabled)
 	}
 	// The note is mandatory only while the school asks the family for a
 	// reason (#2267, story 28).
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
-		return nil, careplan.ErrParentRequestReasonRequired
+		return nil, excusedrequests.ErrParentRequestReasonRequired
 	}
 	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
@@ -341,7 +342,7 @@ func (s *Service) EditOfferingChangeRequest(
 		if student.CareEndedOn(s.todayDate()) {
 			return ErrChildCareEnded
 		}
-		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, careplan.CreateOfferingChangeInput{
+		_, editErr := s.OfferingChanges.Edit(txCtx, requestID, CreateOfferingChangeInput{
 			StudentID:                   studentID,
 			AccountID:                   accountID,
 			Selections:                  selections,

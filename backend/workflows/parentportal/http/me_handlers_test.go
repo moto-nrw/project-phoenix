@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -147,13 +146,13 @@ func (f *fakeParentService) GrantPhotoConsent(_ context.Context, accountID, stud
 func (f *fakeParentService) SubmitSickNote(context.Context, int64, int64, []timezone.Date, string, string, []int64) (*parentService.SickNoteResult, error) {
 	return &parentService.SickNoteResult{}, nil
 }
-func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*absencerecords.StudentStatusDay, error) {
+func (f *fakeParentService) ListSickDays(context.Context, int64, int64, timezone.Date, timezone.Date) ([]*parentService.StudentStatusDaySnapshot, error) {
 	return nil, nil
 }
-func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*careplan.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) ListExcusedRequests(context.Context, int64, int64) ([]*parentService.ExcusedAbsenceRequestSnapshot, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*careplan.ExcusedAbsenceRequest, error) {
+func (f *fakeParentService) EditExcusedRequest(context.Context, int64, int64, int64, []timezone.Date, string, string) (*parentService.ExcusedAbsenceRequestSnapshot, error) {
 	return nil, nil
 }
 func (f *fakeParentService) EditPickupChangeRequest(context.Context, int64, int64, int64, timezone.Date, time.Time, string, string, string) (*careplan.CareScheduleChangeRequest, error) {
@@ -165,7 +164,7 @@ func (f *fakeParentService) EditCareScheduleRequest(context.Context, int64, int6
 func (f *fakeParentService) EditMasterDataRequest(context.Context, int64, int64, int64, json.RawMessage, string) (*parentService.StudentDataChangeRequest, error) {
 	return nil, nil
 }
-func (f *fakeParentService) EditOfferingChangeRequest(context.Context, int64, int64, int64, []careplan.OfferingChangeSelection, timezone.Date, string, bool, string) (*parentService.ChildCareOfferings, error) {
+func (f *fakeParentService) EditOfferingChangeRequest(context.Context, int64, int64, int64, []parentService.OfferingChangeSelectionSnapshot, timezone.Date, string, bool, string) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }
 func (f *fakeParentService) ListRequestEvents(context.Context, int64, int64, string, int64) ([]parentService.ParentRequestEventView, error) {
@@ -235,28 +234,28 @@ func (f *fakeParentService) GetChildCareOfferings(context.Context, int64, int64)
 
 // Kurse (#3075). Zero-value stubs for the same reason: the course handlers
 // have their own tests, the fake only has to satisfy the interface.
-func (f *fakeParentService) GetChildCourses(context.Context, int64, int64) (*careplan.CourseCatalog, error) {
+func (f *fakeParentService) GetChildCourses(context.Context, int64, int64) (*parentService.CourseCatalogSnapshot, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) RequestChildCourse(context.Context, int64, int64, int64, string) (*careplan.CourseCatalog, error) {
+func (f *fakeParentService) RequestChildCourse(context.Context, int64, int64, int64, string) (*parentService.CourseCatalogSnapshot, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) WithdrawChildCourseRequest(context.Context, int64, int64, int64) (*careplan.CourseCatalog, error) {
+func (f *fakeParentService) WithdrawChildCourseRequest(context.Context, int64, int64, int64) (*parentService.CourseCatalogSnapshot, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) GetChildOfferingCatalog(context.Context, int64, int64) (*careplan.OfferingChangeCatalog, error) {
+func (f *fakeParentService) GetChildOfferingCatalog(context.Context, int64, int64) (*parentService.OfferingChangeCatalogSnapshot, error) {
 	return nil, nil
 }
 
-func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, int64, timezone.Date) (*careplan.OfferingChangeCatalog, error) {
+func (f *fakeParentService) GetChildOfferingCatalogAt(context.Context, int64, int64, timezone.Date) (*parentService.OfferingChangeCatalogSnapshot, error) {
 	return nil, nil
 }
 
 func (f *fakeParentService) CreateOfferingChangeRequest(
-	context.Context, int64, int64, []careplan.OfferingChangeSelection, timezone.Date, string, bool, []int64,
+	context.Context, int64, int64, []parentService.OfferingChangeSelectionSnapshot, timezone.Date, string, bool, []int64,
 ) (*parentService.ChildCareOfferings, error) {
 	return nil, nil
 }

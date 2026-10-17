@@ -4,8 +4,6 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,10 +18,10 @@ type courseWriteChangesStub struct {
 
 func (s *courseWriteChangesStub) CreateCourseRequest(
 	context.Context,
-	careplan.CreateCourseRequestInput,
-) (*careplan.OfferingChangeRequest, error) {
+	CreateCourseRequestInput,
+) (*OfferingChangeRequest, error) {
 	s.createCalls++
-	return &careplan.OfferingChangeRequest{}, nil
+	return &OfferingChangeRequest{}, nil
 }
 
 func (s *courseWriteChangesStub) WithdrawCourseRequest(
@@ -45,7 +43,7 @@ func TestCourseWritesRequireCatalogPermissionBeforeMutation(t *testing.T) {
 		},
 	}
 	changes := &courseWriteChangesStub{}
-	svc := &Service{Config: Config{Runtime: testpkg.TenantTransactionRuntime{},
+	svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{},
 		ChildRepo:       careOfferingsChildRepoStub{child: child},
 		StudentRepo:     careOfferingsStudentReads(StudentReads.FindByIDForUpdate),
 		OfferingChanges: changes,

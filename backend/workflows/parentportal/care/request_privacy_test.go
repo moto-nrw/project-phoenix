@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 )
 
@@ -19,7 +18,7 @@ func TestPendingCareRequest_HidesAnotherGuardiansRequest(t *testing.T) {
 func TestOfferingDecisionBelongsOnlyToSubmittingGuardian(t *testing.T) {
 	t.Parallel()
 
-	decision := &careplan.OfferingChangeDecision{SubmittedBy: 41, Reason: "private"}
+	decision := &OfferingChangeDecision{SubmittedBy: 41, Reason: "private"}
 	visibility := submitterOnlyVisibility{}
 	assert.Nil(t, visibleOfferingDecision(decision, 42, visibility))
 	assert.Same(t, decision, visibleOfferingDecision(decision, 41, visibility))

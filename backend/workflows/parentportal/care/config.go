@@ -5,7 +5,6 @@ import (
 	"log/slog"
 	"time"
 
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -20,6 +19,7 @@ type StudentChangeRecorder interface {
 // Config is the dependency bundle of the guardian portal's child flows. The
 // unit of work comes from the request context; the package holds no database.
 type Config struct {
+	CarePlanPolicy  CarePlanPolicy
 	GuardianPolicy  GuardianPolicy
 	DeparturePolicy DeparturePolicy
 	Runtime         Runtime
@@ -47,15 +47,11 @@ type Config struct {
 	// Care Plan: the weekly plan, its requests, the absence requests and the
 	// day exceptions. CareExceptions shares the caller's tenant transaction;
 	// writes follow the student/day lock.
-	ArrivalSchedules careplan.ArrivalScheduleService
-	PickupSchedules  careplan.PickupScheduleService
+	ArrivalSchedules ArrivalSchedules
+	PickupSchedules  PickupSchedules
 	CareRequests     carerequests.Service
-	ExcusedRequests  careplan.ExcusedAbsenceRequests
+	ExcusedRequests  ExcusedAbsenceRequests
 	CareExceptions   CareExceptions
-	// PickupAutoExcusal couples pulled-forward day pickup times with the
-	// per-block partial-absence mechanics (#2360). Optional in tests; nil
-	// skips the coupling.
-	PickupAutoExcusal careplan.PickupAutoExcusal
 
 	// Enrollment: the booked care offerings behind the child and the
 	// post-enrollment change-request lifecycle.
@@ -78,8 +74,8 @@ type Config struct {
 	// day's pickup exception and the Stammdaten requests; People Directory
 	// writes the guardian and student rows; Audit Platform appends the
 	// guardian change trail. All of them join the flow's tenant unit of work.
-	GuardianAbsences careplan.GuardianAbsenceReports
-	GuardianPickups  careplan.GuardianPickupExceptions
+	GuardianAbsences GuardianAbsenceReports
+	GuardianPickups  GuardianPickupExceptions
 	DataRequests     StudentDataRequestCommands
 	Guardians        GuardianRecords
 	Students         StudentRecords
