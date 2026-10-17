@@ -6,6 +6,8 @@ import (
 	"context"
 	"errors"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	studentDirectoryView "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -61,4 +63,64 @@ func NewCarePlan(db transactionruntime.Database, students peopledirectory.Capabi
 func NewUnobservedCarePlan(db transactionruntime.Database, dependencies TimetableDependencies) (careplan.Capability, error) {
 	slots := timetableCompose.NewInstanceStudentRepository(db.Pool(), dependencies.Capability, NewUnloggedStudentPresence(db), NewPartialAbsencePreview(db))
 	return NewCarePlan(db, dependencies.Students, slots)
+}
+
+// CreateParentPickupExceptionFixture keeps the native owner's validation,
+// error mapping and persisted row fields for parent workflow fixtures.
+func CreateParentPickupExceptionFixture(ctx context.Context, owner careplan.Capability, row *careplan.PickupException) error {
+	if err := row.Validate(); err != nil {
+		return err
+	}
+	rows := NewCarePlanRows(owner)
+	value, err := rows.Records.CreatePickupException(ctx, carePickupExceptionToRows(*row))
+	if err != nil {
+		return rows.ScheduleError("create", err)
+	}
+	*row = carePickupExceptionFromRows(value)
+	return nil
+}
+
+// CreateParentArrivalExceptionFixture keeps the native owner's validation,
+// error mapping and persisted row fields for parent workflow fixtures.
+func CreateParentArrivalExceptionFixture(ctx context.Context, owner careplan.Capability, row *careplan.ArrivalException) error {
+	if err := row.Validate(); err != nil {
+		return err
+	}
+	rows := NewCarePlanRows(owner)
+	value, err := rows.Records.CreateArrivalException(ctx, careArrivalExceptionToRows(*row))
+	if err != nil {
+		return rows.ScheduleError("create", err)
+	}
+	*row = careArrivalExceptionFromRows(value)
+	return nil
+}
+
+// CreateParentPickupScheduleFixture keeps the native owner's validation,
+// error mapping and persisted row fields for parent workflow fixtures.
+func CreateParentPickupScheduleFixture(ctx context.Context, owner careplan.Capability, row *careplan.PickupSchedule) error {
+	if err := row.Validate(); err != nil {
+		return err
+	}
+	rows := NewCarePlanRows(owner)
+	value, err := rows.Records.CreatePickupSchedule(ctx, carePickupScheduleToRows(*row))
+	if err != nil {
+		return rows.ScheduleError("create", err)
+	}
+	*row = carePickupScheduleFromRows(value)
+	return nil
+}
+
+// FindParentPickupExceptionFixture uses the same filtered owner read and
+// retained diagnostic as the former schedule fixture adapter.
+func FindParentPickupExceptionFixture(ctx context.Context, owner careplan.Capability, studentID int64, date calendar.Date) (*careplan.PickupException, error) {
+	rows := NewCarePlanRows(owner)
+	values, err := rows.Records.ListPickupExceptions(ctx, timetablePorts.CareScheduleFilter{StudentIDs: []int64{studentID}, Date: timetablePorts.CareDate(date)})
+	if err != nil {
+		return nil, rows.ScheduleError("find by student id and date", err)
+	}
+	if len(values) == 0 {
+		return nil, nil
+	}
+	value := carePickupExceptionFromRows(values[0])
+	return &value, nil
 }

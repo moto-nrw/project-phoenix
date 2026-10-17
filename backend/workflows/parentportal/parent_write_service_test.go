@@ -13,8 +13,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
-
-	scheduleModels "github.com/moto-nrw/project-phoenix/models/schedule"
 	userModels "github.com/moto-nrw/project-phoenix/models/users"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
@@ -409,18 +407,18 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	date := calendar.NewDate(2026, 8, 24).AddDays(7)
 	from := calendar.NormalizeWallClock(time.Date(2000, time.January, 1, 13, 30, 0, 0, time.UTC))
 	staffID := staff.ID
-	pickup := &scheduleModels.StudentPickupException{
+	pickup := &careplan.PickupException{
 		StudentID:             chain.StudentID,
-		ExceptionDate:         scheduleModels.Date(date),
+		ExceptionDate:         careplan.Date(date),
 		PickupTime:            &from,
 		ExcusedFrom:           &from,
 		ExcusedCreatedBy:      &staffID,
 		ExcusedOwnsPickupTime: true,
-		Source:                scheduleModels.ExceptionSourceStaff,
+		Source:                careplan.ExceptionSourceStaff,
 		CreatedBy:             staff.ID,
 	}
 	pickup.SetTenantID(chain.TenantID)
-	require.NoError(t, repos.StudentPickupException.Create(testpkg.TenantContext(chain.TenantID), pickup))
+	require.NoError(t, api.CreateParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), repos.CarePlan(), pickup))
 
 	_, err := svc.SubmitSickNote(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
