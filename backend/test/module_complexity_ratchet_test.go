@@ -304,7 +304,6 @@ var moduleComplexityAllowlist = map[string]int{
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":    35,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).remapClassTeacherAssignments":  21,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).revertClassTeacherAssignments": 31,
-	"workflows/gradetransition/compose/new.go:Assemble":                                     17,
 	"workflows/gradetransition/preview.go:(*Workflow).Preview":                              17,
 	"workflows/gradetransition/revert.go:(*Workflow).Revert":                                16,
 	"workflows/gradetransition/revert.go:(*Workflow).restoreGraduateTags":                   19,

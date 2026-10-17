@@ -172,27 +172,12 @@ func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, d
 	if len(process) == 0 {
 		return rosterByInstance, careDay, presentByGroup, nil
 	}
-	instanceIDs := make([]int64, 0, len(process))
-	activeGroupIDs := make([]int64, 0, len(process))
-	for _, p := range process {
-		instanceIDs = append(instanceIDs, p.inst.ID)
-		if p.inst.ActiveGroupID != nil {
-			activeGroupIDs = append(activeGroupIDs, *p.inst.ActiveGroupID)
-		}
-	}
+	instanceIDs, activeGroupIDs := slotPresenceIDs(process)
 	rosterRows, err := s.loadRoster(ctx, instanceIDs)
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	studentIDSet := map[int64]struct{}{}
-	for _, row := range rosterRows {
-		rosterByInstance[row.InstanceID] = append(rosterByInstance[row.InstanceID], row)
-		studentIDSet[row.StudentID] = struct{}{}
-	}
-	studentIDs := make([]int64, 0, len(studentIDSet))
-	for id := range studentIDSet {
-		studentIDs = append(studentIDs, id)
-	}
+	studentIDs := indexSlotRoster(rosterRows, rosterByInstance)
 	careDay, err = s.careDays.ResolveForDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("resolve care days: %w", err)
@@ -226,6 +211,33 @@ func (s *service) loadSlotPresence(ctx context.Context, process []slotContext, d
 		byStudent[visit.StudentID] = true
 	}
 	return rosterByInstance, careDay, presentByGroup, nil
+}
+
+// slotPresenceIDs builds the two batches without dropping repeated group IDs.
+func slotPresenceIDs(process []slotContext) ([]int64, []int64) {
+	instanceIDs := make([]int64, 0, len(process))
+	activeGroupIDs := make([]int64, 0, len(process))
+	for _, p := range process {
+		instanceIDs = append(instanceIDs, p.inst.ID)
+		if p.inst.ActiveGroupID != nil {
+			activeGroupIDs = append(activeGroupIDs, *p.inst.ActiveGroupID)
+		}
+	}
+	return instanceIDs, activeGroupIDs
+}
+
+// indexSlotRoster groups roster rows and returns the distinct care-day subjects.
+func indexSlotRoster(rosterRows []ports.InstanceStudent, rosterByInstance map[int64][]ports.InstanceStudent) []int64 {
+	studentIDSet := map[int64]struct{}{}
+	for _, row := range rosterRows {
+		rosterByInstance[row.InstanceID] = append(rosterByInstance[row.InstanceID], row)
+		studentIDSet[row.StudentID] = struct{}{}
+	}
+	studentIDs := make([]int64, 0, len(studentIDSet))
+	for id := range studentIDSet {
+		studentIDs = append(studentIDs, id)
+	}
+	return studentIDs
 }
 
 // mergeSlotInstance merges one instance's roster (Plan) with its visit-derived

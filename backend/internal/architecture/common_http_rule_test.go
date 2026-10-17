@@ -12,8 +12,8 @@ func TestCommonHTTPPermissionsRequireReviewedEpoch(t *testing.T) {
 	base := *candidate
 	base.PolicyEpoch--
 	base.Rules = slices.DeleteFunc(slices.Clone(candidate.Rules), reviewedCommonHTTPRule)
-	if len(candidate.Rules)-len(base.Rules) != 6 {
-		t.Fatal("expected six standing HTTP rules")
+	if len(candidate.Rules)-len(base.Rules) != 5 {
+		t.Fatal("expected five standing HTTP rules")
 	}
 	if err := comparePolicyStrictness(&base, candidate, noCreated(), noCreated(), noCreated(), noCreated(), noCreated()); err != nil {
 		t.Fatalf("reviewed HTTP contracts: %v", err)

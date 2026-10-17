@@ -236,8 +236,12 @@ func composeEnrollmentDecisions(b graphBuild) (graphBuild, error) {
 	b.enrollmentCareOfferings = enrollmentCompose.NewCareOfferingRecords(b.CarePlan)
 	b.enrollmentDecisions = b.Enrollment.Decisions(b.enrollmentDecisionSources())
 	b.graph.EnrollmentDecision = enrollmentCompose.PublicDecisions(b.enrollmentDecisions)
+	structure, presence, err := NewGradeTransitionOwners(b.DB)
+	if err != nil {
+		return b, fmt.Errorf("compose grade transition owners: %w", err)
+	}
 	workflow, err := gradetransitioncompose.New(gradetransitioncompose.Dependencies{
-		DB: b.DB.Pool(), Directory: b.Persons, Membership: b.Membership, Rosters: b.rosterReconciler,
+		DB: b.DB.Pool(), Structure: structure, Presence: presence, Directory: b.Persons, Membership: b.Membership, Rosters: b.rosterReconciler,
 		LockRecurrenceWrites:  b.TimetableWiring.RecurrenceLock.LockRecurrenceWrites,
 		ResyncOfferingRosters: b.late.careBookings.ResyncOfferingSourcedTemplates,
 		Logger:                b.Logger.With("workflow", "grade_transition"), Audit: b.graph.Audit, Clock: b.now,

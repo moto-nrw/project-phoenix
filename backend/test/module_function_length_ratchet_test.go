@@ -83,7 +83,6 @@ var moduleFuncLenAllowlist = map[string]int{
 	// database/repositories/users; the bodies crossed the boundary at their
 	// old length.
 	"modules/classday/internal/application/slotlist_slots.go:(*service).classifyPlannedRow":                                                     77,
-	"modules/classday/internal/application/slotlist_slots.go:(*service).loadSlotPresence":                                                       74,
 	"modules/communication/internal/adapters/staffinbox/projection.go:(*Projection).ListInbox":                                                  61,
 	"modules/communication/internal/parentmessages/events.go:(*EventEmitter).EmitChildEvent":                                                    176,
 	"modules/communication/internal/parentmessages/message_email.go:messageEmailCopy":                                                           84,
@@ -220,7 +219,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"workflows/gradetransition/class_list_entries.go:(*Workflow).revertClassListEntries":                                                        81,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).remapClassTeacherAssignments":                                                      62,
 	"workflows/gradetransition/class_teachers.go:(*Workflow).revertClassTeacherAssignments":                                                     68,
-	"workflows/gradetransition/compose/new.go:Assemble":                                                                                         85,
+	"workflows/gradetransition/compose/new.go:Assemble":                                                                                         78,
 	"workflows/parentportal/care/parent_care_schedule_service.go:(*Service).buildCareScheduleView":                                              74,
 	"workflows/parentportal/care/parent_today_status_service.go:(*Service).GetChildTodayStatus":                                                 75,
 	"workflows/parentportal/messaging/parent_announcement_service.go:(*Service).RespondToAnnouncement":                                          107,

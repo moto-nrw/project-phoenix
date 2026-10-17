@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"strings"
 
+	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
@@ -45,7 +47,7 @@ func (rs *Resource) SchoolSupervisionRouter(protectedSchoolRoutes func(chi.Route
 
 	protectedSchoolRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		own := common.RequiresPermission(permissions.SupervisionOwn)
-		attendance := common.RequireWebAttendanceEnabled(rs.SettingsService)
+		attendance := common.RequireWebAttendanceEnabled(settingsFacts.WebAttendanceEnabledReader(rs.SettingsService))
 
 		r.With(own, withTx).Get("/", rs.schoolMySupervisions)
 		r.With(own, withTx).Get("/{id}/roster", rs.operationsRoster)
