@@ -196,7 +196,7 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // modulePassthroughBudgetTotal and the 2392 of
 // modulePassthroughComposeBudgetTotal. Shrink-only, like every entry; raised
 // by ADR 0063 and by ADR 0064 (3,011 to 3,091).
-const modulePassthroughOwnerBudgetTotal = 3089
+const modulePassthroughOwnerBudgetTotal = 3088
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -256,7 +256,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// worker's Backlog.
 	//
 	// ADR 0061: application 7 + modules/delivery/compose 14.
-	"modules/delivery": 16,
+	"modules/delivery": 15,
 	// device.go carries 12 (registration, last-seen, status, listings); the
 	// display, online-window, service and unregistered-tag-scan files one each.
 	//
