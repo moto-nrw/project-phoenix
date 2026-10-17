@@ -8,7 +8,6 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	planning "github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -20,9 +19,9 @@ import (
 // overviewRepositories composes the retained readers and the Dienstplan row
 // adapter over the same handle, so a query counter attached to db observes
 // every read the projection makes.
-func overviewRepositories(db *bun.DB) (*api.RepositoryTestFactory, api.TimetableRepositories, *workforceCompose.ShiftRows, api.TimetableDependencies) {
+func overviewRepositories(db *bun.DB) (*api.RepositoryTestFactory, api.TimetableRepositories, *planning.ShiftRows, api.TimetableDependencies) {
 	dependencies := api.NewUnobservedTimetableDependencies(testpkg.MustDatabase(db))
-	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), dependencies), api.NewTimetableRepositories(testpkg.MustDatabase(db), dependencies), workforceCompose.NewShiftRows(dependencies.Workforce), dependencies
+	return api.NewRepositoryTestFactory(testpkg.MustDatabase(db), dependencies), api.NewTimetableRepositories(testpkg.MustDatabase(db), dependencies), planning.NewShiftRows(dependencies.Workforce), dependencies
 }
 
 func integrationClock(t *testing.T, value string) time.Time {

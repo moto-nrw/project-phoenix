@@ -19,16 +19,16 @@ import (
 
 type workSessionRepository struct {
 	workforce workforce.Capability
-	shapes    RowErrorShapes
+	errs      recordErrors
 }
 
 // NewWorkSessionRows serves WorkSessionRepository from
 // the Workforce capability.
-func NewWorkSessionRows(capability workforce.Capability, shapes RowErrorShapes) WorkSessionRepository {
+func NewWorkSessionRows(capability workforce.Capability) WorkSessionRepository {
 	if capability == nil {
 		panic("work session repository adapter: Workforce capability is required")
 	}
-	return workSessionRepository{workforce: capability, shapes: shapes}
+	return workSessionRepository{workforce: capability}
 }
 
 func (r workSessionRepository) Create(ctx context.Context, entity *WorkSession) error {
@@ -40,7 +40,7 @@ func (r workSessionRepository) Create(ctx context.Context, entity *WorkSession) 
 	}
 	created, err := r.workforce.CreateWorkSession(ctx, WorkSessionToCapability(entity))
 	if err != nil {
-		return r.shapes.workSessionWrite("create", err)
+		return r.errs.workSessionWrite("create", err)
 	}
 	applyWorkSessionToLegacy(entity, created)
 	return nil
@@ -49,11 +49,11 @@ func (r workSessionRepository) Create(ctx context.Context, entity *WorkSession) 
 func (r workSessionRepository) FindByID(ctx context.Context, id any) (*WorkSession, error) {
 	sessionID, err := legacyID(id)
 	if err != nil {
-		return nil, r.shapes.Database("find by id", err)
+		return nil, r.errs.WrapRecordError("find by id", err)
 	}
 	value, err := r.workforce.FindWorkSession(ctx, sessionID)
 	if err != nil {
-		return nil, r.shapes.read("find by id", err, workforce.ErrWorkSessionNotFound)
+		return nil, r.errs.read("find by id", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
@@ -68,9 +68,9 @@ func (r workSessionRepository) Update(ctx context.Context, entity *WorkSession) 
 	updated, err := r.workforce.UpdateWorkSession(ctx, WorkSessionToCapability(entity))
 	if err != nil {
 		if errors.Is(err, workforce.ErrWorkSessionNotFound) {
-			return r.shapes.rowsAffected("update WorkSession")
+			return r.errs.rowsAffected("update WorkSession")
 		}
-		return r.shapes.workSessionWrite("update", err)
+		return r.errs.workSessionWrite("update", err)
 	}
 	applyWorkSessionToLegacy(entity, updated)
 	return nil
@@ -79,10 +79,10 @@ func (r workSessionRepository) Update(ctx context.Context, entity *WorkSession) 
 func (r workSessionRepository) Delete(ctx context.Context, id any) error {
 	sessionID, err := legacyID(id)
 	if err != nil {
-		return r.shapes.Database("delete", err)
+		return r.errs.WrapRecordError("delete", err)
 	}
 	if err := r.workforce.DeleteWorkSession(ctx, sessionID); err != nil {
-		return r.shapes.workSessionWrite("delete", err)
+		return r.errs.workSessionWrite("delete", err)
 	}
 	return nil
 }
@@ -94,7 +94,7 @@ func (r workSessionRepository) ListWithFilter(ctx context.Context, filter workfo
 func (r workSessionRepository) CountWithFilter(ctx context.Context, filter workforce.WorkSessionFilter) (int, error) {
 	count, err := r.workforce.CountWorkSessions(ctx, filter)
 	if err != nil {
-		return 0, r.shapes.read("count with options", err, nil)
+		return 0, r.errs.read("count with options", err, nil)
 	}
 	return count, nil
 }
@@ -106,7 +106,7 @@ func (r workSessionRepository) OldestBefore(ctx context.Context, column string, 
 	}
 	oldest, err := r.workforce.OldestWorkSessionDate(ctx, column, before)
 	if err != nil {
-		return nil, r.shapes.read("oldest before", err, nil)
+		return nil, r.errs.read("oldest before", err, nil)
 	}
 	if oldest == "" {
 		return nil, nil
@@ -121,7 +121,7 @@ func (r workSessionRepository) OldestBefore(ctx context.Context, column string, 
 func (r workSessionRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteWorkSessionsOlderThan(ctx, column, cutoff.String())
 	if err != nil {
-		return 0, r.shapes.workSessionWrite("delete older than", err)
+		return 0, r.errs.workSessionWrite("delete older than", err)
 	}
 	return deleted, nil
 }
@@ -133,7 +133,7 @@ func (r workSessionRepository) LockStaffBalanceWrites(ctx context.Context, staff
 func (r workSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID int64) (*WorkSession, error) {
 	value, err := r.workforce.TodayOpenWorkSession(ctx, staffID)
 	if err != nil {
-		return nil, r.shapes.read("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, r.errs.read("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
@@ -141,7 +141,7 @@ func (r workSessionRepository) GetCurrentByStaffID(ctx context.Context, staffID 
 func (r workSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staffID int64) (*WorkSession, error) {
 	value, err := r.workforce.LatestOpenWorkSession(ctx, staffID)
 	if err != nil {
-		return nil, r.shapes.read("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, r.errs.read("get latest open by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
@@ -149,7 +149,7 @@ func (r workSessionRepository) GetLatestOpenByStaffID(ctx context.Context, staff
 func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) (*WorkSession, error) {
 	value, err := r.workforce.OpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
-		return nil, r.shapes.read("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, r.errs.read("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
@@ -157,7 +157,7 @@ func (r workSessionRepository) GetOpenByStaffAndDate(ctx context.Context, staffI
 func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Context, staffID int64, date calendar.Date) (*WorkSession, error) {
 	value, err := r.workforce.LockOpenWorkSessionOn(ctx, staffID, date.String())
 	if err != nil {
-		return nil, r.shapes.read("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, r.errs.read("get current by staff ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
@@ -165,7 +165,7 @@ func (r workSessionRepository) GetOpenByStaffAndDateForUpdate(ctx context.Contex
 func (r workSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int64) (*WorkSession, error) {
 	value, err := r.workforce.LockOpenWorkSession(ctx, id)
 	if err != nil {
-		return nil, r.shapes.read("lock open session by ID", err, workforce.ErrWorkSessionNotFound)
+		return nil, r.errs.read("lock open session by ID", err, workforce.ErrWorkSessionNotFound)
 	}
 	return workSessionToLegacy(value), nil
 }
@@ -173,7 +173,7 @@ func (r workSessionRepository) LockOpenByIDForUpdate(ctx context.Context, id int
 func (r workSessionRepository) ListOverlappingByStaffID(ctx context.Context, staffID int64, from time.Time, to *time.Time) ([]*WorkSession, error) {
 	values, err := r.workforce.ListOverlappingWorkSessions(ctx, []int64{staffID}, from, to)
 	if err != nil {
-		return nil, r.shapes.read("list overlapping by staff ID", err, nil)
+		return nil, r.errs.read("list overlapping by staff ID", err, nil)
 	}
 	return workSessionsToLegacy(values), nil
 }
@@ -185,7 +185,7 @@ func (r workSessionRepository) ListOverlappingByStaffIDs(ctx context.Context, st
 	}
 	values, err := r.workforce.ListOverlappingWorkSessions(ctx, staffIDs, from, to)
 	if err != nil {
-		return nil, r.shapes.read("list overlapping by staff IDs", err, nil)
+		return nil, r.errs.read("list overlapping by staff IDs", err, nil)
 	}
 	for _, value := range values {
 		result[value.StaffID] = append(result[value.StaffID], workSessionToLegacy(value))
@@ -226,7 +226,7 @@ func (r workSessionRepository) GetOpenSessions(ctx context.Context, beforeDate c
 func (r workSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
 	presence, err := r.workforce.WorkPresenceMap(ctx)
 	if err != nil {
-		return nil, r.shapes.read("get today presence map", err, nil)
+		return nil, r.errs.read("get today presence map", err, nil)
 	}
 	return presence, nil
 }
@@ -234,7 +234,7 @@ func (r workSessionRepository) GetTodayPresenceMap(ctx context.Context) (map[int
 func (r workSessionRepository) CloseSession(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error) {
 	closed, err := r.workforce.CloseWorkSession(ctx, id, checkOutTime, autoCheckedOut)
 	if err != nil {
-		return false, r.shapes.workSessionWrite("close session", err)
+		return false, r.errs.workSessionWrite("close session", err)
 	}
 	return closed, nil
 }
@@ -242,10 +242,10 @@ func (r workSessionRepository) CloseSession(ctx context.Context, id int64, check
 func (r workSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64, breakMinutes int) error {
 	affected, err := r.workforce.SetWorkSessionBreakMinutes(ctx, id, breakMinutes)
 	if err != nil {
-		return r.shapes.workSessionWrite("update columns WorkSession", err)
+		return r.errs.workSessionWrite("update columns WorkSession", err)
 	}
 	if affected != 1 {
-		return r.shapes.Database("update break minutes", fmt.Errorf("expected 1 rows affected, got %d", affected))
+		return r.errs.WrapRecordError("update break minutes", fmt.Errorf("expected 1 rows affected, got %d", affected))
 	}
 	return nil
 }
@@ -253,7 +253,7 @@ func (r workSessionRepository) UpdateBreakMinutes(ctx context.Context, id int64,
 func (r workSessionRepository) list(ctx context.Context, op string, filter workforce.WorkSessionFilter) ([]*WorkSession, error) {
 	values, err := r.workforce.ListWorkSessions(ctx, filter)
 	if err != nil {
-		return nil, r.shapes.read(op, err, nil)
+		return nil, r.errs.read(op, err, nil)
 	}
 	return workSessionsToLegacy(values), nil
 }
@@ -262,16 +262,16 @@ func (r workSessionRepository) list(ctx context.Context, op string, filter workf
 
 type workSessionBreakRepository struct {
 	workforce workforce.Capability
-	shapes    RowErrorShapes
+	errs      recordErrors
 }
 
 // NewWorkSessionBreakRows serves WorkSessionBreakRepository
 // from the Workforce capability.
-func NewWorkSessionBreakRows(capability workforce.Capability, shapes RowErrorShapes) WorkSessionBreakRepository {
+func NewWorkSessionBreakRows(capability workforce.Capability) WorkSessionBreakRepository {
 	if capability == nil {
 		panic("work session break repository adapter: Workforce capability is required")
 	}
-	return workSessionBreakRepository{workforce: capability, shapes: shapes}
+	return workSessionBreakRepository{workforce: capability}
 }
 
 func (r workSessionBreakRepository) Create(ctx context.Context, entity *WorkSessionBreak) error {
@@ -283,7 +283,7 @@ func (r workSessionBreakRepository) Create(ctx context.Context, entity *WorkSess
 	}
 	created, err := r.workforce.CreateWorkSessionBreak(ctx, WorkSessionBreakToCapability(entity))
 	if err != nil {
-		return r.shapes.workSessionWrite("create", err)
+		return r.errs.workSessionWrite("create", err)
 	}
 	applyWorkSessionBreakToLegacy(entity, created)
 	return nil
@@ -292,11 +292,11 @@ func (r workSessionBreakRepository) Create(ctx context.Context, entity *WorkSess
 func (r workSessionBreakRepository) FindByID(ctx context.Context, id any) (*WorkSessionBreak, error) {
 	breakID, err := legacyID(id)
 	if err != nil {
-		return nil, r.shapes.Database("find by id", err)
+		return nil, r.errs.WrapRecordError("find by id", err)
 	}
 	value, err := r.workforce.FindWorkSessionBreak(ctx, breakID)
 	if err != nil {
-		return nil, r.shapes.read("find by id", err, workforce.ErrWorkSessionBreakNotFound)
+		return nil, r.errs.read("find by id", err, workforce.ErrWorkSessionBreakNotFound)
 	}
 	return workSessionBreakToLegacy(value), nil
 }
@@ -311,9 +311,9 @@ func (r workSessionBreakRepository) Update(ctx context.Context, entity *WorkSess
 	updated, err := r.workforce.UpdateWorkSessionBreak(ctx, WorkSessionBreakToCapability(entity))
 	if err != nil {
 		if errors.Is(err, workforce.ErrWorkSessionBreakNotFound) {
-			return r.shapes.rowsAffected("update WorkSessionBreak")
+			return r.errs.rowsAffected("update WorkSessionBreak")
 		}
-		return r.shapes.workSessionWrite("update", err)
+		return r.errs.workSessionWrite("update", err)
 	}
 	applyWorkSessionBreakToLegacy(entity, updated)
 	return nil
@@ -322,10 +322,10 @@ func (r workSessionBreakRepository) Update(ctx context.Context, entity *WorkSess
 func (r workSessionBreakRepository) Delete(ctx context.Context, id any) error {
 	breakID, err := legacyID(id)
 	if err != nil {
-		return r.shapes.Database("delete", err)
+		return r.errs.WrapRecordError("delete", err)
 	}
 	if err := r.workforce.DeleteWorkSessionBreak(ctx, breakID); err != nil {
-		return r.shapes.workSessionWrite("delete", err)
+		return r.errs.workSessionWrite("delete", err)
 	}
 	return nil
 }
@@ -333,7 +333,7 @@ func (r workSessionBreakRepository) Delete(ctx context.Context, id any) error {
 func (r workSessionBreakRepository) GetBySessionID(ctx context.Context, sessionID int64) ([]*WorkSessionBreak, error) {
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: sessionID})
 	if err != nil {
-		return nil, r.shapes.read("get breaks by session ID", err, nil)
+		return nil, r.errs.read("get breaks by session ID", err, nil)
 	}
 	return workSessionBreaksToLegacy(values), nil
 }
@@ -345,7 +345,7 @@ func (r workSessionBreakRepository) GetBySessionIDs(ctx context.Context, session
 	}
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionIDs: sessionIDs})
 	if err != nil {
-		return nil, r.shapes.read("get breaks by session IDs", err, nil)
+		return nil, r.errs.read("get breaks by session IDs", err, nil)
 	}
 	for _, value := range values {
 		result[value.SessionID] = append(result[value.SessionID], workSessionBreakToLegacy(value))
@@ -357,7 +357,7 @@ func (r workSessionBreakRepository) GetActiveBySessionID(ctx context.Context, se
 	active := true
 	values, err := r.workforce.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: sessionID, Active: &active, Limit: 1})
 	if err != nil {
-		return nil, r.shapes.read("get active break by session ID", err, nil)
+		return nil, r.errs.read("get active break by session ID", err, nil)
 	}
 	if len(values) == 0 {
 		return nil, nil
@@ -368,17 +368,17 @@ func (r workSessionBreakRepository) GetActiveBySessionID(ctx context.Context, se
 func (r workSessionBreakRepository) EndBreak(ctx context.Context, id int64, endedAt time.Time, durationMinutes int) error {
 	affected, err := r.workforce.EndWorkSessionBreak(ctx, id, endedAt, durationMinutes)
 	if err != nil {
-		return r.shapes.workSessionWrite("end break", err)
+		return r.errs.workSessionWrite("end break", err)
 	}
 	if affected != 1 {
-		return r.shapes.Database("end break", fmt.Errorf("expected 1 rows affected, got %d", affected))
+		return r.errs.WrapRecordError("end break", fmt.Errorf("expected 1 rows affected, got %d", affected))
 	}
 	return nil
 }
 
 func (r workSessionBreakRepository) UpdateDuration(ctx context.Context, id int64, durationMinutes int, endedAt time.Time) error {
 	if _, err := r.workforce.SetWorkSessionBreakDuration(ctx, id, durationMinutes, endedAt); err != nil {
-		return r.shapes.workSessionWrite("update columns WorkSessionBreak", err)
+		return r.errs.workSessionWrite("update columns WorkSessionBreak", err)
 	}
 	return nil
 }
@@ -386,7 +386,7 @@ func (r workSessionBreakRepository) UpdateDuration(ctx context.Context, id int64
 func (r workSessionBreakRepository) GetExpiredBreaks(ctx context.Context, before time.Time) ([]*WorkSessionBreak, error) {
 	values, err := r.workforce.ExpiredWorkSessionBreaks(ctx, before)
 	if err != nil {
-		return nil, r.shapes.read("get expired breaks", err, nil)
+		return nil, r.errs.read("get expired breaks", err, nil)
 	}
 	return workSessionBreaksToLegacy(values), nil
 }
@@ -404,11 +404,11 @@ func workSessionOrder(fields ...workforce.WorkSessionOrderField) []workforce.Wor
 // workSessionWriteError keeps the legacy write error shape: validation
 // failures surface bare, everything else is a DatabaseError whose chain still
 // reaches the driver error of a rejected duplicate.
-func (s RowErrorShapes) workSessionWrite(op string, err error) error {
+func (errs recordErrors) workSessionWrite(op string, err error) error {
 	if errors.Is(err, workforce.ErrInvalidWorkSession) {
 		return errors.New(err.Error())
 	}
-	return s.Database(op, err)
+	return errs.WrapRecordError(op, err)
 }
 
 // --- mapping ---

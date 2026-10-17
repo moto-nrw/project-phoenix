@@ -1,15 +1,13 @@
-package compose
+package planning
 
 import (
 	"context"
-	"database/sql"
 	"errors"
 	"fmt"
 	"time"
 
-	modelBase "github.com/moto-nrw/project-phoenix/models/base"
+	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -54,7 +52,7 @@ func NewShiftRows(capability workforce.Capability) *ShiftRows {
 	return &ShiftRows{ShiftReadRows: &ShiftReadRows{source: capability}, workforce: capability}
 }
 
-func (r *ShiftRows) Create(ctx context.Context, shift *planning.StaffShift) error {
+func (r *ShiftRows) Create(ctx context.Context, shift *StaffShift) error {
 	if shift == nil {
 		return errors.New("StaffShift cannot be nil or zero value")
 	}
@@ -69,7 +67,7 @@ func (r *ShiftRows) Create(ctx context.Context, shift *planning.StaffShift) erro
 	return nil
 }
 
-func (r *ShiftRows) FindByID(ctx context.Context, id any) (*planning.StaffShift, error) {
+func (r *ShiftRows) FindByID(ctx context.Context, id any) (*StaffShift, error) {
 	shiftID, err := shiftRowID(id)
 	if err != nil {
 		return nil, wrapShiftDatabaseError("find by id", err)
@@ -81,7 +79,7 @@ func (r *ShiftRows) FindByID(ctx context.Context, id any) (*planning.StaffShift,
 	return shiftToRow(value), nil
 }
 
-func (r *ShiftRows) Update(ctx context.Context, shift *planning.StaffShift) error {
+func (r *ShiftRows) Update(ctx context.Context, shift *StaffShift) error {
 	if shift == nil {
 		return errors.New("StaffShift cannot be nil or zero value")
 	}
@@ -110,21 +108,21 @@ func (r *ShiftRows) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *ShiftReadRows) FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*planning.StaffShift, error) {
+func (r *ShiftReadRows) FindByDateRange(ctx context.Context, start, end calendar.Date) ([]*StaffShift, error) {
 	return r.list(ctx, "find staff shifts by date range", workforce.StaffShiftFilter{
 		From: start.String(), To: end.String(),
 		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStaffID, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *ShiftReadRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*planning.StaffShift, error) {
+func (r *ShiftReadRows) FindByStaffAndDateRange(ctx context.Context, staffID int64, start, end calendar.Date) ([]*StaffShift, error) {
 	return r.list(ctx, "find staff shifts by staff and date range", workforce.StaffShiftFilter{
 		StaffID: staffID, From: start.String(), To: end.String(),
 		Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime),
 	})
 }
 
-func (r *ShiftReadRows) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*planning.StaffShift, error) {
+func (r *ShiftReadRows) FindByOriginShiftID(ctx context.Context, originShiftID int64) ([]*StaffShift, error) {
 	return r.list(ctx, "find staff shifts by origin shift id", workforce.StaffShiftFilter{
 		OriginShiftID: originShiftID, Order: shiftOrder(workforce.StaffShiftOrderStartTime),
 	})
@@ -142,7 +140,7 @@ func (r *ShiftReadRows) FindUsedCalendarWeeks(ctx context.Context, start, end ca
 	return result, nil
 }
 
-func (r *ShiftRows) BulkCreate(ctx context.Context, shifts []*planning.StaffShift) error {
+func (r *ShiftRows) BulkCreate(ctx context.Context, shifts []*StaffShift) error {
 	if len(shifts) == 0 {
 		return nil
 	}
@@ -181,13 +179,13 @@ func (r *ShiftRows) RepointDetachedSeriesFrom(ctx context.Context, fromSeriesID,
 	return moved, nil
 }
 
-func (r *ShiftReadRows) list(ctx context.Context, op string, filter workforce.StaffShiftFilter) ([]*planning.StaffShift, error) {
+func (r *ShiftReadRows) list(ctx context.Context, op string, filter workforce.StaffShiftFilter) ([]*StaffShift, error) {
 	values, err := r.source.ListStaffShifts(ctx, filter)
 	if err != nil {
 		return nil, shiftReadError(op, err, nil)
 	}
 	// Empty, not nil: callers serialize the result straight to JSON.
-	result := make([]*planning.StaffShift, 0, len(values))
+	result := make([]*StaffShift, 0, len(values))
 	for _, value := range values {
 		result = append(result, shiftToRow(value))
 	}
@@ -213,14 +211,14 @@ func NewShiftSeriesRows(capability workforce.Capability) *ShiftSeriesRows {
 	return &ShiftSeriesRows{workforce: capability}
 }
 
-func (r *ShiftSeriesRows) Create(ctx context.Context, series *planning.StaffShiftSeries) error {
+func (r *ShiftSeriesRows) Create(ctx context.Context, series *StaffShiftSeries) error {
 	if series == nil {
 		return errors.New("StaffShiftSeries cannot be nil or zero value")
 	}
 	if err := series.Validate(); err != nil {
 		return err
 	}
-	created, err := r.workforce.CreateStaffShiftSeries(ctx, seriesToCapability(series))
+	created, err := r.workforce.CreateStaffShiftSeries(ctx, seriesRowToCapability(series))
 	if err != nil {
 		return shiftWriteError("create", err)
 	}
@@ -228,7 +226,7 @@ func (r *ShiftSeriesRows) Create(ctx context.Context, series *planning.StaffShif
 	return nil
 }
 
-func (r *ShiftSeriesRows) FindByID(ctx context.Context, id any) (*planning.StaffShiftSeries, error) {
+func (r *ShiftSeriesRows) FindByID(ctx context.Context, id any) (*StaffShiftSeries, error) {
 	seriesID, err := shiftRowID(id)
 	if err != nil {
 		return nil, wrapShiftDatabaseError("find by id", err)
@@ -240,14 +238,14 @@ func (r *ShiftSeriesRows) FindByID(ctx context.Context, id any) (*planning.Staff
 	return seriesToRow(value), nil
 }
 
-func (r *ShiftSeriesRows) Update(ctx context.Context, series *planning.StaffShiftSeries) error {
+func (r *ShiftSeriesRows) Update(ctx context.Context, series *StaffShiftSeries) error {
 	if series == nil {
 		return errors.New("StaffShiftSeries cannot be nil or zero value")
 	}
 	if err := series.Validate(); err != nil {
 		return err
 	}
-	updated, err := r.workforce.UpdateStaffShiftSeries(ctx, seriesToCapability(series))
+	updated, err := r.workforce.UpdateStaffShiftSeries(ctx, seriesRowToCapability(series))
 	if err != nil {
 		if errors.Is(err, workforce.ErrShiftSeriesNotFound) {
 			return shiftRowsAffectedError("update StaffShiftSeries")
@@ -278,7 +276,7 @@ func (r *ShiftSeriesRows) CapValidUntil(ctx context.Context, id int64, until cal
 
 // FindOverlappingInLineage keeps the row-level "nil, nil" answer for a
 // lineage without another active segment.
-func (r *ShiftSeriesRows) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from calendar.Date) (*planning.StaffShiftSeries, error) {
+func (r *ShiftSeriesRows) FindOverlappingInLineage(ctx context.Context, rootID, excludeID int64, from calendar.Date) (*StaffShiftSeries, error) {
 	value, err := r.workforce.FindOverlappingSeriesInLineage(ctx, rootID, excludeID, from.String())
 	if err != nil {
 		if errors.Is(err, workforce.ErrShiftSeriesNotFound) {
@@ -302,7 +300,7 @@ func NewShiftSeriesExceptionRows(capability workforce.Capability) *ShiftSeriesEx
 	return &ShiftSeriesExceptionRows{workforce: capability}
 }
 
-func (r *ShiftSeriesExceptionRows) Create(ctx context.Context, exception *planning.StaffShiftSeriesException) error {
+func (r *ShiftSeriesExceptionRows) Create(ctx context.Context, exception *StaffShiftSeriesException) error {
 	if exception == nil {
 		return errors.New("StaffShiftSeriesException cannot be nil or zero value")
 	}
@@ -347,14 +345,14 @@ func NewShiftTypeRows(capability workforce.Capability) *ShiftTypeRows {
 	return &ShiftTypeRows{workforce: capability}
 }
 
-func (r *ShiftTypeRows) Create(ctx context.Context, shiftType *planning.ShiftType) error {
+func (r *ShiftTypeRows) Create(ctx context.Context, shiftType *ShiftType) error {
 	if shiftType == nil {
 		return errors.New("shift type cannot be nil")
 	}
 	if err := shiftType.Validate(); err != nil {
 		return err
 	}
-	created, err := r.workforce.CreateShiftType(ctx, shiftTypeToCapability(shiftType))
+	created, err := r.workforce.CreateShiftType(ctx, shiftTypeRowToCapability(shiftType))
 	if err != nil {
 		return shiftWriteError("create", err)
 	}
@@ -362,7 +360,7 @@ func (r *ShiftTypeRows) Create(ctx context.Context, shiftType *planning.ShiftTyp
 	return nil
 }
 
-func (r *ShiftTypeRows) FindByID(ctx context.Context, id any) (*planning.ShiftType, error) {
+func (r *ShiftTypeRows) FindByID(ctx context.Context, id any) (*ShiftType, error) {
 	typeID, err := shiftRowID(id)
 	if err != nil {
 		return nil, wrapShiftDatabaseError("find by id", err)
@@ -374,14 +372,14 @@ func (r *ShiftTypeRows) FindByID(ctx context.Context, id any) (*planning.ShiftTy
 	return shiftTypeToRow(value), nil
 }
 
-func (r *ShiftTypeRows) Update(ctx context.Context, shiftType *planning.ShiftType) error {
+func (r *ShiftTypeRows) Update(ctx context.Context, shiftType *ShiftType) error {
 	if shiftType == nil {
 		return errors.New("shift type cannot be nil")
 	}
 	if err := shiftType.Validate(); err != nil {
 		return err
 	}
-	updated, err := r.workforce.UpdateShiftType(ctx, shiftTypeToCapability(shiftType))
+	updated, err := r.workforce.UpdateShiftType(ctx, shiftTypeRowToCapability(shiftType))
 	if err != nil {
 		if errors.Is(err, workforce.ErrShiftTypeNotFound) {
 			return shiftRowsAffectedError("update shift type")
@@ -403,26 +401,26 @@ func (r *ShiftTypeRows) Delete(ctx context.Context, id any) error {
 	return nil
 }
 
-func (r *ShiftTypeRows) ListAll(ctx context.Context) ([]*planning.ShiftType, error) {
+func (r *ShiftTypeRows) ListAll(ctx context.Context) ([]*ShiftType, error) {
 	values, err := r.workforce.ListShiftTypes(ctx)
 	if err != nil {
 		return nil, shiftReadError("list all shift types", err, nil)
 	}
-	result := make([]*planning.ShiftType, 0, len(values))
+	result := make([]*ShiftType, 0, len(values))
 	for _, value := range values {
 		result = append(result, shiftTypeToRow(value))
 	}
 	return result, nil
 }
 
-func (r *ShiftTypeRows) CreateIfAbsent(ctx context.Context, shiftType *planning.ShiftType) (bool, error) {
+func (r *ShiftTypeRows) CreateIfAbsent(ctx context.Context, shiftType *ShiftType) (bool, error) {
 	if shiftType == nil {
 		return false, errors.New("shift type cannot be nil")
 	}
 	if err := shiftType.Validate(); err != nil {
 		return false, err
 	}
-	created, inserted, err := r.workforce.CreateShiftTypeIfAbsent(ctx, shiftTypeToCapability(shiftType))
+	created, inserted, err := r.workforce.CreateShiftTypeIfAbsent(ctx, shiftTypeRowToCapability(shiftType))
 	if err != nil {
 		return false, shiftWriteError("create shift type if absent", err)
 	}
@@ -434,7 +432,7 @@ func (r *ShiftTypeRows) CreateIfAbsent(ctx context.Context, shiftType *planning.
 
 // --- mapping ---
 
-func shiftToCapability(shift *planning.StaffShift) workforce.StaffShift {
+func shiftToCapability(shift *StaffShift) workforce.StaffShift {
 	value := workforce.StaffShift{
 		ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
 		StartTime: shiftWallClock(shift.StartTime), EndTime: shiftWallClock(shift.EndTime), BreakMinutes: shift.BreakMinutes,
@@ -449,13 +447,13 @@ func shiftToCapability(shift *planning.StaffShift) workforce.StaffShift {
 	return value
 }
 
-func shiftToRow(value workforce.StaffShift) *planning.StaffShift {
-	shift := &planning.StaffShift{}
+func shiftToRow(value workforce.StaffShift) *StaffShift {
+	shift := &StaffShift{}
 	applyShiftToRow(shift, value)
 	return shift
 }
 
-func applyShiftToRow(shift *planning.StaffShift, value workforce.StaffShift) {
+func applyShiftToRow(shift *StaffShift, value workforce.StaffShift) {
 	shift.ID = value.ID
 	shift.CreatedAt = value.CreatedAt
 	shift.UpdatedAt = value.UpdatedAt
@@ -482,7 +480,7 @@ func applyShiftToRow(shift *planning.StaffShift, value workforce.StaffShift) {
 	shift.UpdatedBy = value.UpdatedBy
 }
 
-func seriesToCapability(series *planning.StaffShiftSeries) workforce.StaffShiftSeries {
+func seriesRowToCapability(series *StaffShiftSeries) workforce.StaffShiftSeries {
 	weekdays := make([]int, 0, len(series.Weekdays))
 	for _, weekday := range series.Weekdays {
 		weekdays = append(weekdays, int(weekday))
@@ -501,13 +499,13 @@ func seriesToCapability(series *planning.StaffShiftSeries) workforce.StaffShiftS
 	return value
 }
 
-func seriesToRow(value workforce.StaffShiftSeries) *planning.StaffShiftSeries {
-	series := &planning.StaffShiftSeries{}
+func seriesToRow(value workforce.StaffShiftSeries) *StaffShiftSeries {
+	series := &StaffShiftSeries{}
 	applySeriesToRow(series, value)
 	return series
 }
 
-func applySeriesToRow(series *planning.StaffShiftSeries, value workforce.StaffShiftSeries) {
+func applySeriesToRow(series *StaffShiftSeries, value workforce.StaffShiftSeries) {
 	weekdays := make([]int16, 0, len(value.Weekdays))
 	for _, weekday := range value.Weekdays {
 		weekdays = append(weekdays, int16(weekday)) // #nosec G115 -- validated ISO weekday 1..7
@@ -538,20 +536,20 @@ func applySeriesToRow(series *planning.StaffShiftSeries, value workforce.StaffSh
 	series.UpdatedBy = value.UpdatedBy
 }
 
-func shiftTypeToCapability(shiftType *planning.ShiftType) workforce.ShiftType {
+func shiftTypeRowToCapability(shiftType *ShiftType) workforce.ShiftType {
 	return workforce.ShiftType{
 		ID: shiftType.ID, TenantID: shiftType.TenantID, Name: shiftType.Name, Color: shiftType.Color,
 		Description: shiftType.Description, IsActive: shiftType.IsActive, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
 	}
 }
 
-func shiftTypeToRow(value workforce.ShiftType) *planning.ShiftType {
-	shiftType := &planning.ShiftType{}
+func shiftTypeToRow(value workforce.ShiftType) *ShiftType {
+	shiftType := &ShiftType{}
 	applyShiftTypeToRow(shiftType, value)
 	return shiftType
 }
 
-func applyShiftTypeToRow(shiftType *planning.ShiftType, value workforce.ShiftType) {
+func applyShiftTypeToRow(shiftType *ShiftType, value workforce.ShiftType) {
 	shiftType.ID = value.ID
 	shiftType.CreatedAt = value.CreatedAt
 	shiftType.UpdatedAt = value.UpdatedAt
@@ -581,17 +579,16 @@ func shiftWallClockTime(value string) time.Time {
 // --- errors ---
 
 // wrapShiftDatabaseError is the repository error envelope the row callers
-// classify on. Workforce compose cannot import the timetable compose helper
-// it originally shared, so the shape is spelled out here.
+// classify on, built by the transaction runtime.
 func wrapShiftDatabaseError(operation string, err error) error {
-	return &modelBase.DatabaseError{Op: operation, Err: err}
+	return transactionruntime.RecordErrors{}.WrapRecordError(operation, err)
 }
 
 // wrapShiftNoRowsDatabaseError is the missing-row answer: the
 // persistence-neutral not-found sentinel joined with the driver's no-rows
 // value, as the generic repositories returned it.
 func wrapShiftNoRowsDatabaseError(operation string) error {
-	return wrapShiftDatabaseError(operation, errors.Join(modelBase.ErrNotFound, sql.ErrNoRows))
+	return transactionruntime.RecordErrors{}.MissingRecordError(operation)
 }
 
 // shiftRowID narrows the untyped ID of the generic repository contract.

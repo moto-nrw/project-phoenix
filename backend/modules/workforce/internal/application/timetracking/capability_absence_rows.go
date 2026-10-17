@@ -19,16 +19,16 @@ import (
 // capability.
 type staffAbsenceRepository struct {
 	workforce workforce.Capability
-	shapes    RowErrorShapes
+	errs      recordErrors
 }
 
 // NewStaffAbsenceRows serves StaffAbsenceRepository from the Workforce
 // capability.
-func NewStaffAbsenceRows(capability workforce.Capability, shapes RowErrorShapes) StaffAbsenceRepository {
+func NewStaffAbsenceRows(capability workforce.Capability) StaffAbsenceRepository {
 	if capability == nil {
 		panic("staff absence repository adapter: Workforce capability is required")
 	}
-	return staffAbsenceRepository{workforce: capability, shapes: shapes}
+	return staffAbsenceRepository{workforce: capability}
 }
 
 func (r staffAbsenceRepository) Create(ctx context.Context, entity *StaffAbsence) error {
@@ -37,7 +37,7 @@ func (r staffAbsenceRepository) Create(ctx context.Context, entity *StaffAbsence
 	}
 	created, err := r.workforce.CreateStaffAbsence(ctx, absenceToWorkforce(entity))
 	if err != nil {
-		return r.shapes.absenceWrite("create", err)
+		return r.errs.absenceWrite("create", err)
 	}
 	applyAbsenceToLegacy(entity, created)
 	return nil
@@ -46,11 +46,11 @@ func (r staffAbsenceRepository) Create(ctx context.Context, entity *StaffAbsence
 func (r staffAbsenceRepository) FindByID(ctx context.Context, id any) (*StaffAbsence, error) {
 	absenceID, err := legacyID(id)
 	if err != nil {
-		return nil, r.shapes.Database("find by id", err)
+		return nil, r.errs.WrapRecordError("find by id", err)
 	}
 	value, err := r.workforce.FindStaffAbsence(ctx, absenceID)
 	if err != nil {
-		return nil, r.shapes.read("find by id", err, workforce.ErrStaffAbsenceNotFound)
+		return nil, r.errs.read("find by id", err, workforce.ErrStaffAbsenceNotFound)
 	}
 	return absenceToLegacy(value), nil
 }
@@ -62,9 +62,9 @@ func (r staffAbsenceRepository) Update(ctx context.Context, entity *StaffAbsence
 	updated, err := r.workforce.UpdateStaffAbsence(ctx, absenceToWorkforce(entity))
 	if err != nil {
 		if errors.Is(err, workforce.ErrStaffAbsenceNotFound) {
-			return r.shapes.rowsAffected("update StaffAbsence")
+			return r.errs.rowsAffected("update StaffAbsence")
 		}
-		return r.shapes.absenceWrite("update", err)
+		return r.errs.absenceWrite("update", err)
 	}
 	applyAbsenceToLegacy(entity, updated)
 	return nil
@@ -73,10 +73,10 @@ func (r staffAbsenceRepository) Update(ctx context.Context, entity *StaffAbsence
 func (r staffAbsenceRepository) Delete(ctx context.Context, id any) error {
 	absenceID, err := legacyID(id)
 	if err != nil {
-		return r.shapes.Database("delete", err)
+		return r.errs.WrapRecordError("delete", err)
 	}
 	if err := r.workforce.DeleteStaffAbsence(ctx, absenceID); err != nil {
-		return r.shapes.absenceWrite("delete", err)
+		return r.errs.absenceWrite("delete", err)
 	}
 	return nil
 }
@@ -88,7 +88,7 @@ func (r staffAbsenceRepository) ListWithFilter(ctx context.Context, filter workf
 func (r staffAbsenceRepository) CountWithFilter(ctx context.Context, filter workforce.StaffAbsenceFilter) (int, error) {
 	count, err := r.workforce.CountStaffAbsences(ctx, filter)
 	if err != nil {
-		return 0, r.shapes.read("count with options", err, nil)
+		return 0, r.errs.read("count with options", err, nil)
 	}
 	return count, nil
 }
@@ -100,7 +100,7 @@ func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string,
 	}
 	oldest, err := r.workforce.OldestStaffAbsenceDate(ctx, column, before)
 	if err != nil {
-		return nil, r.shapes.read("oldest before", err, nil)
+		return nil, r.errs.read("oldest before", err, nil)
 	}
 	if oldest == "" {
 		return nil, nil
@@ -115,7 +115,7 @@ func (r staffAbsenceRepository) OldestBefore(ctx context.Context, column string,
 func (r staffAbsenceRepository) DeleteOlderThan(ctx context.Context, column string, cutoff calendar.Date) (int64, error) {
 	deleted, err := r.workforce.DeleteStaffAbsencesOlderThan(ctx, column, cutoff.String())
 	if err != nil {
-		return 0, r.shapes.absenceWrite("delete older than", err)
+		return 0, r.errs.absenceWrite("delete older than", err)
 	}
 	return deleted, nil
 }
@@ -163,7 +163,7 @@ func (r staffAbsenceRepository) GetByStaffAndDate(ctx context.Context, staffID i
 func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date calendar.Date) (map[int64]string, error) {
 	result, err := r.workforce.StaffAbsenceMapForDate(ctx, date.String())
 	if err != nil {
-		return nil, r.shapes.read("get effective absences for date", err, nil)
+		return nil, r.errs.read("get effective absences for date", err, nil)
 	}
 	return result, nil
 }
@@ -171,7 +171,7 @@ func (r staffAbsenceRepository) GetAbsenceMapForDate(ctx context.Context, date c
 func (r staffAbsenceRepository) GetAbsenceTypeIDMapForDate(ctx context.Context, date calendar.Date) (map[int64]int64, error) {
 	result, err := r.workforce.StaffAbsenceTypeIDMapForDate(ctx, date.String())
 	if err != nil {
-		return nil, r.shapes.read("get effective absences for date", err, nil)
+		return nil, r.errs.read("get effective absences for date", err, nil)
 	}
 	return result, nil
 }
@@ -203,7 +203,7 @@ func (r staffAbsenceRepository) ListRequestRows(ctx context.Context, filter Abse
 		if errors.Is(err, workforce.ErrInvalidStaffAbsence) {
 			return nil, errors.New(err.Error())
 		}
-		return nil, r.shapes.read("list absence requests", err, nil)
+		return nil, r.errs.read("list absence requests", err, nil)
 	}
 	rows := make([]*AbsenceRequestRow, 0, len(absences))
 	for _, absence := range absences {
@@ -215,7 +215,7 @@ func (r staffAbsenceRepository) ListRequestRows(ctx context.Context, filter Abse
 func (r staffAbsenceRepository) list(ctx context.Context, op string, filter workforce.StaffAbsenceFilter) ([]*StaffAbsence, error) {
 	values, err := r.workforce.ListStaffAbsences(ctx, filter)
 	if err != nil {
-		return nil, r.shapes.read(op, err, nil)
+		return nil, r.errs.read(op, err, nil)
 	}
 	// Empty, not nil: callers serialize the result straight to JSON.
 	result := make([]*StaffAbsence, 0, len(values))
@@ -229,16 +229,16 @@ func (r staffAbsenceRepository) list(ctx context.Context, op string, filter work
 // Workforce capability.
 type staffAbsenceAuditRepository struct {
 	workforce workforce.Capability
-	shapes    RowErrorShapes
+	errs      recordErrors
 }
 
 // NewStaffAbsenceAuditRows serves StaffAbsenceAuditRepository from the
 // Workforce capability.
-func NewStaffAbsenceAuditRows(capability workforce.Capability, shapes RowErrorShapes) StaffAbsenceAuditRepository {
+func NewStaffAbsenceAuditRows(capability workforce.Capability) StaffAbsenceAuditRepository {
 	if capability == nil {
 		panic("staff absence audit repository adapter: Workforce capability is required")
 	}
-	return staffAbsenceAuditRepository{workforce: capability, shapes: shapes}
+	return staffAbsenceAuditRepository{workforce: capability}
 }
 
 func (r staffAbsenceAuditRepository) Create(ctx context.Context, audit *StaffAbsenceAudit) error {
@@ -254,7 +254,7 @@ func (r staffAbsenceAuditRepository) Create(ctx context.Context, audit *StaffAbs
 		TypeChange: (*workforce.AbsenceTypeChange)(audit.TypeChange),
 	})
 	if err != nil {
-		return r.shapes.absenceWrite("create staff absence audit", err)
+		return r.errs.absenceWrite("create staff absence audit", err)
 	}
 	audit.ID = recorded.ID
 	audit.TenantID = recorded.TenantID
@@ -309,9 +309,9 @@ func applyAbsenceToLegacy(entity *StaffAbsence, value workforce.StaffAbsence) {
 // surface bare, as the row's own Validate() did, so callers that compare the
 // reason text keep seeing it; everything else is a DatabaseError whose chain
 // still reaches the driver error of a rejected duplicate.
-func (s RowErrorShapes) absenceWrite(op string, err error) error {
+func (errs recordErrors) absenceWrite(op string, err error) error {
 	if errors.Is(err, workforce.ErrInvalidStaffAbsence) || errors.Is(err, workforce.ErrAbsenceTypeInvalid) {
 		return errors.New(err.Error())
 	}
-	return s.Database(op, err)
+	return errs.WrapRecordError(op, err)
 }

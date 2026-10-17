@@ -152,16 +152,15 @@ type staffDay struct {
 }
 
 func timeTrackingRows(capability workforce.Capability) timetracking.Rows {
-	shapes := legacyRowErrors()
 	return timetracking.Rows{
 		TargetOverrides:  capability,
 		MonthSnapshots:   MonthSnapshotCapability(capability),
 		AbsenceTypes:     AbsenceTypes(capability),
-		Sessions:         timetracking.NewWorkSessionRows(capability, shapes),
-		Breaks:           timetracking.NewWorkSessionBreakRows(capability, shapes),
-		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability, shapes),
-		VacationQuotas:   timetracking.NewVacationQuotaRows(capability, shapes),
-		VacationOpenings: timetracking.NewVacationOpeningRows(capability, shapes),
+		Sessions:         timetracking.NewWorkSessionRows(capability),
+		Breaks:           timetracking.NewWorkSessionBreakRows(capability),
+		Adjustments:      timetracking.NewBalanceAdjustmentRows(capability),
+		VacationQuotas:   timetracking.NewVacationQuotaRows(capability),
+		VacationOpenings: timetracking.NewVacationOpeningRows(capability),
 	}
 }
 
@@ -184,6 +183,6 @@ func NewTimeTrackingCleanup(deps TimeTrackingCleanupDependencies) (TimeTrackingC
 		return nil, errors.New("time tracking cleanup: the Workforce capability is required")
 	}
 	return timetracking.NewCleanup(timetracking.CleanupDependencies{
-		Sessions: timetracking.NewWorkSessionRows(deps.Workforce, legacyRowErrors()), Absences: deps.Absences, Audit: deps.Audit, Settings: deps.Settings, Logger: deps.Logger,
+		Sessions: timetracking.NewWorkSessionRows(deps.Workforce), Absences: deps.Absences, Audit: deps.Audit, Settings: deps.Settings, Logger: deps.Logger,
 	})
 }
