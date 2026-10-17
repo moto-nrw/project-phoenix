@@ -62,7 +62,7 @@ func authExec(t *testing.T, tc *statisticsHTTPTestContext, req *http.Request, cl
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(tc.resource.Router(), req)
+	return testutil.ExecuteRequest(tc.resource.Router(ProtectedTenantRoutes), req)
 }
 
 type reportPayload struct {

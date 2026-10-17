@@ -23,12 +23,12 @@ import (
 const errInvalidSessionID = "invalid session ID"
 
 // Router returns a configured router for time-tracking endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// All time-tracking endpoints require TimeTrackingOwn permission
 		r.With(common.RequiresPermission(permissions.TimeTrackingOwn), withTx).Post("/check-in", rs.checkIn)

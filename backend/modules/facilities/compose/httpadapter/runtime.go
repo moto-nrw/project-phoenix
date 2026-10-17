@@ -37,18 +37,19 @@ func NewResource(
 	rooms facilitiesModule.Capability,
 	dependencies Dependencies,
 	logger *slog.Logger,
+	protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware)),
 ) *roomsHTTP.Resource {
 	if dependencies.Facilities == nil || dependencies.Settings == nil || dependencies.UserContext == nil ||
 		dependencies.Active == nil || dependencies.Users == nil || dependencies.Education == nil ||
-		dependencies.ListExport == nil || logger == nil {
+		dependencies.ListExport == nil || logger == nil || protectedTenantRoutes == nil {
 		panic("rooms HTTP composition: all dependencies are required")
 	}
-	return roomsHTTP.NewResource(rooms, runtime(dependencies, logger))
+	return roomsHTTP.NewResource(rooms, runtime(dependencies, logger, protectedTenantRoutes))
 }
 
-func runtime(dependencies Dependencies, logger *slog.Logger) roomsHTTP.Runtime {
+func runtime(dependencies Dependencies, logger *slog.Logger, protectedTenantRoutes func(chi.Router, func(chi.Router, roomsHTTP.Middleware))) roomsHTTP.Runtime {
 	return roomsHTTP.Runtime{
-		Protected:        protectedRoutes(),
+		Protected:        protectedTenantRoutes,
 		Permission:       apiCommon.RequiresPermission,
 		ParseID:          apiCommon.ParseID,
 		Pagination:       apiCommon.ParsePagination,
@@ -69,12 +70,6 @@ func runtime(dependencies Dependencies, logger *slog.Logger) roomsHTTP.Runtime {
 		ExportSnapshot:   snapshotExporter(dependencies),
 		ConstraintFailed: apiCommon.IsConstraintViolation,
 		Log:              logger,
-	}
-}
-
-func protectedRoutes() func(chi.Router, func(chi.Router, roomsHTTP.Middleware)) {
-	return func(router chi.Router, routes func(chi.Router, roomsHTTP.Middleware)) {
-		apiCommon.ProtectedTenantRoutes(router, routes)
 	}
 }
 

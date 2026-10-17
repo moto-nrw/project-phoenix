@@ -70,7 +70,7 @@ func mountDemoEnv(t *testing.T, db *bun.DB, slug string, options ...api.AuthTest
 	auth.RoleGrants = api.AccountRoleGrantPolicy()
 	router := testutil.NewTenantRouter(db)
 	router.Mount("/demo", resource.Router())
-	router.Mount("/auth", auth.Router())
+	router.Mount("/auth", auth.Router(api.TenantSessionChain))
 	return demoEnv{db: db, router: router, slug: slug, prospect: demoAddress(t), mails: mails}
 }
 

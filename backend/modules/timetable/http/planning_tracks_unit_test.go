@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	testpkg "github.com/moto-nrw/project-phoenix/test"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -61,7 +63,7 @@ func TestPlanningTrackListRouteAllowsSchedulesManage(t *testing.T) {
 		PlanningTracks: new(planningTrackServiceStub),
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(scopeTestTenantRoutes(testpkg.TenantSessionGates())))
 	request := httptest.NewRequest(http.MethodGet, "/timetable/planning-tracks/", nil)
 
 	response := testutil.ExecuteWithAuthPermissions(

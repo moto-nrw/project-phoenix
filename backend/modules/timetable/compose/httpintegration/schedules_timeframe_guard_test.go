@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -31,7 +33,7 @@ func TestSchedulesTimeframeGuardRefusesChangesACareOfferingNeeds(t *testing.T) {
 		return fmt.Errorf("%w: no complete timeframe", timetableModule.ErrTimeframeRequiredByCareOffering)
 	})
 	resource := schedulesAPI.NewSchedulesResource(services.Calendar, services.Timetable, guard, db)
-	router := resource.Router()
+	router := resource.Router(rootAPI.ProtectedTenantRoutes)
 
 	update := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/timeframes/%d", timeframe.ID), map[string]any{
 		"start_time": "2026-01-14T09:00:00Z", "is_active": true, "description": "offen",

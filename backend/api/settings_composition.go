@@ -14,7 +14,7 @@ import (
 func newSettingsResource(operations settingsHTTP.Operations, homeLayouts settingsHTTP.HomeLayoutOperations, references func(context.Context, string, string) (bool, error)) *settingsHTTP.SettingsResource {
 	settingsRuntime := settingsHTTP.NewRuntime(settingsHTTP.RuntimeDependencies{
 		Protected: func(r chi.Router, fn func(chi.Router, settingsHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(r, fn)
+			ProtectedTenantRoutes(r, fn)
 		},
 		Permission: func(access settingsHTTP.Access) settingsHTTP.Middleware {
 			switch access {

@@ -25,7 +25,7 @@ func newSubstitutionsResource(substitutions workforce.Substitutions) *substituti
 func substitutionsRuntime() substitutionsHTTP.Runtime {
 	return substitutionsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, substitutionsHTTP.Middleware)) {
-			common.ProtectedTenantRoutes(router, routes)
+			ProtectedTenantRoutes(router, routes)
 		},
 		Caller:  substitutionCaller,
 		Success: common.Respond,

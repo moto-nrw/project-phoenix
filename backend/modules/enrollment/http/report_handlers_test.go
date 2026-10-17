@@ -56,7 +56,7 @@ func TestClassRosterExportRequiresConfigManageAndUsersRead(t *testing.T) {
 		runInTenantTxForTest: func(r *http.Request, fn func(context.Context) error) error {
 			return fn(r.Context())
 		},
-	}).Router()
+	}).Router(scopeTestTenantSession(testpkg.TenantSessionGates()))
 	served := testpkg.SessionVerifier(router)
 	body := `{"format":"xlsx","filters":{"phase_id":42,"school_class":"1a"}}`
 

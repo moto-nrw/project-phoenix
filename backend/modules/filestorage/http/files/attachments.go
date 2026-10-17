@@ -80,9 +80,9 @@ func newAttachmentListResponse(attachments []filestorage.Attachment, editable bo
 // /api/announcement-attachments. It is gated on the same permission as the
 // announcements themselves (#1669): who may write an Elternmitteilung may
 // attach a file to it.
-func (rs *Resource) AnnouncementAttachmentRouter() chi.Router {
+func (rs *Resource) AnnouncementAttachmentRouter(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		admin := common.RequiresPermission(permissions.AdminWildcard)
 
 		r.With(admin, withTx).Get("/{announcementId}", rs.listAnnouncementAttachments)
@@ -97,9 +97,9 @@ func (rs *Resource) AnnouncementAttachmentRouter() chi.Router {
 // at the root rather than under /parent, which is a catch-all mount, and is
 // authenticated with ParentMiddleware. No tenant transaction: a parent token
 // is cross-tenant, so the owner resolves the school from the announcement.
-func (rs *Resource) ParentAnnouncementAttachmentRouter() chi.Router {
+func (rs *Resource) ParentAnnouncementAttachmentRouter(protectedParentGroup func(chi.Router, func(chi.Router))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedParentGroup(r, func(r chi.Router) {
+	protectedParentGroup(r, func(r chi.Router) {
 		r.Get("/{announcementId}", rs.listParentAnnouncementAttachments)
 		r.Get("/{announcementId}/{attachmentId}/download", rs.downloadParentAnnouncementAttachment)
 	})

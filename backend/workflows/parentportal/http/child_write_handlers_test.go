@@ -94,7 +94,7 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 		Logger:          slog.Default(),
 	})
 	rs := parent.NewResource(parent.ResourceConfig{Parent: svc})
-	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(rs.Router(api.ParentSessionChain))
 }
 
 func parentToken(t *testing.T, accountID int64) string {
@@ -244,7 +244,7 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 		Settings:       disabledSettings{},
 		Logger:         slog.Default(),
 	})
-	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc}).Router())
+	return testpkg.TenantRuntimeMiddleware(t, db)(parent.NewResource(parent.ResourceConfig{Parent: svc}).Router(api.ParentSessionChain))
 }
 
 func TestWriteEndpoints_FeatureDisabledForbidden(t *testing.T) {

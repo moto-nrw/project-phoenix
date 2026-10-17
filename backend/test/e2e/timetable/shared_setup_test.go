@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
@@ -124,7 +126,7 @@ func (s *scenario) tenantCtx() context.Context {
 // mountRouter builds the full timetable Resource with real services and
 // returns its router (with JWT + tenant middleware intact).
 func (s *scenario) mountRouter() timetableTestRouter {
-	return s.resource.Router()
+	return s.resource.Router(rootAPI.ProtectedTenantRoutes)
 }
 
 // do executes an HTTP request against the timetable router.

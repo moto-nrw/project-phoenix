@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
 	schedulesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/compose/httpadapter"
@@ -39,7 +41,7 @@ func TestSchedulesReadFailureIsNotNotFound(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			resource := schedulesAPI.NewSchedulesResource(failedDateframeRead{Dateframes: services.Calendar, err: tc.err}, services.Timetable, services.TimeframeGuard, db)
 			request := testutil.NewRequest("GET", fmt.Sprintf("/dateframes/%d", dateframe.ID), nil)
-			response := testutil.ExecuteWithAuth(t, resource.Router(), request, testutil.AdminTestClaims(1))
+			response := testutil.ExecuteWithAuth(t, resource.Router(rootAPI.ProtectedTenantRoutes), request, testutil.AdminTestClaims(1))
 			assert.Equal(t, tc.status, response.Code)
 			assert.Contains(t, response.Body.String(), tc.message)
 		})

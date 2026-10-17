@@ -35,7 +35,7 @@ func workTimeModelsRuntime(notifyChanged func(context.Context)) worktimemodelsHT
 
 func workTimeModelsProtectedRoutes() func(chi.Router, func(chi.Router, worktimemodelsHTTP.Middleware)) {
 	return func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
-		apiCommon.ProtectedTenantRoutes(router, routes)
+		ProtectedTenantRoutes(router, routes)
 	}
 }
 
