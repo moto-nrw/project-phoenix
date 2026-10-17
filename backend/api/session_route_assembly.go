@@ -7,11 +7,11 @@ import (
 )
 
 func ProtectedTenantRoutes(r chi.Router, fn func(chi.Router, common.Middleware)) {
-	common.ProtectedTenantRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TenantScopeMiddleware, SecurityPrincipalMiddleware)
+	common.ProtectedTenantRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, TenantScopeMiddleware, SecurityPrincipalMiddleware, RequestSettingsCacheMiddleware, RequestIdentityCacheMiddleware)
 }
 
 func ProtectedSchoolRoutes(r chi.Router, fn func(chi.Router, common.Middleware)) {
-	common.ProtectedSchoolRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware, SecurityPrincipalMiddleware)
+	common.ProtectedSchoolRoutes(r, fn, sessiontoken.Authenticator, ReadOnlyPreviewMiddleware, SchoolScopeMiddleware, SecurityPrincipalMiddleware, RequestSettingsCacheMiddleware, RequestIdentityCacheMiddleware)
 }
 
 func ProtectedParentGroup(r chi.Router, fn func(chi.Router)) {

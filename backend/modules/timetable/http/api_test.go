@@ -206,7 +206,7 @@ func TestResource_Router(t *testing.T) {
 
 	mock := &mockCalendarPeriodService{}
 	res := NewResource(periodDependencies(mock))
-	router := res.Router(scopeTestTenantRoutes(testpkg.TenantSessionGates()))
+	router := res.Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)))
 	assert.NotNil(t, router)
 }
 
