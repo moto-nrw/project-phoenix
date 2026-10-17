@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
 	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
 )
@@ -65,10 +66,10 @@ func newSettingsResource(operations settingsHTTP.Operations, homeLayouts setting
 			}
 			return &settingsHTTP.UploadedFile{File: file.File, ContentType: file.ContentType}, nil
 		},
-		ImageSave:  apiCommon.SaveImage,
-		PDFSave:    apiCommon.SavePDF,
-		FileRemove: apiCommon.RemoveImage,
-		StoredPath: apiCommon.ResolveStoredPath,
+		ImageSave:  saveImageUpload,
+		PDFSave:    savePDFUpload,
+		FileRemove: (nativeUploads.UploadFiles{}).RemoveUpload,
+		StoredPath: nativeUploads.ResolveStoredPath,
 		LegalDocumentReference: func(ctx context.Context, storedURL string) (bool, error) {
 			publicURL := enrollmentAPI.PublicLegalDocumentURL(storedURL)
 			referenced, err := references(ctx, storedURL, publicURL)

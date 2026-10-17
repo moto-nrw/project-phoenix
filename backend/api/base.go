@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
 
 	"github.com/go-chi/chi/v5"
@@ -404,7 +405,7 @@ func initializeModuleServices(db transactionruntime.Database, publicAPIURL strin
 		ObserveDelivery: observability.ObserveSynchronousDelivery, ObserveDurableDelivery: observability.ObserveDurableDelivery,
 		ObserveDeviceFleet: observability.ObserveDeviceFleetOperation, ObserveIdentityAccess: observability.ObserveIdentityAccessOperation,
 		StudentPhotoSlot: studentPhotoRuntime,
-		PhotoUnlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public"),
+		PhotoUnlinker:    studentsAPI.NewPhotoUnlinker(logger.With("component", "student-photo-unlinker"), "public", nativeUploads.UploadFiles{}),
 		Workforce:        newWorkforceWiring(db, workTime, membership, persons, organizations, staff),
 		People:           people, Platform: platform, Presence: presence, TimetableWiring: timetableWiring,
 		Enrollment: newEnrollmentWiring(enrollmentWiringOwners{
@@ -533,7 +534,7 @@ func composeFeedback(db transactionruntime.Database, settings *feedbackCompose.S
 // (#4011); their change history names the actor through the same token
 // adapter.
 func withRootWiring(db transactionruntime.Database, carePlanOwners carePlanWiringOwners, in serviceGraphInputs, publicAPIURL string) (*serviceGraph, composedIdentity, carePlanRoot, error) {
-	uploads, err := apiCommon.PrivateUploadsBackend()
+	uploads, err := nativeUploads.PrivateUploadsBackend()
 	if err != nil {
 		return nil, nil, carePlanRoot{}, fmt.Errorf("resolve uploads backend: %w", err)
 	}
@@ -1461,6 +1462,7 @@ func mountStudentRoutes(tenant chi.Router, in routeInputs, deviceAuth *deviceaut
 		return nil, fmt.Errorf("request review projection: %w", err)
 	}
 	students := studentsAPI.NewResource(studentsAPI.ResourceConfig{
+		Uploads:                      nativeUploads.UploadFiles{},
 		PeopleDirectory:              svc.PeopleDirectory,
 		Persons:                      peopleCompose.NewStudentRoutePersons(svc.Users),
 		CompanionService:             modules.companions,
@@ -1771,6 +1773,7 @@ func newEnrollmentResource(modules moduleServices, logger *slog.Logger) *enrollm
 		enrollmentGuardianInvitations(modules.identity),
 		NewEnrollmentGuardianAutofill(modules.guardianProfiles),
 		enrollmentSchoolDirectory{schools: modules.organizations},
+		nativeUploads.UploadFiles{},
 		NewEnrollmentBookings(),
 	)
 	resource.ListExportService = modules.listExport
@@ -1793,7 +1796,7 @@ func mountPeopleRoutes(tenant chi.Router, in routeInputs) {
 	}).Router())
 	// Birthday display and staff birthday list (#1542).
 	tenant.Mount("/birthdays", birthdaysAPI.NewResource(modules.birthdays, modules.listExport, modules.userContext, logger.With("handler", "birthdays")).Router(ProtectedTenantRoutes))
-	tenant.Mount("/me", meAPI.NewResource(modules.userContext.Caller(), modules.userContext, TenantSessionChain).Router())
+	tenant.Mount("/me", meAPI.NewResource(modules.userContext.Caller(), modules.userContext, TenantSessionChain, nativeUploads.UploadFiles{}).Router())
 	tenant.Mount("/emergency", emergencyAPI.NewResource(svc.Emergency).Router(ProtectedTenantRoutes))
 }
 
@@ -2136,17 +2139,17 @@ func mountPublicRoutes(root chi.Router, metricsToken string) {
 	// Public login image serving (no auth - displayed on the login page before authentication)
 	root.Get("/public/login-image/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
-		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400")
+		apiCommon.ServeImage(w, r, "public/uploads/login-images", filename, "public, max-age=86400", nativeUploads.UploadFiles{})
 	})
 
 	// Public enrollment legal document serving (no auth - parents read it before submitting).
 	root.Get("/public/enrollment-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
-		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-legal-documents", filename, "public, max-age=86400", nativeUploads.UploadFiles{})
 	})
 	root.Get("/public/enrollment-form-legal-documents/{filename}", func(w http.ResponseWriter, r *http.Request) {
 		filename := chi.URLParam(r, "filename")
-		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400")
+		apiCommon.ServeFile(w, r, "public/uploads/enrollment-form-legal-documents", filename, "public, max-age=86400", nativeUploads.UploadFiles{})
 	})
 
 	root.With(metricsAuthMiddleware(metricsToken)).Handle("/internal/metrics", metricsHandler())

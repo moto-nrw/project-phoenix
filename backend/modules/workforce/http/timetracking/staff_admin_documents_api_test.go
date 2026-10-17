@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -77,7 +78,7 @@ func setupDocumentsAPI(t *testing.T) *documentsAPIContext {
 		ctx := testpkg.Ctx(t)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM users.staff_documents WHERE staff_id = ?`, target.ID)
 		_, _ = tc.db.ExecContext(ctx, `DELETE FROM audit.staff_master_data_changes WHERE staff_id = ?`, target.ID)
-		_ = os.RemoveAll(staffDocumentsDir(testpkg.Tenant(t)))
+		_ = os.RemoveAll(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}))
 	})
 
 	return &documentsAPIContext{tc: tc, staffID: target.ID, account: account.ID}
@@ -226,7 +227,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesQueuedOrphanWithoutStaff(t *te
 		_, _ = c.tc.db.ExecContext(context.Background(), `DELETE FROM users.staff_document_file_cleanup WHERE filename_stored = ?`, storedName)
 	})
 
-	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
 	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
 
@@ -256,7 +257,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupSkipsUncommittedUpload(t *testing.T) 
 	})
 	require.NoError(t, c.tc.resource.StaffDocumentService.ActivateQueuedStaffDocumentFileCleanup(ctx, storedName))
 
-	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	require.NoError(t, os.MkdirAll(filepath.Dir(filePath), 0o750))
 	require.NoError(t, os.WriteFile(filePath, fakePDF, 0o600))
 
@@ -314,7 +315,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesOffboardedStaffDocument(t *tes
 	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
-	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	_, err := os.Stat(filePath)
 	require.NoError(t, err)
 
@@ -353,7 +354,7 @@ func TestStaffDocumentsAPI_OffboardingCleanupLeaseRetriesFileFailure(t *testing.
 	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw("SELECT filename_stored FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &storedName))
-	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	savedPath := filePath + ".saved"
 	require.NoError(t, os.Rename(filePath, savedPath))
 	require.NoError(t, os.Mkdir(filePath, 0700))
@@ -409,7 +410,7 @@ func TestStaffDocumentsAPI_DirectoryRetryRespectsCommittedOffboardingLease(t *te
 		c.tc.resource.RetryQueuedStaffDocumentCleanups(txCtx, "directory")
 		return nil
 	}))
-	_, err = os.Stat(filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName))
+	_, err = os.Stat(filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName))
 	require.NoError(t, err, "the directory retry must not unlink a different worker's claimed file")
 	var fileDeletedAt *time.Time
 	require.NoError(t, c.tc.db.NewRaw("SELECT file_deleted_at FROM users.staff_documents WHERE id = ?", docID).Scan(ctx, &fileDeletedAt))
@@ -426,7 +427,7 @@ func TestStaffDocumentsAPI_ScheduledCleanupRetriesDeletedActiveStaffDocument(t *
 	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
-	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	_, err := c.tc.db.NewRaw(`UPDATE users.staff_documents SET deleted_at = NOW(), file_deleted_at = NULL WHERE id = ?`, docID).Exec(ctx)
 	require.NoError(t, err)
 
@@ -454,7 +455,7 @@ func TestStaffDocumentsAPI_SickNoteRetentionRemovesTheFileThroughTheSweep(t *tes
 	ctx := testpkg.Ctx(t)
 	var storedName string
 	require.NoError(t, c.tc.db.NewRaw(`SELECT filename_stored FROM users.staff_documents WHERE id = ?`, docID).Scan(ctx, &storedName))
-	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t)), storedName)
+	filePath := filepath.Join(staffDocumentsDir(testpkg.Tenant(t), nativeUploads.UploadFiles{}), storedName)
 	_, err := os.Stat(filePath)
 	require.NoError(t, err, "the upload stored the file")
 	_, err = c.tc.db.ExecContext(ctx, `UPDATE users.staff_documents SET created_at = NOW() - INTERVAL '400 days' WHERE id = ?`, docID)

@@ -1,16 +1,14 @@
-package common
+package objects
 
 import (
 	"context"
 	"io"
 	"time"
-
-	storage "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 )
 
 // PrivateUploads binds managed tenant objects to the shared uploads backend.
 // Callers supply the storage kind; tenant keys are validated before every access.
-type PrivateUploads struct{ backend storage.Backend }
+type PrivateUploads struct{ backend Backend }
 
 // PrivateUploadsBackend resolves the same uploads root as other document flows.
 func PrivateUploadsBackend() (*PrivateUploads, error) {
@@ -22,18 +20,18 @@ func PrivateUploadsBackend() (*PrivateUploads, error) {
 }
 
 func (s *PrivateUploads) SavePrivate(ctx context.Context, kind string, tenantID int64, storedName string, source io.Reader) (int64, error) {
-	key, err := storage.TenantKey(kind, tenantID, storedName)
+	key, err := TenantKey(kind, tenantID, storedName)
 	if err != nil {
 		return 0, err
 	}
-	return s.backend.WriteObject(ctx, key, source, storage.SaveOptions{Private: true})
+	return s.backend.WriteObject(ctx, key, source, SaveOptions{Private: true})
 }
 
 func (s *PrivateUploads) OpenPrivate(ctx context.Context, kind string, tenantID int64, storedName string) (interface {
 	io.ReadSeekCloser
 	ModTime() time.Time
 }, error) {
-	key, err := storage.TenantKey(kind, tenantID, storedName)
+	key, err := TenantKey(kind, tenantID, storedName)
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +43,7 @@ func (s *PrivateUploads) OpenPrivate(ctx context.Context, kind string, tenantID 
 }
 
 func (s *PrivateUploads) RemovePrivate(ctx context.Context, kind string, tenantID int64, storedName string) error {
-	key, err := storage.TenantKey(kind, tenantID, storedName)
+	key, err := TenantKey(kind, tenantID, storedName)
 	if err != nil {
 		return err
 	}

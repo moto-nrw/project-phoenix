@@ -40,6 +40,7 @@ import (
 	"time"
 
 	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -197,7 +198,7 @@ func readStudentPhotoPath(t *testing.T, tc *testContext, studentID int64) string
 // the file is removed after a successful delete.
 func seedStudentWithPhoto(t *testing.T, tc *testContext, studentID int64) (storedURL, onDisk string) {
 	t.Helper()
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	require.NoError(t, err, "resolve public dir")
 
 	dir := filepath.Join(pubDir, "uploads", "student-photos")
@@ -253,7 +254,7 @@ func removeUploadedPhotoFile(t *testing.T, body []byte) {
 	if filename == "" {
 		return
 	}
-	pubDir, err := common.ResolvePublicDir()
+	pubDir, err := nativeUploads.ResolvePublicDir()
 	if err != nil {
 		return
 	}
