@@ -1,7 +1,6 @@
 package api
 
 import (
-	"context"
 	"fmt"
 	"log/slog"
 
@@ -16,16 +15,12 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
 	membershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
 	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	offboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
 )
 
 // The People Directory, School Membership and Workforce glue of the root
@@ -207,58 +202,9 @@ func PresenceStudents(db transactionruntime.Database, source presenceStudentSour
 // offboarding workflow over db and an unobserved Workforce employment owner
 // (#4007).
 func NewStaffMembershipRuntime(f *serviceGraph, db transactionruntime.Database, identity *identityaccess.Module, logger *slog.Logger, hooks StaffMembershipHooks) StaffMembershipRuntime {
-	offboarding, err := NewStaffOffboardingDependencies(db)
+	offboarding, err := NewStaffOffboardingOwners(db, peopleCompose.MustNewReads(db.Pool(), studentDirectoryView.NewReader()), MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(db.Pool())))
 	if err != nil {
-		panic(fmt.Sprintf("compose staff offboarding: %v", err))
+		panic(err)
 	}
 	return bindStaffMembershipRuntime(f, offboarding, identity, logger, hooks)
-}
-
-// NewStaffOffboardingDependencies joins the public owner capabilities needed
-// by the staff lifecycle workflow. The API root owns this cross-owner wiring.
-func NewStaffOffboardingDependencies(db transactionruntime.Database) (offboardingcompose.Dependencies, error) {
-	pool := db.Pool()
-	membershipDeps := membershipCompose.Dependencies{
-		DB:         pool,
-		Observe:    func(membershipCompose.Observation) {},
-		Employment: MembershipStaffEmployment(workforceCompose.MustNewStaffEmployment(pool)),
-	}
-	membership, err := membershipCompose.New(membershipDeps)
-	if err != nil {
-		return offboardingcompose.Dependencies{}, err
-	}
-	retirement, err := membershipCompose.NewOffboarding(membershipDeps)
-	if err != nil {
-		return offboardingcompose.Dependencies{}, err
-	}
-	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: pool, Observe: func(presenceCompose.Observation) {}})
-	if err != nil {
-		return offboardingcompose.Dependencies{}, err
-	}
-	timetable, err := timetableCompose.NewOffboarding(timetableCompose.OffboardingDependencies{
-		DB: pool, Sessions: timetableCompose.NewPresenceSessionFacts(presence), Observe: func(timetableCompose.Observation) {},
-	})
-	if err != nil {
-		return offboardingcompose.Dependencies{}, err
-	}
-	return offboardingcompose.Dependencies{
-		DB: pool, People: peopleCompose.MustNewReads(pool, studentDirectoryView.NewReader()),
-		FindStaff: membership.FindStaff, Membership: retirement, Timetable: timetable,
-		LockSupervision: presence.LockStaffSupervision,
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
-		},
-		LiveStaffIDs: func(ctx context.Context, membershipIDs []int64) ([]int64, error) {
-			rows, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: membershipIDs, MembershipOnly: true})
-			if err != nil {
-				return nil, err
-			}
-			ids := make([]int64, 0, len(rows))
-			for _, row := range rows {
-				ids = append(ids, row.ID)
-			}
-			return ids, nil
-		},
-	}, nil
 }

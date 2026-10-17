@@ -72,7 +72,8 @@ func newOffboardingScenario(t *testing.T, databases ...*bun.DB) *offboardingScen
 	require.NoError(t, err)
 
 	actorAccount := testpkg.CreateTestAccount(t, db, "offboarding-audit-actor@example.org")
-	deps, err := api.NewStaffOffboardingDependencies(testpkg.NewDatabase(t, db))
+	deps, err := api.NewStaffOffboardingOwners(testpkg.NewDatabase(t, db), peopleCompose.MustNewReads(db, testpkg.StudentDirectory{}),
+		api.MembershipStaffEmployment(api.MustNewStaffEmployment(testpkg.NewDatabase(t, db))))
 	require.NoError(t, err)
 	deps.Access = api.StaffOffboardingAccess(authService)
 	deps.Authorize = func(ctx context.Context) (staffoffboarding.Actor, error) {
