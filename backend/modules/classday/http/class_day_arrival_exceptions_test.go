@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -70,7 +72,7 @@ func setupArrivalExceptionRoute(t *testing.T) (*testpkg.DB, func(t *testing.T, c
 		require.NoError(t, err)
 		return body
 	}
-	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter()
+	return db, retainedMondayReport, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter(rootAPI.ProtectedSchoolRoutes)
 }
 
 // setupArrivalExceptionFixture builds one Lehrkraft with an assigned class

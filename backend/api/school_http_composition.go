@@ -25,7 +25,7 @@ func NewSchoolPortalHTTP(
 	if timetable != nil {
 		supervision = timetable
 	}
-	var notificationRoutes schoolportal.SchoolRouter
+	var notificationRoutes schoolportal.NotificationRouter
 	if notifications != nil {
 		notificationRoutes = notifications
 	}

@@ -1,4 +1,4 @@
-// Package http_test drives the production Resource.Router(), so the full
+// Package http_test drives the production Resource.Router(rootAPI.ProtectedTenantRoutes), so the full
 // middleware chain (Verifier → Authenticator → TenantMiddleware →
 // RequiresPermission → TenantTxMiddleware) runs exactly as on the real server.
 //
@@ -16,6 +16,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -81,7 +83,7 @@ func birthdayAuthExec(t *testing.T, tc *birthdayTestContext, req *http.Request, 
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequest(tc.resource.Router(), req)
+	return testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 }
 
 // setPersonBirthday stamps a birth date on an existing fixture person. The
@@ -184,7 +186,7 @@ func TestOverviewRejectsUnauthenticated(t *testing.T) {
 
 	req, err := http.NewRequest("GET", "/", nil)
 	require.NoError(t, err)
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
 }

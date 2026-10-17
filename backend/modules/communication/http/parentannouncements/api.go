@@ -33,10 +33,10 @@ func NewResource(service announcementService.ParentAnnouncementCapability, repor
 }
 
 // Router returns the chi router scoped to /parent-announcements.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Authoring parent broadcasts is ADMIN-ONLY in v1 (#1669 product
 		// decision, 2026-07-02: "nur Admins"). The route is the only audience

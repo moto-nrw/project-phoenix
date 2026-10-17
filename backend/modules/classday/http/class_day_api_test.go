@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -29,7 +31,7 @@ import (
 func setupClassDayRoute(t *testing.T) (*testpkg.DB, chi.Router) {
 	t.Helper()
 	db, factory := setupClassDayModule(t)
-	return db, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter()
+	return db, classdayhttp.NewResource(factory.ClassDay, nil).SchoolRouter(rootAPI.ProtectedSchoolRoutes)
 }
 
 func TestClassDayAPI(t *testing.T) {

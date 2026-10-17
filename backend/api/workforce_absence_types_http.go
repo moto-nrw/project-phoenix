@@ -25,7 +25,7 @@ func newAbsenceTypesResource(types workforce.AbsenceTypeAdministration, resolveA
 func absenceTypesRuntime(resolveActor func(context.Context) (int64, error)) absencetypesHTTP.Runtime {
 	return absencetypesHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, absencetypesHTTP.Middleware)) {
-			common.ProtectedTenantRoutes(router, routes)
+			ProtectedTenantRoutes(router, routes)
 		},
 		Permission:         common.RequiresPermission,
 		AnyPermission:      common.RequiresAnyPermission,

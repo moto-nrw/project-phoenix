@@ -9,6 +9,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -45,7 +47,7 @@ func setupIdempotentCreateRoute(t *testing.T) *idempotentCreateSetup {
 		InstanceService: serviceFactory.Instance,
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(rootAPI.ProtectedTenantRoutes))
 	return &idempotentCreateSetup{
 		db: db, router: router, claimsID: int(account.ID),
 		tenantID: tenant.FromContext(ctx), roomID: room.ID,

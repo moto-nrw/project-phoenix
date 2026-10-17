@@ -8,6 +8,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -72,7 +74,7 @@ func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/phases/public/%s", targetSchool.Slug), nil)
 	req = req.WithContext(testpkg.WithPackageTenantRuntime(req.Context()))
 	w := httptest.NewRecorder()
-	resource.Router().ServeHTTP(w, req)
+	resource.Router(rootAPI.TenantSessionChain).ServeHTTP(w, req)
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Contains(t, w.Body.String(), `"name":"Target Tenant Phase"`)
 	assert.NotContains(t, w.Body.String(), `"name":"Other Tenant Phase"`)

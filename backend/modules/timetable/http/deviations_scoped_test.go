@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
@@ -59,7 +61,7 @@ func setupScopedDeviationsRoute(t *testing.T) *scopedDevSetup {
 		Deviations:      serviceFactory.TimetableData.Deviations,
 	})
 	router := chi.NewRouter()
-	router.Mount("/timetable", resource.Router())
+	router.Mount("/timetable", resource.Router(rootAPI.ProtectedTenantRoutes))
 	return &scopedDevSetup{
 		db: db, ctx: ctx, router: router, claimsID: int(account.ID), roomID: room.ID,
 		staffA: a.ID, staffX: x.ID, staffY: y.ID, staffB: b.ID,

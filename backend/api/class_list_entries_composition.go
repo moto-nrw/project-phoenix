@@ -26,7 +26,7 @@ import (
 func newClassListEntriesResource(entries schoolMembershipModule.ClassListEntries, logger *slog.Logger) *classListHTTP.Resource {
 	return classListHTTP.NewResource(entries, classListHTTP.Runtime{
 		Protected: func(router chi.Router, register func(chi.Router, classListHTTP.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
+			ProtectedTenantRoutes(router, func(protected chi.Router, withTx apiCommon.Middleware) {
 				register(protected, withTx)
 			})
 		},

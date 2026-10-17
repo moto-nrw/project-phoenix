@@ -1,5 +1,5 @@
 // Package students_test exercises POST /students/export end-to-end through the
-// production Resource.Router(), so the full middleware chain (Verifier →
+// production Resource.Router(rootAPI.ProtectedTenantRoutes), so the full middleware chain (Verifier →
 // Authenticator → TenantMiddleware → RequiresPermission → TenantTxMiddleware)
 // runs exactly as it does on the real server.
 //
@@ -14,6 +14,8 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -78,7 +80,7 @@ func TestBirthdayExportRejectsUnauthenticated(t *testing.T) {
 	tc := setupStudentsRoute(t)
 
 	body := `{"format":"xlsx","preset":"birthday_list"}`
-	rr := testutil.ExecuteRequest(tc.resource.Router(), birthdayExportRequest(t, body))
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), birthdayExportRequest(t, body))
 
 	assert.Equal(t, http.StatusUnauthorized, rr.Code, rr.Body.String())
 }

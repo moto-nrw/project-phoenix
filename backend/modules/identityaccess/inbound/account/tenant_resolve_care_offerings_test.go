@@ -9,6 +9,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -53,7 +55,7 @@ func TestResolveTenant_CareOfferingsEnabled(t *testing.T) {
 		resource := authAPI.NewResource(authRoute.AuthService, authRoute.Invitations, schoolService, authRoute.Sessions, identityaccessCompose.TenantUnitOfWork{})
 		resource.SettingsService = reader
 		router := chi.NewRouter()
-		router.Mount("/auth", resource.Router())
+		router.Mount("/auth", resource.Router(rootAPI.TenantSessionChain))
 
 		req := httptest.NewRequest(http.MethodGet, "/auth/tenant/resolve?slug="+subdomain, nil)
 		rr := httptest.NewRecorder()

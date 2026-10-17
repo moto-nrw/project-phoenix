@@ -17,7 +17,7 @@ type staffPWAUsage interface {
 
 func pwaUsageRouter(usage staffPWAUsage) chi.Router {
 	router := chi.NewRouter()
-	apiCommon.ProtectedTenantRoutes(router, func(r chi.Router, withTx apiCommon.Middleware) {
+	ProtectedTenantRoutes(router, func(r chi.Router, withTx apiCommon.Middleware) {
 		pwaHTTP.NewResource(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			reportPWAUsage(w, r, usage)
 		}), withTx).Register(r)

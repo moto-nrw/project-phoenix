@@ -85,7 +85,7 @@ func TestSnapshotRouteAuthorization(t *testing.T) {
 				claims.Permissions = tc.permissions
 				req.Header.Set("Authorization", "Bearer "+routetest.MintTestJWT(t, claims))
 			}
-			rr := routetest.ExecuteRequestForTest(t, rs.Router(), req)
+			rr := routetest.ExecuteRequestForTest(t, rs.Router(scopeTestTenantRoutes(testpkg.TenantSessionGates())), req)
 			require.Equal(t, tc.status, rr.Code, rr.Body.String())
 			if tc.status == 200 {
 				require.Equal(t, 1, calls)

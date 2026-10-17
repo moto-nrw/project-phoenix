@@ -35,9 +35,9 @@ func NewResource(svc communication.StaffMessagingCapability) *Resource {
 // a caller can reach are decided by participation, enforced in the service and
 // by RLS. Adding a permission here would suggest a granularity the feature does
 // not have.
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedTenantRoutes(r, rs.registerRoutes)
+	protectedTenantRoutes(r, rs.registerRoutes)
 	return r
 }
 
@@ -46,9 +46,9 @@ func (rs *Resource) Router() chi.Router {
 // gated to school-scope tokens by ProtectedSchoolRoutes. A Lehrkraft holds a
 // users.staff row (services/auth/school_identity.go), so the staffJoin that
 // decides who is addressable admits them without a special case.
-func (rs *Resource) SchoolRouter() chi.Router {
+func (rs *Resource) SchoolRouter(protectedSchoolRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
-	common.ProtectedSchoolRoutes(r, rs.registerRoutes)
+	protectedSchoolRoutes(r, rs.registerRoutes)
 	return r
 }
 

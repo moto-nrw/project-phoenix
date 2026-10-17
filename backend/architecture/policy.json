@@ -14304,17 +14304,6 @@
       "target_role": "contract"
     },
     {
-      "id": "school-calendar.identity-adapter",
-      "description": "Staff calendar handlers verify and authenticate the JWT and scope the tenant (#2703).",
-      "scopes": [
-        "production"
-      ],
-      "source_owner": "school-calendar",
-      "source_role": "http",
-      "target_owner": "identity-access",
-      "target_role": "http"
-    },
-    {
       "id": "e2e-calendar.to.school-calendar-http",
       "description": "The calendar E2E flows drive the staff calendar HTTP adapter (#2703).",
       "scopes": [

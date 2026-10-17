@@ -385,7 +385,7 @@ func authExec(t *testing.T, tc *testContext, req *http.Request, claims sessionto
 	t.Helper()
 	claims.Permissions = perms
 	req.Header.Set("Authorization", "Bearer "+testutil.MintTestJWT(t, claims))
-	return testutil.ExecuteRequestForTest(t, tc.resource.Router(), req)
+	return testutil.ExecuteRequestForTest(t, tc.resource.Router(api.ProtectedTenantRoutes), req)
 }
 
 // callerReviewAccess reports the caller context's review access level, as the

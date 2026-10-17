@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	rootAPI "github.com/moto-nrw/project-phoenix/api"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -33,7 +35,7 @@ func deviceExec(t *testing.T, tc *testContext, req *http.Request, apiKey *string
 	t.Helper()
 	req.Header.Set("Authorization", "Bearer "+*apiKey)
 	req.Header.Set("X-Staff-PIN", testDevicePIN)
-	return testutil.ExecuteRequest(tc.resource.Router(), req)
+	return testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 }
 
 func TestAssignRFIDTag_WithDeviceAuth(t *testing.T) {
@@ -147,7 +149,7 @@ func TestAssignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 	}
 	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/%d/rfid", student.ID), body)
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	// Without device credentials, should return unauthorized
 	testutil.AssertUnauthorized(t, rr)
@@ -162,7 +164,7 @@ func TestUnassignRFIDTag_RequiresDeviceAuth(t *testing.T) {
 
 	req := testutil.NewRequest("DELETE", fmt.Sprintf("/%d/rfid", student.ID), nil)
 
-	rr := testutil.ExecuteRequest(tc.resource.Router(), req)
+	rr := testutil.ExecuteRequest(tc.resource.Router(rootAPI.ProtectedTenantRoutes), req)
 
 	// Without device credentials, should return unauthorized
 	testutil.AssertUnauthorized(t, rr)

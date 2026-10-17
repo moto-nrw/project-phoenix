@@ -124,8 +124,8 @@ func setupStaffNoticeRoutes(t *testing.T) *staffNoticeRouteFixture {
 	return &staffNoticeRouteFixture{
 		db:       db,
 		tenantID: tenantID,
-		tenant:   rs.Router(),
-		school:   rs.SchoolRouter(),
+		tenant:   rs.Router(api.ProtectedTenantRoutes),
+		school:   rs.SchoolRouter(api.ProtectedSchoolRoutes),
 		admin:    noticePrincipal{accountID: adminAccount.ID, email: adminAccount.Email, roles: []string{"admin"}},
 		staff:    noticePrincipal{accountID: staffAccount.ID, email: staffAccount.Email, roles: []string{"user"}, name: "Betreuung " + staffLast},
 		teacher:  noticePrincipal{accountID: teacherAccount.ID, email: teacherAccount.Email, roles: []string{"lehrkraft"}, scope: tenant.ScopeSchool, name: "Lehr " + staffLast},

@@ -62,12 +62,12 @@ func NewResource(educationService GroupService, activeService studentpresence.Pr
 }
 
 // Router returns a configured router for group endpoints
-func (rs *Resource) Router() chi.Router {
+func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Router, common.Middleware))) chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 
 	// Protected routes that require authentication and permissions
-	common.ProtectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
+	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
 
 		// Read operations only require groups:read permission
 		r.With(common.RequiresPermission(permissions.GroupsRead), withTx).Get("/", rs.listGroups)

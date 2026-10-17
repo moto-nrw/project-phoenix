@@ -93,7 +93,7 @@ func setupUnreadTest(t *testing.T) *unreadEnv {
 		nil, enrollmentAPI.GuardianInvitationRuntime{}, nil, nil,
 	)
 	return &unreadEnv{
-		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router()),
+		db: db, router: testpkg.TenantRuntimeMiddleware(t, db)(resource.Router(api.TenantSessionChain)),
 		tenantID: tenantID, phaseID: phase.ID, repos: repos, requests: requests,
 	}
 }

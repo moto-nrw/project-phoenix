@@ -1,7 +1,10 @@
 package httpadapter_test
 
 import (
+	"net/http"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -14,7 +17,7 @@ import (
 // The typed root composes the owners the internal route tests run over. It
 // imports this package, so the binding lives in the external test package.
 func init() {
-	httpadapter.ComposeRooms = func(t *testing.T) (*bun.DB, httpadapter.RoomsComposition) {
+	httpadapter.ComposeRooms = func(t *testing.T) (*bun.DB, httpadapter.RoomsComposition, func(chi.Router, func(chi.Router, func(http.Handler) http.Handler))) {
 		t.Helper()
 		db := testpkg.SetupTestDB(t)
 		svc, err := api.NewRoomsTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
@@ -25,6 +28,6 @@ func init() {
 				Active: svc.Active, Users: api.NewRoomSnapshotPeople(svc.Users), Education: svc.Education, ListExport: svc.ListExport,
 			},
 			Usage: svc.RoomUsage,
-		}
+		}, api.ProtectedTenantRoutes
 	}
 }

@@ -79,7 +79,7 @@ func guardianFailureKind(kind GuardianFailureKind) usersAPI.FailureKind {
 func newGuardiansResource(module peopleModule.Capability, runtime GuardianDirectoryRuntime, appEnv string, logger *slog.Logger) *usersAPI.GuardianResource {
 	return usersAPI.NewGuardianResource(module, usersAPI.GuardianRuntime{
 		Protected: func(router chi.Router, register func(chi.Router, usersAPI.Middleware)) {
-			apiCommon.ProtectedTenantRoutes(router, register)
+			ProtectedTenantRoutes(router, register)
 		},
 		Permission: func(permission string) usersAPI.Middleware {
 			return apiCommon.RequiresPermission(permission)

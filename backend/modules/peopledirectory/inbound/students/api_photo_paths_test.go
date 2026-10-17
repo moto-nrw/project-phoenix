@@ -13,7 +13,7 @@
 //   - deleteStudent: the photo URL is captured from the locked row and
 //     the file is unlinked after the OUTER tx commits.
 //
-// All tests here go through tc.resource.Router() via authExec so they
+// All tests here go through tc.resource.Router(rootAPI.ProtectedTenantRoutes) via authExec so they
 // reuse the same hermetic plumbing as students_test.go (real DB, real
 // service factory, testpkg.RecordingBroadcaster).
 package students_test
