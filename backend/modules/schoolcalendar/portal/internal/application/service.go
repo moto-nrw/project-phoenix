@@ -1432,165 +1432,22 @@ func (s *service) resolveTargets(ctx context.Context, deliveryMode string, targe
 		return nil, nil, err
 	}
 
-	staffIDs := map[int64]struct{}{}
-	guardianStudents := map[int64]map[int64]struct{}{}
+	recipients := targetRecipients{
+		staffIDs:         map[int64]struct{}{},
+		guardianStudents: map[int64]map[int64]struct{}{},
+	}
 	targetRows := make([]*appointmentcap.AppointmentTarget, 0, len(targets))
-	guardianCanReceive := func(guardianProfileID int64) (bool, error) {
-		return readSet.activeGuardians[guardianProfileID], nil
-	}
-	addGuardian := func(guardianProfileID int64, studentID *int64) (bool, error) {
-		if guardianProfileID <= 0 {
-			return false, nil
-		}
-		active, err := guardianCanReceive(guardianProfileID)
-		if err != nil {
-			return false, err
-		}
-		if !active {
-			return false, nil
-		}
-		if _, ok := guardianStudents[guardianProfileID]; !ok {
-			guardianStudents[guardianProfileID] = map[int64]struct{}{}
-		}
-		if studentID != nil && *studentID > 0 {
-			guardianStudents[guardianProfileID][*studentID] = struct{}{}
-		}
-		return true, nil
-	}
-	addStudentGuardians := func(studentID int64) (int, error) {
-		added := 0
-		for _, link := range readSet.linksByStudent[studentID] {
-			if link.PortalAccess {
-				ok, err := addGuardian(link.GuardianProfileID, &studentID)
-				if err != nil {
-					return 0, err
-				}
-				if ok {
-					added++
-				}
-			}
-		}
-		return added, nil
-	}
-	// All guardian links and active profiles were loaded once before this loop;
-	// target expansion below is now pure in-memory grouping.
-	addStudentsGuardians := func(studentIDs []int64) (int, error) {
-		added := 0
-		for _, studentID := range studentIDs {
-			count, err := addStudentGuardians(studentID)
-			if err != nil {
-				return 0, err
-			}
-			added += count
-		}
-		return added, nil
-	}
-
 	for _, target := range targets {
 		targetRows = append(targetRows, &appointmentcap.AppointmentTarget{
 			TargetType:  target.Type,
 			TargetID:    target.ID,
 			TargetValue: target.Value,
 		})
-		switch target.Type {
-		case appointmentcap.TargetTypeAllStaff:
-			// Only invite staff who can actually use the calendar (active
-			// account + calendar:own); unreachable staff would leave RSVP
-			// appointments permanently pending and skew attendee counts.
-			for staffID := range readSet.reachableStaff {
-				staffIDs[staffID] = struct{}{}
-			}
-		case appointmentcap.TargetTypeStaff:
-			if !readSet.reachableStaff[*target.ID] {
-				return nil, nil, fmt.Errorf("%w: staff target is not available", ErrInvalidRequest)
-			}
-			staffIDs[*target.ID] = struct{}{}
-		case appointmentcap.TargetTypeGuardianProfile:
-			if !readSet.activeGuardians[*target.ID] {
-				return nil, nil, fmt.Errorf("%w: guardian target is not available", ErrInvalidRequest)
-			}
-			visible := false
-			for _, link := range readSet.linksByGuardian[*target.ID] {
-				if link.PortalAccess {
-					visible = true
-					studentID := link.StudentID
-					if _, err := addGuardian(*target.ID, &studentID); err != nil {
-						return nil, nil, err
-					}
-				}
-			}
-			if !visible {
-				return nil, nil, fmt.Errorf("%w: guardian target is not portal-visible", ErrInvalidRequest)
-			}
-		case appointmentcap.TargetTypeAllSchoolParents:
-			// Every portal-active guardian of the school's ACTIVE students. Resolve
-			// in bulk so a school-wide appointment stays a couple of queries, not one
-			// per student. Filter to active students at the DB so pending or inactive
-			// (e.g. former) families never receive school-wide appointmentcap.
-			studentIDs := activeStudentIDs(readSet.allSchoolStudents)
-			added, err := addStudentsGuardians(studentIDs)
-			if err != nil {
-				return nil, nil, err
-			}
-			if added == 0 {
-				return nil, nil, fmt.Errorf("%w: no reachable guardians at this school", ErrInvalidRequest)
-			}
-		case appointmentcap.TargetTypeParentsByStudent:
-			added, err := addStudentGuardians(*target.ID)
-			if err != nil {
-				return nil, nil, err
-			}
-			if added == 0 {
-				return nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
-			}
-		case appointmentcap.TargetTypeParentsByGroup:
-			// Only active students' guardians — a former student still assigned to
-			// the group must not receive the group-wide appointment.
-			studentIDs := activeStudentIDs(readSet.studentsByGroup[*target.ID])
-			added, err := addStudentsGuardians(studentIDs)
-			if err != nil {
-				return nil, nil, err
-			}
-			if added == 0 {
-				return nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
-			}
-		case appointmentcap.TargetTypeParentsByClass:
-			// Only active students' guardians — a former student still tagged with
-			// the class must not receive the class-wide appointment.
-			studentIDs := activeStudentIDs(readSet.studentsByClass[normalizeCalendarClass(*target.Value)])
-			added, err := addStudentsGuardians(studentIDs)
-			if err != nil {
-				return nil, nil, err
-			}
-			if added == 0 {
-				return nil, nil, fmt.Errorf("%w: parent target has no reachable guardians", ErrInvalidRequest)
-			}
+		if err := recipients.addTarget(readSet, target); err != nil {
+			return nil, nil, err
 		}
 	}
-
-	recipients := make([]appointmentcap.AppointmentRecipientFields, 0, len(staffIDs)+len(guardianStudents))
-	for staffID := range staffIDs {
-		id := staffID
-		recipients = append(recipients, appointmentcap.AppointmentRecipientFields{
-			RecipientType: appointmentcap.RecipientTypeStaff,
-			StaffID:       &id,
-			Status:        status,
-		})
-	}
-	for guardianProfileID, studentIDs := range guardianStudents {
-		id := guardianProfileID
-		studentList := make([]int64, 0, len(studentIDs))
-		for studentID := range studentIDs {
-			studentList = append(studentList, studentID)
-		}
-		recipients = append(recipients, appointmentcap.AppointmentRecipientFields{
-			RecipientType:     appointmentcap.RecipientTypeGuardianProfile,
-			GuardianProfileID: &id,
-			Status:            status,
-			StudentIDs:        studentList,
-		})
-	}
-	return recipients, targetRows, nil
+	return recipients.fields(status), targetRows, nil
 }
 
 // activeStudentIDs returns the IDs of the students that are currently active. A
