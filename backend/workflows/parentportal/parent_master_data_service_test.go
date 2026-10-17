@@ -47,6 +47,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
@@ -112,6 +113,7 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
@@ -155,6 +157,7 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		ChildRepo:      repos.ParentChildReads(),

@@ -79,6 +79,7 @@ func buildRelAcctService(t *testing.T, inviteMode string, canRemove bool) (*pare
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),
@@ -421,6 +422,7 @@ func buildRelAcctServiceWith(t *testing.T, settings parentService.SettingsServic
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
@@ -497,6 +499,7 @@ func buildRelAcctServiceInvites(t *testing.T, inviteMode string, canRemove bool,
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy: api.ParentGuardianPolicy{},
 		Fingerprints:   api.SecurityFingerprints{},
+		Declarations:   api.ParentDeclarationPolicy(),
 		Locales:        api.ParentPortalLocales(),
 		Runtime:        api.ParentPortalRuntime{},
 		CarePlan:       repos.CarePlan(),

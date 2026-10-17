@@ -1,6 +1,7 @@
 package api
 
 import (
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	"github.com/moto-nrw/project-phoenix/realtime"
@@ -38,4 +39,9 @@ func BindParentStudentUpdates(broadcaster realtime.Broadcaster) interface{ Stude
 		event := realtime.NewEvent(realtime.EventStudentUpdated, "", realtime.EventData{Source: &source})
 		return broadcaster.BroadcastToTenant(tenantID, event)
 	})
+}
+
+// ParentDeclarationPolicy binds the workflow port to Communication's value policy.
+func ParentDeclarationPolicy() communication.DeclarationPolicy {
+	return communication.DeclarationPolicy{}
 }

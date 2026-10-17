@@ -49,6 +49,7 @@ func buildCareScheduleService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:         api.ParentGuardianPolicy{},
 		Fingerprints:           api.SecurityFingerprints{},
+		Declarations:           api.ParentDeclarationPolicy(),
 		Locales:                api.ParentPortalLocales(),
 		Runtime:                api.ParentPortalRuntime{},
 		MessagingEnabled:       api.BindParentMessagingGate(settings, slog.Default()),

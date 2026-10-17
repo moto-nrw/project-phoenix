@@ -27,6 +27,7 @@ func buildRequestService(t *testing.T) (*parentService.Portal, *bun.DB) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),
@@ -290,6 +291,7 @@ func TestSubmitMasterDataChangeRequest_PerRowCreatedPills(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		CarePlan:            repos.CarePlan(),

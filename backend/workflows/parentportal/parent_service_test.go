@@ -59,6 +59,7 @@ func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentSe
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:        api.ParentGuardianPolicy{},
 		Fingerprints:          api.SecurityFingerprints{},
+		Declarations:          api.ParentDeclarationPolicy(),
 		Locales:               api.ParentPortalLocales(),
 		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: repo,
@@ -126,6 +127,7 @@ func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:        api.ParentGuardianPolicy{},
 		Fingerprints:          api.SecurityFingerprints{},
+		Declarations:          api.ParentDeclarationPolicy(),
 		Locales:               api.ParentPortalLocales(),
 		Runtime:               api.ParentPortalRuntime{},
 		EnrollmentRequestRepo: nil,
@@ -315,6 +317,7 @@ func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t)}},
@@ -437,6 +440,7 @@ func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
@@ -476,6 +480,7 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		People:              portalLocalePeople{repo: repo, tenantIDs: []int64{testpkg.Tenant(t), otherTenant}},
@@ -521,6 +526,7 @@ func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
 		GuardianPolicy:      api.ParentGuardianPolicy{},
 		Fingerprints:        api.SecurityFingerprints{},
+		Declarations:        api.ParentDeclarationPolicy(),
 		Locales:             api.ParentPortalLocales(),
 		Runtime:             api.ParentPortalRuntime{},
 		GuardianProfileRepo: nil,
